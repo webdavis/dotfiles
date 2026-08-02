@@ -1823,7 +1823,7 @@
       "label": "die()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L180",
+      "source_location": "L237",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1837,7 +1837,7 @@
       "label": "warn()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L185",
+      "source_location": "L242",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1851,7 +1851,7 @@
       "label": "run_privileged()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L189",
+      "source_location": "L246",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1865,7 +1865,7 @@
       "label": "dropin_path()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L197",
+      "source_location": "L254",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1879,7 +1879,7 @@
       "label": "print_config()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L201",
+      "source_location": "L258",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1893,7 +1893,7 @@
       "label": "run_verify_child()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L280",
+      "source_location": "L337",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1907,7 +1907,7 @@
       "label": "verify_skip_allowed()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L294",
+      "source_location": "L351",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1921,7 +1921,7 @@
       "label": "add_failure()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L305",
+      "source_location": "L362",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1935,7 +1935,7 @@
       "label": "canonical_key()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L332",
+      "source_location": "L389",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1949,7 +1949,7 @@
       "label": "required_value()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L343",
+      "source_location": "L400",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1963,7 +1963,7 @@
       "label": "assert_output_hardened()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L359",
+      "source_location": "L416",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1977,7 +1977,7 @@
       "label": "check_global()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L377",
+      "source_location": "L434",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1991,7 +1991,7 @@
       "label": "trim_trailing_line_whitespace()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L471",
+      "source_location": "L528",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2005,7 +2005,7 @@
       "label": "skip_keyword_separators()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L482",
+      "source_location": "L539",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2019,7 +2019,7 @@
       "label": "consume_keyword_separator()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L498",
+      "source_location": "L555",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2033,7 +2033,7 @@
       "label": "read_keyword_token()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L510",
+      "source_location": "L567",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2047,7 +2047,7 @@
       "label": "skip_argument_separators()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L551",
+      "source_location": "L608",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2061,7 +2061,7 @@
       "label": "read_argument_token()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L563",
+      "source_location": "L620",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2075,7 +2075,7 @@
       "label": "read_token_with_progress_guard()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L639",
+      "source_location": "L696",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2089,7 +2089,7 @@
       "label": "next_keyword_token()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L648",
+      "source_location": "L705",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2103,7 +2103,7 @@
       "label": "next_argument_token()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L652",
+      "source_location": "L709",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2117,7 +2117,7 @@
       "label": "parse_config_line()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L661",
+      "source_location": "L718",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2131,7 +2131,7 @@
       "label": "include_bracket_opens_a_set()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L737",
+      "source_location": "L794",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2145,7 +2145,7 @@
       "label": "unescape_include_pattern()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L774",
+      "source_location": "L844",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2159,7 +2159,7 @@
       "label": "scan_included_files()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L827",
+      "source_location": "L1049",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2173,7 +2173,7 @@
       "label": "scan_config_file()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L884",
+      "source_location": "L1071",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2187,7 +2187,7 @@
       "label": "check_match_scan()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L940",
+      "source_location": "L1192",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2201,7 +2201,7 @@
       "label": "check_connection_specs()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L985",
+      "source_location": "L1208",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2215,7 +2215,7 @@
       "label": "verify()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1014",
+      "source_location": "L1237",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2229,7 +2229,7 @@
       "label": "rollback_install()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1064",
+      "source_location": "L1308",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2243,7 +2243,7 @@
       "label": "install_dropin()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1087",
+      "source_location": "L1331",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2257,7 +2257,7 @@
       "label": "recovery_instructions()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1181",
+      "source_location": "L1916",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2271,7 +2271,7 @@
       "label": "probe_sshd_service()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1200",
+      "source_location": "L1935",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2285,7 +2285,7 @@
       "label": "validate_readiness_knobs()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1230",
+      "source_location": "L1965",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2299,7 +2299,7 @@
       "label": "resolve_probe_ports()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1278",
+      "source_location": "L2013",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2313,7 +2313,7 @@
       "label": "banner_output_names_host_key()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1332",
+      "source_location": "L2067",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2327,7 +2327,7 @@
       "label": "wait_for_ssh_banner()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1347",
+      "source_location": "L2082",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2341,7 +2341,7 @@
       "label": "reload_sshd()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1373",
+      "source_location": "L2108",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2355,7 +2355,7 @@
       "label": "check_password_channel()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1500",
+      "source_location": "L2311",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2369,7 +2369,7 @@
       "label": "confirm_password_access_restored()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1542",
+      "source_location": "L2353",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2383,7 +2383,7 @@
       "label": "rollback_dropin()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1581",
+      "source_location": "L2392",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2397,7 +2397,7 @@
       "label": "usage()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1599",
+      "source_location": "L2410",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2411,7 +2411,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1622",
+      "source_location": "L2433",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3937,7 +3937,7 @@
       "label": "defaults_records_join_expression()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L115",
+      "source_location": "L130",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3951,7 +3951,7 @@
       "label": "defaults_records_field_count()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L124",
+      "source_location": "L139",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3965,7 +3965,7 @@
       "label": "defaults_records_locate_malformed()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L133",
+      "source_location": "L169",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3979,7 +3979,7 @@
       "label": "records_declaration_verdict()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L273",
+      "source_location": "L311",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3993,7 +3993,7 @@
       "label": "data_file_begins_with_byte_order_mark()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L368",
+      "source_location": "L727",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4007,7 +4007,7 @@
       "label": "declared_record_count_is_usable()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L419",
+      "source_location": "L778",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4021,7 +4021,7 @@
       "label": "defaults_records_declared_count()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L423",
+      "source_location": "L782",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4035,7 +4035,7 @@
       "label": "defaults_records_raw_stream()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L497",
+      "source_location": "L873",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4049,7 +4049,7 @@
       "label": "defaults_records_validate_stream()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L514",
+      "source_location": "L890",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4063,7 +4063,7 @@
       "label": "defaults_records_declare_a_value()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L586",
+      "source_location": "L1072",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4077,7 +4077,7 @@
       "label": "defaults_records_unit_separated()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L602",
+      "source_location": "L1497",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4091,7 +4091,7 @@
       "label": "validate_record_scope()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L629",
+      "source_location": "L1527",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4105,7 +4105,7 @@
       "label": "validate_record_identity()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L659",
+      "source_location": "L1557",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4119,7 +4119,7 @@
       "label": "validate_record_type()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L690",
+      "source_location": "L1588",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4133,7 +4133,7 @@
       "label": "print_offending_record_reference()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L708",
+      "source_location": "L1606",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4147,7 +4147,7 @@
       "label": "validate_system_domain()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L725",
+      "source_location": "L1623",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4161,7 +4161,7 @@
       "label": "validate_explicit_plist_path()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L758",
+      "source_location": "L1656",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4175,7 +4175,7 @@
       "label": "resolve_system_plist_path()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L790",
+      "source_location": "L1688",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4189,7 +4189,7 @@
       "label": "require_system_plist_path_permitted()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L819",
+      "source_location": "L1717",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4203,7 +4203,7 @@
       "label": "validate_defaults_record()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L865",
+      "source_location": "L1775",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4217,7 +4217,7 @@
       "label": "system_defaults_write()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L933",
+      "source_location": "L1843",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4231,7 +4231,7 @@
       "label": "system_defaults_read_actual()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L964",
+      "source_location": "L1874",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -11295,7 +11295,7 @@
       "label": "reload_sandbox_setup()",
       "file_type": "code",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L100",
+      "source_location": "L117",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -11309,7 +11309,7 @@
       "label": "run_ssh_reload()",
       "file_type": "code",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L430",
+      "source_location": "L463",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -11323,7 +11323,7 @@
       "label": "assert_kickstart_attempted()",
       "file_type": "code",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L460",
+      "source_location": "L494",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -11337,7 +11337,7 @@
       "label": "assert_seam_calls()",
       "file_type": "code",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L473",
+      "source_location": "L507",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -11351,7 +11351,7 @@
       "label": "assert_no_kickstart()",
       "file_type": "code",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L484",
+      "source_location": "L518",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -11365,7 +11365,7 @@
       "label": "config_tree_fingerprint()",
       "file_type": "code",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L498",
+      "source_location": "L532",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -24357,7 +24357,7 @@
       "label": "LARGEST_ACCEPTED_RECORD_COUNT",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L52",
+      "source_location": "L58",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -24371,7 +24371,7 @@
       "label": "SMALLEST_REFUSED_RECORD_COUNT",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L53",
+      "source_location": "L59",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -24385,7 +24385,7 @@
       "label": "HEALTHY_SHAPE_ANSWER",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L57",
+      "source_location": "L63",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -24399,7 +24399,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L62",
+      "source_location": "L72",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -24413,7 +24413,7 @@
       "label": "require_count_accepted()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L69",
+      "source_location": "L79",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -24427,7 +24427,7 @@
       "label": "refute_count_accepted()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L81",
+      "source_location": "L91",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -24441,7 +24441,7 @@
       "label": "declared_count_with_stubbed_yq()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L140",
+      "source_location": "L158",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -24853,7 +24853,7 @@
         "kind": "file"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "macos-defaults-shape-guard.sh",
       "id": "test_unit_macos_defaults_shape_guard"
     },
@@ -24867,7 +24867,7 @@
         "kind": "bash_entrypoint"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "macos-defaults-shape-guard.sh script",
       "id": "test_unit_macos_defaults_shape_guard_sh__entry"
     },
@@ -24881,7 +24881,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "fail()",
       "id": "test_unit_macos_defaults_shape_guard_fail"
     },
@@ -24895,7 +24895,7 @@
         "kind": "code"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "superseded_tag_only_expression",
       "id": "test_unit_macos_defaults_shape_guard_superseded_tag_only_expression"
     },
@@ -24909,7 +24909,7 @@
         "kind": "code"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "superseded_kind_only_expression",
       "id": "test_unit_macos_defaults_shape_guard_superseded_kind_only_expression"
     },
@@ -24923,7 +24923,7 @@
         "kind": "code"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "mistagged_sequence_tags",
       "id": "test_unit_macos_defaults_shape_guard_mistagged_sequence_tags"
     },
@@ -24937,7 +24937,7 @@
         "kind": "code"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "plain_sequence_tags",
       "id": "test_unit_macos_defaults_shape_guard_plain_sequence_tags"
     },
@@ -24951,7 +24951,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "require_superseded_tag_check_satisfied()",
       "id": "test_unit_macos_defaults_shape_guard_require_superseded_tag_check_satisfied"
     },
@@ -24965,7 +24965,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "require_superseded_kind_check_satisfied()",
       "id": "test_unit_macos_defaults_shape_guard_require_superseded_kind_check_satisfied"
     },
@@ -24979,7 +24979,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "refute_shape_accepted()",
       "id": "test_unit_macos_defaults_shape_guard_refute_shape_accepted"
     },
@@ -24993,7 +24993,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "refute_output_contains()",
       "id": "test_unit_macos_defaults_shape_guard_refute_output_contains"
     },
@@ -25007,7 +25007,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "require_shape_accepted()",
       "id": "test_unit_macos_defaults_shape_guard_require_shape_accepted"
     },
@@ -25021,7 +25021,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "require_verdict()",
       "id": "test_unit_macos_defaults_shape_guard_require_verdict"
     },
@@ -25035,7 +25035,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 429,
       "norm_label": "write_record_list()",
       "id": "test_unit_macos_defaults_shape_guard_write_record_list"
     },
@@ -37793,7 +37793,7 @@
       "label": "Hardware pairing",
       "file_type": "document",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L190",
+      "source_location": "L193",
       "_origin": "ast",
       "community": 49,
       "norm_label": "hardware pairing",
@@ -37803,7 +37803,7 @@
       "label": "App authentication",
       "file_type": "document",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L196",
+      "source_location": "L199",
       "_origin": "ast",
       "community": 49,
       "norm_label": "app authentication",
@@ -37813,7 +37813,7 @@
       "label": "Login Items",
       "file_type": "document",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L202",
+      "source_location": "L205",
       "_origin": "ast",
       "community": 49,
       "norm_label": "login items",
@@ -37823,7 +37823,7 @@
       "label": "Out-of-scope items (by design)",
       "file_type": "document",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L207",
+      "source_location": "L210",
       "_origin": "ast",
       "community": 49,
       "norm_label": "out-of-scope items (by design)",
@@ -37833,7 +37833,7 @@
       "label": "Sanity checks after setup is complete",
       "file_type": "document",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L217",
+      "source_location": "L220",
       "_origin": "ast",
       "community": 49,
       "norm_label": "sanity checks after setup is complete",
@@ -48609,7 +48609,7 @@
         "kind": "file"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "espanso-trigger-reachability.sh",
       "id": "test_unit_espanso_trigger_reachability"
     },
@@ -48623,7 +48623,7 @@
         "kind": "bash_entrypoint"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "espanso-trigger-reachability.sh script",
       "id": "test_unit_espanso_trigger_reachability_sh__entry"
     },
@@ -48637,7 +48637,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "fail()",
       "id": "test_unit_espanso_trigger_reachability_fail"
     },
@@ -48651,7 +48651,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "target_file_name()",
       "id": "test_unit_espanso_trigger_reachability_target_file_name"
     },
@@ -48665,7 +48665,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "is_auto_loaded_match_file()",
       "id": "test_unit_espanso_trigger_reachability_is_auto_loaded_match_file"
     },
@@ -48679,7 +48679,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "is_match_file_name()",
       "id": "test_unit_espanso_trigger_reachability_is_match_file_name"
     },
@@ -48693,7 +48693,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "is_exempt_non_match_file_name()",
       "id": "test_unit_espanso_trigger_reachability_is_exempt_non_match_file_name"
     },
@@ -48707,7 +48707,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "is_word_character()",
       "id": "test_unit_espanso_trigger_reachability_is_word_character"
     },
@@ -48721,7 +48721,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "options_require_boundary()",
       "id": "test_unit_espanso_trigger_reachability_options_require_boundary"
     },
@@ -48735,7 +48735,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "options_ignore_case()",
       "id": "test_unit_espanso_trigger_reachability_options_ignore_case"
     },
@@ -48749,7 +48749,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "case_folded_trigger()",
       "id": "test_unit_espanso_trigger_reachability_case_folded_trigger"
     },
@@ -48763,7 +48763,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "folded_relation_is_reachable()",
       "id": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable"
     },
@@ -48777,7 +48777,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "import_target_path()",
       "id": "test_unit_espanso_trigger_reachability_import_target_path"
     },
@@ -48791,7 +48791,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "discovered_match_file()",
       "id": "test_unit_espanso_trigger_reachability_discovered_match_file"
     },
@@ -48805,7 +48805,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "parse_match_records()",
       "id": "test_unit_espanso_trigger_reachability_parse_match_records"
     },
@@ -48819,7 +48819,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "parse_import_paths()",
       "id": "test_unit_espanso_trigger_reachability_parse_import_paths"
     },
@@ -48833,7 +48833,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "assert_equals()",
       "id": "test_unit_espanso_trigger_reachability_assert_equals"
     },
@@ -48847,7 +48847,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "assert_predicate()",
       "id": "test_unit_espanso_trigger_reachability_assert_predicate"
     },
@@ -48861,7 +48861,7 @@
         "kind": "code"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "trigger_options",
       "id": "test_unit_espanso_trigger_reachability_trigger_options"
     },
@@ -48875,7 +48875,7 @@
         "kind": "code"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "trigger_location",
       "id": "test_unit_espanso_trigger_reachability_trigger_location"
     },
@@ -48889,7 +48889,7 @@
         "kind": "code"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 427,
       "norm_label": "loaded_file",
       "id": "test_unit_espanso_trigger_reachability_loaded_file"
     },
@@ -50087,7 +50087,7 @@
         "kind": "file"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "macos-defaults-data-file-rules-guard.sh",
       "id": "test_unit_macos_defaults_data_file_rules_guard"
     },
@@ -50101,7 +50101,7 @@
         "kind": "bash_entrypoint"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "macos-defaults-data-file-rules-guard.sh script",
       "id": "test_unit_macos_defaults_data_file_rules_guard_sh__entry"
     },
@@ -50115,7 +50115,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "fail()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_fail"
     },
@@ -50129,7 +50129,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "require_verdict()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_require_verdict"
     },
@@ -50143,7 +50143,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "refute_data_file_accepted()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_refute_data_file_accepted"
     },
@@ -50157,7 +50157,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "require_data_file_accepted()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_require_data_file_accepted"
     },
@@ -50171,7 +50171,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "refusal_text_without_file_names()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_refusal_text_without_file_names"
     },
@@ -50185,7 +50185,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "require_refusal_names()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_require_refusal_names"
     },
@@ -50199,7 +50199,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "require_refusal_names_the_data_file()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_require_refusal_names_the_data_file"
     },
@@ -50213,7 +50213,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "require_yq_reads_a_healthy_record_list()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_require_yq_reads_a_healthy_record_list"
     },
@@ -50227,7 +50227,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "write_valid_file()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_write_valid_file"
     },
@@ -50241,7 +50241,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "require_document_count()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_require_document_count"
     },
@@ -50255,7 +50255,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "write_killall_file()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_write_killall_file"
     },
@@ -50269,7 +50269,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 424,
+      "community": 428,
       "norm_label": "require_killall_verdict()",
       "id": "test_unit_macos_defaults_data_file_rules_guard_require_killall_verdict"
     },
@@ -50339,7 +50339,7 @@
         "kind": "file"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "macos-defaults-tier-payload-guard.sh",
       "id": "test_unit_macos_defaults_tier_payload_guard"
     },
@@ -50353,7 +50353,7 @@
         "kind": "bash_entrypoint"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "macos-defaults-tier-payload-guard.sh script",
       "id": "test_unit_macos_defaults_tier_payload_guard_sh__entry"
     },
@@ -50367,7 +50367,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "fail()",
       "id": "test_unit_macos_defaults_tier_payload_guard_fail"
     },
@@ -50381,7 +50381,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "refute_stream_accepted()",
       "id": "test_unit_macos_defaults_tier_payload_guard_refute_stream_accepted"
     },
@@ -50395,7 +50395,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "require_stream_accepted()",
       "id": "test_unit_macos_defaults_tier_payload_guard_require_stream_accepted"
     },
@@ -50409,7 +50409,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "refusal_text_without_file_names()",
       "id": "test_unit_macos_defaults_tier_payload_guard_refusal_text_without_file_names"
     },
@@ -50423,7 +50423,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "require_refusal_names()",
       "id": "test_unit_macos_defaults_tier_payload_guard_require_refusal_names"
     },
@@ -50437,7 +50437,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "require_field_forbidden()",
       "id": "test_unit_macos_defaults_tier_payload_guard_require_field_forbidden"
     },
@@ -50451,7 +50451,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "refute_field_forbidden()",
       "id": "test_unit_macos_defaults_tier_payload_guard_refute_field_forbidden"
     },
@@ -50465,7 +50465,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "require_runbook_required()",
       "id": "test_unit_macos_defaults_tier_payload_guard_require_runbook_required"
     },
@@ -50479,7 +50479,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "refute_runbook_required()",
       "id": "test_unit_macos_defaults_tier_payload_guard_refute_runbook_required"
     },
@@ -50493,7 +50493,7 @@
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "community": 423,
+      "community": 430,
       "norm_label": "write_record_file()",
       "id": "test_unit_macos_defaults_tier_payload_guard_write_record_file"
     },
@@ -50816,6 +50816,342 @@
       "community": 323,
       "norm_label": "security",
       "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_security"
+    },
+    {
+      "label": "resolve_include_paths()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L930",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "resolve_include_paths()",
+      "id": "dot_local_bin_executable_ssh_hardening_resolve_include_paths"
+    },
+    {
+      "label": "path_is_a_regular_file()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1045",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "path_is_a_regular_file()",
+      "id": "dot_local_bin_executable_ssh_hardening_path_is_a_regular_file"
+    },
+    {
+      "label": "config_tree_roots()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1155",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "config_tree_roots()",
+      "id": "dot_local_bin_executable_ssh_hardening_config_tree_roots"
+    },
+    {
+      "label": "config_tree_would_exceed_width()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1498",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "config_tree_would_exceed_width()",
+      "id": "dot_local_bin_executable_ssh_hardening_config_tree_would_exceed_width"
+    },
+    {
+      "label": "collect_config_tree_from_file()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1516",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "collect_config_tree_from_file()",
+      "id": "dot_local_bin_executable_ssh_hardening_collect_config_tree_from_file"
+    },
+    {
+      "label": "collect_config_tree_files()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1597",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "collect_config_tree_files()",
+      "id": "dot_local_bin_executable_ssh_hardening_collect_config_tree_files"
+    },
+    {
+      "label": "config_tree_path_is_recordable()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1641",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "config_tree_path_is_recordable()",
+      "id": "dot_local_bin_executable_ssh_hardening_config_tree_path_is_recordable"
+    },
+    {
+      "label": "observe_config_tree()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1657",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "observe_config_tree()",
+      "id": "dot_local_bin_executable_ssh_hardening_observe_config_tree"
+    },
+    {
+      "label": "config_tree_record_fields()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1738",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "config_tree_record_fields()",
+      "id": "dot_local_bin_executable_ssh_hardening_config_tree_record_fields"
+    },
+    {
+      "label": "config_tree_find_record()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1761",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "config_tree_find_record()",
+      "id": "dot_local_bin_executable_ssh_hardening_config_tree_find_record"
+    },
+    {
+      "label": "config_tree_is_unchanged()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1785",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "config_tree_is_unchanged()",
+      "id": "dot_local_bin_executable_ssh_hardening_config_tree_is_unchanged"
+    },
+    {
+      "label": "report_absent_service_outcome()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1898",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 263,
+      "norm_label": "report_absent_service_outcome()",
+      "id": "dot_local_bin_executable_ssh_hardening_report_absent_service_outcome"
+    },
+    {
+      "label": "ssh-hardening-reload-tree-drift.sh",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "ssh-hardening-reload-tree-drift.sh",
+      "id": "test_integration_ssh_hardening_reload_tree_drift"
+    },
+    {
+      "label": "ssh-hardening-reload-tree-drift.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "ssh-hardening-reload-tree-drift.sh script",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_sh__entry"
+    },
+    {
+      "label": "SSH_HARDENING_READY_ATTEMPTS",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L41",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "ssh_hardening_ready_attempts",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_attempts"
+    },
+    {
+      "label": "SSH_HARDENING_READY_INTERVAL",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L42",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "ssh_hardening_ready_interval",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_interval"
+    },
+    {
+      "label": "observed_tree_fingerprint()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L89",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "observed_tree_fingerprint()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_observed_tree_fingerprint"
+    },
+    {
+      "label": "rename_case_only()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L135",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "rename_case_only()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_rename_case_only"
+    },
+    {
+      "label": "run_reload_with_mutation()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L271",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "run_reload_with_mutation()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_run_reload_with_mutation"
+    },
+    {
+      "label": "assert_mutation_fired()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L288",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "assert_mutation_fired()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired"
+    },
+    {
+      "label": "assert_drift_refused_before_kickstart()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L303",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "assert_drift_refused_before_kickstart()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart"
+    },
+    {
+      "label": "assert_drift_refuses_the_success_claim()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L323",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "assert_drift_refuses_the_success_claim()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim"
+    },
+    {
+      "label": "directory_holds_entry_spelled_exactly()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L603",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "directory_holds_entry_spelled_exactly()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_directory_holds_entry_spelled_exactly"
+    },
+    {
+      "label": "restore_inert_dropin_spelling()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L615",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "restore_inert_dropin_spelling()",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_restore_inert_dropin_spelling"
     }
   ],
   "links": [
@@ -52760,7 +53096,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L305",
+      "source_location": "L362",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52770,7 +53106,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L359",
+      "source_location": "L416",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52780,7 +53116,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1332",
+      "source_location": "L2067",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52790,7 +53126,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L332",
+      "source_location": "L389",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52800,7 +53136,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L985",
+      "source_location": "L1208",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52810,7 +53146,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L377",
+      "source_location": "L434",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52820,7 +53156,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L940",
+      "source_location": "L1192",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52830,7 +53166,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1500",
+      "source_location": "L2311",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52840,7 +53176,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1542",
+      "source_location": "L2353",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52850,7 +53186,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L498",
+      "source_location": "L555",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52860,7 +53196,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L180",
+      "source_location": "L237",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52870,7 +53206,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L197",
+      "source_location": "L254",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52880,7 +53216,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L737",
+      "source_location": "L794",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52890,7 +53226,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1087",
+      "source_location": "L1331",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52900,7 +53236,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1622",
+      "source_location": "L2433",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52910,7 +53246,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L652",
+      "source_location": "L709",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52920,7 +53256,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L648",
+      "source_location": "L705",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52930,7 +53266,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L661",
+      "source_location": "L718",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52940,7 +53276,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L201",
+      "source_location": "L258",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52950,7 +53286,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1200",
+      "source_location": "L1935",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52960,7 +53296,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L563",
+      "source_location": "L620",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52970,7 +53306,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L510",
+      "source_location": "L567",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52980,7 +53316,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L639",
+      "source_location": "L696",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -52990,7 +53326,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1181",
+      "source_location": "L1916",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53000,7 +53336,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1373",
+      "source_location": "L2108",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53010,7 +53346,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L343",
+      "source_location": "L400",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53020,7 +53356,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1278",
+      "source_location": "L2013",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53030,7 +53366,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1581",
+      "source_location": "L2392",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53040,7 +53376,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1064",
+      "source_location": "L1308",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53050,7 +53386,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L189",
+      "source_location": "L246",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53060,7 +53396,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L280",
+      "source_location": "L337",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53070,7 +53406,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L884",
+      "source_location": "L1071",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53080,7 +53416,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L827",
+      "source_location": "L1049",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53100,7 +53436,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L551",
+      "source_location": "L608",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53110,7 +53446,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L482",
+      "source_location": "L539",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53120,7 +53456,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L471",
+      "source_location": "L528",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53130,7 +53466,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L774",
+      "source_location": "L844",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53140,7 +53476,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1599",
+      "source_location": "L2410",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53150,7 +53486,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1230",
+      "source_location": "L1965",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53160,7 +53496,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1014",
+      "source_location": "L1237",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53170,7 +53506,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L294",
+      "source_location": "L351",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53180,7 +53516,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1347",
+      "source_location": "L2082",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
@@ -53190,17 +53526,137 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L185",
+      "source_location": "L242",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_warn"
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1597",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_files"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1516",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_from_file"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1761",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_find_record"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1785",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_is_unchanged"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1641",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_path_is_recordable"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1738",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_record_fields"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1155",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_roots"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1498",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_would_exceed_width"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1657",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_observe_config_tree"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1045",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_path_is_a_regular_file"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1898",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_report_absent_service_outcome"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L930",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_resolve_include_paths"
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1656",
+      "source_location": "L2467",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53211,7 +53667,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1549",
+      "source_location": "L2360",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53222,7 +53678,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1102",
+      "source_location": "L1346",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53233,7 +53689,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1388",
+      "source_location": "L2124",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53244,7 +53700,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1283",
+      "source_location": "L2018",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53255,7 +53711,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1590",
+      "source_location": "L2401",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53266,7 +53722,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1233",
+      "source_location": "L1968",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53277,7 +53733,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1365",
+      "source_location": "L2100",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53288,7 +53744,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1163",
+      "source_location": "L1902",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_die",
+      "target": "dot_local_bin_executable_ssh_hardening_report_absent_service_outcome"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1407",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53299,7 +53766,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1067",
+      "source_location": "L1311",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53310,7 +53777,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1103",
+      "source_location": "L1906",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_warn",
+      "target": "dot_local_bin_executable_ssh_hardening_report_absent_service_outcome"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1347",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53321,7 +53799,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1589",
+      "source_location": "L2400",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53332,7 +53810,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1066",
+      "source_location": "L1310",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53343,7 +53821,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1643",
+      "source_location": "L2454",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53354,7 +53832,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1111",
+      "source_location": "L1355",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53365,7 +53843,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1642",
+      "source_location": "L2453",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53376,7 +53854,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1157",
+      "source_location": "L1401",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53387,7 +53865,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1415",
+      "source_location": "L2160",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53398,7 +53876,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1545",
+      "source_location": "L2356",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53409,7 +53887,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1168",
+      "source_location": "L1412",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53420,7 +53898,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1017",
+      "source_location": "L1240",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53431,7 +53909,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L368",
+      "source_location": "L425",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53442,7 +53920,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L991",
+      "source_location": "L1214",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53453,7 +53931,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L383",
+      "source_location": "L440",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53464,7 +53942,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L961",
+      "source_location": "L1196",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53475,7 +53953,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L888",
+      "source_location": "L1075",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53486,7 +53964,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L836",
+      "source_location": "L1054",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53497,7 +53975,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L930",
+      "source_location": "L1124",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53508,7 +53986,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L931",
+      "source_location": "L1125",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53519,7 +53997,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1010",
+      "source_location": "L1233",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53530,7 +54008,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L386",
+      "source_location": "L443",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53541,7 +54019,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1024",
+      "source_location": "L1247",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53552,7 +54030,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L663",
+      "source_location": "L720",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53563,7 +54041,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L499",
+      "source_location": "L556",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53574,7 +54052,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L512",
+      "source_location": "L569",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53585,7 +54063,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L521",
+      "source_location": "L578",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53596,7 +54074,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L565",
+      "source_location": "L622",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53607,7 +54085,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L653",
+      "source_location": "L710",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53618,7 +54096,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L649",
+      "source_location": "L706",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53629,7 +54107,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L666",
+      "source_location": "L723",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53640,7 +54118,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L686",
+      "source_location": "L743",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53651,7 +54129,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L910",
+      "source_location": "L1104",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53662,7 +54140,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L796",
+      "source_location": "L1564",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_parse_config_line",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_from_file"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L867",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53684,7 +54173,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L919",
+      "source_location": "L952",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_unescape_include_pattern",
+      "target": "dot_local_bin_executable_ssh_hardening_resolve_include_paths"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1113",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53695,7 +54195,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L981",
+      "source_location": "L1053",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_scan_included_files",
+      "target": "dot_local_bin_executable_ssh_hardening_resolve_include_paths"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1204",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53706,7 +54217,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1025",
+      "source_location": "L1092",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_scan_config_file",
+      "target": "dot_local_bin_executable_ssh_hardening_path_is_a_regular_file"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1248",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53717,7 +54239,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1026",
+      "source_location": "L1195",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_check_match_scan",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_roots"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1249",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53728,7 +54261,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1644",
+      "source_location": "L2455",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53739,7 +54272,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1112",
+      "source_location": "L1356",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53750,7 +54283,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1647",
+      "source_location": "L2458",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53761,7 +54294,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1425",
+      "source_location": "L2170",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53772,7 +54305,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1376",
+      "source_location": "L2112",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53783,7 +54316,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1422",
+      "source_location": "L2167",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53794,7 +54327,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1356",
+      "source_location": "L2091",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53805,7 +54338,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1467",
+      "source_location": "L2256",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53816,7 +54349,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1645",
+      "source_location": "L2456",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53827,7 +54360,40 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1551",
+      "source_location": "L2145",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
+      "target": "dot_local_bin_executable_ssh_hardening_observe_config_tree"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L2194",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_is_unchanged"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L2172",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
+      "target": "dot_local_bin_executable_ssh_hardening_report_absent_service_outcome"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L2362",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53838,7 +54404,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1586",
+      "source_location": "L2397",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53849,7 +54415,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1646",
+      "source_location": "L2457",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -53860,7 +54426,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1624",
+      "source_location": "L2435",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57025,7 +57591,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L368",
+      "source_location": "L727",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57035,7 +57601,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L419",
+      "source_location": "L778",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57045,7 +57611,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L586",
+      "source_location": "L1072",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57055,7 +57621,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L423",
+      "source_location": "L782",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57065,7 +57631,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L124",
+      "source_location": "L139",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57075,7 +57641,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L115",
+      "source_location": "L130",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57085,7 +57651,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L133",
+      "source_location": "L169",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57095,7 +57661,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L497",
+      "source_location": "L873",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57105,7 +57671,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L602",
+      "source_location": "L1497",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57115,7 +57681,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L514",
+      "source_location": "L890",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57135,7 +57701,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L708",
+      "source_location": "L1606",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57145,7 +57711,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L273",
+      "source_location": "L311",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57165,7 +57731,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L819",
+      "source_location": "L1717",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57185,7 +57751,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L790",
+      "source_location": "L1688",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57205,7 +57771,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L964",
+      "source_location": "L1874",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57215,7 +57781,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L933",
+      "source_location": "L1843",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57225,7 +57791,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L865",
+      "source_location": "L1775",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57235,7 +57801,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L758",
+      "source_location": "L1656",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57245,7 +57811,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L659",
+      "source_location": "L1557",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57255,7 +57821,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L629",
+      "source_location": "L1527",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57265,7 +57831,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L690",
+      "source_location": "L1588",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57275,7 +57841,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L725",
+      "source_location": "L1623",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
@@ -57455,7 +58021,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L433",
+      "source_location": "L792",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57466,7 +58032,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L486",
+      "source_location": "L862",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57499,7 +58065,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L607",
+      "source_location": "L1502",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57510,7 +58076,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L551",
+      "source_location": "L927",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57521,7 +58087,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L608",
+      "source_location": "L1503",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57565,7 +58131,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L886",
+      "source_location": "L1796",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57576,7 +58142,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L872",
+      "source_location": "L1782",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57587,7 +58153,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L885",
+      "source_location": "L1795",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57598,7 +58164,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L887",
+      "source_location": "L1797",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57609,7 +58175,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L792",
+      "source_location": "L1690",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57620,7 +58186,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L797",
+      "source_location": "L1695",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -57631,7 +58197,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L891",
+      "source_location": "L1801",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -64985,7 +65551,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L460",
+      "source_location": "L494",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_fixtures_ssh_reload_lib",
@@ -64995,7 +65561,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L484",
+      "source_location": "L518",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_fixtures_ssh_reload_lib",
@@ -65005,7 +65571,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L473",
+      "source_location": "L507",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_fixtures_ssh_reload_lib",
@@ -65025,7 +65591,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L498",
+      "source_location": "L532",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_fixtures_ssh_reload_lib",
@@ -65035,7 +65601,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L100",
+      "source_location": "L117",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_fixtures_ssh_reload_lib",
@@ -65045,7 +65611,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/ssh-reload-lib.bash",
-      "source_location": "L430",
+      "source_location": "L463",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_fixtures_ssh_reload_lib",
@@ -79617,7 +80183,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L140",
+      "source_location": "L158",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
@@ -79627,7 +80193,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L62",
+      "source_location": "L72",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
@@ -79637,7 +80203,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L57",
+      "source_location": "L63",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
@@ -79647,7 +80213,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L52",
+      "source_location": "L58",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
@@ -79657,7 +80223,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L81",
+      "source_location": "L91",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
@@ -79667,7 +80233,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L69",
+      "source_location": "L79",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
@@ -79687,7 +80253,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L53",
+      "source_location": "L59",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
@@ -79707,7 +80273,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L244",
+      "source_location": "L266",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -79718,7 +80284,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L88",
+      "source_location": "L98",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -79729,7 +80295,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L196",
+      "source_location": "L218",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -79740,7 +80306,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L202",
+      "source_location": "L224",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -79751,7 +80317,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L84",
+      "source_location": "L94",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -79762,7 +80328,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L72",
+      "source_location": "L82",
       "weight": 1.0,
       "context": "call",
       "confidence_score": 1.0,
@@ -93513,7 +94079,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L217",
+      "source_location": "L220",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "docs_runbooks_macos_fresh_machine_quickstart_macos_fresh_machine_quickstart",
@@ -93533,7 +94099,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L196",
+      "source_location": "L199",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "docs_runbooks_macos_fresh_machine_quickstart_after_first_chezmoi_apply",
@@ -93553,7 +94119,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L190",
+      "source_location": "L193",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "docs_runbooks_macos_fresh_machine_quickstart_after_first_chezmoi_apply",
@@ -93563,7 +94129,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L202",
+      "source_location": "L205",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "docs_runbooks_macos_fresh_machine_quickstart_after_first_chezmoi_apply",
@@ -93603,7 +94169,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/macos-fresh-machine-quickstart.md",
-      "source_location": "L207",
+      "source_location": "L210",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "docs_runbooks_macos_fresh_machine_quickstart_after_first_chezmoi_apply",
@@ -106392,6 +106958,369 @@
       "confidence_score": 1.0,
       "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
       "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_template_shellcheck_workaround"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1570",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_resolve_include_paths",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_from_file"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1541",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_path_is_a_regular_file",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_from_file"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1603",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_roots",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_files"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1612",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_would_exceed_width",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_files"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1520",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_would_exceed_width",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_from_file"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1616",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_collect_config_tree_from_file",
+      "target": "dot_local_bin_executable_ssh_hardening_collect_config_tree_files"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1661",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_collect_config_tree_files",
+      "target": "dot_local_bin_executable_ssh_hardening_observe_config_tree"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1674",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_path_is_recordable",
+      "target": "dot_local_bin_executable_ssh_hardening_observe_config_tree"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1901",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_observe_config_tree",
+      "target": "dot_local_bin_executable_ssh_hardening_report_absent_service_outcome"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1767",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_record_fields",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_find_record"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1807",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_record_fields",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_is_unchanged"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1816",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_find_record",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_is_unchanged"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1904",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening_config_tree_is_unchanged",
+      "target": "dot_local_bin_executable_ssh_hardening_report_absent_service_outcome"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L303",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L323",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L288",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L603",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_directory_holds_entry_spelled_exactly"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L89",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_observed_tree_fingerprint"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L135",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_rename_case_only"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L615",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_restore_inert_dropin_spelling"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L271",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_run_reload_with_mutation"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L41",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_attempts"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L42",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_interval"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L451",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L653",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L391",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L644",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_directory_holds_entry_spelled_exactly"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L641",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_restore_inert_dropin_spelling"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L389",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_run_reload_with_mutation"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L617",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_rename_case_only",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_restore_inert_dropin_spelling"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L305",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L325",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L616",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift_directory_holds_entry_spelled_exactly",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_restore_inert_dropin_spelling"
     }
   ]
 }
