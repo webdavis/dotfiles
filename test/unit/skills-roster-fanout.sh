@@ -45,6 +45,10 @@
 #      tables say. summarize-pro and todoist-cli left this set: their only
 #      hermes copies were hub installs (since retired), so no catalog copy
 #      wins those names and the store symlink is the wanted delivery.
+#   9. The lock's forks drift-watch table covers exactly the vendored dirs
+#      (minus the documented exemptions) and every entry is well-formed.
+#  10. Every roster size CLAUDE.md states equals the computed one, so the
+#      prose a maintainer reads cannot drift away from the tables.
 # Codex has no declarations to check: it scans ~/.agents/skills natively; its
 # on-demand policy files (agents/openai.yaml) are committed alongside vendored
 # skills and re-asserted at run time by update-skills.sh for the npx ones.
@@ -403,5 +407,79 @@ hermes_count=0
 [[ -n $actual_hermes ]] && hermes_count="$(printf '%s\n' "$actual_hermes" | wc -l | tr -d ' ')"
 forks_count=0
 [[ -n $forks_keys ]] && forks_count="$(printf '%s\n' "$forks_keys" | wc -l | tr -d ' ')"
+
+# --- Rule 10: the roster sizes CLAUDE.md states equal the computed ones -----
+# CLAUDE.md is where a maintainer reads how big the roster is, and every one of
+# these numbers is retyped by hand by whichever commit adds or removes a skill.
+# Nothing compared them to the tables, so a mistyped or forgotten one read as
+# fact forever: measured 2026-08-02, reverting the documented numbers to their
+# pre-change values left this suite green, and no other test reads them. The
+# figures are the ones already computed above, so the rule costs one sed pass
+# per sentence.
+#
+# Each pattern must MATCH SOMETHING as well as agree. A reworded sentence that
+# stops matching would otherwise retire its own check in silence, which is the
+# same drift with an extra step, so a miss fails loudly and says which side to
+# fix.
+#
+# Matching runs against the PARAGRAPH-UNWRAPPED text, not the file's lines.
+# mdformat re-wraps CLAUDE.md at 105 columns, so a sentence's number and its
+# surrounding words routinely straddle a line break (the HyperFrames one does
+# today), and a line-based pattern would then have to be re-tuned every time an
+# unrelated word shifts the wrap. Unwrapping makes the patterns depend on the
+# prose, which is the thing being pinned, and not on the column width.
+DOCUMENTATION="$REPO_ROOT/CLAUDE.md"
+[[ -f $DOCUMENTATION ]] || fail "missing documentation file: $DOCUMENTATION"
+documentation_unwrapped="$(awk '
+  /^[[:space:]]*$/ { if (block != "") { print block; block = "" } ; next }
+  { line = $0; sub(/^[[:space:]]+/, "", line)
+    block = (block == "" ? line : block " " line) }
+  END { if (block != "") print block }
+' "$DOCUMENTATION")"
+[[ -n $documentation_unwrapped ]] || fail "unwrapping $DOCUMENTATION produced no text"
+
+core_count="$(jq -r '[.tiers | to_entries[] | select(.value == "core")] | length' "$LOCK")"
+on_demand_count="$(jq -r '[.tiers | to_entries[] | select(.value == "on-demand")] | length' "$LOCK")"
+# The HyperFrames group is a repo group, exactly how the updater's npx lane
+# batches its `skills add` calls (`[.[].repo] | unique`), so the documented
+# figure has a single derivation and no second source of truth.
+hyperframes_count="$(jq -r '[.npxTracked | to_entries[]
+  | select(.value.repo == "heygen-com/hyperframes")] | length' "$LOCK")"
+
+# documented_count_is <expected> <label> <basic-regular-expression>
+# The expression matches a whole unwrapped block and captures the stated number
+# in its one \(...\) group. A basic regular expression, not an extended one:
+# BSD and GNU sed read it the same way with no flag.
+documented_count_is() {
+  local expected="$1" label="$2" expression="$3"
+  local stated distinct
+  stated="$(printf '%s\n' "$documentation_unwrapped" | sed -n "s/$expression/\\1/p" | sort -u)"
+  [[ -n $stated ]] ||
+    fail "no CLAUDE.md sentence states the $label any more, so this rule now pins nothing; restore the wording, or update the pattern in test/unit/skills-roster-fanout.sh in the same commit"
+  distinct="$(printf '%s\n' "$stated" | wc -l | tr -d ' ')"
+  [[ $distinct -eq 1 ]] ||
+    fail "CLAUDE.md states $distinct different values for the $label ($(printf '%s' "$stated" | tr '\n' ' ')); they cannot all be right"
+  [[ $stated == "$expected" ]] ||
+    fail "CLAUDE.md says the $label is $stated; the lock and the declarations say $expected"
+}
+
+# The backticks in these patterns are CLAUDE.md's own markdown around a table
+# name, matched literally; nothing here is a command substitution.
+# shellcheck disable=SC2016
+{
+  documented_count_is "$roster_count" 'roster size' \
+    '.*single canonical skills store (\([0-9][0-9]*\) roster skills).*'
+  documented_count_is "$npx_count" 'npx-tracked count' \
+    '.*`npxTracked` table, \([0-9][0-9]*\) skills.*'
+  documented_count_is "$clawhub_count" 'clawhub-tracked count' \
+    '.*`clawhubTracked` table, \([0-9][0-9]*\) skills.*'
+  documented_count_is "$core_count" 'core tier size' \
+    '.*`core` (\([0-9][0-9]*\)) or `on-demand`.*'
+  documented_count_is "$on_demand_count" 'on-demand tier size' \
+    '.*or `on-demand` (\([0-9][0-9]*\)).*'
+  documented_count_is "$hyperframes_count" 'HeyGen HyperFrames repo-group size' \
+    '.*the \([0-9][0-9]*\) curated HeyGen HyperFrames skills.*'
+}
+
 printf 'skills-roster-fanout: OK (%s skills; %s npx-tracked; %s clawhub-tracked; %s hermes-owned; %s store->hermes symlinks; %s drift-watched upstreams)\n' \
   "$roster_count" "$npx_count" "$clawhub_count" "$registry_count" "$hermes_count" "$forks_count"
