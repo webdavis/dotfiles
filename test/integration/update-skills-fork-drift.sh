@@ -198,6 +198,37 @@ run_fork_check() {
   set -e
 }
 
+# run_fork_check_bounded <watchdog-seconds> [NAME=VALUE ...] -- the same run
+# under an OUTER watchdog, leaving the wall-clock seconds it took in
+# $fork_check_elapsed. Only case 21 needs it, and it needs it twice over: a run
+# that never returns is exactly what that case pins, so the assertion has to be
+# able to observe a run that would otherwise never end, and a regression must
+# fail this test rather than wedge the whole suite behind it. Polled in whole
+# seconds (no timeout(1): it is GNU coreutils, present in the flake shell and on
+# this host but not something a test may assume).
+fork_check_elapsed=0
+run_fork_check_bounded() {
+  local watchdog_seconds="$1"
+  shift
+  local output_file="$scratch_dir/bounded-run.out" waited=0 runner_pid
+  : >"$relay_call_log"
+  UPDATE_SKILLS_FORCE=1 env "$@" bash "$SCRIPT" --check-forks-only >"$output_file" 2>&1 &
+  runner_pid=$!
+  while [[ $waited -lt $watchdog_seconds ]] && kill -0 "$runner_pid" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if kill -0 "$runner_pid" 2>/dev/null; then
+    kill -KILL "$runner_pid" 2>/dev/null || true
+  fi
+  set +e
+  wait "$runner_pid"
+  fork_check_rc=$?
+  set -e
+  fork_check_elapsed="$waited"
+  fork_check_output="$(cat "$output_file")"
+}
+
 # assert_relay_line <state> <substring> <message> -- ONE relay push carries both
 # this exact --state and this substring. Asserted together, on one line, because
 # two independent greps over the whole log also pass when the state rides one
@@ -731,4 +762,71 @@ assert_log_line_has "$fork_check_output" 'does not exist' 'custom-skill-lock.jso
 assert_relay_state fork-lock-missing \
   "case 20: an absent lock was logged but never relayed"
 
-echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock)"
+# --- Case 21: an upstream that never answers is stopped at a deadline ---------
+# The worst thing this phase can do is not a wrong report, it is not returning.
+# It runs in the weekly flow AFTER the generation exchange has published and
+# BEFORE the success stamp is written, so a clone that hangs does not skip one
+# fork: it parks the whole weekly update, and every later slot redoes the work
+# and stalls at the same line. A transport helper that accepts the connection
+# and then says nothing is the network-free stand-in (git runs
+# `git-remote-<transport>` for a `<transport>::<address>` URL). It sleeps well
+# past the deadline, so the elapsed assertion can tell "stopped at the deadline"
+# from "waited for the remote", and it ends on its own so the case leaves
+# nothing sleeping for long after the suite.
+case21_bin="$scratch_dir/case21-bin"
+mkdir -p "$case21_bin"
+cat >"$case21_bin/git-remote-stall" <<'EOF'
+#!/usr/bin/env bash
+sleep 25
+EOF
+chmod +x "$case21_bin/git-remote-stall"
+write_forks_lock "$(jq -n --arg hash "$current_fixture_hash" \
+  '{stalledfork: {source: "fixture/stalledfork", sourceUrl: "stall::example.invalid/repo.git",
+    skillPath: ".", lastComparedTreeHash: $hash}}')"
+run_fork_check_bounded 60 PATH="$case21_bin:$PATH" UPDATE_SKILLS_FORK_CLONE_DEADLINE=2
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 21: a stalled clone took the drift-watch down with it (rc=$fork_check_rc): $fork_check_output"
+[[ $fork_check_elapsed -lt 15 ]] ||
+  fail "case 21: the run spent ${fork_check_elapsed}s on a clone whose deadline was 2s, so nothing bounds the fetch and a remote that never answers parks the weekly update after publishing and before stamping: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'stalledfork' 'NOT drift-checked' \
+  "case 21: a clone stopped at its deadline was not reported as an upstream this run did not compare"
+assert_relay_line fork-clone-timeout stalledfork \
+  "case 21: a clone stopped at its deadline was logged but never relayed, so the fork is unwatched and nobody outside the run log is told"
+
+# --- Case 21b: what a stopped clone leaves behind holds no lock ---------------
+# The run's serialize lock is a kernel flock on fd 9, held for the process's
+# lifetime and INHERITED by every child. Killing git does not reap a transport
+# helper that never reads its stdin, so a leftover helper keeps that fd (and the
+# lock with it) open, and the next scheduled slot defers with exit 75 over a
+# fork nobody could clone: one stalled upstream, a weekly update that never runs
+# again. Case 21's helper is still asleep right now, which is what makes this
+# discriminating rather than a second copy of case 22.
+write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+  '{afterstallfork: {source: "fixture/afterstallfork", sourceUrl: $url,
+    skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+run_fork_check
+[[ $fork_check_rc -ne 75 ]] ||
+  fail "case 21b: the run after a stopped clone deferred on the serialize lock, so what the stalled clone left behind still holds it and every later slot defers: $fork_check_output"
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 21b: the run after a stopped clone exited $fork_check_rc: $fork_check_output"
+printf '%s\n' "$fork_check_output" | grep -q 'afterstallfork: upstream unchanged' ||
+  fail "case 21b: the run after a stopped clone did not walk its forks: $fork_check_output"
+
+# --- Case 22: a clone deadline that is not a positive number is the default ---
+# The deadline is env-overridable, and an override nobody validates is a guard
+# nobody has: a garbage value reaching the comparison as 0 stops EVERY clone at
+# once (every fork "timed out", nothing compared again, forever), and one
+# reaching it as a shell error takes the phase down. Each variant must leave the
+# healthy fixture walked and compared, which is what says the default took over.
+for case22_deadline in 'not-a-number' '' '0' '-5' '3.5'; do
+  write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+    '{guardfork: {source: "fixture/guardfork", sourceUrl: $url,
+      skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+  run_fork_check UPDATE_SKILLS_FORK_CLONE_DEADLINE="$case22_deadline"
+  [[ $fork_check_rc -eq 0 ]] ||
+    fail "case 22 (deadline='$case22_deadline'): the drift-watch exited $fork_check_rc on an unusable deadline override: $fork_check_output"
+  printf '%s\n' "$fork_check_output" | grep -q 'guardfork: upstream unchanged' ||
+    fail "case 22 (deadline='$case22_deadline'): an unusable deadline override was taken at face value instead of falling back to the default, so a reachable upstream went uncompared: $fork_check_output"
+done
+
+echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override)"

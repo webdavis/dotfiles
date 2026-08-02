@@ -2861,6 +2861,7 @@ FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken"                # the lock its
 FORK_RELAY_STATE_LOCK_MISSING="fork-lock-missing"                 # there is no lock file to walk at all
 FORK_RELAY_STATE_UPSTREAM_UNREACHABLE="fork-upstream-unreachable" # the fetch failed; nothing was compared
 FORK_RELAY_STATE_CLONE_UNSTAGEABLE="fork-clone-unstageable"       # no temp dir to fetch into; nothing was compared
+FORK_RELAY_STATE_CLONE_TIMEOUT="fork-clone-timeout"               # the fetch never answered and was stopped; nothing was compared
 FORK_RELAY_STATE_WALK_INCOMPLETE="fork-walk-incomplete"           # fewer entries reached the walk than the table holds
 
 # --project labels for the advisories that are about the lock itself rather
@@ -2894,6 +2895,37 @@ FORK_CLONE_DIR_TEMPLATE="update-skills-fork-drift.XXXXXX"
 # whole update on a prompt nobody can see; false makes git fail fast with a
 # message, which this phase then reports.
 GIT_TERMINAL_PROMPT_FALSE="0"
+
+# How long ONE drift clone may run before this phase stops it, and how long a
+# stopped clone gets to unwind before it is killed outright. A deadline is what
+# keeps the phase's promise literal: it runs in the weekly flow AFTER the
+# generation exchange has published and BEFORE the success stamp is written, so
+# a fetch that never answers (a remote that accepts the connection and then goes
+# quiet, a transport helper waiting on input nobody can give, a proxy that
+# swallows the request) does not skip one fork, it parks the whole weekly update
+# and every later slot stalls at the same line. Not returning is a worse
+# violation of "advisory" than any wrong report, so an upstream that has not
+# answered by the deadline is stopped and REPORTED like every other upstream
+# this run did not compare. GIT_TERMINAL_PROMPT=0 covers only the prompt; every
+# other way a fetch can hang needs this.
+#
+# 5 minutes is far past a --depth 1 clone of any watched upstream (they are
+# single-skill repositories) and far short of the hourly retry slot. The
+# override exists for tests; a value that is not a positive whole number of
+# seconds is the DEFAULT, never taken at face value: 0 would stop every clone at
+# once, and a non-number would make the comparison below a shell error.
+FORK_CLONE_DEADLINE_SECONDS="${UPDATE_SKILLS_FORK_CLONE_DEADLINE:-300}"
+[[ $FORK_CLONE_DEADLINE_SECONDS =~ ^[1-9][0-9]*$ ]] || FORK_CLONE_DEADLINE_SECONDS=300
+FORK_CLONE_STOP_GRACE_SECONDS=2
+# The watchdog POLLS, because bash has no wait-with-timeout. A quarter second,
+# not a whole one: the check runs once before the first sleep, so a whole-second
+# interval charged every healthy clone a second it did not need. The deadline is
+# counted in TICKS so the fractional interval cannot drift away from the seconds
+# the operator-facing message quotes. Both sleeps this runs under accept
+# fractions (measured: macOS /bin/sleep on 26.2, and GNU coreutils 9.7 in the
+# flake's shell, which is what CI uses).
+FORK_CLONE_POLL_INTERVAL="0.25"
+FORK_CLONE_POLL_TICKS_PER_SECOND=4
 
 # Path git reads instead of the file-based global and system config while
 # cloning a drift upstream. WHY: the recorded sourceUrl is an anonymous public
@@ -2963,6 +2995,19 @@ notify_fork_upstream_unreachable() {
   done <<<"$clone_error"
   relay_fork_advisory "$FORK_RELAY_STATE_UPSTREAM_UNREACHABLE" "$fork" \
     "upstream $source_url could not be fetched, so $fork was not drift-checked; check the recorded sourceUrl and this host's network"
+}
+
+# The fetch was still running at its deadline and was stopped, so nothing about
+# this upstream was compared. Distinct from unreachable: an unreachable upstream
+# ANSWERED with a failure git can quote, while this one said nothing at all, and
+# the causes are different (a stalled remote, a proxy swallowing the request, a
+# transport helper waiting on input) even though both leave the fork unwatched.
+notify_fork_clone_timeout() {
+  local fork="$1" source_url="$2" deadline_seconds="$3"
+  log "FORK CLONE TIMED OUT: $fork, upstream $source_url did not finish cloning within ${deadline_seconds}s; the clone was stopped and this upstream was NOT drift-checked this run"
+  log "FORK CLONE TIMED OUT: check whether $source_url still answers an anonymous clone from this host (a stalled remote, a proxy, or a URL that has gone private and is waiting on credentials); the weekly run continued"
+  relay_fork_advisory "$FORK_RELAY_STATE_CLONE_TIMEOUT" "$fork" \
+    "upstream $source_url did not finish cloning within ${deadline_seconds}s and was stopped, so $fork was not drift-checked; check whether that URL still answers an anonymous clone from this host"
 }
 
 # No temp dir means no clone, which means this upstream went unchecked for a
@@ -3073,18 +3118,73 @@ notify_fork_entry_malformed() {
     "the forks entry for $fork is malformed ($reason); it was not drift-checked"
 }
 
-# Clone a public upstream anonymously at the URL exactly as recorded. Single
-# responsibility: fetch. --depth 1 suffices, only HEAD's tree is ever compared.
-# git's own diagnostics are RETURNED rather than discarded: a mute failure
-# cannot tell a dead network from a renamed upstream from a config channel
-# still rewriting the URL, and telling those apart is this branch's whole
-# subject. Callers report what comes back; nothing here decides anything.
+# Stop a clone that is past its deadline: TERM first so git can unwind and drop
+# its lock and partial objects, KILL if it is still there after the grace. Never
+# fails: a clone that exited on its own between the deadline check and here is
+# the same outcome as one that took the signal.
+stop_fork_clone() {
+  local clone_pid="$1" waited=0
+  kill -TERM "$clone_pid" 2>/dev/null || return 0
+  while [[ $waited -lt $FORK_CLONE_STOP_GRACE_SECONDS ]] && kill -0 "$clone_pid" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if kill -0 "$clone_pid" 2>/dev/null; then
+    kill -KILL "$clone_pid" 2>/dev/null || true
+  fi
+  wait "$clone_pid" 2>/dev/null || true
+  return 0
+}
+
+# Clone a public upstream anonymously at the URL exactly as recorded, under a
+# deadline. Single responsibility: fetch. --depth 1 suffices, only HEAD's tree
+# is ever compared. Returns 0 when the clone finished, 2 when it was still
+# running at the deadline and was stopped, 1 for any other failure; callers
+# report what happened, nothing here decides anything.
+#
+# git's own diagnostics go to <output-file> rather than to stdout. A mute
+# failure cannot tell a dead network from a renamed upstream from a config
+# channel still rewriting the URL, and telling those apart is this phase's whole
+# subject, but a BACKGROUND job cannot be read back through a command
+# substitution: the capture would block on exactly the fetch this deadline
+# exists to survive, and a killed clone can leave a transport helper holding
+# that pipe open long after git is gone. A file has neither problem, and it is
+# staged inside the clone dir, so discard_fork_clone takes it with everything
+# else.
+#
+# `--` separates options from the URL: a sourceUrl the lock records with a
+# leading dash would otherwise be read as a git option (`--upload-pack=...` is
+# the classic), turning a data typo into a command.
+#
+# `9>&-` closes the serialize lock's fd in the clone's process tree, and it is
+# not decoration. That lock is a kernel flock held on fd 9 for this process's
+# lifetime and INHERITED by every child, and the kernel keeps it held until the
+# LAST copy of the fd closes. A stopped clone can leave a transport helper
+# behind (killing git does not reap a helper that never reads its stdin), so
+# without this the next scheduled slot finds the lock still held by a process
+# nobody is waiting on and defers with exit 75, turning one stalled upstream
+# into a weekly update that never runs again. Measured: with fd 9 inherited, a
+# run following a stalled clone deferred instead of walking its forks. Closing
+# an fd that was never opened (no /usr/bin/lockf, so no lock) is a no-op.
 clone_fork_upstream() {
-  local source_url="$1" destination="$2"
+  local source_url="$1" destination="$2" output_file="$3"
+  local clone_pid ticks=0
+  local deadline_ticks=$((FORK_CLONE_DEADLINE_SECONDS * FORK_CLONE_POLL_TICKS_PER_SECOND))
   GIT_CONFIG_GLOBAL="$GIT_CONFIG_NEUTRALIZED_PATH" \
     GIT_CONFIG_SYSTEM="$GIT_CONFIG_NEUTRALIZED_PATH" \
     GIT_TERMINAL_PROMPT="$GIT_TERMINAL_PROMPT_FALSE" \
-    git clone --quiet --depth 1 "$source_url" "$destination" 2>&1
+    git clone --quiet --depth 1 -- "$source_url" "$destination" >"$output_file" 2>&1 9>&- &
+  clone_pid=$!
+  while [[ $ticks -lt $deadline_ticks ]] && kill -0 "$clone_pid" 2>/dev/null; do
+    sleep "$FORK_CLONE_POLL_INTERVAL"
+    ticks=$((ticks + 1))
+  done
+  if kill -0 "$clone_pid" 2>/dev/null; then
+    stop_fork_clone "$clone_pid"
+    return 2
+  fi
+  wait "$clone_pid" && return 0
+  return 1
 }
 
 # Remove a staged clone. Fail-safe and LOUD: residue in the temp dir is worth a
@@ -3131,7 +3231,7 @@ check_fork_drift() {
     return 0
   fi
   local fork source_url skill_path last_compared_tree_hash current_tree_hash
-  local clone_parent_dir clone_dir clone_error unusable_fields
+  local clone_parent_dir clone_dir clone_error clone_rc unusable_fields
   local expected_entries walked_entries=0
   # How many entries the walk below OWES a verdict. Range-bounded before it is
   # compared: the guards above make jq's answer a count, but an unreadable
@@ -3174,7 +3274,15 @@ check_fork_drift() {
       notify_fork_clone_unstageable "$fork" "$clone_parent_dir"
       continue
     fi
-    if ! clone_error="$(clone_fork_upstream "$source_url" "$clone_dir/repo")"; then
+    clone_fork_upstream "$source_url" "$clone_dir/repo" "$clone_dir/clone-output.log"
+    clone_rc=$?
+    if [[ $clone_rc -eq 2 ]]; then
+      discard_fork_clone "$clone_dir"
+      notify_fork_clone_timeout "$fork" "$source_url" "$FORK_CLONE_DEADLINE_SECONDS"
+      continue
+    fi
+    if [[ $clone_rc -ne 0 ]]; then
+      clone_error="$(cat "$clone_dir/clone-output.log" 2>/dev/null)"
       discard_fork_clone "$clone_dir"
       notify_fork_upstream_unreachable "$fork" "$source_url" "$clone_error"
       continue

@@ -489,9 +489,18 @@ gone, so re-point `skillPath` and leave `lastComparedTreeHash` alone: bumping it
 comparison nobody has made. **An unreachable upstream** (`FORK UNREACHABLE`, `fork-upstream-unreachable`)
 means the fetch failed, and the log carries git's own message so a renamed, deleted or newly private
 upstream is not filed under "check your network" forever. **An unstageable clone**
-(`fork-clone-unstageable`) means there was no temp dir to fetch into, so nothing was compared. **A broken
+(`fork-clone-unstageable`) means there was no temp dir to fetch into, so nothing was compared. **A clone
+that never answered** (`FORK CLONE TIMED OUT`, `fork-clone-timeout`) means the fetch was still running at
+its deadline (5 minutes, `UPDATE_SKILLS_FORK_CLONE_DEADLINE` overrides it) and was stopped. **A broken
 lock** (`fork-lock-broken`, `fork-lock-missing`, `fork-walk-incomplete`) means the `forks` table, one of
 its entries, or the walk itself could not be used, so some or every upstream went unwatched.
+
+The deadline is what keeps "advisory" literal. The watch runs after the generation exchange has published
+and before the success stamp is written, so a fetch that never answers parks the whole weekly update
+rather than skipping one fork, and every later slot stalls at the same line. The clone also runs with the
+run's serialize-lock file descriptor closed: killing git does not reap a transport helper that never
+reads its stdin, and an inherited copy of that descriptor keeps the kernel lock held, which defers every
+later slot over a fork nobody could clone.
 
 Everything the phase finds is relayed, not just logged: an upstream nobody compared is exactly the
 failure this watch exists to prevent, and a line in `~/.local/log/skills/` that nobody reads is how that
