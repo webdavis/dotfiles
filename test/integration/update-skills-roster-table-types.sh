@@ -9,9 +9,13 @@
 # `repo`; a clawhub entry has non-empty `slug` + `registry`) BEFORE any mutation.
 # A malformed table is a required failure, never an empty table.
 #
-# Cases A-D pin that refusal. Cases E-G pin its BOUNDARY: `forks` is advisory
+# Cases A-D pin that refusal. Cases E-H pin its BOUNDARY: `forks` is advisory
 # data no mutating step reads, so a typo there must be reported, never escalated
-# into a refusal of the whole weekly update.
+# into a refusal of the whole weekly update. Each of those also proves the run
+# PUBLISHED: "it did not refuse" and "it did the work" are different claims, and
+# a regression that skipped the weekly attempt whenever the forks table was
+# unusable satisfied the first one while stamping the week a success over stale
+# content.
 #
 # Each case keeps the tracked UNION non-empty (a valid clawhub skill `gamma`) so
 # the F3 empty-union guard cannot mask the table-type bug: the run must refuse
@@ -245,8 +249,8 @@ assert_lock_level_advisory_names_deployed_lock() { # $1 label, $2 out
     fail "$label: the advisory names something other than the deployed lock ($LOCK), so its remedy points at a file the operator cannot edit: $advisory"
 }
 
-assert_advisory_not_refusal() { # $1 label, $2 rc, $3 out, $4 expected substring
-  local label="$1" rc="$2" out="$3" expected="$4"
+assert_advisory_not_refusal() { # $1 label, $2 rc, $3 out, $4 expected substring, $5 generation id before the run
+  local label="$1" rc="$2" out="$3" expected="$4" id_before="$5" id_after
   [[ $rc -eq 0 ]] ||
     fail "$label: a malformed ADVISORY table refused the whole run (rc=$rc): $out"
   if grep -qi 'REQUIRED-FAILURE' <<<"$out"; then
@@ -260,6 +264,17 @@ assert_advisory_not_refusal() { # $1 label, $2 rc, $3 out, $4 expected substring
   # mean tolerating a degraded generation.
   [[ -L "$AGENTS/skills/alpha" && -f "$AGENTS/skills/alpha/SKILL.md" ]] ||
     fail "$label: npx skill alpha was dropped"
+  # The run must have done the WORK, not merely survived the malformed table.
+  # A completed weekly run always publishes a fresh generation, so a live id
+  # equal to the one before it is a run that skipped the build and the exchange
+  # and then stamped the week a success over the previous generation's content.
+  # Measured: without this, a regression that ran the weekly attempt only when
+  # the forks table was walkable kept every case here green.
+  id_after="$(gen_id)"
+  [[ $id_after != "NONE" ]] ||
+    fail "$label: no live generation after the run: $out"
+  [[ $id_after != "$id_before" ]] ||
+    fail "$label: the live generation was never exchanged ($id_after), so the run stamped this week a success without publishing anything: $out"
 }
 
 reset_stamp
@@ -274,12 +289,13 @@ cat >"$LOCK" <<'EOF'
   "forks": false
 }
 EOF
+id_before_outE="$(gen_id)"
 set +e
 outE="$(run_full)"
 rcE=$?
 set -e
 assert_advisory_not_refusal "case E (forks false)" "$rcE" "$outE" \
-  'the forks table in'
+  'the forks table in' "$id_before_outE"
 assert_lock_level_advisory_names_deployed_lock "case E (forks false)" "$outE"
 
 # --- Case F: a forks ENTRY the walk cannot use --------------------------------
@@ -298,12 +314,13 @@ cat >"$LOCK" <<'EOF'
   "forks": {"delta": {"sourceUrl": "https://example.invalid/d.git", "skillPath": "skills/d", "lastComparedTreeHash": 12345}}
 }
 EOF
+id_before_outF="$(gen_id)"
 set +e
 outF="$(run_full)"
 rcF=$?
 set -e
 assert_advisory_not_refusal "case F (mis-typed forks field)" "$rcF" "$outF" \
-  'lastComparedTreeHash'
+  'lastComparedTreeHash' "$id_before_outF"
 grep -qF 'delta' <<<"$outF" ||
   fail "case F: the advisory does not name the broken fork: $outF"
 
@@ -327,12 +344,13 @@ cat >"$LOCK" <<'EOF'
   "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}}
 }
 EOF
+id_before_outH="$(gen_id)"
 set +e
 outH="$(run_full)"
 rcH=$?
 set -e
 assert_advisory_not_refusal "case H (no forks table at all)" "$rcH" "$outH" \
-  'carries no forks table'
+  'carries no forks table' "$id_before_outH"
 assert_lock_level_advisory_names_deployed_lock "case H (no forks table at all)" "$outH"
 
 # --- Case G: a VALID non-empty forks table sails through and is WALKED --------
@@ -361,6 +379,7 @@ cat >"$LOCK" <<EOF
   }
 }
 EOF
+id_before_outG="$(gen_id)"
 set +e
 outG="$(run_full)"
 rcG=$?
@@ -374,6 +393,8 @@ if grep -qi 'REQUIRED-FAILURE' <<<"$outG"; then
 fi
 [[ -f $STAMP ]] ||
   fail "case G (valid forks table): a well-formed roster did not stamp success: $outG"
+[[ "$(gen_id)" != "$id_before_outG" ]] ||
+  fail "case G (valid forks table): the live generation was never exchanged, so the run stamped success without publishing anything: $outG"
 grep -q 'omega' <<<"$outG" ||
   fail "case G (valid forks table): the forks table was accepted but never walked, so the drift-watch reported nothing about omega: $outG"
 
