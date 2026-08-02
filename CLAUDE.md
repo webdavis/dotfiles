@@ -508,9 +508,13 @@ later slot over a fork nobody could clone.
 Everything the phase finds is relayed, not just logged: an upstream nobody compared is exactly the
 failure this watch exists to prevent, and a line in `~/.local/log/skills/` that nobody reads is how that
 happens quietly. The two lock-level pushes carry a namespaced `--project` (`lock:file`,
-`lock:forks-table`) so they cannot collide with a fork's own name. The drift clone ignores file-based
-global and system git config, so the repo's own `https://github.com/` to `git@github.com:` rewrite cannot
-turn an anonymous public fetch into an SSH fetch whose failures look like an unreachable upstream.
+`lock:forks-table`) so they cannot collide with a fork's own name. The drift clone ignores every git
+config channel that can rewrite a URL, the two file-based ones (global and system) plus the two
+command-scope ones (`GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n` and `GIT_CONFIG_PARAMETERS`, which is how
+`git -c` reaches subprocesses and hooks). The repo's own `https://github.com/` to `git@github.com:`
+rewrite would otherwise turn an anonymous public fetch into an SSH fetch whose failures look like an
+unreachable upstream, and a rewrite through the command-scope channels would compare a different
+repository while naming the recorded URL.
 
 The `forks` table is ADVISORY data: nothing in the mutating path reads it, so a malformed table or entry
 is reported by the watch and never refuses the weekly update (an unquoted `lastComparedTreeHash`, the one

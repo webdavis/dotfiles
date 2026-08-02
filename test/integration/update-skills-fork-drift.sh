@@ -387,6 +387,58 @@ printf '%s\n' "$fork_check_output" | grep -q 'FORK DRIFT.*forkskill' ||
 refute_match "$fork_check_output" 'unreachable.*forkskill|forkskill.*unreachable' \
   "case 5b: the rewritten clone failed and degraded to a silent 'unreachable' skip: $fork_check_output"
 
+# --- Case 5c: the same immunity for git's COMMAND-scope config channels -------
+# GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM neutralize the two FILE channels and
+# nothing else. Config injected through GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n, and
+# through GIT_CONFIG_PARAMETERS (what `git -c` exports to every subprocess,
+# including hooks), still applied, so a rewrite arriving that way redirected the
+# clone to a DIFFERENT repository while every report still named the recorded
+# URL: measured as FORK DRIFT against an upstream that had not changed.
+#
+# The alternate repository holds different content at the same skill path, so a
+# redirected clone reports drift and a faithful one reports unchanged. That is
+# the whole discrimination, and it needs no network.
+case5c_repo="$scratch_dir/case5c-alternate-repo"
+mkdir -p "$case5c_repo/skills/forkskill"
+printf -- '---\nname: forkskill\ndescription: a DIFFERENT repository\n---\n# elsewhere\n' \
+  >"$case5c_repo/skills/forkskill/SKILL.md"
+git -C "$case5c_repo" init -q
+git -C "$case5c_repo" -c user.email=test@test -c user.name=test add -A
+git -C "$case5c_repo" -c user.email=test@test -c user.name=test commit -qm alternate
+rm -f "$HOME/.gitconfig" # case 5's file-channel rewrite is not what this pins
+write_forks_lock "$(jq -n --arg url "$fixture_repo" \
+  --arg hash "$(git -C "$fixture_repo" rev-parse 'HEAD:skills/forkskill')" \
+  '{recordedfork: {source: "fixture/recordedfork", sourceUrl: $url,
+    skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+
+# Control FIRST: with no rewrite the recorded upstream really is unchanged, so
+# any drift below comes from the redirect and not from a stale fixture hash.
+run_fork_check
+printf '%s\n' "$fork_check_output" | grep -q 'recordedfork: upstream unchanged' ||
+  fail "case 5c control: the recorded upstream is not unchanged without a rewrite, so the redirected runs below prove nothing: $fork_check_output"
+
+# Control SECOND: each channel must really reroute a plain clone, or the case
+# discriminates nothing.
+for case5c_channel in count parameters; do
+  case "$case5c_channel" in
+    count) case5c_env=(GIT_CONFIG_COUNT=1 "GIT_CONFIG_KEY_0=url.$case5c_repo.insteadOf" "GIT_CONFIG_VALUE_0=$fixture_repo") ;;
+    parameters) case5c_env=("GIT_CONFIG_PARAMETERS='url.$case5c_repo.insteadOf=$fixture_repo'") ;;
+  esac
+  rm -rf "$scratch_dir/case5c-control-clone"
+  env "${case5c_env[@]}" git clone --quiet --depth 1 "$fixture_repo" "$scratch_dir/case5c-control-clone" >/dev/null 2>&1
+  grep -q 'elsewhere' "$scratch_dir/case5c-control-clone/skills/forkskill/SKILL.md" 2>/dev/null ||
+    fail "case 5c control ($case5c_channel): the planted rewrite did not redirect a plain clone, so this channel cannot tell a neutralized clone from a faithful one"
+
+  run_fork_check "${case5c_env[@]}"
+  [[ $fork_check_rc -eq 0 ]] ||
+    fail "case 5c ($case5c_channel): --check-forks-only exited $fork_check_rc under a url-rewriting $case5c_channel channel: $fork_check_output"
+  printf '%s\n' "$fork_check_output" | grep -q 'recordedfork: upstream unchanged' ||
+    fail "case 5c ($case5c_channel): a rewrite arriving through git's $case5c_channel channel redirected the drift clone, so the phase compared a DIFFERENT repository and reported the verdict against the recorded URL: $fork_check_output"
+  [[ ! -s $relay_call_log ]] ||
+    fail "case 5c ($case5c_channel): an unchanged upstream paged the operator, which is what comparing the wrong repository looks like: $(cat "$relay_call_log")"
+done
+hostile_rewrite_config "$HOME/.gitconfig" # restore what case 5 planted
+
 # --- Case 6: a reachable upstream missing the recorded skillPath --------------
 # Distinct from drift: the upstream is fine, the lock's path is stale. The old
 # code compared `git rev-parse`'s output against a "missing-path" sentinel,

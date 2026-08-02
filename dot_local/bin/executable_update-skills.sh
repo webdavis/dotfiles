@@ -2933,14 +2933,25 @@ FORK_CLONE_POLL_TICKS_PER_SECOND=4
 # HTTPS URL, and this repo deliberately ships
 # `url."git@github.com:".insteadOf = https://github.com/` (dot_gitconfig.tmpl),
 # which silently converts that fetch to SSH; every SSH failure then degrades to
-# "upstream unreachable", a permanently silent skip. HONEST SCOPE, measured on
-# git 2.55.0: GIT_CONFIG_GLOBAL covers BOTH ~/.gitconfig and
-# $XDG_CONFIG_HOME/git/config, GIT_CONFIG_SYSTEM covers /etc/gitconfig, and
-# NEITHER covers config injected via GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n, which
-# still applies. What these clones give up along with the rewrite: globally
-# configured proxies, custom CA bundles and credential helpers. That is the
-# intent, an anonymous public clone needs none of them.
+# "upstream unreachable", a permanently silent skip. Measured on git 2.55.0:
+# GIT_CONFIG_GLOBAL covers BOTH ~/.gitconfig and $XDG_CONFIG_HOME/git/config,
+# and GIT_CONFIG_SYSTEM covers /etc/gitconfig. What these clones give up along
+# with the rewrite: globally configured proxies, custom CA bundles and
+# credential helpers. That is the intent, an anonymous public clone needs none
+# of them.
 GIT_CONFIG_NEUTRALIZED_PATH="/dev/null"
+
+# The two COMMAND-scope config channels, which the file ones above do not cover
+# (measured on git 2.55.0, both redirect the clone to another repository while
+# every report still names the recorded URL: a fork reported as drifted against
+# an upstream that had not changed). GIT_CONFIG_COUNT=0 tells git there are no
+# GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n pairs to apply, whatever the inherited
+# environment holds; an empty GIT_CONFIG_PARAMETERS is an empty list, and that
+# variable is not exotic, it is how `git -c foo=bar` propagates to every
+# subprocess it starts, hooks included, so any run started from inside a git
+# command can carry one.
+GIT_CONFIG_COUNT_NONE="0"
+GIT_CONFIG_PARAMETERS_NONE=""
 
 # Soft-gate on relay.sh, exactly like the pre-commit hook's gitleaks stage: its
 # absence is a silent skip, not an error. `|| true` because an advisory
@@ -3187,6 +3198,8 @@ clone_fork_upstream() {
   local deadline_ticks=$((FORK_CLONE_DEADLINE_SECONDS * FORK_CLONE_POLL_TICKS_PER_SECOND))
   GIT_CONFIG_GLOBAL="$GIT_CONFIG_NEUTRALIZED_PATH" \
     GIT_CONFIG_SYSTEM="$GIT_CONFIG_NEUTRALIZED_PATH" \
+    GIT_CONFIG_COUNT="$GIT_CONFIG_COUNT_NONE" \
+    GIT_CONFIG_PARAMETERS="$GIT_CONFIG_PARAMETERS_NONE" \
     GIT_TERMINAL_PROMPT="$GIT_TERMINAL_PROMPT_FALSE" \
     git clone --quiet --depth 1 -- "$source_url" "$destination" >"$output_file" 2>&1 9>&- &
   clone_pid=$!
