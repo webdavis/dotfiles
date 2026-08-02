@@ -32,6 +32,16 @@ disk. Containment first (the .. checks below), then membership here.
 /Library/Preferences/ is permitted because an explicit path there names
 nothing the default construction could not already reach. */ -}}
 {{ $plistPathAllowedDirectories := list "/Library/Objective-See/LuLu/" "/Library/Preferences/" -}}
+{{- /* The value types a record may declare, the SAME closed set
+macos-defaults-lib.sh holds in MACOS_DEFAULTS_SUPPORTED_TYPES;
+test/integration/macos-defaults-validate-before-write.sh pins the two lists
+identical the way the system-scope suite pins the two plist_path allowlists.
+Named here, at the top, rather than spelled inline at each of the three places
+that need it: two lists in two files is already the drift risk that pin exists
+for, and four copies in one file made the source-form pin key on the exact
+spelling of one `if` condition, which broke it the first time that line was
+edited. */ -}}
+{{ $supportedTypes := list "array" "bool" "data" "date" "dict" "float" "int" "string" -}}
 {{- /* Validation pass: every record must declare which control tier it
 belongs to, and its payload must MATCH the declared tier, before anything
 renders. The tier decides what the record IS; the payload never does
@@ -136,8 +146,21 @@ at the top of this file, which stops bash from expanding anything inside it.
 What that does NOT promise: the field still reaches `defaults` as an argument,
 so it must still be a value `defaults` accepts, and the closed set above remains
 the only thing guarding the type. */ -}}
-{{ if not (has .type (list "array" "bool" "data" "date" "dict" "float" "int" "string")) -}}
-{{ fail (printf "macos_defaults.yaml: unsupported type %q on record %s %s; expected one of array bool data date dict float int string" .type .domain .key) -}}
+{{- /* Read through index, never the bare .type form, per the rule at the top of
+this file. An enforce or verify record that omits `type` entirely is a real
+input: the bare form made Go's text/template die with `map has no entry for key
+"type"`, a panic naming a Go construct, in place of the specific refusal on the
+very next line. The file still refused such a record either way, so this is the
+message and not the verdict. */ -}}
+{{ if not (hasKey . "type") -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has no type; declare one of %s" (index $record "domain") (index $record "key") (join " " $supportedTypes)) -}}
+{{ end -}}
+{{ if kindIs "invalid" (index . "type") -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a blank type; declare one of %s" (index $record "domain") (index $record "key") (join " " $supportedTypes)) -}}
+{{ end -}}
+{{ $declaredType := index $record "type" -}}
+{{ if not (has $declaredType $supportedTypes) -}}
+{{ fail (printf "macos_defaults.yaml: unsupported type %q on record %v %v; expected one of %s" (toString $declaredType) (index $record "domain") (index $record "key") (join " " $supportedTypes)) -}}
 {{ end -}}
 {{- /* A blank YAML scalar parses as nil, and `toString nil` is the literal text
 "<nil>". Left alone, a mistyped `value:` would be WRITTEN, as root on a system
@@ -277,9 +300,21 @@ echo {{ template "shellSingleQuoted" (printf "manual control %s %s: not settable
 {{ end -}}
 {{ end -}}
 
+{{- /* Read through hasKey, never the bare .macos.killall form, per the rule at
+the top of this file. A data file with no `killall:` key at all is a real input:
+the bare form made Go's text/template die with `map has no entry for key
+"killall"`, which refused the WHOLE apply, while macos-defaults-lib.sh read the
+same file happily. Absent means there is nothing to restart, which is what the
+range below renders for an empty list too, so both readers now agree on it. A
+killall declared as a plain SCALAR is a different input and is not made legal
+here: `range` cannot iterate it, and macos-defaults-lib.sh refuses it by name so
+the two readers refuse it together. */ -}}
+
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
+{{ if hasKey .macos "killall" -}}
 {{ range .macos.killall -}}
 killall {{ template "shellSingleQuoted" . }} 2>/dev/null || true
 {{ end }}
+{{- end }}
 {{- end }}

@@ -10,9 +10,18 @@
 # Add new matches to the right dedicated file:
 #   - autocorrect-contractions.yml    common contractions (don't, can't, …)
 #   - autocorrect-spelling.yml        single-word spelling/transposition fixes
-#   - identity.yml.tmpl               name, email, address, phone (templated)
+#   - identity.yml                    name, email, address, phone (templated)
 #   - prompts.yml                     LLM prompt snippets
 #   - snippets.yml                    abbreviations, dates, symbols, URLs
 #   - _pqi.yml                        PCI/work-specific phrases
+
+# espanso auto-loads every file in this directory EXCEPT those whose name starts
+# with an underscore, which it reserves for sets you include deliberately:
+# https://espanso.org/docs/matches/organizing-matches/. _pqi.yml carries that
+# prefix, so it sat in the directory loading nothing at all. Importing it here
+# is what puts its matches in the set, and keeps the prefix meaning what espanso
+# says it means (included on purpose) instead of meaning nothing.
+imports:
+  - "./_pqi.yml"
 
 matches: []

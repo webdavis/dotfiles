@@ -109,6 +109,7 @@ matches:
 
   - trigger: "alz"
     replace: "Alzheimer's"
+    word: true
 
   - trigger: ";;ap"
     replace: "A Place For Mom"
