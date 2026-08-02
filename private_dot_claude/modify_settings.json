@@ -109,14 +109,29 @@
     "command" (printf "bash %s/.claude/statusline-command.sh" $home) -}}
 {{- $merged = setValueAtPath "statusLine" $statusLine $merged -}}
 
-{{- /* --- stable: plugins enabled by default --- */ -}}
+{{- /* --- stable: plugins enabled by default.
+
+       This dict REPLACES enabledPlugins wholesale, it does not merge into it,
+       because setValueAtPath writes the value at the path. So a plugin enabled
+       live but missing here is DISABLED on the next apply, silently. Every
+       plugin meant to stay on must be listed. test/unit/claude-enabled-plugins.sh
+       fails when this set and the roster disagree.
+
+       ponytail is a marketplace plugin rather than an official one: its
+       marketplace is added separately (`claude plugin marketplace add
+       DietrichGebert/ponytail`) and this entry only records that it should be
+       ENABLED once installed. Enabling a plugin that is not installed is inert,
+       so the declaration is safe on a fresh machine. --- */ -}}
 {{- $enabledPlugins := dict
     "superpowers@claude-plugins-official" true
     "document-skills@anthropic-agent-skills" true
     "frontend-design@claude-plugins-official" true
     "playwright@claude-plugins-official" true
     "security-guidance@claude-plugins-official" true
-    "swift-lsp@claude-plugins-official" true -}}
+    "swift-lsp@claude-plugins-official" true
+    "rust-analyzer-lsp@claude-plugins-official" true
+    "codex@openai-codex" true
+    "ponytail@ponytail" true -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
