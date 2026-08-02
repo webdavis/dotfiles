@@ -331,15 +331,22 @@ for exempt_skill in "${FORKS_UNWATCHED_VENDORED[@]}"; do
     fail "FORKS_UNWATCHED_VENDORED names '$exempt_skill', which is not a vendored skill dir (stale exemption)"
 done
 # Entry schema: the three fields the drift-watch walks, each a non-empty
-# string. A null skillPath used to resolve as the literal path "null".
-bad_forks="$(jq -r '.forks // {} | to_entries[]
+# STRING. The type half is what a `// ""` test cannot do: `12345 // ""` is
+# 12345, so an unquoted lastComparedTreeHash (the one field a maintainer
+# hand-edits after comparing a fork) passed the old check, and at run time
+# `jq -r` read it back as "12345", matched no hash, and cried FORK DRIFT every
+# week forever. The roster gate no longer refuses a run over this table, so
+# this build-time check is where a committed typo has to be caught.
+bad_forks="$(jq -r '
+  def unusable($v): ($v | type) != "string" or $v == "";
+  .forks // {} | to_entries[]
   | select(((.value | type) != "object")
-      or ((.value.sourceUrl // "") == "")
-      or ((.value.skillPath // "") == "")
-      or ((.value.lastComparedTreeHash // "") == ""))
+      or unusable(.value.sourceUrl)
+      or unusable(.value.skillPath)
+      or unusable(.value.lastComparedTreeHash))
   | .key' "$LOCK")"
 [[ -z $bad_forks ]] ||
-  fail "forks entries need a non-empty sourceUrl, skillPath and lastComparedTreeHash: $bad_forks"
+  fail "forks entries need a non-empty string sourceUrl, skillPath and lastComparedTreeHash: $bad_forks"
 
 roster_count="$(printf '%s\n' "$roster_sorted" | wc -l | tr -d ' ')"
 npx_count="$(printf '%s\n' "$npx_keys" | wc -l | tr -d ' ')"
