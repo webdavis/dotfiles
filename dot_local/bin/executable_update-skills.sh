@@ -3107,10 +3107,10 @@ fork_entry_is_object() {
   jq -e --arg fork "$fork" '.forks[$fork] | type == "object"' "$lock_file" >/dev/null 2>&1
 }
 
-# Which of the fields the walk reads are NOT a non-empty STRING, as a
-# comma-separated list; empty output means the entry is walkable. Answered per
-# entry so one broken entry cannot silence the others, and it names the FIELD
-# because "this entry is malformed" is not a remedy anyone can execute.
+# Which of the fields the walk reads are NOT a non-empty, control-character-free
+# STRING, as a comma-separated list; empty output means the entry is walkable.
+# Answered per entry so one broken entry cannot silence the others, and it names
+# the FIELD because "this entry is malformed" is not a remedy anyone can execute.
 #
 # The TYPE half is load-bearing, not decoration. `jq -r` renders any scalar as
 # text, so a hash written unquoted (12345) read back as the string "12345",
@@ -3120,6 +3120,16 @@ fork_entry_is_object() {
 # "true" and was reported as a path upstream had deleted. All three are
 # permanent, and all three send the operator somewhere the defect is not.
 #
+# CONTROL CHARACTERS are the other half of the type check, and they are the
+# half that is invisible. A string can be the right type and still not be the
+# value it looks like: bash drops NUL bytes out of a command substitution (with
+# a warning that reaches a log nobody reads) and strips trailing newlines from
+# one silently, so a URL, path or hash recorded with either read back as a
+# DIFFERENT, entirely plausible value. Measured on all three fields, both kinds:
+# every one was compared as the healthy value and reported "upstream unchanged",
+# which is a reassuring answer to a question nobody asked. None of the three
+# fields can legitimately carry one, so the whole class is a broken lock entry.
+#
 # The caller must have established the entry is an OBJECT first: indexing a
 # scalar is a jq error, not a false.
 fork_entry_unusable_fields() {
@@ -3127,7 +3137,10 @@ fork_entry_unusable_fields() {
   jq -r --arg fork "$fork" '
     .forks[$fork] as $entry
     | $ARGS.positional
-    | map(select(($entry[.] | type) != "string" or $entry[.] == ""))
+    | map(select(
+        ($entry[.] | type) != "string"
+        or $entry[.] == ""
+        or ($entry[.] | explode | any(. < 32 or . == 127))))
     | join(", ")
   ' "$lock_file" --args "${FORK_ENTRY_REQUIRED_FIELDS[@]}" 2>/dev/null
 }
@@ -3304,7 +3317,7 @@ check_fork_drift() {
     unusable_fields="$(fork_entry_unusable_fields "$CUSTOM_SKILL_LOCK" "$fork")"
     if [[ -n $unusable_fields ]]; then
       notify_fork_entry_malformed "$fork" \
-        "these fields must each be a non-empty JSON string: $unusable_fields"
+        "these fields must each be a non-empty JSON string with no control characters: $unusable_fields"
       continue
     fi
     source_url="$(jq -r --arg fork "$fork" '.forks[$fork].sourceUrl' "$CUSTOM_SKILL_LOCK")"

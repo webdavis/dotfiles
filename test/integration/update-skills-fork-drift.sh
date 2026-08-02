@@ -724,6 +724,50 @@ for case15_field in sourceUrl skillPath lastComparedTreeHash; do
   done
 done
 
+# --- Case 15b: a field carrying CONTROL characters is a malformed entry --------
+# The type check says string, and a string can still be unusable. Bash drops NUL
+# bytes out of a command substitution (with a warning nobody reads) and strips
+# trailing newlines from one silently, so a URL, path or hash recorded with
+# either read back as a DIFFERENT, valid-looking value: measured, all six
+# variants of the three fields reported "upstream unchanged" over a lock whose
+# recorded values were nothing of the sort. The comparison then answers a
+# question nobody asked, and the answer is reassuring.
+#
+# The lock is written STRAIGHT from jq here, never through a shell variable:
+# a capture would strip the very byte the case is about, and the test would pass
+# by testing the healthy value (measured while writing it).
+write_control_char_fork_lock() { # $1 field, $2 jq escape text, "" for none
+  local field="$1" control="$2" program
+  # shellcheck disable=SC2016  # $url/$hash/$field are jq variables, not shell
+  program='{version: 1, skills: {}, forks: {ctlfork:
+    ({source: "fixture/ctlfork", sourceUrl: $url, skillPath: "skills/forkskill",
+      lastComparedTreeHash: $hash}
+     | .[$field] = (.[$field] + "CONTROLCHAR"))}}'
+  jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" --arg field "$field" \
+    "${program/CONTROLCHAR/$control}" >"$HOME/.agents/custom-skill-lock.json"
+}
+# FALSE-POSITIVE DIRECTION FIRST: the same writer with nothing appended must be
+# walked and reported clean, or every assertion below passes for the wrong
+# reason (a writer that produced an unwalkable entry would "detect" everything).
+write_control_char_fork_lock sourceUrl ''
+run_fork_check
+printf '%s\n' "$fork_check_output" | grep -q 'ctlfork: upstream unchanged' ||
+  fail "case 15b control: the entry this case writes was not walked clean without a control character, so the variants below prove nothing: $fork_check_output"
+for case15b_field in sourceUrl skillPath lastComparedTreeHash; do
+  for case15b_control in '\u0000' '\n' '\r' '\t' '\u007f'; do
+    write_control_char_fork_lock "$case15b_field" "$case15b_control"
+    run_fork_check
+    [[ $fork_check_rc -eq 0 ]] ||
+      fail "case 15b ($case15b_field + $case15b_control): the drift-watch exited $fork_check_rc: $fork_check_output"
+    assert_log_line_has "$fork_check_output" 'ctlfork' "$case15b_field" \
+      "case 15b ($case15b_field + $case15b_control): the advisory does not name the field the operator has to fix"
+    refute_match "$fork_check_output" 'FORK DRIFT|FORK PATH MISSING|FORK UNREACHABLE|upstream unchanged' \
+      "case 15b ($case15b_field + $case15b_control): a recorded value that is not the URL, path or hash it looks like was normalized into one and then reported as an upstream finding: $fork_check_output"
+    assert_relay_line fork-lock-broken "$case15b_field" \
+      "case 15b ($case15b_field + $case15b_control): no relay push carries both the fork-lock-broken state and the offending field"
+  done
+done
+
 # --- Case 16: a temp dir that cannot be created is relayed too ----------------
 # Case 6b pins that it does not kill the run. This pins that anyone is told: if
 # the temp dir is unusable then EVERY fork goes unchecked, which is the widest
