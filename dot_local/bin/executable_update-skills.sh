@@ -2959,6 +2959,30 @@ GIT_CONFIG_PARAMETERS_NONE=""
 # notification must never decide the run's exit status. A relay push reaches
 # the operator's phone, so it is a side effect --dry-run must not have: the dry
 # preview still LOGS every finding, it just does not notify anyone about it.
+#
+# `9>&-` closes the serialize lock's fd for relay and everything it spawns, for
+# the same reason it is on the drift clone below. relay.sh is fire-and-forget:
+# it DETACHES its three channels (two `curl -m 10` and one terminal-notifier)
+# and exits without waiting, so those children outlive this whole run. The lock
+# is a kernel flock on fd 9 which the kernel holds until the LAST copy of the fd
+# closes, so a detached child that inherited it keeps the lock held after the
+# updater has exited, and the next scheduled slot defers with exit 75 over a
+# competing run that does not exist. Measured with the real relay.sh against a
+# blackholed endpoint: without this close the lock outlived the run by 10s
+# (lsof named the detached curls as the holders), and with it the lock is free
+# the moment the run exits while those same curls are still running. That widest
+# window is the one a dead network opens, which is also the condition that makes
+# every upstream unreachable and pushes from every state at once. Closing an fd
+# that was never opened (no /usr/bin/lockf, so no lock) is a no-op.
+#
+# Deliberately NOT under a deadline, unlike the clone. That clone waits on a
+# remote by construction; relay.sh performs no synchronous network I/O at all,
+# every channel that can block is already detached behind its own `-m 10`.
+# Measured with all three channels blocked for 20s: relay.sh still returned in
+# 95ms. A hand-rolled deadline here would bound the WAIT and not the work (the
+# channels are detached already, so killing relay does not stop them) while
+# adding a kill path that can cut a push between its channels, on a call site
+# that fires up to fifteen times a run.
 relay_fork_advisory() {
   local state="$1" fork="$2" detail="$3"
   local relay_script="$HOME/.local/bin/relay.sh"
@@ -2967,7 +2991,7 @@ relay_fork_advisory() {
   fi
   [[ -x $relay_script ]] || return 0
   "$relay_script" --agent update-skills --state "$state" --project "$fork" \
-    --detail "$detail" || true
+    --detail "$detail" 9>&- || true
 }
 
 notify_fork_drift() {

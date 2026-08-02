@@ -107,6 +107,10 @@
 #      missing skillPath whose remedy repairs a path that is not broken.
 #  26. The clone suppresses terminal prompting, so an upstream that has gone
 #      private cannot park an unattended run on a credential prompt.
+#  27. An advisory PUSH leaves no serialize lock behind. relay.sh detaches its
+#      channels and exits, and a detached child that inherited the run's lock fd
+#      keeps the kernel lock held after the run itself is gone, so the next slot
+#      defers over a competing run that does not exist.
 set -euo pipefail
 
 # When git runs a hook such as pre-commit (this test runs under one via
@@ -123,7 +127,22 @@ fail() {
 }
 
 scratch_dir="$(mktemp -d)"
-trap 'rm -rf "$scratch_dir"' EXIT
+# Background children a case DELIBERATELY leaks (case 27 leaks them through a
+# relay shim, because detaching and exiting is what the real relay.sh does).
+# Reaped here rather than at the end of the case, so a failure part-way through
+# leaves nothing of this test's making running behind the suite.
+relay_leak_pid_file="$scratch_dir/relay-leak.pid"
+cleanup() {
+  local leaked_pid
+  if [[ -f $relay_leak_pid_file ]]; then
+    while IFS= read -r leaked_pid; do
+      [[ -n $leaked_pid ]] || continue
+      kill "$leaked_pid" 2>/dev/null || true
+    done <"$relay_leak_pid_file"
+  fi
+  rm -rf "$scratch_dir"
+}
+trap cleanup EXIT
 
 # Scratch HOME: the script derives every path from $HOME.
 HOME="$scratch_dir/home"
@@ -162,6 +181,23 @@ EOF
   chmod +x "$HOME/.local/bin/relay.sh"
 }
 install_relay_shim 0
+
+# A relay shim that also DETACHES a child and exits without waiting for it,
+# which is what the real relay.sh does with all three of its channels (two
+# `curl -m 10` and one terminal-notifier). Only case 27 installs it; every other
+# case wants the plain recorder above. The detached child redirects its own
+# std streams, as the real ones do, so it cannot hold this test's output pipe
+# open; the fds it does inherit untouched are the subject of the case.
+install_leaking_relay_shim() {
+  cat >"$HOME/.local/bin/relay.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$relay_call_log"
+sleep 30 >/dev/null 2>&1 &
+printf '%s\n' "\$!" >>"$relay_leak_pid_file"
+exit 0
+EOF
+  chmod +x "$HOME/.local/bin/relay.sh"
+}
 
 # The lock's forks table: forkskill has the true current hash (no drift);
 # ghostfork's upstream path does not exist (unreachable network stand-in).
@@ -1241,4 +1277,67 @@ assert_relay_line fork-walk-incomplete 'not drift-checked' \
 assert_relay_project fork-walk-incomplete lock:forks-table \
   "case 24b: the short-walk advisory does not carry the table's reserved label"
 
-echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override, absent vs empty forks table, unreadable and truncated table feeds)"
+# --- Case 27: an advisory push leaves no serialize lock behind ----------------
+# The run's serialize lock is a kernel flock on fd 9, held for this process's
+# lifetime, INHERITED by every child, and held by the kernel until the LAST copy
+# of that fd closes. relay.sh is fire-and-forget by design: it detaches its three
+# channels and exits without waiting, so each detached child outlives the whole
+# run carrying whatever fds it inherited. With fd 9 among them the lock survives
+# the updater's own exit, and the next scheduled slot defers with exit 75 over a
+# competing run that does not exist: a false deferral nobody can diagnose,
+# because there is no other run to find.
+#
+# Why the phase this branch built is where it bites: main pushed from here once,
+# on drift alone, so the window was rare. This phase pushes from eleven states,
+# and the ones a DEAD NETWORK produces (every upstream unreachable, every clone
+# stopped at its deadline) are both the most numerous and the widest, since a
+# curl with nowhere to go holds its child open for the full `-m 10`.
+case27_lockfile="$HOME/.agents/.update-skills.lock"
+write_forks_lock "$(jq -n --arg url "$scratch_dir/no-such-repo" \
+  '{pushfork: {source: "fixture/pushfork", sourceUrl: $url, skillPath: ".",
+    lastComparedTreeHash: "0000000000000000000000000000000000000000"}}')"
+
+# Positive control, and it runs BEFORE the pushing run for two reasons. The
+# assertion at the end of this case reads "a run started now does NOT defer",
+# which a run that never takes the lock at all satisfies just as well as a lock
+# that was properly released, so the gate has to be shown armed. And taking the
+# lock here succeeds only if it is free, which is what says the deferral at the
+# end came from THIS case's push rather than from residue of an earlier one.
+# darwin-only: the gate is /usr/bin/lockf, and without it the run is unlocked by
+# design (it says so and proceeds), so there is no gate to arm.
+if [[ -x /usr/bin/lockf ]]; then
+  exec 8>>"$case27_lockfile"
+  /usr/bin/lockf -s -t 0 8 ||
+    fail "case 27 control: the serialize lock was already held before this case pushed anything, so nothing here can be attributed to an advisory push"
+  run_fork_check
+  [[ $fork_check_rc -eq 75 ]] ||
+    fail "case 27 control: a run started while the lock was genuinely held exited $fork_check_rc instead of deferring with 75, so this sandbox's lock gate is not armed and the release assertion below would pass over a run that never locks at all: $fork_check_output"
+  exec 8>&-
+fi
+
+install_leaking_relay_shim
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 27: the drift-watch exited $fork_check_rc on an unreachable upstream: $fork_check_output"
+# Non-vacuity, both halves: a run that pushed nothing, or one whose detached
+# child has already gone, cannot leave a lock behind, and the assertion below
+# would pass over either.
+assert_relay_state fork-upstream-unreachable \
+  "case 27: the run pushed no advisory at all, so the release assertion below would pass over a run that never called relay"
+case27_leak_pid="$(head -1 "$relay_leak_pid_file" 2>/dev/null || true)"
+[[ -n $case27_leak_pid ]] ||
+  fail "case 27: the relay shim recorded no detached child, so nothing outlived the run and the release assertion below proves nothing"
+kill -0 "$case27_leak_pid" 2>/dev/null ||
+  fail "case 27: relay's detached child (pid $case27_leak_pid) is already gone, so nothing could still be holding the lock and the release assertion below proves nothing"
+
+run_fork_check
+[[ $fork_check_rc -ne 75 ]] ||
+  fail "case 27: the run started after an advisory push deferred on the serialize lock, so relay's detached children still hold the exited run's lock fd and every later slot defers over a run that is already gone: $fork_check_output"
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 27: the run started after an advisory push exited $fork_check_rc: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'FORK UNREACHABLE' 'pushfork' \
+  "case 27: the run started after an advisory push did not walk its forks: $fork_check_output"
+kill "$case27_leak_pid" 2>/dev/null || true
+install_relay_shim 0
+
+echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override, absent vs empty forks table, unreadable and truncated table feeds, advisory push releases the serialize lock)"
