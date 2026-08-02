@@ -25,6 +25,8 @@ matches:
 
   - trigger: ";;review"
     replace: "Review this code for bugs, security issues, and readability:"
+    # right_word keeps this from firing until the word ends, so ;;reviewproject stays typeable.
+    right_word: true
 
   - trigger: ";;explain"
     replace: "Explain this code step by step:"

@@ -109,9 +109,24 @@ require_readable_data_file() { # <path>
 # (absent on a manual-tier record) as the empty string already, and the
 # tempting explicit spelling, `.value // ""`, is WRONG here: yq's alternative
 # operator fires on false as well as null, so a legitimate `value: false`
-# (most of the tracked records) would collapse to an empty write. The
-# defaulted fields below are safe with // only because none of them can hold
-# a legitimate false.
+# (most of the tracked records) would collapse to an empty write.
+#
+# host, scope and plist_path DO use the alternative operator, and what makes
+# that safe is not that "none of them can hold a legitimate false", which was
+# this comment's earlier claim and is not a property of the operator at all.
+# `//` fires on null AND on false, so it cannot tell an ABSENT field from one
+# DECLARED as null, false or 0, and a `scope:` typed with no value collapsed to
+# "user" and was written. What makes it safe is the companion rule below,
+# defaults_records_declare_agreeing_field_types: a record that DECLARES one of
+# these three fields must give it a plain string, so a record that could make
+# `//` fire on anything but an absent field is refused.
+#
+# Stated in the order things actually happen, because the ordering is the whole
+# of the guarantee: this expression runs FIRST and the rule runs after it, on the
+# file rather than on the joined line. Nothing is emitted in between.
+# defaults_records_unit_separated builds the stream, puts the file through every
+# rule, and only then prints, so no stream a caller ever sees was joined out of a
+# record the rule would refuse.
 defaults_records_join_expression() { # <record-selector>
   local unit_separator=$'\x1f'
   printf '%s | [.domain, .key, .type, .value, (.host // ""), (.scope // "user"), (.plist_path // ""), .tier] | join("%s")' \
@@ -125,6 +140,27 @@ defaults_records_field_count() { # <line>
   local unit_separator=$'\x1f'
   local separators_only="${1//[!$unit_separator]/}"
   printf '%s' "$((${#separators_only} + 1))"
+}
+
+# first_non_blank_line <text>, the first line of <text> that carries something,
+# or the empty string when none does. PURE: one string in, one string out.
+#
+# Pure bash rather than the obvious `grep -v '^$' | head -1`, and that is the
+# whole reason it has a name. `grep` exits 1 when it matches NOTHING, which here
+# is the CLEAN case, so under `set -euo pipefail` the pipeline's status became
+# the enclosing function's and errexit killed the caller, silently and with no
+# message, on a file with nothing wrong with it. Every call site today happens to
+# suspend errexit (each one sits to the left of a `||`), so the failure was
+# latent rather than live; a helper that cannot fail at all is one fewer thing
+# for the next call site to get right.
+first_non_blank_line() { # <text>
+  local line
+  while IFS= read -r line; do
+    if [[ -n $line ]]; then
+      printf '%s' "$line"
+      return 0
+    fi
+  done <<<"$1"
 }
 
 # defaults_records_locate_malformed <path> <declared-count>, describe the FIRST
@@ -232,6 +268,8 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 DEFAULTS_RECORDS_LIST_KIND='seq'
 DEFAULTS_RECORDS_LIST_TAG='!!seq'
 DEFAULTS_RECORDS_MAP_KIND='map'
+DEFAULTS_RECORDS_MAP_TAG='!!map'
+DEFAULTS_RECORDS_SCALAR_KIND='scalar'
 DEFAULTS_RECORDS_ABSENT_TAG='!!null'
 
 # The two yq expressions this reader asks the data file, named so the pair
@@ -302,6 +340,327 @@ records_declaration_verdict() { # <shape-answer>
       fi
       ;;
   esac
+}
+
+# THE WHOLE-FILE RULES. Four things that are true or false about the data FILE,
+# before anything looks at `.macos.defaults` at all, and none of which the record
+# list's shape can answer.
+#
+# Three of them are the same defect from this library's side: yq reads the file
+# and chezmoi's YAML data loader, which the runner template goes through, does
+# not. On those the tools acted on records out of a file `chezmoi apply` would
+# not load, which is the permissive direction this whole guard family exists to
+# close. They were found by ASKING chezmoi rather than by reasoning about YAML:
+# every malformed-but-yq-readable shape that could be thought of was put through
+# `chezmoi data`, and exactly two came back refused (measured, yq v4.53.3 and
+# chezmoi v2.71.1; anchors, merge keys, every tag spelling, non-string keys, hex
+# and octal ints, control characters, CRLF and a 40-deep nest all agree).
+#
+#   MULTIPLE DOCUMENTS   chezmoi keeps document 1 and silently discards the rest.
+#                        Counted from the BYTES, by data_file_document_count
+#                        below, and not from yq's answer: yq ELIDES an empty
+#                        document, so `---`/`---`/content is one document to yq
+#                        and two to chezmoi, and that shape was measured to be
+#                        streamed here while `chezmoi apply` died on the data
+#                        load. The asymmetry is left in place on the template
+#                        side and pinned from both sides by
+#                        test/integration/macos-defaults-shape-agreement.sh,
+#                        which asserts that the template renders document 1 and
+#                        fails loudly if a future chezmoi starts refusing these
+#                        files instead. Honest statement of the residual, which
+#                        depends on WHICH document holds the records: when
+#                        document 1 holds them, `chezmoi apply` applies a strict
+#                        subset and never a wrong value; when an EMPTY document
+#                        leads the file, chezmoi finds no `macos` key at all and
+#                        the whole apply fails, not just this script. Every tool
+#                        that goes through this library refuses both by name.
+#
+#   DUPLICATE MAPPING KEY  the one an operator reaches by accident, by copying a
+#                        block and editing half of it. chezmoi refuses the whole
+#                        file (`mapping key "x" already defined at [n:m]`). yq
+#                        keeps BOTH entries in the node tree and answers
+#                        traversal with the LAST, so this library did not merely
+#                        accept the file, it acted on records the operator was
+#                        not looking at. The rule is over the WHOLE file, not
+#                        over `.macos.defaults`: a duplicate `macos`, `defaults`,
+#                        `killall` or record `domain` key are one defect with one
+#                        fix, and chezmoi refuses all four identically.
+#
+#   COMPLEX MAPPING KEY  a key that is itself a sequence or a mapping (`? [a, b]
+#                        : 1`). chezmoi answers `found an invalid key for this
+#                        map` and reads nothing.
+#
+# The one measured limit of the duplicate rule, recorded rather than papered
+# over: the traversal walks the nodes yq yields, and a mapping used AS A KEY is
+# not among them, so a duplicate key INSIDE such a mapping is not counted. That
+# file is still refused, by the complex-key rule, which fires on the outer key
+# first. So the invariant holds on it and the count does not.
+#
+# The fourth is not a divergence. Both readers resolve a YAML ALIAS, including
+# the merge key `<<: *anchor`, so refusing one is a DELIBERATE schema
+# restriction and this library is the stricter reader on purpose. Four reasons,
+# in the order they were weighed:
+#
+#   - Nothing in this repo uses the feature. All five .chezmoidata files were
+#     measured: zero aliases, zero merge keys.
+#   - There is nothing to factor out. The record list is a flat sequence of
+#     records with no repeated block; `just defaults-capture`, the tool that
+#     writes new records, cannot emit an anchor.
+#   - Accepting them is MORE work than refusing them, not less, and half-done
+#     acceptance is worse than either. yq resolves an alias in some operators and
+#     not others: the join expression that renders a record resolves `.value`
+#     through a merge key while `has("value")` does not, so before this rule
+#     existed a merged record was refused as "has a blank value" when it plainly
+#     declares one. Accepting aliases means prefixing `explode(.)` onto EVERY
+#     expression in this file and never missing one.
+#   - The semantics are announced as changing. yq warns on every merge-key read
+#     that `--yaml-fix-merge-anchor-to-spec` will default to true, which flips
+#     whether a merge overrides or yields to an explicit key. Accepting aliases
+#     means promising that yq's resolution matches chezmoi's across that flip.
+#
+# An ANCHOR with no alias referencing it is left alone. It is a label; on its own
+# it changes nothing either reader sees, and refusing it would be strictness with
+# no divergence behind it.
+#
+# What this gate does NOT promise, stated because it is adjacent enough to look
+# covered: chezmoi loads every file in .chezmoidata, so a duplicate key in a
+# SIBLING data file fails the same `chezmoi apply` while this gate, which reads
+# macos_defaults.yaml alone, says nothing about it. The honest reading of a pass
+# here is "this file does not carry the defect", not "the template will render".
+DEFAULTS_DATA_FILE_RULES_EXPRESSION='[[.. | select(kind == "map") | keys | select(length != (unique | length))] | length, [.. | select(kind == "map") | to_entries | .[] | .key | select(kind != "scalar")] | length, [.. | select(kind == "alias")] | length] | join(" ")'
+
+# THE DOCUMENT-BOUNDARY MARKERS, anchored at column 0.
+#
+# A document-start marker is `---` alone on a line, or `---` followed by
+# whitespace and more content. YAML gives the marker meaning only at the start of
+# a line, and a block scalar's content must be INDENTED past its parent, so an
+# anchored pattern cannot mistake block-scalar text for a boundary. The one place
+# it can still fire inside quoted text is a multi-line quoted scalar carrying a
+# column-0 `---`, and that is a real boundary there too: measured, both readers
+# refuse such a file, because the quote it splits is then unterminated.
+MACOS_DEFAULTS_DOCUMENT_START_MARKER_PATTERN='^---([[:space:]].*)?$'
+
+# data_file_line_carries_document_content <line>, a PURE predicate: 0 when this
+# line puts CONTENT in the document it sits in, 1 when it does not.
+#
+# Blank lines, comments and YAML directives (`%YAML 1.2`) do not. That is not
+# tidiness, it decides the count: `# note` followed by `---` followed by records
+# is ONE document to both readers (measured), and a predicate that called the
+# comment content would count the file as two and refuse a legitimate file.
+data_file_line_carries_document_content() { # <line>
+  local line="$1"
+  [[ $line =~ ^[[:space:]]*$ ]] && return 1
+  [[ $line =~ ^[[:space:]]*# ]] && return 1
+  [[ $line == %* ]] && return 1
+  return 0
+}
+
+# data_file_document_count <path>, how many YAML documents the file's BYTES
+# declare. Prints one non-negative integer.
+#
+# Counted from the bytes rather than from yq, and this is the whole point of the
+# function. yq ELIDES an empty document: measured (yq v4.53.3), `---`/`---`/
+# content answers ONE document to `yq eval-all '[.] | length'` and its only
+# document reports `documentIndex` 0, so no yq expression can see the empty one.
+# chezmoi's loader keeps it, finds no `macos` key in it, and fails the apply,
+# while this library streamed the records out of the second document. That is the
+# library ACCEPTING what the template REFUSES, the one direction this file's
+# whole guard family exists to make impossible.
+#
+# The count is (document-start markers) + (1 when content precedes the first
+# marker), which is what makes a LEADING `---` one document and not two. A
+# trailing `...` is not counted at all: it ENDS a document rather than starting
+# one, and content after it is not valid input to either reader.
+#
+# TWO measured limits of counting bytes this way, both stated here rather than
+# left for the next reader to rediscover:
+#
+#   a TRAILING bare `---`, with nothing or only a comment after it, counts as a
+#   second document and is refused. chezmoi accepts that file. The direction is
+#   the safe one (this reader is the stricter of the two, and the refusal names a
+#   marker the operator can see and delete), so it is left as it is rather than
+#   given a lookahead that would have to decide what "nothing after it" means.
+#
+#   an INDENTED `---` is not counted at all, and it is not always harmless: a
+#   file whose first line is `  ---` is read by yq as one ordinary document and
+#   refused outright by chezmoi's loader (`unexpected key name`), so the library
+#   streams a file the template cannot read. That is the unsafe direction and
+#   this counter does NOT close it. Column 0 is deliberate all the same: the same
+#   indented spelling inside a block scalar is legitimate content that both
+#   readers agree on, and telling the two apart from the bytes means writing the
+#   YAML lexer this counter exists to avoid. Recorded as a known divergence, not
+#   as a case anything here handles.
+# Answers NOTHING and fails, status 1, on a file it cannot read, rather than
+# answering a number it did not count. Measured, and this is not belt and braces:
+# a redirection failure does not end the function on its own. Bash reports it,
+# skips the loop body entirely and runs straight on to the printf, so the plain
+# spelling answers `0` with status 0 for a file that does not exist, and every
+# caller comparing that against a maximum reads it as a clean one-document file.
+# The readable test names the precondition; the `|| return 1` covers the rest,
+# including a file that stops being readable between the two.
+data_file_document_count() { # <path>
+  local data_file="$1"
+  local line start_marker_count=0 content_before_first_marker=0 seen_start_marker=0
+  [[ -r $data_file ]] || return 1
+  while IFS= read -r line || [[ -n $line ]]; do
+    if [[ $line =~ $MACOS_DEFAULTS_DOCUMENT_START_MARKER_PATTERN ]]; then
+      start_marker_count=$((start_marker_count + 1))
+      seen_start_marker=1
+      continue
+    fi
+    if [[ $seen_start_marker -eq 0 ]] && data_file_line_carries_document_content "$line"; then
+      content_before_first_marker=1
+    fi
+  done <"$data_file" || return 1
+  printf '%s\n' "$((start_marker_count + content_before_first_marker))"
+}
+
+# print_multiple_documents_refusal <path>, the one wording for the one defect.
+# Two checks reach this conclusion (the byte counter below and the backstop
+# branch in data_file_rules_verdict), and two copies of a message are two things
+# to edit and one to forget: with byte-identical copies either could be reworded
+# and every message assertion would stay green on the other one's output.
+print_multiple_documents_refusal() { # <path>
+  printf 'error: %s contains more than one YAML document; chezmoi keeps the FIRST document and silently discards the rest, so an apply would write only the records above the first --- while every tool here refuses the file; merge the documents into one\n' \
+    "$1" >&2
+}
+
+# require_data_file_holds_one_document <path>, 0 when the file declares at most
+# one YAML document, 2 with the multiple-documents message otherwise.
+#
+# At MOST one, not exactly one, deliberately. A file with no document at all is a
+# real input with a better refusal already waiting for it (the record-list
+# declaration verdict names the missing list and tells the operator to declare
+# `defaults: []`), and answering "more than one document" there would be a wrong
+# message for a file that has none.
+#
+# The count is checked for being a COUNT before it is compared, because the
+# comparison cannot do that job: `[[ '' -le 1 ]]` reads an empty string as zero
+# and answers true, so a counter that failed to read the file would look like a
+# clean one-document answer and this gate would fail OPEN. The reader above is
+# refused earlier today, by the shape read, but a guard that depends on another
+# guard running first is one edit away from being no guard at all.
+require_data_file_holds_one_document() { # <path>
+  local data_file="$1" document_count
+  if ! document_count="$(data_file_document_count "$data_file")" ||
+    [[ ! $document_count =~ ^[0-9]+$ ]]; then
+    printf 'error: cannot count the YAML documents in %s; refusing a file whose document count could not be read\n' \
+      "$data_file" >&2
+    return 2
+  fi
+  [[ $document_count -le 1 ]] && return 0
+  print_multiple_documents_refusal "$data_file"
+  return 2
+}
+
+# data_file_rules_verdict <rules-answer>, classify what the whole-file rules
+# expression said. PURE: one string in, one verdict out, no file access.
+#
+#   multiple_documents     the answer spans more than one line. The expression
+#                          above ends in a join, so it yields exactly one scalar
+#                          per document, and yq prints one line per yielded
+#                          scalar: measured, a file of two NON-EMPTY documents
+#                          answers two lines and a one-document file answers one,
+#                          whatever the counts are. Read FIRST, because
+#                          per-document counts cannot be summed into a whole-file
+#                          answer and because a file with more than one document
+#                          has that problem before it has any other.
+#
+#                          This branch is a BACKSTOP, not the detector. It cannot
+#                          see a document yq elided (an empty leading document is
+#                          absent from yq's output entirely), which is why
+#                          require_data_file_holds_one_document counts the bytes
+#                          before this expression is ever run. What this branch
+#                          still buys: a yq that started splitting one document's
+#                          answer across lines gets a refusal with the wrong NAME
+#                          rather than a missed refusal, because every branch here
+#                          except `satisfied` refuses.
+#   duplicate_mapping_key  at least one mapping in the file declares a key twice.
+#   complex_mapping_key    at least one mapping key is not a scalar.
+#   alias                  the file references an anchor somewhere.
+#   satisfied              every count is zero. The only accepted verdict.
+#   unclassifiable         anything else, including an empty answer and any
+#                          reshaping of yq's output. Unrecognized resolves to a
+#                          REFUSED verdict, never an accepted one, so a yq
+#                          release that changed this answer's form turns every
+#                          rule above into a loud refusal rather than a silent
+#                          no-op.
+#
+# The three counted rules are reported in a fixed priority rather than all at
+# once, because a refusal names ONE thing to go and fix. Duplicate keys come
+# first: it is the rule an operator reaches by accident and the only one of the
+# three that changes which records this library reads.
+data_file_rules_verdict() { # <rules-answer>
+  local rules_answer="$1"
+  local duplicate_mapping_key_count complex_mapping_key_count alias_count
+  if [[ $rules_answer == *$'\n'* ]]; then
+    printf 'multiple_documents\n'
+    return 0
+  fi
+  # Exactly three plain non-negative integers, and nothing else. The bound is
+  # the same `(0|[1-9][0-9]*)` form the record count uses: a leading zero would
+  # read as octal in any later arithmetic, and an unbounded run of digits is not
+  # a shape yq produces for a count of nodes in a file it just parsed.
+  if [[ ! $rules_answer =~ ^(0|[1-9][0-9]{0,6})' '(0|[1-9][0-9]{0,6})' '(0|[1-9][0-9]{0,6})$ ]]; then
+    printf 'unclassifiable\n'
+    return 0
+  fi
+  duplicate_mapping_key_count="${BASH_REMATCH[1]}"
+  complex_mapping_key_count="${BASH_REMATCH[2]}"
+  alias_count="${BASH_REMATCH[3]}"
+  if [[ $duplicate_mapping_key_count -gt 0 ]]; then
+    printf 'duplicate_mapping_key\n'
+  elif [[ $complex_mapping_key_count -gt 0 ]]; then
+    printf 'complex_mapping_key\n'
+  elif [[ $alias_count -gt 0 ]]; then
+    printf 'alias\n'
+  else
+    printf 'satisfied\n'
+  fi
+}
+
+# require_data_file_rules_satisfied <path>, put the file to the rules above: 0
+# when it breaks none of them, 2 with a message naming the one it breaks.
+#
+# Returns 2, the tools' shared "data file unusable" status, so a caller cannot
+# tell this refusal from any other unusable-file refusal and act on part of the
+# file anyway.
+require_data_file_rules_satisfied() { # <path>
+  local data_file="$1"
+  local rules_answer rules_verdict
+  # The DOCUMENT COUNT first, from the bytes, because it is the one rule yq's
+  # answer cannot carry: an elided empty document is invisible to every
+  # expression below, and the file it hides is one this library would otherwise
+  # stream while `chezmoi apply` fails on the data load.
+  require_data_file_holds_one_document "$data_file" || return 2
+  if ! rules_answer="$(yq eval -r "$DEFAULTS_DATA_FILE_RULES_EXPRESSION" "$data_file")"; then
+    printf 'error: cannot check the whole-file rules of %s\n' "$data_file" >&2
+    return 2
+  fi
+  rules_verdict="$(data_file_rules_verdict "$rules_answer")"
+  case $rules_verdict in
+    satisfied) return 0 ;;
+    multiple_documents)
+      print_multiple_documents_refusal "$data_file"
+      ;;
+    duplicate_mapping_key)
+      printf 'error: %s declares the same mapping key twice; chezmoi refuses the whole file (mapping key already defined) while yq keeps both entries and reads the LAST, so the two readers would not even agree on which records exist; delete the duplicate key\n' \
+        "$data_file" >&2
+      ;;
+    complex_mapping_key)
+      printf 'error: %s uses a mapping key that is not a scalar (a sequence or a mapping as a key); chezmoi refuses the whole file with "found an invalid key for this map" while yq reads it, so the runner template would apply nothing; give every key a plain scalar name\n' \
+        "$data_file" >&2
+      ;;
+    alias)
+      printf 'error: %s uses a YAML alias or merge key; both are ordinary YAML and the runner template resolves them, but this schema does not allow them, because yq resolves an alias in some expressions and not others and this reader would judge a record by fields it cannot see; write the record out in full\n' \
+        "$data_file" >&2
+      ;;
+    *)
+      printf 'error: cannot classify the whole-file rules of %s; yq answered %q\n' \
+        "$data_file" "$rules_answer" >&2
+      ;;
+  esac
+  return 2
 }
 
 # A UTF-8 byte order mark, and its length in BYTES. The byte count is a named
@@ -455,6 +814,23 @@ defaults_records_declared_count() { # <path>, print the validated record count
     printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
     return 2
   fi
+  # The WHOLE-FILE rules, after the file is known to parse and before its record
+  # list is classified. The order is load-bearing in both directions.
+  #
+  # AFTER the shape READ, because a file yq cannot parse fails both reads and
+  # only one of them should own that message: "cannot determine the shape of
+  # .macos.defaults" names the question the caller asked, and a rules-check
+  # failure reported first would replace it with a vaguer one for the most
+  # ordinary defect there is, a YAML syntax error.
+  #
+  # BEFORE the shape VERDICT, because these rules describe the file and the
+  # verdict describes one node in it. A multi-document file makes yq answer once
+  # per document, so its shape answer arrives multi-line and the verdict below
+  # can only call it "other" and print the raw answer; the rules gate names the
+  # documents instead. A duplicate `defaults` key changes which record list the
+  # verdict is even looking at. In both cases the whole-file defect is the one
+  # the operator has to fix first, so it is the one they are told about.
+  require_data_file_rules_satisfied "$data_file" || return 2
   declaration_verdict="$(records_declaration_verdict "$shape_answer")"
   case $declaration_verdict in
     list) ;;
@@ -564,6 +940,116 @@ defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
   fi
 }
 
+# THE KILLALL LIST. The other node the runner template reads out of this file,
+# and the only one this library does not read at all: nothing here restarts a
+# process. It still needs a rule, because "this library does not read it" is
+# exactly how a file the template refuses got streamed as usable.
+#
+# Measured (yq v4.53.3, chezmoi v2.71.1). `killall: Finder`, a plain scalar where
+# a list belongs, was accepted here and killed the render with `range can't
+# iterate over Finder`, so every tool that reads this file reported its records
+# as fine while `chezmoi apply` refused the whole file. A MAPPING is accepted by
+# both and is left alone: `range` walks its values, nothing here reads it, and
+# refusing it would be strictness with no divergence behind it. An ABSENT or nil
+# `killall:` is accepted by both as "nothing to restart", now that the template
+# reads the key through hasKey.
+MACOS_DEFAULTS_KILLALL_SHAPE_EXPRESSION='[(.macos.killall | kind), (.macos.killall | tag)] | join(" ")'
+
+# killall_list_verdict <shape-answer>, classify what the killall node is. PURE:
+# one string in, one verdict out, no file access.
+#
+#   iterable       a sequence tagged !!seq, or a mapping tagged !!map; the
+#                  template's `range` walks it.
+#   mistagged      a real sequence or mapping wearing any OTHER tag. Its own
+#                  verdict rather than a fold into "unclassifiable", because the
+#                  operator's fix is specific: delete the tag.
+#   undeclared     absent or nil. yq answers the same for both, and so does the
+#                  template now, so they do not need telling apart.
+#   scalar         a plain scalar. The template cannot iterate it.
+#   unclassifiable anything else, including an empty or multi-line answer. An
+#                  unrecognized answer resolves to a REFUSED verdict, never an
+#                  accepted one.
+#
+# BOTH answers are read, and the CONJUNCTION is what decides, for exactly the
+# reason records_declaration_verdict above reads both: a kind-only check is
+# defeated by a truthful shape wearing a wrong tag. Measured on this yq and this
+# chezmoi, `killall: !!str [Dock]`, `!!map [Dock]`, `!!set [Dock]`,
+# `!!str {a: Dock}`, `!!seq {a: Dock}` and `!!omap {a: Dock}` all answer a
+# container KIND while chezmoi's loader refuses the whole file (`unexpected
+# scalar value type`), so a kind-only verdict made this library the permissive
+# reader on six spellings, which is the one direction this guard exists to close.
+#
+# The same measured residual the record list carries applies here and is accepted
+# for the same reason: four tag spellings on a real sequence (!!omap, !!pairs, a
+# local !custom and an unknown !!foo) are RENDERED by the template and refused
+# here, so on those this library is the STRICTER reader. That direction is a loud
+# refusal naming the file, and buying agreement on it would mean transcribing
+# which tags one Go YAML release happens to decode as a slice.
+killall_list_verdict() { # <shape-answer>
+  local shape_answer="$1" node_kind node_tag
+  # Exactly one line of two space-separated fields is the only answer this
+  # classifier can read. Anything else, including yq's per-document answers for a
+  # multi-document file, falls through to "unclassifiable" rather than letting
+  # the first document answer for the whole file.
+  if [[ ! $shape_answer =~ ^([[:alpha:]]+)' '([^[:space:]]+)$ ]]; then
+    printf 'unclassifiable\n'
+    return 0
+  fi
+  node_kind="${BASH_REMATCH[1]}"
+  node_tag="${BASH_REMATCH[2]}"
+  case $node_kind in
+    "$DEFAULTS_RECORDS_LIST_KIND")
+      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ]]; then
+        printf 'iterable\n'
+      else
+        printf 'mistagged\n'
+      fi
+      ;;
+    "$DEFAULTS_RECORDS_MAP_KIND")
+      if [[ $node_tag == "$DEFAULTS_RECORDS_MAP_TAG" ]]; then
+        printf 'iterable\n'
+      else
+        printf 'mistagged\n'
+      fi
+      ;;
+    "$DEFAULTS_RECORDS_SCALAR_KIND")
+      if [[ $node_tag == "$DEFAULTS_RECORDS_ABSENT_TAG" ]]; then
+        printf 'undeclared\n'
+      else
+        printf 'scalar\n'
+      fi
+      ;;
+    *) printf 'unclassifiable\n' ;;
+  esac
+}
+
+# require_data_file_killall_is_iterable <path>, 0 when the template can walk the
+# killall node, 2 with a message naming the shape otherwise.
+require_data_file_killall_is_iterable() { # <path>
+  local data_file="$1" shape_answer killall_verdict
+  if ! shape_answer="$(yq eval -r "$MACOS_DEFAULTS_KILLALL_SHAPE_EXPRESSION" "$data_file")"; then
+    printf 'error: cannot determine the shape of .macos.killall in %s\n' "$data_file" >&2
+    return 2
+  fi
+  killall_verdict="$(killall_list_verdict "$shape_answer")"
+  case $killall_verdict in
+    iterable | undeclared) return 0 ;;
+    mistagged)
+      printf 'error: %s tags .macos.killall as %q; the list of process names is a real container, so only its TAG is wrong, and the only tags accepted on it are %s on a list and %s on a mapping, because the runner template refuses several of the others with a parse error while this reader would call the file usable, so the two readers would disagree about whether this file can be applied at all; delete the tag\n' \
+        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_MAP_TAG" >&2
+      ;;
+    scalar)
+      printf 'error: %s declares .macos.killall as a plain scalar, but it must be a LIST of process names; the runner template walks it and dies with "range can%st iterate over" that value, refusing the whole apply, while every tool here would read the file as usable; write it as a list, killall: [Dock]\n' \
+        "$data_file" "'" >&2
+      ;;
+    *)
+      printf 'error: %s does not declare .macos.killall as a list of process names; yq answered %q for its kind and tag\n' \
+        "$data_file" "$shape_answer" >&2
+      ;;
+  esac
+  return 2
+}
+
 # defaults_records_declare_a_value <path>, a PREDICATE over the FILE: 0 when
 # every enforce and verify record DECLARES a value, 2 otherwise, naming the first
 # record that does not.
@@ -599,6 +1085,415 @@ defaults_records_declare_a_value() { # <path>
   return 2
 }
 
+# THE FIELD-TYPE RULES. A record field's YAML TYPE, not just its text, decides
+# what each reader writes, and the two readers do not agree about types.
+#
+# This library reads a field through yq's `join`, which yields the scalar's
+# SOURCE TEXT. The runner template reads the same field as a Go value that
+# chezmoi's YAML loader already converted, and renders it back with Go's own
+# formatting. Wherever a YAML scalar's source text is not what Go renders it back
+# as, the two readers write different things out of one file. Measured (yq
+# v4.53.3, chezmoi v2.71.1), the shapes that cost something:
+#
+#   scope:            a key typed with its value deleted. `//` fires on null, so
+#                     the library read "user" and PERFORMED the write; the
+#                     template refused with `unknown scope %!q(<nil>)`.
+#   scope: false      the same, through YAML's own bool. The template refused
+#                     with a Go type error (`incompatible types for comparison`).
+#   host: 0           the library read the STRING "0" and `just defaults-apply`
+#                     selected -currentHost; the template read Go's numeric zero,
+#                     which is falsy there, and rendered an ordinary write. BOTH
+#                     readers accepted the file and wrote to DIFFERENT STORES.
+#   host: [a, b]      join renders a sequence as the empty string, so the library
+#                     wrote the user domain; the template read a non-empty slice,
+#                     which is truthy, and wrote -currentHost. Different stores
+#                     again, again with both readers accepting.
+#   domain: 0.10      the library wrote domain `0.10`; the template wrote `0.1`.
+#                     Two different domains from one record.
+#   value: [a, b]     the library wrote an EMPTY value; the template wrote
+#                     `[a b]`. Same for a mapping (`map[a:1]`).
+#   value: 010        the library wrote `010`; the template wrote `8`, YAML's
+#                     octal. `0x1f` -> `31`, `1_000` -> `1000`, `+1` -> `1`,
+#                     `True` -> `true`, `1.0` -> `1`, `0.10` -> `0.1` and
+#                     `1.5e10` -> `15000000000` all diverge the same way.
+#
+# So the rule is about the TYPE and the SPELLING, and it is two rules because the
+# schema holds two kinds of field:
+#
+#   the five STRING fields   domain, key, host, scope and plist_path name things.
+#                            A record that declares one must give it a plain YAML
+#                            string. Every divergence above except `value` is
+#                            closed by that alone, and every spelling the tracked
+#                            file and `just defaults-capture` produce is a string.
+#   the VALUE field          genuinely holds non-strings: all 15 tracked records
+#                            declare a `!!bool`, and capture writes an unquoted
+#                            number for an int or float control. So it takes a
+#                            bool, int or float too, but only in the CANONICAL
+#                            spelling that Go renders back unchanged, measured
+#                            spelling by spelling. Anything else must be quoted,
+#                            which makes it a string and makes both readers agree
+#                            by construction.
+#
+# `type` and `tier` are deliberately absent from both tables. Each is constrained
+# to a closed set of string literals, and both readers were measured to refuse
+# every non-member whatever its YAML type, so their type cannot make the readers
+# disagree and a rule here would only take the message away from the check that
+# names the closed set. A field the schema does not know (`notes:`) is left alone
+# for the same reason: neither reader reads it, so its type decides nothing.
+#
+# Direction, stated rather than assumed. On `scope`, `domain` and `key` this
+# closes a divergence the template already refuses. On `host`, `plist_path` and
+# the non-canonical `value` spellings the template accepts what this now refuses,
+# so the library is the STRICTER reader, which is the safe half of the
+# one-directional invariant and better than the alternative on offer: two readers
+# that both accept and write different things to different places.
+MACOS_DEFAULTS_STRING_ONLY_RECORD_FIELDS=("domain" "key" "host" "scope" "plist_path")
+MACOS_DEFAULTS_VALUE_RECORD_FIELD="value"
+MACOS_DEFAULTS_PLAIN_STRING_TAG='!!str'
+
+# The canonical spelling of each non-string type `value` may use, as a Go RE2
+# pattern over the scalar's SOURCE TEXT. Each was measured against both readers
+# rather than derived from the YAML spec: these are the spellings chezmoi's
+# loader renders back byte for byte.
+#
+#   bool    `true` or `false`, lower case. `True` renders back as `true`.
+#   int     plain decimal, no leading zero (octal), no `0x`, no `_`, no `+`. No
+#           width bound: measured, an integer is rendered back digit for digit
+#           past int64, so there is no width at which the two readers start
+#           disagreeing about one. (A decimal wide enough that yq stops tagging
+#           it `!!int` at all, roughly past uint64, is judged by the float rule
+#           below and refused there for want of a decimal point. Over-strict on a
+#           twenty-digit preference value, and left that way: the safe direction,
+#           on input no control produces.)
+#   float   plain decimal with a fraction that ends in a NON-ZERO digit, because
+#           the template renders the SHORTEST decimal that round-trips through a
+#           float64: `1.0` renders back as `1` and `0.10` as `0.1`. No exponent,
+#           for the same reason, and a bounded number of DIGITS, for a reason the
+#           shape alone cannot express, below.
+MACOS_DEFAULTS_CANONICAL_BOOL_PATTERN='^(true|false)$'
+MACOS_DEFAULTS_CANONICAL_INT_PATTERN='^(0|-?[1-9][0-9]*)$'
+MACOS_DEFAULTS_CANONICAL_FLOAT_PATTERN='^-?(0|[1-9][0-9]*)[.][0-9]*[1-9]$'
+
+# THE FLOAT DIGIT BOUND, the second half of the float rule, and the one the shape
+# above cannot carry: a regular expression cannot count digits ACROSS the decimal
+# point, so the bound is a separate pattern over the same text and the two are
+# required together.
+#
+# It is not decoration. `0.34999999999999998` satisfies the shape, and it is what
+# `defaults read` prints for a slider-set float control: 17 significant digits,
+# because that is what an IEEE double needs to round-trip. The template renders
+# the shortest decimal that reaches the same double, `0.35`, so that one record
+# would have written 0.34999999999999998 from here and 0.35 from `chezmoi apply`.
+#
+# 15 digits is where the bound sits, and it is a guarantee rather than a sample:
+# no decimal of 15 significant digits or fewer shares a float64 with a shorter
+# decimal, so the shortest round-trip form of such a number is the number itself.
+# Measured beside the argument, over 270 generated decimals of 1 to 18 digits in
+# several shapes: every divergence had exactly 17 significant digits and nothing
+# at 15 or below diverged.
+#
+# It counts DIGITS, not significant digits, so the leading zero of `0.5` spends
+# one of the fifteen and `0.123456789012345` is refused although both readers
+# render it identically. That is the bound erring strict, deliberately: counting
+# significant digits means counting across the decimal point, which is the one
+# thing a regular expression cannot do, and the cost of the stricter rule is a
+# pair of quotes on a 16-digit decimal rather than a wrong write on any decimal.
+# test/unit/macos-defaults-record-validation.sh pins that refusal so the
+# over-strictness cannot be read later as a measurement.
+#
+# Sixteen characters, not fifteen: the shape pattern above admits exactly one
+# decimal point, and the optional sign is matched outside the bound.
+MACOS_DEFAULTS_CANONICAL_FLOAT_DIGIT_BOUND_PATTERN='^-?[0-9.]{1,16}$'
+
+# record_field_node_description <kind> <tag>, name one YAML node the way a
+# refusal about it should read. PURE: two strings in, one string out.
+#
+# A scalar is named by its TAG alone, which is the whole of what is wrong with
+# `host: 0`. A container is named by BOTH, because a lying tag makes the tag the
+# least useful thing to print on its own: "declares host as !!str" is what the
+# file says rather than what is wrong with it, while "declares host as seq tagged
+# !!str" names the container the operator has to replace.
+#
+# Bash rather than yq, deliberately. yq (mikefarah v4) has no if/then/else, so
+# expressing the choice there means a second expression or a select/alternative
+# pair, and building a SENTENCE is presentation work that belongs beside the
+# message it feeds, not inside the query that gathers the facts.
+record_field_node_description() { # <kind> <tag>
+  local node_kind="$1" node_tag="$2"
+  if [[ $node_kind == "$DEFAULTS_RECORDS_SCALAR_KIND" ]]; then
+    printf '%s' "$node_tag"
+    return 0
+  fi
+  printf '%s tagged %s' "$node_kind" "$node_tag"
+}
+
+# defaults_records_field_type_expression, the yq expression that reports every
+# DECLARED field whose type or spelling the two readers would not agree on, one
+# per line, as <record-index>US<field-name>US<node-kind>US<node-tag>.
+#
+# Built from the tables above rather than spelled inline, so the field sets and
+# the canonical patterns each have one definition. PURE: no arguments, no file
+# access, one string out.
+#
+# THE KIND IS READ AS WELL AS THE TAG, and the pair decides, for exactly the
+# reason records_declaration_verdict reads both about the record list: a TAG
+# check on its own is defeated by a truthful shape wearing a lying tag. Measured
+# (yq v4.53.3, chezmoi v2.71.1), `host: !!str [a, b]`, `plist_path: !!str [x]`
+# and `value: !!str [a, b]` all answer tag !!str while remaining containers, so a
+# tag-only rule read them as plain strings and STREAMED the record (join renders
+# a container as the empty string, so the library wrote the user domain with an
+# empty value) while chezmoi's loader refused the whole file with `unexpected
+# scalar value type`. Every schema field this rule judges must therefore be a
+# SCALAR first; the tag question is asked of it second.
+#
+# Nothing hostile can reach its output, which is why this stream needs no
+# anti-forgery line count the way the declared-fields stream does. The record
+# index is yq's own, the field name is one of the six literals this expression
+# selected on, and the kind and tag are yq's; the record's own text never
+# appears.
+#
+# The kind and the tag are reported SEPARATELY and the sentence is built in bash,
+# by record_field_node_description above. yq has no if/then/else, and a query
+# that gathers facts is a different job from a message that reads well.
+#
+# shellcheck disable=SC2016  # deliberate: $entry, $field, $fieldKind, $fieldTag
+# and $fieldText are yq's own variables and must reach yq unexpanded, which is
+# exactly what single quotes do.
+defaults_records_field_type_expression() {
+  local unit_separator=$'\x1f'
+  local string_only_field string_only_selection='' schema_field_selection
+  for string_only_field in "${MACOS_DEFAULTS_STRING_ONLY_RECORD_FIELDS[@]}"; do
+    [[ -n $string_only_selection ]] && string_only_selection+=' or '
+    string_only_selection+="(\$field.key == \"$string_only_field\")"
+  done
+  schema_field_selection="$string_only_selection or (\$field.key == \"$MACOS_DEFAULTS_VALUE_RECORD_FIELD\")"
+  local canonical_value_spellings
+  canonical_value_spellings="$(printf '((%s == "!!bool") and (%s | test("%s"))) or ((%s == "!!int") and (%s | test("%s"))) or ((%s == "!!float") and (%s | test("%s")) and (%s | test("%s")))' \
+    '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_BOOL_PATTERN" \
+    '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_INT_PATTERN" \
+    '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_FLOAT_PATTERN" \
+    '$fieldText' "$MACOS_DEFAULTS_CANONICAL_FLOAT_DIGIT_BOUND_PATTERN")"
+  printf '[.macos.defaults | to_entries | .[] | . as $entry | ($entry.value | to_entries | .[]) as $field | ($field.value | kind) as $fieldKind | ($field.value | tag) as $fieldTag | ($field.value | tostring) as $fieldText | select(((%s) and ($fieldKind != "%s")) or ((%s) and ($fieldTag != "%s")) or (($field.key == "%s") and ($fieldTag != "%s") and ((%s) | not))) | [($entry.key | tostring), ($field.key | tostring), $fieldKind, $fieldTag] | join("%s")] | .[]' \
+    "$schema_field_selection" "$DEFAULTS_RECORDS_SCALAR_KIND" \
+    "$string_only_selection" "$MACOS_DEFAULTS_PLAIN_STRING_TAG" \
+    "$MACOS_DEFAULTS_VALUE_RECORD_FIELD" "$MACOS_DEFAULTS_PLAIN_STRING_TAG" \
+    "$canonical_value_spellings" "$unit_separator"
+}
+
+# defaults_records_declare_agreeing_field_types <path>, a PREDICATE over the
+# FILE: 0 when every declared field is typed and spelled so that both readers
+# read the same thing out of it, 2 otherwise, naming the first record that is not
+# and the type it used.
+#
+# Asked of the FILE rather than of the joined record line, for the same reason
+# defaults_records_declare_a_value is: the line cannot answer it. By the time a
+# field reaches the joined line it is already a string, because join made it one,
+# so the very distinction this rule turns on has been erased.
+defaults_records_declare_agreeing_field_types() { # <path>
+  local data_file="$1"
+  local field_types first_offender
+  local record_index offending_field offending_kind offending_tag
+  if ! field_types="$(yq eval -r "$(defaults_records_field_type_expression)" "$data_file")"; then
+    printf 'error: cannot check the field types of the records in %s\n' "$data_file" >&2
+    return 2
+  fi
+  first_offender="$(first_non_blank_line "$field_types")"
+  [[ -z $first_offender ]] && return 0
+  IFS=$'\x1f' read -r record_index offending_field offending_kind offending_tag <<<"$first_offender"
+  printf 'error: %s: record %s (%s) declares %s as %s; this reader renders a scalar as the text the file spells it with and the runner template renders it as Go formats the parsed value, so the two would not write the same thing out of this record; quote the value\n' \
+    "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
+    "$offending_field" "$(record_field_node_description "$offending_kind" "$offending_tag")" >&2
+  return 2
+}
+
+# THE TIER/PAYLOAD RULES. What a record MAY and MUST carry, decided by the tier
+# it declares. The runner template has enforced these since tiers were
+# introduced; this library enforced only that the tier names one of the three,
+# so five record shapes were accepted here and refused there (measured):
+# a manual record with an absent, blank or empty runbook, a manual record
+# carrying any write field, and an enforce record carrying a runbook.
+#
+# That is the permissive direction. `just D` and `just defaults-apply` read those
+# records and act on them while `chezmoi apply` refuses the whole file, so the
+# operator's drift report describes controls the machine will never be given.
+#
+# The rules are TABLES rather than inline tests, one per tier, because they are
+# what the tier MEANS and they are asserted cell by cell in
+# test/unit/macos-defaults-tier-payload-guard.sh. A verify record is absent from
+# both tables deliberately: it carries the read payload AND may carry a runbook,
+# because the posture check that consumes verify records points the operator at
+# the fix for a drift it detected.
+MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_MANUAL=("type" "value" "host" "scope" "plist_path")
+MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_ENFORCE=("runbook")
+
+# record_field_is_forbidden_for_tier <tier> <field>, a PURE predicate: 0 when a
+# record of this tier may not declare this field, 1 otherwise.
+#
+# An unrecognized tier forbids nothing, deliberately. The stream's tier gate
+# refuses such a record first, and this predicate must not become a second,
+# weaker opinion about which tiers exist.
+record_field_is_forbidden_for_tier() { # <tier> <field>
+  local tier="$1" field="$2" forbidden_field
+  local -a forbidden_fields=()
+  case $tier in
+    manual) forbidden_fields=("${MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_MANUAL[@]}") ;;
+    enforce) forbidden_fields=("${MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_ENFORCE[@]}") ;;
+    *) return 1 ;;
+  esac
+  for forbidden_field in "${forbidden_fields[@]}"; do
+    [[ $field == "$forbidden_field" ]] && return 0
+  done
+  return 1
+}
+
+# record_tier_requires_a_runbook <tier>, a PURE predicate: 0 when a record of
+# this tier must name a runbook section, 1 otherwise. Only manual does: it
+# renders no write at all, so the runbook pointer is the entire record.
+record_tier_requires_a_runbook() { # <tier>
+  [[ $1 == manual ]]
+}
+
+# The per-record facts the rules above are decided from, one line per DECLARED
+# FIELD of each record:
+#   <index>US<tier>US<runbook-is-usable>US<field-name>
+#
+# Asked of the FILE rather than of the joined record line, for the same reason
+# defaults_records_declare_a_value is: the line cannot answer it. The eight-field
+# stream carries no runbook at all, and it renders an ABSENT type and an
+# explicitly empty one identically, so PRESENCE is invisible in it. A record's
+# declared field NAMES are the question here, and only the file has them.
+#
+# One line per field rather than a joined list of them, so no second delimiter is
+# needed inside a field: a record could declare a key whose NAME contains a
+# comma, and a list joined on one would split that key into two names, one of
+# which might collide with a forbidden one.
+#
+# TWO invariants guard this stream, and neither is sufficient alone. That is the
+# same pairing the eight-field record stream has, and for the same reason: a
+# per-line field count cannot catch FORGERY. Measured, on the tree that had only
+# the field count: a manual record declaring one extra field whose NAME is
+# `x`, newline, `0`, US, `manual`, US, `true`, US, `z` renders a second line that
+# carries exactly four fields and claims the record's runbook is usable, so the
+# record with no runbook at all was streamed here while the template refused it.
+#
+#   per line   exactly four fields, so an injected unit separator with no newline
+#              makes its own line fail rather than shifting the fields along.
+#   per file   exactly one line per DECLARED FIELD, so an injected newline is
+#              caught by the arithmetic no matter what the extra lines look like.
+#              Every declared field yields exactly one line and no field can yield
+#              none, so more lines than fields means a delimiter was injected.
+#
+# shellcheck disable=SC2016  # deliberate: $entry and $field are yq's own
+# variables and must reach yq unexpanded, which is exactly what single quotes do.
+DEFAULTS_RECORD_DECLARED_FIELDS_EXPRESSION='.macos.defaults | to_entries | .[] | . as $entry | ($entry.value | keys | .[]) as $field | [($entry.key | tostring), ($entry.value.tier // ""), (($entry.value | has("runbook")) and ($entry.value.runbook != null) and ($entry.value.runbook != "")) | tostring, ($field | tostring)] | join("'$'\x1f''")'
+
+DEFAULTS_RECORD_DECLARED_FIELDS_FIELD_COUNT=4
+
+# How many fields the records DECLARE in total, the expected line count of the
+# stream above. Asked of yq rather than derived from the stream, because the
+# stream is the thing being checked.
+DEFAULTS_RECORD_DECLARED_FIELD_TOTAL_EXPRESSION='[.macos.defaults | .[] | keys | .[]] | length'
+
+# defaults_records_declared_field_line_count <declared-fields-stream>, how many
+# lines the stream above actually carries. PURE: one string in, one integer out.
+# The blank line yq prints for an empty record list is not a field and is not
+# counted, exactly as the reader below skips it.
+defaults_records_declared_field_line_count() { # <declared-fields-stream>
+  local line line_count=0
+  while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    line_count=$((line_count + 1))
+  done <<<"$1"
+  printf '%s\n' "$line_count"
+}
+
+# defaults_records_match_declared_tier <path>, a PREDICATE over the FILE: 0 when
+# every record's payload matches the tier it declares, 2 otherwise, naming the
+# first record that does not and the rule it breaks.
+#
+# It emits no records. Asking "is this file usable" must never require producing
+# its output, which is the same split the record stream itself was given.
+defaults_records_match_declared_tier() { # <path>
+  local data_file="$1"
+  local declared_fields declared_field_total line field_count read_line_count=0
+  local record_index record_tier record_runbook_is_usable record_field
+  local -A record_tier_by_index=() runbook_usable_by_index=()
+  # The indices IN DECLARATION ORDER, kept alongside the maps above. Iterating
+  # `"${!map[@]}"` walks bash's hash order, which is unspecified: a file with two
+  # offending records would be reported against whichever one that order reached
+  # first, and measured on a three-record file it reached the LAST. Every other
+  # refusal in this library names the FIRST offending record, and an operator
+  # fixing them one at a time has to be given a stable answer.
+  local -a record_indices_in_order=()
+  if ! declared_fields="$(yq eval -r "$DEFAULTS_RECORD_DECLARED_FIELDS_EXPRESSION" "$data_file")"; then
+    printf 'error: cannot read which fields the records in %s declare\n' "$data_file" >&2
+    return 2
+  fi
+  if ! declared_field_total="$(yq eval -r "$DEFAULTS_RECORD_DECLARED_FIELD_TOTAL_EXPRESSION" "$data_file")"; then
+    printf 'error: cannot count the fields the records in %s declare\n' "$data_file" >&2
+    return 2
+  fi
+  if ! declared_record_count_is_usable "$declared_field_total"; then
+    printf 'error: %s produced an unusable declared-field count %q; refusing to check rules against a stream that cannot be checked\n' \
+      "$data_file" "$declared_field_total" >&2
+    return 2
+  fi
+  # The anti-forgery invariant, BEFORE a single line is believed. Checked ahead of
+  # the reader rather than after it because a forged line is read as a record
+  # INDEX too: a field name carrying `99` in that position made this function
+  # refuse a legitimate file while naming record 99, a record the file does not
+  # have. The count answers first, so the refusal names the real defect.
+  read_line_count="$(defaults_records_declared_field_line_count "$declared_fields")"
+  if [[ $read_line_count -ne $declared_field_total ]]; then
+    printf 'error: %s: the records declare %s field(s) but the field stream has %s line(s); a field NAME contains a newline, so the rules for its tier cannot be checked against it; rename the field\n' \
+      "$data_file" "$declared_field_total" "$read_line_count" >&2
+    return 2
+  fi
+  while IFS= read -r line; do
+    # yq prints a single empty line for an empty record list; that is not a field.
+    [[ -z $line ]] && continue
+    field_count="$(defaults_records_field_count "$line")"
+    if [[ $field_count -ne $DEFAULTS_RECORD_DECLARED_FIELDS_FIELD_COUNT ]]; then
+      printf 'error: %s: a record declares a field name containing a newline or a unit separator (0x1f), which cannot be checked against the rules for its tier\n' \
+        "$data_file" >&2
+      return 2
+    fi
+    IFS=$'\x1f' read -r record_index record_tier record_runbook_is_usable record_field <<<"$line"
+    [[ -n ${record_tier_by_index[$record_index]+x} ]] || record_indices_in_order+=("$record_index")
+    record_tier_by_index["$record_index"]="$record_tier"
+    runbook_usable_by_index["$record_index"]="$record_runbook_is_usable"
+    if record_field_is_forbidden_for_tier "$record_tier" "$record_field"; then
+      printf 'error: %s: record %s (%s) carries %s; a %s control renders no such payload, so a field it cannot use means the declared tier is wrong; either drop the field or declare the tier that consumes it\n' \
+        "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
+        "$record_field" "$record_tier" >&2
+      return 2
+    fi
+  done <<<"$declared_fields"
+
+  # The runbook rule is per RECORD, not per field: it is about a field that is
+  # not there, and no single field's line can answer it. Checked after the loop,
+  # over the tiers the loop collected and in the order it collected them, so an
+  # absent runbook and a blank one land in the same refusal the way the template
+  # refuses them both, and the record named is always the first one at fault.
+  for record_index in "${record_indices_in_order[@]}"; do
+    record_tier_requires_a_runbook "${record_tier_by_index[$record_index]}" || continue
+    [[ ${runbook_usable_by_index[$record_index]} == true ]] && continue
+    printf 'error: %s: record %s (%s) declares tier %s but names no runbook section; a manual control renders no write, so the runbook pointer is the whole record; name the runbook section\n' \
+      "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
+      "${record_tier_by_index[$record_index]}" >&2
+    return 2
+  done
+}
+
+# defaults_record_reference <path> <index>, name one record the way every other
+# refusal in this file names it. Shared so a message cannot describe a record by
+# a different pair of fields than its neighbours do.
+defaults_record_reference() { # <path> <index>
+  printf 'domain %s, key %s' \
+    "$(yq eval -r ".macos.defaults[$2].domain" "$1" | head -1)" \
+    "$(yq eval -r ".macos.defaults[$2].key" "$1" | head -1)"
+}
+
 defaults_records_unit_separated() { # <path>
   local data_file="$1"
   local declared_record_count raw_records line
@@ -606,6 +1501,9 @@ defaults_records_unit_separated() { # <path>
   raw_records="$(defaults_records_raw_stream "$data_file")" || return 2
   defaults_records_validate_stream "$data_file" "$declared_record_count" "$raw_records" || return 2
   defaults_records_declare_a_value "$data_file" || return 2
+  defaults_records_declare_agreeing_field_types "$data_file" || return 2
+  defaults_records_match_declared_tier "$data_file" || return 2
+  require_data_file_killall_is_iterable "$data_file" || return 2
   # Emission, and only emission, and only once the WHOLE file has passed. A
   # caller must never act on part of a stream it is about to be told is
   # malformed, which is why nothing is printed before the predicate returns.
@@ -852,16 +1750,28 @@ require_system_plist_path_permitted() { # <plist_path>
 #     scope, host and plist_path rules apply to them. For enforce the payload is
 #     the write; for verify it is the read the drift checker compares.
 #   - manual records carry a runbook pointer and no payload, so only identity
-#     applies. Their runbook rules (a runbook is REQUIRED, and no write field may
-#     appear) live in the runner template alone: the runbook is not one of the
-#     eight fields the record stream carries, so this gate cannot see it.
+#     applies HERE. Their runbook rules (a runbook is REQUIRED, and no write
+#     field may appear) are asked of the FILE instead, by
+#     defaults_records_match_declared_tier, because the eight-field record stream
+#     carries no runbook and renders an absent field and an empty one alike, so
+#     the joined line cannot answer a question about what a record DECLARES.
+#     This comment used to say those rules lived in the runner template alone
+#     because "this gate cannot see" the runbook. The gate cannot; the library
+#     can, the same way it already asks the file which records declare a value.
 #
-# Two rules are deliberately NOT here:
+# Three rules are deliberately NOT here:
 #   - the value rule, which needs to tell an absent value from an empty one and
 #     so is asked of the FILE, by defaults_records_declare_a_value;
+#   - the tier/payload rules, asked of the file for the reason just above;
 #   - the write-time plist_path allowlist. Reads are not gated (drift consulting
 #     an odd path mutates nothing, and refusing it would hide the row instead of
 #     reporting it), so that rule belongs to apply, ahead of apply's first write.
+#     Re-argued deliberately, because this is the one place the library reads a
+#     record the runner template refuses: a path outside the allowlist makes
+#     `chezmoi apply` refuse the whole file while `just D` still reports the row.
+#     Weighing the two, a drift report on a file the operator has to fix anyway
+#     is worth more than silence about it, and neither behaviour writes anything;
+#     the write is gated in apply, which is the only tool that performs one.
 validate_defaults_record() { # <domain> <key> <type> <value> <host> <scope> <plist_path> <tier>
   # The fourth argument, the record's value, is deliberately not read: telling an
   # absent value from a legitimately empty one is impossible from the joined

@@ -439,10 +439,20 @@ assert_file_contains "$sandbox/bypass-drift.err" 'blank domain' \
 # Two lists that can drift apart is exactly how apply came to accept a record the
 # render refused, which is why the plist_path allowlists are pinned the same way
 # in the system-scope suite. Source-form pin, beside the behavioral rows above.
-template_supported_types="$(grep -F 'has .type (list' "$TEMPLATE" | grep -o '"[^"]*"' | tr -d '"' | LC_ALL=C sort)"
-library_supported_types="$(bash -c 'source "$1"; printf "%s\n" "${MACOS_DEFAULTS_SUPPORTED_TYPES[@]}"' _ "$LIB" | LC_ALL=C sort)"
+#
+# The extraction keys on the template's NAMED type list, not on the condition
+# that consumes it. It used to grep `has .type (list`, an `if` condition, and
+# that spelling changed the first time the condition was edited: the grep matched
+# nothing, and under `set -e` the failing pipeline killed this script before the
+# `[[ -n ... ]]` guard below could say so, so the suite failed with no message at
+# all. The guard is only reachable if the extraction is allowed to come back
+# empty, which is what `|| true` is doing here; without it the guard is
+# unreachable code that reads like a safety net.
+readonly TEMPLATE_SUPPORTED_TYPES_ANCHOR='supportedTypes := list'
+template_supported_types="$(grep -F "$TEMPLATE_SUPPORTED_TYPES_ANCHOR" "$TEMPLATE" | grep -o '"[^"]*"' | tr -d '"' | LC_ALL=C sort || true)"
+library_supported_types="$(bash -c 'source "$1"; printf "%s\n" "${MACOS_DEFAULTS_SUPPORTED_TYPES[@]}"' _ "$LIB" | LC_ALL=C sort || true)"
 [[ -n $template_supported_types ]] ||
-  fail 'could not extract the supported-type set from the runner template'
+  fail "could not extract the supported-type set from the runner template; this pin reads the line matching '$TEMPLATE_SUPPORTED_TYPES_ANCHOR'"
 [[ -n $library_supported_types ]] ||
   fail 'could not extract the supported-type set from the shared library'
 [[ $template_supported_types == "$library_supported_types" ]] ||
