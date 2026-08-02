@@ -174,7 +174,11 @@ target="${SSH_TREE_MUTATION_TARGET:?}"
 # fired" passed over a tree that had not moved. That is the exact shape of a
 # test that cannot fail, and it is how a rename that GNU mv refused outright
 # read as "the drift guard missed a case-only rename".
+#
+# action_failure_detail carries what a bare exit status cannot say, for the one
+# way an action can report success and still not have moved the tree.
 action_status=0
+action_failure_detail=''
 case "${SSH_TREE_MUTATION_ACTION:?}" in
   append-comment)
     printf '# drift injected at: %s\n' "$description" >>"$target" || action_status=$?
