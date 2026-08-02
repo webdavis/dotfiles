@@ -56,10 +56,16 @@
        there is nothing to fall back FROM (measured 2026-08-02, and
        test/unit/claude-enabled-plugins.sh pins the boundary with a case per
        shape). Repairing that needs something outside this template that runs
-       BEFORE it. Until then the apply's own error names this file, and
-       deleting ~/.claude/settings.json is a safe recovery: every field this
-       template manages is rebuilt from here on the next apply, and only
-       free-drift keys are lost. */ -}}
+       BEFORE it. Until then the apply's own error names this file. Repair
+       ~/.claude/settings.json if you can. DELETING it loses the one managed
+       thing this template cannot rebuild: plugin state is READ from the live
+       file rather than declared here, so with nothing to read every declared
+       plugin renders `true`, which re-enables every disabled plugin and drops
+       every version pin. Nothing reports that afterwards either (see the plugin
+       block below). Note the disabled set first and restore it with
+       `claude plugin disable <id>` per plugin. Everything else this template
+       manages does come back from here on the next apply, and free-drift keys
+       are lost as before. */ -}}
 {{- $stdin := index .chezmoi "stdin" | default "" | trim -}}
 {{- $merged := dict -}}
 {{- if $stdin -}}

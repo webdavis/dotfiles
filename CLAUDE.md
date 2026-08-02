@@ -175,10 +175,16 @@ is not restored either. Whitespace-only and empty files are handled (the read is
 is anything that parses. A file that is non-empty and is not JSON, such as a write truncated by a crash
 or a full disk, is not, and no template can fix it: chezmoi's JSON readers all fail the template on bad
 input and Go templates have no error recovery, so there is nothing to fall back from. **Recovery:** the
-apply's own error names `modify_settings.json`; delete or repair `~/.claude/settings.json` and apply
-again. Deleting is safe, every field this repo manages is rebuilt from the template, and only free-drift
-keys are lost. Repairing this automatically needs something that runs before the template, which does not
-exist yet.
+apply's own error names `modify_settings.json`; repair `~/.claude/settings.json` if you can, and reach
+for deletion knowing what it costs. **Deleting re-enables every disabled plugin and drops every version
+pin.** Plugin state is the one managed thing the template reads out of the live file rather than
+declaring, so with nothing to read all nine ids render `true`. Everything else this repo manages does
+come back from the template, and free-drift keys are lost as before. Nothing reports the plugin loss
+afterwards, either: a rendered `false` is byte-identical to the live one, so `chezmoi status`,
+`chezmoi diff` and `just d` say nothing about this key in any case. Note the disabled set before
+deleting, by eye if the file no longer parses, and put it back with one `claude plugin disable <id>` per
+plugin. Repairing this automatically needs something that runs before the template, which does not exist
+yet.
 
 `test/unit/claude-enabled-plugins.sh` applies the template into a throwaway destination once per
 live-file shape per target OS and pins all of the above, including the three unparseable shapes, which it
