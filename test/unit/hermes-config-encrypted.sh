@@ -23,6 +23,18 @@ if [[ ! -f $enc ]]; then
 fi
 head -3 "$enc" | grep -qE 'AGE ENCRYPTED FILE|age-encryption\.org/v1' || fail "$enc is not an age blob (plaintext leak risk)"
 grep -qE '(_config_version|deliver_only|basic_auth):' "$enc" && fail "plaintext config markers found inside $enc"
+# Route-level leak canaries, CI-safe (this test still never decrypts). A webhook
+# route is a NAME (public: it is the URL path segment, and the log lib and
+# run_after_68 both name it in the clear), a Discord chat_id, and an HMAC key.
+# The chat_ids exist ONLY inside the encrypted config, so finding one anywhere in
+# the source tree means a decrypted copy or a debug dump got committed. Checked
+# against the whole tree, not just the blob. Each literal is split across
+# adjacent quoted strings -- the same idiom the age-key pattern above uses -- so
+# this file's own bytes can never satisfy its own search.
+for chat_id in '15333878568''21747803' '15192121325''18989915' '15103791806''78975638' '15111558445''59933543'; do
+  leaked="$(grep -rl -- "$chat_id" . --exclude-dir=.git 2>/dev/null || true)"
+  [[ -z $leaked ]] || fail "a hermes route chat_id is readable in the source tree: $leaked"
+done
 [[ ! -e dot_hermes/private_config.yaml && ! -e dot_hermes/config.yaml ]] || fail "a plaintext config sibling exists in dot_hermes/"
 [[ ! -e dot_hermes/modify_private_config.yaml.tmpl && ! -e private/relay-hermes-route.yq ]] || fail "old modify_ mechanism still present"
 [[ ! -e dot_hermes/private_dot_env ]] || fail "a rendered plaintext .env (private_dot_env) is present -- it must stay a .tmpl"
