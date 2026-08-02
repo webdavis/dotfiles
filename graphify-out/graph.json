@@ -1186,7 +1186,7 @@
       },
       "_origin": "ast",
       "id": "dot_local_bin_executable_homebrew_weekly_upgrade",
-      "community": 221,
+      "community": 419,
       "norm_label": "executable_homebrew-weekly-upgrade.sh"
     },
     {
@@ -1200,49 +1200,91 @@
       },
       "_origin": "ast",
       "id": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
-      "community": 221,
+      "community": 419,
       "norm_label": "executable_homebrew-weekly-upgrade.sh script"
+    },
+    {
+      "label": "weekly_alert()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L83",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade_weekly_alert",
+      "community": 419,
+      "norm_label": "weekly_alert()"
+    },
+    {
+      "label": "weekly_record()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L96",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade_weekly_record",
+      "community": 419,
+      "norm_label": "weekly_record()"
+    },
+    {
+      "label": "__homebrew_package_snapshot()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L115",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade_homebrew_package_snapshot",
+      "community": 419,
+      "norm_label": "__homebrew_package_snapshot()"
     },
     {
       "label": "acquire_lock()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L30",
+      "source_location": "L147",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
       "id": "dot_local_bin_executable_homebrew_weekly_upgrade_acquire_lock",
-      "community": 221,
+      "community": 419,
       "norm_label": "acquire_lock()"
     },
     {
       "label": "run()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L41",
+      "source_location": "L163",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
       "id": "dot_local_bin_executable_homebrew_weekly_upgrade_run",
-      "community": 221,
+      "community": 419,
       "norm_label": "run()"
     },
     {
       "label": "refresh_tailscaled()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L60",
+      "source_location": "L185",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
       "id": "dot_local_bin_executable_homebrew_weekly_upgrade_refresh_tailscaled",
-      "community": 221,
+      "community": 419,
       "norm_label": "refresh_tailscaled()"
     },
     {
@@ -8910,6 +8952,216 @@
       "id": "test_e2e_homebrew_weekly_lock_fail",
       "community": 274,
       "norm_label": "fail()"
+    },
+    {
+      "label": "homebrew-weekly-record.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record",
+      "community": 221,
+      "norm_label": "homebrew-weekly-record.sh"
+    },
+    {
+      "label": "homebrew-weekly-record.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_sh__entry",
+      "community": 221,
+      "norm_label": "homebrew-weekly-record.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L27",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_fail",
+      "community": 221,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "refute()",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L32",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_refute",
+      "community": 221,
+      "norm_label": "refute()"
+    },
+    {
+      "label": "UNATTENDED_LOG_HERMES_URL",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L62",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_unattended_log_hermes_url",
+      "community": 221,
+      "norm_label": "unattended_log_hermes_url"
+    },
+    {
+      "label": "run_helper()",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L99",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_run_helper",
+      "community": 221,
+      "norm_label": "run_helper()"
+    },
+    {
+      "label": "log_entries()",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L110",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_log_entries",
+      "community": 221,
+      "norm_label": "log_entries()"
+    },
+    {
+      "label": "alert_entries()",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L111",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_alert_entries",
+      "community": 221,
+      "norm_label": "alert_entries()"
+    },
+    {
+      "label": "log_entry_count()",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L112",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_log_entry_count",
+      "community": 221,
+      "norm_label": "log_entry_count()"
+    },
+    {
+      "label": "BREW_FAIL",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L114",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_brew_fail",
+      "community": 221,
+      "norm_label": "brew_fail"
+    },
+    {
+      "label": "BREW_VERSIONS",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L115",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_brew_versions",
+      "community": 221,
+      "norm_label": "brew_versions"
+    },
+    {
+      "label": "MAS_VERSIONS",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L117",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_mas_versions",
+      "community": 221,
+      "norm_label": "mas_versions"
+    },
+    {
+      "label": "UPGRADE_MARKER",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L163",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_upgrade_marker",
+      "community": 221,
+      "norm_label": "upgrade_marker"
+    },
+    {
+      "label": "BREW_BEFORE",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L164",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_brew_before",
+      "community": 221,
+      "norm_label": "brew_before"
+    },
+    {
+      "label": "BREW_AFTER",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L166",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_brew_after",
+      "community": 221,
+      "norm_label": "brew_after"
     },
     {
       "label": "hue-pulse-lock.sh",
@@ -53324,7 +53576,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L30",
+      "source_location": "L147",
       "weight": 1.0,
       "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
       "target": "dot_local_bin_executable_homebrew_weekly_upgrade_acquire_lock",
@@ -53334,7 +53586,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L60",
+      "source_location": "L115",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_homebrew_package_snapshot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L185",
       "weight": 1.0,
       "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
       "target": "dot_local_bin_executable_homebrew_weekly_upgrade_refresh_tailscaled",
@@ -53344,7 +53606,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L41",
+      "source_location": "L163",
       "weight": 1.0,
       "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
       "target": "dot_local_bin_executable_homebrew_weekly_upgrade_run",
@@ -53361,10 +53623,41 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L83",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_weekly_alert",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L96",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_weekly_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L60",
+      "weight": 1.0,
+      "context": "import",
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_unattended_log_lib",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L66",
+      "source_location": "L191",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
@@ -53375,11 +53668,44 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L73",
+      "source_location": "L206",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_homebrew_package_snapshot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L210",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
       "target": "dot_local_bin_executable_homebrew_weekly_upgrade_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L244",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_weekly_alert",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L196",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_weekly_record",
       "confidence_score": 1.0
     },
     {
@@ -64392,6 +64718,201 @@
       "context": "call",
       "source": "test_e2e_homebrew_weekly_lock_sh__entry",
       "target": "test_e2e_homebrew_weekly_lock_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L111",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_alert_entries",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L166",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_brew_after",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L164",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_brew_before",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L114",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_brew_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L115",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_brew_versions",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L110",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_log_entries",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L112",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_log_entry_count",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L117",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_mas_versions",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_refute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L99",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_run_helper",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L62",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_unattended_log_hermes_url",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L163",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_upgrade_marker",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L40",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_homebrew_weekly_record_sh__entry",
+      "target": "test_e2e_homebrew_weekly_record_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L136",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_homebrew_weekly_record_sh__entry",
+      "target": "test_e2e_homebrew_weekly_record_refute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L122",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_homebrew_weekly_record_sh__entry",
+      "target": "test_e2e_homebrew_weekly_record_run_helper",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L36",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_homebrew_weekly_record_refute",
+      "target": "test_e2e_homebrew_weekly_record_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L112",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_homebrew_weekly_record_log_entry_count",
+      "target": "test_e2e_homebrew_weekly_record_log_entries",
       "confidence_score": 1.0
     },
     {
@@ -109140,5 +109661,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "e44aa74082d3018679e130c3ed73574e1dd75ef5"
+  "built_at_commit": "9b20593f093b20445f978ad5c7cef6d5aac20944"
 }

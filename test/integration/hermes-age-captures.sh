@@ -128,7 +128,7 @@ assert_route_predicate \
 # one silently truncates every entry.
 for field in agent state project detail; do
   assert_route_predicate \
-    ".platforms.webhook.extra.routes.\"unattended-upgrades\".prompt | test(\"[{]$field[}]\")" \
+    ".platforms.webhook.extra.routes.\"unattended-upgrades\".prompt | test(\"[{]${field}[}]\")" \
     "the log route's prompt template never spends the {$field} field relay.sh sends"
 done
 rm -f "$plain"

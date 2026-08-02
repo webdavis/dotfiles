@@ -89,7 +89,6 @@ chmod +x "$tmp/brew" "$tmp/mas"
 
 STATE_DIR="$HOME/.local/state/homebrew-weekly-upgrade"
 MARKER="$STATE_DIR/last-success-at"
-GUARD="$STATE_DIR/last-log-week"
 
 RUN_OUTPUT=""
 RUN_RC=0

@@ -181,7 +181,7 @@ run() {
 # restart -- and only when tailscale is installed. sudo is passwordless here via the
 # user's sudo config; if that ever changes the step just logs and continues.
 #
-# shellcheck disable=SC2329 # invoked indirectly, as an argument to `run`
+# shellcheck disable=SC2329,SC2317 # invoked indirectly, as an argument to run()
 refresh_tailscaled() {
   [[ -x $TS ]] || return 0
   cmp -s "$TS" /usr/local/bin/tailscaled 2>/dev/null && return 0
