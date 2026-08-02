@@ -99,16 +99,55 @@ observed_tree_fingerprint() {
 # --- the mutation hook -------------------------------------------------------
 # Fires once, at the SSH_TREE_MUTATION_OCCURRENCE-th call whose "<tool> <argv>"
 # matches SSH_TREE_MUTATION_MATCH, and applies SSH_TREE_MUTATION_ACTION to
-# SSH_TREE_MUTATION_TARGET. Records every mutation it performs, so a case can
-# assert the injection really happened.
+# SSH_TREE_MUTATION_TARGET. Records every mutation it COMPLETED to
+# SSH_TREE_MUTATION_LOG, and every one it attempted and could not complete to
+# SSH_TREE_MUTATION_FAILURE_LOG, so a case can tell "the tree really moved"
+# apart from "the injection itself errored", which are opposite verdicts about
+# the guard under test and used to be the same empty log.
+#
+# WHY A CASE-ONLY RENAME IS STAGED THROUGH A THIRD NAME, here and in the
+# restore. A single `mv <name> <NAME>` is not portable, measured 2026-08-01 on
+# this machine: the flake's `run` shell (which is what CI runs the suite in)
+# leads PATH with nix coreutils, so a bare `mv` there is GNU mv 9.7, and GNU mv
+# refuses a rename whose source and destination differ only in case on a
+# case-insensitive volume. It exits 1 saying the two paths "are the same file"
+# and renames nothing, while the host's BSD /bin/mv issues the rename(2). The
+# same command therefore moved the tree or did not depending on which `mv` the
+# PATH led to, which is a test whose verdict is decided by its environment.
+#
+# Neither leg of a staged rename is a case-only rename, so every `mv` performs
+# both, on a case-sensitive volume and on a case-insensitive one. The inode and
+# the bytes survive the pair (measured), so the spelling of the path is still
+# the only thing that moves. The staging name is transient and exists only
+# while the seam call that fired the hook is blocked in its stub, so no
+# observation of the tree can fall between the two legs.
+#
+# APFS is case-INSENSITIVE but case-PRESERVING, so after the rename the
+# directory entry carries the new spelling and the walk's re-glob returns it.
+# That is what makes the drift-14 case a real, observable tree change on macOS
+# rather than a no-op, and it is why the case is not gated on the filesystem.
+CASE_ONLY_RENAME_STAGING_SUFFIX='.case-only-rename-staging'
+export CASE_ONLY_RENAME_STAGING_SUFFIX
+
+# rename_case_only <from> <to>: a rename whose paths differ only in case,
+# staged so that no `mv` implementation can refuse it. See the measurement
+# above. The hook is a separate program and carries its own copy of this.
+rename_case_only() {
+  local staged="$1$CASE_ONLY_RENAME_STAGING_SUFFIX"
+  mv -- "$1" "$staged" && mv -- "$staged" "$2"
+}
+
 SSH_TREE_MUTATION_MATCH=''
 SSH_TREE_MUTATION_OCCURRENCE=1
 SSH_TREE_MUTATION_ACTION=''
 SSH_TREE_MUTATION_TARGET=''
 SSH_TREE_MUTATION_LOG="$SSH_SANDBOX/tree-mutation.log"
+SSH_TREE_MUTATION_FAILURE_LOG="$SSH_SANDBOX/tree-mutation-failure.log"
 export SSH_TREE_MUTATION_MATCH SSH_TREE_MUTATION_OCCURRENCE \
-  SSH_TREE_MUTATION_ACTION SSH_TREE_MUTATION_TARGET SSH_TREE_MUTATION_LOG
+  SSH_TREE_MUTATION_ACTION SSH_TREE_MUTATION_TARGET SSH_TREE_MUTATION_LOG \
+  SSH_TREE_MUTATION_FAILURE_LOG
 : >"$SSH_TREE_MUTATION_LOG"
+: >"$SSH_TREE_MUTATION_FAILURE_LOG"
 
 MUTATION_HOOK="$SSH_SANDBOX/tree-mutation-hook"
 cat >"$MUTATION_HOOK" <<'HOOK'
@@ -128,23 +167,32 @@ if [[ $count -ne ${SSH_TREE_MUTATION_OCCURRENCE:-1} ]]; then
   exit 0
 fi
 target="${SSH_TREE_MUTATION_TARGET:?}"
+# Every branch below records its own exit status instead of letting it fall on
+# the floor. `set -e` is deliberately NOT on here (a hook that aborted mid-run
+# would leave the sandbox half-mutated), so without this an action that FAILED
+# ran straight into the success log and every case asserting "the mutation
+# fired" passed over a tree that had not moved. That is the exact shape of a
+# test that cannot fail, and it is how a rename that GNU mv refused outright
+# read as "the drift guard missed a case-only rename".
+action_status=0
 case "${SSH_TREE_MUTATION_ACTION:?}" in
   append-comment)
-    printf '# drift injected at: %s\n' "$description" >>"$target"
+    printf '# drift injected at: %s\n' "$description" >>"$target" || action_status=$?
     ;;
   create-file)
-    printf '# file created by drift injection at: %s\n' "$description" >"$target"
+    printf '# file created by drift injection at: %s\n' "$description" >"$target" ||
+      action_status=$?
     ;;
   remove-file)
-    rm -f -- "$target"
+    rm -f -- "$target" || action_status=$?
     ;;
   make-world-writable)
     # `--` BEFORE the mode: BSD chmod reads a `--` after the mode as a file
     # operand and fails.
-    chmod -- 0666 "$target"
+    chmod -- 0666 "$target" || action_status=$?
     ;;
   make-unreadable)
-    chmod -- 0000 "$target"
+    chmod -- 0000 "$target" || action_status=$?
     ;;
   rewrite-same-length)
     # Different bytes, IDENTICAL byte count. An observation that kept only the
@@ -153,21 +201,41 @@ case "${SSH_TREE_MUTATION_ACTION:?}" in
     # The `printf X`/strip pair preserves trailing newlines that command
     # substitution would otherwise eat, and the write is IN PLACE so the mode
     # and the owner stay exactly what they were.
-    rewritten="$(LC_ALL=C tr 'ie' 'oa' <"$target"; printf 'X')"
-    printf '%s' "${rewritten%X}" >"$target"
+    {
+      rewritten="$(
+        LC_ALL=C tr 'ie' 'oa' <"$target"
+        printf 'X'
+      )" && printf '%s' "${rewritten%X}" >"$target"
+    } || action_status=$?
     ;;
   rename-to-uppercase)
     # A rename that differs from the original ONLY in case. The comparison
     # turns nocasematch off for exactly this: left on (it is on at the script's
     # file scope), the two paths compare equal and the rename reads as no
     # change at all.
-    mv -- "$target" "${target%/*}/$(printf '%s' "${target##*/}" | LC_ALL=C tr 'a-z' 'A-Z')"
+    #
+    # Staged through a third name, never a single `mv`: this hook runs with
+    # whatever PATH the suite was launched under, and a single case-only `mv`
+    # succeeds or refuses depending on which implementation that PATH leads to.
+    # The full measurement is recorded beside the staging-suffix constant in
+    # the test that generates this hook.
+    uppercased="${target%/*}/$(printf '%s' "${target##*/}" | LC_ALL=C tr '[:lower:]' '[:upper:]')"
+    staged="$target${CASE_ONLY_RENAME_STAGING_SUFFIX:?}"
+    { mv -- "$target" "$staged" && mv -- "$staged" "$uppercased"; } || action_status=$?
     ;;
   *)
     printf 'tree-mutation-hook: unknown action %s\n' "$SSH_TREE_MUTATION_ACTION" >&2
     exit 70
     ;;
 esac
+if [[ $action_status -ne 0 ]]; then
+  printf 'tree-mutation-hook: %s on %s exited %s, so the tree was NOT mutated\n' \
+    "$SSH_TREE_MUTATION_ACTION" "$target" "$action_status" >&2
+  printf '%s on %s exited %s\n' \
+    "$SSH_TREE_MUTATION_ACTION" "$target" "$action_status" \
+    >>"${SSH_TREE_MUTATION_FAILURE_LOG:?}"
+  exit "$action_status"
+fi
 printf '%s %s %s\n' "${SSH_TREE_MUTATION_ACTION}" "$target" "$description" \
   >>"${SSH_TREE_MUTATION_LOG:?}"
 HOOK
@@ -177,6 +245,7 @@ chmod +x "$MUTATION_HOOK"
 # run with the hook armed at exactly one seam call.
 run_reload_with_mutation() {
   : >"$SSH_TREE_MUTATION_LOG"
+  : >"$SSH_TREE_MUTATION_FAILURE_LOG"
   SSH_TREE_MUTATION_HOOK="$MUTATION_HOOK" \
     SSH_TREE_MUTATION_MATCH="$1" \
     SSH_TREE_MUTATION_OCCURRENCE="$2" \
@@ -185,9 +254,22 @@ run_reload_with_mutation() {
     run_ssh_reload --reload
 }
 
+# assert_mutation_fired <label>: the injection COMPLETED, so the case that
+# follows is judging a tree that really moved. The two ways it can not have
+# completed are reported apart, because they accuse opposite things: a hook
+# that never matched its seam call is a broken case, while a hook that matched
+# and then errored is a broken injection tool, and reporting either as "never
+# fired" sent the last round hunting a drift-detection bug that did not exist.
 assert_mutation_fired() {
-  [[ -s $SSH_TREE_MUTATION_LOG ]] ||
-    fail "$1: the injected mutation never fired, so this case proves nothing about drift detection"
+  local reason
+  if [[ -s $SSH_TREE_MUTATION_LOG ]]; then
+    return 0
+  fi
+  reason='the hook never matched the seam call it was armed for'
+  if [[ -s $SSH_TREE_MUTATION_FAILURE_LOG ]]; then
+    reason="the hook matched its seam call but the injection failed: $(cat "$SSH_TREE_MUTATION_FAILURE_LOG")"
+  fi
+  fail "$1: the injected mutation never landed, so this case proves nothing about drift detection ($reason)"
 }
 
 # assert_drift_refused_before_kickstart <label> <path the mutation touched>:
@@ -453,10 +535,55 @@ rm -f "$LINKED_DROPIN" "$LINKED_TARGET"
 # --- drift 14: a rename that differs only in CASE -----------------------------
 # The comparison turns nocasematch off deliberately (it is on at the script's
 # file scope so keyword matching mirrors sshd). Left on, the old and new paths
-# compare equal and a rename reads as no change at all. On this filesystem the
-# rename keeps the same inode and the same bytes, so the case of the path is
-# the ONLY thing that moved.
+# compare equal and a rename reads as no change at all. The rename keeps the
+# same inode and the same bytes, so the case of the path is the ONLY thing that
+# moved.
+#
+# This case is meaningful on a case-INSENSITIVE volume, which is what macOS
+# ships, and not only on a case-sensitive one: APFS is case-preserving, so the
+# directory entry carries the new spelling and the walk's re-glob of the
+# drop-in directory returns it (measured 2026-08-01). The old spelling still
+# resolves through lookup, which is exactly why the case-sensitive PATH
+# comparison, not the ability to open the file, is what catches this.
 
+# The name the hook's rename-to-uppercase action produces, derived the way that
+# action derives it, so the restore cannot drift from the injection.
+INERT_DROPIN_UPPERCASED="${INERT_DROPIN%/*}/$(printf '%s' "${INERT_DROPIN##*/}" | LC_ALL=C tr '[:lower:]' '[:upper:]')"
+
+# directory_holds_entry_spelled_exactly <path>: does <path>'s directory hold an
+# entry spelled EXACTLY like <path>'s last component? `[[ -e ]]` cannot answer
+# that on a case-insensitive volume, where both spellings resolve to the same
+# file whichever one the directory actually holds, and `[[ == ]]` cannot either
+# while nocasematch is on at this script's file scope. `find -name` matches
+# against the entry the directory returns, case-sensitively, and answers the
+# question that is actually being asked.
+#
+# The last component is handed to `find` as a PATTERN, which is exact for the
+# two fixed drop-in names below and would need escaping for any name carrying
+# glob metacharacters. Nothing here builds such a name.
+directory_holds_entry_spelled_exactly() {
+  [[ -n $(/usr/bin/find "${1%/*}" -maxdepth 1 -name "${1##*/}" -print -quit) ]]
+}
+
+# restore_inert_dropin_spelling: put the inert drop-in back under its original
+# spelling. Every case after this one addresses that file by its lowercase
+# path, and the closing "this mode writes nothing" comparison is against a
+# fingerprint that RECORDS each path, so an uppercase entry left behind fails a
+# later case instead of this one.
+#
+# Idempotent, because the EXIT trap below runs it on paths where the injection
+# never landed. Nothing about it assumes the assertions passed.
+restore_inert_dropin_spelling() {
+  directory_holds_entry_spelled_exactly "$INERT_DROPIN_UPPERCASED" || return 0
+  rename_case_only "$INERT_DROPIN_UPPERCASED" "$INERT_DROPIN"
+}
+
+# The restore is TRAPPED for the length of this case, not merely sequenced
+# after its assertions: `fail` exits, so a restore that only runs on the
+# success path is one that does not run on any path that needs it. The trap
+# keeps the sandbox teardown reachable by reporting a failed restore instead of
+# aborting on it.
+trap 'restore_inert_dropin_spelling || printf "WARN: drift 14: the drop-in spelling could not be restored\n" >&2; ssh_sandbox_teardown' EXIT
 run_reload_with_mutation 'launchctl print *' 1 rename-to-uppercase "$INERT_DROPIN"
 assert_mutation_fired 'drift 14'
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
@@ -464,7 +591,16 @@ assert_mutation_fired 'drift 14'
 assert_no_kickstart 'drift 14'
 grep -qi 'configuration tree CHANGED' <<<"$SSH_RUN_ERR" ||
   fail "drift 14: the refusal must say the configuration tree changed (stderr: $SSH_RUN_ERR)"
-mv -- "$SSHD_CONFIG_D/020-INERT.CONF" "$INERT_DROPIN"
+# Case-SENSITIVE on purpose (no -i): naming the new spelling is what proves the
+# second observation re-read the directory and saw the entry the rename wrote,
+# rather than reusing the listing the first one took.
+grep -q -- "${INERT_DROPIN_UPPERCASED##*/}" <<<"$SSH_RUN_ERR" ||
+  fail "drift 14: the refusal must name the new spelling '${INERT_DROPIN_UPPERCASED##*/}' (stderr: $SSH_RUN_ERR)"
+restore_inert_dropin_spelling ||
+  fail "drift 14: the drop-in spelling must be restorable; every later case addresses it by its lowercase path"
+trap 'ssh_sandbox_teardown' EXIT
+directory_holds_entry_spelled_exactly "$INERT_DROPIN" ||
+  fail "drift 14: the restore must leave the drop-in directory holding '${INERT_DROPIN##*/}', so the cases below judge the tree they were written against"
 
 # --- window: the one gap that cannot be closed from inside this process -------
 # A mutation handed to the privilege wrapper along with the kickstart lands
