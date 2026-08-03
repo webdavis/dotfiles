@@ -64,11 +64,13 @@ else
     "$UNATTENDED_LOG_LIB" >&2
 fi
 
-# Captured BEFORE anything can rewrite the marker, so a successful run reports
-# the gap to the PREVIOUS success rather than to itself.
-LOG_GAP_LINE=""
+# The entry's opening lines (this run's timestamp and the gap to the previous
+# success), from ONE clock reading, captured BEFORE anything can rewrite the
+# marker: a gap read later would be the run's own timestamp, and a timestamp read
+# later would sit hours away from the gap printed under it.
+LOG_ENTRY_HEADER=""
 if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
-  LOG_GAP_LINE="$(unattended_log_gap_line "$LOG_SUCCESS_MARKER")"
+  LOG_ENTRY_HEADER="$(unattended_log_entry_header "$LOG_SUCCESS_MARKER")"
 fi
 
 # The relay script by ABSOLUTE path. The LaunchAgent's PATH is
@@ -101,7 +103,7 @@ weekly_record() {
     printf 'homebrew-weekly-upgrade: this ISO week already has a %s-or-better record; not posting again\n' "$class"
     return 0
   fi
-  detail="$(printf 'run at %s\n%s\n%s' "$(unattended_log_now_iso)" "$LOG_GAP_LINE" "$body")"
+  detail="$(printf '%s\n%s' "$LOG_ENTRY_HEADER" "$body")"
   UNATTENDED_LOG_RELAY="$RELAY" unattended_log_post homebrew-weekly-upgrade "$class" \
     "$(unattended_log_host)" "$detail"
   return 0

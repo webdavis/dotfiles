@@ -233,12 +233,14 @@ else
     "$UNATTENDED_LOG_LIB" >&2
 fi
 
-# The gap sentence, captured ONCE at start-up. It must be read BEFORE this run
-# can overwrite the marker, or a successful run would report its own timestamp
-# and every entry would say the gap was zero.
-LOG_GAP_LINE=""
+# The entry's opening lines (this run's timestamp and the gap to the previous
+# success), captured ONCE at start-up from ONE clock reading. Start-up because
+# the gap must be read BEFORE this run can overwrite the marker, or every
+# successful entry would report a gap of zero; one reading because a timestamp
+# taken at delivery would sit hours away from the gap printed under it.
+LOG_ENTRY_HEADER=""
 if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
-  LOG_GAP_LINE="$(unattended_log_gap_line "$LOG_SUCCESS_MARKER")"
+  LOG_ENTRY_HEADER="$(unattended_log_entry_header "$LOG_SUCCESS_MARKER")"
 fi
 
 # __update_skills_record <class> <body> -- post ONE weekly record entry.
@@ -263,7 +265,7 @@ __update_skills_record() {
     log "weekly record: this ISO week already has a '$class'-or-better entry; not posting again"
     return 0
   fi
-  detail="$(printf 'run at %s\n%s\n%s' "$(unattended_log_now_iso)" "$LOG_GAP_LINE" "$body")"
+  detail="$(printf '%s\n%s' "$LOG_ENTRY_HEADER" "$body")"
   unattended_log_post update-skills "$class" "$(unattended_log_host)" "$detail"
   return 0
 }

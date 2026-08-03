@@ -28,6 +28,15 @@ fail() {
   exit 1
 }
 
+# `! grep` under set -e never fails a test; every negative check goes through this.
+refute() {
+  local pattern="$1" haystack="$2" message="$3"
+  if grep -qF "$pattern" <<<"$haystack"; then
+    printf '=== haystack ===\n%s\n' "$haystack" >&2
+    fail "$message"
+  fi
+}
+
 [[ -r $SCRIPT ]] || fail "not readable: $SCRIPT"
 
 tmp="$(mktemp -d)"
@@ -57,6 +66,27 @@ cp "$tmp/relay-stub.sh" "$HOME/.local/bin/relay.sh"
 export UNATTENDED_LOG_RELAY="$tmp/relay-stub.sh"
 export UNATTENDED_LOG_HERMES_URL="http://hermes.test/webhooks/unattended-upgrades"
 
+# date stub: FAKE_NOW / FAKE_NOW_ISO pin the clock, and both are read at every
+# call, so moving them between sourcing the script and posting an entry is a run
+# that took time. Everything else falls through to the real date.
+mkdir -p "$tmp/stubs"
+cat >"$tmp/stubs/date" <<'STUB'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  case "$arg" in
+    "+%s %Y-%m-%dT%H:%M:%SZ")
+      printf '%s %s\n' "${FAKE_NOW:-1785000000}" "${FAKE_NOW_ISO:-2026-07-25T12:00:00Z}"
+      exit 0
+      ;;
+    +%s) printf '%s\n' "${FAKE_NOW:-1785000000}"; exit 0 ;;
+  esac
+done
+exec /bin/date "$@"
+STUB
+chmod +x "$tmp/stubs/date"
+export PATH="$tmp/stubs:$PATH"
+export FAKE_NOW=1785000000 FAKE_NOW_ISO="2026-07-25T12:00:00Z"
+
 export UPDATE_SKILLS_LIB_ONLY=1
 # shellcheck source=dot_local/bin/executable_update-skills.sh
 source "$SCRIPT"
@@ -85,6 +115,25 @@ grep -qE 'run at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' "$RELAY
   fail "the control entry carries no ISO 8601 UTC run timestamp"
 grep -qF 'last successful run' "$RELAY_CALL_LOG" ||
   fail "the control entry carries no gap line; an entry that does not state its own gap measures nothing"
+
+# ── THE RUN TIMESTAMP IS THE RUN'S OWN START, the same instant the gap under it
+#    was measured from. The clock is moved two hours forward AFTER the script was
+#    sourced, which is what a long run looks like from here: an entry that
+#    re-reads the clock at delivery prints timestamps two hours apart from the
+#    figures below them, and nothing in the entry says which to believe. ──────
+reset_calls
+FAKE_NOW=$((1785000000 + 7200))
+FAKE_NOW_ISO="2026-07-25T14:00:00Z"
+export FAKE_NOW FAKE_NOW_ISO
+__update_skills_record completed "clock body"
+calls="$(cat "$RELAY_CALL_LOG")"
+grep -qF 'run at 2026-07-25T12:00:00Z' <<<"$calls" ||
+  fail "the entry does not report the instant the run started: $calls"
+refute '2026-07-25T14:00:00Z' "$calls" \
+  "the entry re-read the clock at delivery, so its timestamp is hours away from the gap printed under it"
+FAKE_NOW=1785000000
+FAKE_NOW_ISO="2026-07-25T12:00:00Z"
+export FAKE_NOW FAKE_NOW_ISO
 
 # ── GATE 1: not scheduled -> nothing posted. ────────────────────────────────
 SCHEDULED=""

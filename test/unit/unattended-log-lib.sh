@@ -54,9 +54,14 @@ trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/stubs"
 cat >"$tmp/stubs/date" <<'STUB'
 #!/usr/bin/env bash
+printf 'date %s\n' "$*" >>"${DATE_CALL_LOG:-/dev/null}"
 for arg in "$@"; do
   case "$arg" in
     +%G-%V) printf '%s\n' "${FAKE_WEEK:-2026-31}"; exit 0 ;;
+    "+%s %Y-%m-%dT%H:%M:%SZ")
+      printf '%s %s\n' "${FAKE_NOW:-1785000000}" "${FAKE_NOW_ISO:-2026-07-25T12:00:00Z}"
+      exit 0
+      ;;
     +%s) printf '%s\n' "${FAKE_NOW:-1785000000}"; exit 0 ;;
   esac
 done
@@ -153,6 +158,27 @@ grep -qiE 'unknown|never' <<<"$line" &&
   fail "a marker this library just wrote is not readable by its own gap line: '$line'"
 grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' <<<"$line" ||
   fail "mark_success did not record an ISO 8601 UTC timestamp: '$line'"
+
+# ── 2e. The entry HEADER: the run timestamp and the gap, from ONE clock
+#       reading. Two readings is how a two-hour run ends up printing timestamps
+#       seven days and two hours apart above a gap that reads seven days, and
+#       nothing in the entry tells the reader which figure to trust. The call
+#       COUNT is the assertion, because one call is the only thing that makes
+#       the two figures the same instant by construction. ────────────────────
+printf '%s %s\n' "$((1785000000 - 259200))" "2026-07-22T12:00:00Z" >"$marker"
+DATE_CALL_LOG="$tmp/date-calls.log"
+export DATE_CALL_LOG
+: >"$DATE_CALL_LOG"
+header="$(FAKE_NOW=1785000000 FAKE_NOW_ISO=2026-07-25T12:00:00Z \
+  unattended_log_entry_header "$marker")"
+grep -qF 'run at 2026-07-25T12:00:00Z' <<<"$header" ||
+  fail "the entry header does not carry this run's timestamp: '$header'"
+grep -qF '(3d 0h ago)' <<<"$header" ||
+  fail "the entry header does not carry the gap to the previous success: '$header'"
+date_calls="$(grep -c . "$DATE_CALL_LOG" || true)"
+[[ $date_calls -eq 1 ]] ||
+  fail "the entry header read the clock $date_calls times, want exactly 1: $(cat "$DATE_CALL_LOG")"
+: >"$DATE_CALL_LOG"
 
 # ── 3. The weekly guard. A Monday fires 24 hourly slots; without this the
 #      channel would take up to 24 entries a week. ────────────────────────────

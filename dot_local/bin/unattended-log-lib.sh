@@ -126,7 +126,7 @@ unattended_log_mark_success() {
 # that runs at START-UP in both weekly jobs, one of them under set -e, which
 # would end the run before its lock, its alert or its record.
 unattended_log_gap_line() {
-  local marker="$1" recorded_epoch="" recorded_iso="" now delta
+  local marker="$1" now="${2:-}" recorded_epoch="" recorded_iso="" delta
   if [[ ! -r $marker ]]; then
     printf 'last successful run: NEVER RECORDED on this machine'
     return 0
@@ -136,13 +136,40 @@ unattended_log_gap_line() {
     printf 'last successful run: UNKNOWN (the record at %s is unreadable)' "$marker"
     return 0
   fi
-  now="$(date +%s)"
+  [[ -n $now ]] || now="$(date +%s)"
   if [[ ! $now =~ ^[0-9]+$ ]]; then
     printf 'last successful run: %s (elapsed UNKNOWN; this clock could not be read)' "${recorded_iso:-$recorded_epoch}"
     return 0
   fi
   delta=$((10#$now - 10#$recorded_epoch))
   printf 'last successful run: %s (%s ago)' "${recorded_iso:-$recorded_epoch}" "$(unattended_log_elapsed "$delta")"
+}
+
+# unattended_log_entry_header <marker-file> -- the two lines every entry opens
+# with: when THIS run started, and the gap to the previous successful one. Both
+# come from ONE clock reading, which is the whole reason this is a function
+# rather than two lines in each caller: they used to be sampled at different
+# instants (the gap at start-up, the timestamp at delivery), so a two-hour run
+# printed timestamps seven days and two hours apart above a gap reading seven
+# days, and a reader cannot tell which of the two figures to believe.
+#
+# ONE `date` call yields both fields. Deriving the timestamp from the epoch
+# afterwards would need `date -r` on BSD and `date -d @` on GNU, which is the
+# portability trap the marker format itself already sidesteps (see the note at
+# the top of this file).
+#
+# It is captured at START-UP, before the run can rewrite its own marker; a header
+# taken at delivery would report the gap as zero on every successful run.
+unattended_log_entry_header() {
+  local marker="$1" now_epoch="" now_iso=""
+  read -r now_epoch now_iso < <(date -u '+%s %Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || true
+  if [[ ! $now_epoch =~ ^[0-9]+$ || -z $now_iso ]]; then
+    # Named, not hidden: an entry with no timestamp at all still beats one
+    # carrying a confident wrong time.
+    printf 'run at UNKNOWN (this clock could not be read)\n%s' "$(unattended_log_gap_line "$marker")"
+    return 0
+  fi
+  printf 'run at %s\n%s' "$now_iso" "$(unattended_log_gap_line "$marker" "$now_epoch")"
 }
 
 # unattended_log_claim_week <guard-file> <class> -- returns 0 when THIS entry

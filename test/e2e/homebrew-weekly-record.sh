@@ -320,9 +320,44 @@ else
   fail "could not stage a held lock; the contention case did not run"
 fi
 
-# ── 9. An unknown argument is an error, not a silent no-op that skips the
-#      record. A typo'd marker in the plist would otherwise run every week and
-#      quietly post nothing. ────────────────────────────────────────────────────
+# ── 9. The run timestamp is the instant the gap under it was measured from. The
+#      clock stub moves an hour per reading, so a helper that samples once posts
+#      the FIRST reading and one that re-reads at delivery posts a later hour.
+#      Two readings is how a long run prints timestamps hours apart from the gap
+#      figure printed beneath them, with nothing saying which to believe. ──────
+rm -rf "$HOME/.local/state"
+mkdir -p "$tmp/stubs"
+export CLOCK_TICKS="$tmp/clock-ticks"
+: >"$CLOCK_TICKS"
+cat >"$tmp/stubs/date" <<'STUB'
+#!/usr/bin/env bash
+n="$(cat "$CLOCK_TICKS" 2>/dev/null || printf '0')"
+[[ $n =~ ^[0-9]+$ ]] || n=0
+printf '%s' "$((n + 1))" >"$CLOCK_TICKS"
+epoch=$((1785000000 + n * 3600))
+iso="$(printf '2026-07-25T%02d:00:00Z' "$((12 + n))")"
+for arg in "$@"; do
+  case "$arg" in
+    "+%s %Y-%m-%dT%H:%M:%SZ") printf '%s %s\n' "$epoch" "$iso"; exit 0 ;;
+    +%s) printf '%s\n' "$epoch"; exit 0 ;;
+    +%Y-%m-%dT%H:%M:%SZ) printf '%s\n' "$iso"; exit 0 ;;
+  esac
+done
+exec /bin/date "$@"
+STUB
+chmod +x "$tmp/stubs/date"
+: >"$RELAY_LOG"
+RUN_OUTPUT="$(PATH="$tmp/stubs:$PATH" HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
+  HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" HOMEBREW_WEEKLY_LOCKFILE="$tmp/lock.clock" \
+  BREW_FAIL="" BREW_VERSIONS="$BREW_VERSIONS" MAS_VERSIONS="$MAS_VERSIONS" \
+  bash "$HELPER" --scheduled 2>&1)"
+entries="$(log_entries)"
+grep -qF 'run at 2026-07-25T12:00:00Z' <<<"$entries" ||
+  fail "the record does not report the instant the run started: $entries | $RUN_OUTPUT"
+
+# ── 10. An unknown argument is an error, not a silent no-op that skips the
+#       record. A typo'd marker in the plist would otherwise run every week and
+#       quietly post nothing. ───────────────────────────────────────────────────
 run_helper --schedluled
 [[ $RUN_RC -ne 0 ]] || fail "an unknown argument exited 0"
 grep -qiE 'usage|unknown' <<<"$RUN_OUTPUT" ||
