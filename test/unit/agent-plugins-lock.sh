@@ -98,6 +98,27 @@ bad_harnesses="$(jq -r --argjson known "$(printf '%s\n' "${KNOWN_HARNESSES[@]}" 
 [[ -z $bad_harnesses ]] ||
   fail "harnesses must be a non-empty array drawn from ${KNOWN_HARNESSES[*]}: $bad_harnesses"
 
+# --- Rule 2b: the unknowable lane's MEMBERSHIP is pinned ---------------------
+# The enum check above accepts any known lane for any plugin, so flipping a
+# versioned plugin to unknowable stays green while the weekly entry quietly
+# stops reporting that plugin's version transitions, and the reverse flip makes
+# the entry cry change on a no-op refresh every single week. A lane is a
+# measured fact about one plugin, so changing one is a deliberate two-file
+# edit, the same shape as DECLARED_PLUGINS.
+readonly -a EXPECTED_UNKNOWABLE_PLUGINS=(
+  'frontend-design@claude-plugins-official'
+  'playwright@claude-plugins-official'
+  'skill-creator@claude-plugins-official'
+)
+actual_unknowable="$(jq -r '.plugins // {} | to_entries[]
+  | select(.value.identityLane == "unknowable") | .key' "$LOCK" | sort)"
+expected_unknowable="$(printf '%s\n' "${EXPECTED_UNKNOWABLE_PLUGINS[@]}" | sort)"
+if [[ $actual_unknowable != "$expected_unknowable" ]]; then
+  printf 'FAIL: the unknowable identity lane does not hold the pinned membership; a lane change is a measured event, re-measure and update both files:\n' >&2
+  diff <(printf '%s\n' "$expected_unknowable") <(printf '%s\n' "$actual_unknowable") >&2 || true
+  exit 1
+fi
+
 # --- Rule 3: marketplaces are well-formed, used, and complete ---------------
 # A plugin naming a marketplace the lock does not describe cannot be installed
 # on a fresh machine, and a marketplace nothing installs from is a dead entry
@@ -114,6 +135,29 @@ undescribed="$(comm -23 <(printf '%s\n' "$used_marketplaces") <(printf '%s\n' "$
 unused="$(comm -13 <(printf '%s\n' "$used_marketplaces") <(printf '%s\n' "$marketplace_names"))"
 [[ -z $unused ]] ||
   fail "the lock describes a marketplace no tracked plugin installs from; delete it or track the plugin: $unused"
+
+# --- Rule 3b: the marketplace sources are pinned, byte for byte -------------
+# The shape rules above cannot see a typosquat: anthr0pics/skills is non-empty,
+# described, and used, and it is somebody else's repo serving executable code
+# that a fresh machine would install unattended. The pairs are duplicated here
+# on purpose, two independent statements that must agree: changing a source is
+# a deliberate two-file edit.
+readonly -a EXPECTED_MARKETPLACE_SOURCES=(
+  'anthropic-agent-skills github anthropics/skills'
+  'claude-plugins-official github anthropics/claude-plugins-official'
+  'last30days-skill github mvanhorn/last30days-skill'
+  'openai-codex github openai/codex-plugin-cc'
+  'ponytail github DietrichGebert/ponytail'
+  'worktrunk github max-sixty/worktrunk'
+)
+actual_sources="$(jq -r '.marketplaces // {} | to_entries[]
+  | "\(.key) \(.value.source) \(.value.repo)"' "$LOCK" | sort)"
+expected_sources="$(printf '%s\n' "${EXPECTED_MARKETPLACE_SOURCES[@]}" | sort)"
+if [[ $actual_sources != "$expected_sources" ]]; then
+  printf 'FAIL: the marketplace sources do not match the pinned set; a drifted repo is how a typosquat ships, so confirm the change is wanted and update both files:\n' >&2
+  diff <(printf '%s\n' "$expected_sources") <(printf '%s\n' "$actual_sources") >&2 || true
+  exit 1
+fi
 
 # --- Rule 4: the lock and the settings roster are the same set --------------
 declared_plugins="$(sed -n '/^readonly -a DECLARED_PLUGINS=($/,/^)$/p' "$SETTINGS_PLUGIN_TEST" |
