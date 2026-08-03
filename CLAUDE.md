@@ -648,6 +648,71 @@ the store entry (or `npxTracked` row), every lock table row, and every declarati
 evaluated and rejected (measured lossy and slow at this library size); Hermes's larger native catalog
 (`~/.hermes/skills/<category>/`) remains Hermes-only.
 
+### Agent Plugins (Claude Code)
+
+A SEPARATE vertical from skills, by operator ruling, tests included. Three files, and nothing else:
+
+- `dot_agents/custom-agent-plugins-lock.json`, the twelve tracked plugin ids, the marketplace each comes
+  from, and the six marketplace sources a fresh machine needs.
+- `dot_local/bin/executable_update-agent-plugins.sh`, the weekly updater.
+- `Library/LaunchAgents/com.webdavis.update-agent-plugins.plist.tmpl` plus its `run_onchange_after_69`
+  loader: 24 hourly Monday slots, `RunAtLoad=false`, logs to `~/.local/log/agent-plugins/`, `--scheduled`
+  in argv so a hand run cannot forge the weekly entry.
+
+Neither lock may reference the other and no test but `test/unit/agent-plugins-lock.sh` may name both;
+that guard enforces it mechanically. The two verticals do share `unattended-log-lib.sh`, which is about
+how an unattended job reports and knows nothing about either subject.
+
+**What it does.** Weekly, unattended: install any tracked plugin that is absent (adding its marketplace
+first), `claude plugin update` the rest, post one entry per ISO week to `#unattended-upgrades`. The
+plugin set is the SAME twelve `private_dot_claude/modify_settings.json` declares in `enabledPlugins`, in
+both directions: an id the updater refreshes but the template omits is switched off by the next apply,
+and an id the template enables but the lock omits is one nothing keeps current.
+
+**What it deliberately does NOT do, and why.** It does not classify what changed and it never escalates.
+A digest over an installed tree is not stable across a no-op update (runtime files churn inside it,
+`hooks/` included), an MCP-server plugin's executed code is not in the tree at all, and an escalation
+that fires on every real release is a channel nobody reads. The security cost of updating third-party
+executable code unattended is ACCEPTED: the alternative depends on the operator noticing a passive alert,
+which is the failure mode the whole design starts from. There is also NO rollback: `claude plugin update`
+overwrites the installed tree in place, neither `update` nor `install` takes a `--version`, and Claude
+Code sweeps its own plugin cache on a schedule this repo does not control.
+
+**Containment is the recovery verb.** `claude plugin disable <id>` sticks across an apply, because the
+settings modify-template preserves a live `false` for a declared id, and the updater SKIPS a disabled
+plugin rather than updating it (an update would proceed anyway and overwrite the very tree the disable
+preserves). Scope it correctly: the disable stops the plugin loading from USER settings, and a repo whose
+PROJECT settings enable the same plugin still loads it there (precedence: user < project < local < flag
+\< policy).
+
+**identityLane** is what a weekly entry can honestly say about a plugin. `versioned` and `git-sha` both
+report a real `old -> new` transition. `unknowable` is the lane whose declared version is the literal
+string `unknown`: its `installPath` never changes and its `lastUpdated` bumps on every no-op refresh, so
+the entry reports those as refreshed with the change UNKNOWABLE and never as changed. Three sit there
+(`frontend-design`, `playwright`, `skill-creator`). The one-time remedy is a manual marketplace remove
+and re-add, which restamps a fresh clone with git SHAs; it is deliberately not scripted, because removal
+is manual here, and it is not something automation may do behind the operator.
+
+**The idle gate probes Claude Code transcripts only** (`~/.claude/projects`, 15-minute threshold, fails
+closed). `claude plugin update` mutates `~/.claude/plugins`, which is Claude Code's own config directory;
+Codex and hermes load from `~/.agents` and read nothing there, so folding their activity in would defer
+slots this hazard does not require deferring (measured 2026-08-03, in one reading: `~/.hermes/logs` 704
+seconds old against `~/.codex/sessions` at 5123). The gate can still starve on a busy machine. That is
+made legible rather than silent by the record: a deferral posts an entry whose gap line reads
+`last successful run: ... (23d 0h ago)`, which is the signal the skills gate lacks.
+
+**Not an inventory.** Five installed plugins are deliberately untracked (`code-review`,
+`commit-commands`, `discord`, `exa`, `github`): the operator's list does not include them, and an id
+absent from the lock is simply one nothing updates. This vertical never uninstalls and never removes a
+marketplace.
+
+**Adding a plugin:** add its row to `dot_agents/custom-agent-plugins-lock.json` (id
+`<name>@<marketplace>`, the same marketplace in the entry, `harnesses`, and the `identityLane` you
+MEASURE from `claude plugin list --json`), add its marketplace there if it is new, add the id to
+`$declaredPlugins` in `private_dot_claude/modify_settings.json` AND to `DECLARED_PLUGINS` in
+`test/unit/claude-enabled-plugins.sh`, and run `just test`. **Removing one:** delete all four in the same
+commit, then uninstall by hand if you want it gone from the machine.
+
 ### Herdr Workspace Management
 
 Workspaces (project-anchored tab groups, ≈ tmux sessions) are configured at
