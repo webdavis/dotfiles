@@ -86,8 +86,14 @@ desk_idle="${RELAY_DESK_IDLE_SECS:-600}"
 # pull the raw $NF (not a pre-divided int), require all-digits on it and on the threshold, and only then
 # compare. Any invalid or absent value = presence unknown = want_phone stays 1 (treat as "user away").
 # RELAY_IDLE_SECS overrides the probe; RELAY_IOREG overrides the probe binary (tests point it at a stub).
+#
+# The probe runs ONLY when a phone push could actually fire. Both narrowing flags suppress the moshi leg
+# outright, so under either one the probe's answer is unused -- and it is an unbounded pipe to ioreg with
+# no timeout. On the --remote-only path that is not merely wasted work: the POST there is SYNCHRONOUS, so
+# a wedged ioreg holds the weekly job before the delivery it exists to report, after the week's guard is
+# spent and while the caller still holds its serialize lock.
 want_phone=1
-if [[ -z ${RELAY_FORCE_PHONE:-} ]]; then
+if [[ -z $local_only && -z $remote_only && -z ${RELAY_FORCE_PHONE:-} ]]; then
   idle_secs="${RELAY_IDLE_SECS:-}"
   if [[ -z $idle_secs ]]; then
     idle_ns="$("${RELAY_IOREG:-/usr/sbin/ioreg}" -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print $NF}' || true)"

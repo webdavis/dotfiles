@@ -9013,7 +9013,7 @@
       "label": "UNATTENDED_LOG_HERMES_URL",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L62",
+      "source_location": "L63",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9027,7 +9027,7 @@
       "label": "run_helper()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L98",
+      "source_location": "L108",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9041,7 +9041,7 @@
       "label": "log_entries()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L109",
+      "source_location": "L119",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9055,7 +9055,7 @@
       "label": "alert_entries()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L110",
+      "source_location": "L120",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9069,7 +9069,7 @@
       "label": "log_entry_count()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L111",
+      "source_location": "L121",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9083,7 +9083,7 @@
       "label": "BREW_FAIL",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L113",
+      "source_location": "L123",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9097,7 +9097,7 @@
       "label": "BREW_VERSIONS",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L114",
+      "source_location": "L124",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9111,7 +9111,7 @@
       "label": "MAS_VERSIONS",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L116",
+      "source_location": "L126",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9125,7 +9125,7 @@
       "label": "UPGRADE_MARKER",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L162",
+      "source_location": "L194",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9139,7 +9139,7 @@
       "label": "BREW_BEFORE",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L163",
+      "source_location": "L200",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9153,7 +9153,7 @@
       "label": "BREW_AFTER",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L165",
+      "source_location": "L203",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9162,6 +9162,20 @@
       "id": "test_e2e_homebrew_weekly_record_brew_after",
       "community": 221,
       "norm_label": "brew_after"
+    },
+    {
+      "label": "MAS_AFTER",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L207",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_record_mas_after",
+      "community": 221,
+      "norm_label": "mas_after"
     },
     {
       "label": "hue-pulse-lock.sh",
@@ -10046,10 +10060,38 @@
       "norm_label": "cleanup()"
     },
     {
+      "label": "restage_lock()",
+      "file_type": "code",
+      "source_file": "test/e2e/update-skills-weekly-record.sh",
+      "source_location": "L69",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_update_skills_weekly_record_restage_lock",
+      "community": 437,
+      "norm_label": "restage_lock()"
+    },
+    {
+      "label": "restage_lock_with_routing()",
+      "file_type": "code",
+      "source_file": "test/e2e/update-skills-weekly-record.sh",
+      "source_location": "L86",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_update_skills_weekly_record_restage_lock_with_routing",
+      "community": 437,
+      "norm_label": "restage_lock_with_routing()"
+    },
+    {
       "label": "clawhub_version()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L87",
+      "source_location": "L100",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -10063,7 +10105,7 @@
       "label": "PATH",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L155",
+      "source_location": "L193",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -10077,7 +10119,7 @@
       "label": "FAKE_WEEK",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L156",
+      "source_location": "L194",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -10091,7 +10133,7 @@
       "label": "UNATTENDED_LOG_HERMES_URL",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L157",
+      "source_location": "L195",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -10105,7 +10147,7 @@
       "label": "UPDATE_SKILLS_CLAUDE_ACTIVITY_DIR",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L160",
+      "source_location": "L197",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -10119,7 +10161,7 @@
       "label": "UPDATE_SKILLS_CODEX_ACTIVITY_DIR",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L161",
+      "source_location": "L198",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -10133,7 +10175,7 @@
       "label": "UPDATE_SKILLS_HERMES_ACTIVITY_DIR",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L162",
+      "source_location": "L199",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -10147,7 +10189,7 @@
       "label": "UPDATE_SKILLS_IDLE_THRESHOLD",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L163",
+      "source_location": "L200",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -10161,7 +10203,7 @@
       "label": "harness_active()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L168",
+      "source_location": "L205",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -10175,7 +10217,7 @@
       "label": "harness_absent()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L172",
+      "source_location": "L209",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -10189,7 +10231,7 @@
       "label": "run_updater()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L177",
+      "source_location": "L214",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -10203,7 +10245,7 @@
       "label": "log_entries()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L185",
+      "source_location": "L222",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -10217,7 +10259,7 @@
       "label": "alert_entries()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L187",
+      "source_location": "L224",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -10231,7 +10273,7 @@
       "label": "log_entry_count()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L188",
+      "source_location": "L225",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -10245,7 +10287,7 @@
       "label": "reset_state()",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L193",
+      "source_location": "L230",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -13479,7 +13521,7 @@
       "label": "write_config()",
       "file_type": "code",
       "source_file": "test/integration/hermes-route-status.sh",
-      "source_location": "L104",
+      "source_location": "L118",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -13493,7 +13535,7 @@
       "label": "run_status()",
       "file_type": "code",
       "source_file": "test/integration/hermes-route-status.sh",
-      "source_location": "L116",
+      "source_location": "L130",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -32729,7 +32771,7 @@
       "label": "PATH",
       "file_type": "code",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L73",
+      "source_location": "L79",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -32743,7 +32785,7 @@
       "label": "check_elapsed()",
       "file_type": "code",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L81",
+      "source_location": "L87",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -32757,7 +32799,7 @@
       "label": "row()",
       "file_type": "code",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L220",
+      "source_location": "L256",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -32771,7 +32813,7 @@
       "label": "write_snapshot()",
       "file_type": "code",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L221",
+      "source_location": "L257",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -32981,7 +33023,7 @@
       "label": "UNATTENDED_LOG_RELAY",
       "file_type": "code",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L49",
+      "source_location": "L57",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -32995,7 +33037,7 @@
       "label": "UNATTENDED_LOG_HERMES_URL",
       "file_type": "code",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L50",
+      "source_location": "L58",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -33009,7 +33051,7 @@
       "label": "UPDATE_SKILLS_LIB_ONLY",
       "file_type": "code",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L52",
+      "source_location": "L60",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -33023,7 +33065,7 @@
       "label": "reset_calls()",
       "file_type": "code",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L60",
+      "source_location": "L68",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -33037,7 +33079,7 @@
       "label": "posted_count()",
       "file_type": "code",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L64",
+      "source_location": "L72",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -33046,6 +33088,20 @@
       "id": "test_unit_update_skills_record_gates_posted_count",
       "community": 439,
       "norm_label": "posted_count()"
+    },
+    {
+      "label": "assert_fd9_closed()",
+      "file_type": "code",
+      "source_file": "test/unit/update-skills-record-gates.sh",
+      "source_location": "L131",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_update_skills_record_gates_assert_fd9_closed",
+      "community": 439,
+      "norm_label": "assert_fd9_closed()"
     },
     {
       "label": "validate-tests.sh",
@@ -64808,7 +64864,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L110",
+      "source_location": "L120",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_alert_entries",
@@ -64818,7 +64874,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L165",
+      "source_location": "L203",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_after",
@@ -64828,7 +64884,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L163",
+      "source_location": "L200",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_before",
@@ -64838,7 +64894,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L113",
+      "source_location": "L123",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_fail",
@@ -64848,7 +64904,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L114",
+      "source_location": "L124",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_versions",
@@ -64868,7 +64924,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L109",
+      "source_location": "L119",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_log_entries",
@@ -64878,7 +64934,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L111",
+      "source_location": "L121",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_log_entry_count",
@@ -64888,7 +64944,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L116",
+      "source_location": "L207",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_record",
+      "target": "test_e2e_homebrew_weekly_record_mas_after",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-record.sh",
+      "source_location": "L126",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_mas_versions",
@@ -64908,7 +64974,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L98",
+      "source_location": "L108",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_run_helper",
@@ -64928,7 +64994,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L62",
+      "source_location": "L63",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_unattended_log_hermes_url",
@@ -64938,7 +65004,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L162",
+      "source_location": "L194",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_upgrade_marker",
@@ -64959,7 +65025,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L135",
+      "source_location": "L151",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_homebrew_weekly_record_sh__entry",
@@ -64970,7 +65036,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L121",
+      "source_location": "L131",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_homebrew_weekly_record_sh__entry",
@@ -64992,7 +65058,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L111",
+      "source_location": "L121",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_homebrew_weekly_record_log_entry_count",
@@ -65746,7 +65812,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L187",
+      "source_location": "L224",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_alert_entries",
@@ -65756,7 +65822,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L87",
+      "source_location": "L100",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_clawhub_version",
@@ -65786,7 +65852,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L324",
+      "source_location": "L509",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_fake_week",
@@ -65796,7 +65862,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L172",
+      "source_location": "L209",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_harness_absent",
@@ -65806,7 +65872,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L168",
+      "source_location": "L205",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_harness_active",
@@ -65816,7 +65882,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L185",
+      "source_location": "L222",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_log_entries",
@@ -65826,7 +65892,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L188",
+      "source_location": "L225",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_log_entry_count",
@@ -65836,7 +65902,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L155",
+      "source_location": "L193",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_path",
@@ -65856,7 +65922,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L193",
+      "source_location": "L230",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_reset_state",
@@ -65866,7 +65932,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L177",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "test_e2e_update_skills_weekly_record",
+      "target": "test_e2e_update_skills_weekly_record_restage_lock",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/update-skills-weekly-record.sh",
+      "source_location": "L86",
+      "weight": 1.0,
+      "source": "test_e2e_update_skills_weekly_record",
+      "target": "test_e2e_update_skills_weekly_record_restage_lock_with_routing",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/update-skills-weekly-record.sh",
+      "source_location": "L214",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_run_updater",
@@ -65886,7 +65972,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L157",
+      "source_location": "L195",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_unattended_log_hermes_url",
@@ -65896,7 +65982,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L160",
+      "source_location": "L197",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_update_skills_claude_activity_dir",
@@ -65906,7 +65992,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L161",
+      "source_location": "L198",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_update_skills_codex_activity_dir",
@@ -65916,7 +66002,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L162",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_update_skills_hermes_activity_dir",
@@ -65926,7 +66012,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L163",
+      "source_location": "L200",
       "weight": 1.0,
       "source": "test_e2e_update_skills_weekly_record",
       "target": "test_e2e_update_skills_weekly_record_update_skills_idle_threshold",
@@ -65936,7 +66022,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L91",
+      "source_location": "L104",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_sh__entry",
@@ -65958,7 +66044,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L232",
+      "source_location": "L275",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_sh__entry",
@@ -65969,7 +66055,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L202",
+      "source_location": "L239",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_sh__entry",
@@ -65980,7 +66066,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L280",
+      "source_location": "L323",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_sh__entry",
@@ -65991,7 +66077,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L201",
+      "source_location": "L238",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_sh__entry",
@@ -66002,7 +66088,29 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L203",
+      "source_location": "L89",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_update_skills_weekly_record_sh__entry",
+      "target": "test_e2e_update_skills_weekly_record_restage_lock",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/update-skills-weekly-record.sh",
+      "source_location": "L465",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_update_skills_weekly_record_sh__entry",
+      "target": "test_e2e_update_skills_weekly_record_restage_lock_with_routing",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/update-skills-weekly-record.sh",
+      "source_location": "L240",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_sh__entry",
@@ -66024,7 +66132,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L195",
+      "source_location": "L87",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_update_skills_weekly_record_restage_lock_with_routing",
+      "target": "test_e2e_update_skills_weekly_record_restage_lock",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/update-skills-weekly-record.sh",
+      "source_location": "L232",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_reset_state",
@@ -66035,7 +66154,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-weekly-record.sh",
-      "source_location": "L188",
+      "source_location": "L225",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_update_skills_weekly_record_log_entry_count",
@@ -68674,7 +68793,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/hermes-route-status.sh",
-      "source_location": "L116",
+      "source_location": "L130",
       "weight": 1.0,
       "source": "test_integration_hermes_route_status",
       "target": "test_integration_hermes_route_status_run_status",
@@ -68694,7 +68813,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/hermes-route-status.sh",
-      "source_location": "L104",
+      "source_location": "L118",
       "weight": 1.0,
       "source": "test_integration_hermes_route_status",
       "target": "test_integration_hermes_route_status_write_config",
@@ -68715,7 +68834,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/hermes-route-status.sh",
-      "source_location": "L66",
+      "source_location": "L74",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_hermes_route_status_sh__entry",
@@ -68726,7 +68845,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/hermes-route-status.sh",
-      "source_location": "L126",
+      "source_location": "L140",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_hermes_route_status_sh__entry",
@@ -68737,7 +68856,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/hermes-route-status.sh",
-      "source_location": "L125",
+      "source_location": "L139",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_hermes_route_status_sh__entry",
@@ -88424,7 +88543,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/relay-remote-only.sh",
-      "source_location": "L106",
+      "source_location": "L112",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_relay_remote_only_sh__entry",
@@ -88435,7 +88554,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/relay-remote-only.sh",
-      "source_location": "L108",
+      "source_location": "L114",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_relay_remote_only_sh__entry",
@@ -88446,7 +88565,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/relay-remote-only.sh",
-      "source_location": "L101",
+      "source_location": "L107",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_relay_remote_only_sh__entry",
@@ -90856,7 +90975,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L81",
+      "source_location": "L87",
       "weight": 1.0,
       "source": "test_unit_unattended_log_lib",
       "target": "test_unit_unattended_log_lib_check_elapsed",
@@ -90876,7 +90995,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L73",
+      "source_location": "L79",
       "weight": 1.0,
       "source": "test_unit_unattended_log_lib",
       "target": "test_unit_unattended_log_lib_path",
@@ -90896,7 +91015,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L220",
+      "source_location": "L256",
       "weight": 1.0,
       "source": "test_unit_unattended_log_lib",
       "target": "test_unit_unattended_log_lib_row",
@@ -90916,7 +91035,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L221",
+      "source_location": "L257",
       "weight": 1.0,
       "source": "test_unit_unattended_log_lib",
       "target": "test_unit_unattended_log_lib_write_snapshot",
@@ -90926,7 +91045,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L86",
+      "source_location": "L92",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_unattended_log_lib_sh__entry",
@@ -90948,7 +91067,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L111",
+      "source_location": "L117",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_unattended_log_lib_sh__entry",
@@ -90959,7 +91078,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L239",
+      "source_location": "L275",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_unattended_log_lib_sh__entry",
@@ -90970,7 +91089,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L84",
+      "source_location": "L90",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_unattended_log_lib_check_elapsed",
@@ -91115,6 +91234,16 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-record-gates.sh",
+      "source_location": "L131",
+      "weight": 1.0,
+      "source": "test_unit_update_skills_record_gates",
+      "target": "test_unit_update_skills_record_gates_assert_fd9_closed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/update-skills-record-gates.sh",
       "source_location": "L26",
       "weight": 1.0,
       "source": "test_unit_update_skills_record_gates",
@@ -91125,7 +91254,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L64",
+      "source_location": "L72",
       "weight": 1.0,
       "source": "test_unit_update_skills_record_gates",
       "target": "test_unit_update_skills_record_gates_posted_count",
@@ -91135,7 +91264,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L60",
+      "source_location": "L68",
       "weight": 1.0,
       "source": "test_unit_update_skills_record_gates",
       "target": "test_unit_update_skills_record_gates_reset_calls",
@@ -91155,7 +91284,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L50",
+      "source_location": "L58",
       "weight": 1.0,
       "source": "test_unit_update_skills_record_gates",
       "target": "test_unit_update_skills_record_gates_unattended_log_hermes_url",
@@ -91165,7 +91294,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L49",
+      "source_location": "L57",
       "weight": 1.0,
       "source": "test_unit_update_skills_record_gates",
       "target": "test_unit_update_skills_record_gates_unattended_log_relay",
@@ -91175,10 +91304,21 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L52",
+      "source_location": "L60",
       "weight": 1.0,
       "source": "test_unit_update_skills_record_gates",
       "target": "test_unit_update_skills_record_gates_update_skills_lib_only",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/update-skills-record-gates.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_update_skills_record_gates_sh__entry",
+      "target": "test_unit_update_skills_record_gates_assert_fd9_closed",
       "confidence_score": 1.0
     },
     {
@@ -91196,10 +91336,32 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-record-gates.sh",
-      "source_location": "L70",
+      "source_location": "L78",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_update_skills_record_gates_sh__entry",
+      "target": "test_unit_update_skills_record_gates_reset_calls",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/update-skills-record-gates.sh",
+      "source_location": "L140",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_update_skills_record_gates_assert_fd9_closed",
+      "target": "test_unit_update_skills_record_gates_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/update-skills-record-gates.sh",
+      "source_location": "L134",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_update_skills_record_gates_assert_fd9_closed",
       "target": "test_unit_update_skills_record_gates_reset_calls",
       "confidence_score": 1.0
     },
@@ -109850,5 +110012,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "0710ae98ade96aa14ca9865adb5ae415695c0323"
+  "built_at_commit": "2922b98b12d53670da45c77576b7629febecb7ef"
 }

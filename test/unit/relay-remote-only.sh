@@ -68,17 +68,32 @@ cat >"$tmp/terminal-notifier" <<'MOCK'
 #!/usr/bin/env bash
 printf 'ARGV: %s\n' "$*" >>"$TN_LOG"
 MOCK
-chmod +x "$tmp/curl" "$tmp/terminal-notifier"
+# ioreg stub: records that the phone-presence probe ran at all. The real probe is
+# an unbounded pipe to /usr/sbin/ioreg with no timeout, so on the synchronous log
+# path a wedged ioreg would hold the weekly job before the POST it exists to
+# report -- with the week's guard already spent and the caller's serialize lock
+# still held. Recording the invocation is the fast, sleep-free way to pin that it
+# never happens.
+cat >"$tmp/ioreg" <<'MOCK'
+#!/usr/bin/env bash
+printf 'ioreg %s\n' "$*" >>"$IOREG_LOG"
+printf '  "HIDIdleTime" = 5000000000\n'
+MOCK
+chmod +x "$tmp/curl" "$tmp/terminal-notifier" "$tmp/ioreg"
 
 printf '{"moshi_secret":"MOSHI-TOKEN-FIXTURE","hermes_secret":"HERMES-KEY-FIXTURE"}' >"$tmp/auth.json"
 printf '{}' >"$tmp/auth-empty.json"
 
 # run_relay <run-label> [relay args...] -- fresh logs per run, captured stdout,
-# captured stderr, captured rc. RELAY_IDLE_SECS=999 = "away", so the phone push
-# is WANTED on every run: a suppressed moshi call then proves --remote-only did
-# it, not the presence gate.
+# captured stderr, captured rc. IDLE_OVERRIDE feeds RELAY_IDLE_SECS: 999 =
+# "away", so the phone push is WANTED on every run and a suppressed moshi call
+# proves --remote-only did it, not the presence gate. Setting it EMPTY is what
+# sends relay down the real probe path, which section 7 needs.
 RELAY_STDOUT="" RELAY_STDERR="" RELAY_RC=0
 CURL_ARGV_LOG="" CURL_STDIN_LOG="" TN_LOG=""
+IDLE_OVERRIDE=999
+IOREG_LOG="$tmp/ioreg.log"
+export IOREG_LOG
 run_relay() {
   local label="$1"
   shift
@@ -89,7 +104,7 @@ run_relay() {
   RELAY_STDOUT="$(
     PATH="$tmp:$PATH" RELAY_AUTH_FILE="${AUTH_FILE:-$tmp/auth.json}" \
       RELAY_MOSHI_URL="$MOSHI_URL" RELAY_HERMES_URL="$HERMES_URL" \
-      RELAY_IDLE_SECS=999 \
+      RELAY_IDLE_SECS="$IDLE_OVERRIDE" RELAY_IOREG="$tmp/ioreg" \
       bash "$RELAY" "$@" 2>"$tmp/$label.stderr"
   )"
   RELAY_RC=$?
@@ -218,6 +233,31 @@ grep -qF "moshi.test" "$tmp/alert-path.curl-argv" ||
 grep -qF 'herdr agent focus wW:p8' "$tmp/alert-path.tn" ||
   fail "the alert path lost its macOS banner"
 
+# ── 7b. The phone-presence probe never runs when no phone push can fire. It is
+#       an unbounded pipe to /usr/sbin/ioreg with no timeout, and on THIS path
+#       the POST is synchronous, so a wedged ioreg holds the weekly job before
+#       the delivery it exists to report -- after the week's guard is spent and
+#       while the caller's serialize lock is still held. --remote-only never
+#       pushes to the phone, so the probe has no answer to give. ──────────────
+IDLE_OVERRIDE=""
+rm -f "$IOREG_LOG"
+run_relay remote-probe --remote-only --agent update-skills --state completed \
+  --project dresden --detail "nothing changed"
+[[ $RELAY_RC -eq 0 ]] || fail "the probe-path --remote-only run exited $RELAY_RC"
+refute_file "$IOREG_LOG" \
+  "--remote-only ran the phone-presence probe; it never pushes to the phone, and an unbounded ioreg would hold the synchronous POST"
+grep -qE '^relay: posted HTTP 200$' <<<"$RELAY_STDOUT" ||
+  fail "the probe-path --remote-only run lost its delivery (got: $RELAY_STDOUT)"
+# CONTROL: the alert path DOES probe, so the refutation above is about the flag
+# and not about a stub nothing ever calls.
+# The probe is a foreground pipe inside relay (that is the whole complaint), so
+# no polling is needed here: if it ran, its log exists by the time relay exits.
+run_relay alert-probe --agent update-skills --state exhausted --project skills \
+  --detail "something broke"
+[[ -s $IOREG_LOG ]] ||
+  fail "the alert path did not probe either; the --remote-only refutation above proves nothing"
+IDLE_OVERRIDE=999
+
 # ── 8. No secret material anywhere the operator or a log can see. The hermes
 #      key must never reach argv or stdout/stderr; only the HMAC of the body may
 #      leave, and the moshi token may only ride in the moshi BODY (which
@@ -226,7 +266,9 @@ all_stdout=""
 all_stderr=""
 all_argv=""
 swept=0
-for label in remote-basic remote-badtimeout remote-401 remote-404 remote-down remote-nokey remote-both remote-f4 alert-path; do
+sweep_labels=(remote-basic remote-badtimeout remote-401 remote-404 remote-down
+  remote-nokey remote-both remote-f4 alert-path remote-probe alert-probe)
+for label in "${sweep_labels[@]}"; do
   [[ -f "$tmp/$label.stdout" ]] && {
     all_stdout+="$(cat "$tmp/$label.stdout")"$'\n'
     swept=$((swept + 1))
@@ -236,8 +278,8 @@ for label in remote-basic remote-badtimeout remote-401 remote-404 remote-down re
 done
 # Guard the guard. Every refutation below passes trivially on an empty haystack,
 # so the sweep asserts it actually collected every run's stdout first.
-[[ $swept -eq 9 ]] ||
-  fail "the secret sweep collected $swept of 9 runs' stdout; a refutation over a short haystack proves nothing"
+[[ $swept -eq ${#sweep_labels[@]} ]] ||
+  fail "the secret sweep collected $swept of ${#sweep_labels[@]} runs' stdout; a refutation over a short haystack proves nothing"
 for pattern in 'HERMES-KEY-FIXTURE' 'MOSHI-TOKEN-FIXTURE'; do
   refute "$pattern" "$all_argv" "a secret reached curl's argv ($pattern)"
   refute "$pattern" "$all_stderr" "a secret reached stderr ($pattern)"
