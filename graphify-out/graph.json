@@ -32939,7 +32939,7 @@
       "label": "row()",
       "file_type": "code",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L439",
+      "source_location": "L449",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -32953,7 +32953,7 @@
       "label": "write_snapshot()",
       "file_type": "code",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L440",
+      "source_location": "L450",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -91408,7 +91408,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L439",
+      "source_location": "L449",
       "weight": 1.0,
       "source": "test_unit_unattended_log_lib",
       "target": "test_unit_unattended_log_lib_row",
@@ -91428,7 +91428,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L440",
+      "source_location": "L450",
       "weight": 1.0,
       "source": "test_unit_unattended_log_lib",
       "target": "test_unit_unattended_log_lib_write_snapshot",
@@ -91471,7 +91471,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/unattended-log-lib.sh",
-      "source_location": "L458",
+      "source_location": "L468",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_unattended_log_lib_sh__entry",
@@ -110508,5 +110508,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "d948256cdf9160c95fa03fadb4ca6282dc3b7550"
+  "built_at_commit": "d25c638808afc3f881af1815cbd28f1eba319cab"
 }
