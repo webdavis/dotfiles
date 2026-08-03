@@ -136,7 +136,7 @@ file holds:
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
 
 **3. `enabledPlugins`, which is neither.** The **roster** is chezmoi-controlled and the per-plugin
-**state** is not. The template declares nine plugin ids (keys are `<name>@<marketplace>`, which is the
+**state** is not. The template declares twelve plugin ids (keys are `<name>@<marketplace>`, which is the
 form Claude Code writes, not the bare name the CLI prints on success) and the write is whole-value, so a
 marketplace plugin enabled live but missing from the declaration is turned OFF by the next apply. Within
 that roster, both members of Claude Code's own union for this key are the machine's to set and are
@@ -144,11 +144,11 @@ carried through unchanged: the JSON boolean `false` that `claude plugin disable`
 array of version constraints that its schema calls the extended format (a plugin held at a reviewed
 release). Every other shape renders `true`: an absent key, a JSON null, a string and a number.
 
-So `claude plugin disable <id>` STICKS across applies for the nine declared ids, and applying is not the
+So `claude plugin disable <id>` STICKS across applies for the twelve declared ids, and applying is not the
 way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
 containment verb a scheduled apply can silently revoke is not containment.
 
-**The promise stops at the nine, and an erased entry costs different things depending on where the plugin
+**The promise stops at the twelve, and an erased entry costs different things depending on where the plugin
 came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped binary on
 2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged settings'
 `enabledPlugins` entries and skips any whose value is undefined, so an id the file does not hold is never
@@ -158,7 +158,7 @@ that directory instead, and its entry only adjusts state afterwards; with no ent
 plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks into
 `~/.claude/skills/` is that second kind, so a `claude plugin disable` on one writes a `false` that the
 next apply erases, and the skill comes back on. Nothing is drifting today, the live file holds exactly
-the nine ids, but the skills case needs one `claude plugin disable` to become real.
+the twelve ids, but the skills case needs one `claude plugin disable` to become real.
 
 **Read the price before relying on this.** It is not the recovery ergonomics (though those are real:
 `claude plugin disable --all` is one command, there is no `enable --all`, so undoing a mass disable is
@@ -190,7 +190,7 @@ input and Go templates have no error recovery, so there is nothing to fall back 
 apply's own error names `modify_settings.json`; repair `~/.claude/settings.json` if you can, and reach
 for deletion knowing what it costs. **Deleting re-enables every disabled plugin and drops every version
 pin.** Plugin state is the one managed thing the template reads out of the live file rather than
-declaring, so with nothing to read all nine ids render `true`. Everything else this repo manages does
+declaring, so with nothing to read all twelve ids render `true`. Everything else this repo manages does
 come back from the template, and free-drift keys are lost as before. Nothing reports the plugin loss
 afterwards, either: a rendered `false` is byte-identical to the live one, so `chezmoi status`,
 `chezmoi diff` and `just d` say nothing about this key in any case. Note the disabled set before
