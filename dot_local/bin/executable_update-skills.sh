@@ -307,7 +307,7 @@ __update_skills_record() {
 # because an empty snapshot would render as "0 of 0 changed", which reads as a
 # clean week.
 __update_skills_change_snapshot() {
-  local lane="$1" lock="$SKILLS_CURRENT/.skill-lock.json" origin name version
+  local lane="$1" lock="$SKILLS_CURRENT/.skill-lock.json" origin name version unreadable=""
   case "$lane" in
     npx)
       # An ABSENT lock is a fresh machine with nothing installed yet, which is a
@@ -324,7 +324,21 @@ __update_skills_change_snapshot() {
         [[ -r $origin ]] || continue
         name="${origin#"$STORE"/}"
         name="${name%%/*}"
-        version="$(jq -r '(.installedVersion // "-") | tostring' "$origin" 2>/dev/null || printf -- '-')"
+        # A marker this run could not READ is not a skill with no version, and
+        # masking it to `-` made the two readings of an unreadable marker
+        # compare equal, so the lane rendered "0 of N tracked entries changed"
+        # for a version nothing ever read. The status is passed on instead,
+        # exactly as the npx lane passes on an unparseable lock. Two shapes
+        # reach here: jq refusing malformed JSON, and a zero-byte marker (a
+        # truncated or half-written file), which jq accepts while producing no
+        # value at all. A valid marker is never empty, so the size test cannot
+        # cry wolf on a real one.
+        if [[ ! -s $origin ]] ||
+          ! version="$(jq -r '(.installedVersion // "-") | tostring' "$origin" 2>/dev/null)" ||
+          [[ -z $version ]]; then
+          unreadable=1
+          continue
+        fi
         # ONE line per skill, and exactly two columns, whatever the marker holds.
         # installedVersion is publisher-controlled: a newline in it forges a
         # second entry AND inflates the denominator the operator reads (one real
@@ -334,6 +348,13 @@ __update_skills_change_snapshot() {
           "$(printf '%s' "$name" | tr -d '[:cntrl:]')" \
           "$(printf '%s' "$version" | tr -d '[:cntrl:]')"
       done
+      # ONE unreadable marker fails the whole lane, exactly as one unparseable
+      # lock fails the npx lane. Dropping just that skill from the snapshot
+      # would be worse than the mask it replaces: unreadable on the AFTER
+      # reading alone renders the skill as `(removed)`, which is the single most
+      # alarming line this record can print, invented from a file it could not
+      # open.
+      [[ -z $unreadable ]] || return 1
       ;;
     *)
       printf 'update-skills: unknown change-snapshot lane: %s\n' "$lane" >&2

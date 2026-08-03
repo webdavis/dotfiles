@@ -139,7 +139,50 @@ section="$(unattended_log_change_section 1 \
   "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.before" 'npx-tracked skills' 'caveat' opaque 'reading the generation lock')"
 refute 'NOT COMPARED' "$section" "a lane that WAS read still rendered as unreadable: '$section'"
 
+# ── The SAME rule on the clawhub lane, which reads one marker per skill rather
+#    than a single lock, so it needed its own guard. An unparseable marker masked
+#    to the fingerprint `-` with a ZERO status, and a truncated one (zero bytes,
+#    the shape a half-written file has) masked to an empty fingerprint. Either
+#    way two unreadable readings compare EQUAL, so the lane rendered "0 of 1
+#    tracked entries changed": a quiet week, reported for a version this run
+#    never managed to read. ──────────────────────────────────────────────────
+cp "$STORE/gamma/.clawhub/origin.json" "$tmp/good-origin.json"
+for broken in 'not json at all' ''; do
+  printf '%s' "$broken" >"$STORE/gamma/.clawhub/origin.json"
+  if __update_skills_change_snapshot clawhub >"$tmp/broken-origin" 2>/dev/null; then
+    fail "an origin marker holding '$broken' was reported as a successful reading: $(cat "$tmp/broken-origin")"
+  fi
+  refute '^gamma' "$(cat "$tmp/broken-origin")" \
+    "an origin marker holding '$broken' still emitted a comparable fingerprint row: $(cat "$tmp/broken-origin")"
+done
+
+# ...and the run REMEMBERS it, so the entry says NOT COMPARED for that lane
+# instead of a change count computed from a version nothing read.
+LOG_CLAWHUB_SNAPSHOT_OK=1
+LOG_NPX_SNAPSHOT_OK=1
+__update_skills_take_snapshot clawhub before
+[[ -z $LOG_CLAWHUB_SNAPSHOT_OK ]] ||
+  fail "an unreadable origin marker was recorded as a successful reading; the lane would be compared anyway"
+[[ -n $LOG_NPX_SNAPSHOT_OK ]] || fail "the clawhub lane failing marked the npx lane unreadable too"
+section="$(unattended_log_change_section "$LOG_CLAWHUB_SNAPSHOT_OK" \
+  "$LOG_CHANGE_DIR/clawhub.before" "$LOG_CHANGE_DIR/clawhub.before" \
+  'clawhub-tracked skills' 'caveat' versions 'reading the clawhub origin markers')"
+grep -qiF 'NOT COMPARED' <<<"$section" ||
+  fail "an unreadable origin marker rendered as a comparison: '$section'"
+refute '[0-9]+ of [0-9]+ tracked' "$section" \
+  "an unreadable origin marker rendered as a change count: '$section'"
+
+# A marker that IS readable stays readable: the guard must not cry wolf on every
+# clawhub skill on the machine forever.
+cp "$tmp/good-origin.json" "$STORE/gamma/.clawhub/origin.json"
+LOG_CLAWHUB_SNAPSHOT_OK=1
+__update_skills_take_snapshot clawhub before
+[[ -n $LOG_CLAWHUB_SNAPSHOT_OK ]] ||
+  fail "a valid origin marker was reported as unreadable: $(cat "$LOG_CHANGE_DIR/clawhub.before")"
+grep -qxF "$(row gamma 1.0.0)" "$LOG_CHANGE_DIR/clawhub.before" ||
+  fail "the readable marker's version did not survive the guard: $(cat "$LOG_CHANGE_DIR/clawhub.before")"
+
 # ── The RENDERING lives in unattended-log-lib.sh and is covered by
 #    test/unit/unattended-log-lib.sh; this file's job is the two SOURCES the
 #    snapshot reads, which are specific to this store's layout. ──────────────
-printf 'update-skills-change-report: OK (the npx lane reads the folder hash out of the generation lock and the clawhub lane reads each installed version out of the skill own origin marker; a publisher-chosen version cannot forge a row or a column; an absent generation lock still yields a snapshot; an unknown lane is an error, not an empty file)\n'
+printf 'update-skills-change-report: OK (the npx lane reads the folder hash out of the generation lock and the clawhub lane reads each installed version out of the skill own origin marker; a publisher-chosen version cannot forge a row or a column; an absent generation lock still yields a snapshot; a lock or an origin marker this run could not read is passed on as NOT COMPARED rather than masked into a fingerprint; an unknown lane is an error, not an empty file)\n'
