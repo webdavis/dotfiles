@@ -498,6 +498,9 @@ fi
 
 # A fully clean run is what "last successful run" has to mean, so the marker is
 # written here and nowhere else. A failing run deliberately leaves it alone, so
-# the gap keeps growing until a run actually succeeds.
-[[ -n $UNATTENDED_LOG_AVAILABLE ]] && unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+# the gap keeps growing until a run actually succeeds. ONLY a scheduled run
+# writes it: last-success-at is the dead-LaunchAgent gap figure the weekly record
+# reports, and a hand run that advanced it would reset that gap and make a stalled
+# LaunchAgent look alive, the exact inversion --scheduled exists to prevent.
+[[ -n $SCHEDULED && -n $UNATTENDED_LOG_AVAILABLE ]] && unattended_log_mark_success "$LOG_SUCCESS_MARKER"
 exit 0

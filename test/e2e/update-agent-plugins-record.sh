@@ -410,6 +410,10 @@ reset_state
 run_helper
 [[ $RUN_RC -eq 0 ]] || fail "a clean manual run exited $RUN_RC: $RUN_OUTPUT"
 [[ "$(log_entry_count)" -eq 0 ]] || fail "a MANUAL run posted a weekly record: $(log_entries)"
+# ...and it does not advance last-success-at. That marker is the dead-LaunchAgent
+# gap the scheduled record reports; a hand run that touched it would reset the gap
+# and make a stalled agent look alive.
+[[ ! -e $MARKER ]] || fail "a clean MANUAL run advanced last-success-at, resetting the dead-LaunchAgent gap figure"
 reset_state
 CLAUDE_FAIL_UPDATE="mover@mkt-a" run_helper
 [[ "$(log_entry_count)" -eq 0 ]] || fail "a MANUAL failing run posted a weekly record: $(log_entries)"
