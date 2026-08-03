@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "comment": "Declares the Claude Code plugins this machine wants and where each one comes from. The weekly ~/.local/bin/update-agent-plugins.sh reads this file, installs any tracked plugin that is absent, and runs `claude plugin update <id>` on the rest. It is a vertical of its own: nothing here reads or is read by the skills lock beside it, and no test crosses between them. WHAT THIS BUYS, AND WHAT IT COSTS. An unattended weekly update of third-party executable code is a real security cost, accepted deliberately: a design whose correctness depends on the operator noticing a passive alert has already failed, so the alternative (pin, watch for drift, update by hand) is not on the table. Nothing here classifies WHAT changed. A tree digest is not stable across a no-op update (runtime files churn inside the tree, hooks/ included), the executed code of an MCP-server plugin is not even in the tree, and an escalation that fires on essentially every real release is a channel nobody reads. So this vertical updates, records faithfully in the weekly #unattended-upgrades entry, and promises no more than that. THERE IS NO ROLLBACK, and the lock records nothing pretending to be a restore point. `claude plugin update` overwrites the installed tree IN PLACE (measured: a planted marker file was gone after the next update), neither `update` nor `install` takes a --version, and Claude Code sweeps its own plugin cache on a schedule this repo does not control. The recovery verb is `claude plugin disable <id>`, which sticks against an apply because the settings modify-template preserves a live `false` for a declared id. That is narrower than it sounds: the disable stops the plugin loading from USER settings only, and a repo whose PROJECT settings enable the same plugin still loads it there (settings precedence runs user < project < local < flag < policy). identityLane is what the weekly entry can honestly say about a plugin, measured when it was tracked: `versioned` = `claude plugin list --json` reports a real version, so a change renders as old -> new; `git-sha` = the version IS a commit sha, which reads the same way; `unknowable` = the version is the literal string \"unknown\", its installPath never changes, and its lastUpdated bumps on every no-op refresh, so the entry reports those plugins as refreshed with the change UNKNOWABLE and never as changed. The one-time remedy for an unknowable plugin is a manual marketplace remove and re-add, which restamps its entries with git SHAs; it is deliberately not scripted (no removal mechanisms in this repo, operator ruling 2026-08-02) and it is not something automation may do behind the operator. The plugins map is the SAME twelve ids private_dot_claude/modify_settings.json declares in enabledPlugins, and test/unit/agent-plugins-lock.sh fails when the two disagree in either direction. marketplaces is what a fresh machine needs before any of this can be installed at all. Five more plugins are installed on this machine and are deliberately NOT tracked here (code-review, commit-commands, discord, exa, github): the operator's list does not include them, and an id absent from this file is simply one nothing updates. This file is not an inventory and never uninstalls anything. ~/.claude/plugins/blocklist.json is an upstream security feed that exists and is worth knowing about; it is upstream-controlled, currently carries nothing real, and no part of this design rests on it.",
+  "marketplaces": {
+    "anthropic-agent-skills": {
+      "source": "github",
+      "repo": "anthropics/skills"
+    },
+    "claude-plugins-official": {
+      "source": "github",
+      "repo": "anthropics/claude-plugins-official"
+    },
+    "last30days-skill": {
+      "source": "github",
+      "repo": "mvanhorn/last30days-skill"
+    },
+    "openai-codex": {
+      "source": "github",
+      "repo": "openai/codex-plugin-cc"
+    },
+    "ponytail": {
+      "source": "github",
+      "repo": "DietrichGebert/ponytail"
+    },
+    "worktrunk": {
+      "source": "github",
+      "repo": "max-sixty/worktrunk"
+    }
+  },
+  "plugins": {
+    "codex@openai-codex": {
+      "marketplace": "openai-codex",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "versioned"
+    },
+    "document-skills@anthropic-agent-skills": {
+      "marketplace": "anthropic-agent-skills",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "git-sha"
+    },
+    "frontend-design@claude-plugins-official": {
+      "marketplace": "claude-plugins-official",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "unknowable"
+    },
+    "last30days@last30days-skill": {
+      "marketplace": "last30days-skill",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "versioned"
+    },
+    "playwright@claude-plugins-official": {
+      "marketplace": "claude-plugins-official",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "unknowable"
+    },
+    "ponytail@ponytail": {
+      "marketplace": "ponytail",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "versioned"
+    },
+    "rust-analyzer-lsp@claude-plugins-official": {
+      "marketplace": "claude-plugins-official",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "versioned"
+    },
+    "security-guidance@claude-plugins-official": {
+      "marketplace": "claude-plugins-official",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "versioned"
+    },
+    "skill-creator@claude-plugins-official": {
+      "marketplace": "claude-plugins-official",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "unknowable"
+    },
+    "superpowers@claude-plugins-official": {
+      "marketplace": "claude-plugins-official",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "versioned"
+    },
+    "swift-lsp@claude-plugins-official": {
+      "marketplace": "claude-plugins-official",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "versioned"
+    },
+    "worktrunk@worktrunk": {
+      "marketplace": "worktrunk",
+      "harnesses": [
+        "claude-code"
+      ],
+      "identityLane": "git-sha"
+    }
+  }
+}
