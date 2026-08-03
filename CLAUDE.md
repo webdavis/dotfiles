@@ -433,10 +433,15 @@ hermes for exactly the store-symlink subset of the delivery model below (`dot_he
 means this vertical deliberately does not serve Claude Code for that store entry: it carries no chezmoi
 declaration AND `update-skills.sh`'s weekly Claude fan-out skips it, so a link removed by hand is not
 re-created next Monday. `last30days` is the one entry; Claude Code gets that capability as a plugin
-instead, from the separate agent-plugin vertical, and neither lock mentions the other. The committed
-roster is the complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the store, the
-lock's `tiers` / `claudeDelivery` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked`
-tables, the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
+instead, from the separate agent-plugin vertical, and neither lock mentions the other. Retiring the live
+link at cutover is a MANUAL step: deleting the source declaration does not remove an existing
+`~/.claude/skills/last30days` on an already-provisioned machine (chezmoi never deletes a target it no
+longer manages), so the operator removes it by hand at D1. `converge_dir`'s weekly reap of the
+now-unwanted owned link is the backstop that catches it if the manual step is missed. No removal is
+scripted, by operator ruling: this repo builds no tooling-removal mechanisms. The committed roster is the
+complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the store, the lock's `tiers`
+/ `claudeDelivery` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables, the
+per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
 
 **Store provenance: who installs and refreshes each store copy** (the lock at
 `dot_agents/custom-skill-lock.json` records it):
