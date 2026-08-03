@@ -235,4 +235,4 @@ DRYRUN=""
 assert_fd9_closed "the weekly record" __update_skills_record completed "fd probe body"
 assert_fd9_closed "the alert wrapper" __update_skills_alert "fd probe alert"
 
-printf 'update-skills-record-gates: OK\n'
+printf 'update-skills-record-gates: OK (a control entry posts with its class, body, run timestamp and gap; the timestamp is when the run STARTED even when the clock moves; a manual run and a dry run post nothing and claim nothing; one entry per class per week with the deferred-to-completed upgrade and no reverse; a refused delivery leaves the week unclaimed, retries, and alerts the priority route once; both relay call sites close fd 9)\n'

@@ -580,4 +580,4 @@ grep -qiE 'stamp[^.]*(could not|WITHHELD|not written)' <<<"$entries" ||
 grep -qF -- '--agent update-skills' <<<"$(alert_entries)" ||
   fail "a run that could not mark the week done alerted nobody: $RUN_OUTPUT"
 
-printf 'update-skills-weekly-record: OK\n'
+printf 'update-skills-weekly-record: OK (every deferral and refusal path records: activity, lock contention, an unparseable roster, a zero roster, an already-finished week and a mid-run exchange deferral; a completed run reports both lanes, what it cannot see, the required-phase count and what became of the weekly stamp; 24 slots post one entry; manual and dry runs post none; failures still alert the existing route; a corrupt marker and an unwritable state dir do not end the run before it records)\n'

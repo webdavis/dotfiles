@@ -259,4 +259,4 @@ STATUS_RC=$?
 [[ $STATUS_RC -eq 0 ]] || fail "a host without yq exited $STATUS_RC"
 [[ -z ${STATUS_OUT//[[:space:]]/} ]] || fail "a host without yq produced output: $STATUS_OUT"
 
-printf 'hermes-route-status: OK\n'
+printf 'hermes-route-status: OK (the probe list itself agrees with the log library; both routes probed on the port the config declares, with a fallback for a non-numeric one; a missing route, a 404 and a route that is not deliver_only are each named while the healthy one is not accused; a 401 is not a restart; nothing invokes hermes; an absent config or yq stays silent)\n'

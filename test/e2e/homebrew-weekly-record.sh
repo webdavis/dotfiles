@@ -570,4 +570,4 @@ run_helper --schedluled
 grep -qiE 'usage|unknown' <<<"$RUN_OUTPUT" ||
   fail "an unknown argument produced no usage message: $RUN_OUTPUT"
 
-printf 'homebrew-weekly-record: OK\n'
+printf 'homebrew-weekly-record: OK (a scheduled run records its class, host, run timestamp and gap and spends the marker on the next run; version transitions for formulae, multi-version kegs and App Store apps; failures alert the priority route while the record states the count; a snapshot that failed on either reading says NOT COMPARED per lane while an empty-but-successful one does not; a refused record leaves the week unclaimed and alerts once; a lock that cannot be opened is not reported as contention; a manual run records nothing, one record per week, and an unknown argument is an error)\n'

@@ -111,4 +111,4 @@ fi
 # ── The RENDERING lives in unattended-log-lib.sh and is covered by
 #    test/unit/unattended-log-lib.sh; this file's job is the two SOURCES the
 #    snapshot reads, which are specific to this store's layout. ──────────────
-printf 'update-skills-change-report: OK\n'
+printf 'update-skills-change-report: OK (the npx lane reads the folder hash out of the generation lock and the clawhub lane reads each installed version out of the skill own origin marker; a publisher-chosen version cannot forge a row or a column; an absent generation lock still yields a snapshot; an unknown lane is an error, not an empty file)\n'

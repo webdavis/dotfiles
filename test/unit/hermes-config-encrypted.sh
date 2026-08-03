@@ -53,4 +53,4 @@ toml="$(CI=1 chezmoi execute-template --no-tty <.chezmoi.toml.tmpl 2>/dev/null |
 grep -q 'secrets = "error"' <<<"$toml" || fail '.chezmoi.toml.tmpl missing add.secrets = "error"'
 grep -q 'encryption = "age"' <<<"$toml" || fail '.chezmoi.toml.tmpl missing encryption = "age"'
 grep -qE 'recipient = "age1' <<<"$toml" || fail '.chezmoi.toml.tmpl missing an age recipient'
-echo "hermes-config-encrypted: OK"
+echo "hermes-config-encrypted: OK (the committed config is an age blob with no plaintext markers, no route chat_id is readable anywhere in the tree, no plaintext sibling or retired modify_ mechanism remains)"

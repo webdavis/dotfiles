@@ -290,4 +290,4 @@ done
 refute 'HERMES-KEY-FIXTURE' "$(cat "$tmp/remote-basic.curl-stdin")" \
   "the hermes signing key leaked into the posted body"
 
-printf 'relay-remote-only: OK\n'
+printf 'relay-remote-only: OK (--remote-only posts the hermes leg only, synchronously, with a numeric deadline and a fallback for a bad one; 401/404/000/no-key/both-flags each reported on stdout and never fatal; the phone-presence probe is skipped where no push can fire while the alert path still probes; the alert path stays fire-and-forget with its banner and push; no secret reaches argv, stdout, stderr or the body on any run)\n'

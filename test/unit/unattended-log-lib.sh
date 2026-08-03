@@ -557,4 +557,4 @@ default_url="$(UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" unattended_log_ur
 grep -qE '^http://127\.0\.0\.1:8644/' <<<"$default_url" ||
   fail "the default URL does not point at the loopback hermes gateway: $default_url"
 
-printf 'unattended-log-lib: OK\n'
+printf 'unattended-log-lib: OK (elapsed boundaries in both directions, a backwards clock named; the gap line reports never/recorded/unreadable and reads a leading-zero epoch in base 10; the entry header takes ONE clock reading; the week claim is atomic under %d concurrent racers, survives a corrupt guard, an unusable guard path and an unknown class, admits one entry per class, releases and prunes; delivery reports its outcome either way, closes fd 9, names its host, and alerts the priority route once a week when the channel is broken; the change line counts removals in the total, matches names carrying backslashes, quotes third-party text and caps a whole-subject move)\n' "$claim_racers"
