@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # agent-plugins-lock.sh, the agent-plugin vertical's own guard: the lock is
-# well-formed, it names the same twelve plugins the settings render enables, and
-# it stays decoupled from the skills vertical.
+# well-formed, it names the same twelve plugins the settings render enables, the
+# weekly updater reads it, and it stays decoupled from the skills vertical.
 #
 # WHY THE LOCK AND THE SETTINGS ROSTER MUST AGREE, IN BOTH DIRECTIONS. The
 # settings modify-template writes enabledPlugins whole-value, so an id the
@@ -33,6 +33,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOCK="$REPO_ROOT/dot_agents/custom-agent-plugins-lock.json"
+UPDATER="$REPO_ROOT/dot_local/bin/executable_update-agent-plugins.sh"
 SETTINGS_PLUGIN_TEST="$REPO_ROOT/test/unit/claude-enabled-plugins.sh"
 
 # The two lock basenames, for the cross-reference scan. Named here rather than
@@ -125,7 +126,17 @@ if [[ $plugin_ids != "$declared_plugins" ]]; then
   exit 1
 fi
 
-# --- Rule 5: the two verticals stay decoupled ------------------------------
+# --- Rule 5: the weekly updater actually reads THIS lock --------------------
+# The lock is inert on its own, and the updater is the only thing that acts on
+# it. This matches the READ, not the word: a comment naming the file keeps a
+# word-level grep green while the updater walks something else entirely, which
+# is a shape measured on the skills side the same day.
+[[ -f $UPDATER ]] || fail "missing updater: $UPDATER"
+PLUGINS_LOCK_READ="AGENT_PLUGINS_LOCK=\"\${UPDATE_AGENT_PLUGINS_LOCK_PATH:-\$HOME/.agents/$PLUGINS_LOCK_BASENAME}\""
+grep -qF -- "$PLUGINS_LOCK_READ" "$UPDATER" ||
+  fail "the updater does not resolve its lock as '$PLUGINS_LOCK_READ', so it may be walking something other than this file"
+
+# --- Rule 6: the two verticals stay decoupled ------------------------------
 # Neither lock may carry the other's data, and no test but this one may read
 # both. Checked as file references rather than as prose, so a comment that
 # mentions the other vertical is fine and a cross-read is not.
