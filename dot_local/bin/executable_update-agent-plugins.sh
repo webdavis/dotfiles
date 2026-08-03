@@ -848,9 +848,15 @@ if [[ ${#failed_plugins[@]} -gt 0 ]]; then
   # rendered entry already carries "install failed" or "update failed", so the
   # alert states the two meanings and the one ambiguity the CLI leaves open rather
   # than asserting a single wrong outcome.
+  #
+  # F43: the closing "Every plugin that did not fail was refreshed" was ITSELF a
+  # false state claim, because a SKIPPED (contained) plugin was deliberately not
+  # touched and an INSTALLED one was installed, not refreshed. The alert now states
+  # the actual breakdown of the non-failed plugins rather than asserting they were
+  # all refreshed.
   weekly_alert plugin-update-failed \
-    "$(printf 'The weekly agent-plugin run finished with %d failed plugin(s): %s. An install failure means the plugin is NOT present (it had no prior version to fall back to); an update failure means it is still at whatever version it held. A "not found in any marketplace" error can be a genuinely missing plugin OR a marketplace this run could not reach, and the CLI does not tell the two apart. Every plugin that did not fail was refreshed. Full output: ~/.local/log/agent-plugins/update-agent-plugins.log' \
-      "${#failed_plugins[@]}" "${alert_rendered%, }")"
+    "$(printf 'The weekly agent-plugin run finished with %d failed plugin(s): %s. An install failure means the plugin is NOT present (it had no prior version to fall back to); an update failure means it is still at whatever version it held. A "not found in any marketplace" error can be a genuinely missing plugin OR a marketplace this run could not reach, and the CLI does not tell the two apart. The rest of this run: %d refreshed, %d installed, %d skipped as contained (a skipped plugin was deliberately NOT touched and stays at whatever version it held). Full output: ~/.local/log/agent-plugins/update-agent-plugins.log' \
+      "${#failed_plugins[@]}" "${alert_rendered%, }" "${#refreshed_plugins[@]}" "${#installed_plugins[@]}" "${#skipped_plugins[@]}")"
   exit 1
 fi
 
