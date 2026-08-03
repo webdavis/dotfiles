@@ -441,6 +441,28 @@ grep -qE 'plugins: [0-9]+ tracked[^.]*1 failed' <<<"$entries" ||
 grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
   fail "one failed update aborted the remaining plugins: $(cat "$CLAUDE_CALL_LOG")"
 
+# ── 8b. The failure alert does not make a FALSE state claim. An INSTALL failure
+#        means the plugin is NOT present and had no prior version, so a blanket
+#        "still at whatever version they held" was wrong for exactly the plugins
+#        that failed to install. And a "not found in any marketplace" error can
+#        be a missing plugin OR an unreachable marketplace, an ambiguity the alert
+#        must surface rather than assert one of them. ────────────────────────────
+reset_state
+jq 'map(select(.id != "steady@mkt-a"))' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+CLAUDE_FAIL_INSTALL="steady@mkt-a" run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] || fail "an install failure exited 0: $RUN_OUTPUT"
+alerts="$(alert_entries)"
+[[ -n $alerts ]] || fail "an install failure sent no alert: $(cat "$RELAY_LOG")"
+grep -qF 'steady@mkt-a' <<<"$alerts" ||
+  fail "the install-failure alert does not name the plugin: $alerts"
+refute 'still at whatever version they held; the rest were refreshed' "$alerts" \
+  "the alert claims a plugin that failed to INSTALL is still at a prior version it never had: $alerts"
+grep -qiE 'unreachable|could not reach' <<<"$alerts" ||
+  fail "the alert does not flag that a not-found message can be an unreachable marketplace: $alerts"
+grep -qiE 'not present|install failure' <<<"$alerts" ||
+  fail "the alert does not distinguish an install failure (plugin absent) from an update failure: $alerts"
+
 # ── 9. A MANUAL run posts NO record. Otherwise a hand run makes a dead
 #      LaunchAgent look alive, inverting the one signal the record carries. It
 #      still alerts on failure: a failure is a failure whoever started it. ─────

@@ -619,8 +619,14 @@ if [[ ${#failed_plugins[@]} -gt 0 ]]; then
   for entry in "${failed_plugins[@]}"; do
     alert_rendered+="$(__agent_plugins_code "$entry"), "
   done
+  # No blanket "still at their prior version": an INSTALL failure means the
+  # plugin was never present and had NO prior version to be at, so that sentence
+  # was a false state claim for exactly the plugins that failed to install. Each
+  # rendered entry already carries "install failed" or "update failed", so the
+  # alert states the two meanings and the one ambiguity the CLI leaves open rather
+  # than asserting a single wrong outcome.
   weekly_alert plugin-update-failed \
-    "$(printf 'The weekly agent-plugin run finished with %d failed plugin(s): %s. Those plugins are still at whatever version they held; the rest were refreshed. Full output: ~/.local/log/agent-plugins/update-agent-plugins.log' \
+    "$(printf 'The weekly agent-plugin run finished with %d failed plugin(s): %s. An install failure means the plugin is NOT present (it had no prior version to fall back to); an update failure means it is still at whatever version it held. A "not found in any marketplace" error can be a genuinely missing plugin OR a marketplace this run could not reach, and the CLI does not tell the two apart. Every plugin that did not fail was refreshed. Full output: ~/.local/log/agent-plugins/update-agent-plugins.log' \
       "${#failed_plugins[@]}" "${alert_rendered%, }")"
   exit 1
 fi
