@@ -420,6 +420,13 @@ __agent_plugins_drop_ids() {
   fi
 }
 
+# Sourcing hook: with UPDATE_AGENT_PLUGINS_LIB_ONLY set, define the functions
+# above and stop before the main flow, so a unit test can exercise a
+# script-local helper (e.g. the __agent_plugins_code sanitiser on the phone-push
+# path) in isolation. Mirrors update-skills.sh's UPDATE_SKILLS_LIB_ONLY. Harmless
+# when executed normally (the variable is unset).
+[[ -n ${UPDATE_AGENT_PLUGINS_LIB_ONLY:-} ]] && return 0 2>/dev/null
+
 # ---------------------------------------------------------------------------
 # TWO different facts, and they used to collapse into one elsewhere in this
 # repo: `lockf` answers 75 when another process holds the lock, and anything
