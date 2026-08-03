@@ -354,7 +354,6 @@ unknowable_plugins=()
 while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
   [[ -n $plugin_id ]] || continue
   tracked_count=$((tracked_count + 1))
-  [[ $lane == "unknowable" ]] && unknowable_plugins+=("$plugin_id")
 
   if ! grep -qxF -- "$plugin_id" <<<"$installed_ids"; then
     # ABSENT: install it, adding its marketplace first when the CLI does not
@@ -395,6 +394,11 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
 
   if update_output="$("$CLAUDE_CLI" plugin update "$plugin_id" 2>&1)"; then
     refreshed_plugins+=("$plugin_id")
+    # Collected HERE and nowhere else: the unknowable sentence says those
+    # plugins were REFRESHED, so it may only name ones this run actually
+    # refreshed. Collecting them at the top of the loop counted the skipped and
+    # the failed ones too, which is a claim about work that did not happen.
+    [[ $lane == "unknowable" ]] && unknowable_plugins+=("$plugin_id")
     printf '   refreshed: %s\n' "$plugin_id"
   else
     failed_plugins+=("$plugin_id: update failed: $update_output")
@@ -465,7 +469,7 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   # "refreshed, change unknowable" is the honest sentence; saying "changed"
   # would cry wolf every single week.
   if [[ ${#unknowable_plugins[@]} -eq 0 ]]; then
-    record_lines+=('unknowable identity lane: no tracked plugin is in it, so every tracked plugin above reports a real version.')
+    record_lines+=('unknowable identity lane: no tracked plugin was refreshed in it, so every refresh above reports a real version.')
   else
     unknowable_rendered=""
     for entry in "${unknowable_plugins[@]}"; do

@@ -182,6 +182,7 @@ write_lock() {
     "sha@mkt-a": { "marketplace": "mkt-a", "harnesses": ["claude-code"], "identityLane": "git-sha" },
     "opaque@mkt-a": { "marketplace": "mkt-a", "harnesses": ["claude-code"], "identityLane": "unknowable" },
     "contained@mkt-a": { "marketplace": "mkt-a", "harnesses": ["claude-code"], "identityLane": "versioned" },
+    "containedopaque@mkt-a": { "marketplace": "mkt-a", "harnesses": ["claude-code"], "identityLane": "unknowable" },
     "absent@mkt-b": { "marketplace": "mkt-b", "harnesses": ["claude-code"], "identityLane": "versioned" }
   }
 }
@@ -201,6 +202,7 @@ reset_state() {
   {"id":"sha@mkt-a","version":"abc123def456","scope":"user","enabled":true,"installPath":"/dev/null","lastUpdated":"2026-07-01T00:00:00.000Z"},
   {"id":"opaque@mkt-a","version":"unknown","scope":"user","enabled":true,"installPath":"/dev/null","lastUpdated":"2026-07-01T00:00:00.000Z"},
   {"id":"contained@mkt-a","version":"1.0.0","scope":"user","enabled":false,"installPath":"/dev/null","lastUpdated":"2026-07-01T00:00:00.000Z"},
+  {"id":"containedopaque@mkt-a","version":"unknown","scope":"user","enabled":false,"installPath":"/dev/null","lastUpdated":"2026-07-01T00:00:00.000Z"},
   {"id":"untracked@mkt-a","version":"5.0.0","scope":"user","enabled":true,"installPath":"/dev/null","lastUpdated":"2026-07-01T00:00:00.000Z"}
 ]
 EOF
@@ -299,6 +301,16 @@ unknowable_line="$(grep -o 'unknowable identity lane: [^|]*' <<<"$entries" || tr
 [[ -n $unknowable_line ]] || fail "the record has no unknowable-identity-lane section: $entries"
 refute 'changed' "$unknowable_line" \
   "the unknowable lane reported a CHANGE, which it cannot know: $unknowable_line"
+# The sentence says those plugins were REFRESHED, so it may only name plugins
+# this run actually refreshed. A DISABLED plugin in the same lane was skipped,
+# and counting it here would claim work that did not happen, which is the one
+# thing every entry in this channel must never do.
+grep -qF 'unknowable identity lane: 1 tracked plugin(s) refreshed' <<<"$unknowable_line" ||
+  fail "the unknowable lane counted plugins it did not refresh: $unknowable_line"
+refute 'containedopaque@mkt-a' "$unknowable_line" \
+  "the unknowable lane named a DISABLED plugin as refreshed: $unknowable_line"
+grep -qF 'containedopaque@mkt-a' <<<"$entries" ||
+  fail "the disabled unknowable plugin is not named anywhere in the entry, so it vanished silently: $entries"
 
 # ── 4. A tracked plugin that is NOT installed is installed, and its marketplace
 #      is added first. Without this the vertical merges and does nothing on a
