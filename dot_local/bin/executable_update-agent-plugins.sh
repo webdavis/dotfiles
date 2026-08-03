@@ -477,16 +477,28 @@ if [[ ! -r $AGENT_PLUGINS_LOCK ]]; then
   nothing_attempted lock-file-missing "$AGENT_PLUGINS_LOCK" \
     "$(printf 'the plugin lock at %s is missing or unreadable, so this run has no idea what to update. This is what an unapplied chezmoi state looks like; run chezmoi apply.' "$AGENT_PLUGINS_LOCK")"
 fi
-# A NON-EMPTY plugins map is required. {}, {"plugins":{}} and {"plugins":null}
-# all parse as "an object carrying a (possibly empty) plugins map", and the old
-# check let them through: the loop then processed zero plugins, posted "0 tracked
-# -- 0 refreshed", wrote last-success-at and exited 0, a clean successful week
-# reported for a vertical that manages NOTHING. That is exactly what a truncated
-# or half-written deployed lock looks like, and this repo always tracks plugins,
-# so an empty map is a degraded state to refuse, not a valid empty roster.
-if ! jq -e 'type == "object" and ((.plugins // {}) | type == "object" and length > 0)' "$AGENT_PLUGINS_LOCK" >/dev/null 2>&1; then
+# A NON-EMPTY plugins map of WELL-FORMED entries is required. {}, {"plugins":{}}
+# and {"plugins":null} all parse as "an object carrying a (possibly empty) plugins
+# map", and the old check let them through: the loop then processed zero plugins,
+# posted "0 tracked -- 0 refreshed", wrote last-success-at and exited 0, a clean
+# successful week reported for a vertical that manages NOTHING.
+#
+# F40 extends this to the MALFORMED-MEMBER case (F21 completed). A non-empty map
+# whose members are not objects, e.g. {"steady@mkt-a": "garbage"}, passed the old
+# length check, and then the loop's `jq ... .value.marketplace` errored ("Cannot
+# index string with marketplace"), the process substitution feeding the loop came
+# back empty, tracked_count stayed 0, and the run posted the same clean zero-work
+# success. So each member must be an object carrying a non-empty string
+# `marketplace` (the install path needs it, and @tsv breaks on a non-string), and
+# `identityLane`, if present, must be a string (the loop tsv-encodes it). A member
+# that fails is a degraded lock to refuse, not a plugin to silently drop.
+if ! jq -e 'type == "object" and ((.plugins // {}) | type == "object" and length > 0
+    and (to_entries | all((.value | type == "object")
+      and ((.value.marketplace | type) == "string") and ((.value.marketplace | length) > 0)
+      and ((.value | has("identityLane") | not) or ((.value.identityLane | type) == "string")))))' \
+  "$AGENT_PLUGINS_LOCK" >/dev/null 2>&1; then
   nothing_attempted lock-file-malformed "$AGENT_PLUGINS_LOCK" \
-    "$(printf 'the plugin lock at %s does not parse as an object carrying a NON-EMPTY plugins map, so this run refused to guess what to update. An empty or null plugins map is what a truncated or half-written lock looks like; a clean chezmoi apply restores it.' "$AGENT_PLUGINS_LOCK")"
+    "$(printf 'the plugin lock at %s does not parse as an object carrying a NON-EMPTY plugins map whose every entry is an object with a marketplace name, so this run refused to guess what to update. An empty or null map, or a member that is not a well-formed entry, is what a truncated or half-written lock looks like; a clean chezmoi apply restores it.' "$AGENT_PLUGINS_LOCK")"
 fi
 
 __agent_plugins_should_defer && defer_for_idle

@@ -839,6 +839,34 @@ for degraded in '{}' '{"plugins":{}}' '{"plugins":null}'; do
 done
 write_lock
 
+# ── 14c. A NON-EMPTY plugins map whose MEMBERS are malformed also refuses (F40,
+#        F21 completed for the malformed-member case). A member that is not an
+#        object, or one missing its marketplace, passed the length check and then
+#        crashed the loop's `.value.marketplace` read, so the process substitution
+#        came back empty, tracked_count stayed 0, and the run posted the same clean
+#        zero-work success a truncated lock produces. Each such lock must attempt
+#        nothing and say so, never record a healthy week. ─────────────────────────
+for badmember in \
+  '{"plugins":{"steady@mkt-a":"garbage-not-an-object"}}' \
+  '{"plugins":{"steady@mkt-a":{"identityLane":"versioned"}}}' \
+  '{"plugins":{"steady@mkt-a":{"marketplace":""}}}'; do
+  reset_state
+  printf '%s\n' "$badmember" >"$LOCK"
+  run_helper --scheduled
+  [[ $RUN_RC -ne 0 ]] || fail "a lock with a malformed member ($badmember) exited 0: $RUN_OUTPUT"
+  refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+    "a lock with a malformed member ($badmember) still mutated plugins"
+  entries="$(log_entries)"
+  grep -qF -- '--state deferred' <<<"$entries" ||
+    fail "a lock with a malformed member ($badmember) did not record a deferral: $entries"
+  refute 'plugins: 0 tracked' "$entries" \
+    "a lock with a malformed member ($badmember) posted a clean-looking zero-tracked completed record: $entries"
+  [[ -n "$(alert_entries)" ]] || fail "a lock with a malformed member ($badmember) sent no alert: $(cat "$RELAY_LOG")"
+  [[ ! -e $MARKER ]] ||
+    fail "a lock with a malformed member ($badmember) advanced last-success-at, recording a clean week for a vertical that did zero work"
+done
+write_lock
+
 # ── 15. The IDLE GATE defers on recent Claude activity, records the deferral,
 #       and attempts nothing. A deferral is not a failure: nothing was tried, so
 #       it is recorded rather than alerted, and the gap line in that entry is
