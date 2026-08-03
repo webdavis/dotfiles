@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.update-agent-plugins</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/bash</string>
+    <string>{{ .chezmoi.homeDir }}/.local/bin/update-agent-plugins.sh</string>
+    <!-- Marks this as the SCHEDULED (not manual) run: only a scheduled run posts
+         the weekly record to #unattended-upgrades. Without it, a hand run on a
+         Wednesday would post a weekly entry and a dead agent would look alive,
+         inverting the one signal that record carries. Same marker as
+         com.webdavis.update-skills and com.webdavis.homebrew-weekly-upgrade. -->
+    <string>--scheduled</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- ~/.local/bin first: the updater calls relay.sh by absolute path, but
+         `claude` itself is a Homebrew binary and `jq` is needed to read the
+         lock, so both Homebrew and the user bin dir have to be reachable. -->
+    <key>PATH</key>
+    <string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <!-- 24 hourly Monday retry slots (00:00..23:00), generated programmatically,
+       the same shape com.webdavis.update-skills uses. A slot that finds a Claude
+       Code transcript written inside the idle threshold defers (exit 75) and
+       leaves the week unclaimed, so the next slot retries; once a slot posts its
+       weekly record, the rest no-op on the week guard. A separate agent from the
+       skills one on purpose: sharing a plist would let one vertical's deferral
+       logic govern the other's. -->
+  <key>StartCalendarInterval</key>
+  <array>
+{{- range $hour := until 24 }}
+    <dict>
+      <key>Weekday</key>
+      <integer>1</integer>
+      <key>Hour</key>
+      <integer>{{ $hour }}</integer>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+{{- end }}
+  </array>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/agent-plugins/update-agent-plugins.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/agent-plugins/update-agent-plugins.log</string>
+</dict>
+</plist>
