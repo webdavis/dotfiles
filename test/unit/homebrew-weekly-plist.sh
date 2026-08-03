@@ -53,4 +53,20 @@ assert_kv Hour '<integer>12</integer>'   # 12:00
 assert_kv Minute '<integer>0</integer>'
 assert_kv RunAtLoad '<false/>' # loading must never trigger an upgrade
 
-printf 'homebrew-weekly-plist: OK (Monday 12:00, Weekday 1; RunAtLoad false)\n'
+# The agent must pass --scheduled, and it is the ONLY caller that does. Only a
+# scheduled run posts the weekly record, so without the marker the agent could
+# run every Monday and post nothing, which reads exactly like a dead agent. With
+# it, `just brew-upgrade` on a Wednesday stays silent instead of making a dead
+# agent look alive. Parsed as real plist data (plutil -> json -> jq) so a marker
+# lost inside a malformed array cannot pass a text grep.
+plist_json="$work/plist.json"
+plutil -convert json -o "$plist_json" - <"$rendered" 2>/dev/null ||
+  fail "the rendered plist did not parse as a plist"
+prog_scheduled="$(jq -r '[.ProgramArguments[] | select(. == "--scheduled")] | length' "$plist_json")"
+[[ $prog_scheduled == "1" ]] ||
+  fail "ProgramArguments does not pass exactly one --scheduled marker (got $prog_scheduled); the weekly record would never be posted"
+helper_arg="$(jq -r '.ProgramArguments[1]' "$plist_json")"
+[[ $helper_arg == */.local/bin/homebrew-weekly-upgrade.sh ]] ||
+  fail "the agent does not run the deployed helper (got $helper_arg)"
+
+printf 'homebrew-weekly-plist: OK (Monday 12:00, Weekday 1; RunAtLoad false; --scheduled passed once)\n'

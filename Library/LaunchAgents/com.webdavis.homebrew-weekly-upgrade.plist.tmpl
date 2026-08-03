@@ -8,6 +8,12 @@
   <array>
     <string>/opt/homebrew/bin/bash</string>
     <string>{{ .chezmoi.homeDir }}/.local/bin/homebrew-weekly-upgrade.sh</string>
+    <!-- Marks this as the SCHEDULED (not manual) run: only a scheduled run posts
+         the weekly record to #unattended-upgrades. Without it, `just brew-upgrade`
+         on a Wednesday would post a weekly entry and a dead LaunchAgent would look
+         alive, inverting the one signal that record carries. Mirrors the same
+         marker in com.webdavis.update-skills.plist.tmpl. -->
+    <string>--scheduled</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>

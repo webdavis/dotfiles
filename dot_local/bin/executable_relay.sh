@@ -2,12 +2,18 @@
 # relay: fan a notification to moshi (phone) + Hermes (Discord paper trail) + a
 # clickable local macOS notification (focus the herdr pane on click). Each channel
 # is isolated (|| true, backgrounded); always exits 0. Secret never on argv.
+#
+# Two mirrored narrowing flags: --local-only keeps the banner and drops both
+# webhooks; --remote-only keeps only the hermes leg (no banner, no phone) and is
+# the LOG path the weekly unattended jobs use. --remote-only additionally posts
+# SYNCHRONOUSLY and prints the delivery outcome, because an undelivered log entry
+# is invisible in a way an undelivered alert is not. See the hermes block below.
 set -euo pipefail
 
-agent="" state="" project="" branch="" detail="" pane="" local_only=""
+agent="" state="" project="" branch="" detail="" pane="" local_only="" remote_only=""
 is_relay_flag() {
   case "$1" in
-    --agent | --state | --project | --branch | --detail | --pane | --local-only) return 0 ;;
+    --agent | --state | --project | --branch | --detail | --pane | --local-only | --remote-only) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -37,6 +43,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --local-only)
       local_only=1
+      shift
+      ;;
+    --remote-only)
+      remote_only=1
       shift
       ;;
     *) shift ;;
@@ -76,8 +86,14 @@ desk_idle="${RELAY_DESK_IDLE_SECS:-600}"
 # pull the raw $NF (not a pre-divided int), require all-digits on it and on the threshold, and only then
 # compare. Any invalid or absent value = presence unknown = want_phone stays 1 (treat as "user away").
 # RELAY_IDLE_SECS overrides the probe; RELAY_IOREG overrides the probe binary (tests point it at a stub).
+#
+# The probe runs ONLY when a phone push could actually fire. Both narrowing flags suppress the moshi leg
+# outright, so under either one the probe's answer is unused -- and it is an unbounded pipe to ioreg with
+# no timeout. On the --remote-only path that is not merely wasted work: the POST there is SYNCHRONOUS, so
+# a wedged ioreg holds the weekly job before the delivery it exists to report, after the week's guard is
+# spent and while the caller still holds its serialize lock.
 want_phone=1
-if [[ -z ${RELAY_FORCE_PHONE:-} ]]; then
+if [[ -z $local_only && -z $remote_only && -z ${RELAY_FORCE_PHONE:-} ]]; then
   idle_secs="${RELAY_IDLE_SECS:-}"
   if [[ -z $idle_secs ]]; then
     idle_ns="$("${RELAY_IOREG:-/usr/sbin/ioreg}" -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print $NF}' || true)"
@@ -89,7 +105,7 @@ fi
 # moshi -- token read from the 0600 file by jq; body sent on stdin (never on argv)
 moshi_body="$(jq -c --arg t "$title" --arg m "$preview" \
   'if .moshi_secret then {token: .moshi_secret, title: $t, message: $m} else empty end' "$auth_file" 2>/dev/null || true)"
-if [[ -n $moshi_body && -z $local_only && -n $want_phone ]]; then
+if [[ -n $moshi_body && -z $local_only && -z $remote_only && -n $want_phone ]]; then
   (curl -fsS -m 10 -X POST "$moshi_url" -H 'Content-Type: application/json' --data @- <<<"$moshi_body" >/dev/null 2>&1 || true) &
 fi
 
@@ -99,13 +115,56 @@ hermes_body="$(jq -cn --arg a "$agent" --arg s "$state" --arg p "$project" --arg
 sig="$(printf '%s' "$hermes_body" | python3 -c 'import hmac, hashlib, json, sys
 secret = json.load(open(sys.argv[1])).get("hermes_secret") or ""
 sys.stdout.write(hmac.new(secret.encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest() if secret else "")' "$auth_file" 2>/dev/null || true)"
-if [[ -n $hermes_body && -n $sig && -z $local_only ]]; then
+hermes_ready=""
+[[ -n $hermes_body && -n $sig ]] && hermes_ready=1
+if [[ -n $remote_only ]]; then
+  # --remote-only: the LOG path (weekly unattended jobs -> #unattended-upgrades),
+  # the mirror of --local-only. Only the hermes leg fires: no banner, no phone.
+  # An unattended Monday-slot run is idle past RELAY_DESK_IDLE_SECS by
+  # definition, so without this flag every weekly heartbeat -- including
+  # "nothing changed" -- would buzz the phone and pop a banner, which is the
+  # noise a separate channel was chosen to avoid. --local-only cannot do this
+  # job: it suppresses the hermes leg, which IS the log.
+  #
+  # And on THIS path the POST is SYNCHRONOUS with a short deadline, then its
+  # outcome is printed. The alert path can afford to discard an HTTP status: it
+  # also lit a banner and a phone, so the operator already knows. A LOG delivery
+  # cannot. A 401 (wrong key) or 404 (route in config but not loaded by the
+  # running gateway) swallowed into /dev/null leaves the channel permanently
+  # empty, and an empty channel reads as "the job stopped running" -- the exact
+  # inversion this record exists to prevent. The status line goes to STDOUT so
+  # the caller's LaunchAgent run log keeps it.
+  #
+  # It still NEVER fails the caller: every outcome is printed and dropped, and
+  # this script exits 0 below regardless. A log that cannot be delivered must
+  # not break the weekly job it is reporting on.
+  if [[ -n $local_only ]]; then
+    printf 'relay: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent\n'
+  elif [[ -z $hermes_ready ]]; then
+    # Say it. A silent exit 0 here is indistinguishable from a delivered entry.
+    printf 'relay: post SKIPPED -- no hermes signing key in %s; nothing was sent\n' "$auth_file"
+  else
+    remote_deadline="${RELAY_REMOTE_TIMEOUT:-5}"
+    [[ $remote_deadline =~ ^[0-9]+$ ]] || remote_deadline=5
+    # No -f: it turns an HTTP >= 400 into a bare exit 22, and the CODE is the
+    # whole point here. -w '%{http_code}' reports 000 when no response arrived.
+    hermes_code="$(curl -sS -o /dev/null -m "$remote_deadline" -w '%{http_code}' \
+      -X POST "$hermes_url" -H 'Content-Type: application/json' \
+      -H "X-Webhook-Signature: $sig" --data @- <<<"$hermes_body" 2>/dev/null || true)"
+    case "$hermes_code" in
+      2??) printf 'relay: posted HTTP %s\n' "$hermes_code" ;;
+      000) printf 'relay: post FAILED HTTP 000 (no response; is the hermes gateway up?)\n' ;;
+      '') printf 'relay: post FAILED (curl reported no HTTP status at all)\n' ;;
+      *) printf 'relay: post FAILED HTTP %s\n' "$hermes_code" ;;
+    esac
+  fi
+elif [[ -n $hermes_ready && -z $local_only ]]; then
   (curl -fsS -m 10 -X POST "$hermes_url" -H 'Content-Type: application/json' \
     -H "X-Webhook-Signature: $sig" --data @- <<<"$hermes_body" >/dev/null 2>&1 || true) &
 fi
 
 # local clickable notification -> focus the exact herdr pane on click
-if command -v terminal-notifier >/dev/null 2>&1; then
+if [[ -z $remote_only ]] && command -v terminal-notifier >/dev/null 2>&1; then
   exec_cmd=":"
   [[ -n $pane ]] && exec_cmd="herdr agent focus $pane"
   (terminal-notifier -title "$title" -message "$preview" -sound default \
