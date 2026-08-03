@@ -56,6 +56,9 @@ mkdir -p "$tmp/stubs"
 cat >"$tmp/stubs/date" <<'STUB'
 #!/usr/bin/env bash
 printf 'date %s\n' "$*" >>"${DATE_CALL_LOG:-/dev/null}"
+# FAKE_DATE_BROKEN simulates a clock that cannot be read at all (every
+# invocation fails), which is the state the entry header's fallback names.
+[[ -n ${FAKE_DATE_BROKEN:-} ]] && exit 1
 for arg in "$@"; do
   case "$arg" in
     +%G-%V) printf '%s\n' "${FAKE_WEEK:-2026-31}"; exit 0 ;;
@@ -184,6 +187,20 @@ date_calls="$(grep -c . "$DATE_CALL_LOG" || true)"
   fail "the entry header read the clock $date_calls times, want exactly 1: $(cat "$DATE_CALL_LOG")"
 : >"$DATE_CALL_LOG"
 
+# ── 2f. The header when the clock CANNOT BE READ still carries both lines. The
+#       fallback names the missing timestamp instead of inventing one, and the
+#       gap line must survive into it: dropping it there passed every test
+#       before this (mutation-verified), and a broken clock is exactly when the
+#       recorded previous-success ISO is the only time figure the entry has. ──
+header="$(FAKE_DATE_BROKEN=1 unattended_log_entry_header "$marker")"
+grep -qiF 'run at UNKNOWN' <<<"$header" ||
+  fail "an unreadable clock did not name the missing run timestamp: '$header'"
+grep -qF 'last successful run:' <<<"$header" ||
+  fail "the unreadable-clock fallback dropped the gap line, leaving a one-line entry with no previous-success record: '$header'"
+grep -qF '2026-07-22T12:00:00Z' <<<"$header" ||
+  fail "the fallback gap line lost the recorded previous-success timestamp: '$header'"
+: >"$DATE_CALL_LOG"
+
 # ── 3. The weekly guard. A Monday fires 24 hourly slots; without this the
 #      channel would take up to 24 entries a week. ────────────────────────────
 guard="$tmp/log-week-claims"
@@ -211,6 +228,18 @@ FAKE_WEEK=2026-31 unattended_log_claim_week "$guard" completed &&
   fail "a second completed entry was emitted in the same week"
 FAKE_WEEK=2026-31 unattended_log_claim_week "$guard" deferred &&
   fail "a deferral after a completed entry was emitted; it would bury the truer message"
+
+# 3c-2. A week whose FIRST outcome is completed refuses a later deferral too.
+#     3c above stages deferred-then-completed, where the deferral's own token
+#     already refuses the repeat, so 3c passes even with the bury-guard deleted
+#     (mutation-verified). This is the sequence only the guard can refuse: the
+#     week completes on an early slot with no prior deferral, then a later slot
+#     hits lock contention and defers. Posting that deferral would leave
+#     "deferred, nothing attempted" as the newest message of a finished week.
+FAKE_WEEK=2026-45 unattended_log_claim_week "$guard" completed ||
+  fail "3c-2 setup: the completed-first claim was refused"
+FAKE_WEEK=2026-45 unattended_log_claim_week "$guard" deferred &&
+  fail "a deferral in a week that completed FIRST was emitted; it would bury the completed entry without ever owning a deferred token"
 
 # 3d. A NEW week starts over.
 FAKE_WEEK=2026-32 unattended_log_claim_week "$guard" deferred ||
@@ -264,6 +293,20 @@ warn="$(FAKE_WEEK=2026-37 unattended_log_claim_week "$guard" nonsense 2>&1)" || 
 grep -qiE 'unrecognised|unrecognized' <<<"$warn" ||
   fail "an unrecognised entry class was not reported: '$warn'"
 
+# 3h-2. An UNREADABLE ISO WEEK is stated and ungated too. The library's header
+#     comment promises exactly this ("Empty when the clock cannot be read,
+#     which every caller treats as 'do not gate', never as 'already claimed'"),
+#     and inverting it to fail closed passed every test before this
+#     (mutation-verified): a machine whose date broke would silently post
+#     nothing, forever, which is the invisibility the record exists to end.
+rm -rf "$guard"
+claim_rc=0
+warn="$(FAKE_DATE_BROKEN=1 unattended_log_claim_week "$guard" deferred 2>&1)" || claim_rc=$?
+[[ $claim_rc -eq 0 ]] ||
+  fail "an unreadable ISO week suppressed the entry (must fail open, rc=$claim_rc)"
+grep -qiE 'week' <<<"$warn" ||
+  fail "an unreadable ISO week was not reported: '$warn'"
+
 # 3i. CONCURRENT slots claiming the same fresh week: exactly ONE wins. These runs
 #     genuinely overlap -- a contending slot posts its "another run holds the
 #     lock" entry while the holder is still working -- and a read-then-write
@@ -296,6 +339,30 @@ concurrent_winners="$(grep -c . "$winners" || true)"
 [[ $concurrent_winners -eq 1 ]] ||
   fail "$claim_racers concurrent slots claimed the same week $concurrent_winners times, want exactly 1; the claim is not atomic"
 
+# 3i-2. The claim is an EXCLUSIVE create, pinned DETERMINISTICALLY. The race
+#     above is real-world evidence but a probabilistic one: measured against a
+#     check-then-create mutant ([[ -e ]] before a plain redirect) it failed only
+#     one run in three, because the racers' arrival jitter dwarfs that mutant's
+#     microsecond window. O_EXCL has a second observable that needs no timing at
+#     all: it REFUSES to create through a dangling symlink (EEXIST on the link
+#     itself), while any plain redirect follows the link and creates its target.
+#     So a dangling symlink squatting on the token name must leave the claim
+#     failing OPEN (stated, ungated) with the link's target still absent; a
+#     non-exclusive create would silently "win" and write the target file.
+rm -rf "$guard"
+mkdir -p "$guard"
+excl_target="$tmp/excl-probe-target"
+rm -f "$excl_target"
+ln -s "$excl_target" "$guard/2026-48.deferred"
+excl_rc=0
+excl_warn="$(FAKE_WEEK=2026-48 unattended_log_claim_week "$guard" deferred 2>&1)" || excl_rc=$?
+[[ $excl_rc -eq 0 ]] ||
+  fail "a squatted token name suppressed the entry (rc=$excl_rc); an unusable guard must fail open"
+[[ ! -e $excl_target ]] ||
+  fail "the claim wrote through a dangling symlink; it is not an exclusive create, so two slots can both claim a fresh week"
+grep -qiE 'guard|could not' <<<"$excl_warn" ||
+  fail "a claim that could not take its token said nothing: '$excl_warn'"
+
 # 3j. A CLAIM CAN BE GIVEN BACK. The week is claimed before delivery is
 #     attempted (so concurrent slots cannot both post) and released when that
 #     delivery failed, which is what lets a later slot retry a week that has no
@@ -308,6 +375,31 @@ FAKE_WEEK=2026-38 unattended_log_claim_week "$guard" deferred &&
 FAKE_WEEK=2026-38 unattended_log_release_week "$guard" deferred
 FAKE_WEEK=2026-38 unattended_log_claim_week "$guard" deferred ||
   fail "a released week was not claimable again, so a failed delivery would silence the week"
+
+# 3j-2. A release frees ONLY its own class. Both entry classes coexist in a
+#     week that defers and then completes, and each release is taken for one
+#     failed delivery -- a release that also frees the sibling would let a later
+#     slot repeat an entry that WAS delivered (mutation-verified: a release
+#     deleting both entry tokens passed every suite before this).
+#     Releasing deferred must leave completed claimed:
+rm -rf "$guard"
+FAKE_WEEK=2026-46 unattended_log_claim_week "$guard" deferred ||
+  fail "3j-2 setup: the deferred claim was refused"
+FAKE_WEEK=2026-46 unattended_log_claim_week "$guard" completed ||
+  fail "3j-2 setup: the completed claim was refused"
+FAKE_WEEK=2026-46 unattended_log_release_week "$guard" deferred
+FAKE_WEEK=2026-46 unattended_log_claim_week "$guard" completed &&
+  fail "releasing the deferred claim also freed the completed one; a delivered completed entry would repeat"
+#     ...and releasing completed must leave deferred claimed (the completed
+#     token is gone, so only the deferred token itself can refuse this).
+rm -rf "$guard"
+FAKE_WEEK=2026-47 unattended_log_claim_week "$guard" deferred ||
+  fail "3j-2 setup: the deferred claim was refused (second stage)"
+FAKE_WEEK=2026-47 unattended_log_claim_week "$guard" completed ||
+  fail "3j-2 setup: the completed claim was refused (second stage)"
+FAKE_WEEK=2026-47 unattended_log_release_week "$guard" completed
+FAKE_WEEK=2026-47 unattended_log_claim_week "$guard" deferred &&
+  fail "releasing the completed claim also freed the deferred one; a delivered deferral would repeat"
 
 # 3k. The guard keeps only THIS week, so it stays readable as "what did this week
 #     do" instead of growing a file per class per week forever.
@@ -563,6 +655,19 @@ line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" versions
 # shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 refute '2\.0`x`' "$line" "a backtick in a version string was not stripped, so it can close the code span"
 
+# ...nor can a CONTROL character. It is the other class the code-span comment
+# names (a control character can break the span or the message framing), and
+# the backtick test above passes with the control-char strip deleted
+# (mutation-verified), so each needs its own pin. Checked with a bash pattern
+# match, not grep: grep is line-oriented and a carriage return splits its view.
+write_snapshot "$before" 'ctl:1.0'
+printf 'ctl\t2.0%b3.0\n' '\r' >"$after"
+line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" versions)"
+[[ $line != *$'\r'* ]] ||
+  fail "a carriage return in a publisher-chosen version survived into the rendered entry"
+grep -qF '2.03.0' <<<"$line" ||
+  fail "the control character was not stripped in place (want the joined 2.03.0): '$line'"
+
 # ── 5. The route name the library posts to is the one the config declares and
 #      the apply-time status check probes. A rename in one place and not the
 #      others is a 404 on every entry, which relay reports but nobody reads. ──
@@ -574,4 +679,4 @@ default_url="$(UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" unattended_log_ur
 grep -qE '^http://127\.0\.0\.1:8644/' <<<"$default_url" ||
   fail "the default URL does not point at the loopback hermes gateway: $default_url"
 
-printf 'unattended-log-lib: OK (elapsed boundaries in both directions, a backwards clock named; the gap line reports never/recorded/unreadable and reads a leading-zero epoch in base 10; the entry header takes ONE clock reading; the week claim is atomic under %d concurrent racers, survives a corrupt guard, an unusable guard path and an unknown class, admits one entry per class, releases and prunes; delivery reports its outcome either way, closes fd 9, names its host, and alerts the priority route once a week when the channel is broken; the change line counts removals in the total, matches names carrying backslashes, quotes third-party text and caps a whole-subject move)\n' "$claim_racers"
+printf 'unattended-log-lib: OK (elapsed boundaries in both directions, a backwards clock named; the gap line reports never/recorded/unreadable and reads a leading-zero epoch in base 10; the entry header takes ONE clock reading and keeps its gap line when the clock breaks; the week claim is atomic under %d concurrent racers and an exclusive create by the symlink probe, survives a corrupt guard, an unusable guard path, an unknown class and an unreadable week, admits one entry per class with completed-first refusing a late deferral, releases per class without freeing the sibling, and prunes; delivery reports its outcome either way, closes fd 9, names its host, and alerts the priority route once a week when the channel is broken; the change line counts removals in the total, matches names carrying backslashes, quotes third-party text incl. control characters and caps a whole-subject move)\n' "$claim_racers"
