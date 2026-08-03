@@ -223,12 +223,19 @@ acquire_lock() {
 # the flake's GNU findutils accept the RELATIVE form (measured 2026-08-03 on
 # both), so no cutoff sentinel file is needed. `-print -quit` stops at the first
 # hit, so an active machine costs one stat.
+#
+# `-name '*.jsonl'` is the whole point of the probe: a live Claude Code session
+# is a growing .jsonl transcript under ~/.claude/projects, and it is a swap under
+# THAT the gate protects against. Matching every file made a README, a stray
+# .DS_Store, or any editor tempfile the operator dropped in that tree defer the
+# whole week, starving the update for a reason that has nothing to do with a live
+# session, which is #95's failure mode wearing the opposite mask.
 __agent_plugins_should_defer() {
   local newer
   [[ -n $FORCE ]] && return 1
   [[ -d $CLAUDE_ACTIVITY_DIR ]] || return 1 # no transcripts here: nothing to protect
   [[ -r $CLAUDE_ACTIVITY_DIR && -x $CLAUDE_ACTIVITY_DIR ]] || return 0
-  if ! newer="$(find "$CLAUDE_ACTIVITY_DIR" -type f -newermt "-$IDLE_THRESHOLD_SECONDS seconds" -print -quit 2>/dev/null)"; then
+  if ! newer="$(find "$CLAUDE_ACTIVITY_DIR" -type f -name '*.jsonl' -newermt "-$IDLE_THRESHOLD_SECONDS seconds" -print -quit 2>/dev/null)"; then
     return 0 # scan error, fail closed
   fi
   [[ -n $newer ]] && return 0

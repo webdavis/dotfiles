@@ -645,6 +645,35 @@ grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
   fail "an idle machine did not run the updates: $(cat "$CLAUDE_CALL_LOG")"
 rm -rf "$ACTIVITY"
 
+# ...and the probe counts ONLY session transcripts (*.jsonl). A README, a stray
+# .DS_Store or an editor tempfile freshly dropped in the projects tree is not a
+# live session, so it must NOT defer the week; matching every file starved the
+# update for a reason unrelated to any running session.
+reset_state
+mkdir -p "$ACTIVITY"
+: >"$ACTIVITY/README.md"
+: >"$ACTIVITY/.DS_Store"
+RUN_OUTPUT="$(PATH="$STUBS:$PATH" UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.nontranscript" \
+  bash "$HELPER" --scheduled 2>&1)"
+nontranscript_rc=$?
+[[ $nontranscript_rc -eq 0 ]] ||
+  fail "a non-transcript file (README.md) deferred the week (rc=$nontranscript_rc): $RUN_OUTPUT"
+grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "a README.md in the projects tree stopped the updates running: $(cat "$CLAUDE_CALL_LOG")"
+# ...but a fresh transcript beside it still defers, so the narrowing did not
+# defeat the gate.
+reset_state
+mkdir -p "$ACTIVITY"
+: >"$ACTIVITY/README.md"
+: >"$ACTIVITY/live-session.jsonl"
+RUN_OUTPUT="$(PATH="$STUBS:$PATH" UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.transcript" \
+  bash "$HELPER" --scheduled 2>&1)"
+[[ $? -eq 75 ]] ||
+  fail "a fresh .jsonl transcript did not defer once the probe was narrowed to transcripts: $RUN_OUTPUT"
+refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater mutated plugins on a slot a live transcript should have deferred"
+rm -rf "$ACTIVITY"
+
 # ── 16. LOCK CONTENTION is a deferral, not a failure. ───────────────────────
 reset_state
 : >"$tmp/held.lock"
