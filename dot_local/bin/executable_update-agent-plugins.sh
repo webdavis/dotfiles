@@ -529,17 +529,23 @@ __agent_plugins_marketplace_configured() {
     jq -e --arg name "$1" 'any(.[]; .name == $name)' >/dev/null 2>&1
 }
 
-# __agent_plugins_marketplace_repo <name> -- the repo the LIVE marketplace of that
-# name points at, or empty when the field is absent. A marketplace is trusted by
-# NAME at install time, so a live marketplace re-pointed at a different repo
-# (name kept, source swapped) would be invisible while the lock still reads as
-# declared, and the install would pull plugin code from the wrong repo. The
-# caller compares this against the lock's repo and refuses the install on a
-# mismatch. It never re-adds or removes the marketplace (operator ruling); an
-# unreadable repo cannot prove a mismatch, so it does not block.
+# __agent_plugins_marketplace_repo <name> -- print the repo the LIVE marketplace of
+# that name points at and return 0; return NON-ZERO when the read failed, timed
+# out, or returned no repo for that name. A marketplace is trusted by NAME at
+# install time, so a live marketplace re-pointed at a different repo (name kept,
+# source swapped) would be invisible while the lock still reads as declared, and
+# the install would pull plugin code from the wrong repo. The caller compares this
+# against the lock's repo and refuses the install on a mismatch. It never re-adds
+# or removes the marketplace (operator ruling). FAIL-CLOSED (F37 completes F8 for
+# the error path): a read that failed or returned no repo cannot prove a MATCH, so
+# it is reported as non-zero and the caller BLOCKS the install rather than trusting
+# a marketplace it could not verify. `jq -e` returns non-zero when `// empty`
+# yields nothing, which folds the absent-repo case into the same signal as a read
+# failure.
 __agent_plugins_marketplace_repo() {
-  run_claude plugin marketplace list --json 2>/dev/null |
-    jq -r --arg name "$1" 'map(select(.name == $name)) | .[0].repo // empty' 2>/dev/null
+  local name="$1" list
+  list="$(run_claude plugin marketplace list --json 2>/dev/null)" || return 1
+  jq -e -r --arg name "$name" 'map(select(.name == $name)) | .[0].repo // empty' <<<"$list" 2>/dev/null
 }
 
 # Per-plugin outcomes, as ARRAYS (never space-joined strings): they are what
@@ -600,8 +606,15 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
       # marketplace re-pointed at a different repo (name kept, source swapped)
       # would otherwise be installed from silently. Never re-add or remove it,
       # just refuse the install (F8).
-      marketplace_live_repo="$(__agent_plugins_marketplace_repo "$marketplace")"
-      if [[ -n $marketplace_live_repo && $marketplace_live_repo != "$marketplace_repo" ]]; then
+      if ! marketplace_live_repo="$(__agent_plugins_marketplace_repo "$marketplace")"; then
+        # The verify read FAILED, timed out, or returned no repo. An unverified
+        # marketplace cannot be trusted, so the install is BLOCKED (F37): proceeding
+        # here is the fail-open the old `-n` guard allowed.
+        failed_plugins+=("$plugin_id: the configured marketplace $marketplace could not be VERIFIED (its source repo read failed, timed out, or returned nothing), so this run refused to install from an unverified marketplace rather than trust it; this vertical never re-adds or removes one")
+        printf '   REFUSED (marketplace unverifiable): %s\n' "$plugin_id" >&2
+        continue
+      fi
+      if [[ $marketplace_live_repo != "$marketplace_repo" ]]; then
         failed_plugins+=("$plugin_id: the configured marketplace $marketplace points at $marketplace_live_repo, not the lock's $marketplace_repo; refused to install from a re-pointed marketplace (this vertical never re-adds or removes one)")
         printf '   REFUSED (re-pointed marketplace): %s\n' "$plugin_id" >&2
         continue

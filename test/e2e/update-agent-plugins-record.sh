@@ -111,6 +111,19 @@ case "$1 $2" in
   "plugin marketplace")
     case "$3" in
       list)
+        # Fail the marketplace-list read after the Nth successful one, so the
+        # configured check (call 1) succeeds while the source-verify read (call 2)
+        # fails or times out. This is how F37's fail-open-on-a-failed-verify-read
+        # is reproduced: the first read proves the marketplace exists, the second
+        # cannot prove its repo.
+        if [[ -n ${CLAUDE_MARKETPLACE_LIST_FAIL_AFTER:-} ]]; then
+          n=$(($(cat "$MKT_LIST_COUNT" 2>/dev/null || printf 0) + 1))
+          printf '%s' "$n" >"$MKT_LIST_COUNT"
+          if [[ $n -gt $CLAUDE_MARKETPLACE_LIST_FAIL_AFTER ]]; then
+            printf 'Error: marketplace list timed out\n' >&2
+            exit 1
+          fi
+        fi
         cat "$MARKETPLACE_STATE"
         exit 0
         ;;
@@ -173,7 +186,8 @@ chmod +x "$STUBS/claude"
 PLUGIN_STATE="$tmp/plugins.json"
 MARKETPLACE_STATE="$tmp/marketplaces.json"
 CLAUDE_CALL_LOG="$tmp/claude-calls.log"
-export PLUGIN_STATE MARKETPLACE_STATE CLAUDE_CALL_LOG
+MKT_LIST_COUNT="$tmp/mkt-list-count"
+export PLUGIN_STATE MARKETPLACE_STATE CLAUDE_CALL_LOG MKT_LIST_COUNT
 
 LOCK="$HOME/.agents/custom-agent-plugins-lock.json"
 # A FIXTURE lock, not the committed one: this file is about the updater's
@@ -253,7 +267,9 @@ lock_seq=0
 run_helper() {
   lock_seq=$((lock_seq + 1))
   : >"$RELAY_LOG"
+  rm -f "$MKT_LIST_COUNT"
   RUN_OUTPUT="$(PATH="$STUBS:$PATH" \
+    CLAUDE_MARKETPLACE_LIST_FAIL_AFTER="${CLAUDE_MARKETPLACE_LIST_FAIL_AFTER:-}" \
     UPDATE_AGENT_PLUGINS_FORCE="${UPDATE_AGENT_PLUGINS_FORCE:-1}" \
     UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.$lock_seq" \
     UPDATE_AGENT_PLUGINS_CALL_TIMEOUT="${UPDATE_AGENT_PLUGINS_CALL_TIMEOUT:-}" \
@@ -988,6 +1004,32 @@ refute 'plugin marketplace add [^ ]*mkt-a' "$(cat "$CLAUDE_CALL_LOG")" \
   "the updater re-added the re-pointed mkt-a marketplace it must never touch: $(cat "$CLAUDE_CALL_LOG")"
 grep -qF 'impostor/mkt-a' <<<"$(alert_entries)" ||
   fail "the alert does not name the re-pointed repo, so there is nothing to act on: $(alert_entries)"
+
+# ── 21b. A marketplace whose SOURCE-VERIFY read FAILS or times out must BLOCK the
+#         install, not fail OPEN (F37 completes F8 for the error path). The verify
+#         read is a SECOND `claude plugin marketplace list --json` after the
+#         configured check; if it errors, an empty live repo cannot prove a match,
+#         and the old code proceeded to install from a marketplace it never
+#         verified. Make steady absent, let the configured check (call 1) pass and
+#         the verify read (call 2) fail: the install is REFUSED and the plugin is
+#         reported, never installed from an unverified marketplace. ───────────────
+reset_state
+jq 'map(select(.id != "steady@mkt-a"))' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+# Drop the other absent tracked plugin so steady is the ONLY one that reaches the
+# marketplace-list reads: its configured check is call 1 (passes) and its
+# source-verify read is call 2 (fails), which FAIL_AFTER=1 pins exactly.
+jq 'del(.plugins."absent@mkt-b")' "$LOCK" >"$LOCK.tmp" && mv "$LOCK.tmp" "$LOCK"
+CLAUDE_MARKETPLACE_LIST_FAIL_AFTER=1 run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] || fail "a failed marketplace source-verify read did not fail the run: $RUN_OUTPUT"
+refute '^plugin install steady@mkt-a$' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater installed from a marketplace whose source it could NOT verify (the verify read failed): $(cat "$CLAUDE_CALL_LOG")"
+refute 'plugin marketplace add [^ ]*mkt-a' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater re-added mkt-a when its verify read failed; it must never re-add or remove a marketplace: $(cat "$CLAUDE_CALL_LOG")"
+grep -qE 'failed:[^.]*steady@mkt-a' <<<"$(log_entries)" ||
+  fail "the record does not report steady@mkt-a as failed when its marketplace could not be verified: $(log_entries)"
+grep -qiE 'verif|could not' <<<"$(alert_entries)" ||
+  fail "the alert does not say the marketplace source could not be verified: $(alert_entries)"
 
 # ── 22. Containment is read from ~/.claude/settings.json (user scope), NOT the
 #        inventory's effective `enabled` (F17). The effective field is merged, so
