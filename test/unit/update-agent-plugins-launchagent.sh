@@ -126,6 +126,14 @@ log_path="$(jq -r '.StandardOutPath // ""' "$plist_json")"
 [[ $log_path == *"/.local/log/"* ]] ||
   fail "the agent's log is at '$log_path', outside ~/.local/log where the log rotation reaches"
 
+# stderr is where the updater writes its FAILED lines, so it is the trace that
+# matters most on the run someone actually investigates.
+err_path="$(jq -r '.StandardErrorPath // ""' "$plist_json")"
+[[ -n $err_path ]] ||
+  fail "the agent declares no StandardErrorPath; a failing run's FAILED lines would go nowhere"
+[[ $err_path == *"/.local/log/"* ]] ||
+  fail "the agent's stderr goes to '$err_path', outside ~/.local/log where the log rotation reaches"
+
 # The loader must load THIS agent, and must re-hash the plist so a changed plist
 # actually re-bootstraps. A run_onchange script whose hash line does not name
 # the plist never re-fires when the plist changes.
