@@ -266,7 +266,16 @@ __update_skills_record() {
     return 0
   fi
   detail="$(printf '%s\n%s' "$LOG_ENTRY_HEADER" "$body")"
-  unattended_log_post update-skills "$class" "$(unattended_log_host)" "$detail"
+  # The week is claimed BEFORE the attempt, so two overlapping slots cannot both
+  # post, and GIVEN BACK when the attempt failed, so the week is not marked done
+  # with nothing sent. A week whose every slot fails therefore retries on each
+  # slot and delivers nothing, which is the truthful outcome; the moment one slot
+  # succeeds the rest go quiet.
+  if ! unattended_log_post update-skills "$class" "$(unattended_log_host)" "$detail"; then
+    unattended_log_release_week "$LOG_WEEK_GUARD" "$class"
+    log "weekly record: the entry was NOT delivered; this week stays unclaimed so a later slot retries"
+    unattended_log_alert_delivery_failure "$LOG_WEEK_GUARD" update-skills
+  fi
   return 0
 }
 

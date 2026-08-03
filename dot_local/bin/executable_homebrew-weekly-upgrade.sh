@@ -105,8 +105,17 @@ weekly_record() {
     return 0
   fi
   detail="$(printf '%s\n%s' "$LOG_ENTRY_HEADER" "$body")"
-  UNATTENDED_LOG_RELAY="$RELAY" unattended_log_post homebrew-weekly-upgrade "$class" \
-    "$(unattended_log_host)" "$detail"
+  # Claimed BEFORE the attempt, so two overlapping runs cannot both post, and
+  # GIVEN BACK when the attempt failed, so a week is never marked done with
+  # nothing sent. A broken record channel cannot report itself, so it is also
+  # said once a week on the ALERT route, which is the one that lands in the
+  # priority channel.
+  if ! UNATTENDED_LOG_RELAY="$RELAY" unattended_log_post homebrew-weekly-upgrade "$class" \
+    "$(unattended_log_host)" "$detail"; then
+    unattended_log_release_week "$LOG_WEEK_GUARD" "$class"
+    printf 'homebrew-weekly-upgrade: the weekly record was NOT delivered; this week stays unclaimed so a later run retries\n' >&2
+    UNATTENDED_LOG_RELAY="$RELAY" unattended_log_alert_delivery_failure "$LOG_WEEK_GUARD" homebrew-weekly-upgrade
+  fi
   return 0
 }
 

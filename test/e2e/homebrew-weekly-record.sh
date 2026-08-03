@@ -55,7 +55,10 @@ cat >"$HOME/.local/bin/relay.sh" <<'STUB'
 #!/usr/bin/env bash
 if { : >&9; } 2>/dev/null; then fd9=inherited; else fd9=closed; fi
 printf 'CALL url=%s fd9=%s ARGV %s\n' "${RELAY_HERMES_URL:-<default>}" "$fd9" "$(printf '%s ' "$@" | tr '\n' ' ')" >>"$RELAY_LOG"
-printf 'relay: posted HTTP 200\n'
+# The real relay always exits 0 and reports its delivery outcome on stdout, so
+# RELAY_STUB_OUTCOME is the only way a caller can tell a delivered entry from a
+# refused one.
+printf '%s\n' "${RELAY_STUB_OUTCOME:-relay: posted HTTP 200}"
 exit 0
 STUB
 chmod +x "$HOME/.local/bin/relay.sh"
@@ -111,6 +114,7 @@ run_helper() {
   RUN_OUTPUT="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
     HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" \
     HOMEBREW_WEEKLY_LOCKFILE="$tmp/lock.$lock_seq" \
+    RELAY_STUB_OUTCOME="${RELAY_STUB_OUTCOME:-}" \
     BREW_FAIL="${BREW_FAIL:-}" BREW_VERSIONS="${BREW_VERSIONS:-}" MAS_VERSIONS="${MAS_VERSIONS:-}" \
     bash "$HELPER" "$@" 2>&1)"
   RUN_RC=$?
@@ -320,7 +324,34 @@ else
   fail "could not stage a held lock; the contention case did not run"
 fi
 
-# ── 9. The run timestamp is the instant the gap under it was measured from. The
+# ── 9. A REFUSED record must not consume the week, and the operator must hear
+#      about it on the route that still works. relay exits 0 whatever the gateway
+#      answered, by design, so a 401 or a 404 reads exactly like a delivered
+#      entry from here: claiming the week on one leaves the week with NO entry
+#      while the guard asserts it has one, and a record channel that quietly
+#      stopped working looks precisely like a job with nothing to say. ─────────
+rm -rf "$HOME/.local/state"
+export RELAY_STUB_OUTCOME='relay: post FAILED HTTP 401'
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] ||
+  fail "a refused record broke the upgrade it was reporting on (rc=$RUN_RC): $RUN_OUTPUT"
+[[ "$(log_entry_count)" -eq 1 ]] ||
+  fail "the refused record did not reach the log route once: $(log_entries)"
+grep -qF -- '--state log-channel-broken' <<<"$(alert_entries)" ||
+  fail "a broken record channel raised no alert on the priority route: $(cat "$RELAY_LOG")"
+run_helper --scheduled
+[[ "$(log_entry_count)" -eq 1 ]] ||
+  fail "a week whose record was refused did not retry on the next run; it stayed claimed with nothing sent"
+refute 'log-channel-broken' "$(cat "$RELAY_LOG")" \
+  "the broken-channel alert repeated inside one week"
+unset RELAY_STUB_OUTCOME
+run_helper --scheduled
+[[ "$(log_entry_count)" -eq 1 ]] || fail "the retrying run did not post its record: $RUN_OUTPUT"
+run_helper --scheduled
+[[ "$(log_entry_count)" -eq 0 ]] ||
+  fail "a DELIVERED record did not claim the week; every later run would post again"
+
+# ── 10. The run timestamp is the instant the gap under it was measured from. The
 #      clock stub moves an hour per reading, so a helper that samples once posts
 #      the FIRST reading and one that re-reads at delivery posts a later hour.
 #      Two readings is how a long run prints timestamps hours apart from the gap
@@ -355,7 +386,7 @@ entries="$(log_entries)"
 grep -qF 'run at 2026-07-25T12:00:00Z' <<<"$entries" ||
   fail "the record does not report the instant the run started: $entries | $RUN_OUTPUT"
 
-# ── 10. An unknown argument is an error, not a silent no-op that skips the
+# ── 11. An unknown argument is an error, not a silent no-op that skips the
 #       record. A typo'd marker in the plist would otherwise run every week and
 #       quietly post nothing. ───────────────────────────────────────────────────
 run_helper --schedluled

@@ -79,7 +79,10 @@ if { : >&9; } 2>/dev/null; then
 else
   printf 'FD9: closed\n' >>"$RELAY_CALL_LOG"
 fi
-printf 'relay: posted HTTP 200\n'
+# The real relay prints its delivery outcome on stdout and exits 0 whatever
+# happened, so RELAY_STUB_OUTCOME is the only way a caller can tell the two
+# apart -- which is the point of the assertions below.
+printf '%s\n' "${RELAY_STUB_OUTCOME:-relay: posted HTTP 200}"
 STUB
 chmod +x "$tmp/stubs/date" "$tmp/stubs/relay-stub.sh"
 export PATH="$tmp/stubs:$PATH"
@@ -323,7 +326,7 @@ out="$(UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
   UNATTENDED_LOG_HERMES_URL="http://hermes.test/webhooks/unattended-upgrades" \
   unattended_log_post update-skills completed dresden $'run at X\nlast successful run: never' 2>&1)"
 post_rc=$?
-[[ $post_rc -eq 0 ]] || fail "unattended_log_post exited $post_rc; it must never fail its caller"
+[[ $post_rc -eq 0 ]] || fail "a DELIVERED entry reported failure (rc=$post_rc)"
 calls="$(cat "$RELAY_CALL_LOG")"
 grep -qF -- '--remote-only' <<<"$calls" ||
   fail "the entry was not posted with --remote-only (it would pop a banner and buzz the phone every week)"
@@ -365,15 +368,68 @@ fi
 grep -qF 'FD9: closed' "$RELAY_CALL_LOG" ||
   fail "relay inherited the caller's serialize-lock fd; a detached child would hold the lock after the run exited: $(cat "$RELAY_CALL_LOG")"
 
-# 4b. relay.sh absent: state it, exit 0, deliver nothing.
+# 4b. relay.sh absent: state it, report the failure, deliver nothing.
 : >"$RELAY_CALL_LOG"
+post_rc=0
 out="$(UNATTENDED_LOG_RELAY="$tmp/does-not-exist.sh" \
-  unattended_log_post update-skills completed dresden "body" 2>&1)"
-post_rc=$?
-[[ $post_rc -eq 0 ]] || fail "a missing relay.sh failed the caller (rc=$post_rc)"
+  unattended_log_post update-skills completed dresden "body" 2>&1)" || post_rc=$?
+[[ $post_rc -ne 0 ]] ||
+  fail "a missing relay.sh reported the entry as DELIVERED; the week would be marked done with nothing sent"
 grep -qiE 'relay|not delivered|not executable' <<<"$out" ||
   fail "a missing relay.sh produced NO line; silence reads as a delivered entry: '$out'"
 [[ ! -s $RELAY_CALL_LOG ]] || fail "a missing relay.sh somehow logged a call"
+
+# 4c. A REFUSED delivery is reported as one. This is the seam the whole week
+#     guard hangs on: relay exits 0 whatever the gateway answered (by design, so
+#     a broken record never breaks the job), so an entry that 401s or 404s is
+#     indistinguishable from a delivered one unless this function reads the
+#     outcome. Marking the week done on a refused delivery silences the other 23
+#     slots and leaves the week with no entry while the guard asserts one.
+for outcome in 'relay: post FAILED HTTP 401' 'relay: post FAILED HTTP 000 (no response; is the hermes gateway up?)' 'relay: post SKIPPED -- no hermes signing key'; do
+  : >"$RELAY_CALL_LOG"
+  post_rc=0
+  out="$(RELAY_STUB_OUTCOME="$outcome" UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+    unattended_log_post update-skills completed dresden "body" 2>&1)" || post_rc=$?
+  [[ $post_rc -ne 0 ]] ||
+    fail "'$outcome' was reported as a delivered entry"
+  grep -qF "$outcome" <<<"$out" ||
+    fail "relay's outcome line did not reach the caller's run log: '$out'"
+done
+
+# ── 4d. A BROKEN RECORD CHANNEL is an actionable failure, so it goes to the
+#       ALERT route -- the one that reaches the priority channel -- and not only
+#       to a run log nobody opens. That is the same reasoning that rejected
+#       drift-watch: a passive signal goes unnoticed, and this one is passive by
+#       construction, because the channel that would carry it is the broken one.
+#       At most once a week, and only when it is actually broken. ─────────────
+alert_guard="$tmp/alert-claims"
+rm -rf "$alert_guard"
+: >"$RELAY_CALL_LOG"
+FAKE_WEEK=2026-41 UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+  UNATTENDED_LOG_HERMES_URL="http://hermes.test/webhooks/unattended-upgrades" \
+  unattended_log_alert_delivery_failure "$alert_guard" update-skills >/dev/null 2>&1
+calls="$(cat "$RELAY_CALL_LOG")"
+[[ -n $calls ]] || fail "a broken record channel raised no alert at all"
+grep -qF 'URL: <unset>' <<<"$calls" ||
+  fail "the broken-channel alert went to the LOG route, which is the route that is broken: $calls"
+refute '[-][-]remote-only' "$calls" \
+  "the broken-channel alert used the log path's flag, so it would neither banner nor buzz"
+grep -qF -- '--agent update-skills' <<<"$calls" ||
+  fail "the broken-channel alert does not name the job it is about: $calls"
+grep -qiE 'record|channel' <<<"$calls" ||
+  fail "the broken-channel alert does not say what is broken: $calls"
+# ...once. A weekly job that cannot deliver would otherwise alert on every slot.
+: >"$RELAY_CALL_LOG"
+FAKE_WEEK=2026-41 UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+  unattended_log_alert_delivery_failure "$alert_guard" update-skills >/dev/null 2>&1
+[[ ! -s $RELAY_CALL_LOG ]] ||
+  fail "the broken-channel alert fired twice in one week: $(cat "$RELAY_CALL_LOG")"
+# ...and a new week may say it again, because it is still broken.
+: >"$RELAY_CALL_LOG"
+FAKE_WEEK=2026-42 UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+  unattended_log_alert_delivery_failure "$alert_guard" update-skills >/dev/null 2>&1
+[[ -s $RELAY_CALL_LOG ]] ||
+  fail "a new week did not re-report a record channel that is still broken"
 
 # ── 4c. The CHANGE SUMMARY. Both weekly jobs render through this one function,
 #       so the channel reads as one log rather than two. Fixture snapshots are

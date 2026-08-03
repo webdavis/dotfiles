@@ -340,16 +340,61 @@ unattended_log_change_line() {
 # over a competing run that does not exist. Closing an fd that was never opened
 # is a no-op.
 #
-# NEVER fails the caller: a record that cannot be delivered must not break the
-# job it is reporting on.
+# RETURNS THE OUTCOME: 0 when the gateway accepted the entry, non-zero for every
+# other ending. The caller needs it because the week guard is claimed around this
+# call: a refused delivery that reported success would mark the week done,
+# silence the other 23 slots, and leave the week with no entry at all while the
+# guard asserted it had one.
+#
+# The outcome is read from relay's STDOUT line rather than from its exit status,
+# and deliberately so: relay exits 0 whatever the gateway answered, which is the
+# contract that keeps a broken record channel from breaking the job it reports
+# on. That line is relay's stated interface for --remote-only, pinned on both
+# sides (test/unit/relay-remote-only.sh writes it, this file reads it). It is
+# also echoed onward, so the caller's run log keeps it either way.
+#
+# Never ABORTS the caller: a non-zero return is a fact to act on, and both
+# callers do, but neither treats it as fatal.
 unattended_log_post() {
-  local agent="$1" state="$2" project="$3" detail="$4"
+  local agent="$1" state="$2" project="$3" detail="$4" outcome
   local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/bin/relay.sh}"
   if [[ ! -x $relay_script ]]; then
     printf 'unattended-log: relay.sh is not executable at %s; this entry was NOT delivered (run chezmoi apply)\n' "$relay_script"
+    return 1
+  fi
+  # stdout captured (it is the outcome), stderr left alone so relay's own
+  # warnings still reach this job's run log unmangled.
+  outcome="$(RELAY_HERMES_URL="$(unattended_log_url)" "$relay_script" --remote-only \
+    --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&- || true)"
+  [[ -n $outcome ]] && printf '%s\n' "$outcome"
+  grep -q '^relay: posted HTTP 2' <<<"$outcome"
+}
+
+# unattended_log_alert_delivery_failure <guard-dir> <agent> -- say on the ALERT
+# route that the record channel itself is broken. At most once per ISO week.
+#
+# WHY THIS EXISTS: relay already prints `post FAILED HTTP 401` into the job's run
+# log, and that is very nearly no better than silence. This whole design rests on
+# the operator NOT going looking (it is why drift-watch was rejected: a passive
+# signal goes unnoticed), and a broken record channel is the one failure the
+# record channel cannot report on itself. So it goes to the EXISTING route, which
+# lands in the priority channel with a banner and a phone push, exactly like
+# every other thing on this machine that needs acting on.
+#
+# NO RELAY_HERMES_URL override, which is what makes this the alert route: relay's
+# default is the alert webhook. No --remote-only either; this one should buzz.
+# There is no recursion risk: the alert path is fire-and-forget and never
+# re-enters this library.
+unattended_log_alert_delivery_failure() {
+  local guard="$1" agent="$2"
+  local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/bin/relay.sh}"
+  unattended_log_claim_week "$guard" delivery-alert || return 0
+  if [[ ! -x $relay_script ]]; then
+    printf 'unattended-log: relay.sh is not executable at %s; the broken-record-channel alert was NOT delivered either\n' "$relay_script"
     return 0
   fi
-  RELAY_HERMES_URL="$(unattended_log_url)" "$relay_script" --remote-only \
-    --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&- || true
+  "$relay_script" --agent "$agent" --state log-channel-broken \
+    --project "$(unattended_log_host)" \
+    --detail "$(printf 'The weekly record from %s could NOT be delivered to the unattended-upgrades channel (this job'"'"'s run log carries the HTTP status). Until this is fixed that channel is silent for a reason that has nothing to do with the jobs it reports on, so its silence means nothing. Check that the hermes gateway is up and that it serves the unattended-upgrades route.' "$agent")" 9>&- || true
   return 0
 }

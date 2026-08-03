@@ -54,12 +54,18 @@ export RELAY_CALL_LOG
 cat >"$tmp/relay-stub.sh" <<'STUB'
 #!/usr/bin/env bash
 printf 'ARGV %s\n' "$(printf '%s ' "$@" | tr '\n' ' ')" >>"$RELAY_CALL_LOG"
+# Which ROUTE this call went to. The log route is selected by the URL override
+# the record path sets; the alert route is relay's own default, so an unset
+# variable IS the alert route.
+printf 'URL %s\n' "${RELAY_HERMES_URL:-<unset>}" >>"$RELAY_CALL_LOG"
 if { : >&9; } 2>/dev/null; then
   printf 'FD9 inherited\n' >>"$RELAY_CALL_LOG"
 else
   printf 'FD9 closed\n' >>"$RELAY_CALL_LOG"
 fi
-printf 'relay: posted HTTP 200\n'
+# The real relay always exits 0 and reports the outcome on stdout, so this is
+# the only lever a caller has for telling a delivered entry from a refused one.
+printf '%s\n' "${RELAY_STUB_OUTCOME:-relay: posted HTTP 200}"
 STUB
 chmod +x "$tmp/relay-stub.sh"
 # __update_skills_alert resolves relay by absolute path under $HOME, not through
@@ -102,6 +108,9 @@ reset_calls() {
   rm -rf "$LOG_WEEK_GUARD"
 }
 posted_count() { grep -c '^ARGV ' "$RELAY_CALL_LOG" 2>/dev/null || true; }
+# Split by route: the log route carries entries, relay's default carries alerts.
+log_route_count() { grep -c "^URL $UNATTENDED_LOG_HERMES_URL$" "$RELAY_CALL_LOG" 2>/dev/null || true; }
+alert_route_count() { grep -c '^URL <unset>$' "$RELAY_CALL_LOG" 2>/dev/null || true; }
 
 # ── CONTROL. With every gate satisfied the entry is posted. Without this the
 #    gate assertions below would all pass on a function that never posts. ─────
@@ -170,6 +179,37 @@ __update_skills_record completed "the run that finished"
 __update_skills_record deferred "a later slot"
 [[ "$(posted_count)" -eq 2 ]] ||
   fail "a deferral after the completed entry posted, burying the truer message"
+
+# ── A REFUSED delivery must not consume the week, and must reach the ALERT
+#    route. relay exits 0 whatever the gateway answered, so a record that 401s
+#    looks exactly like a delivered one from here: claiming the week on it
+#    silences the remaining 23 slots and leaves the week with NO entry while the
+#    guard asserts it has one. And the failure cannot be reported on the channel
+#    that is broken, so it goes to the route that reaches the priority channel,
+#    once, which is the same reasoning that rejected passive drift alerts. ─────
+SCHEDULED=1
+DRYRUN=""
+reset_calls
+export RELAY_STUB_OUTCOME='relay: post FAILED HTTP 401'
+__update_skills_record deferred "first slot, refused"
+[[ "$(log_route_count)" -eq 1 ]] ||
+  fail "the refused attempt did not reach the log route once: $(cat "$RELAY_CALL_LOG")"
+[[ "$(alert_route_count)" -eq 1 ]] ||
+  fail "a broken record channel raised $(alert_route_count) alerts, want 1: $(cat "$RELAY_CALL_LOG")"
+grep -qF -- '--state log-channel-broken' "$RELAY_CALL_LOG" ||
+  fail "the alert does not say the record CHANNEL is what broke: $(cat "$RELAY_CALL_LOG")"
+__update_skills_record deferred "second slot, refused"
+[[ "$(log_route_count)" -eq 2 ]] ||
+  fail "a week whose entry was refused did not retry on the next slot; it stayed claimed with nothing sent"
+[[ "$(alert_route_count)" -eq 1 ]] ||
+  fail "the broken-channel alert repeated within one week: $(cat "$RELAY_CALL_LOG")"
+# ...and once a slot DELIVERS, the week is claimed and the rest go quiet.
+unset RELAY_STUB_OUTCOME
+__update_skills_record deferred "third slot, delivered"
+[[ "$(log_route_count)" -eq 3 ]] || fail "the retrying slot did not post"
+__update_skills_record deferred "fourth slot"
+[[ "$(log_route_count)" -eq 3 ]] ||
+  fail "a delivered entry did not claim the week; the remaining slots would post again"
 
 # ── BOTH relay call sites close fd 9. The run holds its serialize lock as a
 #    kernel flock on fd 9; relay detaches channels that outlive the run, and a
