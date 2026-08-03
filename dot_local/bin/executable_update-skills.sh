@@ -855,6 +855,16 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # malformed committed forks entry, and check_fork_drift validates the table and
 # every entry at RUN time, reporting each failure loudly and per entry without
 # refusing the run that publishes and prunes.
+# `claudeDelivery` IS validated here, unlike `forks`, because the MUTATING Claude
+# fan-out reads it (converge_claude_skills subtracts the "none" set from the store
+# links). __update_skills_claude_undelivered fails OPEN by design: a jq that
+# errored yields an empty undelivered set, which quietly RESTORES an exempted
+# skill's ~/.claude link (last30days). A deployed claudeDelivery that is an array
+# or a string, or an object whose values are not "none", drove exactly that
+# fail-open past the old gate. Reject a present-but-non-object table and any value
+# other than the string "none" (absent means the default, delivered), so a
+# malformed delivery table refuses the run loudly instead of silently restoring a
+# de-delivered skill.
 __gen_roster_schema_ok() {
   jq -e '
     def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
@@ -863,11 +873,13 @@ __gen_roster_schema_ok() {
     and object_or_absent("npxTracked")
     and object_or_absent("clawhubTracked")
     and object_or_absent("tiers")
+    and object_or_absent("claudeDelivery")
     and ((.npxTracked // {}) | to_entries
       | all((.value | type == "object") and nonempty_string(.value.repo)))
     and ((.clawhubTracked // {}) | to_entries
       | all((.value | type == "object")
         and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
+    and ((.claudeDelivery // {}) | to_entries | all(.value == "none"))
   ' "$1" >/dev/null 2>&1
 }
 
