@@ -235,6 +235,19 @@ __agent_plugins_should_defer() {
   return 1
 }
 
+# run_claude <args...> -- every `claude` invocation goes through here so the
+# serialize-lock fd 9 is CLOSED for the CLI and everything it spawns. relay is not
+# the only thing that can detach a child: a `claude` command that starts a
+# background helper outliving the CLI would inherit fd 9, and a kernel flock is
+# held until the LAST copy of the fd closes, so that helper would keep the lock
+# held after this run exited and defer every later slot over a competing run that
+# does not exist. The caller keeps its own stdout/stderr redirections; 9>&- only
+# closes the lock fd. Closing an fd that was never opened (non-darwin, no lockf)
+# is a harmless no-op.
+run_claude() {
+  "$CLAUDE_CLI" "$@" 9>&-
+}
+
 # __agent_plugins_inventory <outfile> -- `claude plugin list --json` into a file.
 # Non-zero when the command failed OR when what came back is not a JSON array:
 # the record's other paths read this file, and a half-written or HTML-error body
@@ -242,7 +255,7 @@ __agent_plugins_should_defer() {
 # a clean-looking answer to a question that was never answered.
 __agent_plugins_inventory() {
   local out="$1"
-  "$CLAUDE_CLI" plugin list --json >"$out" 2>/dev/null || return 1
+  run_claude plugin list --json >"$out" 2>/dev/null || return 1
   jq -e 'type == "array"' "$out" >/dev/null 2>&1 || return 1
   return 0
 }
@@ -336,7 +349,7 @@ __agent_plugins_versions "$workspace/before.json" "$AGENT_PLUGINS_LOCK" >"$works
 # name is behaviour this repo has not measured, and this vertical never removes
 # a marketplace, so the safe move is to add only what is missing.
 __agent_plugins_marketplace_configured() {
-  "$CLAUDE_CLI" plugin marketplace list --json 2>/dev/null |
+  run_claude plugin marketplace list --json 2>/dev/null |
     jq -e --arg name "$1" 'any(.[]; .name == $name)' >/dev/null 2>&1
 }
 
@@ -365,12 +378,12 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
         failed_plugins+=("$plugin_id: its marketplace $marketplace has no repo in the lock, so it cannot be obtained")
         continue
       fi
-      if ! marketplace_output="$("$CLAUDE_CLI" plugin marketplace add "$marketplace_repo" 2>&1)"; then
+      if ! marketplace_output="$(run_claude plugin marketplace add "$marketplace_repo" 2>&1)"; then
         failed_plugins+=("$plugin_id: marketplace add $marketplace_repo failed: $marketplace_output")
         continue
       fi
     fi
-    if install_output="$("$CLAUDE_CLI" plugin install "$plugin_id" 2>&1)"; then
+    if install_output="$(run_claude plugin install "$plugin_id" 2>&1)"; then
       installed_plugins+=("$plugin_id")
       printf '   installed: %s\n' "$plugin_id"
     else
@@ -392,7 +405,7 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
     continue
   fi
 
-  if update_output="$("$CLAUDE_CLI" plugin update "$plugin_id" 2>&1)"; then
+  if update_output="$(run_claude plugin update "$plugin_id" 2>&1)"; then
     refreshed_plugins+=("$plugin_id")
     # Collected HERE and nowhere else: the unknowable sentence says those
     # plugins were REFRESHED, so it may only name ones this run actually

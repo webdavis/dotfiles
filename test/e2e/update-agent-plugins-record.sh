@@ -81,6 +81,11 @@ STUBS="$tmp/stubs"
 mkdir -p "$STUBS"
 cat >"$STUBS/claude" <<'STUB'
 #!/usr/bin/env bash
+# The serialize lock lives on fd 9. A claude child that inherits it would keep a
+# kernel flock held after the run exited (a detached descendant outliving the
+# CLI), deferring every later slot over a competing run that does not exist. Only
+# log the inheritance, so a fixed run leaves no FD9-INHERITED line at all.
+{ : >&9; } 2>/dev/null && printf 'FD9-INHERITED %s\n' "$1 $2" >>"$CLAUDE_CALL_LOG"
 printf '%s\n' "$*" >>"$CLAUDE_CALL_LOG"
 case "$1 $2" in
   "plugin list")
@@ -267,6 +272,8 @@ grep -qF -- "--project $this_host" <<<"$entries" ||
 refute 'url=<default>' "$(cat "$RELAY_LOG")" "a clean run sent an alert; the alert route is for things to act on"
 refute 'fd9=inherited' "$(cat "$RELAY_LOG")" \
   "a relay call inherited the run's serialize-lock fd; a detached child would hold the lock after the run exited"
+refute 'FD9-INHERITED' "$(cat "$CLAUDE_CALL_LOG")" \
+  "a claude plugin call inherited the run's serialize-lock fd 9; a detached descendant of the CLI would keep the flock held after the run exited, deferring every later slot"
 [[ -s $MARKER ]] || fail "a successful run did not record its timestamp at $MARKER"
 
 # ── 2. The DISABLED plugin is skipped, and the skip is a fact about the CALLS,
