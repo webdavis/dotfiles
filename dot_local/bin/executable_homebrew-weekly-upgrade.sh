@@ -157,20 +157,6 @@ __homebrew_package_snapshot() {
   esac
 }
 
-# __homebrew_change_section <ok-flag> <before> <after> <label> <caveat> <source>
-# -- one section of the record. When the snapshot could not be read, SAY THAT
-# instead of comparing two empty files, because "0 of 0 tracked entries changed"
-# and "I could not look" are opposite facts that used to render identically.
-__homebrew_change_section() {
-  local ok="$1" before="$2" after="$3" label="$4" caveat="$5" source_command="$6"
-  if [[ -z $ok ]]; then
-    printf '%s: NOT COMPARED -- %s failed on this run, so nothing here says what changed; it says this run could not read what is installed.' \
-      "$label" "$source_command"
-    return 0
-  fi
-  unattended_log_change_line "$before" "$after" "$label" "$caveat" versions
-}
-
 # Serialize: one weekly upgrade at a time, via the KERNEL. The Monday-noon
 # LaunchAgent and an ad-hoc `just brew-upgrade` must never run concurrent
 # brew/mas/cleanup/tailscaled operations. macOS ships /usr/bin/lockf
@@ -284,16 +270,16 @@ if [[ -n $snapshot_dir ]]; then
   __homebrew_package_snapshot brew >"$snapshot_dir/brew.after" || brew_snapshot_ok=""
   __homebrew_package_snapshot mas >"$snapshot_dir/mas.after" || mas_snapshot_ok=""
   weekly_record completed "$(printf '%s\n%s\nfailed steps: %d' \
-    "$(__homebrew_change_section "$brew_snapshot_ok" \
+    "$(unattended_log_change_section "$brew_snapshot_ok" \
       "$snapshot_dir/brew.before" "$snapshot_dir/brew.after" \
       'formulae and casks' \
       'Versions are what brew list --versions reports; a formula reinstalled at the same version does not appear here, and a cask Homebrew tracks only as latest reports that literal string rather than a version.' \
-      'brew list --versions')" \
-    "$(__homebrew_change_section "$mas_snapshot_ok" \
+      versions 'brew list --versions')" \
+    "$(unattended_log_change_section "$mas_snapshot_ok" \
       "$snapshot_dir/mas.before" "$snapshot_dir/mas.after" \
       'App Store apps' \
       'Versions are what mas list reports, keyed by app name.' \
-      'mas list')" \
+      versions 'mas list')" \
     "$weekly_upgrade_failures")"
 fi
 

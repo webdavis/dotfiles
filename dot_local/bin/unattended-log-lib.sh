@@ -363,6 +363,25 @@ unattended_log_change_line() {
     "$label" "${#changed[@]}" "$total" "$shown" "$caveat"
 }
 
+# unattended_log_change_section <ok-flag> <before> <after> <label> <caveat>
+#   <style> <source-description>
+#
+# One section of an entry, with the ONE thing a change list must never do built
+# in: when the reading it depends on failed, it says so instead of comparing two
+# files nothing could fill. Two empty snapshots render as "0 of N tracked entries
+# changed", which is indistinguishable from a quiet week on a subject this run
+# could not inspect at all -- the same shape as every other defect this record
+# exists to end. Shared by both weekly jobs so the two read alike.
+unattended_log_change_section() {
+  local ok="$1" before="$2" after="$3" label="$4" caveat="$5" style="$6" source_description="$7"
+  if [[ -z $ok ]]; then
+    printf '%s: NOT COMPARED -- %s failed on this run, so nothing here says what changed; it says this run could not read what is installed.' \
+      "$label" "$source_description"
+    return 0
+  fi
+  unattended_log_change_line "$before" "$after" "$label" "$caveat" "$style"
+}
+
 # unattended_log_post <agent> <state> <project> <detail> -- deliver one entry.
 #
 # --remote-only is not optional here. An unattended Monday-slot run is idle past

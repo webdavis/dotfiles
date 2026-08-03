@@ -310,9 +310,13 @@ __update_skills_change_snapshot() {
   local lane="$1" lock="$SKILLS_CURRENT/.skill-lock.json" origin name version
   case "$lane" in
     npx)
+      # An ABSENT lock is a fresh machine with nothing installed yet, which is a
+      # true empty answer. A lock that is present and unreadable is not: that
+      # status is passed on, so the entry can say it could not look rather than
+      # rendering "0 of 0 tracked entries changed" on a store it never read.
       if [[ -r $lock ]]; then
         jq -r '(.skills // {}) | to_entries[] | [.key, (.value.skillFolderHash // "-")] | @tsv' \
-          "$lock" 2>/dev/null || true
+          "$lock" 2>/dev/null
       fi
       ;;
     clawhub)
@@ -336,6 +340,26 @@ __update_skills_change_snapshot() {
       return 1
       ;;
   esac
+  # No `return 0` here: the READING's status is the answer. Forcing zero is what
+  # turned a lock this run could not parse into "an empty store", and an empty
+  # store renders as a clean week.
+}
+
+# Per-lane readability, mirroring homebrew-weekly-upgrade.sh: a lane is NOT
+# COMPARED when either of its two readings failed, because half a comparison is
+# not one.
+LOG_NPX_SNAPSHOT_OK=1
+LOG_CLAWHUB_SNAPSHOT_OK=1
+# __update_skills_take_snapshot <lane> <phase> -- one reading, and a note when it
+# failed. Never fatal: the record must not break the run it reports on.
+__update_skills_take_snapshot() {
+  local lane="$1" phase="$2"
+  __update_skills_change_snapshot "$lane" >"$LOG_CHANGE_DIR/$lane.$phase" 2>/dev/null && return 0
+  case "$lane" in
+    npx) LOG_NPX_SNAPSHOT_OK="" ;;
+    clawhub) LOG_CLAWHUB_SNAPSHOT_OK="" ;;
+  esac
+  log "weekly record: the $lane snapshot ($phase) could not be read; that lane will be reported as NOT COMPARED"
   return 0
 }
 
@@ -3691,8 +3715,7 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   }
   trap '__update_skills_cleanup' EXIT
   for __update_skills_lane in npx clawhub; do
-    __update_skills_change_snapshot "$__update_skills_lane" \
-      >"$LOG_CHANGE_DIR/$__update_skills_lane.before" 2>/dev/null || true
+    __update_skills_take_snapshot "$__update_skills_lane" before
   done
 fi
 
@@ -3800,8 +3823,7 @@ fi
 # the count rather than implying a clean week.
 if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_DIR ]]; then
   for __update_skills_lane in npx clawhub; do
-    __update_skills_change_snapshot "$__update_skills_lane" \
-      >"$LOG_CHANGE_DIR/$__update_skills_lane.after" 2>/dev/null || true
+    __update_skills_take_snapshot "$__update_skills_lane" after
   done
   # The two lanes this record can SEE are the two store lanes it snapshots. The
   # same run also refreshes the cua-driver pack through that app's own updater
@@ -3810,14 +3832,16 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_DIR ]]; then
   # implying a version number exists where none does, so the entry says what it
   # cannot see rather than leaving the reader to assume it saw everything.
   __update_skills_record completed "$(printf '%s\n%s\n%s\n%s\nrequired-phase failures: %d' \
-    "$(unattended_log_change_line "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.after" \
+    "$(unattended_log_change_section "$LOG_NPX_SNAPSHOT_OK" \
+      "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.after" \
       'npx-tracked skills' \
       'The change unit is the skill folder hash: this lane installs the latest commit from main with no pin and its lock records no version field, so NO VERSION NUMBER IS KNOWABLE for these skills.' \
-      opaque)" \
-    "$(unattended_log_change_line "$LOG_CHANGE_DIR/clawhub.before" "$LOG_CHANGE_DIR/clawhub.after" \
+      opaque 'reading the generation lock')" \
+    "$(unattended_log_change_section "$LOG_CLAWHUB_SNAPSHOT_OK" \
+      "$LOG_CHANGE_DIR/clawhub.before" "$LOG_CHANGE_DIR/clawhub.after" \
       'clawhub-tracked skills' \
       'This lane records an installed version, so a version number is knowable here.' \
-      versions)" \
+      versions 'reading the clawhub origin markers')" \
     'NOT COVERED by the two lines above: the cua-driver pack (refreshed by that app own updater, through a symlink this record never reads) and the hermes-registry-owned skills (hermes owns those installs). A change to either is NOT visible here, so silence about them means nothing.' \
     "$LOG_STAMP_NOTE" \
     "$REQUIRED_FAILURES")"

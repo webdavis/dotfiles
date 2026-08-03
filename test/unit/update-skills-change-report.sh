@@ -108,6 +108,37 @@ if __update_skills_change_snapshot bogus >"$tmp/bogus" 2>/dev/null; then
   fail "an unknown lane produced a snapshot instead of failing"
 fi
 
+# ── A lock that is PRESENT and unreadable is not an empty store. An absent lock
+#    is a fresh machine and truthfully has nothing in it; a corrupt one is a
+#    store this run could not inspect, and rendering the two the same way is how
+#    a record reports a clean week for a reading it never made. ───────────────
+cp "$SKILLS_CURRENT/.skill-lock.json" "$tmp/good-lock.json"
+printf 'not json at all\n' >"$SKILLS_CURRENT/.skill-lock.json"
+if __update_skills_change_snapshot npx >"$tmp/corrupt" 2>/dev/null; then
+  fail "a corrupt generation lock was reported as a successful reading of an empty store"
+fi
+
+# ...and the run REMEMBERS that, so the entry says NOT COMPARED for that lane
+# rather than comparing two files nothing could fill.
+LOG_CHANGE_DIR="$tmp/changes"
+mkdir -p "$LOG_CHANGE_DIR"
+LOG_NPX_SNAPSHOT_OK=1
+LOG_CLAWHUB_SNAPSHOT_OK=1
+__update_skills_take_snapshot npx before
+[[ -z $LOG_NPX_SNAPSHOT_OK ]] ||
+  fail "a failed reading was recorded as a successful one; the lane would be compared anyway"
+[[ -n $LOG_CLAWHUB_SNAPSHOT_OK ]] ||
+  fail "one lane failing marked the other unreadable too"
+section="$(unattended_log_change_section "$LOG_NPX_SNAPSHOT_OK" \
+  "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.before" 'npx-tracked skills' 'caveat' opaque 'reading the generation lock')"
+grep -qiF 'NOT COMPARED' <<<"$section" ||
+  fail "a lane that could not be read rendered as a comparison: '$section'"
+refute '0 of 0' "$section" "an unreadable lane rendered as a clean comparison of nothing: '$section'"
+cp "$tmp/good-lock.json" "$SKILLS_CURRENT/.skill-lock.json"
+section="$(unattended_log_change_section 1 \
+  "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.before" 'npx-tracked skills' 'caveat' opaque 'reading the generation lock')"
+refute 'NOT COMPARED' "$section" "a lane that WAS read still rendered as unreadable: '$section'"
+
 # ── The RENDERING lives in unattended-log-lib.sh and is covered by
 #    test/unit/unattended-log-lib.sh; this file's job is the two SOURCES the
 #    snapshot reads, which are specific to this store's layout. ──────────────
