@@ -218,6 +218,24 @@ reset_state() {
 ]
 EOF
   printf '[{"name":"mkt-a","source":"github","repo":"owner/mkt-a","installLocation":"/dev/null"}]\n' >"$MARKETPLACE_STATE"
+  # ~/.claude/settings.json is the USER-scope containment source of truth: a plugin
+  # is updated only if enabledPlugins[id] is true. The two contained fixtures are
+  # false here; the rest are enabled. This is where disabled-ness is read from, NOT
+  # the inventory's effective `enabled` (which is cwd-dependent).
+  mkdir -p "$HOME/.claude"
+  cat >"$HOME/.claude/settings.json" <<'EOF'
+{
+  "enabledPlugins": {
+    "steady@mkt-a": true,
+    "mover@mkt-a": true,
+    "sha@mkt-a": true,
+    "opaque@mkt-a": true,
+    "contained@mkt-a": false,
+    "containedopaque@mkt-a": false,
+    "absent@mkt-b": true
+  }
+}
+EOF
   : >"$CLAUDE_CALL_LOG"
   rm -rf "$HOME/.local/state"
   : >"$RELAY_LOG"
@@ -387,8 +405,8 @@ refute 'steady@mkt-a. `1' "$entries" "an unchanged plugin was listed as changed:
 #       without anyone noticing. Both unknowable fixture plugins sit disabled
 #       here, so the lane has members and none of them was refreshed. ──────────
 reset_state
-jq 'map(if .id == "opaque@mkt-a" then .enabled = false else . end)' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
-  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+jq '.enabledPlugins."opaque@mkt-a" = false' "$HOME/.claude/settings.json" >"$HOME/.claude/settings.json.tmp" &&
+  mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
 run_helper --scheduled
 [[ $RUN_RC -eq 0 ]] || fail "the zero-unknowable run exited $RUN_RC: $RUN_OUTPUT"
 entries="$(log_entries)"
@@ -970,5 +988,45 @@ refute 'plugin marketplace add [^ ]*mkt-a' "$(cat "$CLAUDE_CALL_LOG")" \
   "the updater re-added the re-pointed mkt-a marketplace it must never touch: $(cat "$CLAUDE_CALL_LOG")"
 grep -qF 'impostor/mkt-a' <<<"$(alert_entries)" ||
   fail "the alert does not name the re-pointed repo, so there is nothing to act on: $(alert_entries)"
+
+# ── 22. Containment is read from ~/.claude/settings.json (user scope), NOT the
+#        inventory's effective `enabled` (F17). The effective field is merged, so
+#        a project that re-enables a user-disabled plugin makes the inventory
+#        report enabled=true when the CLI runs there. Make the inventory say
+#        contained is enabled while settings.json keeps it disabled: the updater
+#        must STILL skip it, or a hand run from such a project would update the
+#        very plugin the operator contained. ─────────────────────────────────────
+reset_state
+jq 'map(if .id == "contained@mkt-a" then .enabled = true else . end)' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+run_helper --scheduled
+refute '^plugin update contained@mkt-a$' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater trusted the inventory's effective enabled and updated a user-disabled plugin, breaching containment: $(cat "$CLAUDE_CALL_LOG")"
+grep -qF 'contained@mkt-a' <<<"$(log_entries)" ||
+  fail "the record does not name the contained plugin as skipped: $(log_entries)"
+
+# ── 23. A record MISSING `enabled` cannot sneak an update (F18a). Containment is
+#        decided by settings.json, so the inventory's enabled field is irrelevant:
+#        a record with no enabled is contained by settings, not defaulted to
+#        enabled-and-updated as the old inventory read did. ──────────────────────
+reset_state
+jq 'map(if .id == "contained@mkt-a" then del(.enabled) else . end)' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+run_helper --scheduled
+refute '^plugin update contained@mkt-a$' "$(cat "$CLAUDE_CALL_LOG")" \
+  "a record missing the enabled field was updated, overwriting a contained plugin: $(cat "$CLAUDE_CALL_LOG")"
+
+# ── 24. A plugin installed only at PROJECT scope is not the USER installation
+#        this job manages (F24). It is treated as absent and the user copy is
+#        INSTALLED, instead of a user-scope update that fails against a copy that
+#        is not there and never installs the user one. ───────────────────────────
+reset_state
+jq 'map(if .id == "steady@mkt-a" then .scope = "project" else . end)' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+run_helper --scheduled
+grep -qxF 'plugin install steady@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "a project-only plugin was not installed at user scope: $(cat "$CLAUDE_CALL_LOG")"
+refute '^plugin update steady@mkt-a$' "$(cat "$CLAUDE_CALL_LOG")" \
+  "a project-only plugin was updated (a user-scope update against a copy that is not there) instead of installed: $(cat "$CLAUDE_CALL_LOG")"
 
 printf 'update-agent-plugins-record: OK (a scheduled run records its class, host, run timestamp and gap; a disabled plugin is skipped by CALL and named, an untracked one is untouched, an absent one is installed after its marketplace is added; the unknowable lane reports refreshed-change-unknowable and never changed while both knowable lanes name their transition; a failed update alerts the priority route and does not consume the success marker; an inventory this run could not read attempts NOTHING and says so on both routes, while a failed AFTER reading still completes and says NOT COMPARED; a manual run records nothing, one record per week, a refused record retries and alerts once; the idle gate defers on live Claude activity and proceeds on a stale machine; lock contention defers; an unknown argument is an error)\n'

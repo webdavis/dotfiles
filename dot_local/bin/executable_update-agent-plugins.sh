@@ -50,6 +50,19 @@ set -uo pipefail
 
 CLAUDE_CLI="${UPDATE_AGENT_PLUGINS_CLAUDE:-claude}"
 AGENT_PLUGINS_LOCK="${UPDATE_AGENT_PLUGINS_LOCK_PATH:-$HOME/.agents/custom-agent-plugins-lock.json}"
+
+# The USER-scope containment source of truth. `claude plugin disable <id>` writes
+# enabledPlugins[id]=false into ~/.claude/settings.json, and the settings
+# modify-template preserves that false, so this file is where "the operator
+# contained this plugin" actually lives. Containment is read from HERE, not from
+# `claude plugin list --json`'s `enabled`: that field is the EFFECTIVE, merged
+# state (verified against claude 2.1.220), so a repo whose PROJECT settings enable
+# a user-disabled plugin makes the inventory report enabled=true when the CLI runs
+# in that project, and a hand run from such a directory would then update the very
+# plugin the operator contained. Reading enabledPlugins is cwd-independent and
+# user-scoped. A plugin is user-enabled iff enabledPlugins[id] is true; absent or
+# false is contained.
+CLAUDE_SETTINGS="${UPDATE_AGENT_PLUGINS_SETTINGS:-$HOME/.claude/settings.json}"
 LOCKFILE="${UPDATE_AGENT_PLUGINS_LOCKFILE:-$HOME/.local/state/update-agent-plugins.lock}"
 STATE_DIR="${UPDATE_AGENT_PLUGINS_STATE_DIR:-$HOME/.local/state/update-agent-plugins}"
 LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
@@ -381,6 +394,7 @@ __agent_plugins_versions() {
   jq -r --slurpfile lockdoc "$2" '
     ($lockdoc[0].plugins // {}) as $tracked
     | map(select((.id != null)
+        and (.scope == "user")
         and (.id | in($tracked))
         and (($tracked[.id].identityLane // "") != "unknowable")))
     | .[] | [.id, (.version // "")] | @tsv' "$1" 2>/dev/null | sort
@@ -398,6 +412,7 @@ __agent_plugins_versions_unknown() {
   jq -r --slurpfile lockdoc "$2" '
     ($lockdoc[0].plugins // {}) as $tracked
     | map(select((.id != null)
+        and (.scope == "user")
         and (.id | in($tracked))
         and (($tracked[.id].identityLane // "") != "unknowable")
         and (((.version // "") == "") or (.version == "unknown"))))
@@ -483,8 +498,25 @@ if ! __agent_plugins_inventory "$workspace/before.json"; then
     'the installed-plugin inventory could not be read (`claude plugin list --json` failed or did not return a JSON array), so this run could not tell which plugins are present or which are DISABLED. It touched nothing rather than risk updating a plugin the operator deliberately disabled.'
 fi
 
-installed_ids="$(jq -r '.[].id // empty' "$workspace/before.json" 2>/dev/null)"
-disabled_ids="$(jq -r '.[] | select(.enabled == false) | .id // empty' "$workspace/before.json" 2>/dev/null)"
+# USER-scope installed ids (F24). A plugin installed only at PROJECT scope is not
+# the user installation this weekly job manages: counting it as installed made the
+# updater run a user-scope update that fails and never install the user copy, and
+# a plugin with a user AND a project row produced duplicate version snapshot rows.
+# Filtering to scope=="user" installs the missing user copy and de-duplicates.
+installed_ids="$(jq -r '.[] | select(.scope == "user") | .id // empty' "$workspace/before.json" 2>/dev/null)"
+
+# USER-scope enabled ids, from ~/.claude/settings.json (F17), NOT from the
+# inventory's effective `enabled`. Empty when the file is absent or unreadable,
+# which fails CLOSED: a plugin whose user-scope enabled state cannot be confirmed
+# is treated as contained and skipped, never updated. A record missing `enabled`
+# in the inventory (F18a) no longer matters, because containment is decided here.
+# ponytail: unreadable settings.json skips ALL installed plugins for the week (a
+# visible "N skipped" in the record + this warning); the modify-template
+# guarantees the file, so a hard abort would be disproportionate.
+user_enabled_ids="$(jq -r '(.enabledPlugins // {}) | to_entries[] | select(.value == true) | .key' "$CLAUDE_SETTINGS" 2>/dev/null || true)"
+if [[ ! -r $CLAUDE_SETTINGS ]]; then
+  printf 'update-agent-plugins: WARNING %s is unreadable; every installed plugin is treated as NOT user-enabled (skipped) this week\n' "$CLAUDE_SETTINGS" >&2
+fi
 before_ok=1
 __agent_plugins_versions "$workspace/before.json" "$AGENT_PLUGINS_LOCK" >"$workspace/before.tsv" || before_ok=""
 
@@ -591,13 +623,17 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
     continue
   fi
 
-  if grep -qxF -- "$plugin_id" <<<"$disabled_ids"; then
-    # DISABLED: skipped, with the tradeoff stated. `claude plugin update` on a
-    # disabled plugin PROCEEDS (exit 0) and overwrites the tree in place, so
-    # updating it would destroy the exact artifact the operator contained, and
-    # `disable` is the only recovery verb this vertical has. The cost of the
-    # skip is that a contained plugin goes stale, which is what containment
-    # means; re-enabling it puts it back in the weekly rotation.
+  if ! grep -qxF -- "$plugin_id" <<<"$user_enabled_ids"; then
+    # NOT USER-ENABLED (contained): skipped, with the tradeoff stated. Enabled-ness
+    # is read from ~/.claude/settings.json's enabledPlugins (user scope), so a
+    # plugin the operator disabled there is skipped no matter what the inventory's
+    # effective `enabled` says (F17), and a record with no enabled field cannot
+    # sneak an update either (F18a). `claude plugin update` on a disabled plugin
+    # PROCEEDS (exit 0) and overwrites the tree in place, so updating it would
+    # destroy the exact artifact the operator contained, and `disable` is the only
+    # recovery verb this vertical has. The cost of the skip is that a contained
+    # plugin goes stale, which is what containment means; re-enabling it puts it
+    # back in the weekly rotation.
     skipped_plugins+=("$plugin_id")
     printf '   skipped (disabled): %s\n' "$plugin_id"
     continue
