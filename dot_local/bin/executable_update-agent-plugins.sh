@@ -220,6 +220,35 @@ acquire_lock() {
   /usr/bin/lockf -s -t 0 9
 }
 
+# The last of the 24 hourly Monday slots. When a SCHEDULED run defers on it, the
+# week's retry budget is spent and nothing updated this week, which is task #95's
+# silent starvation, so that final slot alerts (like update-skills does). launchd
+# may COALESCE a missed slot onto a later weekday (a catch-up), which is also the
+# week's last scheduled chance, so a later slot remains ONLY on a Monday before
+# the last hour. `date +%u` is 1 for Monday; base 10 forces the hour compare so 08
+# is not read as invalid octal. Fails toward "no slot remains" (alert) on an
+# unreadable clock: a spurious starvation alert is visible and cheap, a missed one
+# is the silence this exists to end.
+LAST_SLOT_HOUR="${UPDATE_AGENT_PLUGINS_LAST_SLOT_HOUR:-23}"
+__agent_plugins_no_slot_remains() {
+  local dow hour
+  dow="$(date +%u 2>/dev/null)"
+  hour="$(date +%H 2>/dev/null)"
+  hour="${hour#0}"
+  [[ -n $hour ]] || hour=0
+  [[ $dow =~ ^[0-9]+$ ]] || return 0
+  [[ $hour =~ ^[0-9]+$ ]] || hour=0
+  [[ $dow == "1" && $((10#$hour)) -lt $((10#$LAST_SLOT_HOUR)) ]] && return 1
+  return 0
+}
+
+# Exhaustion is claimed ONLY for a scheduled run with no later slot this week. A
+# hand run never claims scheduled-budget exhaustion.
+__agent_plugins_budget_exhausted() {
+  [[ -n $SCHEDULED ]] || return 1
+  __agent_plugins_no_slot_remains
+}
+
 # __agent_plugins_should_defer -- 0 = DEFER, 1 = PROCEED. See the gate rationale
 # above. Fails CLOSED on an unreadable activity dir or a scan error: the cost of
 # a wrong defer is one week, the cost of a wrong proceed is a corrupted live
@@ -410,6 +439,13 @@ fi
 if __agent_plugins_should_defer; then
   printf 'update-agent-plugins: a Claude Code session wrote a transcript within the last %ss (or the probe failed); deferring (exit 75).\n' \
     "$IDLE_THRESHOLD_SECONDS" >&2
+  # On the LAST scheduled slot this deferral means the week's retry budget is
+  # spent and nothing updated: a starving idle gate is #95's exact failure, so it
+  # alerts on the priority route instead of vanishing. Earlier slots defer quietly.
+  if __agent_plugins_budget_exhausted; then
+    printf 'update-agent-plugins: EXHAUSTED -- the last scheduled slot this week still deferred; nothing was updated.\n' >&2
+    weekly_alert deferred-exhausted "$(printf 'The weekly agent-plugin update deferred on every scheduled Monday slot this week (a Claude Code session was active at each), so no plugin was updated. Run it by hand when the machine is idle: ~/.local/bin/update-agent-plugins.sh --scheduled.')"
+  fi
   weekly_record deferred "$(printf 'nothing was attempted: a Claude Code transcript under %s was written within the last %s seconds (or the probe could not be read, which fails closed), so this slot deferred rather than swapping a plugin tree under a live session. A later Monday slot retries; the gap line above is what a permanently deferring gate looks like.' \
     "$CLAUDE_ACTIVITY_DIR" "$IDLE_THRESHOLD_SECONDS")"
   exit 75

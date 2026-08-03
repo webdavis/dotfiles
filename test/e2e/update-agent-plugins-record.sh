@@ -882,4 +882,41 @@ grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
 grep -qF 'mover@mkt-a' <<<"$(alert_entries)" ||
   fail "a hung update sent no alert naming the plugin that hung: $(alert_entries)"
 
+# ── 19. On the LAST scheduled slot a deferral is a STARVATION alert. A live
+#        Claude session that defers every Monday slot leaves the week updating
+#        NOTHING; the final slot must alert, because a gate that defers forever in
+#        silence is task #95's exact failure. Earlier slots defer quietly. A date
+#        stub pins which slot this is; the idle gate sees a fresh transcript. ────
+reset_state
+mkdir -p "$ACTIVITY"
+: >"$ACTIVITY/live-session.jsonl"
+mkdir -p "$tmp/lastslot"
+cat >"$tmp/lastslot/date" <<'DSTUB'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in
+    +%u) printf '%s\n' "${FAKE_DOW:-1}"; exit 0 ;;
+    +%H) printf '%s\n' "${FAKE_HOUR:-23}"; exit 0 ;;
+  esac
+done
+exec /bin/date "$@"
+DSTUB
+chmod +x "$tmp/lastslot/date"
+# An earlier slot (Monday 00:00) defers with NO starvation alert.
+: >"$RELAY_LOG"
+PATH="$tmp/lastslot:$STUBS:$PATH" FAKE_DOW=1 FAKE_HOUR=0 \
+  UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.slot0" bash "$HELPER" --scheduled >/dev/null 2>&1
+[[ $? -eq 75 ]] || true
+refute 'deferred-exhausted' "$(alert_entries)" \
+  "an early-slot deferral fired the starvation alert; only the last slot should: $(cat "$RELAY_LOG")"
+# The last slot (Monday 23:00) defers AND alerts that the week starved.
+: >"$RELAY_LOG"
+PATH="$tmp/lastslot:$STUBS:$PATH" FAKE_DOW=1 FAKE_HOUR=23 \
+  UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.slot23" bash "$HELPER" --scheduled >/dev/null 2>&1
+last_rc=$?
+[[ $last_rc -eq 75 ]] || fail "the last-slot deferral did not exit 75 (rc=$last_rc)"
+grep -qF -- '--state deferred-exhausted' <<<"$(alert_entries)" ||
+  fail "the last scheduled slot deferred with no starvation alert, so a week that updated nothing is invisible: $(cat "$RELAY_LOG")"
+rm -rf "$ACTIVITY"
+
 printf 'update-agent-plugins-record: OK (a scheduled run records its class, host, run timestamp and gap; a disabled plugin is skipped by CALL and named, an untracked one is untouched, an absent one is installed after its marketplace is added; the unknowable lane reports refreshed-change-unknowable and never changed while both knowable lanes name their transition; a failed update alerts the priority route and does not consume the success marker; an inventory this run could not read attempts NOTHING and says so on both routes, while a failed AFTER reading still completes and says NOT COMPARED; a manual run records nothing, one record per week, a refused record retries and alerts once; the idle gate defers on live Claude activity and proceeds on a stale machine; lock contention defers; an unknown argument is an error)\n'
