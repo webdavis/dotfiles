@@ -50,13 +50,19 @@ check_code() {
 }
 
 check_code '[urgent: click here](https://evil.example)' "markdown link"
+# The backticks below are LITERAL test input; single quotes keep them from
+# starting a command substitution, which is exactly the hostile case under test.
+# shellcheck disable=SC2016
 check_code 'oops `injected` span closer' "embedded backticks"
+# shellcheck disable=SC2016
 check_code 'both `a](http://x) and `b' "backticks around a link"
 printf -v with_cr 'line1\rline2'
 check_code "$with_cr" "carriage return"
 printf -v with_bel 'ding\ading'
 check_code "$with_bel" "bell control char"
-# OSC-8 terminal hyperlink: ESC ] 8 ;; URL ESC \ TEXT ESC ] 8 ;; ESC \
+# OSC-8 terminal hyperlink: ESC ] 8 ;; URL ESC \ TEXT ESC ] 8 ;; ESC \ -- the
+# trailing \\ is an escaped backslash for printf, not an escaped quote.
+# shellcheck disable=SC1003
 printf -v osc8 '\033]8;;https://evil.example\033\\click me\033]8;;\033\\'
 check_code "$osc8" "OSC-8 hyperlink escape"
 check_code 'plain@mkt-a: update failed: could not reach marketplace' "benign passthrough"

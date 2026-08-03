@@ -513,7 +513,7 @@ run_helper --scheduled
 run_helper --scheduled
 [[ "$(log_entry_count)" -eq 0 ]] || fail "a second scheduled run in the same week posted again"
 second_updates="$(updated_ids | tr '\n' ' ')"
-[[ -z "${second_updates// /}" ]] ||
+[[ -z ${second_updates// /} ]] ||
   fail "a second same-week slot RE-RAN plugin updates instead of running zero: [$second_updates]"
 refute '^plugin install ' "$(cat "$CLAUDE_CALL_LOG")" \
   "a second same-week slot re-ran installs: $(cat "$CLAUDE_CALL_LOG")"
