@@ -242,17 +242,45 @@ __agent_plugins_should_defer() {
   return 1
 }
 
-# run_claude <args...> -- every `claude` invocation goes through here so the
-# serialize-lock fd 9 is CLOSED for the CLI and everything it spawns. relay is not
-# the only thing that can detach a child: a `claude` command that starts a
-# background helper outliving the CLI would inherit fd 9, and a kernel flock is
-# held until the LAST copy of the fd closes, so that helper would keep the lock
-# held after this run exited and defer every later slot over a competing run that
-# does not exist. The caller keeps its own stdout/stderr redirections; 9>&- only
-# closes the lock fd. Closing an fd that was never opened (non-darwin, no lockf)
-# is a harmless no-op.
+# The per-call wall-clock bound. `claude plugin list/marketplace/install/update`
+# each reach the network, and any one of them hanging (a stuck TLS handshake, a
+# marketplace that accepts the connection and never answers) would leave THIS run
+# holding the serialize lock forever, so no later Monday slot could recover the
+# single wedged launchd job. A bound turns a hang into a failed plugin, which
+# alerts, instead of a silent wedge. Measured 2026-08-03: GNU coreutils `timeout`
+# is on both the flake `run` shell and the LaunchAgent PATH (the Homebrew
+# `/opt/homebrew/bin/timeout`); `gtimeout` is the fallback name. A machine with
+# neither runs unbounded and says so once, because refusing to update at all is
+# worse than an unbounded call on a host that lacks coreutils.
+CLAUDE_CALL_TIMEOUT="${UPDATE_AGENT_PLUGINS_CALL_TIMEOUT:-300}"
+[[ $CLAUDE_CALL_TIMEOUT =~ ^[0-9]+$ ]] || CLAUDE_CALL_TIMEOUT=300
+CLAUDE_TIMEOUT_BIN=""
+for __cand in timeout gtimeout; do
+  if command -v "$__cand" >/dev/null 2>&1; then
+    CLAUDE_TIMEOUT_BIN="$__cand"
+    break
+  fi
+done
+[[ -n $CLAUDE_TIMEOUT_BIN ]] ||
+  printf 'update-agent-plugins: WARNING neither timeout nor gtimeout is on PATH; claude calls run UNBOUNDED and a hang would wedge this LaunchAgent (install coreutils)\n' >&2
+
+# run_claude <args...> -- every `claude` invocation goes through here so it is
+# BOUNDED (see CLAUDE_CALL_TIMEOUT) and the serialize-lock fd 9 is CLOSED for the
+# CLI and everything it spawns. relay is not the only thing that can detach a
+# child: a `claude` command that starts a background helper outliving the CLI
+# would inherit fd 9, and a kernel flock is held until the LAST copy of the fd
+# closes, so that helper would keep the lock held after this run exited and defer
+# every later slot over a competing run that does not exist. The caller keeps its
+# own stdout/stderr redirections; 9>&- only closes the lock fd. Closing an fd that
+# was never opened (non-darwin, no lockf) is a harmless no-op. `-k 30` guarantees
+# a KILL if the CLI ignores the TERM the deadline sends. A timed-out call exits
+# non-zero (124), which every call site already treats as a failed plugin.
 run_claude() {
-  "$CLAUDE_CLI" "$@" 9>&-
+  if [[ -n $CLAUDE_TIMEOUT_BIN ]]; then
+    "$CLAUDE_TIMEOUT_BIN" -k 30 "$CLAUDE_CALL_TIMEOUT" "$CLAUDE_CLI" "$@" 9>&-
+  else
+    "$CLAUDE_CLI" "$@" 9>&-
+  fi
 }
 
 # __agent_plugins_inventory <outfile> -- `claude plugin list --json` into a file.

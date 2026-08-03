@@ -129,6 +129,12 @@ case "$1 $2" in
     esac
     ;;
   "plugin update")
+    for hang in ${CLAUDE_UPDATE_HANG:-}; do
+      [[ $3 == "$hang" ]] && {
+        sleep "${CLAUDE_HANG_SECS:-10}"
+        exit 0
+      }
+    done
     for bad in ${CLAUDE_FAIL_UPDATE:-}; do
       [[ $3 == "$bad" ]] && {
         printf 'Failed to update plugin "%s": Plugin not found\n' "$3" >&2
@@ -232,7 +238,10 @@ run_helper() {
   RUN_OUTPUT="$(PATH="$STUBS:$PATH" \
     UPDATE_AGENT_PLUGINS_FORCE="${UPDATE_AGENT_PLUGINS_FORCE:-1}" \
     UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.$lock_seq" \
+    UPDATE_AGENT_PLUGINS_CALL_TIMEOUT="${UPDATE_AGENT_PLUGINS_CALL_TIMEOUT:-}" \
     CLAUDE_FAIL_UPDATE="${CLAUDE_FAIL_UPDATE:-}" \
+    CLAUDE_UPDATE_HANG="${CLAUDE_UPDATE_HANG:-}" \
+    CLAUDE_HANG_SECS="${CLAUDE_HANG_SECS:-}" \
     CLAUDE_FAIL_INSTALL="${CLAUDE_FAIL_INSTALL:-}" \
     CLAUDE_FAIL_MARKETPLACE_ADD="${CLAUDE_FAIL_MARKETPLACE_ADD:-}" \
     CLAUDE_BUMP="${CLAUDE_BUMP:-}" \
@@ -715,5 +724,22 @@ run_helper --schedluled
 [[ $RUN_RC -ne 0 ]] || fail "an unknown argument exited 0"
 grep -qiE 'usage|unknown' <<<"$RUN_OUTPUT" || fail "an unknown argument produced no usage message: $RUN_OUTPUT"
 refute '^plugin ' "$(cat "$CLAUDE_CALL_LOG")" "an unknown argument still ran plugin commands"
+
+# ── 18. A HUNG claude call is BOUNDED, not a wedge. Any plugin command that
+#       reached a stuck network would otherwise hold the serialize lock forever,
+#       so no later Monday slot could recover the single launchd job. A bounded
+#       call becomes a failed plugin (which alerts), and the run returns. ───────
+reset_state
+hang_start="$(date +%s)"
+CLAUDE_UPDATE_HANG="mover@mkt-a" CLAUDE_HANG_SECS=30 UPDATE_AGENT_PLUGINS_CALL_TIMEOUT=1 \
+  run_helper --scheduled
+hang_elapsed=$(($(date +%s) - hang_start))
+[[ $RUN_RC -ne 0 ]] || fail "a hung update did not fail the run (rc=$RUN_RC): $RUN_OUTPUT"
+[[ $hang_elapsed -lt 25 ]] ||
+  fail "a hung claude call was not bounded (the run took ${hang_elapsed}s); the LaunchAgent would wedge and no later slot could recover the single launchd job"
+grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "one hung plugin aborted the remaining updates: $(cat "$CLAUDE_CALL_LOG")"
+grep -qF 'mover@mkt-a' <<<"$(alert_entries)" ||
+  fail "a hung update sent no alert naming the plugin that hung: $(alert_entries)"
 
 printf 'update-agent-plugins-record: OK (a scheduled run records its class, host, run timestamp and gap; a disabled plugin is skipped by CALL and named, an untracked one is untouched, an absent one is installed after its marketplace is added; the unknowable lane reports refreshed-change-unknowable and never changed while both knowable lanes name their transition; a failed update alerts the priority route and does not consume the success marker; an inventory this run could not read attempts NOTHING and says so on both routes, while a failed AFTER reading still completes and says NOT COMPARED; a manual run records nothing, one record per week, a refused record retries and alerts once; the idle gate defers on live Claude activity and proceeds on a stale machine; lock contention defers; an unknown argument is an error)\n'
