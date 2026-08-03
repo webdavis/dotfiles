@@ -561,27 +561,67 @@ grep -qF 'plugins with a knowable version: 1 of 5 tracked entries changed' <<<"$
 grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
   fail "an id-less inventory record stopped the updates running: $(cat "$CLAUDE_CALL_LOG")"
 
-# ── 13c. The BEFORE reading is the symmetric case, and it fails the other way.
-#        A source that could not be read before the run but could after it has
-#        no baseline, so comparing the two reports every installed plugin as
-#        newly ADDED: a whole-roster change list, invented, in the channel whose
-#        value is that its contents are trustworthy. The injected shape is a
-#        JSON array of non-objects, which passes the array check the inventory
-#        gate applies and then breaks every .id lookup, so it is a shape the CLI
-#        could really hand back after a schema change.
+# ── 13c. A BEFORE inventory that is a JSON array of NON-OBJECTS attempts
+#        NOTHING. [1, 2] passed the bare "is it an array" check and then broke
+#        every .id/.enabled extraction, so every tracked plugin looked absent and
+#        the run tried to INSTALL the whole roster while it could not tell which
+#        plugins the operator had DISABLED, overwriting a contained tree. A shape
+#        it cannot read is fail-closed: attempt nothing, alert, record a deferral.
+#        A schema change could really hand back such a body.
 reset_state
 rm -f "$tmp/shape-marker"
 CLAUDE_LIST_SHAPE_ONCE=1 CLAUDE_LIST_SHAPE_MARKER="$tmp/shape-marker" run_helper --scheduled
-[[ $RUN_RC -eq 0 ]] || fail "a run whose BEFORE snapshot could not be built exited $RUN_RC: $RUN_OUTPUT"
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a non-object BEFORE inventory exited 0 instead of attempting nothing: $RUN_OUTPUT"
+refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "a non-object inventory triggered an install storm, or updated plugins without knowing which were disabled: $(cat "$CLAUDE_CALL_LOG")"
+entries="$(log_entries)"
+grep -qF -- '--state deferred' <<<"$entries" ||
+  fail "a non-object BEFORE inventory did not record a deferral: $entries"
+grep -qF 'claude plugin list --json' <<<"$entries" ||
+  fail "the record does not name the command whose output could not be read: $entries"
+[[ -n "$(alert_entries)" ]] || fail "a non-object inventory sent no alert: $(cat "$RELAY_LOG")"
+[[ ! -e $MARKER ]] || fail "a run that attempted nothing recorded a successful run"
+
+# ── 13d. A malformed AFTER snapshot reads NOT COMPARED, never a list of removals.
+#        The updates ran and the before snapshot was valid, but the after read
+#        came back [1, 2], an array of non-objects that passed the old array check
+#        so after_ok stayed true, and the comparison against a valid before
+#        rendered every tracked plugin as REMOVED. Rejecting the non-object after
+#        makes the section say the comparison could not be made.
+reset_state
+cat >"$STUBS/claude.after-nonobject" <<'WRAP'
+#!/usr/bin/env bash
+# A JSON array of non-objects on every `plugin list` AFTER the first, so the
+# before snapshot is valid and only the after one is malformed.
+if [[ "$1 $2" == "plugin list" ]]; then
+  if [[ -e $AFTER_NONOBJ_MARKER ]]; then
+    printf '%s\n' "$*" >>"$CLAUDE_CALL_LOG"
+    printf '[1, 2]\n'
+    exit 0
+  fi
+  : >"$AFTER_NONOBJ_MARKER"
+fi
+exec "$REAL_CLAUDE" "$@"
+WRAP
+chmod +x "$STUBS/claude.after-nonobject"
+mkdir -p "$tmp/afternonobj"
+cp "$STUBS/claude" "$tmp/afternonobj/real-claude"
+cp "$STUBS/claude.after-nonobject" "$tmp/afternonobj/claude"
+rm -f "$tmp/after-nonobj-marker"
+RUN_OUTPUT="$(PATH="$tmp/afternonobj:$PATH" REAL_CLAUDE="$tmp/afternonobj/real-claude" \
+  AFTER_NONOBJ_MARKER="$tmp/after-nonobj-marker" \
+  UPDATE_AGENT_PLUGINS_FORCE=1 UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.afternonobj" \
+  bash "$HELPER" --scheduled 2>&1)"
 entries="$(log_entries)"
 grep -qF -- '--state completed' <<<"$entries" ||
-  fail "a run that did its updates did not record itself as completed: $entries"
+  fail "a run whose AFTER snapshot was a non-object array did not record completed: $entries | $RUN_OUTPUT"
 grep -qiE 'plugins with a knowable version: [^|]*(NOT COMPARED|could not)' <<<"$entries" ||
-  fail "a run with no BEFORE baseline compared against it anyway: $entries"
-refute '\(added\)' "$entries" \
-  "a missing baseline reported the installed plugins as newly added: $entries"
-refute 'plugins with a knowable version: 0 of 0' "$entries" \
-  "a missing baseline rendered as a clean comparison of nothing: $entries"
+  fail "a malformed after snapshot did not read NOT COMPARED: $entries"
+refute '\(removed\)' "$entries" \
+  "a malformed after snapshot rendered the tracked plugins as removals: $entries"
+grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "the updates did not run before the malformed after read: $(cat "$CLAUDE_CALL_LOG")"
 
 # ── 14. NO LOCK means nothing to update, and it means chezmoi has not applied.
 #       Silence here would be indistinguishable from a clean week. ─────────────

@@ -284,14 +284,25 @@ run_claude() {
 }
 
 # __agent_plugins_inventory <outfile> -- `claude plugin list --json` into a file.
-# Non-zero when the command failed OR when what came back is not a JSON array:
-# the record's other paths read this file, and a half-written or HTML-error body
-# that happened to be saved would be parsed as "no plugins installed", which is
-# a clean-looking answer to a question that was never answered.
+# Non-zero when the command failed OR when what came back is not a JSON array OF
+# OBJECTS: the record's other paths read this file, and a half-written or
+# HTML-error body that happened to be saved would be parsed as "no plugins
+# installed", which is a clean-looking answer to a question that was never
+# answered.
+#
+# `all(.[]; type == "object")` is the tightening, and it closes two defects at
+# once. A body like [1, 2] passed the bare "is it an array" check: as the BEFORE
+# snapshot, every .id/.enabled extraction then failed silently, so every tracked
+# plugin looked absent and the run tried to INSTALL the whole roster; as the
+# AFTER snapshot, the array check passed so after_ok stayed true, the version
+# comparison ran against an empty file, and every tracked plugin rendered as a
+# REMOVAL. Rejecting a non-object array makes the before path attempt nothing and
+# the after path read NOT COMPARED. An empty array stays valid (a fresh machine
+# with nothing installed); `all` is vacuously true there.
 __agent_plugins_inventory() {
   local out="$1"
   run_claude plugin list --json >"$out" 2>/dev/null || return 1
-  jq -e 'type == "array"' "$out" >/dev/null 2>&1 || return 1
+  jq -e 'type == "array" and all(.[]; type == "object")' "$out" >/dev/null 2>&1 || return 1
   return 0
 }
 
