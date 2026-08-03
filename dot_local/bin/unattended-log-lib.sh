@@ -119,6 +119,12 @@ unattended_log_mark_success() {
 # unattended_log_gap_line <marker-file> -- the one line that makes an entry
 # legible on its own. Three states, three distinct sentences, no state that
 # renders as a plausible small gap.
+#
+# BASE 10 IS FORCED on both epochs. Bash arithmetic reads a leading zero as
+# OCTAL, so a marker holding `0837000000` (a truncated or half-written one, and
+# two of the ten digits do it) raises "value too great for base" -- from a line
+# that runs at START-UP in both weekly jobs, one of them under set -e, which
+# would end the run before its lock, its alert or its record.
 unattended_log_gap_line() {
   local marker="$1" recorded_epoch="" recorded_iso="" now delta
   if [[ ! -r $marker ]]; then
@@ -135,7 +141,7 @@ unattended_log_gap_line() {
     printf 'last successful run: %s (elapsed UNKNOWN; this clock could not be read)' "${recorded_iso:-$recorded_epoch}"
     return 0
   fi
-  delta=$((now - recorded_epoch))
+  delta=$((10#$now - 10#$recorded_epoch))
   printf 'last successful run: %s (%s ago)' "${recorded_iso:-$recorded_epoch}" "$(unattended_log_elapsed "$delta")"
 }
 

@@ -521,4 +521,24 @@ grep -qF -- '--state deferred' <<<"$entries" ||
 grep -qiE 'nothing was published' <<<"$entries" ||
   fail "the exchange-deferral entry does not say the live generation is unchanged: $entries"
 
+# ── 15. A CORRUPT successful-run marker must not take the run down with it. The
+#       gap is read at start-up, before the lock, the alert paths and every
+#       record call site, and this script runs under set -e: an epoch of
+#       `0837000000` (a truncated or half-written marker; two of the ten digits
+#       do it) is read by bash arithmetic as octal and aborts. The failure mode
+#       is the worst available -- the job stops entirely and says nothing, from a
+#       line whose only job is bookkeeping. ─────────────────────────────────────
+reset_state
+export FAKE_WEEK="2026-43"
+restage_lock
+harness_absent
+mkdir -p "$(dirname "$MARKER")"
+printf '0837000000 2026-07-10T12:00:00Z\n' >"$MARKER"
+run_updater "$QUIET_WORLD" --scheduled
+entries="$(log_entries)"
+grep -qF -- '--state completed' <<<"$entries" ||
+  fail "a leading-zero epoch in the successful-run marker ended the run before it recorded: $RUN_OUTPUT"
+refute 'value too great for base' "$RUN_OUTPUT" \
+  "the run leaked a bash arithmetic error reading its own successful-run marker"
+
 printf 'update-skills-weekly-record: OK\n'

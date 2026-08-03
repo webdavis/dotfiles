@@ -131,6 +131,19 @@ line="$(unattended_log_gap_line "$marker")"
 grep -qiE 'unknown|unreadable' <<<"$line" ||
   fail "an unparseable marker produced a confident figure instead of UNKNOWN: '$line'"
 
+# 2c-2. A digits-only epoch that begins with 0 is DECIMAL. Bash arithmetic reads
+#     a leading zero as OCTAL, so `08...` and `09...` abort with "value too great
+#     for base" -- and this line runs at START-UP in both weekly jobs, one of
+#     which runs under set -e, so the whole run would die before its lock, its
+#     alert or its record. Two of the ten digits produce it, and a truncated or
+#     half-written marker is exactly how one appears.
+printf '%s %s\n' "0837000000" "2026-07-10T12:00:00Z" >"$marker"
+line="$(unattended_log_gap_line "$marker" 2>&1)" ||
+  fail "an epoch with a leading zero aborted the gap line: '$line'"
+grep -qF '10972d 5h' <<<"$line" ||
+  fail "an epoch with a leading zero was not read in base 10 (want the 10972d 5h decimal gap): '$line'"
+refute 'base|arithmetic|too great' "$line" "the gap line leaked a bash arithmetic error"
+
 # 2d. A marker written by mark_success round-trips through the gap line.
 rm -f "$marker"
 unattended_log_mark_success "$marker"
