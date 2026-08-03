@@ -115,12 +115,21 @@ mkdir -p "$fake_home/.hermes"
 # and hardcodes 8644", and the library's comment leans on run_after_68 probing
 # the live port as the check that catches a port drift.
 CONFIG_PORT=8899
+# One route may be written without deliver_only, or with it false, so the
+# apply-time check on that field has both shapes to answer.
+OMIT_DELIVER_ONLY=""
+FALSE_DELIVER_ONLY=""
 write_config() { # <route>...
   local route
   {
     printf 'platforms:\n  webhook:\n    enabled: true\n    extra:\n      host: 127.0.0.1\n      port: %s\n      routes:\n' "$CONFIG_PORT"
     for route in "$@"; do
-      printf '        %s:\n          deliver: discord\n          deliver_only: true\n' "$route"
+      printf '        %s:\n          deliver: discord\n' "$route"
+      if [[ $route == "$FALSE_DELIVER_ONLY" ]]; then
+        printf '          deliver_only: false\n'
+      elif [[ $route != "$OMIT_DELIVER_ONLY" ]]; then
+        printf '          deliver_only: true\n'
+      fi
     done
   } >"$fake_home/.hermes/config.yaml"
 }
@@ -199,7 +208,43 @@ refute '404.*relay[^-]|relay.*is in config' "$STATUS_OUT" \
 CODE_relay=401 CODE_unattended_upgrades=401 run_status
 refute 'gateway restart' "$STATUS_OUT" "a 401 was reported as a route that needs a restart"
 
-# ── 7. Absent prerequisites stay a silent no-op, exit 0. A machine without
+# ── 7. A route that is not DELIVER_ONLY is reported, by name. Without that
+#      field hermes hands the message to an AGENT instead of posting it
+#      verbatim, and the weekly record's body is built from third-party package
+#      and skill names.
+#
+#      This check lives here rather than in the test that pins the committed
+#      config, deliberately: that config is age-encrypted, so its assertions are
+#      gated on an identity CI never supplies, and they exit 0 printing
+#      "structural only" on every pull request. Making them fail without a key
+#      would red every PR, which a previous slice explicitly rejected. This
+#      script reads the DECRYPTED config at apply time, which is both the only
+#      place the value is readable unconditionally and the exact moment the risk
+#      arrives. ────────────────────────────────────────────────────────────────
+OMIT_DELIVER_ONLY="$log_route"
+write_config relay "$log_route"
+run_status
+[[ $STATUS_RC -eq 0 ]] || fail "a route without deliver_only exited $STATUS_RC; this is a reminder, not a gate"
+grep -qF "$log_route" <<<"$STATUS_OUT" ||
+  fail "a route with no deliver_only was not named: '$STATUS_OUT'"
+grep -qiE 'deliver_only' <<<"$STATUS_OUT" ||
+  fail "the report does not say which field is missing: '$STATUS_OUT'"
+grep -qiE 'agent|verbatim' <<<"$STATUS_OUT" ||
+  fail "the report does not say what a missing deliver_only actually does: '$STATUS_OUT'"
+refute "relay route is NOT deliver_only" "$STATUS_OUT" \
+  "a route missing deliver_only accused the route that has it"
+
+# ...and an explicit false is the same fact, not a different one.
+OMIT_DELIVER_ONLY=""
+FALSE_DELIVER_ONLY="$log_route"
+write_config relay "$log_route"
+run_status
+grep -qiE 'deliver_only' <<<"$STATUS_OUT" ||
+  fail "an explicit 'deliver_only: false' was not reported: '$STATUS_OUT'"
+FALSE_DELIVER_ONLY=""
+write_config relay "$log_route"
+
+# ── 8. Absent prerequisites stay a silent no-op, exit 0. A machine without
 #      hermes or without yq must not have its apply shout at it. ─────────────
 rm -f "$fake_home/.hermes/config.yaml"
 run_status

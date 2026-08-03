@@ -36,6 +36,18 @@ for route in "${expected_routes[@]}"; do
       "$route" "$cfg"
     continue
   fi
+  # NOT DELIVER_ONLY. Without that field hermes hands the message to an AGENT
+  # instead of posting it verbatim, and these bodies are built from third-party
+  # package and skill names. This is the only gate that can see the value:
+  # the committed config is age-encrypted, so the test that pins it is gated on
+  # an identity CI never supplies and exits 0 printing "structural only" on every
+  # pull request. Here the file has already been decrypted and written, so the
+  # check and the risk arrive together. test/integration/hermes-route-status.sh
+  # drives this branch with a fixture config.
+  if [[ "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_only // false" "$cfg" 2>/dev/null || echo false)" != "true" ]]; then
+    printf '\n  ⚠ hermes: the %s route is NOT deliver_only, so hermes feeds its messages to an AGENT\n    instead of posting them verbatim, and those messages carry third-party package and skill names.\n    Fix .platforms.webhook.extra.routes.%s.deliver_only in the encrypted hermes config, then: chezmoi apply\n\n' \
+      "$route" "$route"
+  fi
   code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' -X POST "http://127.0.0.1:${port}/webhooks/${route}" \
     -H 'Content-Type: application/json' -d '{}' 2>/dev/null || echo 000)"
   if [[ $code == "404" ]]; then

@@ -81,7 +81,15 @@ echo "hermes-age-captures: OK (${#captures[@]} captures decrypt to nonzero plain
 #     the equality above -- the "stable field keeps its shape while losing its
 #     contents" failure.
 #   - deliver_only stays true. A route without it feeds the entry to an agent
-#     instead of posting it verbatim.
+#     instead of posting it verbatim. NOTE that this layer cannot enforce that in
+#     CI: it needs the age identity, CI has none, and this file exits 0 printing
+#     "structural only" there. Making it fail without a key would red every pull
+#     request. The enforceable copy of this one assertion lives in
+#     .chezmoiscripts/run_after_68-hermes-relay-route-status.sh.tmpl, which reads
+#     the DECRYPTED config at apply time and is covered by
+#     test/integration/hermes-route-status.sh; the guard and the risk then arrive
+#     together. Keep both: this layer is what the operator's own machine checks
+#     before anything is applied.
 #   - the prompt spends every field relay.sh actually sends.
 root_capture="dot_hermes/encrypted_private_config.yaml.age"
 [[ -f $root_capture ]] || fail "missing root capture $root_capture"
