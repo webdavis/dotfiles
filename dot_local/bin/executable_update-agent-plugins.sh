@@ -368,10 +368,21 @@ run_claude() {
 # REMOVAL. Rejecting a non-object array makes the before path attempt nothing and
 # the after path read NOT COMPARED. An empty array stays valid (a fresh machine
 # with nothing installed); `all` is vacuously true there.
+#
+# `any(.[]; (.id | type) == "string")` on a NON-empty array closes the same two
+# defects for object-shaped garbage (F38/F41). A body like
+# [{"foo":"bar"},{"baz":1}] is an array of OBJECTS, so it passed the object check,
+# yet every id extraction came back empty: the before path then read the whole
+# roster as absent and tried to INSTALL it, and the after path dropped every
+# tracked plugin and rendered them all as REMOVALS. Requiring at least one member
+# to carry a string id rejects a snapshot with no readable plugin at all, while
+# TOLERATING a single id-less member among valid ones (that member is excluded
+# downstream, not fatal, which the version-snapshot path already relies on).
 __agent_plugins_inventory() {
   local out="$1"
   run_claude plugin list --json >"$out" 2>/dev/null || return 1
-  jq -e 'type == "array" and all(.[]; type == "object")' "$out" >/dev/null 2>&1 || return 1
+  jq -e 'type == "array" and all(.[]; type == "object")
+    and (length == 0 or any(.[]; (.id | type) == "string"))' "$out" >/dev/null 2>&1 || return 1
   return 0
 }
 

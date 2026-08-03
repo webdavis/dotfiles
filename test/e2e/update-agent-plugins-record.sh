@@ -97,6 +97,14 @@ case "$1 $2" in
       printf 'not json at all\n'
       exit 0
     }
+    # A JSON array of OBJECTS that carry NO usable id: it passes the
+    # array-of-objects check yet every id/scope extraction comes back empty, so
+    # the whole roster looks absent (before) or removed (after). Distinct from
+    # CLAUDE_LIST_SHAPE (non-objects) because F18's object check does not catch it.
+    [[ -n ${CLAUDE_LIST_OBJGARBAGE:-} ]] && {
+      printf '[{"foo":"bar"},{"baz":1}]\n'
+      exit 0
+    }
     # A JSON array of NON-OBJECTS on the FIRST reading only: it passes the
     # updater's "is it an array" check and then breaks any .id lookup, so the
     # BEFORE snapshot fails while the AFTER one succeeds.
@@ -283,6 +291,7 @@ run_helper() {
     CLAUDE_LIST_GARBAGE="${CLAUDE_LIST_GARBAGE:-}" \
     CLAUDE_LIST_SHAPE_ONCE="${CLAUDE_LIST_SHAPE_ONCE:-}" \
     CLAUDE_LIST_SHAPE_MARKER="${CLAUDE_LIST_SHAPE_MARKER:-}" \
+    CLAUDE_LIST_OBJGARBAGE="${CLAUDE_LIST_OBJGARBAGE:-}" \
     RELAY_STUB_OUTCOME="${RELAY_STUB_OUTCOME:-}" \
     bash "$HELPER" "$@" 2>&1)"
   RUN_RC=$?
@@ -693,6 +702,25 @@ grep -qF 'claude plugin list --json' <<<"$entries" ||
 [[ -n "$(alert_entries)" ]] || fail "a non-object inventory sent no alert: $(cat "$RELAY_LOG")"
 [[ ! -e $MARKER ]] || fail "a run that attempted nothing recorded a successful run"
 
+# ── 13c2. A BEFORE inventory that is an array of OBJECTS carrying no usable id
+#         attempts NOTHING (F38). F18 rejected an array of NON-objects, but
+#         [{"foo":"bar"},{"baz":1}] passed the object check and then every id/scope
+#         extraction came back empty, so the whole tracked roster looked ABSENT and
+#         the run tried to INSTALL all of it while it could not tell which plugins
+#         the operator had DISABLED. An inventory with no readable member fails
+#         closed: attempt nothing, alert, record a deferral, install NOTHING. ──────
+reset_state
+CLAUDE_LIST_OBJGARBAGE=1 run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] ||
+  fail "an object-garbage BEFORE inventory exited 0 instead of attempting nothing: $RUN_OUTPUT"
+refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "an inventory of objects with no id triggered an install storm, or updated plugins without knowing which were disabled: $(cat "$CLAUDE_CALL_LOG")"
+entries="$(log_entries)"
+grep -qF -- '--state deferred' <<<"$entries" ||
+  fail "an object-garbage BEFORE inventory did not record a deferral: $entries"
+[[ -n "$(alert_entries)" ]] || fail "an object-garbage inventory sent no alert: $(cat "$RELAY_LOG")"
+[[ ! -e $MARKER ]] || fail "a run that attempted nothing recorded a successful run"
+
 # ── 13d. A malformed AFTER snapshot reads NOT COMPARED, never a list of removals.
 #        The updates ran and the before snapshot was valid, but the after read
 #        came back [1, 2], an array of non-objects that passed the old array check
@@ -732,6 +760,48 @@ refute '\(removed\)' "$entries" \
   "a malformed after snapshot rendered the tracked plugins as removals: $entries"
 grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
   fail "the updates did not run before the malformed after read: $(cat "$CLAUDE_CALL_LOG")"
+
+# ── 13d2. A malformed OBJECT-shaped AFTER snapshot reads NOT COMPARED, never a
+#         list of removals (F41 completes F28 for the object case). F28 rejected an
+#         after read of NON-objects ([1, 2]); an after read of objects with no
+#         usable id ([{"foo":1},{"bar":2}]) passed the object check so after_ok
+#         stayed true, every tracked plugin dropped out of the after snapshot, and
+#         the comparison against a valid before rendered them all as REMOVED. The
+#         updates ran and the before was valid, so the section must say the
+#         comparison could not be made, not invent a whole-roster removal. ─────────
+reset_state
+cat >"$STUBS/claude.after-objgarbage" <<'WRAP'
+#!/usr/bin/env bash
+# An array of objects with no id on every `plugin list` AFTER the first, so the
+# before snapshot is valid and only the after one is malformed-but-object-shaped.
+if [[ "$1 $2" == "plugin list" ]]; then
+  if [[ -e $AFTER_OBJGARBAGE_MARKER ]]; then
+    printf '%s\n' "$*" >>"$CLAUDE_CALL_LOG"
+    printf '[{"foo":1},{"bar":2}]\n'
+    exit 0
+  fi
+  : >"$AFTER_OBJGARBAGE_MARKER"
+fi
+exec "$REAL_CLAUDE" "$@"
+WRAP
+chmod +x "$STUBS/claude.after-objgarbage"
+mkdir -p "$tmp/afterobjgarbage"
+cp "$STUBS/claude" "$tmp/afterobjgarbage/real-claude"
+cp "$STUBS/claude.after-objgarbage" "$tmp/afterobjgarbage/claude"
+rm -f "$tmp/after-objgarbage-marker"
+RUN_OUTPUT="$(PATH="$tmp/afterobjgarbage:$PATH" REAL_CLAUDE="$tmp/afterobjgarbage/real-claude" \
+  AFTER_OBJGARBAGE_MARKER="$tmp/after-objgarbage-marker" \
+  UPDATE_AGENT_PLUGINS_FORCE=1 UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.afterobjgarbage" \
+  bash "$HELPER" --scheduled 2>&1)"
+entries="$(log_entries)"
+grep -qF -- '--state completed' <<<"$entries" ||
+  fail "a run whose AFTER snapshot was an object-garbage array did not record completed: $entries | $RUN_OUTPUT"
+grep -qiE 'plugins with a knowable version: [^|]*(NOT COMPARED|could not)' <<<"$entries" ||
+  fail "an object-garbage after snapshot did not read NOT COMPARED: $entries"
+refute '\(removed\)' "$entries" \
+  "an object-garbage after snapshot rendered the tracked plugins as removals: $entries"
+grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "the updates did not run before the object-garbage after read: $(cat "$CLAUDE_CALL_LOG")"
 
 # ── 14. NO LOCK means nothing to update, and it means chezmoi has not applied.
 #       Silence here would be indistinguishable from a clean week. ─────────────
