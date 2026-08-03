@@ -67,6 +67,11 @@ LOCKFILE="${UPDATE_AGENT_PLUGINS_LOCKFILE:-$HOME/.local/state/update-agent-plugi
 STATE_DIR="${UPDATE_AGENT_PLUGINS_STATE_DIR:-$HOME/.local/state/update-agent-plugins}"
 LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
 LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
+# Per-plugin, per-ISO-week success markers (F35). The week-completed claim gates
+# the POST; these gate the WORK, so a slot recovering from an earlier slot's
+# PARTIAL failure updates only the not-yet-succeeded plugins instead of re-running
+# `claude plugin update` on every tree that already updated this week.
+PLUGIN_SUCCESS_DIR="$STATE_DIR/plugin-success"
 AGENT_NAME="update-agent-plugins"
 
 # The relay script by ABSOLUTE path: the LaunchAgent's PATH does not carry
@@ -460,6 +465,42 @@ __agent_plugins_drop_ids() {
   fi
 }
 
+# Per-plugin, per-ISO-week success markers (F35). The F29 fix released the
+# COMPLETED claim on ANY plugin failure so a later slot could recover, but that
+# reopened F16 for the plugins that had ALREADY SUCCEEDED: the recovering slot
+# re-entered the whole loop and re-ran `claude plugin update` on every one of
+# them, overwriting each tree and re-fetching a release that landed after the
+# first slot. These markers gate the WORK independently of the week claim: a
+# plugin that already succeeded THIS week is not touched again, so a retry updates
+# ONLY the not-yet-succeeded plugins. Keyed by the ISO week (a new week starts
+# fresh and legitimately re-updates everything); other weeks' markers are pruned
+# so the dir reads as "what THIS week has done". Self-contained on `date` rather
+# than the log library, so the markers work even when the record library is
+# absent (updating matters more than bookkeeping).
+__agent_plugins_plugin_week() { date +%G-%V 2>/dev/null || true; }
+__agent_plugins_mark_plugin_done() {
+  local id="$1" week token stale
+  week="$(__agent_plugins_plugin_week)"
+  [[ -n $week ]] || return 0
+  mkdir -p "$PLUGIN_SUCCESS_DIR/$week" 2>/dev/null || return 0
+  # A plugin id has no slash today, but replace defensively so it is always ONE
+  # path segment under the week dir.
+  token="$PLUGIN_SUCCESS_DIR/$week/${id//\//_}"
+  : >"$token" 2>/dev/null || true
+  for stale in "$PLUGIN_SUCCESS_DIR"/*; do
+    [[ -e $stale ]] || continue
+    [[ ${stale##*/} == "$week" ]] && continue
+    rm -rf "$stale" 2>/dev/null || true
+  done
+  return 0
+}
+__agent_plugins_plugin_done() {
+  local id="$1" week
+  week="$(__agent_plugins_plugin_week)"
+  [[ -n $week ]] || return 1
+  [[ -e "$PLUGIN_SUCCESS_DIR/$week/${id//\//_}" ]]
+}
+
 # Sourcing hook: with UPDATE_AGENT_PLUGINS_LIB_ONLY set, define the functions
 # above and stop before the main flow, so a unit test can exercise a
 # script-local helper (e.g. the __agent_plugins_code sanitiser on the phone-push
@@ -604,6 +645,10 @@ refreshed_plugins=()
 installed_plugins=()
 skipped_plugins=()
 failed_plugins=()
+# Plugins that already SUCCEEDED earlier this ISO week (F35): a recovering slot
+# skips them so it touches only the not-yet-succeeded ones. Tracked and reported,
+# but never re-run and never re-counted as refreshed.
+already_done_plugins=()
 tracked_count=0
 unknowable_plugins=()
 
@@ -642,6 +687,16 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
   [[ -n $plugin_id ]] || continue
   tracked_count=$((tracked_count + 1))
 
+  # ALREADY SUCCEEDED this week (F35): an earlier slot installed or refreshed this
+  # plugin, so a recovering slot must not touch it again. This gates the WORK; the
+  # week-completed claim gates the POST. Skipping it here is what makes a retry
+  # update ONLY the plugins the earlier slot could not finish.
+  if __agent_plugins_plugin_done "$plugin_id"; then
+    already_done_plugins+=("$plugin_id")
+    printf '   already done this week: %s\n' "$plugin_id"
+    continue
+  fi
+
   if ! grep -qxF -- "$plugin_id" <<<"$installed_ids"; then
     # ABSENT: install it, adding its marketplace first when the CLI does not
     # know it. Without this the whole vertical merges and does nothing on a
@@ -678,6 +733,7 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
     fi
     if install_output="$(run_claude plugin install "$plugin_id" 2>&1)"; then
       installed_plugins+=("$plugin_id")
+      __agent_plugins_mark_plugin_done "$plugin_id" # F35: not re-installed on a retry
       printf '   installed: %s\n' "$plugin_id"
     else
       failed_plugins+=("$plugin_id: install failed: $install_output")
@@ -704,6 +760,7 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
 
   if update_output="$(run_claude plugin update "$plugin_id" 2>&1)"; then
     refreshed_plugins+=("$plugin_id")
+    __agent_plugins_mark_plugin_done "$plugin_id" # F35: not re-updated on a retry
     # Collected HERE and nowhere else: the unknowable sentence says those
     # plugins were REFRESHED, so it may only name ones this run actually
     # refreshed. Collecting them at the top of the loop counted the skipped and
@@ -735,9 +792,13 @@ fi
 # carries.
 if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   record_lines=()
-  record_lines+=("$(printf 'plugins: %d tracked -- %d refreshed, %d installed, %d skipped (disabled), %d failed.' \
+  # The counts reconcile: tracked = refreshed + installed + skipped + already-done
+  # + failed. "already done earlier this week" (F35) is a recovering slot's plugins
+  # that an earlier slot already finished, listed so the numbers add up and so the
+  # record never re-reports them as freshly refreshed.
+  record_lines+=("$(printf 'plugins: %d tracked -- %d refreshed, %d installed, %d skipped (disabled), %d already done earlier this week, %d failed.' \
     "$tracked_count" "${#refreshed_plugins[@]}" "${#installed_plugins[@]}" \
-    "${#skipped_plugins[@]}" "${#failed_plugins[@]}")")
+    "${#skipped_plugins[@]}" "${#already_done_plugins[@]}" "${#failed_plugins[@]}")")
 
   if [[ ${#failed_plugins[@]} -gt 0 ]]; then
     failed_rendered=""
@@ -855,8 +916,8 @@ if [[ ${#failed_plugins[@]} -gt 0 ]]; then
   # the actual breakdown of the non-failed plugins rather than asserting they were
   # all refreshed.
   weekly_alert plugin-update-failed \
-    "$(printf 'The weekly agent-plugin run finished with %d failed plugin(s): %s. An install failure means the plugin is NOT present (it had no prior version to fall back to); an update failure means it is still at whatever version it held. A "not found in any marketplace" error can be a genuinely missing plugin OR a marketplace this run could not reach, and the CLI does not tell the two apart. The rest of this run: %d refreshed, %d installed, %d skipped as contained (a skipped plugin was deliberately NOT touched and stays at whatever version it held). Full output: ~/.local/log/agent-plugins/update-agent-plugins.log' \
-      "${#failed_plugins[@]}" "${alert_rendered%, }" "${#refreshed_plugins[@]}" "${#installed_plugins[@]}" "${#skipped_plugins[@]}")"
+    "$(printf 'The weekly agent-plugin run finished with %d failed plugin(s): %s. An install failure means the plugin is NOT present (it had no prior version to fall back to); an update failure means it is still at whatever version it held. A "not found in any marketplace" error can be a genuinely missing plugin OR a marketplace this run could not reach, and the CLI does not tell the two apart. The rest of this run: %d refreshed, %d installed, %d skipped as contained (a skipped plugin was deliberately NOT touched and stays at whatever version it held), %d already done earlier this week. Full output: ~/.local/log/agent-plugins/update-agent-plugins.log' \
+      "${#failed_plugins[@]}" "${alert_rendered%, }" "${#refreshed_plugins[@]}" "${#installed_plugins[@]}" "${#skipped_plugins[@]}" "${#already_done_plugins[@]}")"
   exit 1
 fi
 

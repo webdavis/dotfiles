@@ -578,6 +578,37 @@ grep -qF -- '--state completed' <<<"$(log_entries)" ||
 grep -qxF 'plugin update mover@mkt-a' "$CLAUDE_CALL_LOG" ||
   fail "the recovering slot did not retry the previously failed plugin: $(cat "$CLAUDE_CALL_LOG")"
 
+# ── 10c. Per-plugin success markers (F35): a recovering slot updates ONLY the
+#         previously-failed plugin, never the ones that already succeeded. F29
+#         released the completed claim on any failure so a later slot could
+#         recover, but that let the later slot RE-ENTER the whole loop and re-run
+#         `claude plugin update` on every plugin that had ALREADY succeeded
+#         (re-fetching a release that landed after slot 1 and overwriting each
+#         tree), reopening F16. Per-plugin markers gate the WORK: slot 1 fails
+#         mover and marks the three enabled ones that succeed (and the install);
+#         slot 2 runs `plugin update` for ONLY mover, touches none of the others,
+#         and still posts a completed record. ───────────────────────────────────
+reset_state
+CLAUDE_FAIL_UPDATE="mover@mkt-a" run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] || fail "F35 slot 1 (with a failed update) exited 0: $RUN_OUTPUT"
+for id in steady@mkt-a sha@mkt-a opaque@mkt-a; do
+  grep -qxF "plugin update $id" "$CLAUDE_CALL_LOG" ||
+    fail "F35 slot 1 did not update the enabled plugin $id: $(cat "$CLAUDE_CALL_LOG")"
+done
+: >"$RELAY_LOG"
+: >"$CLAUDE_CALL_LOG"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "F35 slot 2 (recovery) exited $RUN_RC: $RUN_OUTPUT"
+slot2_updates="$(updated_ids | tr '\n' ' ')"
+[[ $slot2_updates == "mover@mkt-a " ]] ||
+  fail "F35 slot 2 must run plugin update for ONLY the previously-failed mover@mkt-a, got: [$slot2_updates]"
+refute '^plugin install ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "F35 slot 2 re-installed a plugin an earlier slot already installed: $(cat "$CLAUDE_CALL_LOG")"
+grep -qF -- '--state completed' <<<"$(log_entries)" ||
+  fail "F35 slot 2 did not post a completed record after recovering: $(log_entries)"
+grep -qE 'plugins: [0-9]+ tracked[^.]*[1-9][0-9]* already done earlier this week' <<<"$(log_entries)" ||
+  fail "F35 slot 2 did not account for the already-succeeded plugins as already-done in its record: $(log_entries)"
+
 # ── 11. A REFUSED record must not consume the week, and the operator hears
 #       about it on the route that still works. relay exits 0 whatever the
 #       gateway answered, so a 401 reads exactly like a delivered entry from
