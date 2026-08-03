@@ -253,11 +253,21 @@ unattended_log_claim_week() {
 # later slot retries. Called when the entry the claim was taken for was NOT
 # delivered: a guard that outlives a failed delivery silences the remaining 23
 # slots and leaves the week with no entry while asserting it has one.
+#
+# CLOCK-FREE, on purpose. The old shape re-read the ISO week here and deleted
+# "$guard/$week.$class", so a run that CLAIMED in one week and released after the
+# week rolled over (a slot that spans midnight into a new ISO week) deleted the
+# NEW week's token, which never existed, and left the real claim in place to
+# silence every later slot. unattended_log_claim_week already prunes the guard to
+# a single week, so at most this run's token of a class exists; remove it by class
+# whatever week it names. Give back the claim we actually took, not the one the
+# clock reads now.
 unattended_log_release_week() {
-  local guard="$1" class="$2" week
-  week="$(unattended_log_week)"
-  [[ -n $week ]] || return 0
-  rm -f "$guard/$week.$class" 2>/dev/null || true
+  local guard="$1" class="$2" token
+  for token in "$guard"/*."$class"; do
+    [[ -e $token ]] || continue
+    rm -f "$token" 2>/dev/null || true
+  done
   return 0
 }
 

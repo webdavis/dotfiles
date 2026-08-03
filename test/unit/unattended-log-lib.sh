@@ -401,6 +401,29 @@ FAKE_WEEK=2026-47 unattended_log_release_week "$guard" completed
 FAKE_WEEK=2026-47 unattended_log_claim_week "$guard" deferred &&
   fail "releasing the completed claim also freed the deferred one; a delivered deferral would repeat"
 
+# 3j-3. A release does NOT depend on the clock. A slot can CLAIM in one ISO week
+#     and, after a long inventory read that spans midnight into the next ISO week,
+#     RELEASE. The old shape re-read the week at release time and deleted the NEW
+#     week's token (which never existed), leaving the real claim to silence every
+#     later slot. Claim in one week, release while the clock reads the next, and
+#     the claim must be GONE.
+rm -rf "$guard"
+FAKE_WEEK=2026-52 unattended_log_claim_week "$guard" completed ||
+  fail "3j-3 setup: the completed claim was refused"
+FAKE_WEEK=2027-01 unattended_log_release_week "$guard" completed
+[[ -z "$(find "$guard" -name '*.completed' 2>/dev/null)" ]] ||
+  fail "a release that read the clock instead of the guard missed the token across a week boundary: $(ls -A "$guard")"
+#     ...and it stays class-scoped across the boundary: a deferred token in the
+#     claimed week survives a completed release taken under a different week.
+rm -rf "$guard"
+FAKE_WEEK=2026-52 unattended_log_claim_week "$guard" deferred ||
+  fail "3j-3 setup: the deferred claim was refused"
+FAKE_WEEK=2026-52 unattended_log_claim_week "$guard" completed ||
+  fail "3j-3 setup: the completed claim was refused"
+FAKE_WEEK=2027-01 unattended_log_release_week "$guard" completed
+FAKE_WEEK=2026-52 unattended_log_claim_week "$guard" deferred &&
+  fail "a cross-boundary completed release also freed the deferred claim"
+
 # 3k. The guard keeps only THIS week, so it stays readable as "what did this week
 #     do" instead of growing a file per class per week forever.
 rm -rf "$guard"
