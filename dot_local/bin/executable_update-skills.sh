@@ -2871,7 +2871,7 @@ else
   elif [[ $__update_skills_lock_rc -ne 0 ]]; then
     record_required_failure "could not acquire the serialize lock (rc $__update_skills_lock_rc; e.g. ~/.agents is not writable); no build, no publish, no stamp"
     __update_skills_alert "update-skills could not acquire its serialize lock (rc $__update_skills_lock_rc). Check that ~/.agents is writable, then re-run ~/.local/bin/update-skills.sh."
-    __update_skills_record deferred "nothing was attempted: the serialize lock could not be acquired (rc $__update_skills_lock_rc), so the run refused. An alert also went to the priority channel."
+    __update_skills_record deferred "nothing was attempted: the serialize lock could not be acquired (rc $__update_skills_lock_rc), so the run refused. An alert was also attempted on the priority route; that path is fire-and-forget, so its delivery was not observed."
     exit 1
   fi
   # No release path: the kernel drops the lock when this process exits, however
@@ -2891,7 +2891,7 @@ else
     if ! __gen_snapshot_roster; then
       record_required_failure "roster lock validation failed (missing, unparseable, or schema-broken); no build, no publish, no prune, no stamp"
       __update_skills_alert "update-skills refused to run: the roster lock at $GEN_ROSTER_SOURCE is missing or broken. Fix the deployed custom-skill-lock.json (chezmoi apply) and re-run."
-      __update_skills_record deferred "nothing was attempted: the run REFUSED because the roster lock at $GEN_ROSTER_SOURCE is missing, unparseable or schema-broken. An alert also went to the priority channel."
+      __update_skills_record deferred "nothing was attempted: the run REFUSED because the roster lock at $GEN_ROSTER_SOURCE is missing, unparseable or schema-broken. An alert was also attempted on the priority route; that path is fire-and-forget, so its delivery was not observed."
       exit 1
     fi
     # F9: the snapshot succeeded, so GEN_ROSTER_SNAPSHOT_FILE is a live temp
@@ -2912,7 +2912,7 @@ else
     if [[ $__update_skills_tracked_count -eq 0 ]]; then
       record_required_failure "the roster tracks ZERO skills (empty npx+clawhub union); refusing any mutation (there is no legitimate empty roster; a zero union is corruption or a broken deploy, not intent)"
       __update_skills_alert "update-skills refused to run: the roster lock tracks no skills. If delisting everything is truly intended, remove the generation by hand; otherwise restore the roster (chezmoi apply) and re-run."
-      __update_skills_record deferred "nothing was attempted: the run REFUSED because the roster lock tracks ZERO skills, which is corruption or a broken deploy rather than intent. An alert also went to the priority channel."
+      __update_skills_record deferred "nothing was attempted: the run REFUSED because the roster lock tracks ZERO skills, which is corruption or a broken deploy rather than intent. An alert was also attempted on the priority route; that path is fire-and-forget, so its delivery was not observed."
       exit 1
     fi
   fi
@@ -3761,14 +3761,23 @@ if [[ $DRYRUN != "--dry-run" ]]; then
     log "WITHHOLDING the weekly success stamp: the roster lock changed after this run's snapshot; the next slot rebuilds against the new roster"
     LOG_STAMP_NOTE="the weekly success stamp was WITHHELD: the roster lock changed after this run's snapshot, so a later slot rebuilds against the new roster"
   elif [[ $REQUIRED_FAILURES -eq 0 ]]; then
-    mkdir -p "$STATE_DIR"
-    __update_skills_stamp_value >"$SUCCESS_STAMP"
-    # The record's own marker: the ISO week stamp above carries no wall-clock
-    # time, so the gap figure in the next entry needs this. Written only for a
-    # fully successful run, which is what "last successful run" has to mean.
-    [[ -n $UNATTENDED_LOG_AVAILABLE ]] && unattended_log_mark_success "$LOG_SUCCESS_MARKER"
-    # A verified success resets every per-skill failure streak.
-    __gen_reset_failure_streaks
+    # GUARDED, both halves. This runs under set -e, and an unwritable state dir
+    # made the redirection fail and ENDED THE RUN right here: after the new
+    # generation was already published, before the record, before the alert, and
+    # before anything said so. The publish is the one thing that had already
+    # happened, which is the worst possible place to stop silently.
+    if mkdir -p "$STATE_DIR" 2>/dev/null && __update_skills_stamp_value >"$SUCCESS_STAMP" 2>/dev/null; then
+      # The record's own marker: the ISO week stamp above carries no wall-clock
+      # time, so the gap figure in the next entry needs this. Written only for a
+      # fully successful run, which is what "last successful run" has to mean.
+      [[ -n $UNATTENDED_LOG_AVAILABLE ]] && unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+      # A verified success resets every per-skill failure streak.
+      __gen_reset_failure_streaks
+    else
+      record_required_failure "could not write the weekly success stamp at $SUCCESS_STAMP (is $STATE_DIR writable?); the publish stands, but this week is not marked done, so every later slot repeats it"
+      __update_skills_alert "update-skills published this week's generation but could NOT write its success stamp at $SUCCESS_STAMP. Check that $STATE_DIR is writable; until then every scheduled slot repeats the whole week's work."
+      LOG_STAMP_NOTE="the weekly success stamp could NOT BE WRITTEN at $SUCCESS_STAMP, so every later slot repeats this week's work"
+    fi
   else
     LOG_STAMP_NOTE="the weekly success stamp was WITHHELD: $REQUIRED_FAILURES required-phase failure(s) this run, so a later scheduled slot retries"
     log "WITHHOLDING the weekly success stamp: $REQUIRED_FAILURES required-phase failure(s) this run; a later scheduled slot will retry"
@@ -3794,7 +3803,13 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_DIR ]]; then
     __update_skills_change_snapshot "$__update_skills_lane" \
       >"$LOG_CHANGE_DIR/$__update_skills_lane.after" 2>/dev/null || true
   done
-  __update_skills_record completed "$(printf '%s\n%s\n%s\nrequired-phase failures: %d' \
+  # The two lanes this record can SEE are the two store lanes it snapshots. The
+  # same run also refreshes the cua-driver pack through that app's own updater
+  # and updates the hermes-registry-owned skills, and it reads neither before nor
+  # after. Naming two lanes while implying the whole run is the same defect as
+  # implying a version number exists where none does, so the entry says what it
+  # cannot see rather than leaving the reader to assume it saw everything.
+  __update_skills_record completed "$(printf '%s\n%s\n%s\n%s\nrequired-phase failures: %d' \
     "$(unattended_log_change_line "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.after" \
       'npx-tracked skills' \
       'The change unit is the skill folder hash: this lane installs the latest commit from main with no pin and its lock records no version field, so NO VERSION NUMBER IS KNOWABLE for these skills.' \
@@ -3803,6 +3818,7 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_DIR ]]; then
       'clawhub-tracked skills' \
       'This lane records an installed version, so a version number is knowable here.' \
       versions)" \
+    'NOT COVERED by the two lines above: the cua-driver pack (refreshed by that app own updater, through a symlink this record never reads) and the hermes-registry-owned skills (hermes owns those installs). A change to either is NOT visible here, so silence about them means nothing.' \
     "$LOG_STAMP_NOTE" \
     "$REQUIRED_FAILURES")"
 fi

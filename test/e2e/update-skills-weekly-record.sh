@@ -311,6 +311,15 @@ grep -qF 'clawhub-tracked skills: 0 of 1 tracked entries changed' <<<"$entries" 
 # not knowable for those skills; an entry implying otherwise is worse than none.
 grep -qiE 'no version number is knowable' <<<"$entries" ||
   fail "the entry does not state that no version number is knowable for the npx lane: $entries"
+# ...and what it cannot SEE. The weekly run also refreshes the cua-driver pack
+# through the app's own updater and updates the hermes-registry-owned skills, and
+# this record reads neither. An entry that lists two lanes while implying it
+# covers the whole run claims a completeness it does not have, which is the same
+# defect as implying a version number exists.
+grep -qiF 'cua-driver' <<<"$entries" ||
+  fail "the entry does not say the cua-driver pack is outside what this record can see: $entries"
+grep -qiF 'hermes' <<<"$entries" ||
+  fail "the entry does not say the hermes-owned skills are outside what this record can see: $entries"
 
 # ── 5. The success marker is now written, so the NEXT week's entry reports a
 #      real elapsed figure rather than NEVER. ─────────────────────────────────
@@ -450,6 +459,13 @@ grep -qF -- '--state deferred' <<<"$entries" ||
   fail "a run refused for tracking zero skills left the record channel empty: $entries | $RUN_OUTPUT"
 grep -qiE 'zero|refus' <<<"$entries" ||
   fail "the zero-roster entry does not say why nothing was attempted: $entries"
+# ...and it does not assert a delivery nothing observed. The alert path is
+# fire-and-forget: it backgrounds its POST and discards the HTTP result, so
+# "an alert also went to the priority channel" is a claim this run cannot make.
+refute 'alert also went' "$entries" \
+  "the record asserts an alert delivery that nothing observed"
+grep -qiE 'attempted|not observed|not confirmed' <<<"$entries" ||
+  fail "the record does not say the alert was only attempted: $entries"
 grep -qF -- '--agent update-skills' <<<"$(alert_entries)" ||
   fail "a zero-roster refusal sent no alert on the existing route: $RUN_OUTPUT"
 
@@ -541,5 +557,27 @@ grep -qF -- '--state completed' <<<"$entries" ||
   fail "a leading-zero epoch in the successful-run marker ended the run before it recorded: $RUN_OUTPUT"
 refute 'value too great for base' "$RUN_OUTPUT" \
   "the run leaked a bash arithmetic error reading its own successful-run marker"
+
+# ── 16. An unwritable state dir must not end the run AFTER the publish and
+#       BEFORE the record. The success stamp was written by an unguarded
+#       redirection, and this script runs under set -e, so a state dir that could
+#       not be written stopped the run right there: after the new generation was
+#       already live, before the record, before the alert, and before anything
+#       said so. The publish is the one thing that had already happened. ───────
+reset_state
+export FAKE_WEEK="2026-44"
+restage_lock
+harness_absent
+mkdir -p "$HOME/.local/state"
+chmod 500 "$HOME/.local/state"
+run_updater "$QUIET_WORLD" --scheduled
+chmod 700 "$HOME/.local/state"
+entries="$(log_entries)"
+grep -qF -- '--state completed' <<<"$entries" ||
+  fail "an unwritable state dir ended the run before it could record anything: $RUN_OUTPUT"
+grep -qiE 'stamp[^.]*(could not|WITHHELD|not written)' <<<"$entries" ||
+  fail "the entry claims the weekly stamp was written when it could not be: $entries"
+grep -qF -- '--agent update-skills' <<<"$(alert_entries)" ||
+  fail "a run that could not mark the week done alerted nobody: $RUN_OUTPUT"
 
 printf 'update-skills-weekly-record: OK\n'
