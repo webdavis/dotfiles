@@ -517,16 +517,29 @@ fi
 installed_ids="$(jq -r '.[] | select(.scope == "user") | .id // empty' "$workspace/before.json" 2>/dev/null)"
 
 # USER-scope enabled ids, from ~/.claude/settings.json (F17), NOT from the
-# inventory's effective `enabled`. Empty when the file is absent or unreadable,
-# which fails CLOSED: a plugin whose user-scope enabled state cannot be confirmed
-# is treated as contained and skipped, never updated. A record missing `enabled`
-# in the inventory (F18a) no longer matters, because containment is decided here.
-# ponytail: unreadable settings.json skips ALL installed plugins for the week (a
-# visible "N skipped" in the record + this warning); the modify-template
-# guarantees the file, so a hard abort would be disproportionate.
-user_enabled_ids="$(jq -r '(.enabledPlugins // {}) | to_entries[] | select(.value == true) | .key' "$CLAUDE_SETTINGS" 2>/dev/null || true)"
-if [[ ! -r $CLAUDE_SETTINGS ]]; then
-  printf 'update-agent-plugins: WARNING %s is unreadable; every installed plugin is treated as NOT user-enabled (skipped) this week\n' "$CLAUDE_SETTINGS" >&2
+# inventory's effective `enabled`. A plugin whose user-scope enabled state cannot
+# be confirmed is treated as contained and skipped, never updated. A record
+# missing `enabled` in the inventory (F18a) no longer matters, because containment
+# is decided here.
+#
+# F39: a MALFORMED-but-readable settings.json must not read as a clean
+# all-disabled week. The old `jq ... 2>/dev/null || true` collapsed three cases
+# into one empty enabled set: a genuinely all-disabled file, an absent file, and a
+# CORRUPT file. The last one then skipped every plugin and the week reported a
+# healthy no-op for a settings file this run could not actually read. So the three
+# are split: an ABSENT file is the fresh-machine case (the modify-template creates
+# it), still a warn-and-skip; a PRESENT file that does not parse as an object with
+# an object-or-absent enabledPlugins map is a degraded state this run cannot reason
+# about, so it attempts NOTHING and alerts; only a file that parses is read for the
+# enabled set (which may legitimately be empty, a genuine all-disabled week).
+user_enabled_ids=""
+if [[ ! -e $CLAUDE_SETTINGS ]]; then
+  printf 'update-agent-plugins: WARNING %s is absent; every installed plugin is treated as NOT user-enabled (skipped) this week\n' "$CLAUDE_SETTINGS" >&2
+elif ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' "$CLAUDE_SETTINGS" >/dev/null 2>&1; then
+  nothing_attempted settings-malformed "$CLAUDE_SETTINGS" \
+    "$(printf 'the Claude settings at %s exist but could not be read as a JSON object carrying an enabledPlugins map, so this run could not tell which plugins the operator has CONTAINED (disabled). It touched nothing rather than update a plugin that was deliberately disabled. This is what a truncated or half-written settings file looks like, distinct from a genuinely all-disabled one; a clean chezmoi apply restores it.' "$CLAUDE_SETTINGS")"
+else
+  user_enabled_ids="$(jq -r '(.enabledPlugins // {}) | to_entries[] | select(.value == true) | .key' "$CLAUDE_SETTINGS" 2>/dev/null || true)"
 fi
 before_ok=1
 __agent_plugins_versions "$workspace/before.json" "$AGENT_PLUGINS_LOCK" >"$workspace/before.tsv" || before_ok=""

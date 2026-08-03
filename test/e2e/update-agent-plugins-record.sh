@@ -1128,6 +1128,37 @@ run_helper --scheduled
 refute '^plugin update contained@mkt-a$' "$(cat "$CLAUDE_CALL_LOG")" \
   "a record missing the enabled field was updated, overwriting a contained plugin: $(cat "$CLAUDE_CALL_LOG")"
 
+# ── 23b. A MALFORMED-but-readable settings.json attempts NOTHING (F39), and is
+#         DISTINGUISHED from a genuinely all-disabled one. Containment is read from
+#         enabledPlugins; the old `jq ... || true` read a corrupt file as an empty
+#         enabled set, so every plugin was skipped and the week reported a clean
+#         all-disabled no-op for a settings file this run could not actually read.
+#         A file that does not parse must refuse and alert; a file that parses to an
+#         empty enabledPlugins is a real all-disabled week and must still run clean.
+reset_state
+printf 'this is not valid json {{{\n' >"$HOME/.claude/settings.json"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] || fail "a malformed settings.json exited 0 instead of attempting nothing: $RUN_OUTPUT"
+refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "a malformed settings.json still mutated plugins without knowing which were contained: $(cat "$CLAUDE_CALL_LOG")"
+entries="$(log_entries)"
+grep -qF -- '--state deferred' <<<"$entries" ||
+  fail "a malformed settings.json did not record a deferral: $entries"
+grep -qF 'settings' <<<"$entries" ||
+  fail "the record does not name the settings file it could not read: $entries"
+[[ -n "$(alert_entries)" ]] || fail "a malformed settings.json sent no alert: $(cat "$RELAY_LOG")"
+[[ ! -e $MARKER ]] || fail "a run that attempted nothing recorded a successful run"
+# ...and a genuinely all-disabled (valid, empty enabledPlugins) file is NOT a
+# refusal: it runs clean, every installed plugin skipped as disabled.
+reset_state
+printf '{"enabledPlugins":{}}\n' >"$HOME/.claude/settings.json"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "a genuinely all-disabled settings.json was refused like a malformed one (rc=$RUN_RC): $RUN_OUTPUT"
+refute '^plugin update ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "an all-disabled settings.json still updated a plugin: $(cat "$CLAUDE_CALL_LOG")"
+grep -qF -- '--state completed' <<<"$(log_entries)" ||
+  fail "a genuinely all-disabled week did not complete: $(log_entries)"
+
 # ── 24. A plugin installed only at PROJECT scope is not the USER installation
 #        this job manages (F24). It is treated as absent and the user copy is
 #        INSTALLED, instead of a user-scope update that fails against a copy that
