@@ -199,6 +199,9 @@ readonly -a DECLARED_PLUGINS=(
   'security-guidance@claude-plugins-official'
   'superpowers@claude-plugins-official'
   'swift-lsp@claude-plugins-official'
+  'skill-creator@claude-plugins-official'
+  'worktrunk@worktrunk'
+  'last30days@last30days-skill'
 )
 
 # Roles played by individual declared plugins inside the fixtures below. Each

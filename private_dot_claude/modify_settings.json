@@ -246,7 +246,14 @@
        marketplace is added separately (`claude plugin marketplace add
        DietrichGebert/ponytail`) and its entry only records that it should be
        ENABLED once installed. Enabling a plugin that is not installed is inert,
-       so the declaration is safe on a fresh machine. --- */ -}}
+       so the declaration is safe on a fresh machine.
+
+       This list is the SAME twelve ids the agent-plugin vertical tracks in
+       dot_agents/custom-agent-plugins-lock.json, and test/unit/agent-plugins-lock.sh
+       fails when the two disagree. They have to agree in both directions: an
+       id the updater refreshes but this list omits is switched OFF by the next
+       apply, and an id this list enables but the updater does not track is one
+       nothing keeps current. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
@@ -256,7 +263,10 @@
     "swift-lsp@claude-plugins-official"
     "rust-analyzer-lsp@claude-plugins-official"
     "codex@openai-codex"
-    "ponytail@ponytail" -}}
+    "ponytail@ponytail"
+    "skill-creator@claude-plugins-official"
+    "worktrunk@worktrunk"
+    "last30days@last30days-skill" -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
        `slice`, so the value test below already covers absence. Measured
