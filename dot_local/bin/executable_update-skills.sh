@@ -2644,6 +2644,23 @@ __update_skills_claude_undelivered() {
     "$CUSTOM_SKILL_LOCK" 2>/dev/null || true
 }
 
+# 0 (true) when the lock's claudeDelivery table is PRESENT but not the known shape
+# (an object whose every value is the string "none"). F36: the schema gate
+# (__gen_roster_schema_ok) rejects a malformed table, but it runs only in the
+# mutating modes' setup; --dry-run reaches converge_claude_skills without it, and
+# __update_skills_claude_undelivered fails OPEN on a wrong-shaped table (empty
+# undelivered set), which would RESTORE a de-delivered skill's ~/.claude link. So
+# the fan-out validates the table at the point of use and refuses (no fan-out, no
+# reap) rather than fail open, in every mode. Absent or a valid "none" object is
+# NOT malformed.
+__update_skills_claude_delivery_malformed() {
+  [[ -f $CUSTOM_SKILL_LOCK ]] || return 1
+  jq -e '(has("claudeDelivery") | not)
+    or ((.claudeDelivery | type == "object") and (.claudeDelivery | to_entries | all(.value == "none")))' \
+    "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 && return 1
+  return 0
+}
+
 # Claude fan-out: every store skill (the roster minus the claudeDelivery "none"
 # set) gets a ~/.claude/skills link. Claude is not profile-scoped, tiering there
 # is the settings modify-template's job, not the fan-out's.
@@ -2654,6 +2671,14 @@ __update_skills_claude_undelivered() {
 converge_claude_skills() {
   local -a desired=() undelivered=()
   local skill_path skill undelivered_name
+  # F36: refuse the fan-out on a malformed claudeDelivery instead of failing open
+  # and restoring a de-delivered link. No fan-out means no create AND no reap, so
+  # the existing links are left exactly as they are (safe in every mode, including
+  # the --dry-run preview that reaches here without the roster snapshot gate).
+  if __update_skills_claude_delivery_malformed; then
+    record_required_failure "converge: the roster's claudeDelivery table is malformed (not an object whose values are all \"none\"); refusing the Claude fan-out rather than fail open and restore a de-delivered link"
+    return 0
+  fi
   while IFS= read -r undelivered_name; do
     [[ -n $undelivered_name ]] && undelivered+=("$undelivered_name")
   done < <(__update_skills_claude_undelivered)

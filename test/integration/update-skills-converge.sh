@@ -212,4 +212,23 @@ if printf '%s\n' "$second" | grep -qiE 'converge: (created|replaced|removed)'; t
   fail "a no-op convergence run still logged create/replace/remove actions: $second"
 fi
 
+# ── F36: a MALFORMED claudeDelivery must not fail OPEN in the Claude fan-out.
+# __update_skills_claude_undelivered fails open (an empty undelivered set) on a
+# wrong-shaped table, and the fan-out would then RESTORE nonclaude's de-delivered
+# ~/.claude link, the exact de-delivery the "none" table exists to keep. The
+# weekly and install-only modes refuse a malformed roster upstream at the snapshot
+# gate, but --dry-run skips that gate and reaches the fan-out directly, so the
+# CONSUMER itself must refuse. nonclaude has no Claude link now (convergence
+# removed it above). Rewrite claudeDelivery to an array and preview: the fan-out
+# must NOT offer to create nonclaude's link, and must report the malformed table.
+LOCK_FILE="$HOME/.agents/custom-skill-lock.json"
+jq '.claudeDelivery = ["nonclaude"]' "$LOCK_FILE" >"$LOCK_FILE.tmp" && mv "$LOCK_FILE.tmp" "$LOCK_FILE"
+dry_out="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1)"
+if grep -qE 'would create .*/\.claude/skills/nonclaude' <<<"$dry_out"; then
+  printf '%s\n' "$dry_out" >&2
+  fail "F36: a malformed claudeDelivery failed OPEN; the Claude fan-out offered to restore the de-delivered nonclaude link"
+fi
+grep -qiE 'claudeDelivery.*(malformed|refus)' <<<"$dry_out" ||
+  fail "F36: the fan-out did not report the malformed claudeDelivery table, so a wrong-shaped table would silently fail open: $dry_out"
+
 echo "update-skills-converge: OK"
