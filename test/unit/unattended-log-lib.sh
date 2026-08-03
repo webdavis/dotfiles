@@ -367,6 +367,16 @@ fi
 )
 grep -qF 'FD9: closed' "$RELAY_CALL_LOG" ||
   fail "relay inherited the caller's serialize-lock fd; a detached child would hold the lock after the run exited: $(cat "$RELAY_CALL_LOG")"
+# The broken-channel alert is a relay call too, from under the same lock.
+: >"$RELAY_CALL_LOG"
+rm -rf "$tmp/fd9-alert-claims"
+(
+  exec 9>>"$tmp/fd9-lock"
+  FAKE_WEEK=2026-43 UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+    unattended_log_alert_delivery_failure "$tmp/fd9-alert-claims" update-skills >/dev/null 2>&1
+)
+grep -qF 'FD9: closed' "$RELAY_CALL_LOG" ||
+  fail "the broken-channel alert inherited the caller's serialize-lock fd: $(cat "$RELAY_CALL_LOG")"
 
 # 4b. relay.sh absent: state it, report the failure, deliver nothing.
 : >"$RELAY_CALL_LOG"
