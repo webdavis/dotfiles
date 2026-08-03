@@ -397,6 +397,28 @@ grep -qF 'unknowable identity lane: no tracked plugin was refreshed in it' <<<"$
 refute 'change unknowable' "$entries" \
   "an entry with no unknowable refresh still claimed one: $entries"
 
+# ── 7c. A KNOWABLE-lane plugin whose runtime version comes back "unknown" has an
+#        identity this run could not read. Left in the comparison it reads equal
+#        to itself on both snapshots and is counted in the clean "0 of N changed"
+#        line, reporting a comparison that never happened for it. It must be named
+#        as undetermined and excluded from the count, NOT rendered as a clean
+#        entry (and NOT as the unknowable lane, which it does not belong to).
+reset_state
+jq 'map(if .id == "steady@mkt-a" then .version = "unknown" else . end)' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "the undetermined-version run exited $RUN_RC: $RUN_OUTPUT"
+entries="$(log_entries)"
+grep -qF 'knowable identity undetermined' <<<"$entries" ||
+  fail "a knowable plugin reporting no version was not named as undetermined, so it read as a clean comparison: $entries"
+grep -qF 'steady@mkt-a' <<<"$(grep -o 'knowable identity undetermined:[^|]*' <<<"$entries")" ||
+  fail "the undetermined line does not name the plugin whose identity could not be read: $entries"
+# ...and it does not appear in the unknowable-lane sentence: it declares a
+# knowable lane, so mislabelling it there would hide a data problem as a property.
+unknowable_line="$(grep -o 'unknowable identity lane:[^|]*' <<<"$entries" || true)"
+refute 'steady@mkt-a' "$unknowable_line" \
+  "an undetermined knowable plugin was mislabelled into the unknowable lane: $unknowable_line"
+
 # ── 8. A FAILED update alerts on the EXISTING route (the priority channel) and
 #      the record still goes out stating the count. A weekly job that fails and
 #      tells nobody is the gap this whole family closes. ─────────────────────────

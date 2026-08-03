@@ -330,6 +330,40 @@ __agent_plugins_versions() {
     | .[] | [.id, (.version // "")] | @tsv' "$1" 2>/dev/null | sort
 }
 
+# __agent_plugins_versions_unknown <inventory> <lock> -- ids of tracked plugins
+# in a KNOWABLE lane whose runtime version came back empty or the literal
+# "unknown", i.e. plugins that DECLARE a readable identity but did not report one
+# this run. Left in the comparison such a plugin reads equal to itself on both
+# snapshots and inflates the clean "0 of N changed" count, reporting a comparison
+# that never happened for it, which is the same shape as every other defect this
+# record exists to end. The caller drops these from both tsvs and names them in a
+# line of their own.
+__agent_plugins_versions_unknown() {
+  jq -r --slurpfile lockdoc "$2" '
+    ($lockdoc[0].plugins // {}) as $tracked
+    | map(select((.id != null)
+        and (.id | in($tracked))
+        and (($tracked[.id].identityLane // "") != "unknowable")
+        and (((.version // "") == "") or (.version == "unknown"))))
+    | .[].id' "$1" 2>/dev/null | sort -u
+}
+
+# __agent_plugins_drop_ids <newline-ids> <tsv-file> -- remove every row of the
+# tsv whose first column (the id) is in the id set. Filtering BOTH snapshots by
+# the UNION of their unknown ids is what keeps a real-version-to-unknown
+# regression from rendering as a REMOVAL: drop it from both sides or from neither.
+__agent_plugins_drop_ids() {
+  local ids="$1" tsv="$2" tmpf
+  [[ -s $tsv ]] || return 0
+  tmpf="$(mktemp "${TMPDIR:-/tmp}/uap-drop.XXXXXX")" || return 0
+  if awk -F'\t' 'NR==FNR{if(length($0))drop[$0]=1;next} !($1 in drop)' \
+    <(printf '%s\n' "$ids") "$tsv" >"$tmpf"; then
+    mv "$tmpf" "$tsv"
+  else
+    rm -f "$tmpf"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # TWO different facts, and they used to collapse into one elsewhere in this
 # repo: `lockf` answers 75 when another process holds the lock, and anything
@@ -518,6 +552,21 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
       "${skipped_rendered%, }")")
   fi
 
+  # A knowable-lane plugin whose runtime version came back empty or "unknown" has
+  # an identity this run could not read. Collect those across BOTH snapshots and
+  # drop them from both tsvs before comparing, so they are neither counted clean
+  # nor (on a real-to-unknown regression) rendered as a removal. Then name them.
+  version_unknown_ids="$(
+    {
+      __agent_plugins_versions_unknown "$workspace/before.json" "$AGENT_PLUGINS_LOCK"
+      [[ -n $after_ok ]] && __agent_plugins_versions_unknown "$workspace/after-raw.json" "$AGENT_PLUGINS_LOCK"
+    } | sort -u
+  )"
+  if [[ -n $version_unknown_ids ]]; then
+    __agent_plugins_drop_ids "$version_unknown_ids" "$workspace/before.tsv"
+    __agent_plugins_drop_ids "$version_unknown_ids" "$workspace/after.tsv"
+  fi
+
   # ONE flag for the comparison, because half a comparison is not one: a
   # snapshot that failed on EITHER reading would otherwise be compared against a
   # good one and report the whole roster as added or removed.
@@ -528,6 +577,20 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
     'plugins with a knowable version' \
     'Versions are what claude plugin list --json reports for the tracked plugins that declare one, a release version or a commit sha. A plugin refreshed to the same version does not appear here.' \
     versions 'claude plugin list --json')")
+
+  # Name the knowable-lane plugins whose identity this run could NOT read (empty
+  # or "unknown" version), excluded from the comparison above. This is NOT the
+  # unknowable lane: these plugins DECLARE a readable version and simply did not
+  # report one, which is a data problem worth seeing, not a standing property.
+  if [[ -n $version_unknown_ids ]]; then
+    version_unknown_count="$(printf '%s\n' "$version_unknown_ids" | grep -c .)"
+    version_unknown_rendered=""
+    while IFS= read -r unknown_id; do
+      [[ -n $unknown_id ]] && version_unknown_rendered+="$(__agent_plugins_code "$unknown_id"), "
+    done <<<"$version_unknown_ids"
+    record_lines+=("$(printf 'knowable identity undetermined: %d tracked plugin(s) declare a knowable lane but claude plugin list --json reported no usable version this run (%s), so those entries are excluded from the comparison above rather than counted as unchanged.' \
+      "$version_unknown_count" "${version_unknown_rendered%, }")")
+  fi
 
   # The unknowable lane is derived from the OUTCOMES and the lock, never from a
   # snapshot: those plugins declare the literal version "unknown" and their
