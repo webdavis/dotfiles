@@ -371,6 +371,13 @@ __update_skills_change_snapshot() {
 # not one.
 LOG_NPX_SNAPSHOT_OK=1
 LOG_CLAWHUB_SNAPSHOT_OK=1
+# What could not be read, per lane. A NOT COMPARED line has to name the thing
+# that actually broke: when the workspace itself could not be allocated, both
+# readings were fine, and sending the operator to check them wastes the one
+# actionable sentence in the entry.
+LOG_NPX_SOURCE='reading the generation lock'
+LOG_CLAWHUB_SOURCE='reading the clawhub origin markers'
+LOG_SNAPSHOT_WORKSPACE_SOURCE='creating the record snapshot workspace (mktemp -d)'
 # __update_skills_take_snapshot <lane> <phase> -- one reading, and a note when it
 # failed. Never fatal: the record must not break the run it reports on.
 __update_skills_take_snapshot() {
@@ -3725,19 +3732,41 @@ fi
 # fingerprints in place.
 LOG_CHANGE_DIR=""
 if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
-  LOG_CHANGE_DIR="$(mktemp -d)"
-  # Fold the snapshot dir into the roster-snapshot cleanup trap already installed
-  # above (same shape: guard each name, then a trailing `true` so the trap can
-  # never alter the exit status), so no exit path leaks it.
-  __update_skills_cleanup() {
-    [[ -n ${GEN_ROSTER_SNAPSHOT_FILE:-} ]] && rm -f "$GEN_ROSTER_SNAPSHOT_FILE"
-    [[ -n ${LOG_CHANGE_DIR:-} ]] && rm -rf "$LOG_CHANGE_DIR"
-    true
-  }
-  trap '__update_skills_cleanup' EXIT
-  for __update_skills_lane in npx clawhub; do
-    __update_skills_take_snapshot "$__update_skills_lane" before
-  done
+  # GUARDED, like the success-stamp write below and for the same reason. This
+  # script runs under set -e and this was a bare command substitution, so a
+  # failed mktemp (an absent, unwritable or full TMPDIR) ENDED THE RUN right
+  # here: after the store migration, before the generation attempt, and before
+  # any record or alert existed to say so. Every remaining slot that week
+  # repeats the same silent exit, so the week ends with nothing done and nothing
+  # said, which from the channel is indistinguishable from a dead LaunchAgent.
+  # A workspace that cannot be allocated costs the change detail, nothing else.
+  #
+  # The template is spelled out for the reason FORK_CLONE_DIR_TEMPLATE is: a
+  # bare `mktemp -d` ignores TMPDIR on macOS (measured on 26.2 / Darwin 25.2),
+  # so its location is neither redirectable nor testable, and anything this ever
+  # fails to clean up should carry the name of the job that made it.
+  if LOG_CHANGE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/update-skills-record.XXXXXX" 2>/dev/null)" &&
+    [[ -n $LOG_CHANGE_DIR ]]; then
+    # Fold the snapshot dir into the roster-snapshot cleanup trap already installed
+    # above (same shape: guard each name, then a trailing `true` so the trap can
+    # never alter the exit status), so no exit path leaks it.
+    __update_skills_cleanup() {
+      [[ -n ${GEN_ROSTER_SNAPSHOT_FILE:-} ]] && rm -f "$GEN_ROSTER_SNAPSHOT_FILE"
+      [[ -n ${LOG_CHANGE_DIR:-} ]] && rm -rf "$LOG_CHANGE_DIR"
+      true
+    }
+    trap '__update_skills_cleanup' EXIT
+    for __update_skills_lane in npx clawhub; do
+      __update_skills_take_snapshot "$__update_skills_lane" before
+    done
+  else
+    LOG_CHANGE_DIR=""
+    LOG_NPX_SNAPSHOT_OK=""
+    LOG_CLAWHUB_SNAPSHOT_OK=""
+    LOG_NPX_SOURCE="$LOG_SNAPSHOT_WORKSPACE_SOURCE"
+    LOG_CLAWHUB_SOURCE="$LOG_SNAPSHOT_WORKSPACE_SOURCE"
+    log "WARNING: the record snapshot workspace could not be created (mktemp -d failed); the run continues and this entry will say that neither lane could be compared"
+  fi
 fi
 
 # 2-5) Build the candidate generation (a fake HOME under .skills-generations),
@@ -3842,10 +3871,16 @@ fi
 # throws away the main reason the channel exists. Required-phase failures also
 # reach here (they alert separately to the priority channel), so the entry states
 # the count rather than implying a clean week.
-if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_DIR ]]; then
-  for __update_skills_lane in npx clawhub; do
-    __update_skills_take_snapshot "$__update_skills_lane" after
-  done
+#
+# It is gated on the LIBRARY being available, never on the workspace: a run with
+# nowhere to snapshot still has a class, a host, a timestamp, a gap, a stamp note
+# and a failure count to report, and those are what a reader checks first.
+if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
+  if [[ -n $LOG_CHANGE_DIR ]]; then
+    for __update_skills_lane in npx clawhub; do
+      __update_skills_take_snapshot "$__update_skills_lane" after
+    done
+  fi
   # The two lanes this record can SEE are the two store lanes it snapshots. The
   # same run also refreshes the cua-driver pack through that app's own updater
   # and updates the hermes-registry-owned skills, and it reads neither before nor
@@ -3857,12 +3892,12 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_DIR ]]; then
       "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.after" \
       'npx-tracked skills' \
       'The change unit is the skill folder hash: this lane installs the latest commit from main with no pin and its lock records no version field, so NO VERSION NUMBER IS KNOWABLE for these skills.' \
-      opaque 'reading the generation lock')" \
+      opaque "$LOG_NPX_SOURCE")" \
     "$(unattended_log_change_section "$LOG_CLAWHUB_SNAPSHOT_OK" \
       "$LOG_CHANGE_DIR/clawhub.before" "$LOG_CHANGE_DIR/clawhub.after" \
       'clawhub-tracked skills' \
       'This lane records an installed version, so a version number is knowable here.' \
-      versions 'reading the clawhub origin markers')" \
+      versions "$LOG_CLAWHUB_SOURCE")" \
     'NOT COVERED by the two lines above: the cua-driver pack (refreshed by that app own updater, through a symlink this record never reads) and the hermes-registry-owned skills (hermes owns those installs). A change to either is NOT visible here, so silence about them means nothing.' \
     "$LOG_STAMP_NOTE" \
     "$REQUIRED_FAILURES")"

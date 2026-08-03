@@ -190,6 +190,27 @@ cat >"$stub_dir/alerter" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
+# mktemp stub: inert unless MKTEMP_FAIL_TEMPLATE names a substring of one of its
+# arguments, in which case that ONE allocation fails and every other call is the
+# real mktemp. Section 17 needs the RECORD's workspace to fail while the roster
+# snapshot and the generation lanes keep theirs, and an unusable TMPDIR cannot do
+# that: it would break every allocation, and macOS mktemp ignores TMPDIR in the
+# bare form while the flake devshell ships GNU coreutils mktemp, which honours
+# it, so the same line would test two different things on the host and in CI.
+real_mktemp="$(command -v mktemp)"
+[[ -x $real_mktemp ]] || fail "no mktemp on PATH to delegate to"
+cat >"$stub_dir/mktemp" <<STUB
+#!/usr/bin/env bash
+if [[ -n \${MKTEMP_FAIL_TEMPLATE:-} ]]; then
+  for arg in "\$@"; do
+    if [[ \$arg == *"\$MKTEMP_FAIL_TEMPLATE"* ]]; then
+      printf 'mktemp: mkdtemp failed on %s: No such file or directory\n' "\$arg" >&2
+      exit 1
+    fi
+  done
+fi
+exec "$real_mktemp" "\$@"
+STUB
 chmod +x "$stub_dir"/*
 export PATH="$stub_dir:$PATH"
 export FAKE_WEEK="2026-31"
@@ -580,4 +601,46 @@ grep -qiE 'stamp[^.]*(could not|WITHHELD|not written)' <<<"$entries" ||
 grep -qF -- '--agent update-skills' <<<"$(alert_entries)" ||
   fail "a run that could not mark the week done alerted nobody: $RUN_OUTPUT"
 
-printf 'update-skills-weekly-record: OK (every deferral and refusal path records: activity, lock contention, an unparseable roster, a zero roster, an already-finished week and a mid-run exchange deferral; a completed run reports both lanes, what it cannot see, the required-phase count and what became of the weekly stamp; 24 slots post one entry; manual and dry runs post none; failures still alert the existing route; a corrupt marker and an unwritable state dir do not end the run before it records)\n'
+# ── 17. A RECORD SNAPSHOT WORKSPACE that cannot be allocated must not end the
+#       run. This script runs under set -e and the allocation was an unguarded
+#       command substitution, so a failed mktemp (an absent, unwritable or full
+#       TMPDIR) stopped the run right there: after the store migration, before
+#       the generation attempt, and before any record or alert existed to say so.
+#       Every one of the week's remaining slots then repeats the same silent
+#       exit, so the week ends with nothing done and nothing said, which is a
+#       dead LaunchAgent from the channel's side. The change detail is the only
+#       thing a missing workspace can honestly cost. ─────────────────────────
+reset_state
+export FAKE_WEEK="2026-45"
+restage_lock
+clawhub_version "1.0.0"
+harness_absent
+: >"$RELAY_LOG"
+RUN_OUTPUT="$(MKTEMP_FAIL_TEMPLATE=update-skills-record FAKE_PS="$QUIET_WORLD" \
+  bash "$SCRIPT" --scheduled 2>&1)" || true
+grep -qiE 'workspace|mktemp' <<<"$RUN_OUTPUT" ||
+  fail "the injected mktemp failure never happened, so this case tested nothing: $RUN_OUTPUT"
+entries="$(log_entries)"
+[[ -n $entries ]] ||
+  fail "a run whose record workspace could not be allocated posted NOTHING, and every later slot repeats that: $RUN_OUTPUT"
+grep -qF -- '--state completed' <<<"$entries" ||
+  fail "the run did not reach its own record: $entries | $RUN_OUTPUT"
+for lane in 'npx-tracked skills' 'clawhub-tracked skills'; do
+  grep -qiE "$lane: [^.]*(could not|failed|NOT COMPARED)" <<<"$entries" ||
+    fail "the entry does not say the $lane comparison could not be made: $entries"
+done
+refute '[0-9]+ of [0-9]+ tracked' "$entries" \
+  "an entry with no snapshots at all rendered as a change count: $entries"
+refute '\((added|removed)\)' "$entries" \
+  "an entry with no snapshots invented a change list: $entries"
+# ...naming what actually failed. Both readings were fine on this run; sending
+# the operator to check the generation lock would waste the entry.
+grep -qiE 'snapshot workspace|mktemp' <<<"$entries" ||
+  fail "the entry does not name the workspace allocation as what failed: $entries"
+# The rest of the entry is still true and is what a reader checks first.
+grep -qE 'run at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' <<<"$entries" ||
+  fail "the degraded entry dropped the run timestamp: $entries"
+grep -qE 'required-phase failures: [0-9]' <<<"$entries" ||
+  fail "the degraded entry dropped the required-phase count: $entries"
+
+printf 'update-skills-weekly-record: OK (every deferral and refusal path records: activity, lock contention, an unparseable roster, a zero roster, an already-finished week and a mid-run exchange deferral; a completed run reports both lanes, what it cannot see, the required-phase count and what became of the weekly stamp; 24 slots post one entry; manual and dry runs post none; failures still alert the existing route; a corrupt marker, an unwritable state dir and a record workspace that could not be allocated do not end the run before it records)\n'
