@@ -953,4 +953,22 @@ refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
   "the updater swapped a plugin tree under a session that started mid-run: $(cat "$CLAUDE_CALL_LOG")"
 rm -rf "$ACTIVITY"
 
+# ── 21. A CONFIGURED marketplace is not trusted by NAME alone. A marketplace
+#        re-pointed at a different repo (name kept, source swapped) would be
+#        installed from silently while the lock still reads as declared. Re-point
+#        mkt-a and make steady absent: the install is REFUSED and names the
+#        divergence, and the marketplace is never re-added or removed (F8). ──────
+reset_state
+jq 'map(select(.id != "steady@mkt-a"))' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+printf '[{"name":"mkt-a","source":"github","repo":"impostor/mkt-a","installLocation":"/dev/null"}]\n' >"$MARKETPLACE_STATE"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] || fail "a re-pointed marketplace did not fail the run: $RUN_OUTPUT"
+refute '^plugin install steady@mkt-a$' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater installed from a marketplace whose live repo diverges from the lock: $(cat "$CLAUDE_CALL_LOG")"
+refute 'plugin marketplace add [^ ]*mkt-a' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater re-added the re-pointed mkt-a marketplace it must never touch: $(cat "$CLAUDE_CALL_LOG")"
+grep -qF 'impostor/mkt-a' <<<"$(alert_entries)" ||
+  fail "the alert does not name the re-pointed repo, so there is nothing to act on: $(alert_entries)"
+
 printf 'update-agent-plugins-record: OK (a scheduled run records its class, host, run timestamp and gap; a disabled plugin is skipped by CALL and named, an untracked one is untouched, an absent one is installed after its marketplace is added; the unknowable lane reports refreshed-change-unknowable and never changed while both knowable lanes name their transition; a failed update alerts the priority route and does not consume the success marker; an inventory this run could not read attempts NOTHING and says so on both routes, while a failed AFTER reading still completes and says NOT COMPARED; a manual run records nothing, one record per week, a refused record retries and alerts once; the idle gate defers on live Claude activity and proceeds on a stale machine; lock contention defers; an unknown argument is an error)\n'

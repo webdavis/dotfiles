@@ -490,6 +490,19 @@ __agent_plugins_marketplace_configured() {
     jq -e --arg name "$1" 'any(.[]; .name == $name)' >/dev/null 2>&1
 }
 
+# __agent_plugins_marketplace_repo <name> -- the repo the LIVE marketplace of that
+# name points at, or empty when the field is absent. A marketplace is trusted by
+# NAME at install time, so a live marketplace re-pointed at a different repo
+# (name kept, source swapped) would be invisible while the lock still reads as
+# declared, and the install would pull plugin code from the wrong repo. The
+# caller compares this against the lock's repo and refuses the install on a
+# mismatch. It never re-adds or removes the marketplace (operator ruling); an
+# unreadable repo cannot prove a mismatch, so it does not block.
+__agent_plugins_marketplace_repo() {
+  run_claude plugin marketplace list --json 2>/dev/null |
+    jq -r --arg name "$1" 'map(select(.name == $name)) | .[0].repo // empty' 2>/dev/null
+}
+
 # Per-plugin outcomes, as ARRAYS (never space-joined strings): they are what
 # makes the entry and the alert actionable.
 refreshed_plugins=()
@@ -538,12 +551,24 @@ while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
     # ABSENT: install it, adding its marketplace first when the CLI does not
     # know it. Without this the whole vertical merges and does nothing on a
     # fresh machine, which is the state every machine but this one is in.
-    if ! __agent_plugins_marketplace_configured "$marketplace"; then
-      marketplace_repo="$(jq -r --arg name "$marketplace" '.marketplaces[$name].repo // empty' "$AGENT_PLUGINS_LOCK" 2>/dev/null)"
-      if [[ -z $marketplace_repo ]]; then
-        failed_plugins+=("$plugin_id: its marketplace $marketplace has no repo in the lock, so it cannot be obtained")
+    marketplace_repo="$(jq -r --arg name "$marketplace" '.marketplaces[$name].repo // empty' "$AGENT_PLUGINS_LOCK" 2>/dev/null)"
+    if [[ -z $marketplace_repo ]]; then
+      failed_plugins+=("$plugin_id: its marketplace $marketplace has no repo in the lock, so it cannot be obtained")
+      continue
+    fi
+    if __agent_plugins_marketplace_configured "$marketplace"; then
+      # CONFIGURED: verify its live repo matches the lock before trusting it. A
+      # marketplace re-pointed at a different repo (name kept, source swapped)
+      # would otherwise be installed from silently. Never re-add or remove it,
+      # just refuse the install (F8).
+      marketplace_live_repo="$(__agent_plugins_marketplace_repo "$marketplace")"
+      if [[ -n $marketplace_live_repo && $marketplace_live_repo != "$marketplace_repo" ]]; then
+        failed_plugins+=("$plugin_id: the configured marketplace $marketplace points at $marketplace_live_repo, not the lock's $marketplace_repo; refused to install from a re-pointed marketplace (this vertical never re-adds or removes one)")
+        printf '   REFUSED (re-pointed marketplace): %s\n' "$plugin_id" >&2
         continue
       fi
+    else
+      # ABSENT marketplace: add it from the lock's repo.
       if ! marketplace_output="$(run_claude plugin marketplace add "$marketplace_repo" 2>&1)"; then
         failed_plugins+=("$plugin_id: marketplace add $marketplace_repo failed: $marketplace_output")
         continue
