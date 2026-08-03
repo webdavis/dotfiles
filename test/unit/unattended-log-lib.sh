@@ -533,6 +533,30 @@ FAKE_WEEK=2026-42 UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
 [[ -s $RELAY_CALL_LOG ]] ||
   fail "a new week did not re-report a record channel that is still broken"
 
+# A run that CANNOT alert must not spend the week's alert token. The token is the
+# only thing between a relay restored later that same week and the remaining 23
+# slots: consumed by a call that sent nothing, every retry for the rest of the
+# week is suppressed, and the operator hears that the record channel is broken
+# next week at the earliest. Both halves of a delivery failure would then be
+# silent at once, which is the exact shape this whole record exists to end.
+: >"$RELAY_CALL_LOG"
+out="$(FAKE_WEEK=2026-45 UNATTENDED_LOG_RELAY="$tmp/does-not-exist.sh" \
+  unattended_log_alert_delivery_failure "$alert_guard" update-skills 2>&1)"
+[[ ! -s $RELAY_CALL_LOG ]] || fail "an absent relay somehow logged a call: $(cat "$RELAY_CALL_LOG")"
+grep -qiE 'not delivered|not executable' <<<"$out" ||
+  fail "an absent relay produced NO line; the alert vanished silently: '$out'"
+: >"$RELAY_CALL_LOG"
+FAKE_WEEK=2026-45 UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+  unattended_log_alert_delivery_failure "$alert_guard" update-skills >/dev/null 2>&1
+[[ -s $RELAY_CALL_LOG ]] ||
+  fail "a relay restored later in the same week found the alert token already spent by a call that sent nothing"
+# ...and that later call DID spend it, so the week is still capped at one alert.
+: >"$RELAY_CALL_LOG"
+FAKE_WEEK=2026-45 UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+  unattended_log_alert_delivery_failure "$alert_guard" update-skills >/dev/null 2>&1
+[[ ! -s $RELAY_CALL_LOG ]] ||
+  fail "the alert that WAS sent did not claim the week; every later slot would alert again: $(cat "$RELAY_CALL_LOG")"
+
 # ── 4c. The CHANGE SUMMARY. Both weekly jobs render through this one function,
 #       so the channel reads as one log rather than two. Fixture snapshots are
 #       built through printf '\t' rather than embedded literal tabs, so a
@@ -679,4 +703,4 @@ default_url="$(UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" unattended_log_ur
 grep -qE '^http://127\.0\.0\.1:8644/' <<<"$default_url" ||
   fail "the default URL does not point at the loopback hermes gateway: $default_url"
 
-printf 'unattended-log-lib: OK (elapsed boundaries in both directions, a backwards clock named; the gap line reports never/recorded/unreadable and reads a leading-zero epoch in base 10; the entry header takes ONE clock reading and keeps its gap line when the clock breaks; the week claim is atomic under %d concurrent racers and an exclusive create by the symlink probe, survives a corrupt guard, an unusable guard path, an unknown class and an unreadable week, admits one entry per class with completed-first refusing a late deferral, releases per class without freeing the sibling, and prunes; delivery reports its outcome either way, closes fd 9, names its host, and alerts the priority route once a week when the channel is broken; the change line counts removals in the total, matches names carrying backslashes, quotes third-party text incl. control characters and caps a whole-subject move)\n' "$claim_racers"
+printf 'unattended-log-lib: OK (elapsed boundaries in both directions, a backwards clock named; the gap line reports never/recorded/unreadable and reads a leading-zero epoch in base 10; the entry header takes ONE clock reading and keeps its gap line when the clock breaks; the week claim is atomic under %d concurrent racers and an exclusive create by the symlink probe, survives a corrupt guard, an unusable guard path, an unknown class and an unreadable week, admits one entry per class with completed-first refusing a late deferral, releases per class without freeing the sibling, and prunes; delivery reports its outcome either way, closes fd 9, names its host, and alerts the priority route once a week when the channel is broken while never spending the alert token for a week on a call it could not make; the change line counts removals in the total, matches names carrying backslashes, quotes third-party text incl. control characters and caps a whole-subject move)\n' "$claim_racers"

@@ -446,14 +446,23 @@ unattended_log_post() {
 # default is the alert webhook. No --remote-only either; this one should buzz.
 # There is no recursion risk: the alert path is fire-and-forget and never
 # re-enters this library.
+#
+# THE WEEK IS CLAIMED ONLY WHEN AN ALERT CAN ACTUALLY BE ATTEMPTED, which is the
+# same rule the record delivery follows by giving its claim back on a refusal. A
+# claim taken before the relay was found spent the week's one alert on a call
+# that sent nothing: a relay restored on Tuesday had every remaining slot's alert
+# suppressed by that token, so the week lost BOTH halves at once, the record and
+# the alert saying the record could not be posted. The claim cannot cover the
+# delivery itself -- this route is fire-and-forget and its outcome is never
+# observed -- so it covers exactly what is knowable, that an attempt was made.
 unattended_log_alert_delivery_failure() {
   local guard="$1" agent="$2"
   local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/bin/relay.sh}"
-  unattended_log_claim_week "$guard" delivery-alert || return 0
   if [[ ! -x $relay_script ]]; then
-    printf 'unattended-log: relay.sh is not executable at %s; the broken-record-channel alert was NOT delivered either\n' "$relay_script"
+    printf 'unattended-log: relay.sh is not executable at %s; the broken-record-channel alert was NOT delivered either, and this week stays unclaimed so a later run retries it\n' "$relay_script"
     return 0
   fi
+  unattended_log_claim_week "$guard" delivery-alert || return 0
   "$relay_script" --agent "$agent" --state log-channel-broken \
     --project "$(unattended_log_host)" \
     --detail "$(printf 'The weekly record from %s could NOT be delivered to the unattended-upgrades channel (this job'"'"'s run log carries the HTTP status). Until this is fixed that channel is silent for a reason that has nothing to do with the jobs it reports on, so its silence means nothing. Check that the hermes gateway is up and that it serves the unattended-upgrades route.' "$agent")" 9>&- || true
