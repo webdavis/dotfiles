@@ -465,6 +465,7 @@ line="$(unattended_log_change_line "$before" "$after" "npx-tracked skills" "$CAV
 # content hash tells a reader nothing.
 write_snapshot "$after" "alpha:aaa2" "beta:bbb1"
 line="$(unattended_log_change_line "$before" "$after" "npx-tracked skills" "$CAVEAT" opaque)"
+# shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 grep -qF 'npx-tracked skills: 1 of 2 tracked entries changed (`alpha`).' <<<"$line" ||
   fail "an opaque change did not name the subject: '$line'"
 refute 'aaa1|aaa2' "$line" "the opaque style printed a fingerprint, which tells the reader nothing"
@@ -475,6 +476,7 @@ grep -qF "$CAVEAT" <<<"$line" || fail "the change line dropped its caveat: '$lin
 write_snapshot "$before" "jq:1.7.1" "yq:4.53.3"
 write_snapshot "$after" "jq:1.8.0" "yq:4.53.3"
 line="$(unattended_log_change_line "$before" "$after" "formulae" "brew reports these" versions)"
+# shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 grep -qF 'formulae: 1 of 2 tracked entries changed (`jq` `1.7.1` -> `1.8.0`).' <<<"$line" ||
   fail "the versions style did not render the transition: '$line'"
 
@@ -482,11 +484,13 @@ grep -qF 'formulae: 1 of 2 tracked entries changed (`jq` `1.7.1` -> `1.8.0`).' <
 # line: something left without being asked to.
 write_snapshot "$before" "alpha:aaa1"
 write_snapshot "$after" "alpha:aaa1" "delta:ddd1"
+# shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 grep -qF '1 of 2 tracked entries changed (`delta` (added)).' \
   <<<"$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)" ||
   fail "an added entry was not reported"
 write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
 write_snapshot "$after" "alpha:aaa1"
+# shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 grep -qF '`beta` (removed)' \
   <<<"$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)" ||
   fail "a removed entry was not reported"
@@ -535,6 +539,7 @@ grep -qF 'subject: 0 of 2 tracked entries changed' <<<"$line" ||
 write_snapshot "$before" 'evil:1.0'
 write_snapshot "$after" 'evil:[urgent: click here](https://evil.example)'
 line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" versions)"
+# shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 grep -qF '`[urgent: click here](https://evil.example)`' <<<"$line" ||
   fail "a publisher-chosen version was not wrapped in a code span, so its markdown renders: '$line'"
 refute '[^`]\[urgent' "$line" "the masked link escaped its code span: '$line'"
@@ -542,8 +547,10 @@ refute '[^`]\[urgent' "$line" "the masked link escaped its code span: '$line'"
 # ...and a version carrying a control character cannot forge a second entry or a
 # second column.
 write_snapshot "$before" 'sneak:1.0'
+# shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 printf 'sneak\t%s\n' '2.0`x`' >"$after"
 line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" versions)"
+# shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 refute '2\.0`x`' "$line" "a backtick in a version string was not stripped, so it can close the code span"
 
 # ── 5. The route name the library posts to is the one the config declares and

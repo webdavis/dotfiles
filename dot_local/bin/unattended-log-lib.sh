@@ -296,6 +296,7 @@ __unattended_log_lookup() {
 __unattended_log_code() {
   local text="${1//\`/}"
   text="$(printf '%s' "$text" | tr -d '[:cntrl:]')"
+  # shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
   printf '`%s`' "$text"
 }
 
