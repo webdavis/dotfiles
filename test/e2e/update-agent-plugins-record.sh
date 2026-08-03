@@ -1051,6 +1051,27 @@ grep -qF -- '--state deferred-exhausted' <<<"$(alert_entries)" ||
   fail "the last scheduled slot deferred with no starvation alert, so a week that updated nothing is invisible: $(cat "$RELAY_LOG")"
 rm -rf "$ACTIVITY"
 
+# ── 19b. Once the week has COMPLETED, the last-slot deferral must NOT fire the
+#         starvation alert (F42). The starvation alert means "the week updated
+#         NOTHING because every slot deferred"; a week that already completed did
+#         update, so alerting on it is a false claim. An earlier slot completes the
+#         week (writing the completed token); the last slot then finds a live
+#         session and defers, but the alert must stay silent because the work is
+#         already done. The date stub from test 19 pins the last slot. ────────────
+reset_state
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "F42 setup: the completing slot did not complete (rc=$RUN_RC): $RUN_OUTPUT"
+mkdir -p "$ACTIVITY"
+: >"$ACTIVITY/live-session.jsonl"
+: >"$RELAY_LOG"
+PATH="$tmp/lastslot:$STUBS:$PATH" FAKE_DOW=1 FAKE_HOUR=23 \
+  UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.f42" bash "$HELPER" --scheduled >/dev/null 2>&1
+f42_rc=$?
+[[ $f42_rc -eq 75 ]] || fail "F42: the last-slot deferral on a completed week did not exit 75 (rc=$f42_rc)"
+refute 'deferred-exhausted' "$(alert_entries)" \
+  "F42: the last slot fired the starvation alert for a week that had already COMPLETED, a false 'nothing updated' claim: $(cat "$RELAY_LOG")"
+rm -rf "$ACTIVITY"
+
 # ── 20. The idle gate is RE-PROBED before mutating (F26). The up-front check runs
 #        before `claude plugin list --json`, which reaches the network; a Claude
 #        session that starts in that window must not have its plugin tree swapped

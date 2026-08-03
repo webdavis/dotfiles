@@ -262,6 +262,19 @@ __agent_plugins_budget_exhausted() {
   __agent_plugins_no_slot_remains
 }
 
+# 0 when THIS ISO week already has a completed record (an earlier slot finished
+# the update). F42: the starvation alert means "the week updated NOTHING because
+# every slot deferred", so it must NOT fire on a week that already completed, even
+# if the terminal slot then defers on a live session. Reads the same completed
+# token unattended_log_claim_week writes under LOG_WEEK_GUARD.
+__agent_plugins_week_completed() {
+  local week
+  [[ -n $UNATTENDED_LOG_AVAILABLE ]] || return 1
+  week="$(unattended_log_week 2>/dev/null || true)"
+  [[ -n $week ]] || return 1
+  [[ -e "$LOG_WEEK_GUARD/$week.completed" ]]
+}
+
 # __agent_plugins_should_defer -- 0 = DEFER, 1 = PROCEED. See the gate rationale
 # above. Fails CLOSED on an unreadable activity dir or a scan error: the cost of
 # a wrong defer is one week, the cost of a wrong proceed is a corrupted live
@@ -302,7 +315,8 @@ defer_for_idle() {
   # On the LAST scheduled slot this deferral means the week's retry budget is
   # spent and nothing updated: a starving idle gate is #95's exact failure, so it
   # alerts on the priority route instead of vanishing. Earlier slots defer quietly.
-  if __agent_plugins_budget_exhausted; then
+  # A week that already COMPLETED did NOT starve, so it never fires this (F42).
+  if __agent_plugins_budget_exhausted && ! __agent_plugins_week_completed; then
     printf 'update-agent-plugins: EXHAUSTED -- the last scheduled slot this week still deferred; nothing was updated.\n' >&2
     weekly_alert deferred-exhausted "$(printf 'The weekly agent-plugin update deferred on every scheduled Monday slot this week (a Claude Code session was active at each), so no plugin was updated. Run it by hand when the machine is idle: ~/.local/bin/update-agent-plugins.sh --scheduled.')"
   fi
