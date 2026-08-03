@@ -919,4 +919,38 @@ grep -qF -- '--state deferred-exhausted' <<<"$(alert_entries)" ||
   fail "the last scheduled slot deferred with no starvation alert, so a week that updated nothing is invisible: $(cat "$RELAY_LOG")"
 rm -rf "$ACTIVITY"
 
+# ── 20. The idle gate is RE-PROBED before mutating (F26). The up-front check runs
+#        before `claude plugin list --json`, which reaches the network; a Claude
+#        session that starts in that window must not have its plugin tree swapped
+#        out mid-turn. A wrapper starts a fresh transcript during the inventory
+#        read, and the second probe catches it and defers. ────────────────────────
+reset_state
+mkdir -p "$ACTIVITY"
+# A STALE transcript, so the up-front probe PROCEEDS.
+touch -t "$(date -v-2H +%Y%m%d%H%M.%S 2>/dev/null || date -d '2 hours ago' +%Y%m%d%H%M.%S)" \
+  "$ACTIVITY/old-session.jsonl"
+mkdir -p "$tmp/midrun"
+cp "$STUBS/claude" "$tmp/midrun/real-claude"
+cat >"$tmp/midrun/claude" <<'WRAP'
+#!/usr/bin/env bash
+# On the first `plugin list` (the before inventory read) a Claude session
+# "starts": drop a fresh transcript into the activity dir, then behave normally.
+if [[ "$1 $2" == "plugin list" && ! -e $MIDRUN_MARK ]]; then
+  : >"$MIDRUN_MARK"
+  : >"$ACT/live-session.jsonl"
+fi
+exec "$REAL_CLAUDE" "$@"
+WRAP
+chmod +x "$tmp/midrun/claude"
+rm -f "$tmp/midrun-mark"
+RUN_OUTPUT="$(PATH="$tmp/midrun:$STUBS:$PATH" REAL_CLAUDE="$tmp/midrun/real-claude" \
+  MIDRUN_MARK="$tmp/midrun-mark" ACT="$ACTIVITY" \
+  UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.midrun" bash "$HELPER" --scheduled 2>&1)"
+midrun_rc=$?
+[[ $midrun_rc -eq 75 ]] ||
+  fail "a session that started during the inventory read was not caught by the re-probe (rc=$midrun_rc): $RUN_OUTPUT"
+refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater swapped a plugin tree under a session that started mid-run: $(cat "$CLAUDE_CALL_LOG")"
+rm -rf "$ACTIVITY"
+
 printf 'update-agent-plugins-record: OK (a scheduled run records its class, host, run timestamp and gap; a disabled plugin is skipped by CALL and named, an untracked one is untouched, an absent one is installed after its marketplace is added; the unknowable lane reports refreshed-change-unknowable and never changed while both knowable lanes name their transition; a failed update alerts the priority route and does not consume the success marker; an inventory this run could not read attempts NOTHING and says so on both routes, while a failed AFTER reading still completes and says NOT COMPARED; a manual run records nothing, one record per week, a refused record retries and alerts once; the idle gate defers on live Claude activity and proceeds on a stale machine; lock contention defers; an unknown argument is an error)\n'

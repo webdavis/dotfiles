@@ -278,6 +278,26 @@ __agent_plugins_should_defer() {
   return 1
 }
 
+# defer_for_idle -- the one shape a live-session deferral takes, reached from TWO
+# probes: once up front, and once again right before the update loop (the up-front
+# check goes stale while `claude plugin list --json` runs, and a session that
+# started in that window must not have its plugin tree swapped out from under it).
+# Alerts on the terminal slot (starvation), records the deferral, exits 75.
+defer_for_idle() {
+  printf 'update-agent-plugins: a Claude Code session wrote a transcript within the last %ss (or the probe failed); deferring (exit 75).\n' \
+    "$IDLE_THRESHOLD_SECONDS" >&2
+  # On the LAST scheduled slot this deferral means the week's retry budget is
+  # spent and nothing updated: a starving idle gate is #95's exact failure, so it
+  # alerts on the priority route instead of vanishing. Earlier slots defer quietly.
+  if __agent_plugins_budget_exhausted; then
+    printf 'update-agent-plugins: EXHAUSTED -- the last scheduled slot this week still deferred; nothing was updated.\n' >&2
+    weekly_alert deferred-exhausted "$(printf 'The weekly agent-plugin update deferred on every scheduled Monday slot this week (a Claude Code session was active at each), so no plugin was updated. Run it by hand when the machine is idle: ~/.local/bin/update-agent-plugins.sh --scheduled.')"
+  fi
+  weekly_record deferred "$(printf 'nothing was attempted: a Claude Code transcript under %s was written within the last %s seconds (or the probe could not be read, which fails closed), so this slot deferred rather than swapping a plugin tree under a live session. A later Monday slot retries; the gap line above is what a permanently deferring gate looks like.' \
+    "$CLAUDE_ACTIVITY_DIR" "$IDLE_THRESHOLD_SECONDS")"
+  exit 75
+}
+
 # The per-call wall-clock bound. `claude plugin list/marketplace/install/update`
 # each reach the network, and any one of them hanging (a stuck TLS handshake, a
 # marketplace that accepts the connection and never answers) would leave THIS run
@@ -436,20 +456,7 @@ if ! jq -e 'type == "object" and ((.plugins // {}) | type == "object" and length
     "$(printf 'the plugin lock at %s does not parse as an object carrying a NON-EMPTY plugins map, so this run refused to guess what to update. An empty or null plugins map is what a truncated or half-written lock looks like; a clean chezmoi apply restores it.' "$AGENT_PLUGINS_LOCK")"
 fi
 
-if __agent_plugins_should_defer; then
-  printf 'update-agent-plugins: a Claude Code session wrote a transcript within the last %ss (or the probe failed); deferring (exit 75).\n' \
-    "$IDLE_THRESHOLD_SECONDS" >&2
-  # On the LAST scheduled slot this deferral means the week's retry budget is
-  # spent and nothing updated: a starving idle gate is #95's exact failure, so it
-  # alerts on the priority route instead of vanishing. Earlier slots defer quietly.
-  if __agent_plugins_budget_exhausted; then
-    printf 'update-agent-plugins: EXHAUSTED -- the last scheduled slot this week still deferred; nothing was updated.\n' >&2
-    weekly_alert deferred-exhausted "$(printf 'The weekly agent-plugin update deferred on every scheduled Monday slot this week (a Claude Code session was active at each), so no plugin was updated. Run it by hand when the machine is idle: ~/.local/bin/update-agent-plugins.sh --scheduled.')"
-  fi
-  weekly_record deferred "$(printf 'nothing was attempted: a Claude Code transcript under %s was written within the last %s seconds (or the probe could not be read, which fails closed), so this slot deferred rather than swapping a plugin tree under a live session. A later Monday slot retries; the gap line above is what a permanently deferring gate looks like.' \
-    "$CLAUDE_ACTIVITY_DIR" "$IDLE_THRESHOLD_SECONDS")"
-  exit 75
-fi
+__agent_plugins_should_defer && defer_for_idle
 
 workspace=""
 if ! workspace="$(mktemp -d "${TMPDIR:-/tmp}/update-agent-plugins.XXXXXX" 2>/dev/null)" || [[ -z $workspace ]]; then
@@ -491,6 +498,15 @@ skipped_plugins=()
 failed_plugins=()
 tracked_count=0
 unknowable_plugins=()
+
+# RE-PROBE the idle gate right before mutating (F26). The up-front check ran
+# before `claude plugin list --json`, which reaches the network and can take
+# seconds; a Claude session that started in that window would otherwise have its
+# plugin tree swapped out mid-turn. This second probe closes most of that race
+# (it does not eliminate the sub-second window between here and each update, an
+# accepted residue the idle gate has by nature). It runs BEFORE the week is
+# claimed, so a deferral here never strands the completed claim.
+__agent_plugins_should_defer && defer_for_idle
 
 # CLAIM THE WEEK'S completed SLOT BEFORE MUTATING ANY PLUGIN (F16). The claim used
 # to be taken at POST time, downstream of this loop, so a second same-ISO-week
