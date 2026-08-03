@@ -365,6 +365,22 @@ grep -qF '`sha@mkt-a` `abc123def456` -> `fed987654321`' <<<"$entries" ||
   fail "a git-sha-versioned plugin's transition was not reported: $entries"
 refute 'steady@mkt-a. `1' "$entries" "an unchanged plugin was listed as changed: $entries"
 
+# ── 7b. A week in which NO unknowable-lane plugin was refreshed says so, so a
+#       reader knows every refresh above reports a real version. The zero case
+#       is an entry path of its own, and an entry path nobody asks goes silent
+#       without anyone noticing. Both unknowable fixture plugins sit disabled
+#       here, so the lane has members and none of them was refreshed. ──────────
+reset_state
+jq 'map(if .id == "opaque@mkt-a" then .enabled = false else . end)' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "the zero-unknowable run exited $RUN_RC: $RUN_OUTPUT"
+entries="$(log_entries)"
+grep -qF 'unknowable identity lane: no tracked plugin was refreshed in it' <<<"$entries" ||
+  fail "an entry with no unknowable refresh does not say so, so the lane goes silent instead of reporting clean: $entries"
+refute 'change unknowable' "$entries" \
+  "an entry with no unknowable refresh still claimed one: $entries"
+
 # ── 8. A FAILED update alerts on the EXISTING route (the priority channel) and
 #      the record still goes out stating the count. A weekly job that fails and
 #      tells nobody is the gap this whole family closes. ─────────────────────────
@@ -578,6 +594,31 @@ grep -qF -- '--state deferred' <<<"$entries" || fail "the idle deferral recorded
 grep -qiE 'last successful run' <<<"$entries" ||
   fail "the deferral entry carries no gap line, so a permanently starved gate would be invisible: $entries"
 refute 'url=<default>' "$(cat "$RELAY_LOG")" "an idle deferral alerted; nothing was attempted"
+
+# ...and the gate is BYPASSABLE: UPDATE_AGENT_PLUGINS_FORCE=1 proceeds past the
+# same live transcript. Every scenario above this one leans on that bypass, so
+# a bypass that silently broke would turn this whole file into a test of a gate
+# nobody can open, which is task #95's shape.
+reset_state
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "UPDATE_AGENT_PLUGINS_FORCE=1 did not bypass a live transcript (rc=$RUN_RC): $RUN_OUTPUT"
+grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "the FORCE bypass did not actually run the updates: $(cat "$CLAUDE_CALL_LOG")"
+
+# ...and an activity dir the probe cannot READ fails CLOSED. The probe cannot
+# prove the machine idle, and the costs are asymmetric: a wrong defer is one
+# week, a wrong proceed swaps a plugin tree under a session the probe could not
+# see.
+reset_state
+chmod 000 "$ACTIVITY"
+RUN_OUTPUT="$(PATH="$STUBS:$PATH" UPDATE_AGENT_PLUGINS_LOCKFILE="$tmp/lock.unreadable" \
+  bash "$HELPER" --scheduled 2>&1)"
+unreadable_rc=$?
+chmod 755 "$ACTIVITY"
+[[ $unreadable_rc -eq 75 ]] ||
+  fail "an unreadable activity dir did not fail closed (rc=$unreadable_rc, want 75): $RUN_OUTPUT"
+refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "the updater mutated plugins behind an activity probe it could not read"
 
 # ...and a machine whose Claude transcripts are all STALE proceeds. A gate that
 # defers forever is task #95's failure mode, and it is the reason this one
