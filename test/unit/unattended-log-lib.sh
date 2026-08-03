@@ -16,7 +16,8 @@
 #      deferral loop identically.
 #   2. THE WEEK GUARD. Entries are emitted on the deferral and refusal exits too,
 #      and a Monday fires 24 hourly slots, so without a guard a normal week would
-#      post up to 24 entries. One per week per job.
+#      post up to 24 entries. One per class per week per job, so one in an
+#      ordinary week and two in a week that defers before it completes.
 #   3. NOTHING IS EVER SILENT. A missing timestamp, an unwritable guard, an absent
 #      relay: each produces a stated line, never a quiet no-op that reads as a
 #      delivered entry.
@@ -182,10 +183,10 @@ date_calls="$(grep -c . "$DATE_CALL_LOG" || true)"
 
 # ── 3. The weekly guard. A Monday fires 24 hourly slots; without this the
 #      channel would take up to 24 entries a week. ────────────────────────────
-guard="$tmp/last-log-week"
+guard="$tmp/log-week-claims"
 
 # 3a. 24 consecutive DEFERRED slots in one week yield exactly ONE entry.
-rm -f "$guard"
+rm -rf "$guard"
 emitted=0
 for _ in $(seq 1 24); do
   if FAKE_WEEK=2026-31 unattended_log_claim_week "$guard" deferred; then
@@ -225,6 +226,93 @@ chmod 700 "$tmp/nowrite"
 [[ $claim_rc -eq 0 ]] || fail "an unwritable guard suppressed the entry (must fail open)"
 grep -qiE 'guard|could not' <<<"$warn" ||
   fail "an unwritable guard was not reported: '$warn'"
+
+# 3f. A CORRUPT guard must not WEDGE the week. The previous shape read one file
+#     and treated any class that was not literally `deferred` as completed, so a
+#     single malformed line refused BOTH claim types for the rest of the week,
+#     with no warning and no rewrite: a week that posted nothing while its guard
+#     asserted it had. Staged here as the exact reproduction -- a guard holding
+#     "<this week> garbage".
+rm -rf "$guard"
+printf '2026-36 garbage\n' >"$guard"
+claim_rc=0
+warn="$(FAKE_WEEK=2026-36 unattended_log_claim_week "$guard" deferred 2>&1)" || claim_rc=$?
+[[ $claim_rc -eq 0 ]] ||
+  fail "a malformed guard suppressed the week's record instead of failing open"
+grep -qiE 'guard|could not' <<<"$warn" ||
+  fail "a malformed guard was not reported: '$warn'"
+rm -f "$guard"
+
+# 3g. Junk sitting INSIDE the guard is ignored rather than parsed. Only this
+#     function's own token names mean anything to it.
+mkdir -p "$guard"
+: >"$guard/2026-35 garbage"
+: >"$guard/junk"
+FAKE_WEEK=2026-35 unattended_log_claim_week "$guard" deferred ||
+  fail "a corrupt entry inside the guard suppressed the week's record"
+
+# 3h. An unrecognised CLASS is stated and ungated, never silently trusted. A
+#     class this function cannot describe cannot be gated by it either.
+rm -rf "$guard"
+claim_rc=0
+warn="$(FAKE_WEEK=2026-37 unattended_log_claim_week "$guard" nonsense 2>&1)" || claim_rc=$?
+[[ $claim_rc -eq 0 ]] ||
+  fail "an unrecognised entry class was silently suppressed"
+grep -qiE 'unrecognised|unrecognized' <<<"$warn" ||
+  fail "an unrecognised entry class was not reported: '$warn'"
+
+# 3i. CONCURRENT slots claiming the same fresh week: exactly ONE wins. These runs
+#     genuinely overlap -- a contending slot posts its "another run holds the
+#     lock" entry while the holder is still working -- and a read-then-write
+#     guard lets every one of them read an unclaimed week and post. Measured on
+#     the read-then-write shape: 200 of 200 concurrent pairs both claimed.
+#     The claimers are released together through a start GATE: each announces
+#     itself and then spins (no sleeps) until the gate file appears, so they all
+#     reach the claim at once instead of serializing behind their own fork cost,
+#     which is what makes a read-then-write shape visibly lose.
+rm -rf "$guard"
+winners="$tmp/claim-winners"
+: >"$winners"
+claim_racers=40
+ready="$tmp/claim-ready"
+gate="$tmp/claim-gate"
+rm -rf "$ready" "$gate"
+mkdir -p "$ready"
+for racer in $(seq 1 "$claim_racers"); do
+  (
+    : >"$ready/$racer"
+    while [[ ! -e $gate ]]; do :; done
+    FAKE_WEEK=2026-34 unattended_log_claim_week "$guard" deferred 2>/dev/null &&
+      printf 'won\n' >>"$winners"
+  ) &
+done
+while [[ "$(find "$ready" -type f | wc -l | tr -d ' ')" -lt $claim_racers ]]; do :; done
+: >"$gate"
+wait
+concurrent_winners="$(grep -c . "$winners" || true)"
+[[ $concurrent_winners -eq 1 ]] ||
+  fail "$claim_racers concurrent slots claimed the same week $concurrent_winners times, want exactly 1; the claim is not atomic"
+
+# 3j. A CLAIM CAN BE GIVEN BACK. The week is claimed before delivery is
+#     attempted (so concurrent slots cannot both post) and released when that
+#     delivery failed, which is what lets a later slot retry a week that has no
+#     entry yet.
+rm -rf "$guard"
+FAKE_WEEK=2026-38 unattended_log_claim_week "$guard" deferred ||
+  fail "the first claim of a fresh week was refused"
+FAKE_WEEK=2026-38 unattended_log_claim_week "$guard" deferred &&
+  fail "the week was claimable twice before any release"
+FAKE_WEEK=2026-38 unattended_log_release_week "$guard" deferred
+FAKE_WEEK=2026-38 unattended_log_claim_week "$guard" deferred ||
+  fail "a released week was not claimable again, so a failed delivery would silence the week"
+
+# 3k. The guard keeps only THIS week, so it stays readable as "what did this week
+#     do" instead of growing a file per class per week forever.
+rm -rf "$guard"
+FAKE_WEEK=2026-39 unattended_log_claim_week "$guard" deferred || fail "3k setup: the first claim was refused"
+FAKE_WEEK=2026-40 unattended_log_claim_week "$guard" deferred || fail "3k setup: the new week was refused"
+[[ -z "$(find "$guard" -name '2026-39.*' 2>/dev/null)" ]] ||
+  fail "the guard kept a previous week's claim: $(ls -A "$guard")"
 
 # ── 4. Delivery. The entry must go out over --remote-only to the LOG route, and
 #      a missing relay must be stated, never swallowed. ─────────────────────────

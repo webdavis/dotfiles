@@ -128,10 +128,10 @@ SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCH
 # The weekly RECORD posted to the #unattended-upgrades channel (see
 # unattended-log-lib.sh for the entry shape and why it exists). The success
 # STAMP above records only an ISO week plus two hashes, with no wall-clock time
-# in it, so the gap figure needs its own marker; last-log-week is the guard that
+# in it, so the gap figure needs its own marker; log-week-claims is the guard that
 # keeps 24 hourly Monday slots from becoming 24 messages.
 LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
-LOG_WEEK_GUARD="$STATE_DIR/last-log-week"
+LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
 
 # Generation-exchange store model (Wave 3a fix4). The LIVE generation is a REAL
 # directory .skills-current holding skills/<name> real dirs, the npx CLI lock

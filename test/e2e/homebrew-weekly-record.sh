@@ -168,7 +168,7 @@ grep -qF 'App Store apps: 0 of 1 tracked entries changed' <<<"$entries" ||
 # read from it differs visibly from one read from this moment.
 recorded_iso="$(awk '{print $2}' "$MARKER")"
 printf '%s %s\n' "$(($(date +%s) - 691200))" "$recorded_iso" >"$MARKER"
-rm -f "$STATE_DIR/last-log-week"
+rm -rf "$STATE_DIR/log-week-claims"
 run_helper --scheduled
 entries="$(log_entries)"
 grep -qE 'last successful run: [^ ]+ \(8d 0h ago\)' <<<"$entries" ||

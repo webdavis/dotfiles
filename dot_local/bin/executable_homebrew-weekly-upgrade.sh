@@ -33,7 +33,7 @@ TS="${HOMEBREW_WEEKLY_TAILSCALED:-/opt/homebrew/opt/tailscale/bin/tailscaled}"
 LOCKFILE="${HOMEBREW_WEEKLY_LOCKFILE:-$HOME/.local/state/homebrew-weekly-upgrade.lock}"
 STATE_DIR="${HOMEBREW_WEEKLY_STATE_DIR:-$HOME/.local/state/homebrew-weekly-upgrade}"
 LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
-LOG_WEEK_GUARD="$STATE_DIR/last-log-week"
+LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
 
 # An unknown argument is an ERROR, never a silent fallthrough: a typo'd marker in
 # the plist would otherwise run every week and quietly post nothing, which looks
@@ -94,7 +94,8 @@ weekly_alert() {
 }
 
 # weekly_record <class> <body> -- the LOG route. Gated on --scheduled (above) and
-# on one entry per ISO week.
+# on the weekly claim, which admits one entry per class per ISO week: one, or two
+# in a week that defers before it completes.
 weekly_record() {
   local class="$1" body="$2" detail
   [[ -n $SCHEDULED ]] || return 0

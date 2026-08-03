@@ -15,7 +15,9 @@
 #                alive, inverting the one signal the record carries.
 #   --dry-run    a preview must have no side effects, and a push reaches a
 #                channel.
-#   week guard   24 hourly Monday slots would otherwise become 24 messages.
+#   week guard   24 hourly Monday slots would otherwise become 24 messages. It
+#                admits one entry per class, so a week that defers and later
+#                completes posts two; every other week posts one.
 #
 # Unit test: UPDATE_SKILLS_LIB_ONLY=1 sourcing, a stub relay, no sleeps.
 set -uo pipefail
@@ -97,7 +99,7 @@ source "$SCRIPT"
 # posted_count -- how many entries reached the stub since the last reset.
 reset_calls() {
   : >"$RELAY_CALL_LOG"
-  rm -f "$LOG_WEEK_GUARD"
+  rm -rf "$LOG_WEEK_GUARD"
 }
 posted_count() { grep -c '^ARGV ' "$RELAY_CALL_LOG" 2>/dev/null || true; }
 

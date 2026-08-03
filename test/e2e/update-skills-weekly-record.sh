@@ -18,7 +18,8 @@
 #   - Every entry carries its own gap, because launchd COALESCES missed calendar
 #     intervals into one event on wake, so a healthy job can produce one entry
 #     covering three weeks and an absent entry proves nothing.
-#   - One entry per ISO week. 24 hourly Monday slots would otherwise post 24.
+#   - One entry per class per ISO week (so two at most, and only in a week that
+#     defers before it completes). 24 hourly Monday slots would otherwise post 24.
 #   - A MANUAL run posts nothing. An operator running the script by hand on a
 #     Wednesday must not make a dead LaunchAgent look alive; that inverts the
 #     signal.
@@ -225,7 +226,7 @@ alert_entries() { grep -F 'url=<default> ' "$RELAY_LOG" || true; }
 log_entry_count() { log_entries | grep -c 'ARGV' || true; }
 
 MARKER="$HOME/.local/state/update-skills/last-success-at"
-GUARD="$HOME/.local/state/update-skills/last-log-week"
+GUARD="$HOME/.local/state/update-skills/log-week-claims"
 
 reset_state() {
   rm -rf "$HOME/.local/state"
@@ -490,7 +491,7 @@ grep -qiF 'stamp was written' <<<"$entries" ||
 #       whose completed entry failed to write that guard, which is exactly the
 #       state staged here (the guard is removed, the success stamp is left). A
 #       call site that only ever fires on a rare state is the one that rots. ────
-rm -f "$GUARD"
+rm -rf "$GUARD"
 run_updater "$QUIET_WORLD" --scheduled
 entries="$(log_entries)"
 grep -qF -- '--state deferred' <<<"$entries" ||

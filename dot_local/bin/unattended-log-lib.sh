@@ -11,9 +11,12 @@
 # later misbehaves there is nothing to investigate against, because a clean week
 # and a dead LaunchAgent produce identical silence. These entries are that
 # record: a separate Discord channel that receives ONE message per week per job
-# saying when the job ran, when it last succeeded, and what it changed. Failures
-# keep going to the existing alert route so they land in the priority channel.
-# Act on one, record the other.
+# saying when the job ran, when it last succeeded, and what it changed -- or TWO
+# in the one week that starts by deferring and later completes, because a week
+# the job actually finished must not be left with "deferred, nothing attempted"
+# as its newest message (see unattended_log_claim_week). Failures keep going to
+# the existing alert route so they land in the priority channel. Act on one,
+# record the other.
 #
 # WHY EVERY ENTRY STATES ITS OWN GAP, instead of the channel being a heartbeat
 # you count. `man launchd.plist`, under StartCalendarInterval, verbatim:
@@ -73,6 +76,10 @@ unattended_log_host() {
 # ISO 8601 UTC, the one timestamp format this repo uses. BSD date has no -Is, so
 # the format is spelled out rather than relying on a GNU shorthand.
 unattended_log_now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# The ISO year-week the guard is keyed on. Empty when the clock cannot be read,
+# which every caller treats as "do not gate", never as "already claimed".
+unattended_log_week() { date +%G-%V 2>/dev/null || true; }
 
 # unattended_log_elapsed <seconds> -- a gap a human reads at a glance. Units
 # shift with magnitude; the boundaries are pinned by test because an off-by-one
@@ -172,46 +179,85 @@ unattended_log_entry_header() {
   printf 'run at %s\n%s' "$now_iso" "$(unattended_log_gap_line "$marker" "$now_epoch")"
 }
 
-# unattended_log_claim_week <guard-file> <class> -- returns 0 when THIS entry
-# should be emitted, 1 when the week already has it. `class` is `completed` or
-# `deferred`.
+# unattended_log_claim_week <guard-dir> <class> -- returns 0 when THIS entry
+# should be emitted, 1 when the week already has it. `class` is `completed`,
+# `deferred`, or `delivery-alert`.
 #
 # WHY A GUARD AT ALL: entries are emitted on the deferral and refusal exits as
 # well as on the tail, and update-skills fires 24 hourly Monday slots, so an
 # ordinary week would post up to 24 entries without this.
 #
+# WHY THE CLAIM IS A FILE CREATION, not a read-then-write of one guard file: the
+# read-then-write shape is a race every scheduled slot can enter. Two slots that
+# both read an unclaimed week both write it and both post; measured, 200 of 200
+# concurrent pairs claimed the same fresh week. And these slots genuinely do
+# overlap: a contending run posts its "another run holds the lock" entry while
+# the holder is still working. So the claim is `set -o noclobber` on a token file
+# named for the week and the class, which is O_EXCL: the kernel grants it to
+# exactly one caller, and the ones that lose can tell "already claimed" from
+# "could not write" by whether the token exists.
+#
+# WHY THE CLASS IS IN THE FILE NAME, not in the file's contents: contents have to
+# be parsed, and a guard holding an unrecognised class used to wedge the whole
+# week (anything that was not literally `deferred` was treated as completed, so
+# both claim types were refused, with no warning and no rewrite -- a week that
+# posted nothing while the guard asserted it had). A name this function does not
+# recognise is simply not one of its tokens.
+#
 # WHY COMPLETED MAY FOLLOW DEFERRED, and only in that direction: a week whose
 # first slot deferred and whose twelfth slot succeeded must not leave
 # "deferred, nothing attempted" as its newest message. A reader taking the newest
 # message at face value -- which is the entire design -- would conclude the job
-# is stuck in a week it actually finished. So the guard records the CLASS as well
-# as the week and allows exactly one upgrade, capping a week at two entries while
-# guaranteeing the newest one is the truer outcome. The reverse (a late deferral
-# burying an earlier completion) is refused.
+# is stuck in a week it actually finished. So a week is capped at two entries,
+# one per class, with the newest being the truer outcome; the reverse (a late
+# deferral burying an earlier completion) is refused. `delivery-alert` is not an
+# entry on this channel at all: it is the once-a-week alert that the channel
+# itself is broken, and it takes a token here for the same reason.
 #
-# FAIL OPEN on an unwritable or unreadable guard: emitting up to 24 entries once
-# is noisy and visible, while suppressing them is invisible, and invisible is the
+# FAIL OPEN on an unwritable or unusable guard: emitting up to 24 entries once is
+# noisy and visible, while suppressing them is invisible, and invisible is the
 # failure this record exists to prevent. The condition is stated either way.
 unattended_log_claim_week() {
-  local guard="$1" class="$2" week recorded_week="" recorded_class="" dir
-  week="$(date +%G-%V 2>/dev/null || true)"
+  local guard="$1" class="$2" week token stale
+  week="$(unattended_log_week)"
   if [[ -z $week ]]; then
     printf 'unattended-log: WARNING could not read the ISO week; emitting this entry ungated\n' >&2
     return 0
   fi
-  if [[ -r $guard ]]; then
-    read -r recorded_week recorded_class <"$guard" 2>/dev/null || true
+  case "$class" in
+    deferred | completed | delivery-alert) ;;
+    *)
+      printf 'unattended-log: WARNING unrecognised entry class %s; emitting this entry ungated rather than trusting a guard that cannot describe it\n' "$class" >&2
+      return 0
+      ;;
+  esac
+  # A deferral must never bury a completed entry for the same week.
+  [[ $class == "deferred" && -e "$guard/$week.completed" ]] && return 1
+  mkdir -p "$guard" 2>/dev/null || true
+  token="$guard/$week.$class"
+  if ! (set -o noclobber && : >"$token") 2>/dev/null; then
+    [[ -e $token ]] && return 1
+    printf 'unattended-log: WARNING could not write the weekly guard at %s; this week may post one entry per scheduled slot\n' "$token" >&2
+    return 0
   fi
-  if [[ $recorded_week == "$week" ]]; then
-    if [[ $recorded_class != "deferred" || $class != "completed" ]]; then
-      return 1
-    fi
-  fi
-  dir="$(dirname "$guard")"
-  mkdir -p "$dir" 2>/dev/null || true
-  if ! printf '%s %s\n' "$week" "$class" >"$guard" 2>/dev/null; then
-    printf 'unattended-log: WARNING could not write the weekly guard at %s; this week may post one entry per scheduled slot\n' "$guard" >&2
-  fi
+  # Keep the guard readable as "what did THIS week do": drop other weeks' tokens.
+  for stale in "$guard"/*; do
+    [[ -e $stale ]] || continue
+    [[ ${stale##*/} == "$week".* ]] && continue
+    rm -f "$stale" 2>/dev/null || true
+  done
+  return 0
+}
+
+# unattended_log_release_week <guard-dir> <class> -- give the claim back, so a
+# later slot retries. Called when the entry the claim was taken for was NOT
+# delivered: a guard that outlives a failed delivery silences the remaining 23
+# slots and leaves the week with no entry while asserting it has one.
+unattended_log_release_week() {
+  local guard="$1" class="$2" week
+  week="$(unattended_log_week)"
+  [[ -n $week ]] || return 0
+  rm -f "$guard/$week.$class" 2>/dev/null || true
   return 0
 }
 
