@@ -479,14 +479,46 @@ CLAUDE_FAIL_UPDATE="mover@mkt-a" run_helper
 [[ "$(log_entry_count)" -eq 0 ]] || fail "a MANUAL failing run posted a weekly record: $(log_entries)"
 [[ -n "$(alert_entries)" ]] || fail "a MANUAL failing run sent no alert"
 
-# ── 10. One record per ISO week: 24 hourly Monday slots would otherwise post 24
-#       entries, and a launchd catch-up can land beside the real slot. ──────────
+# ── 10. One record per ISO week AND zero re-mutation on the second slot (F16).
+#       24 hourly Monday slots would otherwise post 24 entries; worse, the claim
+#       used to gate only the POST, so every later slot RE-RAN `claude plugin
+#       update` on every plugin (overwriting each tree, re-installing a release
+#       that landed after the first slot) and merely skipped the message. A slot
+#       that finds the week already completed must run ZERO plugin mutations. ────
 reset_state
 run_helper --scheduled
 [[ "$(log_entry_count)" -eq 1 ]] || fail "the first scheduled run posted $(log_entry_count) entries"
+[[ -n "$(updated_ids)" ]] ||
+  fail "the first scheduled run ran no updates, so the second-slot test would prove nothing"
 : >"$RELAY_LOG"
+: >"$CLAUDE_CALL_LOG"
 run_helper --scheduled
 [[ "$(log_entry_count)" -eq 0 ]] || fail "a second scheduled run in the same week posted again"
+second_updates="$(updated_ids | tr '\n' ' ')"
+[[ -z "${second_updates// /}" ]] ||
+  fail "a second same-week slot RE-RAN plugin updates instead of running zero: [$second_updates]"
+refute '^plugin install ' "$(cat "$CLAUDE_CALL_LOG")" \
+  "a second same-week slot re-ran installs: $(cat "$CLAUDE_CALL_LOG")"
+
+# ── 10b. A FAILED slot does not consume the completed week; a later clean slot
+#         recovers (F29). Slot 1 has an update failure and posts, but leaves the
+#         completed slot free; slot 2 succeeds and posts a completed record and
+#         retries the plugin that failed, instead of being silenced by slot 1's
+#         spent claim leaving the channel showing failure all week. ─────────────
+reset_state
+CLAUDE_FAIL_UPDATE="mover@mkt-a" run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] || fail "the failing slot 1 exited 0: $RUN_OUTPUT"
+[[ "$(log_entry_count)" -eq 1 ]] || fail "the failing slot 1 posted no record: $(log_entries)"
+: >"$RELAY_LOG"
+: >"$CLAUDE_CALL_LOG"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "the recovering slot 2 exited $RUN_RC: $RUN_OUTPUT"
+[[ "$(log_entry_count)" -eq 1 ]] ||
+  fail "a later clean slot was silenced by the earlier failure's claim, so the channel stays showing failure (F29): $(log_entries)"
+grep -qF -- '--state completed' <<<"$(log_entries)" ||
+  fail "the recovering slot did not post a completed record: $(log_entries)"
+grep -qxF 'plugin update mover@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "the recovering slot did not retry the previously failed plugin: $(cat "$CLAUDE_CALL_LOG")"
 
 # ── 11. A REFUSED record must not consume the week, and the operator hears
 #       about it on the route that still works. relay exits 0 whatever the

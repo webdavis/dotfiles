@@ -161,18 +161,25 @@ weekly_alert() {
   return 0
 }
 
-# weekly_record <class> <body> -- the LOG route. Gated on --scheduled and on the
-# weekly claim, which admits one entry per class per ISO week: one, or two in a
-# week that defers before it completes. The claim is taken BEFORE the attempt so
-# two overlapping slots cannot both post, and GIVEN BACK when the attempt failed
-# so a week is never marked done with nothing sent.
+# weekly_record <class> <body> [preclaimed] -- the LOG route. Gated on
+# --scheduled and on the weekly claim, which admits one entry per class per ISO
+# week: one, or two in a week that defers before it completes. The claim is taken
+# BEFORE the attempt so two overlapping slots cannot both post, and GIVEN BACK
+# when the attempt failed so a week is never marked done with nothing sent.
+#
+# `preclaimed` is set only for the completed record: that class is claimed BEFORE
+# the update loop (so a week that already completed never re-runs the loop, F16),
+# and the claim the caller already holds must not be re-taken here or the post
+# would refuse its own week.
 weekly_record() {
-  local class="$1" body="$2" detail
+  local class="$1" body="$2" preclaimed="${3:-}" detail
   [[ -n $SCHEDULED ]] || return 0
   [[ -n $UNATTENDED_LOG_AVAILABLE ]] || return 0
-  if ! unattended_log_claim_week "$LOG_WEEK_GUARD" "$class"; then
-    printf 'update-agent-plugins: this ISO week already has a %s-or-better record; not posting again\n' "$class"
-    return 0
+  if [[ -z $preclaimed ]]; then
+    if ! unattended_log_claim_week "$LOG_WEEK_GUARD" "$class"; then
+      printf 'update-agent-plugins: this ISO week already has a %s-or-better record; not posting again\n' "$class"
+      return 0
+    fi
   fi
   detail="$(printf '%s\n%s' "$LOG_ENTRY_HEADER" "$body")"
   if ! UNATTENDED_LOG_RELAY="$RELAY" unattended_log_post "$AGENT_NAME" "$class" \
@@ -449,6 +456,26 @@ failed_plugins=()
 tracked_count=0
 unknowable_plugins=()
 
+# CLAIM THE WEEK'S completed SLOT BEFORE MUTATING ANY PLUGIN (F16). The claim used
+# to be taken at POST time, downstream of this loop, so a second same-ISO-week
+# slot re-ran `claude plugin update` on every plugin (up to 24 times a Monday,
+# overwriting each tree, and re-installing a release that landed after the first
+# slot) and merely skipped the message. A slot that finds the week already
+# completed must run ZERO plugin mutations. Deferrals never claim completed, so a
+# week that deferred early and completes later still upgrades here. On failure the
+# claim is GIVEN BACK below so a later slot retries (F29); a clean run holds it,
+# and the completed record is posted preclaimed so it does not re-take its own
+# week.
+COMPLETED_PRECLAIMED=""
+if [[ -n $SCHEDULED && -n $UNATTENDED_LOG_AVAILABLE ]]; then
+  if unattended_log_claim_week "$LOG_WEEK_GUARD" completed; then
+    COMPLETED_PRECLAIMED=1
+  else
+    printf 'update-agent-plugins: this ISO week already completed; no plugin will be touched again this week\n'
+    exit 0
+  fi
+fi
+
 # Read on fd 3: the loop body runs the `claude` CLI, and a command that consumes
 # stdin would eat the rest of the plugin list.
 while IFS=$'\t' read -r -u3 plugin_id marketplace lane; do
@@ -610,7 +637,20 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
 
   record_lines+=('Nothing above is live yet: claude plugin update says restart required to apply, so a running session keeps the code it started with until the next one begins.')
 
-  weekly_record completed "$(printf '%s\n' "${record_lines[@]}")"
+  if [[ ${#failed_plugins[@]} -gt 0 ]]; then
+    # This week did NOT complete. Give the completed claim back so a later slot
+    # retries (F29: a failed attempt must not consume the completed slot and bury
+    # a later recovery), and post the record as a DEFERRED entry. The
+    # deferred->completed upgrade then lets a later clean slot supersede it, so the
+    # channel's newest message ends up the truer outcome instead of a stale
+    # failure. The failure still alerts on the priority route below.
+    [[ -n $COMPLETED_PRECLAIMED ]] && unattended_log_release_week "$LOG_WEEK_GUARD" completed
+    weekly_record deferred "$(printf '%s\n' "${record_lines[@]}")"
+  else
+    # A clean run keeps the claim it took before the loop and posts the completed
+    # record preclaimed, so it does not re-take (and thereby refuse) its own week.
+    weekly_record completed "$(printf '%s\n' "${record_lines[@]}")" "$COMPLETED_PRECLAIMED"
+  fi
 fi
 
 if [[ ${#failed_plugins[@]} -gt 0 ]]; then
