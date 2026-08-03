@@ -144,18 +144,18 @@ carried through unchanged: the JSON boolean `false` that `claude plugin disable`
 array of version constraints that its schema calls the extended format (a plugin held at a reviewed
 release). Every other shape renders `true`: an absent key, a JSON null, a string and a number.
 
-So `claude plugin disable <id>` STICKS across applies for the twelve declared ids, and applying is not the
-way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
+So `claude plugin disable <id>` STICKS across applies for the twelve declared ids, and applying is not
+the way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
 containment verb a scheduled apply can silently revoke is not containment.
 
-**The promise stops at the twelve, and an erased entry costs different things depending on where the plugin
-came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped binary on
-2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged settings'
-`enabledPlugins` entries and skips any whose value is undefined, so an id the file does not hold is never
-loaded. Erasing an undeclared marketplace plugin's `false` therefore leaves it off, by a different
-mechanism, though the file stops recording why. A plugin under `~/.claude/skills/` is found by scanning
-that directory instead, and its entry only adjusts state afterwards; with no entry it falls back to the
-plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks into
+**The promise stops at the twelve, and an erased entry costs different things depending on where the
+plugin came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped
+binary on 2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged
+settings' `enabledPlugins` entries and skips any whose value is undefined, so an id the file does not
+hold is never loaded. Erasing an undeclared marketplace plugin's `false` therefore leaves it off, by a
+different mechanism, though the file stops recording why. A plugin under `~/.claude/skills/` is found by
+scanning that directory instead, and its entry only adjusts state afterwards; with no entry it falls back
+to the plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks into
 `~/.claude/skills/` is that second kind, so a `claude plugin disable` on one writes a `false` that the
 next apply erases, and the skill comes back on. Nothing is drifting today, the live file holds exactly
 the twelve ids, but the skills case needs one `claude plugin disable` to become real.
