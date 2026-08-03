@@ -92,6 +92,14 @@ case "$1 $2" in
       printf 'not json at all\n'
       exit 0
     }
+    # A JSON array of NON-OBJECTS on the FIRST reading only: it passes the
+    # updater's "is it an array" check and then breaks any .id lookup, so the
+    # BEFORE snapshot fails while the AFTER one succeeds.
+    if [[ -n ${CLAUDE_LIST_SHAPE_ONCE:-} && ! -e ${CLAUDE_LIST_SHAPE_MARKER:-/nonexistent} ]]; then
+      : >"$CLAUDE_LIST_SHAPE_MARKER"
+      printf '[1, 2]\n'
+      exit 0
+    fi
     cat "$PLUGIN_STATE"
     exit 0
     ;;
@@ -223,6 +231,8 @@ run_helper() {
     CLAUDE_BUMP="${CLAUDE_BUMP:-}" \
     CLAUDE_LIST_FAIL="${CLAUDE_LIST_FAIL:-}" \
     CLAUDE_LIST_GARBAGE="${CLAUDE_LIST_GARBAGE:-}" \
+    CLAUDE_LIST_SHAPE_ONCE="${CLAUDE_LIST_SHAPE_ONCE:-}" \
+    CLAUDE_LIST_SHAPE_MARKER="${CLAUDE_LIST_SHAPE_MARKER:-}" \
     RELAY_STUB_OUTCOME="${RELAY_STUB_OUTCOME:-}" \
     bash "$HELPER" "$@" 2>&1)"
   RUN_RC=$?
@@ -476,6 +486,54 @@ refute '\((added|removed)\)' "$entries" \
 # The updates themselves still happened and are still reported.
 grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
   fail "the updates did not run: $(cat "$CLAUDE_CALL_LOG")"
+
+# ── 13b. An inventory ENTRY WITH NO id must not take the comparison down with
+#        it. Measured 2026-08-03: `.id | in($tracked)` raises "Cannot check
+#        whether object has a null key" on such a record, and a version snapshot
+#        that dies leaves an EMPTY before file, so the change line reports every
+#        tracked plugin as newly added. That is a whole-roster change list,
+#        invented, on a week where nothing happened. ────────────────────────────
+reset_state
+jq '. + [{"version":"1.0.0","scope":"user","enabled":true}]' "$PLUGIN_STATE" >"$PLUGIN_STATE.tmp" &&
+  mv "$PLUGIN_STATE.tmp" "$PLUGIN_STATE"
+run_helper --scheduled
+entries="$(log_entries)"
+[[ -n $entries ]] || fail "an inventory carrying an id-less record posted no entry at all: $RUN_OUTPUT"
+# shellcheck disable=SC2016 # backticks are Discord code-span syntax, not a substitution
+refute '`steady@mkt-a` \(added\)' "$entries" \
+  "an id-less inventory record made the comparison report already-installed plugins as newly added: $entries"
+# The comparison must still be a REAL one. Measured before the fix: both
+# snapshots died, both files came back empty, and the line rendered
+# "0 of 0 tracked entries changed" -- a clean week, on a comparison that never
+# happened, which is the exact defect this family exists to prevent.
+refute 'plugins with a knowable version: 0 of 0' "$entries" \
+  "an id-less inventory record collapsed the comparison into a clean-looking comparison of NOTHING: $entries"
+grep -qF 'plugins with a knowable version: 1 of 5 tracked entries changed' <<<"$entries" ||
+  fail "the comparison did not cover the five tracked plugins that declare a version: $entries"
+grep -qxF 'plugin update steady@mkt-a' "$CLAUDE_CALL_LOG" ||
+  fail "an id-less inventory record stopped the updates running: $(cat "$CLAUDE_CALL_LOG")"
+
+# ── 13c. The BEFORE reading is the symmetric case, and it fails the other way.
+#        A source that could not be read before the run but could after it has
+#        no baseline, so comparing the two reports every installed plugin as
+#        newly ADDED: a whole-roster change list, invented, in the channel whose
+#        value is that its contents are trustworthy. The injected shape is a
+#        JSON array of non-objects, which passes the array check the inventory
+#        gate applies and then breaks every .id lookup, so it is a shape the CLI
+#        could really hand back after a schema change.
+reset_state
+rm -f "$tmp/shape-marker"
+CLAUDE_LIST_SHAPE_ONCE=1 CLAUDE_LIST_SHAPE_MARKER="$tmp/shape-marker" run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "a run whose BEFORE snapshot could not be built exited $RUN_RC: $RUN_OUTPUT"
+entries="$(log_entries)"
+grep -qF -- '--state completed' <<<"$entries" ||
+  fail "a run that did its updates did not record itself as completed: $entries"
+grep -qiE 'plugins with a knowable version: [^|]*(NOT COMPARED|could not)' <<<"$entries" ||
+  fail "a run with no BEFORE baseline compared against it anyway: $entries"
+refute '\(added\)' "$entries" \
+  "a missing baseline reported the installed plugins as newly added: $entries"
+refute 'plugins with a knowable version: 0 of 0' "$entries" \
+  "a missing baseline rendered as a clean comparison of nothing: $entries"
 
 # ── 14. NO LOCK means nothing to update, and it means chezmoi has not applied.
 #       Silence here would be indistinguishable from a clean week. ─────────────

@@ -255,10 +255,18 @@ __agent_plugins_inventory() {
 # the whole point: its declared version is the literal string "unknown", so
 # every one of them would compare equal forever and read as a guarantee that
 # nothing changed. What can be said about that lane is said in its own sentence.
+# A record with NO id is SKIPPED, not fatal. Measured 2026-08-03 on jq 1.7:
+# `null | in($tracked)` raises "Cannot check whether object has a null key", and
+# because this function is a pipeline under `set -o pipefail` the snapshot then
+# came back EMPTY. Both readings failing that way rendered the change line as
+# "0 of 0 tracked entries changed", which is a clean week reported for a
+# comparison that never ran. The `.id != null` guard has to come FIRST: jq's
+# `and` short-circuits, so ordering it after the lookup does not help.
 __agent_plugins_versions() {
   jq -r --slurpfile lockdoc "$2" '
     ($lockdoc[0].plugins // {}) as $tracked
-    | map(select((.id | in($tracked))
+    | map(select((.id != null)
+        and (.id | in($tracked))
         and (($tracked[.id].identityLane // "") != "unknowable")))
     | .[] | [.id, (.version // "")] | @tsv' "$1" 2>/dev/null | sort
 }
@@ -320,7 +328,8 @@ fi
 
 installed_ids="$(jq -r '.[].id // empty' "$workspace/before.json" 2>/dev/null)"
 disabled_ids="$(jq -r '.[] | select(.enabled == false) | .id // empty' "$workspace/before.json" 2>/dev/null)"
-__agent_plugins_versions "$workspace/before.json" "$AGENT_PLUGINS_LOCK" >"$workspace/before.tsv"
+before_ok=1
+__agent_plugins_versions "$workspace/before.json" "$AGENT_PLUGINS_LOCK" >"$workspace/before.tsv" || before_ok=""
 
 # __agent_plugins_marketplace_configured <name> -- 0 when the CLI already knows
 # that marketplace. Asked rather than assumed: `marketplace add` on an existing
@@ -439,7 +448,12 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
       "${skipped_rendered%, }")")
   fi
 
-  record_lines+=("$(unattended_log_change_section "$after_ok" \
+  # ONE flag for the comparison, because half a comparison is not one: a
+  # snapshot that failed on EITHER reading would otherwise be compared against a
+  # good one and report the whole roster as added or removed.
+  compare_ok="$after_ok"
+  [[ -n $before_ok ]] || compare_ok=""
+  record_lines+=("$(unattended_log_change_section "$compare_ok" \
     "$workspace/before.tsv" "$workspace/after.tsv" \
     'plugins with a knowable version' \
     'Versions are what claude plugin list --json reports for the tracked plugins that declare one, a release version or a commit sha. A plugin refreshed to the same version does not appear here.' \
