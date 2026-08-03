@@ -87,6 +87,19 @@ MOCK
 cat >"$tmp/mas" <<'MOCK'
 #!/usr/bin/env bash
 if [[ ${1:-} == "list" ]]; then
+  # MAS_FAIL=first fails only the first reading of a run, MAS_FAIL=later fails
+  # every reading after the first, so each of the two snapshot points can be
+  # broken on its own. Anything else fails every reading.
+  if [[ -n ${MAS_FAIL:-} ]]; then
+    seen=""
+    [[ -n ${MAS_FAIL_MARKER:-} && -e ${MAS_FAIL_MARKER:-} ]] && seen=1
+    [[ -n ${MAS_FAIL_MARKER:-} ]] && : >"$MAS_FAIL_MARKER"
+    case "$MAS_FAIL" in
+      first) [[ -z $seen ]] && { printf 'Error: mas is broken\n' >&2; exit 1; } ;;
+      later) [[ -n $seen ]] && { printf 'Error: mas is broken\n' >&2; exit 1; } ;;
+      *) printf 'Error: mas is broken\n' >&2; exit 1 ;;
+    esac
+  fi
   if [[ -n ${UPGRADE_MARKER:-} && -e ${UPGRADE_MARKER:-} ]]; then
     printf '%s\n' "${MAS_AFTER:-${MAS_VERSIONS:-}}"
   else
@@ -114,7 +127,8 @@ run_helper() {
   RUN_OUTPUT="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
     HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" \
     HOMEBREW_WEEKLY_LOCKFILE="$tmp/lock.$lock_seq" \
-    RELAY_STUB_OUTCOME="${RELAY_STUB_OUTCOME:-}" \
+    RELAY_STUB_OUTCOME="${RELAY_STUB_OUTCOME:-}" LIST_FAIL_ONCE="${LIST_FAIL_ONCE:-}" \
+    MAS_FAIL="${MAS_FAIL:-}" MAS_FAIL_MARKER="${MAS_FAIL_MARKER:-}" \
     BREW_FAIL="${BREW_FAIL:-}" BREW_VERSIONS="${BREW_VERSIONS:-}" MAS_VERSIONS="${MAS_VERSIONS:-}" \
     bash "$HELPER" "$@" 2>&1)"
   RUN_RC=$?
@@ -386,7 +400,169 @@ entries="$(log_entries)"
 grep -qF 'run at 2026-07-25T12:00:00Z' <<<"$entries" ||
   fail "the record does not report the instant the run started: $entries | $RUN_OUTPUT"
 
-# ── 11. An unknown argument is an error, not a silent no-op that skips the
+# ── 11. A SNAPSHOT THAT COULD NOT BE READ is stated, never rendered as "nothing
+#       changed". Both snapshot commands discarded their errors and produced
+#       empty files, so a broken `brew list --versions` rendered the entry as
+#       "0 of 0 changed, failed steps 0" -- a clean week, on a machine whose
+#       package manager could not even be queried. ─────────────────────────────
+rm -rf "$HOME/.local/state"
+cat >"$tmp/brew" <<'MOCK'
+#!/usr/bin/env bash
+if [[ ${1:-} == "list" ]]; then
+  printf 'Error: brew is broken\n' >&2
+  exit 1
+fi
+echo "mock brew $*"
+exit 0
+MOCK
+chmod +x "$tmp/brew"
+run_helper --scheduled
+entries="$(log_entries)"
+refute 'formulae and casks: 0 of 0' "$entries" \
+  "an unreadable package list rendered as a clean comparison of nothing: $entries"
+grep -qiE 'formulae and casks: [^.]*(could not|failed|unknown)' <<<"$entries" ||
+  fail "the record does not say the formulae snapshot could not be read: $entries"
+grep -qF 'brew list --versions' <<<"$entries" ||
+  fail "the record does not name the command that failed, so there is nothing to check: $entries"
+# ...and the lane that still worked keeps reporting normally, so one broken
+# source does not blank the whole entry.
+grep -qF 'App Store apps: 0 of 1 tracked entries changed' <<<"$entries" ||
+  fail "a broken brew took the working App Store section down with it: $entries"
+# Restore the working stub.
+cat >"$tmp/brew" <<'MOCK'
+#!/usr/bin/env bash
+if [[ ${1:-} == "list" ]]; then printf '%s\n' "${BREW_VERSIONS:-}"; exit 0; fi
+for bad in $BREW_FAIL; do
+  [[ ${1:-} == "$bad" ]] && exit 1
+done
+echo "mock brew $*"
+exit 0
+MOCK
+chmod +x "$tmp/brew"
+
+# The SAME holds for the other lane, so neither one is covered only by the
+# other's mechanism: a broken `mas list` is stated and the formulae section,
+# whose source worked, still reports normally.
+for when in first later; do
+  rm -rf "$HOME/.local/state"
+  rm -f "$tmp/mas-fail-marker"
+  MAS_FAIL="$when" MAS_FAIL_MARKER="$tmp/mas-fail-marker" run_helper --scheduled
+  entries="$(log_entries)"
+  grep -qiE 'App Store apps: [^.]*(could not|failed|not compared)' <<<"$entries" ||
+    fail "an App Store list that failed on the $when reading was not stated: $entries"
+  grep -qF 'mas list' <<<"$entries" ||
+    fail "the record does not name the App Store command that failed: $entries"
+  grep -qF 'formulae and casks: 0 of 2 tracked entries changed' <<<"$entries" ||
+    fail "a broken mas took the working formulae section down with it: $entries"
+  refute '\((added|removed)\)' "$entries" \
+    "a one-sided App Store reading invented a whole-lane change list: $entries"
+done
+rm -f "$tmp/mas-fail-marker"
+
+# The FIRST reading counts too. A source that fails before the upgrade and
+# succeeds after it has no baseline, so comparing the two would report every
+# installed formula as newly added -- a whole-machine change list, invented.
+rm -rf "$HOME/.local/state"
+cat >"$tmp/brew" <<'MOCK'
+#!/usr/bin/env bash
+if [[ ${1:-} == "list" ]]; then
+  if [[ -n ${LIST_FAIL_ONCE:-} && ! -e ${LIST_FAIL_ONCE:-} ]]; then
+    : >"$LIST_FAIL_ONCE"
+    printf 'Error: brew was busy\n' >&2
+    exit 1
+  fi
+  printf '%s\n' "${BREW_VERSIONS:-}"
+  exit 0
+fi
+echo "mock brew $*"
+exit 0
+MOCK
+chmod +x "$tmp/brew"
+rm -f "$tmp/list-failed-once"
+LIST_FAIL_ONCE="$tmp/list-failed-once" run_helper --scheduled
+entries="$(log_entries)"
+grep -qiE 'formulae and casks: [^.]*(could not|failed|not compared)' <<<"$entries" ||
+  fail "a run whose BEFORE reading failed compared against it anyway: $entries"
+refute '\(added\)' "$entries" \
+  "a missing baseline reported the installed formulae as newly added: $entries"
+# ...and so does the SECOND reading, symmetrically: a source that worked before
+# the upgrade and failed after it would otherwise report the whole Cellar as
+# removed, which is the single most alarming line this record can print.
+rm -rf "$HOME/.local/state"
+cat >"$tmp/brew" <<'MOCK'
+#!/usr/bin/env bash
+if [[ ${1:-} == "list" ]]; then
+  if [[ -n ${LIST_FAIL_ONCE:-} ]]; then
+    if [[ -e $LIST_FAIL_ONCE ]]; then
+      printf 'Error: brew broke mid-run\n' >&2
+      exit 1
+    fi
+    : >"$LIST_FAIL_ONCE"
+  fi
+  printf '%s\n' "${BREW_VERSIONS:-}"
+  exit 0
+fi
+echo "mock brew $*"
+exit 0
+MOCK
+chmod +x "$tmp/brew"
+rm -f "$tmp/list-failed-later"
+LIST_FAIL_ONCE="$tmp/list-failed-later" run_helper --scheduled
+entries="$(log_entries)"
+grep -qiE 'formulae and casks: [^.]*(could not|failed|not compared)' <<<"$entries" ||
+  fail "a run whose AFTER reading failed compared against it anyway: $entries"
+refute '\(removed\)' "$entries" \
+  "a failed second reading reported the installed formulae as removed: $entries"
+cat >"$tmp/brew" <<'MOCK'
+#!/usr/bin/env bash
+if [[ ${1:-} == "list" ]]; then printf '%s\n' "${BREW_VERSIONS:-}"; exit 0; fi
+for bad in $BREW_FAIL; do
+  [[ ${1:-} == "$bad" ]] && exit 1
+done
+echo "mock brew $*"
+exit 0
+MOCK
+chmod +x "$tmp/brew"
+
+# An EMPTY answer from a source that WORKED is not a failure: a machine with no
+# App Store apps truthfully has nothing to compare, and calling that unreadable
+# would cry wolf on every such machine forever.
+rm -rf "$HOME/.local/state"
+MAS_VERSIONS="" run_helper --scheduled
+entries="$(log_entries)"
+grep -qF 'App Store apps: 0 of 0 tracked entries changed' <<<"$entries" ||
+  fail "an empty but successful App Store list was not reported as zero tracked entries: $entries"
+refute 'App Store apps: [^.]*(could not|failed|unknown)' "$entries" \
+  "an empty but successful App Store list was reported as unreadable: $entries"
+
+# ── 12. A lock that cannot be OPENED is NOT another run holding it. Collapsing
+#       every non-zero into contention posts a record blaming a holder that does
+#       not exist, sends no alert, and exits 75 (retry later) for a condition
+#       that will still be there next week. ────────────────────────────────────
+rm -rf "$HOME/.local/state"
+mkdir -p "$tmp/nolockdir"
+chmod 500 "$tmp/nolockdir"
+: >"$RELAY_LOG"
+RUN_OUTPUT="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
+  HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" HOMEBREW_WEEKLY_LOCKFILE="$tmp/nolockdir/lock" \
+  BREW_FAIL="" BREW_VERSIONS="$BREW_VERSIONS" MAS_VERSIONS="$MAS_VERSIONS" \
+  bash "$HELPER" --scheduled 2>&1)"
+unopenable_rc=$?
+chmod 700 "$tmp/nolockdir"
+[[ $unopenable_rc -ne 75 ]] ||
+  fail "an unopenable lock exited 75, which is the code for another run holding it: $RUN_OUTPUT"
+[[ $unopenable_rc -ne 0 ]] ||
+  fail "an unopenable lock exited 0, so nothing ran and nothing said so: $RUN_OUTPUT"
+entries="$(log_entries)"
+[[ -n $entries ]] || fail "an unopenable lock recorded nothing: $RUN_OUTPUT"
+refute 'already holds' "$entries" \
+  "the record blames a holder that does not exist for a lock that simply could not be opened: $entries"
+grep -qiE 'could not be OPENED|could not open' <<<"$entries" ||
+  fail "the record does not say the lock could not be opened: $entries"
+grep -qF -- '--agent homebrew-weekly-upgrade' <<<"$(alert_entries)" ||
+  fail "an unopenable lock sent no alert; nothing ran and nobody was told: $(cat "$RELAY_LOG")"
+
+# ── 13. An unknown argument is an error, not a silent no-op that skips the
 #       record. A typo'd marker in the plist would otherwise run every week and
 #       quietly post nothing. ───────────────────────────────────────────────────
 run_helper --schedluled

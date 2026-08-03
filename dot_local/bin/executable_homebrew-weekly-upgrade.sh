@@ -122,8 +122,16 @@ weekly_record() {
 # __homebrew_package_snapshot <kind> -- "<name><TAB><version>" lines, the input
 # shape unattended_log_change_line reads. Homebrew and the App Store BOTH report
 # real version numbers, so unlike the npx skills lane this record can name the
-# exact transition. Always exits 0: a record that cannot be computed must not
-# fail the upgrade it is recording.
+# exact transition.
+#
+# RETURNS THE SOURCE COMMAND'S STATUS (pipefail carries it through the
+# transform). It used to swallow every failure and hand back an empty file, so a
+# `brew list --versions` that failed rendered as "0 of 0 tracked entries
+# changed": a clean week, on a machine whose package manager could not be
+# queried at all. An EMPTY answer from a command that SUCCEEDED is a different
+# fact and stays a success, which is why the mas transform ends in an awk filter
+# rather than a grep: grep exits 1 on no match, so a machine with no App Store
+# apps would otherwise report its truthful nothing as a failure every week.
 __homebrew_package_snapshot() {
   case "$1" in
     brew)
@@ -132,7 +140,7 @@ __homebrew_package_snapshot() {
       # one fingerprint rather than being truncated to the first.
       "$BREW" list --versions 2>/dev/null |
         awk 'NF >= 2 { name = $1; $1 = ""; sub(/^[ \t]+/, ""); printf "%s\t%s\n", name, $0 }' |
-        sort || true
+        sort
       ;;
     mas)
       # `mas list` prints "<id> <Name> (<version>)". The id is the stable key but
@@ -140,10 +148,27 @@ __homebrew_package_snapshot() {
       # id is dropped.
       "$MAS" list 2>/dev/null |
         sed -E 's/^[0-9]+[[:space:]]+(.*)[[:space:]]+\(([^)]*)\)[[:space:]]*$/\1\t\2/' |
-        grep -F "$(printf '\t')" | sort || true
+        awk -F'\t' 'NF >= 2' | sort
+      ;;
+    *)
+      printf 'homebrew-weekly-upgrade: unknown snapshot kind: %s\n' "$1" >&2
+      return 1
       ;;
   esac
-  return 0
+}
+
+# __homebrew_change_section <ok-flag> <before> <after> <label> <caveat> <source>
+# -- one section of the record. When the snapshot could not be read, SAY THAT
+# instead of comparing two empty files, because "0 of 0 tracked entries changed"
+# and "I could not look" are opposite facts that used to render identically.
+__homebrew_change_section() {
+  local ok="$1" before="$2" after="$3" label="$4" caveat="$5" source_command="$6"
+  if [[ -z $ok ]]; then
+    printf '%s: NOT COMPARED -- %s failed on this run, so nothing here says what changed; it says this run could not read what is installed.' \
+      "$label" "$source_command"
+    return 0
+  fi
+  unattended_log_change_line "$before" "$after" "$label" "$caveat" versions
 }
 
 # Serialize: one weekly upgrade at a time, via the KERNEL. The Monday-noon
@@ -200,23 +225,45 @@ refresh_tailscaled() {
   sudo -n "$TS" install-system-daemon
 }
 
-if ! acquire_lock; then
+# TWO different facts, and they used to collapse into one. `lockf` answers 75
+# (EX_TEMPFAIL) when another process holds the lock; anything else means this run
+# could not even OPEN the lock file, e.g. its directory is not writable. Reporting
+# the second as the first posts a record blaming a holder that does not exist,
+# tells nobody, and exits 75 ("try again later") for a condition that will still
+# be there next week.
+weekly_lock_rc=0
+acquire_lock || weekly_lock_rc=$?
+if [[ $weekly_lock_rc -eq 75 ]]; then
   printf 'homebrew-weekly-upgrade: another run holds the lock; deferring (exit 75).\n' >&2
   # A deferral is NOT a failure: nothing was attempted, so it is recorded rather
   # than alerted. Without an entry, a week spent entirely in contention would
   # leave the channel empty, which reads as a dead LaunchAgent.
   weekly_record deferred "nothing was attempted: another homebrew-weekly-upgrade run already holds the serialize lock, so this run deferred (exit 75)."
   exit 75
+elif [[ $weekly_lock_rc -ne 0 ]]; then
+  printf 'homebrew-weekly-upgrade: the serialize lock at %s could not be OPENED (rc %d); nothing ran.\n' \
+    "$LOCKFILE" "$weekly_lock_rc" >&2
+  weekly_alert lock-unavailable \
+    "$(printf 'The weekly Homebrew upgrade could not OPEN its serialize lock at %s (rc %d), so nothing ran. This is not another run holding it: check that the directory is writable.' \
+      "$LOCKFILE" "$weekly_lock_rc")"
+  weekly_record deferred \
+    "$(printf 'nothing was attempted: the serialize lock at %s could not be OPENED (rc %d), which is not another run holding it. An alert was also attempted on the priority route; that path is fire-and-forget, so its delivery was not observed.' \
+      "$LOCKFILE" "$weekly_lock_rc")"
+  exit 1
 fi
 
 printf '=== homebrew-weekly-upgrade %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 snapshot_dir=""
+# Per-lane readability. A lane is "not compared" when EITHER of its two readings
+# failed, because half a comparison is not one.
+brew_snapshot_ok=1
+mas_snapshot_ok=1
 if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   snapshot_dir="$(mktemp -d)"
   trap 'rm -rf "$snapshot_dir"' EXIT
-  __homebrew_package_snapshot brew >"$snapshot_dir/brew.before"
-  __homebrew_package_snapshot mas >"$snapshot_dir/mas.before"
+  __homebrew_package_snapshot brew >"$snapshot_dir/brew.before" || brew_snapshot_ok=""
+  __homebrew_package_snapshot mas >"$snapshot_dir/mas.before" || mas_snapshot_ok=""
 fi
 
 run "brew update" "$BREW" update
@@ -234,17 +281,19 @@ printf '=== done %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # carries, so suppressing the empty entry would throw away the reason the channel
 # exists. The failed-step count rides along rather than being implied by silence.
 if [[ -n $snapshot_dir ]]; then
-  __homebrew_package_snapshot brew >"$snapshot_dir/brew.after"
-  __homebrew_package_snapshot mas >"$snapshot_dir/mas.after"
+  __homebrew_package_snapshot brew >"$snapshot_dir/brew.after" || brew_snapshot_ok=""
+  __homebrew_package_snapshot mas >"$snapshot_dir/mas.after" || mas_snapshot_ok=""
   weekly_record completed "$(printf '%s\n%s\nfailed steps: %d' \
-    "$(unattended_log_change_line "$snapshot_dir/brew.before" "$snapshot_dir/brew.after" \
+    "$(__homebrew_change_section "$brew_snapshot_ok" \
+      "$snapshot_dir/brew.before" "$snapshot_dir/brew.after" \
       'formulae and casks' \
       'Versions are what brew list --versions reports; a formula reinstalled at the same version does not appear here, and a cask Homebrew tracks only as latest reports that literal string rather than a version.' \
-      versions)" \
-    "$(unattended_log_change_line "$snapshot_dir/mas.before" "$snapshot_dir/mas.after" \
+      'brew list --versions')" \
+    "$(__homebrew_change_section "$mas_snapshot_ok" \
+      "$snapshot_dir/mas.before" "$snapshot_dir/mas.after" \
       'App Store apps' \
       'Versions are what mas list reports, keyed by app name.' \
-      versions)" \
+      'mas list')" \
     "$weekly_upgrade_failures")"
 fi
 
