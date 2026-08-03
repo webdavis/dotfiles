@@ -595,6 +595,30 @@ grep -qF -- '--state deferred' <<<"$entries" || fail "a missing lock did not rec
 [[ -n "$(alert_entries)" ]] || fail "a missing lock sent no alert: $(cat "$RELAY_LOG")"
 write_lock
 
+# ── 14b. A lock present but carrying an EMPTY or null plugins map is a degraded
+#        state, not a valid empty roster. {}, {"plugins":{}} and {"plugins":null}
+#        each parse as "an object with a plugins map", and the run once processed
+#        zero plugins, posted "0 tracked", wrote last-success-at and exited clean,
+#        a successful week reported for a vertical managing nothing, which is what
+#        a truncated deployed lock looks like. It must attempt nothing and say so.
+for degraded in '{}' '{"plugins":{}}' '{"plugins":null}'; do
+  reset_state
+  printf '%s\n' "$degraded" >"$LOCK"
+  run_helper --scheduled
+  [[ $RUN_RC -ne 0 ]] || fail "a degraded lock ($degraded) exited 0: $RUN_OUTPUT"
+  refute '^plugin (update|install) ' "$(cat "$CLAUDE_CALL_LOG")" \
+    "a degraded lock ($degraded) still mutated plugins"
+  entries="$(log_entries)"
+  grep -qF -- '--state deferred' <<<"$entries" ||
+    fail "a degraded lock ($degraded) did not record a deferral: $entries"
+  refute 'plugins: 0 tracked' "$entries" \
+    "a degraded lock ($degraded) posted a clean-looking zero-tracked completed record: $entries"
+  [[ -n "$(alert_entries)" ]] || fail "a degraded lock ($degraded) sent no alert: $(cat "$RELAY_LOG")"
+  [[ ! -e $MARKER ]] ||
+    fail "a degraded lock ($degraded) advanced last-success-at, recording a clean week for a vertical that managed nothing"
+done
+write_lock
+
 # ── 15. The IDLE GATE defers on recent Claude activity, records the deferral,
 #       and attempts nothing. A deferral is not a failure: nothing was tried, so
 #       it is recorded rather than alerted, and the gap line in that entry is

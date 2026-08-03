@@ -343,9 +343,16 @@ if [[ ! -r $AGENT_PLUGINS_LOCK ]]; then
   nothing_attempted lock-file-missing "$AGENT_PLUGINS_LOCK" \
     "$(printf 'the plugin lock at %s is missing or unreadable, so this run has no idea what to update. This is what an unapplied chezmoi state looks like; run chezmoi apply.' "$AGENT_PLUGINS_LOCK")"
 fi
-if ! jq -e 'type == "object" and ((.plugins // {}) | type) == "object"' "$AGENT_PLUGINS_LOCK" >/dev/null 2>&1; then
+# A NON-EMPTY plugins map is required. {}, {"plugins":{}} and {"plugins":null}
+# all parse as "an object carrying a (possibly empty) plugins map", and the old
+# check let them through: the loop then processed zero plugins, posted "0 tracked
+# -- 0 refreshed", wrote last-success-at and exited 0, a clean successful week
+# reported for a vertical that manages NOTHING. That is exactly what a truncated
+# or half-written deployed lock looks like, and this repo always tracks plugins,
+# so an empty map is a degraded state to refuse, not a valid empty roster.
+if ! jq -e 'type == "object" and ((.plugins // {}) | type == "object" and length > 0)' "$AGENT_PLUGINS_LOCK" >/dev/null 2>&1; then
   nothing_attempted lock-file-malformed "$AGENT_PLUGINS_LOCK" \
-    "$(printf 'the plugin lock at %s does not parse as an object carrying a plugins map, so this run refused to guess what to update.' "$AGENT_PLUGINS_LOCK")"
+    "$(printf 'the plugin lock at %s does not parse as an object carrying a NON-EMPTY plugins map, so this run refused to guess what to update. An empty or null plugins map is what a truncated or half-written lock looks like; a clean chezmoi apply restores it.' "$AGENT_PLUGINS_LOCK")"
 fi
 
 if __agent_plugins_should_defer; then
