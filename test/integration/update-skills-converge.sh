@@ -50,7 +50,7 @@ mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 # zero-union roster gate refuses any full run otherwise; there is no legitimate
 # empty roster). anchor migrates into a live generation and is not asserted on;
 # the six vendored real dirs are what this test exercises.
-for s in keeper mover revived demoted humanizer dualname anchor; do
+for s in keeper mover revived demoted humanizer dualname nonclaude anchor; do
   mkdir -p "$STORE/$s"
   printf -- '---\nname: %s\ndescription: fixture\n---\n' "$s" >"$STORE/$s/SKILL.md"
 done
@@ -59,13 +59,21 @@ done
 # PURPOSE, convergence must still refuse to create it hermes-side and must
 # remove a stale one. dualname is hermes-OWNED (hermesProfiles [] + a
 # hermesRegistry entry): hermes keeps a real hub dir of that name, untouchable.
+# nonclaude carries claudeDelivery "none": this vertical deliberately does not
+# serve Claude Code for that store entry, so the Claude fan-out must neither
+# create its link nor keep one, while its hermes delivery is unaffected. The
+# fan-out linked EVERY store entry before, so a Claude link removed by hand came
+# straight back on the next weekly run.
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
   "tiers": {
     "keeper": "core", "mover": "core", "revived": "core",
     "demoted": "core", "humanizer": "core", "dualname": "on-demand",
-    "anchor": "core"
+    "nonclaude": "on-demand", "anchor": "core"
+  },
+  "claudeDelivery": {
+    "nonclaude": "none"
   },
   "hermesProfiles": {
     "keeper": ["default"],
@@ -73,7 +81,8 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
     "revived": ["default"],
     "demoted": [],
     "humanizer": ["default"],
-    "dualname": []
+    "dualname": [],
+    "nonclaude": ["default"]
   },
   "hermesRegistry": {
     "dualname": {"profiles": ["default"], "source": "clawhub", "identifier": "clawhub/dualname", "lockKey": "dualname"}
@@ -91,6 +100,11 @@ printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
 # left the store (removed). Every other store skill is missing (created).
 ln -s "../../.agents/skills/keeper" "$CLAUDE/keeper"
 ln -s "../../.agents/skills/gone" "$CLAUDE/gone" # stale: gone not in store
+# A correct-looking link for a store skill this vertical does not deliver to
+# Claude. It is planted here rather than left absent so the case measures a
+# LINK THAT EXISTS being reconciled away, not merely one that was never made:
+# the live machine has exactly this shape today.
+ln -s "../../.agents/skills/nonclaude" "$CLAUDE/nonclaude"
 
 # Hermes default drift:
 #   keeper, absent            → created (missing)
@@ -155,6 +169,14 @@ for s in keeper mover revived demoted humanizer dualname; do
 done
 [[ ! -e "$CLAUDE/gone" && ! -L "$CLAUDE/gone" ]] ||
   fail "stale updater-owned Claude link 'gone' was not removed"
+
+# claudeDelivery "none": present in the store, delivered to hermes, and NOT to
+# Claude. Both halves are asserted, because a fan-out that simply stopped
+# linking that name everywhere would pass the first assertion alone.
+[[ ! -e "$CLAUDE/nonclaude" && ! -L "$CLAUDE/nonclaude" ]] ||
+  fail "the Claude link for a claudeDelivery 'none' skill was kept or re-created: $(readlink "$CLAUDE/nonclaude" 2>/dev/null)"
+[[ -L "$HERMES/nonclaude" && "$(readlink "$HERMES/nonclaude")" == "../../.agents/skills/nonclaude" ]] ||
+  fail "claudeDelivery 'none' suppressed the HERMES link too; the field is about Claude delivery alone"
 
 # ── Hermes default convergence ─────────────────────────────────────────────
 # created (was missing)

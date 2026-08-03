@@ -2617,15 +2617,43 @@ converge_dir() {
   done
 }
 
-# Claude fan-out: every store skill (the full roster) gets a ~/.claude/skills
-# link. Claude is not profile-scoped, tiering there is the settings
-# modify-template's job, not the fan-out's.
+# Store names this vertical deliberately does not deliver to Claude Code: the
+# lock's claudeDelivery table, value "none". The table says only what THIS
+# vertical does; it names no other delivery mechanism and reads no other lock.
+#
+# FAIL OPEN, on purpose. An absent or unreadable lock yields an empty set, so
+# the fan-out falls back to its previous behaviour (link the whole store). The
+# other direction is unthinkable here: a jq that failed would otherwise mark
+# every roster skill undelivered and step 2 of converge_dir would reap the
+# ENTIRE Claude fan-out on one bad read.
+__update_skills_claude_undelivered() {
+  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  jq -r '.claudeDelivery // {} | to_entries[] | select(.value == "none") | .key' \
+    "$CUSTOM_SKILL_LOCK" 2>/dev/null || true
+}
+
+# Claude fan-out: every store skill (the roster minus the claudeDelivery "none"
+# set) gets a ~/.claude/skills link. Claude is not profile-scoped, tiering there
+# is the settings modify-template's job, not the fan-out's.
+#
+# The subtraction is what makes a de-delivered skill STAY de-delivered: this
+# function used to link every store entry unconditionally, so removing a link by
+# hand bought exactly one week before the next Monday put it back.
 converge_claude_skills() {
-  local -a desired=()
-  local skill_path skill
+  local -a desired=() undelivered=()
+  local skill_path skill undelivered_name
+  while IFS= read -r undelivered_name; do
+    [[ -n $undelivered_name ]] && undelivered+=("$undelivered_name")
+  done < <(__update_skills_claude_undelivered)
   for skill_path in "$STORE"/*; do
     [[ -d $skill_path || -L $skill_path ]] || continue
     skill="${skill_path##*/}"
+    for undelivered_name in ${undelivered[@]+"${undelivered[@]}"}; do
+      if [[ $undelivered_name == "$skill" ]]; then
+        log "converge: $skill is claudeDelivery none; the Claude fan-out skips it"
+        continue 2
+      fi
+    done
     desired+=("$skill")
   done
   if [[ ${#desired[@]} -gt 0 ]]; then

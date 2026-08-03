@@ -425,13 +425,18 @@ check on `main` under branch protection, so the auto-merge cannot land until it 
 
 ### Agent Skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code always
-(symlinks declared in chezmoi: `private_dot_claude/skills/symlink_*` for the full roster), Codex always
-(it scans the store natively, no declarations), and hermes for exactly the store-symlink subset of the
-delivery model below (`dot_hermes/skills/` and `dot_hermes/profiles/<name>/skills/` symlinks). The
-committed roster is the complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the
-store, the lock's `tiers` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables,
-the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
+`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code for the
+roster minus the lock's `claudeDelivery` exemptions (symlinks declared in chezmoi:
+`private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
+hermes for exactly the store-symlink subset of the delivery model below (`dot_hermes/skills/` and
+`dot_hermes/profiles/<name>/skills/` symlinks). A `claudeDelivery` entry (the only legal value is `none`)
+means this vertical deliberately does not serve Claude Code for that store entry: it carries no chezmoi
+declaration AND `update-skills.sh`'s weekly Claude fan-out skips it, so a link removed by hand is not
+re-created next Monday. `last30days` is the one entry; Claude Code gets that capability as a plugin
+instead, from the separate agent-plugin vertical, and neither lock mentions the other. The committed
+roster is the complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the store, the
+lock's `tiers` / `claudeDelivery` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked`
+tables, the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
 
 **Store provenance: who installs and refreshes each store copy** (the lock at
 `dot_agents/custom-skill-lock.json` records it):
@@ -633,9 +638,10 @@ row to `tiers` (plus the `skillOverrides` template entry and the `agents/openai.
 on-demand) and `hermesProfiles` (`[]` when hermes should not carry it from the store, the named profiles
 when it should), add a `hermesRegistry` entry when hermes owns it from a registry (never both a non-empty
 `hermesProfiles` mapping and a `hermesRegistry` entry, they are disjoint), declare its Claude symlink
-and, only for store-symlinked skills, the mapped hermes symlinks, and run `just test`, the roster test
-tells you what is missing. **Removing one:** delete the store entry (or `npxTracked` row), every lock
-table row, and every declaration in the same commit.
+(unless the skill is meant to reach Claude Code from somewhere else, in which case add a
+`claudeDelivery: "none"` row instead of the declaration) and, only for store-symlinked skills, the mapped
+hermes symlinks, and run `just test`, the roster test tells you what is missing. **Removing one:** delete
+the store entry (or `npxTracked` row), every lock table row, and every declaration in the same commit.
 
 **On-demand use of an unregistered skill:** point the agent at the file, "read
 `~/.agents/skills/<name>/SKILL.md` and follow it." Router/search-and-load indirection layers were
