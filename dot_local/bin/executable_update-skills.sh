@@ -307,7 +307,7 @@ __update_skills_record() {
 # because an empty snapshot would render as "0 of 0 changed", which reads as a
 # clean week.
 __update_skills_change_snapshot() {
-  local lane="$1" lock="$SKILLS_CURRENT/.skill-lock.json" origin name
+  local lane="$1" lock="$SKILLS_CURRENT/.skill-lock.json" origin name version
   case "$lane" in
     npx)
       if [[ -r $lock ]]; then
@@ -320,7 +320,15 @@ __update_skills_change_snapshot() {
         [[ -r $origin ]] || continue
         name="${origin#"$STORE"/}"
         name="${name%%/*}"
-        printf '%s\t%s\n' "$name" "$(jq -r '.installedVersion // "-"' "$origin" 2>/dev/null || printf -- '-')"
+        version="$(jq -r '(.installedVersion // "-") | tostring' "$origin" 2>/dev/null || printf -- '-')"
+        # ONE line per skill, and exactly two columns, whatever the marker holds.
+        # installedVersion is publisher-controlled: a newline in it forges a
+        # second entry AND inflates the denominator the operator reads (one real
+        # skill rendering as "1 of 2"), and a tab forges a column. The npx lane
+        # above cannot do this because @tsv escapes both.
+        printf '%s\t%s\n' \
+          "$(printf '%s' "$name" | tr -d '[:cntrl:]')" \
+          "$(printf '%s' "$version" | tr -d '[:cntrl:]')"
       done
       ;;
     *)

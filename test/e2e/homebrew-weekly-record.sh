@@ -215,16 +215,16 @@ RUN_OUTPUT="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
   HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" HOMEBREW_WEEKLY_LOCKFILE="$tmp/lock.upgrade" \
   MAS_VERSIONS="$MAS_VERSIONS" MAS_AFTER="$MAS_AFTER" bash "$HELPER" --scheduled 2>&1)"
 entries="$(log_entries)"
-grep -qF 'jq 1.7.1 -> 1.8.0' <<<"$entries" ||
+grep -qF '`jq` `1.7.1` -> `1.8.0`' <<<"$entries" ||
   fail "an upgraded formula's version transition was not reported: $entries | $RUN_OUTPUT"
-grep -qF 'python@3.12 3.12.7 3.12.8 -> 3.12.8' <<<"$entries" ||
+grep -qF '`python@3.12` `3.12.7 3.12.8` -> `3.12.8`' <<<"$entries" ||
   fail "a formula with two installed versions was fingerprinted from its first version only: $entries"
-grep -qF 'ripgrep (added)' <<<"$entries" ||
+grep -qF '`ripgrep` (added)' <<<"$entries" ||
   fail "a newly installed formula was not reported: $entries"
 refute 'yq 4' "$entries" "an unchanged formula was listed as changed"
 # The App Store lane reports versions too, and it is keyed by app NAME rather
 # than by the numeric id a reader would not recognize.
-grep -qF 'App Store apps: 1 of 1 tracked entries changed (Xcode 16.2 -> 16.3)' <<<"$entries" ||
+grep -qF 'App Store apps: 1 of 1 tracked entries changed (`Xcode` `16.2` -> `16.3`)' <<<"$entries" ||
   fail "an upgraded App Store app's version transition was not reported: $entries"
 unset MAS_AFTER
 

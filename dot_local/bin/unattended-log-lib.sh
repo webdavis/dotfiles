@@ -266,6 +266,39 @@ unattended_log_release_week() {
 # otherwise blow past it, taking the gap figure with it.
 UNATTENDED_LOG_NAME_CAP=12
 
+# __unattended_log_lookup <snapshot-file> <name> -- print that name's
+# fingerprint; exit non-zero when the name is not in the file at all (which is
+# not the same as an empty fingerprint, and the caller depends on the
+# difference: absent means added or removed).
+#
+# The name reaches awk through the ENVIRONMENT, never through -v. awk processes
+# escape sequences in a -v VALUE, so a name holding a literal backslash-n (which
+# is exactly what `jq @tsv` emits for a newline, and a doubled backslash for a
+# backslash) never matched itself: the lookup missed, and the entry was reported
+# as removed AND re-added every single week. ENVIRON does no such processing.
+# A skill name is not a secret, so passing it in the environment is fine here.
+__unattended_log_lookup() {
+  UNATTENDED_LOG_WANT="$2" awk -F'\t' '
+    $1 == ENVIRON["UNATTENDED_LOG_WANT"] { print $2; found = 1; exit }
+    END { exit !found }' "$1" 2>/dev/null
+}
+
+# __unattended_log_code <text> -- render third-party text as a Discord inline
+# code span.
+#
+# Every name and version in an entry is chosen by whoever published the package,
+# and it lands in a channel whose entire value is that its contents read as
+# trustworthy machine records. Unquoted, a version string of
+# `[urgent: click here](https://evil.example)` renders as a CLICKABLE LINK the
+# operator never authored. A code span renders it literally, so the two
+# characters that could close the span early -- a backtick, and any control
+# character -- are removed first.
+__unattended_log_code() {
+  local text="${1//\`/}"
+  text="$(printf '%s' "$text" | tr -d '[:cntrl:]')"
+  printf '`%s`' "$text"
+}
+
 # unattended_log_change_line <before-file> <after-file> <label> <caveat> <style>
 #
 # One sentence describing what moved between two snapshots. Both files hold
@@ -283,8 +316,15 @@ UNATTENDED_LOG_NAME_CAP=12
 # than assumed known. A record implying a completeness it does not have is worse
 # than no record.
 #
-# Added and removed names count as changes and are marked as such. A removal is
-# the single most worth-seeing line here: something left without being asked to.
+# Added and removed names count as changes and are marked as such, and BOTH count
+# toward the total: counting only the after-rows renders the impossible
+# "2 of 0 tracked entries changed" on an emptied snapshot. A removal is the
+# single most worth-seeing line here: something left without being asked to.
+#
+# EVERY interpolated name and fingerprint goes through __unattended_log_code,
+# because all of them are chosen by whoever published the package, and the
+# channel's whole value is that its contents read as trustworthy machine records.
+# See that function for what it prevents.
 unattended_log_change_line() {
   local before="$1" after="$2" label="$3" caveat="$4" style="$5"
   local total=0 name fingerprint_after fingerprint_before shown
@@ -292,21 +332,22 @@ unattended_log_change_line() {
   while IFS=$'\t' read -r name fingerprint_after; do
     [[ -n $name ]] || continue
     total=$((total + 1))
-    fingerprint_before="$(awk -F'\t' -v want="$name" '$1 == want { print $2; exit }' "$before" 2>/dev/null || true)"
-    if [[ -z $fingerprint_before ]]; then
-      changed+=("$name (added)")
+    if ! fingerprint_before="$(__unattended_log_lookup "$before" "$name")"; then
+      changed+=("$(__unattended_log_code "$name") (added)")
     elif [[ $fingerprint_before != "$fingerprint_after" ]]; then
       if [[ $style == "versions" ]]; then
-        changed+=("$name $fingerprint_before -> $fingerprint_after")
+        changed+=("$(__unattended_log_code "$name") $(__unattended_log_code "$fingerprint_before") -> $(__unattended_log_code "$fingerprint_after")")
       else
-        changed+=("$name")
+        changed+=("$(__unattended_log_code "$name")")
       fi
     fi
   done <"$after"
   while IFS=$'\t' read -r name fingerprint_before; do
     [[ -n $name ]] || continue
-    awk -F'\t' -v want="$name" '$1 == want { found = 1 } END { exit !found }' "$after" 2>/dev/null ||
-      changed+=("$name (removed)")
+    if ! __unattended_log_lookup "$after" "$name" >/dev/null; then
+      changed+=("$(__unattended_log_code "$name") (removed)")
+      total=$((total + 1))
+    fi
   done <"$before"
 
   if [[ ${#changed[@]} -eq 0 ]]; then

@@ -465,7 +465,7 @@ line="$(unattended_log_change_line "$before" "$after" "npx-tracked skills" "$CAV
 # content hash tells a reader nothing.
 write_snapshot "$after" "alpha:aaa2" "beta:bbb1"
 line="$(unattended_log_change_line "$before" "$after" "npx-tracked skills" "$CAVEAT" opaque)"
-grep -qF 'npx-tracked skills: 1 of 2 tracked entries changed (alpha).' <<<"$line" ||
+grep -qF 'npx-tracked skills: 1 of 2 tracked entries changed (`alpha`).' <<<"$line" ||
   fail "an opaque change did not name the subject: '$line'"
 refute 'aaa1|aaa2' "$line" "the opaque style printed a fingerprint, which tells the reader nothing"
 grep -qF "$CAVEAT" <<<"$line" || fail "the change line dropped its caveat: '$line'"
@@ -475,19 +475,19 @@ grep -qF "$CAVEAT" <<<"$line" || fail "the change line dropped its caveat: '$lin
 write_snapshot "$before" "jq:1.7.1" "yq:4.53.3"
 write_snapshot "$after" "jq:1.8.0" "yq:4.53.3"
 line="$(unattended_log_change_line "$before" "$after" "formulae" "brew reports these" versions)"
-grep -qF 'formulae: 1 of 2 tracked entries changed (jq 1.7.1 -> 1.8.0).' <<<"$line" ||
+grep -qF 'formulae: 1 of 2 tracked entries changed (`jq` `1.7.1` -> `1.8.0`).' <<<"$line" ||
   fail "the versions style did not render the transition: '$line'"
 
 # ADDED and REMOVED are changes too. The removal is the single most worth-seeing
 # line: something left without being asked to.
 write_snapshot "$before" "alpha:aaa1"
 write_snapshot "$after" "alpha:aaa1" "delta:ddd1"
-grep -qF '1 of 2 tracked entries changed (delta (added)).' \
+grep -qF '1 of 2 tracked entries changed (`delta` (added)).' \
   <<<"$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)" ||
   fail "an added entry was not reported"
 write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
 write_snapshot "$after" "alpha:aaa1"
-grep -qF 'beta (removed)' \
+grep -qF '`beta` (removed)' \
   <<<"$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)" ||
   fail "a removed entry was not reported"
 
@@ -507,6 +507,44 @@ grep -qE 'and 28 more' <<<"$line" ||
   fail "the capped line did not count the names it withheld: '$line'"
 [[ ${#line} -lt 800 ]] ||
   fail "a whole-subject move rendered ${#line} characters; Discord caps a message at 2000"
+
+# REMOVALS COUNT IN THE TOTAL. Counting only the after-rows renders the
+# impossible "2 of 0 tracked entries changed" on an emptied snapshot, and a total
+# that disagrees with its own count is a number nobody can act on.
+write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
+: >"$after"
+line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)"
+grep -qF 'subject: 2 of 2 tracked entries changed' <<<"$line" ||
+  fail "an emptied snapshot rendered a count larger than its own total: '$line'"
+
+# A NAME CARRYING A BACKSLASH matches itself. `jq @tsv` renders a newline as a
+# literal backslash-n and any backslash as a doubled one, and awk's -v processes
+# escape sequences in the VALUE, so the lookup for such a name silently missed
+# and the entry was reported as removed AND re-added, every week, forever. The
+# removal line is the one a reader trusts most, so it is the worst one to fake.
+write_snapshot "$before" 'we\nird:aaa1' 'back\\slash:bbb1'
+write_snapshot "$after" 'we\nird:aaa1' 'back\\slash:bbb1'
+line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)"
+grep -qF 'subject: 0 of 2 tracked entries changed' <<<"$line" ||
+  fail "a name carrying a backslash did not match itself, so it reads as removed and re-added: '$line'"
+
+# THIRD-PARTY TEXT IS QUOTED, NOT RENDERED. Names and versions here are chosen by
+# whoever published the package, and they land in a channel whose entire value is
+# that its contents are trustworthy machine records. A masked link would render
+# as a clickable link the operator never authored.
+write_snapshot "$before" 'evil:1.0'
+write_snapshot "$after" 'evil:[urgent: click here](https://evil.example)'
+line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" versions)"
+grep -qF '`[urgent: click here](https://evil.example)`' <<<"$line" ||
+  fail "a publisher-chosen version was not wrapped in a code span, so its markdown renders: '$line'"
+refute '[^`]\[urgent' "$line" "the masked link escaped its code span: '$line'"
+
+# ...and a version carrying a control character cannot forge a second entry or a
+# second column.
+write_snapshot "$before" 'sneak:1.0'
+printf 'sneak\t%s\n' '2.0`x`' >"$after"
+line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" versions)"
+refute '2\.0`x`' "$line" "a backtick in a version string was not stripped, so it can close the code span"
 
 # ── 5. The route name the library posts to is the one the config declares and
 #      the apply-time status check probes. A rename in one place and not the

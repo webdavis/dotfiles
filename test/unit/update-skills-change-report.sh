@@ -88,6 +88,20 @@ grep -qxF "$(row gamma 1.0.0)" "$tmp/nolock" ||
   fail "the clawhub lane vanished when the npx lock was absent: $(cat "$tmp/nolock")"
 mv "$tmp/stashed-lock.json" "$SKILLS_CURRENT/.skill-lock.json"
 
+# A PUBLISHER-CONTROLLED version cannot forge a row. installedVersion is written
+# by whoever published the skill, and the snapshot is line-and-tab delimited, so
+# a newline in it splits one skill into two rows: an entry the operator never
+# installed appears in the record AND the denominator grows, so one real skill
+# reads as "1 of 2 tracked entries changed".
+printf '{"slug":"gamma","installedVersion":"1.0.0\\nforged\\t9.9.9"}\n' \
+  >"$STORE/gamma/.clawhub/origin.json"
+__update_skills_change_snapshot clawhub >"$tmp/forged" || fail "the clawhub snapshot exited non-zero"
+[[ "$(grep -c . "$tmp/forged")" -eq 1 ]] ||
+  fail "a newline in a publisher-chosen version forged an extra snapshot row: $(cat "$tmp/forged")"
+[[ "$(awk -F'\t' '{print NF}' "$tmp/forged")" -eq 2 ]] ||
+  fail "a tab in a publisher-chosen version forged an extra column: $(cat "$tmp/forged")"
+printf '{"slug":"gamma","installedVersion":"1.0.0"}\n' >"$STORE/gamma/.clawhub/origin.json"
+
 # An unknown lane is an ERROR, not an empty snapshot: a silently empty lane
 # would render as "0 of 0 tracked entries changed", which reads as a clean week.
 if __update_skills_change_snapshot bogus >"$tmp/bogus" 2>/dev/null; then
