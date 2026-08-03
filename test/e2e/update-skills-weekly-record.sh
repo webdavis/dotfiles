@@ -63,7 +63,11 @@ HOME="$tmp/home"
 export HOME
 mkdir -p "$HOME/.agents/skills" "$HOME/.local/bin"
 
-cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
+# restage_lock [extra-json-member] -- the roster the run reads. A function
+# because section 9 deliberately corrupts the file and later sections need it
+# back, and because section 12 needs the same roster plus one extra table.
+restage_lock() {
+  cat >"$HOME/.agents/custom-skill-lock.json" <<EOF
 {
   "version": 2,
   "tiers": {"anchor": "core", "vaulted": "on-demand"},
@@ -71,9 +75,18 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
   "hermesRegistry": {},
   "npxTracked": {"anchor": {"repo": "fixture/pack"}},
   "clawhubTracked": {"vaulted": {"slug": "@fixture/vaulted", "registry": "https://clawhub.ai"}},
-  "forks": {}
+  "forks": {}${1:+,
+  $1}
 }
 EOF
+}
+# A superpowersRouting table with no ~/.local/bin/assert-hermes-superpowers-routing.sh
+# deployed: a REQUIRED phase that runs after the publish, so it fails the run
+# without stopping it short of the record.
+restage_lock_with_routing() {
+  restage_lock '"superpowersRouting": {"writing-plans": "hermes-writing-plans"}'
+}
+restage_lock
 mkdir -p "$HOME/.agents/skills/anchor"
 printf -- '---\nname: anchor\ndescription: fixture\n---\n' >"$HOME/.agents/skills/anchor/SKILL.md"
 mkdir -p "$HOME/.agents/skills/vaulted/.clawhub"
@@ -105,11 +118,25 @@ exit 0
 STUB
 chmod +x "$HOME/.local/bin/relay.sh"
 
+# Declared before the stubs because two of them bake this path in (the lanes run
+# under `env -i`, so a stub cannot read it from the environment).
+ACT_CLAUDE="$HOME/act/claude"
+
 stub_dir="$tmp/stubs"
 mkdir -p "$stub_dir"
-cat >"$stub_dir/ps" <<'EOF'
+# ps stub. Normally it answers FAKE_PS. When the mid-run arming marker exists it
+# switches to reporting an agent process as soon as the npx stub has run, which
+# is how section 14 makes a harness "turn active during the build": the top-level
+# activity check sees a quiet machine and proceeds, and the pre-exchange check
+# sees an active one. Both paths are the real script's; only the world it
+# observes changes underneath it.
+cat >"$stub_dir/ps" <<EOF
 #!/usr/bin/env bash
-printf '%s\n' "${FAKE_PS:-}"
+if [[ -e "$tmp/arm-mid-run-defer" && -e "$tmp/agent-arrived" ]]; then
+  printf '%s\n' '/opt/homebrew/bin/claude --remote-control'
+  exit 0
+fi
+printf '%s\n' "\${FAKE_PS:-}"
 EOF
 cat >"$stub_dir/date" <<'EOF'
 #!/usr/bin/env bash
@@ -122,9 +149,20 @@ for arg in "$@"; do
 done
 exec /bin/date "$@"
 EOF
-cat >"$stub_dir/npx" <<'EOF'
+# npx stub. It also carries section 14's trigger: the build lanes are the one
+# place that runs between the top-level activity check and the pre-exchange one,
+# so this is where a harness can plausibly turn active mid-run. The paths are
+# baked in rather than read from the environment because the lanes run under
+# `env -i`.
+cat >"$stub_dir/npx" <<EOF
 #!/usr/bin/env bash
 echo "stub npx"
+if [[ -e "$tmp/arm-mid-run-defer" ]]; then
+  mkdir -p "$ACT_CLAUDE"
+  : >"$ACT_CLAUDE/live.jsonl"
+  : >"$tmp/agent-arrived"
+fi
+exit 0
 EOF
 # clawhub stub (same shape as test/integration/update-skills-generation-lanes.sh):
 # `install` materializes the skill with its origin marker, `update` is a no-op
@@ -156,7 +194,6 @@ export PATH="$stub_dir:$PATH"
 export FAKE_WEEK="2026-31"
 export UNATTENDED_LOG_HERMES_URL="http://hermes.test/webhooks/unattended-upgrades"
 
-ACT_CLAUDE="$HOME/act/claude"
 export UPDATE_SKILLS_CLAUDE_ACTIVITY_DIR="$ACT_CLAUDE"
 export UPDATE_SKILLS_CODEX_ACTIVITY_DIR="$HOME/act/codex"
 export UPDATE_SKILLS_HERMES_ACTIVITY_DIR="$HOME/act/hermes"
@@ -213,6 +250,12 @@ grep -qiE 'NEVER RECORDED' <<<"$entries" ||
   fail "the entry does not state that no successful run has ever been recorded here: $entries"
 grep -qE 'run at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' <<<"$entries" ||
   fail "the entry carries no ISO 8601 UTC run timestamp: $entries"
+# The entry names the MACHINE. The channel aggregates both weekly jobs and the
+# daemon-host role is expected to move to a second Mac, so an entry that does not
+# say which machine it is about cannot be investigated.
+this_host="$(hostname -s 2>/dev/null || printf '%s' "${HOSTNAME:-unknown-host}")"
+grep -qF -- "--project $this_host" <<<"$entries" ||
+  fail "the entry does not name the host it is about (expected --project $this_host): $entries"
 
 # ── 2. The once-per-week guard. 24 hourly Monday slots must not become 24
 #      messages. ────────────────────────────────────────────────────────────────
@@ -335,5 +378,147 @@ grep -qF -- '--state deferred' <<<"$entries" ||
   fail "a refused run left the record channel empty for the week: $entries"
 grep -qiE 'refus|roster' <<<"$entries" ||
   fail "the refusal entry does not say why nothing was attempted: $entries"
+
+# ── 10. LOCK CONTENTION is the second way a slot ends up attempting nothing, and
+#       it reaches a DIFFERENT record call site than the harness-activity
+#       deferral above (the lock is taken before the activity check, so nothing
+#       else in this file can reach it). Deferred is the class that actually
+#       fires on this machine, so every path that produces one is pinned. It is a
+#       record and not an alert: nothing was attempted, so there is nothing to
+#       act on. ────────────────────────────────────────────────────────────────
+reset_state
+export FAKE_WEEK="2026-38"
+restage_lock
+lockfile="$HOME/.agents/.update-skills.lock"
+: >"$lockfile"
+holder_held="$tmp/lock-held"
+holder_release="$tmp/lock-release"
+rm -f "$holder_held"
+: >"$holder_release"
+(
+  exec 9>>"$lockfile"
+  /usr/bin/lockf -s -t 0 9 2>/dev/null || exit 1
+  : >"$holder_held"
+  while [[ -e $holder_release ]]; do sleep 0.05; done
+) &
+holder_pid=$!
+for ((i = 0; i < 100; i++)); do
+  [[ -e $holder_held ]] && break
+  sleep 0.05
+done
+if [[ ! -e $holder_held ]]; then
+  rm -f "$holder_release"
+  wait "$holder_pid" 2>/dev/null || true
+  fail "could not stage a held serialize lock; the contention case did not run"
+fi
+harness_absent
+: >"$RELAY_LOG"
+contended_rc=0
+FAKE_PS="$QUIET_WORLD" bash "$SCRIPT" --scheduled >/dev/null 2>&1 || contended_rc=$?
+rm -f "$holder_release"
+wait "$holder_pid" 2>/dev/null || true
+[[ $contended_rc -eq 75 ]] || fail "lock contention exited $contended_rc, want 75"
+entries="$(log_entries)"
+grep -qF -- '--state deferred' <<<"$entries" ||
+  fail "a slot that deferred on the serialize lock recorded nothing; a week spent entirely in contention would leave the channel empty: $entries"
+grep -qiE 'lock' <<<"$entries" ||
+  fail "the contention entry does not say the serialize lock is why nothing was attempted: $entries"
+refute 'url=<default>' "$(cat "$RELAY_LOG")" \
+  "lock contention alerted; nothing was attempted, so it is a record and not something to act on"
+
+# ── 11. A roster that tracks ZERO skills is a refusal too, and a DIFFERENT call
+#       site from the unparseable-roster refusal in section 9. Both refuse before
+#       any mutation, so both would otherwise leave the week silent. ───────────
+reset_state
+export FAKE_WEEK="2026-39"
+cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
+{
+  "version": 2,
+  "tiers": {},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {},
+  "clawhubTracked": {},
+  "forks": {}
+}
+EOF
+harness_absent
+run_updater "$QUIET_WORLD" --scheduled
+entries="$(log_entries)"
+grep -qF -- '--state deferred' <<<"$entries" ||
+  fail "a run refused for tracking zero skills left the record channel empty: $entries | $RUN_OUTPUT"
+grep -qiE 'zero|refus' <<<"$entries" ||
+  fail "the zero-roster entry does not say why nothing was attempted: $entries"
+grep -qF -- '--agent update-skills' <<<"$(alert_entries)" ||
+  fail "a zero-roster refusal sent no alert on the existing route: $RUN_OUTPUT"
+
+# ── 12. A run that REACHED THE END with required-phase failures still records,
+#       and the entry states the COUNT and that the weekly stamp was withheld.
+#       Both are numbers/claims that would otherwise be printed by a format
+#       string nothing reads: a constant 0 and a hardcoded "stamp was written"
+#       both render a plausible-looking clean week. The failure is injected by
+#       declaring a superpowersRouting table with no routing script deployed,
+#       which is a required phase that runs AFTER the publish, so the run still
+#       reaches the record. ──────────────────────────────────────────────────
+reset_state
+export FAKE_WEEK="2026-40"
+restage_lock_with_routing
+harness_absent
+run_updater "$QUIET_WORLD" --scheduled
+entries="$(log_entries)"
+grep -qF -- '--state completed' <<<"$entries" ||
+  fail "a run that reached the end with a required-phase failure posted no entry: $RUN_OUTPUT"
+grep -qE 'required-phase failures: [1-9]' <<<"$entries" ||
+  fail "the entry does not state the required-phase failure count, so a failing week reads as a clean one: $entries"
+grep -qiE 'stamp was WITHHELD' <<<"$entries" ||
+  fail "the entry claims the weekly stamp was written when it was withheld: $entries"
+# ...and the clean run in section 4 said the opposite, so neither wording is a
+# constant.
+reset_state
+export FAKE_WEEK="2026-41"
+restage_lock
+run_updater "$QUIET_WORLD" --scheduled
+entries="$(log_entries)"
+grep -qF 'required-phase failures: 0' <<<"$entries" ||
+  fail "a clean run did not report zero required-phase failures: $entries | $RUN_OUTPUT"
+grep -qiF 'stamp was written' <<<"$entries" ||
+  fail "a clean run did not report that the weekly stamp was written: $entries"
+
+# ── 13. A slot that finds the week already finished still leaves a message when
+#       the week has none. Normally this entry is a no-op, because the completed
+#       run that finished the week also claimed the guard; it exists for the week
+#       whose completed entry failed to write that guard, which is exactly the
+#       state staged here (the guard is removed, the success stamp is left). A
+#       call site that only ever fires on a rare state is the one that rots. ────
+rm -f "$GUARD"
+run_updater "$QUIET_WORLD" --scheduled
+entries="$(log_entries)"
+grep -qF -- '--state deferred' <<<"$entries" ||
+  fail "a slot that found the week already complete, with no entry recorded for it, posted nothing: $entries | $RUN_OUTPUT"
+grep -qiE 'already completed' <<<"$entries" ||
+  fail "the no-op entry does not say the week was already finished: $entries"
+
+# ── 14. A harness that turns active DURING the build defers the generation
+#       exchange, and that is its own record call site: the run got past the
+#       top-level activity check, so none of the deferral cases above reach it.
+#       It is also the deferral that matters most to read, because the live
+#       generation is left untouched after a full candidate build. The build
+#       lanes are the seam: the npx stub plants the activity the pre-exchange
+#       check then sees. ────────────────────────────────────────────────────
+reset_state
+export FAKE_WEEK="2026-42"
+restage_lock
+harness_absent
+rm -f "$tmp/agent-arrived"
+: >"$tmp/arm-mid-run-defer"
+run_updater "$QUIET_WORLD" --scheduled
+rm -f "$tmp/arm-mid-run-defer" "$tmp/agent-arrived"
+grep -qiE 'exchange' <<<"$RUN_OUTPUT" ||
+  fail "the run never reached the generation exchange, so this case did not test what it claims: $RUN_OUTPUT"
+entries="$(log_entries)"
+grep -qF -- '--state deferred' <<<"$entries" ||
+  fail "a run whose generation exchange deferred recorded nothing: $entries | $RUN_OUTPUT"
+grep -qiE 'nothing was published' <<<"$entries" ||
+  fail "the exchange-deferral entry does not say the live generation is unchanged: $entries"
 
 printf 'update-skills-weekly-record: OK\n'

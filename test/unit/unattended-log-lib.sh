@@ -62,11 +62,17 @@ for arg in "$@"; do
 done
 exec /bin/date "$@"
 STUB
-# relay stub: record the full invocation and the environment bits that matter.
+# relay stub: record the full invocation, the environment bits that matter, and
+# whether it inherited fd 9 (the caller's serialize lock).
 cat >"$tmp/stubs/relay-stub.sh" <<'STUB'
 #!/usr/bin/env bash
 printf 'ARGV: %s\n' "$*" >>"$RELAY_CALL_LOG"
 printf 'URL: %s\n' "${RELAY_HERMES_URL:-<unset>}" >>"$RELAY_CALL_LOG"
+if { : >&9; } 2>/dev/null; then
+  printf 'FD9: inherited\n' >>"$RELAY_CALL_LOG"
+else
+  printf 'FD9: closed\n' >>"$RELAY_CALL_LOG"
+fi
 printf 'relay: posted HTTP 200\n'
 STUB
 chmod +x "$tmp/stubs/date" "$tmp/stubs/relay-stub.sh"
@@ -201,6 +207,36 @@ for field in '--agent update-skills' '--state completed' '--project dresden'; do
 done
 grep -qF 'posted HTTP 200' <<<"$out" ||
   fail "relay's delivery outcome did not reach the caller's run log: '$out'"
+
+# The entry NAMES ITS HOST. The channel aggregates both weekly jobs and the
+# daemon-host role is expected to move to a second Mac, so an entry that does not
+# say which machine it is about cannot be investigated. Checked at the function,
+# because both callers pass its result straight through and neither one's own
+# tests would notice it going empty.
+host="$(unattended_log_host)"
+[[ -n $host ]] || fail "unattended_log_host returned nothing; every entry would be posted with an empty --project"
+refute '^[[:space:]]+$' "$host" "unattended_log_host returned only whitespace"
+if real_host="$(hostname -s 2>/dev/null)" && [[ -n $real_host ]]; then
+  [[ $host == "$real_host" ]] ||
+    fail "unattended_log_host says '$host' but this machine is '$real_host'"
+fi
+
+# 4a-2. fd 9 is CLOSED for relay and everything it spawns. The caller holds its
+# serialize lock as a kernel flock on fd 9, relay detaches channels that outlive
+# the whole run, and a flock is released only when the LAST copy of the fd
+# closes. An inherited copy in a detached curl therefore keeps the lock held
+# after the job exited, and the next scheduled slot defers over a competing run
+# that does not exist. This repo has shipped that bug twice (fix-A F8, and again
+# on the fork advisory push), which is why it is asserted here rather than
+# trusted to the `9>&-` staying put.
+: >"$RELAY_CALL_LOG"
+(
+  exec 9>>"$tmp/fd9-lock"
+  UNATTENDED_LOG_RELAY="$tmp/stubs/relay-stub.sh" \
+    unattended_log_post update-skills completed dresden "body" >/dev/null 2>&1
+)
+grep -qF 'FD9: closed' "$RELAY_CALL_LOG" ||
+  fail "relay inherited the caller's serialize-lock fd; a detached child would hold the lock after the run exited: $(cat "$RELAY_CALL_LOG")"
 
 # 4b. relay.sh absent: state it, exit 0, deliver nothing.
 : >"$RELAY_CALL_LOG"

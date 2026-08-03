@@ -53,7 +53,8 @@ export RELAY_LOG
 # stays greppable and the ALERT route and the LOG route are distinguishable.
 cat >"$HOME/.local/bin/relay.sh" <<'STUB'
 #!/usr/bin/env bash
-printf 'CALL url=%s ARGV %s\n' "${RELAY_HERMES_URL:-<default>}" "$(printf '%s ' "$@" | tr '\n' ' ')" >>"$RELAY_LOG"
+if { : >&9; } 2>/dev/null; then fd9=inherited; else fd9=closed; fi
+printf 'CALL url=%s fd9=%s ARGV %s\n' "${RELAY_HERMES_URL:-<default>}" "$fd9" "$(printf '%s ' "$@" | tr '\n' ' ')" >>"$RELAY_LOG"
 printf 'relay: posted HTTP 200\n'
 exit 0
 STUB
@@ -76,12 +77,21 @@ done
 echo "mock brew $*"
 exit 0
 MOCK
+# mas stub: `list` answers MAS_BEFORE until an upgrade has run and MAS_AFTER
+# afterwards (keyed off the same marker the brew stub uses), so an App Store
+# version transition is observable. MAS_AFTER defaults to MAS_BEFORE, which
+# keeps the no-change sections reading as they did.
 cat >"$tmp/mas" <<'MOCK'
 #!/usr/bin/env bash
 if [[ ${1:-} == "list" ]]; then
-  printf '%s\n' "${MAS_VERSIONS:-}"
+  if [[ -n ${UPGRADE_MARKER:-} && -e ${UPGRADE_MARKER:-} ]]; then
+    printf '%s\n' "${MAS_AFTER:-${MAS_VERSIONS:-}}"
+  else
+    printf '%s\n' "${MAS_VERSIONS:-}"
+  fi
   exit 0
 fi
+[[ ${1:-} == "upgrade" && -n ${UPGRADE_MARKER:-} ]] && : >"$UPGRADE_MARKER"
 echo "mock mas $*"
 exit 0
 MOCK
@@ -131,6 +141,12 @@ grep -qE 'run at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' <<<"$en
   fail "the record carries no ISO 8601 UTC run timestamp: $entries"
 grep -qiF 'NEVER RECORDED' <<<"$entries" ||
   fail "the first record does not state that no successful run has been recorded here: $entries"
+# The record names the MACHINE. The channel aggregates both weekly jobs and the
+# daemon-host role is expected to move to a second Mac, so an entry that does not
+# say which machine it is about cannot be investigated.
+this_host="$(hostname -s 2>/dev/null || printf '%s' "${HOSTNAME:-unknown-host}")"
+grep -qF -- "--project $this_host" <<<"$entries" ||
+  fail "the record does not name the host it is about (expected --project $this_host): $entries"
 # A clean run alerts NOBODY. The alert route is for things to act on.
 refute 'url=<default>' "$(cat "$RELAY_LOG")" "a clean run sent an alert"
 
@@ -144,6 +160,22 @@ grep -qF 'App Store apps: 0 of 1 tracked entries changed' <<<"$entries" ||
 
 # ── 3. The success marker is written, so a later entry reports a real gap. ───
 [[ -s $MARKER ]] || fail "a successful run did not record its timestamp at $MARKER"
+
+# ...and a later run actually SPENDS it. Every entry carries its own gap because
+# launchd coalesces missed calendar intervals, so an absent entry proves nothing
+# and the figure in the newest message is the whole signal. Only the week guard
+# is cleared here (not the marker), and the marker is back-dated 8 days so a gap
+# read from it differs visibly from one read from this moment.
+recorded_iso="$(awk '{print $2}' "$MARKER")"
+printf '%s %s\n' "$(($(date +%s) - 691200))" "$recorded_iso" >"$MARKER"
+rm -f "$STATE_DIR/last-log-week"
+run_helper --scheduled
+entries="$(log_entries)"
+grep -qE 'last successful run: [^ ]+ \(8d 0h ago\)' <<<"$entries" ||
+  fail "a later run did not report the real 8-day gap to the previous success: $entries"
+refute 'NEVER RECORDED' "$entries" "the entry still claims no run was ever recorded after one succeeded"
+[[ "$(awk '{print $1}' "$MARKER")" -gt "$(($(date +%s) - 691200))" ]] ||
+  fail "the run did not advance the successful-run marker, so the gap would stay frozen at 8 days"
 
 # ── 4. UPGRADES are named with their version transition. Homebrew does report
 #      versions, so unlike the npx skills lane this record can be specific. ───
@@ -160,21 +192,37 @@ exit 0
 MOCK
 chmod +x "$tmp/brew"
 export UPGRADE_MARKER="$tmp/upgraded"
+# python@3.12 carries TWO installed versions before the run and one after. That
+# is the shape `brew list --versions` prints when a formula keeps an old keg, and
+# the whole line is the fingerprint: reading only the first field would report
+# "3.12.7 -> 3.12.8" for what is really "3.12.7 3.12.8 -> 3.12.8", i.e. it would
+# claim a keg was removed on every week that one was ADDED.
 export BREW_BEFORE="jq 1.7.1
+python@3.12 3.12.7 3.12.8
 yq 4.53.3"
 export BREW_AFTER="jq 1.8.0
-yq 4.53.3
-ripgrep 14.1.1"
+python@3.12 3.12.8
+ripgrep 14.1.1
+yq 4.53.3"
+export MAS_AFTER="497799835 Xcode (16.3)"
 rm -f "$UPGRADE_MARKER"
+: >"$RELAY_LOG"
 RUN_OUTPUT="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
   HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" HOMEBREW_WEEKLY_LOCKFILE="$tmp/lock.upgrade" \
-  MAS_VERSIONS="$MAS_VERSIONS" bash "$HELPER" --scheduled 2>&1)"
+  MAS_VERSIONS="$MAS_VERSIONS" MAS_AFTER="$MAS_AFTER" bash "$HELPER" --scheduled 2>&1)"
 entries="$(log_entries)"
 grep -qF 'jq 1.7.1 -> 1.8.0' <<<"$entries" ||
   fail "an upgraded formula's version transition was not reported: $entries | $RUN_OUTPUT"
+grep -qF 'python@3.12 3.12.7 3.12.8 -> 3.12.8' <<<"$entries" ||
+  fail "a formula with two installed versions was fingerprinted from its first version only: $entries"
 grep -qF 'ripgrep (added)' <<<"$entries" ||
   fail "a newly installed formula was not reported: $entries"
 refute 'yq 4' "$entries" "an unchanged formula was listed as changed"
+# The App Store lane reports versions too, and it is keyed by app NAME rather
+# than by the numeric id a reader would not recognize.
+grep -qF 'App Store apps: 1 of 1 tracked entries changed (Xcode 16.2 -> 16.3)' <<<"$entries" ||
+  fail "an upgraded App Store app's version transition was not reported: $entries"
+unset MAS_AFTER
 
 # ── 5. FAILURES go to the EXISTING alert route, and the record still goes out
 #      saying how many steps failed. A failing weekly upgrade that tells nobody
@@ -207,6 +255,13 @@ grep -qE 'failed step\(s\):[^.]*brew cleanup' <<<"$alerts" ||
 entries="$(log_entries)"
 grep -qE 'failed steps: [1-9]' <<<"$entries" ||
   fail "the record does not state the failed-step count: $entries"
+# Neither relay call site may hand relay the run's serialize-lock fd. The lock is
+# a kernel flock on fd 9, relay detaches channels that outlive this run, and a
+# flock is released only when the LAST copy of the fd closes -- so an inherited
+# copy in a detached curl keeps the lock held after the helper exited and the
+# next Monday defers over a run that is already gone.
+refute 'fd9=inherited' "$(cat "$RELAY_LOG")" \
+  "a relay call inherited the run's serialize-lock fd; a detached child would hold the lock after the run exited"
 # A failing run must NOT claim a successful run for the gap figure.
 [[ ! -e $MARKER ]] || fail "a failing run recorded itself as the last SUCCESSFUL run"
 

@@ -94,6 +94,12 @@ run_relay() {
   )"
   RELAY_RC=$?
   RELAY_STDERR="$(cat "$tmp/$label.stderr")"
+  # Kept per run, not just in RELAY_STDOUT, because the secret sweep at the end
+  # reads EVERY run's stdout. Holding only the latest would leave that sweep
+  # inspecting the last run alone -- and the last run is the alert path, which
+  # prints nothing at all, so the sweep would pass on an empty string no matter
+  # what any earlier run leaked.
+  printf '%s\n' "$RELAY_STDOUT" >"$tmp/$label.stdout"
   wait 2>/dev/null
 }
 
@@ -116,6 +122,21 @@ grep -qF 'X-Webhook-Signature:' "$tmp/remote-basic.curl-argv" ||
 #      backgrounded, relay would have exited before the code existed. ─────────
 grep -qE '^relay: posted HTTP 200$' <<<"$RELAY_STDOUT" ||
   fail "--remote-only printed no 'posted HTTP 200' line on stdout (got: $RELAY_STDOUT)"
+# ...and it is synchronous with a DEADLINE. Synchrony without one is the worse
+# bug of the two: a gateway that accepts the connection and never answers would
+# hang the weekly job forever, under launchd, with no terminal to interrupt it.
+# The alert path can omit -m safely because it is backgrounded; this path cannot.
+grep -qE -- '-m [0-9]+( |$)' "$tmp/remote-basic.curl-argv" ||
+  fail "the synchronous POST carries no numeric -m deadline; a gateway that never answers would hang the weekly job: $(cat "$tmp/remote-basic.curl-argv")"
+
+# A non-numeric RELAY_REMOTE_TIMEOUT must fall back to a number rather than
+# reaching curl as one: `-m ""` makes curl consume the next argument as the
+# timeout, which silently mangles the request.
+RELAY_REMOTE_TIMEOUT='; rm -rf /' run_relay remote-badtimeout --remote-only \
+  --agent update-skills --state completed --project dresden --detail "nothing changed"
+[[ $RELAY_RC -eq 0 ]] || fail "a non-numeric RELAY_REMOTE_TIMEOUT broke the always-exit-0 contract (rc=$RELAY_RC)"
+grep -qE -- '-m [0-9]+( |$)' "$tmp/remote-badtimeout.curl-argv" ||
+  fail "a non-numeric RELAY_REMOTE_TIMEOUT reached curl instead of falling back to a number: $(cat "$tmp/remote-badtimeout.curl-argv")"
 
 # ── 3. A REFUSED delivery is reported, not swallowed. 401 (wrong key) and 404
 #      (route not loaded in the gateway) are the two ways this feature dies
@@ -204,11 +225,19 @@ grep -qF 'herdr agent focus wW:p8' "$tmp/alert-path.tn" ||
 all_stdout=""
 all_stderr=""
 all_argv=""
-for label in remote-basic remote-401 remote-404 remote-down remote-nokey remote-both remote-f4; do
+swept=0
+for label in remote-basic remote-badtimeout remote-401 remote-404 remote-down remote-nokey remote-both remote-f4 alert-path; do
+  [[ -f "$tmp/$label.stdout" ]] && {
+    all_stdout+="$(cat "$tmp/$label.stdout")"$'\n'
+    swept=$((swept + 1))
+  }
   [[ -f "$tmp/$label.stderr" ]] && all_stderr+="$(cat "$tmp/$label.stderr")"$'\n'
   [[ -f "$tmp/$label.curl-argv" ]] && all_argv+="$(cat "$tmp/$label.curl-argv")"$'\n'
 done
-all_stdout="$RELAY_STDOUT"
+# Guard the guard. Every refutation below passes trivially on an empty haystack,
+# so the sweep asserts it actually collected every run's stdout first.
+[[ $swept -eq 9 ]] ||
+  fail "the secret sweep collected $swept of 9 runs' stdout; a refutation over a short haystack proves nothing"
 for pattern in 'HERMES-KEY-FIXTURE' 'MOSHI-TOKEN-FIXTURE'; do
   refute "$pattern" "$all_argv" "a secret reached curl's argv ($pattern)"
   refute "$pattern" "$all_stderr" "a secret reached stderr ($pattern)"

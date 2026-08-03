@@ -43,9 +43,17 @@ export RELAY_CALL_LOG
 cat >"$tmp/relay-stub.sh" <<'STUB'
 #!/usr/bin/env bash
 printf 'ARGV %s\n' "$(printf '%s ' "$@" | tr '\n' ' ')" >>"$RELAY_CALL_LOG"
+if { : >&9; } 2>/dev/null; then
+  printf 'FD9 inherited\n' >>"$RELAY_CALL_LOG"
+else
+  printf 'FD9 closed\n' >>"$RELAY_CALL_LOG"
+fi
 printf 'relay: posted HTTP 200\n'
 STUB
 chmod +x "$tmp/relay-stub.sh"
+# __update_skills_alert resolves relay by absolute path under $HOME, not through
+# UNATTENDED_LOG_RELAY, so the alert path needs its own copy of the same stub.
+cp "$tmp/relay-stub.sh" "$HOME/.local/bin/relay.sh"
 export UNATTENDED_LOG_RELAY="$tmp/relay-stub.sh"
 export UNATTENDED_LOG_HERMES_URL="http://hermes.test/webhooks/unattended-upgrades"
 
@@ -111,5 +119,29 @@ __update_skills_record completed "the run that finished"
 __update_skills_record deferred "a later slot"
 [[ "$(posted_count)" -eq 2 ]] ||
   fail "a deferral after the completed entry posted, burying the truer message"
+
+# ── BOTH relay call sites close fd 9. The run holds its serialize lock as a
+#    kernel flock on fd 9; relay detaches channels that outlive the run, and a
+#    flock is released only when the LAST copy of the fd closes. An inherited
+#    copy in a detached curl therefore keeps the lock held after this process
+#    exited, and every later slot defers over a competing run that does not
+#    exist. Both of these wrappers are reached from UNDER that lock (the
+#    lock-failure, roster-refusal and exhaustion paths), and this repo has
+#    already shipped the same leak twice, so neither `9>&-` is left to trust. ──
+assert_fd9_closed() { # <label> <command...>
+  local label="$1"
+  shift
+  reset_calls
+  (
+    exec 9>>"$tmp/fd9.lock"
+    "$@" >/dev/null 2>&1
+  )
+  grep -qF 'FD9 closed' "$RELAY_CALL_LOG" ||
+    fail "$label handed relay the run's serialize-lock fd; a detached child would hold the lock after the run exited: $(cat "$RELAY_CALL_LOG")"
+}
+SCHEDULED=1
+DRYRUN=""
+assert_fd9_closed "the weekly record" __update_skills_record completed "fd probe body"
+assert_fd9_closed "the alert wrapper" __update_skills_alert "fd probe alert"
 
 printf 'update-skills-record-gates: OK\n'
