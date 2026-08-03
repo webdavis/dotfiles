@@ -245,11 +245,39 @@ snapshot_dir=""
 # failed, because half a comparison is not one.
 brew_snapshot_ok=1
 mas_snapshot_ok=1
+# What could not be read, per lane. A NOT COMPARED line has to name the thing
+# that actually broke: when the workspace itself could not be allocated, both
+# package commands were fine and pointing the operator at them wastes the one
+# actionable sentence in the entry.
+brew_snapshot_source='brew list --versions'
+mas_snapshot_source='mas list'
 if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
-  snapshot_dir="$(mktemp -d)"
-  trap 'rm -rf "$snapshot_dir"' EXIT
-  __homebrew_package_snapshot brew >"$snapshot_dir/brew.before" || brew_snapshot_ok=""
-  __homebrew_package_snapshot mas >"$snapshot_dir/mas.before" || mas_snapshot_ok=""
+  # GUARDED, because this script deliberately does not run under errexit. A
+  # failed mktemp (an absent, unwritable or full TMPDIR) left snapshot_dir empty,
+  # every upgrade step ran anyway, and the record block below, guarded on that
+  # same variable, was skipped whole: the upgrade happened, the success marker
+  # was written, the run exited 0, and NEITHER channel said a word about the
+  # week. A workspace that cannot be allocated costs the comparison, never the
+  # entry.
+  #
+  # The template is spelled out rather than left to a bare `mktemp -d` for the
+  # reason update-skills.sh spells out its fork-clone template: macOS mktemp
+  # ignores TMPDIR entirely in the bare form (measured on macOS 26.2 / Darwin
+  # 25.2), so the location is neither redirectable nor testable, and anything
+  # this ever fails to clean up should carry the name of the job that made it.
+  if snapshot_dir="$(mktemp -d "${TMPDIR:-/tmp}/homebrew-weekly-record.XXXXXX" 2>/dev/null)" &&
+    [[ -n $snapshot_dir ]]; then
+    trap 'rm -rf "$snapshot_dir"' EXIT
+    __homebrew_package_snapshot brew >"$snapshot_dir/brew.before" || brew_snapshot_ok=""
+    __homebrew_package_snapshot mas >"$snapshot_dir/mas.before" || mas_snapshot_ok=""
+  else
+    snapshot_dir=""
+    brew_snapshot_ok=""
+    mas_snapshot_ok=""
+    brew_snapshot_source='creating the snapshot workspace (mktemp -d)'
+    mas_snapshot_source="$brew_snapshot_source"
+    printf 'homebrew-weekly-upgrade: WARNING the snapshot workspace could not be created (mktemp -d failed); the upgrade still runs, and this entry will say that nothing could be compared\n' >&2
+  fi
 fi
 
 run "brew update" "$BREW" update
@@ -266,20 +294,27 @@ printf '=== done %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # nothing is precisely where the gap figure is the only information the entry
 # carries, so suppressing the empty entry would throw away the reason the channel
 # exists. The failed-step count rides along rather than being implied by silence.
-if [[ -n $snapshot_dir ]]; then
-  __homebrew_package_snapshot brew >"$snapshot_dir/brew.after" || brew_snapshot_ok=""
-  __homebrew_package_snapshot mas >"$snapshot_dir/mas.after" || mas_snapshot_ok=""
+#
+# The entry is gated on the LIBRARY being available, never on the snapshots: a
+# run with no workspace to compare in still has a class, a host, a timestamp, a
+# gap and a failed-step count to report, and those are what a reader checks
+# first.
+if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
+  if [[ -n $snapshot_dir ]]; then
+    __homebrew_package_snapshot brew >"$snapshot_dir/brew.after" || brew_snapshot_ok=""
+    __homebrew_package_snapshot mas >"$snapshot_dir/mas.after" || mas_snapshot_ok=""
+  fi
   weekly_record completed "$(printf '%s\n%s\nfailed steps: %d' \
     "$(unattended_log_change_section "$brew_snapshot_ok" \
       "$snapshot_dir/brew.before" "$snapshot_dir/brew.after" \
       'formulae and casks' \
       'Versions are what brew list --versions reports; a formula reinstalled at the same version does not appear here, and a cask Homebrew tracks only as latest reports that literal string rather than a version.' \
-      versions 'brew list --versions')" \
+      versions "$brew_snapshot_source")" \
     "$(unattended_log_change_section "$mas_snapshot_ok" \
       "$snapshot_dir/mas.before" "$snapshot_dir/mas.after" \
       'App Store apps' \
       'Versions are what mas list reports, keyed by app name.' \
-      versions 'mas list')" \
+      versions "$mas_snapshot_source")" \
     "$weekly_upgrade_failures")"
 fi
 

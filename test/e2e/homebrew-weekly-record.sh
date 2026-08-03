@@ -566,7 +566,71 @@ grep -qiE 'could not be OPENED|could not open' <<<"$entries" ||
 grep -qF -- '--agent homebrew-weekly-upgrade' <<<"$(alert_entries)" ||
   fail "an unopenable lock sent no alert; nothing ran and nobody was told: $(cat "$RELAY_LOG")"
 
-# ── 13. An unknown argument is an error, not a silent no-op that skips the
+# ── 13. A SNAPSHOT WORKSPACE that cannot be allocated must not delete the whole
+#       record. This helper deliberately does not run under errexit, so a failed
+#       `mktemp -d` (an absent, unwritable or full TMPDIR) left the directory
+#       variable empty, every upgrade step still ran, and the record block,
+#       guarded on that same variable, was skipped in full: the upgrade
+#       happened, the success marker was written, the helper exited 0, and
+#       neither channel said one word about the week. That is the exact silence
+#       this record exists to end, produced by the record's own bookkeeping. ───
+#       The failure is injected with a stub rather than with an unusable TMPDIR:
+#       macOS mktemp IGNORES TMPDIR in the bare form and the flake devshell ships
+#       GNU coreutils mktemp, which honours it, so a TMPDIR-based injection would
+#       test two different things on the host and in CI. The stub fails the
+#       helper's own workspace template and delegates everything else.
+rm -rf "$HOME/.local/state"
+mkdir -p "$tmp/stubs"
+real_mktemp="$(command -v mktemp)"
+[[ -x $real_mktemp ]] || fail "no mktemp on PATH to delegate to"
+cat >"$tmp/stubs/mktemp" <<STUB
+#!/usr/bin/env bash
+if [[ -n \${MKTEMP_FAIL_TEMPLATE:-} ]]; then
+  for arg in "\$@"; do
+    if [[ \$arg == *"\$MKTEMP_FAIL_TEMPLATE"* ]]; then
+      printf 'mktemp: mkdtemp failed on %s: No such file or directory\n' "\$arg" >&2
+      exit 1
+    fi
+  done
+fi
+exec "$real_mktemp" "\$@"
+STUB
+chmod +x "$tmp/stubs/mktemp"
+: >"$RELAY_LOG"
+RUN_OUTPUT="$(PATH="$tmp/stubs:$PATH" MKTEMP_FAIL_TEMPLATE=homebrew-weekly-record \
+  HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
+  HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" HOMEBREW_WEEKLY_LOCKFILE="$tmp/lock.notmpdir" \
+  BREW_FAIL="" BREW_VERSIONS="$BREW_VERSIONS" MAS_VERSIONS="$MAS_VERSIONS" \
+  bash "$HELPER" --scheduled 2>&1)"
+notmpdir_rc=$?
+grep -qiE 'workspace could not be created|mktemp' <<<"$RUN_OUTPUT" ||
+  fail "the injected mktemp failure never happened, so this case tested nothing: $RUN_OUTPUT"
+entries="$(log_entries)"
+[[ -n $entries ]] ||
+  fail "a run whose snapshot workspace could not be created posted NO record; the upgrade ran and nothing said so: $RUN_OUTPUT"
+grep -qF -- '--state completed' <<<"$entries" ||
+  fail "the run reached the end but did not record itself as completed: $entries"
+refute '0 of 0' "$entries" \
+  "a record with no snapshots at all rendered as a clean comparison of nothing: $entries"
+refute '\((added|removed)\)' "$entries" \
+  "a record with no snapshots invented a change list: $entries"
+for lane in 'formulae and casks' 'App Store apps'; do
+  grep -qiE "$lane: [^.]*(could not|failed|not compared)" <<<"$entries" ||
+    fail "the record does not say the $lane comparison could not be made: $entries"
+done
+# ...and it names the thing that actually broke. Both package commands worked on
+# this run, so blaming `brew list --versions` would send the operator to check a
+# command that is fine.
+grep -qiE 'snapshot workspace|mktemp' <<<"$entries" ||
+  fail "the record does not name the workspace allocation as what failed: $entries"
+# The bookkeeping failure must not become an upgrade failure: every step ran and
+# every step succeeded.
+[[ $notmpdir_rc -eq 0 ]] ||
+  fail "a snapshot workspace that could not be allocated failed the upgrade it was only reporting on (rc=$notmpdir_rc): $RUN_OUTPUT"
+grep -qF 'ok: brew upgrade' <<<"$RUN_OUTPUT" ||
+  fail "the upgrade steps did not run: $RUN_OUTPUT"
+
+# ── 14. An unknown argument is an error, not a silent no-op that skips the
 #       record. A typo'd marker in the plist would otherwise run every week and
 #       quietly post nothing. ───────────────────────────────────────────────────
 run_helper --schedluled
@@ -574,4 +638,4 @@ run_helper --schedluled
 grep -qiE 'usage|unknown' <<<"$RUN_OUTPUT" ||
   fail "an unknown argument produced no usage message: $RUN_OUTPUT"
 
-printf 'homebrew-weekly-record: OK (a scheduled run records its class, host, run timestamp and gap and spends the marker on the next run; version transitions for formulae, multi-version kegs and App Store apps; failures alert the priority route while the record states the count; a snapshot that failed on either reading says NOT COMPARED per lane while an empty-but-successful one does not; a refused record leaves the week unclaimed and alerts once; a lock that cannot be opened is not reported as contention; a manual run records nothing, one record per week, and an unknown argument is an error)\n'
+printf 'homebrew-weekly-record: OK (a scheduled run records its class, host, run timestamp and gap and spends the marker on the next run; version transitions for formulae, multi-version kegs and App Store apps; failures alert the priority route while the record states the count; a snapshot that failed on either reading says NOT COMPARED per lane while an empty-but-successful one does not, and a workspace that could not be allocated still posts an entry naming what failed; a refused record leaves the week unclaimed and alerts once; a lock that cannot be opened is not reported as contention; a manual run records nothing, one record per week, and an unknown argument is an error)\n'
