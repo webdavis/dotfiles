@@ -75,6 +75,20 @@ if [[ ! -f $LOCK ]]; then
   exit 0
 fi
 
+# EXACTLY ONE JSON VALUE, checked once, before any read below trusts the file.
+# jq reads a file as a STREAM and runs its filter per document, so a doubled or
+# appended lock parses without complaint and each read here answers differently:
+# the pair walk collects the union of both documents, and the slash-command skill
+# becomes whichever document happened to carry it. Every one of those feeds an
+# in-place rewrite of the files in the mirror, so the routing this script exists
+# to assert would come from a document nobody chose. Slurping and counting is the
+# single-value test, the same shape run_before_12-quarantine-unparseable-claude-settings.sh
+# uses on ~/.claude/settings.json.
+if ! jq -e -s 'length == 1 and (.[0] | type == "object")' "$LOCK" >/dev/null 2>&1; then
+  log "refusing: $LOCK is not a single JSON object; a multi-document or unparseable lock would route the mirror from a document nobody chose"
+  exit 2
+fi
+
 # Read the routing pairs. Every name feeds a regex and a written line, so
 # validate the shape hard: lowercase kebab, legacy names superpowers-prefixed.
 legacy_names=()

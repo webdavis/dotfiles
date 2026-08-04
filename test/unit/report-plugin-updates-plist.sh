@@ -66,6 +66,14 @@ weekday="$(jq -r '.StartCalendarInterval.Weekday' "$plist_json")"
 [[ $weekday == "1" ]] || fail "the agent does not fire on Monday (Weekday $weekday)"
 [[ "$(jq -r '.StartCalendarInterval.Minute' "$plist_json")" == "0" ]] ||
   fail "the agent does not fire on the hour"
+# The HOUR is pinned, not just the weekday and minute. It is chosen: an hour
+# after com.webdavis.homebrew-weekly-upgrade so the two records do not land in
+# the channel together, and well into a working day so a Claude Code session has
+# had the chance to start and perform the auto-update this reports on. Without
+# this line, retiming the job to 14:00 keeps every other assertion green.
+report_hour="$(jq -r '.StartCalendarInterval.Hour' "$plist_json")"
+[[ $report_hour == "13" ]] ||
+  fail "the agent no longer fires at 13:00 (Hour $report_hour); if the retime is deliberate, move this assertion and check the reasoning in the plist comment still holds"
 
 [[ "$(jq -r '.RunAtLoad' "$plist_json")" == "false" ]] ||
   fail "RunAtLoad is not false; loading the agent would post an entry out of schedule"
@@ -88,6 +96,22 @@ log_directory=".local${log_path#*/.local}"
 log_directory="$(dirname "$log_directory")"
 grep -qF -- "$log_directory" "$LOADER" ||
   fail "the loader does not create $log_directory, the directory the agent writes its log into; launchd refuses to start an agent whose log directory is absent"
+
+# THE BASELINE IS SEEDED AT DEPLOY TIME, by this loader, because the first run
+# to record a baseline reports nothing itself. Leave that to the first SCHEDULED
+# run and everything Claude Code's own auto-update changed between the apply and
+# that Monday is baked into the baseline and reported never, on the same apply
+# that turned those auto-updates on. It must also come BEFORE the bootstrap, so
+# the agent never has a Monday without a baseline waiting.
+# `|| true` so a loader that stopped seeding reaches the message below instead of
+# ending the run on errexit with nothing said about why.
+seed_line="$(grep -n -- '--seed-baseline' "$LOADER" | head -1 | cut -d: -f1 || true)"
+[[ -n $seed_line ]] ||
+  fail "the loader never seeds the baseline (--seed-baseline), so the first scheduled run records one and every plugin that moved between the deploy and it is reported nowhere"
+bootstrap_line="$(grep -n 'launchctl bootstrap' "$LOADER" | head -1 | cut -d: -f1 || true)"
+[[ -n $bootstrap_line ]] || fail "the loader no longer bootstraps the agent"
+[[ $seed_line -lt $bootstrap_line ]] ||
+  fail "the loader seeds the baseline after bootstrapping the agent (line $seed_line, bootstrap line $bootstrap_line)"
 
 # The sibling weekly job posts to the same channel, so the two must not share a
 # minute. Compared against the rendered sibling rather than a hardcoded hour, so

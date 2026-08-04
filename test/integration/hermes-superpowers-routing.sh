@@ -363,4 +363,23 @@ mkdir -p "$HOME"
 skip_output="$(bash "$SCRIPT" 2>&1)" || fail "absent mirror dir must exit 0: $skip_output"
 printf '%s\n' "$skip_output" | grep -qi 'skip' || fail "absent mirror dir did not log a skip: $skip_output"
 
+# 10) A LOCK HOLDING TWO DOCUMENTS IS REFUSED. jq reads a file as a STREAM, so a
+#     doubled or appended document parses fine and each read here answers from a
+#     different copy: the pair walk collects both sets, and the slash-command
+#     skill becomes whichever document happened to carry it. Both then drive an
+#     in-place rewrite of every file in the mirror, so the routing this asserts
+#     would come from a document nobody chose.
+HOME="$tmp/stream-home"
+export HOME
+mkdir -p "$HOME/.agents" "$HOME/.hermes/skills/hermes-superpowers"
+printf 'mirror\n' >"$HOME/.hermes/skills/hermes-superpowers/SKILL.md"
+cp "$tmp/alt-lock.json" "$HOME/.agents/custom-skill-lock.json"
+jq '.superpowersRouting.map = {"superpowers-forged": "forged"}' "$tmp/alt-lock.json" \
+  >>"$HOME/.agents/custom-skill-lock.json"
+stream_output="$(bash "$SCRIPT" --check 2>&1)" && stream_rc=0 || stream_rc=$?
+[[ $stream_rc -ne 0 ]] ||
+  fail "a lock holding two JSON documents was accepted, so the mirror is routed from whichever document answered last: $stream_output"
+printf '%s\n' "$stream_output" | grep -qiE 'single JSON object|one JSON value|document' ||
+  fail "the refusal does not say the lock is not one JSON value: $stream_output"
+
 echo "hermes-superpowers-routing: OK"

@@ -25,7 +25,7 @@
 # WHAT REACHES THE CHANNEL: plugin ids and version fingerprints, nothing else.
 # Never an installPath (an absolute home path), never a marketplace source URL.
 #
-# Usage: report-plugin-updates.sh [--scheduled]
+# Usage: report-plugin-updates.sh [--scheduled | --seed-baseline]
 #   --scheduled  marks this as the LaunchAgent's run. ONLY a scheduled run posts
 #                an entry, advances the success marker or moves the snapshot,
 #                mirroring homebrew-weekly-upgrade.sh and update-skills.sh.
@@ -34,7 +34,28 @@
 #                would look alive, inverting the one signal the record carries.
 #                A manual run still prints the comparison to stdout, which is
 #                what makes it useful for checking the helper by hand.
-set -uo pipefail
+#   --seed-baseline
+#                records the FIRST reading and stops. This is the apply-time
+#                mode, called by the loader chezmoiscript, and it exists because
+#                of an ordering the schedule cannot satisfy on its own: the same
+#                apply that deploys this record also turns marketplace
+#                auto-updates on. Baselining at the first SCHEDULED run instead
+#                means a machine deployed on Tuesday whose plugin moves on
+#                Wednesday has Monday record the NEW version as the baseline and
+#                report nothing. That first transition is then lost for good, and
+#                lost invisibly, which is the failure this whole record exists to
+#                prevent. Seeding is idempotent: an existing baseline is left
+#                exactly as it is, because applies are routine and a seed that
+#                overwrote would swallow the change it was meant to catch.
+#
+# ERREXIT IS ON, and every failure this helper means to TOLERATE is guarded where
+# it happens rather than by leaving errexit off: the relay call inside alert(),
+# the host lookup that falls back to unknown-host, and the library's own
+# bookkeeping write, which warns and returns 0 by design so a weekly job never
+# dies over its marker file. Everything else that fails stops the run, because
+# the alternative is this record continuing past a broken step and posting an
+# entry assembled from whatever survived.
+set -euo pipefail
 
 # The state Claude Code owns, and the state this helper owns. Both are
 # overridable so the tests can point the whole mechanism at a sandbox.
@@ -60,16 +81,26 @@ AGENT_NAME='report-plugin-updates'
 # the plist would otherwise run every week and quietly post nothing, which looks
 # exactly like a dead LaunchAgent.
 SCHEDULED=""
+SEED_BASELINE=""
 for arg in "$@"; do
   case "$arg" in
     --scheduled) SCHEDULED=1 ;;
+    --seed-baseline) SEED_BASELINE=1 ;;
     *)
-      printf 'usage: report-plugin-updates.sh [--scheduled]\n%s: unknown argument: %s\n' \
+      printf 'usage: report-plugin-updates.sh [--scheduled | --seed-baseline]\n%s: unknown argument: %s\n' \
         "$AGENT_NAME" "$arg" >&2
       exit 2
       ;;
   esac
 done
+
+# Two different jobs, so asking for both is an error rather than a quiet win for
+# whichever the code happens to test first.
+if [[ -n $SCHEDULED && -n $SEED_BASELINE ]]; then
+  printf 'usage: report-plugin-updates.sh [--scheduled | --seed-baseline]\n%s: --scheduled and --seed-baseline are different modes; pass one\n' \
+    "$AGENT_NAME" >&2
+  exit 2
+fi
 
 # The shared entry shape. A missing library is LOUD and never silent: this whole
 # helper is a record, and a record that quietly stops being posted is the
@@ -101,6 +132,22 @@ readonly RECORD_CAVEAT='Versions are what Claude Code records in installed_plugi
 
 readonly RECORD_LABEL='Claude Code plugins'
 readonly RECORD_SOURCE_DESCRIPTION='reading ~/.claude/plugins/installed_plugins.json'
+
+# mark_success_or_exit -- record this run, and stop if the record did not land.
+#
+# The library's own writer warns and returns 0 whatever happened, on purpose: no
+# weekly job should die over its bookkeeping file. That leaves this helper to
+# check the result, because the marker is what the NEXT entry measures its gap
+# from, and an entry claiming a gap from a run that never happened is a lie in
+# the only field a reader uses to judge whether this channel is alive. Errexit
+# cannot catch this one for us, which is exactly why it is spelled out.
+mark_success_or_exit() {
+  unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+  [[ -f $LOG_SUCCESS_MARKER && -s $LOG_SUCCESS_MARKER ]] && return 0
+  printf '%s: this run finished but could not record itself at %s; the next entry would measure its gap from a run that never happened\n' \
+    "$AGENT_NAME" "$LOG_SUCCESS_MARKER" >&2
+  exit 1
+}
 
 # alert <state> <detail> -- the EXISTING relay route, so this lands in the
 # priority channel beside every other alert on this machine. Best effort: a
@@ -168,6 +215,34 @@ record_entry() {
 # and the exit status carries it: pipefail hands the jq failure back through the
 # sort.
 #
+# EXACTLY ONE DOCUMENT, which is why this slurps. jq reads its input as a
+# SEQUENCE of JSON values, so a file holding the inventory twice (what a crashed
+# writer, an interrupted rewrite, or two writers racing leave behind) parses
+# without complaint and this key-walk emits rows from BOTH copies. The snapshot
+# then carries two fingerprints for one plugin id, and a machine where nothing
+# moved reports a version transition every week until someone notices. Slurping
+# and counting is the single-value test (the same shape as
+# .chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh).
+# `== 1` and not that script's `<= 1`: it tolerates a zero-value file because the
+# template it protects treats an empty file as an absent one, whereas an empty
+# inventory here is a reading nobody can compare against.
+#
+# NO USER-SCOPE RECORDS IS AN ANSWER, not a failure, which is why `-e` is not on
+# that jq. `-e` exits 4 when a filter produced no output at all, and the filter
+# produces none on a file that parses perfectly and says every installed plugin
+# is project-scope. Uninstalling the last user-scope plugin while a project-scope
+# one remains would then raise plugin-state-unreadable every week from then on
+# and report the removal never, which inverts this record twice over: silent
+# about a real change, loud about a file that is fine. The degraded shapes above
+# are refused by their own error() calls, so the exit status still carries them.
+#
+# EVERY RECORD IS SHAPE-CHECKED BEFORE THE SCOPE FILTER, which is the order that
+# matters. Selecting on `.scope == "user"` first makes a record whose key reads
+# `scop` (or holds a number, or is not an object at all) simply drop out of the
+# reading, and a plugin that drops out of a reading is reported as REMOVED. A
+# typo in a file this helper only ever reads must not be announced as software
+# leaving the machine, so a record it cannot interpret refuses the whole run.
+#
 # STDERR IS THE CALLER'S TO REDIRECT, and is deliberately not merged into stdout
 # here. Merged, any line jq ever writes to stderr on an otherwise SUCCESSFUL run
 # would be sorted into the snapshot as a row with no tab, which
@@ -176,8 +251,11 @@ record_entry() {
 # never produce, so the two streams stay apart.
 plugin_snapshot() {
   # shellcheck disable=SC2016 # a jq program: $id is a jq binding, not a shell variable
-  "$JQ" -er '
-    if (.plugins? | type) != "object" then
+  "$JQ" -rs '
+    if length != 1 then
+      error("installed_plugins.json holds \(length) top-level JSON documents; exactly one is expected")
+    else .[0] end
+    | if (.plugins? | type) != "object" then
       error("installed_plugins.json has no plugins object")
     elif (.plugins | length) == 0 then
       error("installed_plugins.json records no installed plugins")
@@ -187,6 +265,8 @@ plugin_snapshot() {
     | .key as $id
     | (if (.value | type) == "array" then .value else error("the entry for \($id) is not an array of install records") end)
     | .[]
+    | (if type == "object" then . else error("an install record for \($id) is not an object") end)
+    | (if (.scope | type) == "string" then . else error("an install record for \($id) carries no scope string") end)
     | select(.scope == "user")
     | [$id, (if ((.version | type) == "string" and .version != "" and .version != "unknown")
              then .version
@@ -197,6 +277,28 @@ plugin_snapshot() {
   ' "$INSTALLED_PLUGINS_FILE" | sort
 }
 
+# write_snapshot <reading> -- replace the snapshot ALL AT ONCE, or say so.
+#
+# A plain copy onto the live snapshot truncates it before it holds the new
+# content, so a run interrupted between those two moments (a full disk, a reboot,
+# a killed launchd job) leaves a short file behind, and the next run reads every
+# plugin missing from it as newly added. A fabricated change list is the one
+# thing this record must never produce, and it is worse than no record at all.
+#
+# The staging file is a SIBLING in the state directory, not in TMPDIR: rename(2)
+# is atomic only within one filesystem, and nothing guarantees TMPDIR is on this
+# one. Both callers go through here, so the baseline write and the post-delivery
+# write get the same guarantee.
+write_snapshot() {
+  local reading="$1" staged=""
+  if staged="$(mktemp "$SNAPSHOT_FILE.XXXXXX" 2>/dev/null)" && [[ -n $staged ]] &&
+    cp "$reading" "$staged" && mv -f "$staged" "$SNAPSHOT_FILE"; then
+    return 0
+  fi
+  [[ -n $staged ]] && rm -f "$staged"
+  return 1
+}
+
 mkdir -p "$STATE_DIR" 2>/dev/null || {
   printf '%s: the state directory %s could not be created; nothing can be compared or remembered\n' \
     "$AGENT_NAME" "$STATE_DIR" >&2
@@ -205,6 +307,22 @@ mkdir -p "$STATE_DIR" 2>/dev/null || {
       "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$STATE_DIR")"
   exit 1
 }
+
+# The snapshot has to be a REGULAR FILE, and anything else is refused here rather
+# than discovered later. A DIRECTORY at that path (a stray mkdir, a restore that
+# recreated the tree wrong, an interrupted move) makes the absent-snapshot test
+# below true on every run: each one takes its copy INSIDE the directory, finds no
+# baseline next time, and exits 0 having recorded nothing. That is the shape of
+# failure this record exists to end, a machine that looks healthy while saying
+# nothing, and it never resolves on its own.
+if [[ -e $SNAPSHOT_FILE && ! -f $SNAPSHOT_FILE ]]; then
+  printf '%s: the snapshot path %s is not a regular file; nothing can be compared or remembered\n' \
+    "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
+  alert plugin-record-broken \
+    "$(printf 'The Claude Code plugin record on %s cannot use its snapshot path %s, which exists but is not a regular file. Every run would read it as a first run, write inside it and report nothing. Remove whatever is at that path.' \
+      "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
+  exit 1
+fi
 
 # Without the library there is no entry shape, no week guard and no gap figure,
 # so this helper can do nothing but exit. That has to be ALERTED rather than
@@ -245,6 +363,17 @@ read_error="$work_dir/read-error"
 if ! plugin_snapshot >"$current" 2>"$read_error"; then
   printf '%s: %s could not be read as an installed-plugin inventory:\n%s\n' \
     "$AGENT_NAME" "$INSTALLED_PLUGINS_FILE" "$(cat "$read_error")" >&2
+  # A DEPLOY-TIME SEED NEVER PAGES. Every fresh machine reaches this line during
+  # its first apply, before Claude Code has written an inventory at all, and
+  # there is no first transition to lose and nobody at a keyboard to act on it.
+  # The exit status still says the seed did not happen, which is all the loader
+  # needs. The SCHEDULED run stays the loud path: if the file is still
+  # unreadable on Monday, that is a weekly record that cannot report, and it
+  # alerts.
+  if [[ -n $SEED_BASELINE ]]; then
+    printf '%s: no baseline was seeded; the first scheduled run records one instead\n' "$AGENT_NAME" >&2
+    exit 1
+  fi
   alert plugin-state-unreadable \
     "$(printf 'The Claude Code plugin record on %s could not read %s as an installed-plugin inventory, so it reported NOTHING rather than a false quiet week. The snapshot was left alone, so the next successful run reports the whole gap. jq said: %s' \
       "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" \
@@ -259,23 +388,44 @@ printf 'read %d user-scope plugin(s) from %s\n' "$(wc -l <"$current" | tr -d ' '
 # every installed plugin as newly added, on a machine where nothing happened.
 if [[ ! -f $SNAPSHOT_FILE ]]; then
   printf '%s: no snapshot yet; recording this reading as the baseline and posting nothing\n' "$AGENT_NAME"
-  if [[ -z $SCHEDULED ]]; then
+  if [[ -z $SCHEDULED && -z $SEED_BASELINE ]]; then
     printf '%s: this is not a scheduled run, so the baseline was NOT written\n' "$AGENT_NAME"
     exit 0
   fi
-  if ! cp "$current" "$SNAPSHOT_FILE"; then
+  # A reader that cannot remember what it read is a reader that reports nothing,
+  # every week, for as long as the write keeps failing: the next run finds no
+  # snapshot, records another baseline and stays quiet. That has to reach the
+  # route that buzzes, because the run log is the one place nobody looks and the
+  # symptom on the record channel is indistinguishable from a healthy machine.
+  if ! write_snapshot "$current"; then
     printf '%s: the baseline could not be written to %s\n' "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
+    alert plugin-record-broken \
+      "$(printf 'The Claude Code plugin record on %s read its plugins but could not persist the baseline to %s. Until that write succeeds every run records a baseline afresh and reports NOTHING, which looks exactly like a week in which nothing moved.' \
+        "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
     exit 1
   fi
-  unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+  mark_success_or_exit
+  exit 0
+fi
+
+# A baseline already exists, so the deploy-time seed has nothing left to do.
+# Leaving it exactly as it is, is the point: applies are routine and a plugin may
+# well have moved since the last one, so a seed that re-baselined would swallow
+# the very transition it was added to capture.
+if [[ -n $SEED_BASELINE ]]; then
+  printf '%s: a baseline is already recorded at %s; nothing to seed\n' "$AGENT_NAME" "$SNAPSHOT_FILE"
   exit 0
 fi
 
 # The one sentence describing what moved, in the shape the other two weekly jobs
 # use. Both readings succeeded by this point, which is why the ok flag is a
 # literal: the failure path above exits rather than reaching here.
-change_line="$(unattended_log_change_section 1 "$SNAPSHOT_FILE" "$current" \
-  "$RECORD_LABEL" "$RECORD_CAVEAT" versions "$RECORD_SOURCE_DESCRIPTION")"
+if ! change_line="$(unattended_log_change_section 1 "$SNAPSHOT_FILE" "$current" \
+  "$RECORD_LABEL" "$RECORD_CAVEAT" versions "$RECORD_SOURCE_DESCRIPTION")"; then
+  printf '%s: the two readings could not be compared; nothing was posted and the snapshot was left alone\n' \
+    "$AGENT_NAME" >&2
+  exit 1
+fi
 printf '%s\n' "$change_line"
 
 if ! record_entry completed "$change_line"; then
@@ -287,10 +437,13 @@ fi
 # a change consumed by a run that told nobody is reported by the next one
 # instead. The success marker follows the same rule, so the gap in the next entry
 # is measured from a run that actually posted.
-if ! cp "$current" "$SNAPSHOT_FILE"; then
+if ! write_snapshot "$current"; then
   printf '%s: the entry was delivered but the snapshot at %s could not be updated; the next entry will repeat this change\n' \
     "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
+  alert plugin-record-broken \
+    "$(printf 'The Claude Code plugin record on %s delivered this week entry but could not persist the new reading to %s, so every later run re-reports the same change. The state directory needs attention.' \
+      "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
   exit 1
 fi
-unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+mark_success_or_exit
 exit 0

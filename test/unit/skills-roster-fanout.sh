@@ -163,9 +163,23 @@ fi
 # kept a bare `grep -q claudeDelivery` green, so the guard has to name the
 # expression the value actually comes from.
 UPDATER_SCRIPT="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+CLAUDE_DELIVERY_READER='__update_skills_claude_undelivered'
 CLAUDE_DELIVERY_LOCK_READ='.claudeDelivery // {}'
-grep -qF -- "$CLAUDE_DELIVERY_LOCK_READ" "$UPDATER_SCRIPT" ||
-  fail "update-skills.sh no longer reads '$CLAUDE_DELIVERY_LOCK_READ' out of the lock, so its weekly Claude fan-out would re-create every exempted link. If the read was deliberately respelled, update this constant and confirm test/integration/update-skills-converge.sh still passes"
+# Scoped to the READER'S OWN BODY, not the whole file. The same expression also
+# appears in the roster schema gate, which only VALIDATES the table, so a
+# file-wide grep stayed green while the runtime filter was repointed at a
+# misspelled table: the exemption set came back empty, convergence treated every
+# skill as deliverable, and the tripwire that exists for exactly that said
+# nothing. The gate's copy cannot satisfy this one.
+reader_body="$(awk -v marker="$CLAUDE_DELIVERY_READER() {" '
+  index($0, marker) == 1 { inside = 1 }
+  inside { print }
+  inside && $0 == "}" { exit }
+' "$UPDATER_SCRIPT")"
+[[ -n $reader_body ]] ||
+  fail "update-skills.sh no longer defines $CLAUDE_DELIVERY_READER(), the function its weekly Claude fan-out reads the exemption set from. If it was renamed, update this constant and confirm test/integration/update-skills-converge.sh still passes"
+grep -qF -- "$CLAUDE_DELIVERY_LOCK_READ" <<<"$reader_body" ||
+  fail "$CLAUDE_DELIVERY_READER() no longer reads '$CLAUDE_DELIVERY_LOCK_READ' out of the lock, so the weekly Claude fan-out would re-create every exempted link. If the read was deliberately respelled, update this constant and confirm test/integration/update-skills-converge.sh still passes"
 
 # --- Rule 2: tiers covers exactly the roster -------------------------------
 tier_keys="$(jq -r '.tiers // {} | keys[]' "$LOCK" | sort)"

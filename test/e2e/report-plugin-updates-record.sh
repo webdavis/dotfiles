@@ -272,4 +272,219 @@ run_helper --schedule
 grep -qF 'unknown argument' <<<"$RUN_OUTPUT" ||
   fail "the unknown-argument error does not name the problem: $RUN_OUTPUT"
 
+# ── 9. A DOUBLED inventory is REFUSED. jq reads its input as a SEQUENCE of JSON
+#      documents, so a file holding the same object twice parses fine and the
+#      key-walk emits rows from BOTH copies. Left unchecked the snapshot carries
+#      two fingerprints for one plugin, and a machine where nothing moved reports
+#      a version transition every single week. Concatenation is what a crashed or
+#      racing writer leaves behind, and it is the shape most parsers reject. ────
+rm -rf "$STATE_DIR/log-week-claims"
+write_plugin_state "5.0.0"
+snapshot_before="$(cat "$SNAPSHOT")"
+sed 's/5\.0\.0/9.9.9/g' "$PLUGIN_STATE" >"$tmp/second-document.json"
+cat "$tmp/second-document.json" >>"$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a doubled inventory exited 0; two documents were read as one reading: $RUN_OUTPUT"
+refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
+  "a doubled inventory still posted a record, so a machine where nothing moved reports a transition"
+[[ -n "$(alert_entries)" ]] ||
+  fail "a doubled inventory alerted nobody: $RUN_OUTPUT"
+[[ "$(cat "$SNAPSHOT")" == "$snapshot_before" ]] ||
+  fail "a doubled inventory moved the snapshot: $(cat "$SNAPSHOT")"
+
+# ── 10. A MALFORMED install record is refused, not filtered out. Records used to
+#       be selected by scope BEFORE their shape was checked, so a record whose
+#       key reads `scop` instead of `scope` simply vanished from the reading and
+#       the entry announced the plugin as REMOVED. A typo in a file this helper
+#       only reads must never be reported as something leaving the machine. ────
+rm -rf "$STATE_DIR/log-week-claims"
+write_plugin_state "5.0.0"
+awk '/"scope": "user"/ && !done { sub(/"scope"/, "\"scop\""); done = 1 } { print }' \
+  "$PLUGIN_STATE" >"$tmp/typo.json"
+grep -qF '"scop"' "$tmp/typo.json" || fail "the fixture for the typo case did not actually mistype a scope key"
+cp "$tmp/typo.json" "$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] ||
+  fail "an install record with a mistyped scope key exited 0: $RUN_OUTPUT"
+refute 'exa@claude-plugins-official.*removed' "$(log_entries)" \
+  "a mistyped scope key was reported as the plugin being removed"
+refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
+  "an install record this helper could not read still produced a record"
+[[ -n "$(alert_entries)" ]] ||
+  fail "an install record with a mistyped scope key alerted nobody: $RUN_OUTPUT"
+[[ "$(cat "$SNAPSHOT")" == "$snapshot_before" ]] ||
+  fail "an install record with a mistyped scope key moved the snapshot: $(cat "$SNAPSHOT")"
+
+# ── 11. NO USER-SCOPE RECORDS is legitimately empty, not unreadable. Uninstalling
+#       the last user-scope plugin while a project-scope one remains leaves a file
+#       that parses and describes a real machine state, and the removal is the
+#       single most worth-seeing line this record can carry. Refusing it raises
+#       plugin-state-unreadable every week from then on and reports the removal
+#       never. ─────────────────────────────────────────────────────────────────
+rm -rf "$HOME/.local/state"
+write_plugin_state "6.0.0"
+run_helper --scheduled
+[[ -f $SNAPSHOT ]] || fail "the baseline for the empty-user-scope case was not recorded: $RUN_OUTPUT"
+rm -rf "$STATE_DIR/log-week-claims"
+sed 's/"scope": "user"/"scope": "project"/g' "$PLUGIN_STATE" >"$tmp/project-only.json"
+cp "$tmp/project-only.json" "$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] ||
+  fail "an inventory with no user-scope records exited $RUN_RC; an empty reading is not an unreadable one: $RUN_OUTPUT"
+refute 'url=<default>' "$(cat "$RELAY_LOG")" \
+  "an inventory with no user-scope records raised the unreadable alert instead of reporting the removals"
+entries="$(log_entries)"
+grep -qF 'Claude Code plugins: 3 of 3 tracked entries changed' <<<"$entries" ||
+  fail "the removal of every user-scope plugin was not reported as three changes over three entries: $entries"
+grep -qF '(removed)' <<<"$entries" ||
+  fail "the entry does not mark the plugins as removed: $entries"
+
+# ── 12. A SNAPSHOT PATH THAT IS NOT A REGULAR FILE is refused loudly. A directory
+#       there (a stray mkdir, a restore that recreated the tree wrong) reads as
+#       "no baseline yet" on every run, takes every copy INSIDE itself, and exits
+#       0 having recorded nothing: a machine that looks healthy and permanently
+#       reports nothing at all. ──────────────────────────────────────────────────
+rm -rf "$HOME/.local/state"
+mkdir -p "$SNAPSHOT"
+write_plugin_state "7.0.0"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a snapshot path that is a directory exited 0, so nothing will ever be compared or reported: $RUN_OUTPUT"
+[[ -n "$(alert_entries)" ]] ||
+  fail "a snapshot path that is a directory alerted nobody: $RUN_OUTPUT"
+refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
+  "a run that could not use its snapshot path still posted a record"
+shopt -s nullglob dotglob
+snapshot_dir_contents=("$SNAPSHOT"/*)
+shopt -u nullglob dotglob
+[[ ${#snapshot_dir_contents[@]} -eq 0 ]] ||
+  fail "the run wrote its reading INSIDE the directory sitting at the snapshot path: ${snapshot_dir_contents[*]}"
+rmdir "$SNAPSHOT"
+
+# ── 13. THE SNAPSHOT IS REPLACED, NEVER OVERWRITTEN IN PLACE. A plain copy onto
+#       the live snapshot truncates it before it has the new content, so a run
+#       interrupted mid-write (a full disk, a reboot, a killed launchd job)
+#       leaves a short file behind and the NEXT run reads every plugin missing
+#       from it as newly added: a fabricated change list, the one thing this
+#       record must never produce. Rename is what makes the swap all-or-nothing,
+#       and a rename gives the path a new inode while a copy keeps the old one,
+#       so the inode is what this asserts. ────────────────────────────────────
+# GNU form first, BSD fallback second. The BSD flag means "file system status"
+# under GNU coreutils, so it SUCCEEDS with the wrong output instead of failing
+# over, and the fallback would never run.
+inode_of() { stat -c %i "$1" 2>/dev/null || stat -f %i "$1"; }
+rm -rf "$HOME/.local/state"
+write_plugin_state "8.0.0"
+run_helper --scheduled
+[[ -f $SNAPSHOT ]] || fail "the baseline for the atomic-replacement case was not recorded: $RUN_OUTPUT"
+snapshot_inode_before="$(inode_of "$SNAPSHOT")"
+rm -rf "$STATE_DIR/log-week-claims"
+write_plugin_state "8.1.0"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "the run that should have replaced the snapshot exited $RUN_RC: $RUN_OUTPUT"
+grep -qF 'exa@claude-plugins-official	8.1.0' "$SNAPSHOT" ||
+  fail "the snapshot does not carry the new reading: $(cat "$SNAPSHOT")"
+[[ "$(inode_of "$SNAPSHOT")" != "$snapshot_inode_before" ]] ||
+  fail "the snapshot was written in place rather than renamed over; a write interrupted halfway leaves a truncated snapshot and the next run reports every plugin as newly added"
+
+# ── 14. A BASELINE THAT CANNOT BE PERSISTED is alerted, not just logged. A run
+#       that reads fine and cannot remember what it read finds no snapshot again
+#       next week, records another baseline, and reports nothing for as long as
+#       the state directory stays unwritable. The local log is the one place
+#       nobody looks, so this goes on the route that buzzes. ─────────────────
+rm -rf "$HOME/.local/state"
+mkdir -p "$STATE_DIR"
+chmod 555 "$STATE_DIR"
+write_plugin_state "9.0.0"
+run_helper --scheduled
+chmod 755 "$STATE_DIR"
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a run that could not persist its baseline exited 0: $RUN_OUTPUT"
+[[ -n "$(alert_entries)" ]] ||
+  fail "a run that could not persist its baseline alerted nobody, so it reports nothing every week in silence: $RUN_OUTPUT"
+grep -qF "$SNAPSHOT" <<<"$(alert_entries)" ||
+  fail "the alert does not name the path that could not be written: $(alert_entries)"
+
+# ── 15. A RUN THAT CANNOT RECORD ITSELF does not exit 0. The success marker is
+#       what the next entry measures its gap from, so a delivered entry followed
+#       by an unwritable marker leaves the channel claiming a gap from a run that
+#       never happened. The library warns and returns 0 by design (a job must not
+#       die over its own bookkeeping), so the helper has to check the marker
+#       itself rather than lean on errexit to notice. ─────────────────────────
+rm -rf "$HOME/.local/state"
+write_plugin_state "10.0.0"
+run_helper --scheduled
+[[ -f $SNAPSHOT ]] || fail "the baseline for the marker case was not recorded: $RUN_OUTPUT"
+rm -rf "$STATE_DIR/log-week-claims" "$MARKER"
+mkdir -p "$MARKER"
+write_plugin_state "10.1.0"
+run_helper --scheduled
+rmdir "$MARKER"
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a run that could not record its own success exited 0, so the next entry reports a gap from a run that did not happen: $RUN_OUTPUT"
+grep -qF "$MARKER" <<<"$RUN_OUTPUT" ||
+  fail "the failure does not name the marker it could not write: $RUN_OUTPUT"
+
+# The repo requires errexit everywhere, and this helper spent its first release
+# without it. Pinned in source because the failures errexit catches are the ones
+# nobody has thought of yet, which is exactly what no behavioural test can reach.
+grep -qF 'set -euo pipefail' "$HELPER" ||
+  fail "the helper does not run under set -euo pipefail"
+
+# ── 16. THE BASELINE IS ESTABLISHED AT DEPLOY TIME, not at the first scheduled
+#       run. The apply that deploys this record is also the apply that turns on
+#       marketplace auto-updates, so a machine set up on Tuesday whose plugin
+#       moves on Wednesday would have had Monday record the NEW version as its
+#       baseline and report nothing: the first transition, lost for good and
+#       invisible by construction. --seed-baseline is what the apply-time loader
+#       calls to close that window. ──────────────────────────────────────────
+rm -rf "$HOME/.local/state"
+write_plugin_state "11.0.0"
+run_helper --seed-baseline
+[[ $RUN_RC -eq 0 ]] || fail "--seed-baseline exited $RUN_RC: $RUN_OUTPUT"
+[[ -f $SNAPSHOT ]] || fail "--seed-baseline recorded no baseline: $RUN_OUTPUT"
+grep -qF 'exa@claude-plugins-official	11.0.0' "$SNAPSHOT" ||
+  fail "the seeded baseline does not hold the reading taken at deploy time: $(cat "$SNAPSHOT")"
+refute '.' "$(cat "$RELAY_LOG")" "the deploy-time seed posted to a channel; it has nothing to report yet"
+
+# Seeding again leaves the baseline alone. Applies are routine and a plugin may
+# well have moved since the last one, so a seed that overwrote would swallow
+# exactly the transition it exists to capture.
+write_plugin_state "11.5.0"
+run_helper --seed-baseline
+[[ $RUN_RC -eq 0 ]] || fail "a second --seed-baseline exited $RUN_RC: $RUN_OUTPUT"
+grep -qF 'exa@claude-plugins-official	11.0.0' "$SNAPSHOT" ||
+  fail "a second seed overwrote the baseline, swallowing the change since the first: $(cat "$SNAPSHOT")"
+
+# And the first scheduled run reports what moved between the deploy and it.
+rm -rf "$STATE_DIR/log-week-claims"
+run_helper --scheduled
+entries="$(log_entries)"
+grep -qE '11\.0\.0.*->.*11\.5\.0' <<<"$entries" ||
+  fail "the transition between the deploy-time seed and the first scheduled run was not reported: $entries"
+
+# The two modes are different jobs, so asking for both is an error rather than a
+# quiet win for whichever the code happens to check first.
+run_helper --scheduled --seed-baseline
+[[ $RUN_RC -eq 2 ]] || fail "--scheduled together with --seed-baseline did not exit 2 (got $RUN_RC): $RUN_OUTPUT"
+
+# ── 17. THE DEPLOY-TIME SEED DOES NOT PAGE. A machine whose plugin inventory
+#       does not exist yet has no first transition to lose and nobody at a
+#       keyboard to act on an alert, and every fresh machine reaches this line
+#       during its first apply. The scheduled run stays the loud path. ────────
+rm -rf "$HOME/.local/state"
+rm -f "$PLUGIN_STATE"
+run_helper --seed-baseline
+[[ $RUN_RC -ne 0 ]] || fail "a seed with no inventory to read exited 0: $RUN_OUTPUT"
+refute '.' "$(cat "$RELAY_LOG")" \
+  "the deploy-time seed alerted about an inventory Claude Code has not written yet; every fresh machine would page during its first apply"
+[[ ! -f $SNAPSHOT ]] || fail "a seed that read nothing still recorded a baseline"
+
+# The asymmetry is the point: the SCHEDULED run on the same unreadable file does
+# alert, because by then it is a weekly record that cannot report.
+run_helper --scheduled
+[[ -n "$(alert_entries)" ]] ||
+  fail "the scheduled run did not alert on an inventory it could not read: $RUN_OUTPUT"
+
 echo "report-plugin-updates-record: OK"

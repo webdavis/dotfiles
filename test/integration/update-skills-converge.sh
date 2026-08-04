@@ -311,4 +311,22 @@ fi
 grep -qiE 'claudeDelivery.*(malformed|refus)' <<<"$dry_out" ||
   fail "the fan-out did not report the malformed claudeDelivery table, so a wrong-shaped table would silently fail open: $dry_out"
 
+# ── A LEFTOVER LINK THE ADDITIVE MODE WILL NOT REMOVE IS NAMED. --install-only
+# is what runs at apply time, and it never removes anything, so the apply that
+# de-delivers a skill leaves the live ~/.claude link in place until some later
+# FULL weekly run reaps it. For that whole window the harness sees two sources
+# under one name. Removing it here is ruled out (this repo scripts no removals),
+# which makes saying so the entire mechanism: the run has to name the path, and
+# the operator deletes it. A silent leftover is the failure.
+jq '.claudeDelivery = {"nonclaude": "none"}' "$LOCK_FILE" >"$LOCK_FILE.tmp" && mv "$LOCK_FILE.tmp" "$LOCK_FILE"
+ln -s "../../.agents/skills/nonclaude" "$CLAUDE/nonclaude"
+install_out="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --install-only 2>&1)" ||
+  fail "the --install-only run exited non-zero: $install_out"
+[[ -L "$CLAUDE/nonclaude" ]] ||
+  fail "--install-only removed a link; the additive apply-time mode must never remove anything"
+grep -qF "$CLAUDE/nonclaude" <<<"$install_out" ||
+  fail "the apply-time run left a de-delivered link behind without naming it, so nothing tells the operator there are now two sources under that name: $install_out"
+grep -qiE "(remove it by hand|by hand)" <<<"$install_out" ||
+  fail "the leftover link is mentioned but the run does not say it is the operator's to remove: $install_out"
+
 echo "update-skills-converge: OK"
