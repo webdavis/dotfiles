@@ -90,6 +90,22 @@ cutover_build_sandbox() {
     printf 'exit 0\n'
   } >"$SANDBOX_REPO/scripts/live-reconcile.sh"
   chmod +x "$SANDBOX_REPO/scripts/live-reconcile.sh"
+  # A .chezmoidata file for the render-versus-source check. chezmoi's data-only
+  # reads walk nested worktrees ignoring .chezmoiignore (twpayne/chezmoi#4940),
+  # and .chezmoidata merges last-one-wins, so a stale copy under one of them
+  # silently replaces this declaration in every rendered view.
+  mkdir -p "$SANDBOX_REPO/.chezmoidata"
+  {
+    printf 'packages:\n'
+    printf '  macos:\n'
+    printf '    homebrew:\n'
+    printf '      casks:\n'
+    printf '        - lulu\n'
+    printf '        - oversight\n'
+    printf '        - paseo\n'
+    printf '      formulae:\n'
+    printf '        - jq\n'
+  } >"$SANDBOX_REPO/.chezmoidata/system_packages_autoinstall.yaml"
   printf 'landed\n' >"$SANDBOX_REPO/a.txt"
   printf 'improved-on-main\n' >"$SANDBOX_REPO/b.txt"
   cutover_git -C "$SANDBOX_REPO" add -A
@@ -97,6 +113,19 @@ cutover_build_sandbox() {
 
   cutover_git -C "$SANDBOX_REPO" push --quiet origin main integration/modernization
   cutover_git -C "$SANDBOX_REPO" fetch --quiet origin
+
+  # The default rendered view AGREES with the data file just committed. A test
+  # that wants the disagreement overwrites this afterwards.
+  [[ -n ${CHEZMOI_DATA_FILE:-} ]] && cutover_write_render_view "$SANDBOX_HOME" "$CHEZMOI_DATA_FILE"
+  return 0
+}
+
+# cutover_write_render_view <home> <outfile> : the JSON `chezmoi data` output
+# the stub replays, built FROM the sandbox's own data file so it agrees with it.
+# A test that wants the twpayne/chezmoi#4940 disagreement edits the result.
+cutover_write_render_view() {
+  local data_file="$1/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/system_packages_autoinstall.yaml"
+  yq -o=json '{"packages": .packages}' "$data_file" >"$2"
 }
 
 # cutover_write_classification <home> : the operator's delta classification for
@@ -184,6 +213,12 @@ self="$(basename "$0")"
 printf "%s %s\n" "$self" "$*" >>"$CMD_LOG"
 case "$self" in
   chezmoi)
+    for arg in "$@"; do
+      if [[ "$arg" == "data" ]]; then
+        cat "${CHEZMOI_DATA_FILE:-/dev/null}"
+        exit 0
+      fi
+    done
     [[ -n "${FAIL_CHEZMOI:-}" ]] && { printf " M %s\n" "${FAIL_CHEZMOI}"; exit 0; }
     exit 0
     ;;

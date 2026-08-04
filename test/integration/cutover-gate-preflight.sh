@@ -61,11 +61,20 @@ export LOADED_GUI="$work/loaded-gui"
 export LOADED_SYSTEM="$work/loaded-system"
 export LAUNCHCTL_LOG="$work/launchctl.log"
 export PRINT_DETAIL_DIR="$work/print-detail"
+export CMD_LOG="$work/cmd.log"
+export CHEZMOI_DATA_FILE="$work/render.json"
 mkdir -p "$stub_dir" "$PRINT_DETAIL_DIR"
 : >"$LOADED_GUI"
 : >"$LOADED_SYSTEM"
 : >"$LAUNCHCTL_LOG"
+: >"$CMD_LOG"
 cutover_make_launchctl_stub "$stub_dir"
+cutover_make_command_stubs "$stub_dir"
+
+command -v yq >/dev/null 2>&1 || {
+  printf 'SKIP: yq is not on PATH; the render-versus-source check cannot be exercised\n'
+  exit 0
+}
 
 # run_gate <home> <args...> : runs the runner in the sandbox with the launchctl
 # stub on PATH. Captures stdout/stderr to files and the status in RC.
@@ -362,6 +371,50 @@ if [[ ${#stale[@]} -eq 0 ]]; then
   report ok "F2: re-running gate 1 clears the approval and every downstream pass marker"
 else
   report bad "F2: re-running gate 1 left stale state: ${stale[*]}"
+fi
+
+# ── Case F3: the rendered data view must agree with the source file ────────
+# chezmoi's data-only reads walk the source directory's nested worktrees
+# ignoring .chezmoiignore (twpayne/chezmoi#4940), and .chezmoidata merges
+# last-one-wins, so one stale copy under a worktree silently replaces the
+# repository's own declaration in every rendered view. Verified live on this
+# machine: the source file declares 54 casks and `chezmoi data` reported 47.
+# Those subtrees are gitignored, so the clean-tree check cannot see them.
+hF3="$work/homeF3"
+cutover_build_sandbox "$hF3"
+cutover_write_classification "$hF3"
+seed_loaded
+# a stale nested copy drops a cask from the rendered view
+yq -o=json '{"packages": .packages}' \
+  "$hF3/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/system_packages_autoinstall.yaml" |
+  jq '.packages.macos.homebrew.casks -= ["lulu"]' >"$CHEZMOI_DATA_FILE"
+run_gate "$hF3" 1
+if [[ $RC -eq 1 ]]; then
+  report ok "F3: a rendered data view that disagrees with the source file refuses"
+else
+  report bad "F3: a disagreeing render passed (rc=$RC)"
+fi
+if grep -q 'system_packages_autoinstall.yaml' "$err_file"; then
+  report ok "F3: the refusal names the data file"
+else
+  report bad "F3: the refusal does not name the data file (err: $(cat "$err_file"))"
+fi
+if grep -q '4940' "$err_file"; then
+  report ok "F3: the refusal cites the upstream issue so the cause is findable"
+else
+  report bad "F3: the refusal does not cite the upstream issue"
+fi
+if [[ ! -f "$(ledger_of "$hF3")/pins.env" ]]; then
+  report ok "F3: nothing is pinned against a source tree that renders differently"
+else
+  report bad "F3: pins were recorded despite a disagreeing render"
+fi
+cutover_write_render_view "$hF3" "$CHEZMOI_DATA_FILE"
+run_gate "$hF3" 1
+if [[ $RC -eq 10 ]]; then
+  report ok "F3: an agreeing render proceeds to the checkpoint"
+else
+  report bad "F3: an agreeing render did not proceed (rc=$RC, err: $(cat "$err_file"))"
 fi
 
 # ── Case G: a failed fetch refuses ─────────────────────────────────────────

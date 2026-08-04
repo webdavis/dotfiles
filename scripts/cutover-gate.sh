@@ -112,6 +112,45 @@ require_clean_tree() {
   ok "tree is clean, fully visible (no dirty, no untracked, no graphify-out residue)"
 }
 
+# chezmoi's DATA-ONLY reads (`chezmoi data`, `chezmoi execute-template`) walk
+# the source directory's nested worktree and .claude subtrees IGNORING
+# .chezmoiignore: in sourcestate.go's walkFunc the `case s.templateDataOnly:
+# return nil` arm precedes the ignore-prefix SkipDir (twpayne/chezmoi#4940).
+# Because .chezmoidata merges last-one-wins, ONE stale copy of a data file under
+# a nested worktree silently replaces this repository's own declaration in every
+# rendered view. Measured on dresden 2026-08-04: the source file declares 54
+# casks, `chezmoi data` reported 47, and the seven it dropped (codex, codex-app,
+# fluidvoice, lulu, minutes, oversight, paseo) are packages a cutover apply
+# would then be free to uninstall. apply, status, managed and cat honour the
+# ignore and stay correct.
+#
+# Two consequences, and both matter here. Nothing in this runner asserts against
+# a rendered view: the data assertion below reads .chezmoidata/*.yaml directly
+# with yq, and gate 3's drift smoke check uses `chezmoi status`, which is
+# immune. And the disagreement itself is a finding, so this refuses on it: the
+# nested worktrees are gitignored, so they escape the porcelain listing exactly
+# as graphify-out does, and the clean-tree check alone would let a source tree
+# that renders a different package set than it declares through the gate.
+require_render_matches_source() {
+  local data_file="$repo/.chezmoidata/system_packages_autoinstall.yaml"
+  local source_view render_view stale
+  command -v yq >/dev/null 2>&1 || die "yq is required to read $data_file directly"
+  command -v jq >/dev/null 2>&1 || die "jq is required to compare the rendered data view"
+  [[ -f $data_file ]] || die "missing $data_file"
+  source_view="$(yq -o=json '{"packages": .packages}' "$data_file" | jq -S .)" ||
+    die "could not read the package declaration out of $data_file"
+  render_view="$(chezmoi --source "$repo" data | jq -S '{packages}')" ||
+    die "chezmoi data failed against $repo"
+  if [[ $source_view != "$render_view" ]]; then
+    # a missing worktrees dir makes find exit non-zero; the refusal below is
+    # the point, so the listing is best-effort
+    stale="$(find "$repo/.worktrees" "$repo/.claude" -type f \
+      -path '*/.chezmoidata/*' 2>/dev/null | head -5 || true)"
+    die "the rendered data view disagrees with $data_file, so this source directory renders a package set it does not declare (twpayne/chezmoi#4940: data-only reads walk nested worktrees ignoring .chezmoiignore, and .chezmoidata merges last-one-wins). Remove the finished worktrees under the source directory and re-run. Stale copies found:"$'\n'"${stale:-  (none under .worktrees or .claude; look for other nested source copies)}"
+  fi
+  ok "the rendered data view agrees with $data_file"
+}
+
 # Checklist item 7: pins are reloaded from the ledger and each is validated as
 # a full 40-hex SHA before use; missing, short, or empty pins abort.
 load_pins() {
@@ -437,6 +476,7 @@ compute_retirement() {
 gate1() {
   say "gate 1, preflight. This will:"
   say "  - require a fully-visible-clean tree (no dirty, no untracked, no graphify-out)"
+  say "  - require the rendered data view to agree with the tracked data file"
   say "  - back up Hermes profile state under the backup convention"
   say "  - fetch, then pin origin/main and origin/$INT_BRANCH LAST"
   say "  - rebuild the expected-delta manifest from $PHASE_A_BASE and classify every hunk"
@@ -444,6 +484,7 @@ gate1() {
   say ''
 
   require_clean_tree
+  require_render_matches_source
   hermes_backup
   fetch_guarded
   record_pins
@@ -691,8 +732,24 @@ gate3() {
   say "GATE 3 PASSED. The soak starts now. Next: cutover-gate.sh 4"
 }
 
-# mtime <file> : seconds since the epoch, BSD stat first (macOS), GNU second.
-mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1"; }
+# mtime <file> : seconds since the epoch.
+#
+# GNU coreutils and BSD stat take mutually invalid flags, and GNU's failure mode
+# is not a clean one: its -f is --file-system, so `stat -f %m FILE` fails on the
+# format operand while STILL printing a human-readable block for FILE. Taking
+# either tool's output on faith is how a soak clock reads "  File: ..." as an
+# epoch. GNU's -c is tried first, BSD's -f second, and the result must be
+# digits or this refuses rather than guessing.
+mtime() {
+  local file="$1" value
+  value="$(stat -c %Y "$file" 2>/dev/null || true)"
+  if [[ ! $value =~ ^[0-9]+$ ]]; then
+    value="$(stat -f %m "$file" 2>/dev/null || true)"
+  fi
+  [[ $value =~ ^[0-9]+$ ]] ||
+    die "could not read a modification time for $file; stat returned '${value:-}'"
+  printf '%s' "$value"
+}
 
 gate4() {
   say "gate 4, soak. This will:"

@@ -58,6 +58,7 @@ export LAUNCHCTL_LOG="$work/launchctl.log"
 export CMD_LOG="$work/cmd.log"
 export RECONCILE_LOG="$work/reconcile.log"
 export PRINT_DETAIL_DIR="$work/print-detail"
+export CHEZMOI_DATA_FILE="$work/render.json"
 mkdir -p "$stub_dir" "$PRINT_DETAIL_DIR"
 : >"$LAUNCHCTL_LOG"
 : >"$CMD_LOG"
@@ -71,6 +72,7 @@ neutral="$work/neutral"
 mkdir -p "$neutral"
 # Checklist item 6: the runner is always invoked from a cwd outside any git
 # repository, so it can only be operating through its absolute repo handle.
+PATH_PREFIX=""
 run_gate() {
   local home="$1"
   shift
@@ -80,7 +82,7 @@ run_gate() {
   : >"$RECONCILE_LOG"
   (
     cd "$neutral" || exit 1
-    HOME="$home" PATH="$stub_dir:$PATH" CUTOVER_PHASE_A_BASE="$SANDBOX_BASE" \
+    HOME="$home" PATH="${PATH_PREFIX}$stub_dir:$PATH" CUTOVER_PHASE_A_BASE="$SANDBOX_BASE" \
       env "$@"
   ) >"$out_file" 2>"$err_file" || RC=$?
 }
@@ -304,6 +306,46 @@ if [[ $RC -eq 1 ]] && [[ ! -f "$ledG/gate4.done" ]]; then
 else
   report bad "G: a failing probe still passed the soak (rc=$RC)"
 fi
+
+# ── Case G2: the soak clock reads under either stat flavor ─────────────────
+# The window is measured from a file mtime. macOS ships BSD stat and the nix
+# `run` shell CI uses ships GNU coreutils, and their flags are mutually
+# invalid: GNU's -f is --file-system, so `stat -f %m FILE` there fails on the
+# format operand while still printing a human block for FILE. Reading that
+# block as an epoch is how gate 4 died in CI while passing on a BSD host.
+for flavor in gnu bsd; do
+  mkdir -p "$work/stat-$flavor"
+done
+# shellcheck disable=SC2016  # literal stub bodies; $vars resolve when they run
+printf '%s\n' '#!/usr/bin/env bash
+if [[ "${1:-}" == "-c" && "${2:-}" == "%Y" ]]; then
+  exec /usr/bin/stat -f %m "$3"
+fi
+if [[ "${1:-}" == "-f" ]]; then
+  printf "  File: \"%s\"\n" "${3:-}"
+  printf "    ID: 0 Namelen: 255 Type: apfs\n"
+  exit 1
+fi
+exit 1' >"$work/stat-gnu/stat"
+# shellcheck disable=SC2016  # literal stub bodies; $vars resolve when they run
+printf '%s\n' '#!/usr/bin/env bash
+if [[ "${1:-}" == "-f" && "${2:-}" == "%m" ]]; then
+  exec /usr/bin/stat -f %m "$3"
+fi
+printf "stat: illegal option -- %s\n" "${1#-}" >&2
+exit 1' >"$work/stat-bsd/stat"
+chmod +x "$work/stat-gnu/stat" "$work/stat-bsd/stat"
+for flavor in gnu bsd; do
+  rm -f "$ledG/gate4.done"
+  PATH_PREFIX="$work/stat-$flavor:"
+  gate "$hG" 4
+  PATH_PREFIX=""
+  if [[ $RC -eq 0 ]] && [[ -f "$ledG/gate4.done" ]]; then
+    report ok "G2: the soak clock reads correctly under $flavor stat"
+  else
+    report bad "G2: $flavor stat broke the soak clock (rc=$RC, err: $(cat "$err_file"))"
+  fi
+done
 
 # ── Case H: closure ────────────────────────────────────────────────────────
 hH="$work/homeH"
