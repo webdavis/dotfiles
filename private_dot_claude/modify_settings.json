@@ -50,25 +50,28 @@
        holding one newline is what an editor leaves after saving an emptied
        buffer, so this is the cheapest shape to produce.
 
-       KNOWN LIMIT, deliberately not worked around here. Trimming only fixes
-       the shapes that are EMPTY once trimmed. A live file that is non-empty
-       and does not parse (a write truncated mid-object, a hand edit with a
-       stray character) still aborts the apply, and no template can catch it:
-       chezmoi's three JSON readers (fromJson, fromJsonc, fromYaml) all fail
-       the template on bad input, and Go's text/template has no recover, so
-       there is nothing to fall back FROM (measured 2026-08-02, and
+       KNOWN LIMIT, and it is repaired OUTSIDE this template. Trimming only
+       fixes the shapes that are EMPTY once trimmed. A live file that is
+       non-empty and does not parse (a write truncated mid-object, a hand edit
+       with a stray character) aborts the apply from here, and no template can
+       catch it: chezmoi's three JSON readers (fromJson, fromJsonc, fromYaml)
+       all fail the template on bad input, and Go's text/template has no
+       recover, so there is nothing to fall back FROM (measured 2026-08-02, and
        test/unit/claude-enabled-plugins.sh pins the boundary with a case per
-       shape). Repairing that needs something outside this template that runs
-       BEFORE it. Until then the apply's own error names this file. Repair
-       ~/.claude/settings.json if you can. DELETING it loses the one managed
-       thing this template cannot rebuild: plugin state is READ from the live
-       file rather than declared here, so with nothing to read every declared
-       plugin renders `true`, which re-enables every disabled plugin and drops
-       every version pin. Nothing reports that afterwards either (see the plugin
-       block below). Note the disabled set first and restore it with
-       `claude plugin disable <id>` per plugin. Everything else this template
-       manages does come back from here on the next apply, and free-drift keys
-       are lost as before. */ -}}
+       shape). So the repair runs BEFORE this template instead:
+       .chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh
+       moves an unreadable settings file into ~/workspaces/backups and leaves
+       `{}` in its place, which this template then rebuilds from.
+
+       The move is not free, and the script says so at the time. Plugin state is
+       the one managed thing this template cannot rebuild: it is READ from the
+       live file rather than declared here, so with nothing to read every
+       declared plugin renders `true`, which re-enables every disabled plugin
+       and drops every version pin. Nothing reports that afterwards either (see
+       the plugin block below), so restore it with `claude plugin disable <id>`
+       per plugin, reading the quarantined copy for the set that was disabled.
+       Everything else this template manages does come back from here on the
+       next apply, and free-drift keys are lost as before. */ -}}
 {{- $stdin := index .chezmoi "stdin" | default "" | trim -}}
 {{- $merged := dict -}}
 {{- if $stdin -}}

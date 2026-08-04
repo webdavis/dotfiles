@@ -219,6 +219,17 @@ cleanest way to keep policy fields under chezmoi control while letting `/config`
 freely. See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template
 \+ `setValueAtPath` reference.
 
+**A corrupt live file cannot block the apply.** The template reads `~/.claude/settings.json` and hands it
+to `fromJson`, which hard errors on input that is not JSON, and a modify-template that errors aborts the
+whole apply rather than one target. No template can catch that, so the repair runs first:
+`.chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh` moves an unreadable settings
+file into `~/workspaces/backups/<timestamp>.claude-settings-quarantined.backup.json` (moved, never
+deleted), warns loudly, and leaves `{}` for the template to rebuild from. A readable file is left
+byte-identical, including the shapes that are not JSON objects (empty, whitespace-only, a whole-file
+array), and an absent one stays absent. What the move costs is per-plugin state, which lives only in the
+live file: every declared plugin comes back enabled, so a disable has to be re-applied with
+`claude plugin disable <id>` after a quarantine.
+
 ### Git Hooks
 
 All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/git/hooks`, set in
