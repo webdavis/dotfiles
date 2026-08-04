@@ -316,4 +316,28 @@ refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
 [[ "$(cat "$SNAPSHOT")" == "$snapshot_before" ]] ||
   fail "an install record with a mistyped scope key moved the snapshot: $(cat "$SNAPSHOT")"
 
+# ── 11. NO USER-SCOPE RECORDS is legitimately empty, not unreadable. Uninstalling
+#       the last user-scope plugin while a project-scope one remains leaves a file
+#       that parses and describes a real machine state, and the removal is the
+#       single most worth-seeing line this record can carry. Refusing it raises
+#       plugin-state-unreadable every week from then on and reports the removal
+#       never. ─────────────────────────────────────────────────────────────────
+rm -rf "$HOME/.local/state"
+write_plugin_state "6.0.0"
+run_helper --scheduled
+[[ -f $SNAPSHOT ]] || fail "the baseline for the empty-user-scope case was not recorded: $RUN_OUTPUT"
+rm -rf "$STATE_DIR/log-week-claims"
+sed 's/"scope": "user"/"scope": "project"/g' "$PLUGIN_STATE" >"$tmp/project-only.json"
+cp "$tmp/project-only.json" "$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] ||
+  fail "an inventory with no user-scope records exited $RUN_RC; an empty reading is not an unreadable one: $RUN_OUTPUT"
+refute 'url=<default>' "$(cat "$RELAY_LOG")" \
+  "an inventory with no user-scope records raised the unreadable alert instead of reporting the removals"
+entries="$(log_entries)"
+grep -qF 'Claude Code plugins: 3 of 3 tracked entries changed' <<<"$entries" ||
+  fail "the removal of every user-scope plugin was not reported as three changes over three entries: $entries"
+grep -qF '(removed)' <<<"$entries" ||
+  fail "the entry does not mark the plugins as removed: $entries"
+
 echo "report-plugin-updates-record: OK"

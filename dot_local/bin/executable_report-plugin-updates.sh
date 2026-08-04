@@ -180,6 +180,15 @@ record_entry() {
 # template it protects treats an empty file as an absent one, whereas an empty
 # inventory here is a reading nobody can compare against.
 #
+# NO USER-SCOPE RECORDS IS AN ANSWER, not a failure, which is why `-e` is not on
+# that jq. `-e` exits 4 when a filter produced no output at all, and the filter
+# produces none on a file that parses perfectly and says every installed plugin
+# is project-scope. Uninstalling the last user-scope plugin while a project-scope
+# one remains would then raise plugin-state-unreadable every week from then on
+# and report the removal never, which inverts this record twice over: silent
+# about a real change, loud about a file that is fine. The degraded shapes above
+# are refused by their own error() calls, so the exit status still carries them.
+#
 # EVERY RECORD IS SHAPE-CHECKED BEFORE THE SCOPE FILTER, which is the order that
 # matters. Selecting on `.scope == "user"` first makes a record whose key reads
 # `scop` (or holds a number, or is not an object at all) simply drop out of the
@@ -195,7 +204,7 @@ record_entry() {
 # never produce, so the two streams stay apart.
 plugin_snapshot() {
   # shellcheck disable=SC2016 # a jq program: $id is a jq binding, not a shell variable
-  "$JQ" -ers '
+  "$JQ" -rs '
     if length != 1 then
       error("installed_plugins.json holds \(length) top-level JSON documents; exactly one is expected")
     else .[0] end
