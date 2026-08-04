@@ -177,6 +177,21 @@ rc4=$?
 set -e
 assert_unchanged_and_failed "case 4 (empty tracked set, live generation non-empty)" "$rc4" "$out4"
 
+# --- Case 4b: a MULTI-DOCUMENT roster lock -------------------------------------
+# `jq -e '<filter>' file` reads a STREAM and evaluates the filter once per
+# document, so its exit status is the LAST document's. A valid roster with a
+# second top-level `{}` appended passed every schema check on that trailing empty
+# object (an absent table is legal there) while every extractor downstream still
+# read the real tables out of the first document. Whatever the documents say,
+# more than one of them is a lock nobody wrote on purpose: fail closed.
+printf '%s\n' "$good_lock_bytes" >"$LOCK"
+printf '{}' >>"$LOCK"
+set +e
+out4b="$(run_full)"
+rc4b=$?
+set -e
+assert_unchanged_and_failed "case 4b (multi-document lock)" "$rc4b" "$out4b"
+
 # --- Case 5: --install-only under a broken roster also fails closed ------------
 printf 'not json at all' >"$LOCK"
 set +e

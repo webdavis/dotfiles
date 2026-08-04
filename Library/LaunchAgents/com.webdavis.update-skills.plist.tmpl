@@ -22,11 +22,15 @@
   <key>RunAtLoad</key>
   <false/>
   <!-- 24 hourly Monday retry slots (00:00..23:00), generated programmatically.
-       A slot that finds a harness with recent activity defers and leaves no
-       weekly success stamp, so the next slot retries; once a slot succeeds, the
-       rest no-op on the stamp. The 23:00 slot is the LAST (a deferral there
-       alerts loudly). Keep the last hour in sync with UPDATE_SKILLS_LAST_SLOT_HOUR
-       in update-skills.sh. -->
+       A slot writes the weekly success stamp only when it fully succeeds, so a
+       required-phase failure, or a deferral because another run holds the
+       serialize lock, leaves the week unstamped and the next slot retries; once
+       a slot succeeds, the rest no-op on the stamp. (There is no harness-activity
+       gate any more: a run under a live session is safe, and the gate deferred
+       every slot on a machine in daily use.) The 23:00 slot is the LAST, where
+       both a failure and lock contention alert loudly, having nothing behind
+       them. Keep the last hour in sync with UPDATE_SKILLS_LAST_SLOT_HOUR in
+       update-skills.sh. -->
   <key>StartCalendarInterval</key>
   <array>
 {{- range $hour := until 24 }}
