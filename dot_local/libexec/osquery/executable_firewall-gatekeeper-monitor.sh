@@ -625,11 +625,21 @@ page_gap_once() {
 }
 
 # Validate any existing baseline BEFORE trusting it (and before write_state
-# overwrites it): it must be owner-only (mode 600) AND parse to three in-domain
-# built-in scalars (same domains as the gap gate below). A group/world-readable,
-# corrupt, or out-of-domain baseline is not trustworthy (it could be planted to
-# mask a disabled protection, or fabricate a transition), so it is treated as no
-# prior baseline. GNU-first stat, BSD fallback.
+# overwrites it): it must be owner-only (mode 600), slurp (-s) to exactly ONE
+# top-level object, AND carry three in-domain built-in scalars (same domains as
+# the gap gate below). A group/world-readable, corrupt, multi-document, or
+# out-of-domain baseline is not trustworthy (it could be planted to mask a
+# disabled protection, or fabricate a transition), so it is treated as no prior
+# baseline. GNU-first stat, BSD fallback.
+#
+# The whole-file rule is the same one load_controls applies, and for the same
+# reason: a multi-document file parses per document, so the three reads below
+# would each emit one result PER document. A document that LACKS the field emits
+# nothing, so a prior followed by a second document lacking the trio collapses
+# back to one clean value and would pass as a trustworthy baseline. Validating
+# once here is also what keeps the fold-in below from writing the doubling back
+# into the state file. Every read after this queries the validated value, so
+# nothing re-reads the file.
 prev_valid=0
 prev_fw=""
 prev_gk=""
@@ -637,7 +647,7 @@ prev_sl=""
 prev_json=""
 if [[ -f $STATE ]]; then
   st_mode=$(stat -c '%a' "$STATE" 2>/dev/null || stat -f '%Lp' "$STATE" 2>/dev/null || echo "")
-  prev_json=$(cat "$STATE" 2>/dev/null || echo "")
+  prev_json=$(jq -ce -s 'if (length == 1 and (.[0] | type == "object")) then .[0] else error("not one object") end' <"$STATE" 2>/dev/null) || prev_json=""
   prev_fw=$(jq -r '.firewall // empty' <<<"$prev_json" 2>/dev/null || echo "")
   prev_gk=$(jq -r '.gatekeeper // empty' <<<"$prev_json" 2>/dev/null || echo "")
   prev_sl=$(jq -r '.screenlock // empty' <<<"$prev_json" 2>/dev/null || echo "")
@@ -769,6 +779,11 @@ else
     '{firewall: $fw, gatekeeper: $gk, screenlock: $sl}')
 fi
 if [[ -n $controls_problem && $prev_valid -eq 1 ]]; then
+  # One document in, one document out. prev_valid is only ever 1 for a baseline
+  # that slurped to exactly one object, which is what stops this fold-in from
+  # AMPLIFYING a corrupt prior: over a multi-document prior it would emit one
+  # object per document and write_state would persist the whole stream, so the
+  # doubling would outlive the tick that read it.
   baseline_json=$(jq -c --argjson trio "$baseline_json" '. + $trio' <<<"$prev_json")
 fi
 for control_index in "${!control_ids[@]}"; do
