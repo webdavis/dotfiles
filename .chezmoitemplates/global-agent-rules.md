@@ -71,9 +71,6 @@ Require per-invocation confirmation. Blanket "yes" doesn't carry over.
   alternatives (`fd`, `rg`, `sd`). Modern tools are for interactive use; scripts need boring reliability.
 - ISO 8601 timestamps. On macOS use `gdate -Is` or `date -u +"%Y-%m-%dT%H:%M:%SZ"`, BSD `date` lacks
   `-Is`.
-- `[[ ]]` for tests, never `[ ]`. Lists are arrays, never space-separated strings. Never
-  `for x in $(command)`; read with `while IFS= read -r x; do ...; done < <(command)`. Build JSON with
-  `jq -n --arg`/`--argjson`, never string interpolation.
 
 ## Git commits
 
@@ -86,14 +83,10 @@ Use the `conventional-commits` skill. A user-wide `prepare-commit-msg` hook prep
 
 ## Pull request descriptions
 
-Bodies use five sections in this order: `## Context`, `## Summary`, `## How it was verified`,
-`## Effect of merging`, `## Review guide`. Posting is gated on a self-review against the anti-AI-pattern
-checklist (no em-dashes, no negative parallelism, no inflated significance, no vague attribution, no
-rule-of-three padding, no third-person talk about the audience).
-
-`~/.claude/commands/pr.md` is the single source for both the section contract and the checklist. Read it
-before drafting a body and follow it there; never restate or fork those rules elsewhere. Keep a posted
-body current when later review rounds change the facts.
+`~/.claude/commands/pr.md` is the single source for the body's section contract and for the
+anti-AI-pattern self-review that gates posting. Read it before drafting a body and follow it there; never
+restate or fork those rules elsewhere. Keep a posted body current when later review rounds change the
+facts.
 
 ## Task tracking
 
