@@ -34,6 +34,14 @@ LOCKFILE="${HOMEBREW_WEEKLY_LOCKFILE:-$HOME/.local/state/homebrew-weekly-upgrade
 STATE_DIR="${HOMEBREW_WEEKLY_STATE_DIR:-$HOME/.local/state/homebrew-weekly-upgrade}"
 LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
 LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
+# The durable record of what THIS run moved, for the osquery file-integrity page
+# to correlate against days later. Keep this literal in sync with
+# OSQUERY_UPGRADE_RECORD in
+# ~/.local/libexec/osquery/results-alerter/file-integrity-triage.sh (the
+# consumer); test/unit/osquery-file-integrity-triage.sh pins them equal, because
+# a rename in one alone leaves that page answering no-record forever, which reads
+# exactly like a quiet month of upgrades.
+UPGRADE_RECORD="$STATE_DIR/last-upgrade-changes.tsv"
 
 # An unknown argument is an ERROR, never a silent fallthrough: a typo'd marker in
 # the plist would otherwise run every week and quietly post nothing, which looks
@@ -155,6 +163,60 @@ __homebrew_package_snapshot() {
       return 1
       ;;
   esac
+}
+
+# write_upgrade_record -- persist what this run moved, so something days later
+# can ask whether an upgrade plausibly explains a file that changed.
+#
+# WHO READS IT. The osquery file-integrity page fires when a watched file leaves
+# its known-good manifest, and a vendor update and a tamper used to render the
+# same body. The page now carries a correlation line built from this file. The
+# record is a LEAD there and is labelled as one: it lives in this
+# operator-writable state dir, so it is not a trust input, and nothing about it
+# can suppress or downgrade a page.
+#
+# NOT GATED ON --scheduled, unlike the Discord entry. That gate exists because
+# the entry is a LIVENESS signal, and an ad-hoc run posting one would make a dead
+# LaunchAgent look alive. This record answers a different question, and an
+# operator running `just brew-upgrade` on a Wednesday moves exactly as many
+# package files as Monday noon does.
+#
+# BREW ONLY. App Store apps install into /Applications, which no known-good
+# manifest covers and no file-integrity watch reads, so a mas transition could
+# never explain one of these pages and listing it would only pad the line.
+#
+# ONE CLOCK READING for both timestamp fields (the house idiom from
+# unattended_log_entry_header): the epoch is what the reader does arithmetic on
+# and the ISO string is what it renders, and two `date` calls could disagree.
+#
+# Written to a temp file and moved into place, so a reader mid-write sees the
+# previous record whole rather than a torn one. Best effort throughout: upgrading
+# matters more than bookkeeping, and every failure is stated rather than silent.
+write_upgrade_record() {
+  local epoch="" iso=""
+  [[ -n $brew_snapshot_ok ]] || {
+    printf 'homebrew-weekly-upgrade: the package listing could not be read, so the upgrade record was left at its previous contents; a stale record simply falls out of the correlation window\n' >&2
+    return 0
+  }
+  read -r epoch iso < <(date -u '+%s %Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || true
+  if [[ ! $epoch =~ ^[0-9]+$ || -z $iso ]]; then
+    printf 'homebrew-weekly-upgrade: WARNING this clock could not be read, so no upgrade record was written for this run\n' >&2
+    return 0
+  fi
+  mkdir -p "$STATE_DIR" 2>/dev/null || true
+  if ! {
+    printf '%s\t%s\n' "$epoch" "$iso"
+    unattended_log_change_tuples "$snapshot_dir/brew.before" "$snapshot_dir/brew.after"
+  } >"$UPGRADE_RECORD.tmp" 2>/dev/null; then
+    printf 'homebrew-weekly-upgrade: WARNING could not write the upgrade record at %s; the file-integrity page will report no recorded upgrade\n' \
+      "$UPGRADE_RECORD" >&2
+    rm -f "$UPGRADE_RECORD.tmp" 2>/dev/null || true
+    return 0
+  fi
+  mv -f "$UPGRADE_RECORD.tmp" "$UPGRADE_RECORD" 2>/dev/null ||
+    printf 'homebrew-weekly-upgrade: WARNING could not install the upgrade record at %s; the file-integrity page will report no recorded upgrade\n' \
+      "$UPGRADE_RECORD" >&2
+  return 0
 }
 
 # Serialize: one weekly upgrade at a time, via the KERNEL. The Monday-noon
@@ -303,6 +365,7 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   if [[ -n $snapshot_dir ]]; then
     __homebrew_package_snapshot brew >"$snapshot_dir/brew.after" || brew_snapshot_ok=""
     __homebrew_package_snapshot mas >"$snapshot_dir/mas.after" || mas_snapshot_ok=""
+    write_upgrade_record
   fi
   weekly_record completed "$(printf '%s\n%s\nfailed steps: %d' \
     "$(unattended_log_change_section "$brew_snapshot_ok" \

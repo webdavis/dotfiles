@@ -116,6 +116,7 @@ route_findings() {
 
   local -a pages=()
   local i q act path label program category target base hash verb ep sev av signing enrich_status
+  local triage enriched
   for i in "${!objs[@]}"; do
     obj=${objs[i]}
     q=$(jq -r '.q' <<<"$obj")
@@ -299,6 +300,26 @@ route_findings() {
             hash=$(jq -r '.cols.sha256 // ""' <<<"$obj")
             verb=$(jq -r '.cols.action // ""' <<<"$obj")
             if pipeline_verdict "$target" "$hash" "$verb"; then sev="CRIT"; else continue; fi
+            # TRIAGE FACTS, attached only once the verdict has already decided to
+            # page. Every page from this arm used to render as a path and a verb,
+            # which reads identically for a vendor update and a tamper; these are
+            # the recorded hash, the on-disk hash and whether a recorded upgrade
+            # plausibly explains the change. DISPLAY ONLY - nothing here can
+            # change the tier that was just decided, and file-integrity-triage.sh
+            # holds the standing rule that a correlation never says safe.
+            #
+            # GUARDED AT EVERY STEP so a page cannot be lost to a fact that is
+            # merely nice to have: an absent helper, a helper that fails, and
+            # output that is not JSON each leave the finding exactly as the
+            # verdict produced it. Both conditions are `if` tests, which is what
+            # keeps `set -e` from ending the pass on any of them.
+            if declare -F file_integrity_triage >/dev/null 2>&1; then
+              triage=$(file_integrity_triage "$target" 2>/dev/null) || triage=""
+              if [[ -n $triage ]] &&
+                enriched=$(jq -c --argjson t "$triage" '.triage = $t' <<<"$obj" 2>/dev/null); then
+                obj="$enriched"
+              fi
+            fi
             ;;
           sudoers)
             digest_append "$obj"

@@ -9,6 +9,13 @@
 # Layout follows the ADHD surfacing research: one thing, glanceable, minimal
 # fields, ending in a single action, no raw query jargon.
 #
+# File-integrity triage: a file_events finding the router gathered triage facts
+# for (a watched file that left its known-good manifest) renders two extra lines
+# - the recorded and on-disk content hashes in short form, and whether a recorded
+# unattended upgrade plausibly explains the change. See
+# file-integrity-triage.sh for what that correlation is and is not: it is a lead,
+# never a verdict, and no page is ever suppressed or downgraded by it.
+#
 # Criterion 7 (basename-only): a secret/auth-file finding
 # (agent_authfile_changed, agent_secretfile_changed) renders the file's BASENAME
 # only - never its full path, and never a sha256/digest. Those detectors reach
@@ -101,7 +108,17 @@ render_page() {
       elif .q == "remote_access_sharing_state" then ["- **Service:** \(($c.service // "?") | code)"]
       elif .q == "system_extensions_new" then ["- **Name:** \(($c.identifier // "?") | code)", "- **Team:** \(($c.team // "?") | code)"] + $sg
       elif .q == "kernel_extensions_new" then ["- **Name:** \(($c.name // "?") | code)", "- **Path:** \(($c.path // "?") | code)"] + $sg
+      # A file-integrity finding the router could gather triage facts for carries
+      # them here: WHICH bytes disagree, and whether a recorded upgrade plausibly
+      # explains it. Both go through `code`, which is the single sanitize
+      # chokepoint - the upgrade sentence quotes package names and versions
+      # chosen by whoever published them. Absent .triage renders nothing extra,
+      # which is what the ssh and sshd_config file events take.
       elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \(($c.action // .act) | gsub("[\r\n\t]"; " "))"]
+        + (if (.triage | type) == "object" then
+             ["- **Recorded:** \((.triage.recorded // "?") | code) · **On disk:** \((.triage.ondisk // "?") | code)",
+              "- **Upgrade record:** \((.triage.upgrade // "?") | code)"]
+           else [] end)
       elif .q == "es_launchd_writes" then ["- **Process:** \(($c.path // "?") | code)", "- **Wrote:** \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
       elif (protname) != null then ["- **State:** **OFF**"]
       else $sg + ["- **What:** \((keyid) | code)"] end;

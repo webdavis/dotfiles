@@ -107,9 +107,53 @@ page_cap_hard_limits_length() {
   [[ $body_len -lt 2000 ]] || fail "page cap: pbody must be under 2000 chars, got $body_len"
 }
 
+# --- file-integrity triage lines ----------------------------------------------
+# A file-integrity page fires when a watched file leaves its known-good manifest,
+# and for a long time every one of them rendered as a path and a verb: a vendor
+# update and a tamper produced the same body. When the router attaches triage
+# facts the block carries them, so the operator can see WHICH bytes disagree and
+# whether a recorded upgrade plausibly explains it. A finding with no triage
+# object renders exactly as it did before, because the arm is what most
+# file_events pages (ssh, sshd_config) still take.
+triage_lines_render_when_present() {
+  local out pbody
+  out="$(
+    render_page_run <<'EOF'
+{"q":"file_events_recent","act":"added","sev":"CRIT","cols":{"category":"pipeline_integrity","target_path":"/Users/x/.local/libexec/osquery/route.sh","action":"UPDATED"},"ep":"/Users/x/.local/libexec/osquery/route.sh","triage":{"recorded":"aaaaaaaaaaaa","ondisk":"bbbbbbbbbbbb","upgrade":"recorded upgrade: route.sh 1.0 -> 1.1 at 2026-08-03T12:00:00Z (the name matches this file, which is not proof)"}}
+EOF
+  )"
+  pbody="$(jq -r '.pbody' <<<"$out")"
+  [[ $pbody == *"aaaaaaaaaaaa"* ]] || fail "triage: the recorded hash is missing -- $pbody"
+  [[ $pbody == *"bbbbbbbbbbbb"* ]] || fail "triage: the on-disk hash is missing -- $pbody"
+  [[ $pbody == *"recorded upgrade: route.sh 1.0 -> 1.1"* ]] ||
+    fail "triage: the upgrade correlation is missing -- $pbody"
+  [[ $pbody == *"not proof"* ]] ||
+    fail "triage: the correlation lost the qualifier that keeps it from reading as an all-clear -- $pbody"
+  # The change is additive: the block keeps the path, the verb and the next step
+  # that made it actionable in the first place.
+  [[ $pbody == *"Security tooling changed"* ]] || fail "triage: the header changed -- $pbody"
+  [[ $pbody == *"/Users/x/.local/libexec/osquery/route.sh"* ]] || fail "triage: the path is gone -- $pbody"
+  [[ $pbody == *"shasum -a 256"* ]] || fail "triage: the next step is gone -- $pbody"
+}
+
+triage_absent_renders_the_old_block() {
+  local out pbody
+  out="$(
+    render_page_run <<'EOF'
+{"q":"file_events_recent","act":"added","sev":"CRIT","cols":{"category":"sshd_config","target_path":"/etc/ssh/sshd_config","action":"UPDATED"},"ep":"/etc/ssh/sshd_config"}
+EOF
+  )"
+  pbody="$(jq -r '.pbody' <<<"$out")"
+  [[ $pbody == *"sshd_config changed"* ]] || fail "no-triage: the header is missing -- $pbody"
+  [[ $pbody != *"Recorded:"* ]] || fail "no-triage: a triage line rendered with nothing behind it -- $pbody"
+  [[ $pbody != *"Upgrade record:"* ]] || fail "no-triage: a triage line rendered with nothing behind it -- $pbody"
+}
+
 normal_block_and_basename_privacy
 field_cap_truncates_an_over_long_value
 block_cap_limits_to_eight_blocks
 page_cap_hard_limits_length
+triage_lines_render_when_present
+triage_absent_renders_the_old_block
 
-printf 'osquery-render-page: OK (CRIT block header/fields/nextstep; basename-only secret+auth files with no path/sha256; 240-char field cap; 8-block cap; 1900-char page cap)\n'
+printf 'osquery-render-page: OK (CRIT block header/fields/nextstep; basename-only secret+auth files with no path/sha256; 240-char field cap; 8-block cap; 1900-char page cap; file-integrity triage lines render when attached and nothing renders when they are not)\n'
