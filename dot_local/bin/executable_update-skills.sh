@@ -848,21 +848,35 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # a present-but-non-object table and any value other than the string "none"
 # (absent means the default, delivered), so a malformed delivery table refuses the
 # run loudly instead of silently restoring a de-delivered skill.
+#
+# The gate reads the lock SLURPED, and the -s is the load-bearing part.
+# `jq -e '<filter>' file` reads a STREAM of values and evaluates the filter once
+# per document, so its exit status is the LAST document's verdict while every
+# extractor downstream still reads them ALL. A roster with a second top-level
+# `{}` appended therefore passed every check here on the trailing empty object
+# (an absent table is legal) and the run went on to read the real tables out of
+# the first document: with claudeDelivery emptied in that first document, the
+# undelivered-name reader returned nothing and convergence RECREATED a
+# deliberately absent Claude link before stamping the week a success. Slurping
+# and requiring exactly one value is the single-value test; the same shape
+# guards ~/.claude/settings.json in run_before_12-quarantine-unparseable-claude-settings.sh
+# and the forks table in __gen_fork_lock_single_document below.
 __gen_roster_schema_ok() {
-  jq -e '
+  jq -e -s '
     def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
     def nonempty_string($v): ($v | type) == "string" and ($v | length) > 0;
-    (type == "object")
-    and object_or_absent("npxTracked")
-    and object_or_absent("clawhubTracked")
-    and object_or_absent("tiers")
-    and object_or_absent("claudeDelivery")
-    and ((.npxTracked // {}) | to_entries
-      | all((.value | type == "object") and nonempty_string(.value.repo)))
-    and ((.clawhubTracked // {}) | to_entries
-      | all((.value | type == "object")
-        and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
-    and ((.claudeDelivery // {}) | to_entries | all(.value == "none"))
+    length == 1 and (.[0] |
+      (type == "object")
+      and object_or_absent("npxTracked")
+      and object_or_absent("clawhubTracked")
+      and object_or_absent("tiers")
+      and object_or_absent("claudeDelivery")
+      and ((.npxTracked // {}) | to_entries
+        | all((.value | type == "object") and nonempty_string(.value.repo)))
+      and ((.clawhubTracked // {}) | to_entries
+        | all((.value | type == "object")
+          and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
+      and ((.claudeDelivery // {}) | to_entries | all(.value == "none")))
   ' "$1" >/dev/null 2>&1
 }
 
@@ -1521,12 +1535,17 @@ __gen_reconcile_candidate_npx_lock() {
   local candidate_lock="$AGENTS/.skill-lock.json"
   local cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
   local base cli reconciled
+  # Each input must be EXACTLY ONE JSON value, not the stream `jq -e .` accepts:
+  # both are handed to --argjson below, which refuses a stream outright, so an
+  # unreadable-for-our-purpose lock has to reach the '{}' fallback here instead
+  # of failing the whole reconcile. `length == 1` (not `<= 1`) keeps the empty
+  # file on the fallback path too, where the old `jq -e .` already put it.
   base="$(cat "$candidate_lock" 2>/dev/null || printf '{}')"
-  jq -e . <<<"$base" >/dev/null 2>&1 || base='{}'
+  jq -e -s 'length == 1' <<<"$base" >/dev/null 2>&1 || base='{}'
   cli='{}'
   if [[ -f $cli_lock ]]; then
     cli="$(cat "$cli_lock" 2>/dev/null || printf '{}')"
-    jq -e . <<<"$cli" >/dev/null 2>&1 || cli='{}'
+    jq -e -s 'length == 1' <<<"$cli" >/dev/null 2>&1 || cli='{}'
   fi
   if ! reconciled="$(jq -n \
     --argjson base "$base" \
@@ -1640,9 +1659,12 @@ __gen_validate_candidate() {
     log "validate: candidate has no ready marker"
     return 1
   }
-  # npx lock must be valid JSON.
-  jq -e . "$agents/.skill-lock.json" >/dev/null 2>&1 || {
-    log "validate: candidate .skill-lock.json is not valid JSON"
+  # npx lock must be ONE JSON value. Slurped, because `jq -e .` accepts a STREAM
+  # and every later reader of this file answers from the LAST document alone
+  # (`.skills | has($n)` in the drift report and the health check), so a
+  # two-document lock could publish while claiming a skill it does not hold.
+  jq -e -s 'length == 1' "$agents/.skill-lock.json" >/dev/null 2>&1 || {
+    log "validate: candidate .skill-lock.json is not one JSON value"
     return 1
   }
   # A FULL candidate's npx lock must hold EXACTLY the npxTracked key set
@@ -1889,7 +1911,11 @@ __gen_update_failure_streaks() {
   week="$(date +%G-%V)"
   mkdir -p "$STATE_DIR" 2>/dev/null || return 0
   streaks="$(cat "$STREAK_FILE" 2>/dev/null || true)"
-  jq -e . <<<"$streaks" >/dev/null 2>&1 || streaks='{}'
+  # ONE JSON OBJECT or start over. `jq -e .` accepted a stream (whose per-name
+  # reads below then yield one line per document, so no week ever compares equal
+  # and every slot re-increments) and accepted a bare scalar (whose `.[$n]` read
+  # is a jq error, fatal under errexit inside the command substitution).
+  jq -e -s 'length == 1 and (.[0] | type == "object")' <<<"$streaks" >/dev/null 2>&1 || streaks='{}'
   local -a escalated=()
   local -a seen=()
   local dup
@@ -2359,10 +2385,18 @@ __update_skills_claude_undelivered() {
 # the fan-out validates the table at the point of use and refuses (no fan-out, no
 # reap) rather than fail open, in every mode. Absent or a valid "none" object is
 # NOT malformed.
+#
+# Slurped, for the reason __gen_roster_schema_ok is: an unslurped `jq -e` reads a
+# STREAM and answers for the LAST document only, so a lock with a second
+# top-level `{}` appended looked table-less (and therefore fine) here while the
+# reader above still read the first document's table. A multi-document lock is
+# malformed for this purpose whatever its documents say.
 __update_skills_claude_delivery_malformed() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 1
-  jq -e '(has("claudeDelivery") | not)
-    or ((.claudeDelivery | type == "object") and (.claudeDelivery | to_entries | all(.value == "none")))' \
+  jq -e -s 'length == 1 and (.[0] |
+      (has("claudeDelivery") | not)
+      or ((.claudeDelivery | type == "object")
+        and (.claudeDelivery | to_entries | all(.value == "none"))))' \
     "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 && return 1
   return 0
 }

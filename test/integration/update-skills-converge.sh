@@ -212,6 +212,42 @@ if printf '%s\n' "$second" | grep -qiE 'converge: (created|replaced|removed)'; t
   fail "a no-op convergence run still logged create/replace/remove actions: $second"
 fi
 
+# ── A MULTI-DOCUMENT roster lock must not resurrect a de-delivered link.
+# `jq -e '<filter>' file` reads a STREAM and evaluates the filter once per
+# document, so its exit status is the LAST document's while every extractor still
+# reads them all. A roster with claudeDelivery emptied and a second top-level
+# `{}` appended therefore satisfied the schema gate on that trailing object, the
+# undelivered-name reader came back empty, and the full run RECREATED
+# nonclaude's deliberately absent ~/.claude link and stamped the week a success.
+# Both readers are pinned here: the FULL run must refuse at the roster gate, and
+# the --dry-run preview (which skips that gate entirely) must refuse at the
+# fan-out's own claudeDelivery check.
+LOCK_FILE="$HOME/.agents/custom-skill-lock.json"
+GOOD_LOCK="$tmp/good-lock.json"
+cp "$LOCK_FILE" "$GOOD_LOCK"
+STAMP="$HOME/.local/state/update-skills/last-success"
+rm -f "$STAMP"
+jq '.claudeDelivery = []' "$GOOD_LOCK" >"$LOCK_FILE"
+printf '{}' >>"$LOCK_FILE"
+set +e
+stream_out="$(run)"
+stream_rc=$?
+set -e
+[[ $stream_rc -ne 0 ]] ||
+  fail "a multi-document roster lock ran to completion instead of failing closed: $stream_out"
+[[ ! -e "$CLAUDE/nonclaude" && ! -L "$CLAUDE/nonclaude" ]] ||
+  fail "a multi-document roster lock recreated the de-delivered nonclaude Claude link: $(readlink "$CLAUDE/nonclaude" 2>/dev/null)"
+[[ ! -f $STAMP ]] ||
+  fail "a multi-document roster lock still stamped the week: $(cat "$STAMP")"
+stream_dry="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1 || true)"
+if grep -qE 'would create .*/\.claude/skills/nonclaude' <<<"$stream_dry"; then
+  printf '%s\n' "$stream_dry" >&2
+  fail "the --dry-run fan-out offered to restore nonclaude's link from a multi-document lock"
+fi
+grep -qiE 'claudeDelivery.*(malformed|refus)' <<<"$stream_dry" ||
+  fail "the --dry-run fan-out did not report the multi-document lock's claudeDelivery table: $stream_dry"
+cp "$GOOD_LOCK" "$LOCK_FILE"
+
 # ── A MALFORMED claudeDelivery must not fail OPEN in the Claude fan-out.
 # __update_skills_claude_undelivered fails open (an empty undelivered set) on a
 # wrong-shaped table, and the fan-out would then RESTORE nonclaude's de-delivered
