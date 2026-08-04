@@ -436,6 +436,266 @@ else
   report bad "G: pins were recorded after a failed fetch"
 fi
 
+# ── Case H: a pristine checkout, and graphify-out RESIDUE ──────────────────
+# graphify-out/graph.json is the COMMITTED map, so the directory exists in every
+# clean checkout. Refusing on the directory made gate 1 unpassable. What must
+# refuse is the ignored rebuild output beside the tracked map.
+hH="$work/homeH"
+cutover_build_sandbox "$hH"
+cutover_write_classification "$hH"
+seed_loaded
+run_gate "$hH" 1
+if [[ $RC -eq 10 ]]; then
+  report ok "H: a pristine checkout carrying the tracked graphify map passes the clean-tree check"
+else
+  report bad "H: the tracked graphify map blocked a clean checkout (rc=$RC, err: $(cat "$err_file"))"
+fi
+printf '<html/>\n' >"$hH/workspaces/Ivy/webdavis/dotfiles/graphify-out/report.html"
+run_gate "$hH" 1
+if [[ $RC -eq 1 ]] && grep -q 'graphify-out' "$err_file"; then
+  report ok "H: ignored graphify-out residue still refuses"
+else
+  report bad "H: ignored residue passed (rc=$RC, err: $(cat "$err_file"))"
+fi
+rm -f "$hH/workspaces/Ivy/webdavis/dotfiles/graphify-out/report.html"
+
+# ── Case I: a deployable file git does not track ───────────────────────────
+# git status omits ignored paths, so an ignored-but-managed source file is
+# invisible to porcelain and still reaches $HOME through the staged apply.
+# chezmoi managed is the authority on what deploys.
+hI="$work/homeI"
+cutover_build_sandbox "$hI"
+cutover_write_classification "$hI"
+seed_loaded
+export CHEZMOI_MANAGED_FILE="$work/managed.txt"
+printf 'seed.txt\npaseo.json\n' >"$CHEZMOI_MANAGED_FILE"
+run_gate "$hI" 1
+if [[ $RC -eq 1 ]] && grep -q 'paseo.json' "$err_file"; then
+  report ok "I: a managed source file git does not track refuses, and is named"
+else
+  report bad "I: an untracked deployable file passed (rc=$RC, err: $(cat "$err_file"))"
+fi
+printf 'seed.txt\n' >"$CHEZMOI_MANAGED_FILE"
+run_gate "$hI" 1
+if [[ $RC -eq 10 ]]; then
+  report ok "I: a fully tracked managed set proceeds"
+else
+  report bad "I: a tracked managed set was rejected (rc=$RC, err: $(cat "$err_file"))"
+fi
+FAIL_MANAGED=1 run_gate "$hI" 1
+if [[ $RC -eq 1 ]]; then
+  report ok "I: a failed 'chezmoi managed' refuses instead of assuming an empty deployable set"
+else
+  report bad "I: a failed managed enumeration was tolerated (rc=$RC)"
+fi
+unset CHEZMOI_MANAGED_FILE
+
+# ── Case J: source-only trees never become desired services ────────────────
+# This repository's own test helper carries plist fixtures beside a
+# 'launchctl bootstrap system' line, and this runner quotes both. Scanning them
+# turns fixtures into desired SYSTEM services, and two of those fixture labels
+# are the historical orphans that must be RETIRED, so an unscoped scan cancels
+# their retirement.
+hJ="$work/homeJ"
+cutover_build_sandbox "$hJ"
+cutover_write_classification "$hJ"
+repoJ="$hJ/workspaces/Ivy/webdavis/dotfiles"
+mkdir -p "$repoJ/test/integration/helpers" "$repoJ/scripts" "$repoJ/docs"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '\t<key>Label</key>\n'
+  printf '\t<string>com.github.openclaw-setup.watchdog</string>\n'
+  printf '\t<key>Label</key>\n'
+  printf '\t<string>com.example.test-fixture</string>\n'
+  # shellcheck disable=SC2016  # fixture text, not an expansion
+  printf 'launchctl bootstrap system "$PLIST_PATH"\n'
+} >"$repoJ/test/integration/helpers/fixtures.sh"
+cutover_git -C "$repoJ" add -A
+cutover_git -C "$repoJ" commit --quiet -m 'a test helper carrying plist fixtures'
+cutover_git -C "$repoJ" push --quiet origin main
+seed_loaded com.github.openclaw-setup.watchdog
+run_gate "$hJ" 1
+ledJ="$(ledger_of "$hJ")"
+if grep -q 'com.example.test-fixture' "$ledJ/desired-services.tsv" 2>/dev/null; then
+  report bad "J: a test fixture label became a desired service"
+else
+  report ok "J: source-only trees contribute no desired services"
+fi
+if grep -qx "com.github.openclaw-setup.watchdog	gui/$uid" "$ledJ/retirement-proposed.tsv" 2>/dev/null; then
+  report ok "J: the historical orphan is still a retirement candidate, not shadowed by a fixture"
+else
+  report bad "J: a fixture cancelled a real retirement (proposal: $(cat "$ledJ/retirement-proposed.tsv" 2>/dev/null))"
+fi
+
+# ── Case K: the base override is refused in the real repository ────────────
+hK="$work/homeK"
+cutover_build_sandbox "$hK"
+cutover_write_classification "$hK"
+seed_loaded
+repoK="$hK/workspaces/Ivy/webdavis/dotfiles"
+# graft the recorded Phase A base into the sandbox, which is what makes a
+# repository "the real one" as far as the guard is concerned
+recorded=2bd973369158b49535e8e16e80c968444ab23f1d
+if git -C "$REPO_ROOT" cat-file -e "$recorded^{commit}" 2>/dev/null; then
+  cutover_git -C "$repoK" fetch --quiet --no-tags "$REPO_ROOT" "$recorded" 2>/dev/null || true
+  if git -C "$repoK" cat-file -e "$recorded^{commit}" 2>/dev/null; then
+    run_gate "$hK" 1
+    if [[ $RC -eq 1 ]] && grep -q 'CUTOVER_PHASE_A_BASE' "$err_file"; then
+      report ok "K: the base override is refused where the recorded Phase A base exists"
+    else
+      report bad "K: the override was accepted in a repository holding the recorded base (rc=$RC)"
+    fi
+  else
+    report ok "K: SKIPPED (the recorded base could not be grafted into the sandbox)"
+  fi
+else
+  report ok "K: SKIPPED (this checkout does not contain the recorded Phase A base)"
+fi
+
+# ── Case L: a failed gate 1 restart invalidates downstream passes ──────────
+# Pins are rewritten early. If invalidation waited for success, a gate 1 that
+# fails classification would leave gate4.done standing beside the NEW pins, and
+# gate 5 would close the pull requests against a soak that never covered them.
+hL="$work/homeL"
+cutover_build_sandbox "$hL"
+cutover_write_classification "$hL"
+seed_loaded
+ledL="$(ledger_of "$hL")"
+run_gate "$hL" 1
+run_gate "$hL" 1 --approve-retirement
+: >"$ledL/gate2.done"
+: >"$ledL/gate3.done"
+: >"$ledL/gate4.done"
+repoL="$hL/workspaces/Ivy/webdavis/dotfiles"
+cutover_git -C "$repoL" checkout --quiet integration/modernization
+printf 'never landed\n' >"$repoL/late.txt"
+cutover_git -C "$repoL" add -A
+cutover_git -C "$repoL" commit --quiet -m 'an unclassified hunk lands on integration'
+cutover_git -C "$repoL" push --quiet origin integration/modernization
+cutover_git -C "$repoL" checkout --quiet main
+run_gate "$hL" 1
+if [[ $RC -eq 1 ]]; then
+  report ok "L: the restart fails classification, as intended"
+else
+  report bad "L: the unclassified hunk did not block (rc=$RC)"
+fi
+stale=()
+for marker in gate1.done gate2.done gate3.done gate4.done gate5.done retirement-approved.tsv; do
+  [[ -e "$ledL/$marker" ]] && stale+=("$marker")
+done
+if [[ ${#stale[@]} -eq 0 ]]; then
+  report ok "L: a FAILED gate 1 leaves no downstream pass attached to the new pins"
+else
+  report bad "L: stale passes survived a failed gate 1 restart: ${stale[*]}"
+fi
+
+# ── Case M: classification is bound to the exact tree-entry pair ───────────
+hM="$work/homeM"
+cutover_build_sandbox "$hM"
+cutover_write_classification "$hM"
+seed_loaded
+ledM="$(ledger_of "$hM")"
+run_gate "$hM" 1
+if [[ $RC -eq 10 ]]; then
+  report ok "M: matching pairs classify"
+else
+  report bad "M: the baseline classification did not apply (rc=$RC, err: $(cat "$err_file"))"
+fi
+repoM="$hM/workspaces/Ivy/webdavis/dotfiles"
+printf 'improved-on-main, again\n' >"$repoM/b.txt"
+cutover_git -C "$repoM" add -A
+cutover_git -C "$repoM" commit --quiet -m 'main changes b.txt again'
+cutover_git -C "$repoM" push --quiet origin main
+run_gate "$hM" 1
+if [[ $RC -eq 1 ]] && grep -q 'b.txt' "$err_file"; then
+  report ok "M: a stale classification stops applying once either side changes"
+else
+  report bad "M: an outdated classification still covered the file (rc=$RC, err: $(cat "$err_file"))"
+fi
+if grep -q 'b.txt' "$ledM/delta-unclassified.tsv" 2>/dev/null; then
+  report ok "M: the runner prints a prefilled row carrying the new pair"
+else
+  report bad "M: no prefilled classification row for the changed pair"
+fi
+
+# ── Case N: renames, modes, and quoted pathnames ───────────────────────────
+hN="$work/homeN"
+cutover_build_sandbox "$hN"
+seed_loaded
+repoN="$hN/workspaces/Ivy/webdavis/dotfiles"
+cutover_git -C "$repoN" checkout --quiet integration/modernization
+# a REAL rename: the base file moves, so rename detection collapses the pair
+cutover_git -C "$repoN" mv "$repoN/dot_aws/credentials.tmpl" "$repoN/dot_aws/private_credentials.tmpl"
+printf 'installer\n' >"$repoN/exec-me.sh"
+chmod +x "$repoN/exec-me.sh"
+printf 'unicode\n' >"$repoN/café.txt"
+cutover_git -C "$repoN" add -A
+cutover_git -C "$repoN" commit --quiet -m 'integration renames a secret source, adds a mode and a quoted path'
+cutover_git -C "$repoN" push --quiet origin integration/modernization
+cutover_git -C "$repoN" checkout --quiet main
+# main takes the rename DESTINATION but never makes the source-side deletion,
+# copies the file without its executable bit, and never takes the quoted path
+printf 'aws credentials template\n' >"$repoN/dot_aws/private_credentials.tmpl"
+printf 'installer\n' >"$repoN/exec-me.sh"
+chmod -x "$repoN/exec-me.sh"
+cutover_git -C "$repoN" add -A
+cutover_git -C "$repoN" commit --quiet -m 'main takes the destination, keeps the old secret source, drops the mode'
+cutover_git -C "$repoN" push --quiet origin main
+cutover_write_classification "$hN"
+run_gate "$hN" 1
+ledN="$(ledger_of "$hN")"
+if [[ $RC -eq 1 ]]; then
+  report ok "N: the mode-only and never-landed paths block"
+else
+  report bad "N: mode and unicode paths were waved through (rc=$RC)"
+fi
+if grep -q 'exec-me.sh' "$err_file"; then
+  report ok "N: an executable-bit change is not landed-unchanged"
+else
+  report bad "N: a mode-only difference classified as landed (err: $(cat "$err_file"))"
+fi
+if grep -q 'caf' "$err_file"; then
+  report ok "N: a non-ASCII pathname is classified, not silently landed"
+else
+  report bad "N: a quoted pathname became a false landed-unchanged (ledger: $(cat "$ledN/delta-ledger.tsv" 2>/dev/null))"
+fi
+# The rename's SOURCE side: main never deleted the old secret file, and rename
+# detection would have hidden that path from the manifest entirely.
+if grep -q 'dot_aws/credentials.tmpl' "$err_file"; then
+  report ok "N: the source side of a rename is classified, so an un-made deletion blocks"
+else
+  report bad "N: rename detection hid the source-side deletion (missing: $(cut -f2 "$ledN/delta-missing.tsv" 2>/dev/null | tr '\n' ' '))"
+fi
+
+# ── Case O: membership is a (label, domain) pair ───────────────────────────
+# A label that moved between domains is desired in the NEW domain while its old
+# instance is still loaded in the old one. Matching on the label alone reads the
+# stale copy as desired and the retirement that should catch it never fires.
+hO="$work/homeO"
+cutover_build_sandbox "$hO"
+cutover_write_classification "$hO"
+repoO="$hO/workspaces/Ivy/webdavis/dotfiles"
+mkdir -p "$repoO/Library/LaunchDaemons"
+printf '<plist><dict><key>Label</key><string>com.webdavis.osquery-fim-notify</string><key>KeepAlive</key><true/></dict></plist>\n' \
+  >"$repoO/Library/LaunchDaemons/com.webdavis.osquery-fim-notify.plist.tmpl"
+cutover_git -C "$repoO" add -A
+cutover_git -C "$repoO" commit --quiet -m 'the label moves to the system domain'
+cutover_git -C "$repoO" push --quiet origin main
+# loaded in the OLD user domain, rendered by main in the system domain
+seed_loaded com.webdavis.osquery-fim-notify system:com.webdavis.osquery-fim-notify
+run_gate "$hO" 1
+ledO="$(ledger_of "$hO")"
+if grep -qx "com.webdavis.osquery-fim-notify	gui/$uid" "$ledO/retirement-proposed.tsv" 2>/dev/null; then
+  report ok "O: the stale user-domain instance of a moved label is a retirement candidate"
+else
+  report bad "O: a moved label's old instance was read as desired (proposal: $(cat "$ledO/retirement-proposed.tsv" 2>/dev/null))"
+fi
+if grep -qx "com.webdavis.osquery-fim-notify	system" "$ledO/retirement-proposed.tsv" 2>/dev/null; then
+  report bad "O: the desired system instance was proposed for retirement"
+else
+  report ok "O: the desired system instance is left alone"
+fi
+
 if [[ $failures -gt 0 ]]; then
   printf 'cutover-gate-preflight: %d assertion(s) FAILED\n' "$failures" >&2
   exit 1

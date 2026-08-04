@@ -35,7 +35,19 @@ cutover_build_sandbox() {
   cutover_git -C "$SANDBOX_REPO" remote add origin "$origin"
 
   printf 'seed\n' >"$SANDBOX_REPO/seed.txt"
-  printf 'graphify-out/\n' >"$SANDBOX_REPO/.gitignore"
+  # Mirrors the real repository: the committed map is TRACKED and everything
+  # else under graphify-out/ is ignored rebuild output. A pristine checkout
+  # therefore always HAS a graphify-out directory.
+  {
+    printf 'graphify-out/*\n'
+    printf '!graphify-out/graph.json\n'
+  } >"$SANDBOX_REPO/.gitignore"
+  mkdir -p "$SANDBOX_REPO/graphify-out"
+  printf '{"nodes":[]}\n' >"$SANDBOX_REPO/graphify-out/graph.json"
+  # A base-commit file a test can RENAME on the integration branch, so the
+  # manifest has a real rename to hide the source side of.
+  mkdir -p "$SANDBOX_REPO/dot_aws"
+  printf 'aws credentials template\n' >"$SANDBOX_REPO/dot_aws/credentials.tmpl"
   cutover_git -C "$SANDBOX_REPO" add -A
   cutover_git -C "$SANDBOX_REPO" commit --quiet -m 'base'
   # shellcheck disable=SC2034  # read by the sourcing test as the Phase A base
@@ -86,6 +98,9 @@ cutover_build_sandbox() {
     printf 'printf "%%s\\n" "$*" >>"$RECONCILE_LOG"\n'
     printf 'mode=live\n'
     printf '[[ "${1:-}" == "--dry-run" ]] && mode=dry-run\n'
+    # RECONCILE_SELF_EDIT rewrites this file during the DRY RUN, so the live
+    # invocation would execute code the dry run never proved.
+    printf '[[ -n "${RECONCILE_SELF_EDIT:-}" && "$mode" == "dry-run" ]] && printf "# edited between invocations\\n" >>"$0"\n'
     printf '[[ "${RECONCILE_FAIL:-}" == "$mode" ]] && exit 1\n'
     printf 'exit 0\n'
   } >"$SANDBOX_REPO/scripts/live-reconcile.sh"
@@ -128,14 +143,33 @@ cutover_write_render_view() {
   yq -o=json '{"packages": .packages}' "$data_file" >"$2"
 }
 
+# cutover_entry_pair <repo> <int-rev> <main-rev> <path> : the "<int>|<main>"
+# tree-entry pair the runner binds a classification row to.
+cutover_entry_pair() {
+  local repo="$1" int_rev="$2" main_rev="$3" path="$4" int_entry main_entry
+  int_entry="$(git -C "$repo" ls-tree "$int_rev" -- "$path" 2>/dev/null |
+    awk 'NR == 1 { printf "%s %s", $1, $3 }')"
+  main_entry="$(git -C "$repo" ls-tree "$main_rev" -- "$path" 2>/dev/null |
+    awk 'NR == 1 { printf "%s %s", $1, $3 }')"
+  printf '%s|%s' "$int_entry" "$main_entry"
+}
+
 # cutover_write_classification <home> : the operator's delta classification for
-# the two hunks the sandbox cannot auto-classify.
+# the two hunks the sandbox cannot auto-classify. Each row carries the exact
+# tree-entry pair it was written for, so it stops applying the moment either
+# side changes.
 cutover_write_classification() {
   local ledger="$1/.local/state/cutover"
+  local repo="$1/workspaces/Ivy/webdavis/dotfiles"
+  local int_rev main_rev
+  int_rev="$(git -C "$repo" rev-parse origin/integration/modernization)"
+  main_rev="$(git -C "$repo" rev-parse origin/main)"
   mkdir -p "$ledger"
   {
-    printf 'intentionally-improved\tb.txt\tmain carries the reviewed rewrite\n'
-    printf 'deliberately-omitted-with-reason\tc.txt\tsuperseded by the S9 split\n'
+    printf 'intentionally-improved\tb.txt\t%s\tmain carries the reviewed rewrite\n' \
+      "$(cutover_entry_pair "$repo" "$int_rev" "$main_rev" b.txt)"
+    printf 'deliberately-omitted-with-reason\tc.txt\t%s\tsuperseded by the S9 split\n' \
+      "$(cutover_entry_pair "$repo" "$int_rev" "$main_rev" c.txt)"
   } >"$ledger/delta-classification.tsv"
 }
 
@@ -168,6 +202,9 @@ case "${1:-}" in
     case "$target" in
       gui/*/* | system/*)
         label="${target##*/}"
+        # 112 is an operational error (an unreachable GUI domain on this host),
+        # NOT the 113 not-found status. A gate must never read it as absence.
+        [[ -n "${FAIL_PRINT:-}" && "$label" == "${FAIL_PRINT}" ]] && exit 112
         grep -qxF -- "$label" "$file" || exit 113
         detail=""
         [[ -f "$PRINT_DETAIL_DIR/$label" ]] && detail="$(cat "$PRINT_DETAIL_DIR/$label")"
@@ -218,6 +255,11 @@ case "$self" in
         cat "${CHEZMOI_DATA_FILE:-/dev/null}"
         exit 0
       fi
+      if [[ "$arg" == "managed" ]]; then
+        [[ -n "${FAIL_MANAGED:-}" ]] && exit 1
+        cat "${CHEZMOI_MANAGED_FILE:-/dev/null}" 2>/dev/null || true
+        exit 0
+      fi
     done
     [[ -n "${FAIL_CHEZMOI:-}" ]] && { printf " M %s\n" "${FAIL_CHEZMOI}"; exit 0; }
     exit 0
@@ -240,6 +282,14 @@ exit 0' >"$dir/$name"
 cutover_make_home_scripts() {
   local home="$1"
   mkdir -p "$home/.local/bin" "$home/.local/libexec/osquery"
+  # The shared canary-freshness seam the heartbeat and the uptime watchdog both
+  # source. CANARY_AGE (default 0) drives how stale the sandbox canary looks;
+  # CANARY_MISSING makes it unreadable.
+  # shellcheck disable=SC2016  # literal stub body; $vars resolve when it runs
+  printf '%s\n' 'newest_canary_timestamp() {
+  [[ -n "${CANARY_MISSING:-}" ]] && return 1
+  printf "%s" "$(($(date +%s) - ${CANARY_AGE:-0}))"
+}' >"$home/.local/libexec/osquery/canary-freshness.sh"
   # shellcheck disable=SC2016  # stub body is literal; $vars resolve when it runs
   printf '%s\n' '#!/usr/bin/env bash
 printf "relay %s\n" "$*" >>"$CMD_LOG"

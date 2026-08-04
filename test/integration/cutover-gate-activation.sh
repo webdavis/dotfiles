@@ -372,6 +372,111 @@ else
   report bad "K: an unloaded sshd did not refuse (rc=$RC, err: $(cat "$err_file"))"
 fi
 
+# ── Case L: pins are re-verified across the manual apply ───────────────────
+# The landing stage checks the pins, then the operator performs a manual step of
+# unbounded duration. Dependabot auto-merges into main during exactly that
+# window, so --post-apply must fetch and re-verify rather than trust the check
+# from before the pause.
+hL="$work/homeL"
+prepare "$hL"
+gate "$hL" 2 --second-session-open
+advance_origin "$hL" 'an auto-merge during the staged apply' >/dev/null
+gate "$hL" 2 --post-apply
+if [[ $RC -eq 1 ]] && grep -qi 'restart' "$err_file"; then
+  report ok "L: a pin that moved during the apply refuses at --post-apply"
+else
+  report bad "L: --post-apply ran against a moved pin (rc=$RC, err: $(cat "$err_file"))"
+fi
+if ! grep -q 'bootout' "$LAUNCHCTL_LOG"; then
+  report ok "L: nothing was retired against the stale pin"
+else
+  report bad "L: a service was retired against a stale pin"
+fi
+
+# ── Case M: the staged apply must leave evidence ───────────────────────────
+# The runner does not perform the apply, so without a convergence check it
+# cannot tell a completed apply from one that died on a bad formula, or one the
+# operator never started.
+hM="$work/homeM"
+prepare "$hM"
+gate "$hM" 2 --second-session-open
+run_gate "$hM" FAIL_CHEZMOI=dot_bashrc "$RUNNER" 2 --post-apply
+if [[ $RC -eq 1 ]] && grep -q 'dot_bashrc' "$err_file"; then
+  report ok "M: residual drift refuses, because the staged apply did not converge"
+else
+  report bad "M: an unconverged apply was recorded as a pass (rc=$RC, err: $(cat "$err_file"))"
+fi
+if ! grep -q 'bootout' "$LAUNCHCTL_LOG"; then
+  report ok "M: nothing is retired before the apply is proven"
+else
+  report bad "M: services were retired against an unconverged apply"
+fi
+if [[ ! -f "$(ledger_of "$hM")/gate2.done" ]]; then
+  report ok "M: gate 2 is not marked passed"
+else
+  report bad "M: gate2.done written for an unconverged apply"
+fi
+
+# ── Case N: the render is rechecked after the branch switch ────────────────
+# Gate 1 proved agreement for the PREVIOUS checkout. The landing changes the
+# working tree under chezmoi, and a nested stale copy still wins the render, so
+# the check has to run again while the operator can still stop.
+hN="$work/homeN"
+prepare "$hN"
+jq '.packages.macos.homebrew.casks -= ["lulu"]' "$CHEZMOI_DATA_FILE" >"$work/render-bad.json"
+cp "$work/render-bad.json" "$CHEZMOI_DATA_FILE"
+gate "$hN" 2 --second-session-open
+if [[ $RC -eq 1 ]] && grep -q 'system_packages_autoinstall.yaml' "$err_file"; then
+  report ok "N: a render that disagrees after the branch switch refuses"
+else
+  report bad "N: the landing stage skipped the render recheck (rc=$RC, err: $(cat "$err_file"))"
+fi
+if [[ ! -f "$(ledger_of "$hN")/gate2.landed" ]]; then
+  report ok "N: the landing is not recorded"
+else
+  report bad "N: gate2.landed written despite a disagreeing render"
+fi
+cutover_write_render_view "$hN" "$CHEZMOI_DATA_FILE"
+
+# ── Case O: an edited approved manifest is re-validated ────────────────────
+# Approval is a review of a specific list. Executing that file later without
+# re-checking it lets an edit made afterwards retire a live service.
+hO="$work/homeO"
+prepare "$hO"
+ledO="$(ledger_of "$hO")"
+gate "$hO" 2 --second-session-open
+printf 'com.webdavis.atuin-daemon\tgui/%s\n' "$uid" >>"$ledO/retirement-approved.tsv"
+gate "$hO" 2 --post-apply
+if [[ $RC -eq 1 ]] && grep -q 'com.webdavis.atuin-daemon' "$err_file"; then
+  report ok "O: a row appended after approval is caught, because it is a desired service"
+else
+  report bad "O: an edited approved manifest executed unchecked (rc=$RC, err: $(cat "$err_file"))"
+fi
+if ! grep -q 'bootout gui/.*atuin-daemon' "$LAUNCHCTL_LOG"; then
+  report ok "O: the live service was never booted out"
+else
+  report bad "O: a live service was retired from an edited manifest"
+fi
+
+# ── Case P: an unknown launchctl status is not absence ─────────────────────
+# launchctl answers not-found with 113. Every other non-zero status is an
+# operational error, and reading one as "already absent" is how a service that
+# is still running gets recorded as retired.
+hP="$work/homeP"
+prepare "$hP"
+gate "$hP" 2 --second-session-open
+run_gate "$hP" FAIL_PRINT=com.github.openclaw-setup.watchdog "$RUNNER" 2 --post-apply
+if [[ $RC -eq 1 ]] && grep -qi 'UNKNOWN' "$err_file"; then
+  report ok "P: an operational launchctl error refuses instead of reading as absence"
+else
+  report bad "P: a probe error was treated as confirmed absence (rc=$RC, err: $(cat "$err_file"))"
+fi
+if [[ ! -f "$(ledger_of "$hP")/gate2.done" ]]; then
+  report ok "P: gate 2 is not marked passed on an unknown load state"
+else
+  report bad "P: gate2.done written with a service in an unknown state"
+fi
+
 if [[ $failures -gt 0 ]]; then
   printf 'cutover-gate-activation: %d assertion(s) FAILED\n' "$failures" >&2
   exit 1

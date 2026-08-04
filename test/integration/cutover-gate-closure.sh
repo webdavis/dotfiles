@@ -415,6 +415,141 @@ else
   report bad "H: gate5.done not written"
 fi
 
+# ── Case I: a failed retry clears its own pass marker ──────────────────────
+# Pass markers are existence-only. A gate that fails after having passed once
+# leaves the old marker standing unless it clears it at entry, and the next gate
+# then runs against a pass that has since been withdrawn.
+hI="$work/homeI"
+prepare "$hI"
+ledI="$(ledger_of "$hI")"
+gate "$hI" 3
+if [[ -f "$ledI/gate3.done" ]]; then
+  report ok "I: gate 3 passes first"
+else
+  report bad "I: gate 3 setup failed (err: $(cat "$err_file"))"
+fi
+run_gate "$hI" FAIL_JUST=1 "$RUNNER" 3
+if [[ $RC -eq 1 ]] && [[ ! -f "$ledI/gate3.done" ]]; then
+  report ok "I: a failed retry withdraws the earlier pass"
+else
+  report bad "I: a failed gate 3 left its old pass marker in place (rc=$RC)"
+fi
+gate "$hI" 4
+if [[ $RC -eq 1 ]] && grep -qi 'gate 3' "$err_file"; then
+  report ok "I: gate 4 refuses after the withdrawn pass"
+else
+  report bad "I: gate 4 ran on a withdrawn gate 3 pass (rc=$RC, err: $(cat "$err_file"))"
+fi
+
+# ── Case J: the reconcile tool must be the pinned one, at both invocations ─
+# HEAD is unchanged by an edit to a tracked file, so checking HEAD proves
+# nothing about what the two invocations actually execute.
+hJ="$work/homeJ"
+prepare "$hJ"
+repoJ="$hJ/workspaces/Ivy/webdavis/dotfiles"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$repoJ/scripts/live-reconcile.sh"
+gate "$hJ" 3
+if [[ $RC -eq 1 ]] && grep -q 'live-reconcile.sh' "$err_file"; then
+  report ok "J: a working-tree edit to the reconcile tool refuses before the dry run"
+else
+  report bad "J: gate 3 ran an unreviewed reconcile tool (rc=$RC, err: $(cat "$err_file"))"
+fi
+if [[ ! -s $RECONCILE_LOG ]]; then
+  report ok "J: neither invocation happened"
+else
+  report bad "J: the edited tool was executed ($(tr '\n' '|' <"$RECONCILE_LOG"))"
+fi
+# The window that matters most is BETWEEN the two invocations: the dry run
+# proves one file and the live run mutates the machine with another.
+hJ2="$work/homeJ2"
+prepare "$hJ2"
+run_gate "$hJ2" RECONCILE_SELF_EDIT=1 "$RUNNER" 3
+if [[ $RC -eq 1 ]] && grep -q 'live-reconcile.sh' "$err_file"; then
+  report ok "J: a tool that changes between the dry run and the live run refuses"
+else
+  report bad "J: an edit between invocations went unnoticed (rc=$RC, err: $(cat "$err_file"))"
+fi
+if [[ "$(grep -c '' "$RECONCILE_LOG")" -eq 1 ]]; then
+  report ok "J: only the dry run executed; the live run never started"
+else
+  report bad "J: the edited tool still ran live ($(tr '\n' '|' <"$RECONCILE_LOG"))"
+fi
+
+# ── Case K: managed labels loaded after approval ───────────────────────────
+# The approved list is a snapshot from gate 1. A historical plist that loads
+# afterwards is in nobody's list, and verifying only the snapshot lets it ride
+# through closure untouched.
+hK="$work/homeK"
+prepare "$hK"
+printf 'com.webdavis.osquery-fim-notify\n' >>"$LOADED_GUI"
+gate "$hK" 3
+if [[ $RC -eq 1 ]] && grep -q 'com.webdavis.osquery-fim-notify' "$err_file"; then
+  report ok "K: a managed label loaded after approval refuses"
+else
+  report bad "K: a post-approval orphan passed verification (rc=$RC, err: $(cat "$err_file"))"
+fi
+seed_healthy
+
+# ── Case L: drift verification covers templated targets ────────────────────
+# --exclude=templates drops every templated target, secret or not, so a deleted
+# plist goes unreported while launchctl still shows its already-loaded job.
+hL="$work/homeL"
+prepare "$hL"
+gate "$hL" 3
+if grep -qE '^chezmoi status$' "$CMD_LOG"; then
+  report ok "L: drift is checked over every managed entry, templates included"
+else
+  report bad "L: the drift check still narrows its scope (log: $(grep chezmoi "$CMD_LOG" || true))"
+fi
+
+# ── Case M: the heartbeat's own verdict is what counts ─────────────────────
+# heartbeat.sh ends every branch in 'send_alert ... || true', so it exits 0 for
+# healthy, missing, stale and clock-error alike. Its verdict is the canary's
+# freshness, read through the shared seam.
+hM="$work/homeM"
+prepare "$hM"
+run_gate "$hM" CANARY_AGE=99999 "$RUNNER" 3
+if [[ $RC -eq 1 ]] && grep -qi 'canary' "$err_file"; then
+  report ok "M: a stale canary refuses even though the heartbeat exits 0"
+else
+  report bad "M: a silent unhealthy heartbeat passed (rc=$RC, err: $(cat "$err_file"))"
+fi
+run_gate "$hM" CANARY_MISSING=1 "$RUNNER" 3
+if [[ $RC -eq 1 ]]; then
+  report ok "M: a missing canary refuses"
+else
+  report bad "M: a missing canary passed (rc=$RC)"
+fi
+gate "$hM" 3
+if [[ $RC -eq 0 ]]; then
+  report ok "M: a fresh canary passes"
+else
+  report bad "M: a fresh canary was rejected (rc=$RC, err: $(cat "$err_file"))"
+fi
+
+# ── Case N: the soak re-verifies the launchd topology ──────────────────────
+# A job unloaded during the soak leaves its plist untouched, so chezmoi stays
+# clean and the smoke set never looks at launchd. The topology soaked has to be
+# the topology verified.
+hN="$work/homeN"
+prepare "$hN"
+ledN="$(ledger_of "$hN")"
+gate "$hN" 3
+touch -t 202601010000 "$ledN/gate3.done"
+grep -vxF 'com.webdavis.osquery-uptime-watchdog' "$LOADED_GUI" >"$LOADED_GUI.tmp"
+mv "$LOADED_GUI.tmp" "$LOADED_GUI"
+gate "$hN" 4
+if [[ $RC -eq 1 ]] && grep -q 'com.webdavis.osquery-uptime-watchdog' "$err_file"; then
+  report ok "N: a service unloaded during the soak refuses at the end of it"
+else
+  report bad "N: the soak closed with a service silently gone (rc=$RC, err: $(cat "$err_file"))"
+fi
+if [[ ! -f "$ledN/gate4.done" ]]; then
+  report ok "N: gate 4 is not marked passed"
+else
+  report bad "N: gate4.done written with a missing service"
+fi
+
 if [[ $failures -gt 0 ]]; then
   printf 'cutover-gate-closure: %d assertion(s) FAILED\n' "$failures" >&2
   exit 1
