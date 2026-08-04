@@ -66,6 +66,14 @@ weekday="$(jq -r '.StartCalendarInterval.Weekday' "$plist_json")"
 [[ $weekday == "1" ]] || fail "the agent does not fire on Monday (Weekday $weekday)"
 [[ "$(jq -r '.StartCalendarInterval.Minute' "$plist_json")" == "0" ]] ||
   fail "the agent does not fire on the hour"
+# The HOUR is pinned, not just the weekday and minute. It is chosen: an hour
+# after com.webdavis.homebrew-weekly-upgrade so the two records do not land in
+# the channel together, and well into a working day so a Claude Code session has
+# had the chance to start and perform the auto-update this reports on. Without
+# this line, retiming the job to 14:00 keeps every other assertion green.
+report_hour="$(jq -r '.StartCalendarInterval.Hour' "$plist_json")"
+[[ $report_hour == "13" ]] ||
+  fail "the agent no longer fires at 13:00 (Hour $report_hour); if the retime is deliberate, move this assertion and check the reasoning in the plist comment still holds"
 
 [[ "$(jq -r '.RunAtLoad' "$plist_json")" == "false" ]] ||
   fail "RunAtLoad is not false; loading the agent would post an entry out of schedule"
