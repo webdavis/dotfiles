@@ -432,4 +432,41 @@ grep -qF "$MARKER" <<<"$RUN_OUTPUT" ||
 grep -qF 'set -euo pipefail' "$HELPER" ||
   fail "the helper does not run under set -euo pipefail"
 
+# ── 16. THE BASELINE IS ESTABLISHED AT DEPLOY TIME, not at the first scheduled
+#       run. The apply that deploys this record is also the apply that turns on
+#       marketplace auto-updates, so a machine set up on Tuesday whose plugin
+#       moves on Wednesday would have had Monday record the NEW version as its
+#       baseline and report nothing: the first transition, lost for good and
+#       invisible by construction. --seed-baseline is what the apply-time loader
+#       calls to close that window. ──────────────────────────────────────────
+rm -rf "$HOME/.local/state"
+write_plugin_state "11.0.0"
+run_helper --seed-baseline
+[[ $RUN_RC -eq 0 ]] || fail "--seed-baseline exited $RUN_RC: $RUN_OUTPUT"
+[[ -f $SNAPSHOT ]] || fail "--seed-baseline recorded no baseline: $RUN_OUTPUT"
+grep -qF 'exa@claude-plugins-official	11.0.0' "$SNAPSHOT" ||
+  fail "the seeded baseline does not hold the reading taken at deploy time: $(cat "$SNAPSHOT")"
+refute '.' "$(cat "$RELAY_LOG")" "the deploy-time seed posted to a channel; it has nothing to report yet"
+
+# Seeding again leaves the baseline alone. Applies are routine and a plugin may
+# well have moved since the last one, so a seed that overwrote would swallow
+# exactly the transition it exists to capture.
+write_plugin_state "11.5.0"
+run_helper --seed-baseline
+[[ $RUN_RC -eq 0 ]] || fail "a second --seed-baseline exited $RUN_RC: $RUN_OUTPUT"
+grep -qF 'exa@claude-plugins-official	11.0.0' "$SNAPSHOT" ||
+  fail "a second seed overwrote the baseline, swallowing the change since the first: $(cat "$SNAPSHOT")"
+
+# And the first scheduled run reports what moved between the deploy and it.
+rm -rf "$STATE_DIR/log-week-claims"
+run_helper --scheduled
+entries="$(log_entries)"
+grep -qE '11\.0\.0.*->.*11\.5\.0' <<<"$entries" ||
+  fail "the transition between the deploy-time seed and the first scheduled run was not reported: $entries"
+
+# The two modes are different jobs, so asking for both is an error rather than a
+# quiet win for whichever the code happens to check first.
+run_helper --scheduled --seed-baseline
+[[ $RUN_RC -eq 2 ]] || fail "--scheduled together with --seed-baseline did not exit 2 (got $RUN_RC): $RUN_OUTPUT"
+
 echo "report-plugin-updates-record: OK"

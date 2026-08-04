@@ -7,6 +7,34 @@ set -euo pipefail
 
 mkdir -p "$HOME/.local/log/plugins"
 
+# SEED THE BASELINE HERE, and mind the order. The record compares this week's
+# plugin versions against a stored previous reading, and whichever run records
+# that first reading reports nothing itself. If the FIRST scheduled run is the
+# one that does it, everything Claude Code's own auto-update changed between this
+# apply and that Monday is baked into the baseline and reported never: deploy on
+# Tuesday, a plugin moves on Wednesday, Monday records the new version as the
+# starting point and says nothing moved.
+#
+# ORDERING REQUIREMENT: this apply is also the apply that enables marketplace
+# auto-updates (the extraKnownMarketplaces entries in
+# private_dot_claude/modify_settings.json, applied with the other targets before
+# any run_after script), so the seed has to happen in the SAME apply, and nothing
+# between that settings write and this line may start Claude Code. It must also
+# stay AFTER the helper itself is deployed and BEFORE the agent is bootstrapped
+# below, so the first scheduled run always finds a baseline waiting.
+#
+# Seeding is idempotent: an existing baseline is left alone, so re-running this
+# on every plist change costs nothing and cannot swallow a change.
+HELPER="$HOME/.local/bin/report-plugin-updates.sh"
+if [[ -x $HELPER ]]; then
+  # Never fatal. A chezmoiscript that exits non-zero aborts the whole apply, and
+  # a machine with no plugin inventory yet has no first transition to lose.
+  "$HELPER" --seed-baseline ||
+    printf 'report-plugin-updates: the baseline could not be seeded at apply time; the first scheduled run will record it instead, and anything that moves before then goes unreported\n' >&2
+else
+  printf 'report-plugin-updates: %s is not deployed yet, so no baseline was seeded\n' "$HELPER" >&2
+fi
+
 PLIST="$HOME/Library/LaunchAgents/com.webdavis.report-plugin-updates.plist"
 TARGET="gui/$(id -u)/com.webdavis.report-plugin-updates"
 

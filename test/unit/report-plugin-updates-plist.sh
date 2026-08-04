@@ -89,6 +89,22 @@ log_directory="$(dirname "$log_directory")"
 grep -qF -- "$log_directory" "$LOADER" ||
   fail "the loader does not create $log_directory, the directory the agent writes its log into; launchd refuses to start an agent whose log directory is absent"
 
+# THE BASELINE IS SEEDED AT DEPLOY TIME, by this loader, because the first run
+# to record a baseline reports nothing itself. Leave that to the first SCHEDULED
+# run and everything Claude Code's own auto-update changed between the apply and
+# that Monday is baked into the baseline and reported never, on the same apply
+# that turned those auto-updates on. It must also come BEFORE the bootstrap, so
+# the agent never has a Monday without a baseline waiting.
+# `|| true` so a loader that stopped seeding reaches the message below instead of
+# ending the run on errexit with nothing said about why.
+seed_line="$(grep -n -- '--seed-baseline' "$LOADER" | head -1 | cut -d: -f1 || true)"
+[[ -n $seed_line ]] ||
+  fail "the loader never seeds the baseline (--seed-baseline), so the first scheduled run records one and every plugin that moved between the deploy and it is reported nowhere"
+bootstrap_line="$(grep -n 'launchctl bootstrap' "$LOADER" | head -1 | cut -d: -f1 || true)"
+[[ -n $bootstrap_line ]] || fail "the loader no longer bootstraps the agent"
+[[ $seed_line -lt $bootstrap_line ]] ||
+  fail "the loader seeds the baseline after bootstrapping the agent (line $seed_line, bootstrap line $bootstrap_line)"
+
 # The sibling weekly job posts to the same channel, so the two must not share a
 # minute. Compared against the rendered sibling rather than a hardcoded hour, so
 # moving either job keeps this honest.

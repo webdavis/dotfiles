@@ -25,7 +25,7 @@
 # WHAT REACHES THE CHANNEL: plugin ids and version fingerprints, nothing else.
 # Never an installPath (an absolute home path), never a marketplace source URL.
 #
-# Usage: report-plugin-updates.sh [--scheduled]
+# Usage: report-plugin-updates.sh [--scheduled | --seed-baseline]
 #   --scheduled  marks this as the LaunchAgent's run. ONLY a scheduled run posts
 #                an entry, advances the success marker or moves the snapshot,
 #                mirroring homebrew-weekly-upgrade.sh and update-skills.sh.
@@ -34,6 +34,19 @@
 #                would look alive, inverting the one signal the record carries.
 #                A manual run still prints the comparison to stdout, which is
 #                what makes it useful for checking the helper by hand.
+#   --seed-baseline
+#                records the FIRST reading and stops. This is the apply-time
+#                mode, called by the loader chezmoiscript, and it exists because
+#                of an ordering the schedule cannot satisfy on its own: the same
+#                apply that deploys this record also turns marketplace
+#                auto-updates on. Baselining at the first SCHEDULED run instead
+#                means a machine deployed on Tuesday whose plugin moves on
+#                Wednesday has Monday record the NEW version as the baseline and
+#                report nothing. That first transition is then lost for good, and
+#                lost invisibly, which is the failure this whole record exists to
+#                prevent. Seeding is idempotent: an existing baseline is left
+#                exactly as it is, because applies are routine and a seed that
+#                overwrote would swallow the change it was meant to catch.
 #
 # ERREXIT IS ON, and every failure this helper means to TOLERATE is guarded where
 # it happens rather than by leaving errexit off: the relay call inside alert(),
@@ -68,16 +81,26 @@ AGENT_NAME='report-plugin-updates'
 # the plist would otherwise run every week and quietly post nothing, which looks
 # exactly like a dead LaunchAgent.
 SCHEDULED=""
+SEED_BASELINE=""
 for arg in "$@"; do
   case "$arg" in
     --scheduled) SCHEDULED=1 ;;
+    --seed-baseline) SEED_BASELINE=1 ;;
     *)
-      printf 'usage: report-plugin-updates.sh [--scheduled]\n%s: unknown argument: %s\n' \
+      printf 'usage: report-plugin-updates.sh [--scheduled | --seed-baseline]\n%s: unknown argument: %s\n' \
         "$AGENT_NAME" "$arg" >&2
       exit 2
       ;;
   esac
 done
+
+# Two different jobs, so asking for both is an error rather than a quiet win for
+# whichever the code happens to test first.
+if [[ -n $SCHEDULED && -n $SEED_BASELINE ]]; then
+  printf 'usage: report-plugin-updates.sh [--scheduled | --seed-baseline]\n%s: --scheduled and --seed-baseline are different modes; pass one\n' \
+    "$AGENT_NAME" >&2
+  exit 2
+fi
 
 # The shared entry shape. A missing library is LOUD and never silent: this whole
 # helper is a record, and a record that quietly stops being posted is the
@@ -354,7 +377,7 @@ printf 'read %d user-scope plugin(s) from %s\n' "$(wc -l <"$current" | tr -d ' '
 # every installed plugin as newly added, on a machine where nothing happened.
 if [[ ! -f $SNAPSHOT_FILE ]]; then
   printf '%s: no snapshot yet; recording this reading as the baseline and posting nothing\n' "$AGENT_NAME"
-  if [[ -z $SCHEDULED ]]; then
+  if [[ -z $SCHEDULED && -z $SEED_BASELINE ]]; then
     printf '%s: this is not a scheduled run, so the baseline was NOT written\n' "$AGENT_NAME"
     exit 0
   fi
@@ -371,6 +394,15 @@ if [[ ! -f $SNAPSHOT_FILE ]]; then
     exit 1
   fi
   mark_success_or_exit
+  exit 0
+fi
+
+# A baseline already exists, so the deploy-time seed has nothing left to do.
+# Leaving it exactly as it is, is the point: applies are routine and a plugin may
+# well have moved since the last one, so a seed that re-baselined would swallow
+# the very transition it was added to capture.
+if [[ -n $SEED_BASELINE ]]; then
+  printf '%s: a baseline is already recorded at %s; nothing to seed\n' "$AGENT_NAME" "$SNAPSHOT_FILE"
   exit 0
 fi
 
