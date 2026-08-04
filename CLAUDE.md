@@ -136,7 +136,8 @@ file holds:
   startup on its own, but only defaults that on for marketplaces Anthropic publishes (read out of the
   shipped 2.1.220 binary on 2026-08-03), so without these four entries those plugins sit at their install
   version forever. The write is per marketplace key, so a marketplace added with
-  `claude plugin marketplace add` keeps its own entry.
+  `claude plugin marketplace add` keeps its own entry. What those silent startup updates changed is
+  recorded weekly by `~/.local/bin/report-plugin-updates.sh`; see **Plugin Update Record**.
 
 **2. Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
@@ -722,6 +723,36 @@ stale code, silently breaking recording via gRPC schema drift (now self-healing 
 `dot_bashrc.tmpl` after `atuin init`). `atuin status` is for *sync* status only and errors when not
 logged in, it is not a "is the daemon working" check; use `atuin daemon status` (reports `Version`,
 `Protocol`, `Healthy`) for daemon health.
+
+### Plugin Update Record
+
+Claude Code updates marketplaces and their installed plugins at startup by itself (see the
+`extraKnownMarketplaces` entries under **Claude Code Settings**), so nothing here installs or upgrades a
+plugin. What Claude Code does not do is leave a record, so `~/.local/bin/report-plugin-updates.sh` is the
+record: read-only, weekly, one entry to the same `#unattended-upgrades` channel and in the same shape as
+the weekly Homebrew upgrade and the weekly skills update (`dot_local/bin/unattended-log-lib.sh` holds the
+shared entry shape and the reasoning behind it).
+
+- **Source of truth:** `~/.claude/plugins/installed_plugins.json`, the file Claude Code maintains (schema
+  version 2, verified against the live file 2026-08-03). Only USER-scope install records are read. The
+  two sibling files were checked and rejected: `known_marketplaces.json` records marketplaces rather than
+  plugin versions, and `plugin-catalog-cache.json` lists what is available, not what is installed.
+- **Fingerprint:** `version` when the marketplace publishes a real one, else `gitCommitSha`, else the
+  literal `unknown`. `lastUpdated` was rejected as a further fallback because six plugins carried their
+  marketplace's own `lastUpdated` to the second, so a plain marketplace refresh would have reported all
+  six as changed every week.
+- **What reaches the channel:** plugin ids and fingerprints, nothing else. Never an `installPath` (an
+  absolute home path), never a marketplace source URL.
+- **State:** `~/.local/state/report-plugin-updates/`, holding the previous reading, the success marker
+  and the ISO-week guard. The snapshot moves only AFTER an entry is delivered, so a change the gateway
+  refused is reported by the next run instead of being lost.
+- **Schedule:** `com.webdavis.report-plugin-updates`, Monday 13:00, `RunAtLoad=false`, logging to
+  `~/.local/log/plugins/report-updates.log`. It passes `--scheduled`, and only a scheduled run posts,
+  moves the snapshot or advances the marker; a manual run prints the comparison and changes nothing.
+- **First run** records a baseline and posts nothing. **A quiet week still posts**, naming zero changes,
+  because a clean week and a dead LaunchAgent otherwise produce identical silence. **An unreadable state
+  file posts no record at all** and alerts on the priority route instead, since the only change list it
+  could build from a file it cannot read is a false "nothing changed".
 
 ### Happy Daemon (Remote Agent Control)
 
