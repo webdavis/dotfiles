@@ -293,4 +293,27 @@ refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
 [[ "$(cat "$SNAPSHOT")" == "$snapshot_before" ]] ||
   fail "a doubled inventory moved the snapshot: $(cat "$SNAPSHOT")"
 
+# ── 10. A MALFORMED install record is refused, not filtered out. Records used to
+#       be selected by scope BEFORE their shape was checked, so a record whose
+#       key reads `scop` instead of `scope` simply vanished from the reading and
+#       the entry announced the plugin as REMOVED. A typo in a file this helper
+#       only reads must never be reported as something leaving the machine. ────
+rm -rf "$STATE_DIR/log-week-claims"
+write_plugin_state "5.0.0"
+awk '/"scope": "user"/ && !done { sub(/"scope"/, "\"scop\""); done = 1 } { print }' \
+  "$PLUGIN_STATE" >"$tmp/typo.json"
+grep -qF '"scop"' "$tmp/typo.json" || fail "the fixture for the typo case did not actually mistype a scope key"
+cp "$tmp/typo.json" "$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] ||
+  fail "an install record with a mistyped scope key exited 0: $RUN_OUTPUT"
+refute 'exa@claude-plugins-official.*removed' "$(log_entries)" \
+  "a mistyped scope key was reported as the plugin being removed"
+refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
+  "an install record this helper could not read still produced a record"
+[[ -n "$(alert_entries)" ]] ||
+  fail "an install record with a mistyped scope key alerted nobody: $RUN_OUTPUT"
+[[ "$(cat "$SNAPSHOT")" == "$snapshot_before" ]] ||
+  fail "an install record with a mistyped scope key moved the snapshot: $(cat "$SNAPSHOT")"
+
 echo "report-plugin-updates-record: OK"

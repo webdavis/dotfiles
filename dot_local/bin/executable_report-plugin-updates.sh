@@ -180,6 +180,13 @@ record_entry() {
 # template it protects treats an empty file as an absent one, whereas an empty
 # inventory here is a reading nobody can compare against.
 #
+# EVERY RECORD IS SHAPE-CHECKED BEFORE THE SCOPE FILTER, which is the order that
+# matters. Selecting on `.scope == "user"` first makes a record whose key reads
+# `scop` (or holds a number, or is not an object at all) simply drop out of the
+# reading, and a plugin that drops out of a reading is reported as REMOVED. A
+# typo in a file this helper only ever reads must not be announced as software
+# leaving the machine, so a record it cannot interpret refuses the whole run.
+#
 # STDERR IS THE CALLER'S TO REDIRECT, and is deliberately not merged into stdout
 # here. Merged, any line jq ever writes to stderr on an otherwise SUCCESSFUL run
 # would be sorted into the snapshot as a row with no tab, which
@@ -202,6 +209,8 @@ plugin_snapshot() {
     | .key as $id
     | (if (.value | type) == "array" then .value else error("the entry for \($id) is not an array of install records") end)
     | .[]
+    | (if type == "object" then . else error("an install record for \($id) is not an object") end)
+    | (if (.scope | type) == "string" then . else error("an install record for \($id) carries no scope string") end)
     | select(.scope == "user")
     | [$id, (if ((.version | type) == "string" and .version != "" and .version != "unknown")
              then .version
