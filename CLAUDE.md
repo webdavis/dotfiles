@@ -422,8 +422,8 @@ aborting and warning rather than leaving a worktree half-rebased.
 ### Bashrc init ordering
 
 The canonical order inside the interactive block is direnv, starship, zoxide, atuin. Direnv's hook runs
-early; starship initializes before the two `PROMPT_COMMAND` writers; zoxide and atuin initialize late
-within the interactive block, atuin last.
+early and is the first of the three `PROMPT_COMMAND` writers; starship initializes next; zoxide and atuin
+initialize late within the interactive block, atuin last.
 
 `bash-preexec` is sourced explicitly from Homebrew (atuin 18.x stopped bundling it) BEFORE `atuin init`,
 because atuin's `__atuin_preexec` and `__atuin_precmd` and this repo's long-running command timer all
