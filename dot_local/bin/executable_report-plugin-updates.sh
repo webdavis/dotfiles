@@ -334,8 +334,16 @@ if [[ ! -f $SNAPSHOT_FILE ]]; then
     printf '%s: this is not a scheduled run, so the baseline was NOT written\n' "$AGENT_NAME"
     exit 0
   fi
+  # A reader that cannot remember what it read is a reader that reports nothing,
+  # every week, for as long as the write keeps failing: the next run finds no
+  # snapshot, records another baseline and stays quiet. That has to reach the
+  # route that buzzes, because the run log is the one place nobody looks and the
+  # symptom on the record channel is indistinguishable from a healthy machine.
   if ! write_snapshot "$current"; then
     printf '%s: the baseline could not be written to %s\n' "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
+    alert plugin-record-broken \
+      "$(printf 'The Claude Code plugin record on %s read its plugins but could not persist the baseline to %s. Until that write succeeds every run records a baseline afresh and reports NOTHING, which looks exactly like a week in which nothing moved.' \
+        "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
     exit 1
   fi
   unattended_log_mark_success "$LOG_SUCCESS_MARKER"
@@ -361,6 +369,9 @@ fi
 if ! write_snapshot "$current"; then
   printf '%s: the entry was delivered but the snapshot at %s could not be updated; the next entry will repeat this change\n' \
     "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
+  alert plugin-record-broken \
+    "$(printf 'The Claude Code plugin record on %s delivered this week entry but could not persist the new reading to %s, so every later run re-reports the same change. The state directory needs attention.' \
+      "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
   exit 1
 fi
 unattended_log_mark_success "$LOG_SUCCESS_MARKER"

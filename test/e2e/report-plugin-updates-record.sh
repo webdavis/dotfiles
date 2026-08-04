@@ -388,4 +388,22 @@ grep -qF 'exa@claude-plugins-official	8.1.0' "$SNAPSHOT" ||
 [[ "$(inode_of "$SNAPSHOT")" != "$snapshot_inode_before" ]] ||
   fail "the snapshot was written in place rather than renamed over; a write interrupted halfway leaves a truncated snapshot and the next run reports every plugin as newly added"
 
+# ── 14. A BASELINE THAT CANNOT BE PERSISTED is alerted, not just logged. A run
+#       that reads fine and cannot remember what it read finds no snapshot again
+#       next week, records another baseline, and reports nothing for as long as
+#       the state directory stays unwritable. The local log is the one place
+#       nobody looks, so this goes on the route that buzzes. ─────────────────
+rm -rf "$HOME/.local/state"
+mkdir -p "$STATE_DIR"
+chmod 555 "$STATE_DIR"
+write_plugin_state "9.0.0"
+run_helper --scheduled
+chmod 755 "$STATE_DIR"
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a run that could not persist its baseline exited 0: $RUN_OUTPUT"
+[[ -n "$(alert_entries)" ]] ||
+  fail "a run that could not persist its baseline alerted nobody, so it reports nothing every week in silence: $RUN_OUTPUT"
+grep -qF "$SNAPSHOT" <<<"$(alert_entries)" ||
+  fail "the alert does not name the path that could not be written: $(alert_entries)"
+
 echo "report-plugin-updates-record: OK"
