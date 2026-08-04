@@ -690,12 +690,13 @@ write_hardened_dropin
 # stub, and the stub never opens the configuration tree. The real sshd does,
 # and it applies no type filter of its own: measured 2026-08-01 against OpenSSH
 # 10.0p2 on macOS 26.2, this exact tree makes `sshd -G` and `sshd -t` each hit
-# a 10s timeout where the same tree without the pipe exits 0. A production
-# --reload over it therefore hangs at its syntax check, and a production
-# --verify hangs with an empty stdout AND an empty stderr. That is sshd's
-# behaviour, it predates this branch, and no filter in the script reaches it.
-# What this case judges is only the narrower property the script does own: its
-# own walk neither opens the pipe nor stops on it.
+# a 10s timeout where the same tree without the pipe exits 0. That is sshd's
+# behaviour and no filter in the script reaches it. What the script owns is what
+# it does about it, and that is now two separate things: its own walk neither
+# opens the pipe nor stops on it (this case), and every call it makes to sshd is
+# bounded, so a production --reload over this tree fails at its syntax check
+# instead of parking there (test/e2e/ssh-hardening-verify-watchdog.sh, cases 8
+# and 9, which is where the wall clock that would prove it belongs).
 
 fifo_path="$SSHD_CONFIG_D/040-fifo.conf"
 mkfifo "$fifo_path"

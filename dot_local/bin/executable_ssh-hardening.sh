@@ -55,12 +55,14 @@
 #                       reload for as long as it blocks -- the bound limits
 #                       how many times a probe runs, not how long one takes.
 #   SSH_HARDENING_VERIFY_DEADLINE
-#                       seconds the child verify may run before it is stopped
-#                       and reported as a FAILED verify (default 120; see
-#                       VERIFY_DEADLINE_SECONDS for why that bound is safe and
-#                       what an expiry costs). Anything but a positive whole
-#                       number is the default. The override exists for tests,
-#                       which cannot wait out the real bound.
+#                       seconds any ONE sshd call this script waits on may run
+#                       before it is stopped and its failure reported: the child
+#                       verify, and --reload's syntax check and port resolution
+#                       (default 120; see VERIFY_DEADLINE_SECONDS for why that
+#                       bound is safe and what an expiry costs). Anything but a
+#                       positive whole number, or more than one day, is the
+#                       default. The override exists for tests, which cannot
+#                       wait out the real bound.
 #   SSH_HARDENING_ALLOW_MISSING_SSHD
 #                       explicit test seam: when set to a TRUE-ish value AND
 #                       $SSHD_BIN cannot run, --verify skips (exit 0) WITHOUT a
@@ -364,9 +366,28 @@ VERIFY_FAILURES=()
 #
 # A value that is not a positive whole number of seconds is the DEFAULT, never
 # taken at face value: 0 would stop every verify at once, and a non-number would
-# make the arithmetic in run_verify_child a shell error.
+# make the arithmetic in run_bounded a shell error.
+#
+# So is a value past VERIFY_DEADLINE_MAX_SECONDS, and that bound is not
+# decoration. The wait is counted in TICKS, four per second, and bash arithmetic
+# is signed 64-bit: SSH_HARDENING_VERIFY_DEADLINE=2305843009213693952 multiplied
+# by four is exactly -9223372036854775808 (measured on bash 3.2.57), so the tick
+# budget comes out NEGATIVE, the poll loop never runs a single pass, and a
+# perfectly healthy verify is stopped the instant it starts and reported as
+# having timed out after 2.3e18 seconds -- which on the install path rolls a
+# valid install back. The digit-count in the pattern is what keeps the range
+# comparison itself out of overflow territory: a 30-digit value would wrap
+# before `-gt` ever saw it, so it is refused by shape before it is compared.
+#
+# One day is the maximum, and it is already absurd for the job: the measurements
+# above put a real verify at 0.22s and a deliberately oversized one at 5.1s.
+# What the ceiling exists for is arithmetic safety, not policy.
+VERIFY_DEADLINE_MAX_SECONDS=86400
 VERIFY_DEADLINE_SECONDS="${SSH_HARDENING_VERIFY_DEADLINE:-120}"
-[[ $VERIFY_DEADLINE_SECONDS =~ ^[1-9][0-9]*$ ]] || VERIFY_DEADLINE_SECONDS=120
+if [[ ! $VERIFY_DEADLINE_SECONDS =~ ^[1-9][0-9]{0,4}$ ]] ||
+  [[ $VERIFY_DEADLINE_SECONDS -gt $VERIFY_DEADLINE_MAX_SECONDS ]]; then
+  VERIFY_DEADLINE_SECONDS=120
+fi
 VERIFY_STOP_GRACE_SECONDS=2
 # The wait POLLS, because bash has no wait-with-timeout. A quarter second and
 # not a whole one: the check runs before the first sleep, so a whole-second
@@ -382,20 +403,113 @@ VERIFY_POLL_TICKS_PER_SECOND=4
 # watchdog's ticks into the seam log every other assertion diffs.
 VERIFY_POLL_SLEEP='/bin/sleep'
 
-# stop_verify_child <pid>: stop a verify that is past its deadline, and
-# everything it started. TERM to the whole PROCESS GROUP, then KILL to the same
-# group after the grace: the chain is this shell -> bash -> sshd, and sshd is
-# the process actually blocked, so signalling the group leader alone would leave
-# the real sshd holding the open forever. The group id IS the child's pid
-# (run_verify_child starts it under monitor mode for exactly this), and the child
-# is not reaped until after both kills, so its pid cannot be recycled underneath
+# stop_bounded_group <pid>: stop a bounded command that is past its deadline,
+# and everything it started. TERM to the whole PROCESS GROUP, then KILL to the
+# same group after the grace: the chain is this shell -> bash -> sshd, and sshd
+# is the process actually blocked, so signalling the group leader alone would
+# leave the real sshd holding the open forever. The group id IS the child's pid
+# (run_bounded starts it under monitor mode for exactly this), and the child is
+# not reaped until after both kills, so its pid cannot be recycled underneath
 # them. Never fails: a group that exited between the deadline check and here is
 # the same outcome as one that took the signal.
-stop_verify_child() {
+#
+# The KILL is not belt-and-braces. sshd blocked in an open on a named pipe does
+# take the TERM, but nothing makes that true of every process a bounded command
+# can be waiting on: one that traps or ignores TERM survives the first signal
+# and the group has to be killed outright, which is the case
+# test/e2e/ssh-hardening-verify-watchdog.sh drives with a TERM-ignoring wedge.
+stop_bounded_group() {
   local child_pid="$1"
   kill -TERM -"$child_pid" 2>/dev/null || :
   "$VERIFY_POLL_SLEEP" "$VERIFY_STOP_GRACE_SECONDS" || :
   kill -KILL -"$child_pid" 2>/dev/null || :
+}
+
+# The status run_bounded returns when it stopped a command at its deadline,
+# rather than the status the command itself exited with. 124 is the value
+# timeout(1) reports the same event with; nothing here shells out to timeout
+# (stock macOS ships none) and the number is only ever compared against this
+# name.
+BOUNDED_TIMEOUT_STATUS=124
+
+# The pid (and process group id) of the bounded command running right now, empty
+# when none is. Global because the install path's interrupt handler has to reach
+# the same group stop_bounded_group reaches, from a trap that fires while
+# run_bounded is mid-poll.
+BOUNDED_CHILD_PID=''
+
+# run_bounded <deadline-seconds> <command...>: run one command in a process
+# group of its own, bounded by a wall clock. Returns the command's own exit
+# status, or BOUNDED_TIMEOUT_STATUS if the deadline fired first, in which case
+# the whole group has been stopped before this returns.
+#
+# ONE mechanism, three call sites: the child verify, the reload's syntax check,
+# and the reload's port resolution. Every one of them runs sshd over the
+# configuration tree, and sshd blocks forever on a named pipe reached through
+# its own Include glob (measured 2026-08-01; sshd applies no type filter), so
+# each is a step that can fail to return rather than return a failure. A second
+# watchdog mechanism for the later two would be a second set of edge cases to
+# get right, and the deadline knob would stop meaning one thing.
+#
+# No timeout(1) is involved, stock macOS ships none; the bound is the poll.
+#
+# Monitor mode across the launch and nothing else. It is what puts the child in
+# a process group of its own, which is what lets stop_bounded_group reach the
+# sshd underneath it; without it the child shares this shell's group and the
+# only safe signal target is the child alone.
+#
+# What the separate group COSTS, said rather than left to be found: Ctrl-C goes
+# to the foreground group, so it no longer reaches this child. The install path
+# answers that with a trap (see handle_install_interrupt); a --reload
+# interrupted mid-preflight leaves the bounded command running until its own
+# deadline collects it, and nothing has been disturbed at that point.
+#
+# stdin from /dev/null: an UNmonitored background job gets that for free, a
+# monitored one keeps the shell's stdin, and a child reading a terminal from its
+# own process group is stopped by SIGTTIN, which is a hang of its own.
+#
+# SIGTTOU and SIGTTIN are IGNORED for the whole group, and that is the fix for a
+# defect, not a precaution. Under `stty tostop` (not the default, but a setting
+# operators do use) a process in a background group is STOPPED the moment it
+# writes to the terminal. The verify writes: its very first line is the PASS or
+# the failure list. Measured through a pty: without this, a healthy verify stops
+# on its first write, `kill -0` keeps answering 0 for a stopped process, the
+# poll runs to the deadline, and a VALID install is reported as timed out and
+# rolled back. An ignored disposition survives both fork and exec, so the bash
+# under this subshell and the sshd under that inherit it, and a background write
+# then completes instead of stopping.
+run_bounded() {
+  local deadline_seconds="$1"
+  shift
+  local ticks=0 status=0
+  local deadline_ticks=$((deadline_seconds * VERIFY_POLL_TICKS_PER_SECOND))
+  set -m
+  (
+    trap '' TTOU TTIN
+    "$@"
+  ) </dev/null &
+  BOUNDED_CHILD_PID=$!
+  set +m
+  while [[ $ticks -lt $deadline_ticks ]] &&
+    kill -0 "$BOUNDED_CHILD_PID" 2>/dev/null; do
+    "$VERIFY_POLL_SLEEP" "$VERIFY_POLL_INTERVAL"
+    ticks=$((ticks + 1))
+  done
+  if kill -0 "$BOUNDED_CHILD_PID" 2>/dev/null; then
+    # The reap, and the job-control notice it draws, go to /dev/null: the child
+    # was started under monitor mode, so bash announces the termination itself
+    # ("Terminated: 15") at the next command boundary, and that line reads as an
+    # internal error beside the message the caller prints.
+    {
+      stop_bounded_group "$BOUNDED_CHILD_PID"
+      wait "$BOUNDED_CHILD_PID"
+    } 2>/dev/null || :
+    BOUNDED_CHILD_PID=''
+    return "$BOUNDED_TIMEOUT_STATUS"
+  fi
+  { wait "$BOUNDED_CHILD_PID"; } 2>/dev/null || status=$?
+  BOUNDED_CHILD_PID=''
+  return "$status"
 }
 
 # run_verify_child: re-run this script's --verify in a CHILD shell, bounded. bash
@@ -410,54 +524,27 @@ stop_verify_child() {
 #
 # Both callers read the result the same way they always did: nonzero is a failed
 # verify, and a verify stopped at its deadline returns nonzero like any other.
-# No `timeout(1)` is involved, stock macOS ships none; the bound is the poll
-# below.
-run_verify_child() {
-  local child_pid ticks=0 status=0
-  local deadline_ticks=$((VERIFY_DEADLINE_SECONDS * VERIFY_POLL_TICKS_PER_SECOND))
-  # Monitor mode across the launch and nothing else. It is what puts the child
-  # in a process group of its own, which is what lets stop_verify_child reach
-  # the sshd underneath it; without it the child shares this shell's group and
-  # the only safe signal target is the child alone.
-  #
-  # What the separate group COSTS, said rather than left to be found: Ctrl-C
-  # goes to the foreground group, so it no longer reaches this child. An
-  # operator who interrupts a hung install inside the deadline leaves that
-  # verify running, where before it died with this shell. What is left behind is
-  # a blocked reader that writes nothing, and the deadline it was interrupted
-  # before is what would otherwise have collected it.
-  #
-  # stdin from /dev/null: an UNmonitored background job gets that for free,
-  # a monitored one keeps the shell's stdin, and a child reading a terminal
-  # from its own process group is stopped by SIGTTIN, which is a hang of its
-  # own. Nothing in --verify reads stdin, and this keeps it that way.
-  set -m
+#
+# The seams are passed explicitly, in a function rather than inline, because
+# run_bounded takes a COMMAND: an environment-prefixed assignment is shell
+# syntax, not an argument vector, so it cannot be handed over as one.
+verify_child_command() {
   SSHD_CONFIG_D="$SSHD_CONFIG_D" \
     SSHD_MAIN_CONFIG="$SSHD_MAIN_CONFIG" \
     SSHD_BIN="$SSHD_BIN" \
     SSH_HARDENING_SUDO="$SSH_HARDENING_SUDO" \
     SSH_HARDENING_ALLOW_MISSING_SSHD="${SSH_HARDENING_ALLOW_MISSING_SSHD:-}" \
-    "${BASH:-/bin/bash}" "$SSH_HARDENING_SELF" --verify </dev/null &
-  child_pid=$!
-  set +m
-  while [[ $ticks -lt $deadline_ticks ]] && kill -0 "$child_pid" 2>/dev/null; do
-    "$VERIFY_POLL_SLEEP" "$VERIFY_POLL_INTERVAL"
-    ticks=$((ticks + 1))
-  done
-  if kill -0 "$child_pid" 2>/dev/null; then
-    printf '[ssh-hardening] verify TIMED OUT: the check was still running after %ss and is being stopped. A verify that never returns is treated as a FAILED verify, so exactly what a reported failure does happens now. One known cause: a named pipe reached through an Include glob, which blocks sshd forever on the open.\n' \
+    "${BASH:-/bin/bash}" "$SSH_HARDENING_SELF" --verify
+}
+
+run_verify_child() {
+  local status=0
+  run_bounded "$VERIFY_DEADLINE_SECONDS" verify_child_command || status=$?
+  if [[ $status -eq $BOUNDED_TIMEOUT_STATUS ]]; then
+    printf '[ssh-hardening] verify TIMED OUT: the check was still running after %ss and was stopped, its whole process group with it. A verify that never returns is treated as a FAILED verify, so exactly what a reported failure does happens now. One known cause: a named pipe reached through an Include glob, which blocks sshd forever on the open.\n' \
       "$VERIFY_DEADLINE_SECONDS" >&2
-    # The reap, and the job-control notice it draws, go to /dev/null: the child
-    # was started under monitor mode, so bash announces the termination itself
-    # ("Terminated: 15") at the next command boundary, and that line reads as an
-    # internal error beside the message above.
-    {
-      stop_verify_child "$child_pid"
-      wait "$child_pid"
-    } 2>/dev/null || :
     return 1
   fi
-  { wait "$child_pid"; } 2>/dev/null || status=$?
   return "$status"
 }
 
@@ -1395,16 +1482,24 @@ verify() {
 # The child verify is now BOUNDED, and the argument for why that bound is safe
 # sits with it at VERIFY_DEADLINE_SECONDS: past the deadline the verify is
 # stopped, its process group with it, and reported as a failed verify, so the
-# rollback below runs on that path like on any other. What is NOT defended
-# against, still, is this shell
-# being killed from the terminal mid-install: SIGINT and SIGTERM reach the whole
-# process group, which is what Ctrl-C sends, so they kill this shell before any
-# trap could run, and SIGKILL cannot be trapped at all. The residue that leaves
-# is deliberately left alone. What it IS: the new policy published and the
-# legacy file preserved under a name sshd's Include glob does not match
-# (verified: a dot-prefixed file holding an invalid directive leaves `sshd -G`
-# at exit 0, the same file undotted takes it to 255), so the tree is hardened
-# and the leftovers are inert.
+# rollback below runs on that path like on any other.
+#
+# An INTERRUPT takes the same rollback, and the comment that used to sit here
+# said the opposite: it claimed SIGINT and SIGTERM "kill this shell before any
+# trap could run". They do not. Bash runs a trap at the next command boundary,
+# and mid-install this shell is either between two filesystem commands or
+# waiting out a poll interval, so the handler runs in either case
+# (handle_install_interrupt, armed before the first write). Believing otherwise
+# left the worse half of the story unwritten: the verify is in a process group
+# of its own, so Ctrl-C does NOT reach it, and what an interrupt used to leave
+# behind was not an inert residue but a PUBLISHED drop-in with the run gone and
+# the verify still holding the tree open.
+#
+# What remains genuinely undefended is SIGKILL, which cannot be trapped at all.
+# What that leaves is the new policy published and the legacy file preserved
+# under a name sshd's Include glob does not match (verified: a dot-prefixed file
+# holding an invalid directive leaves `sshd -G` at exit 0, the same file undotted
+# takes it to 255), so the tree is hardened and the leftovers are inert.
 #
 # The working files are DOT-PREFIXED deliberately: sshd's Include glob does not
 # match a leading dot (glob(3) semantics, verified), so a half-written staging
@@ -1421,11 +1516,23 @@ INSTALL_STAGING=''
 INSTALL_SAVED_TARGET=''
 INSTALL_SAVED_LEGACY=''
 INSTALL_PUBLISHED=0
+INSTALL_ROLLED_BACK=0
 
 # rollback_install: undo everything install did, and nothing it did not. Every
 # step reports on its own rather than aborting the rollback, because a rollback
 # that stops half way leaves exactly the state it exists to prevent.
+#
+# It runs AT MOST ONCE, and that guard is load-bearing now that a signal can
+# reach it. A second pass over a tree the first pass already restored reads the
+# absence of the saved copy as "no drop-in existed before this run" and DELETES
+# the file it just put back. The two callers can now overlap for real: a failing
+# step takes the rollback and dies, while the interrupt that killed that step
+# runs its handler at the next command boundary.
 rollback_install() {
+  if [[ $INSTALL_ROLLED_BACK -eq 1 ]]; then
+    return 0
+  fi
+  INSTALL_ROLLED_BACK=1
   if [[ -e $INSTALL_STAGING || -L $INSTALL_STAGING ]]; then
     run_privileged rm -f -- "$INSTALL_STAGING" ||
       warn "rollback could not remove the staging file '$INSTALL_STAGING'"
@@ -1448,6 +1555,47 @@ rollback_install() {
   fi
 }
 
+# handle_install_interrupt <signal>: an interrupt is a failed install, not an
+# abandoned one.
+#
+# The verify runs in a process group of its own (that is what lets the whole
+# group be stopped at the deadline), and the price is that Ctrl-C no longer
+# reaches it. Without this handler the parent died on the signal while the
+# verify kept running, the drop-in it had already PUBLISHED stayed published,
+# the legacy file stayed moved aside, and rollback_install was never reached --
+# which is the same half-applied tree the deadline exists to prevent, reached by
+# a shorter route, because an operator watching an install hang is exactly the
+# operator who reaches for Ctrl-C before the deadline expires.
+#
+# It stops the bounded group first and rolls back second: rolling back while a
+# verify still holds the tree open would race the thing it is undoing.
+#
+# Then it RE-RAISES rather than exiting. A shell that exits 130 is not the same
+# as a shell that died of SIGINT: the caller's own `wait` reports the signal,
+# and an interactive shell above prints its own notice. Resetting the trap first
+# is what makes the re-raise terminal instead of recursive.
+handle_install_interrupt() {
+  local signal="$1"
+  trap - INT TERM HUP
+  if [[ -n $BOUNDED_CHILD_PID ]]; then
+    # Reaped here, and the job-control notice it draws sent to /dev/null, for
+    # the reason run_bounded gives: the child runs under monitor mode, so bash
+    # announces "Terminated: 15" itself at the next command boundary, which
+    # lands in the middle of this handler's own message and reads as an
+    # internal error. Waiting also means the rollback below starts after the
+    # verify has let go of the tree rather than beside it.
+    {
+      stop_bounded_group "$BOUNDED_CHILD_PID"
+      wait "$BOUNDED_CHILD_PID"
+    } 2>/dev/null || :
+    BOUNDED_CHILD_PID=''
+  fi
+  rollback_install
+  printf '[ssh-hardening] INTERRUPTED (SIG%s): the tree was rolled back to the state this install found it in, nothing the verify started is still running, and no success is claimed.\n' \
+    "$signal" >&2
+  kill -"$signal" "$$"
+}
+
 install_dropin() {
   local target legacy staging saved_target saved_legacy
   target="$(dropin_path)"
@@ -1461,6 +1609,14 @@ install_dropin() {
   INSTALL_SAVED_TARGET="$saved_target"
   INSTALL_SAVED_LEGACY="$saved_legacy"
   INSTALL_PUBLISHED=0
+  INSTALL_ROLLED_BACK=0
+
+  # Armed BEFORE the first write and disarmed once the transaction is complete,
+  # so a signal is only ever answered with a rollback while there is something
+  # to roll back.
+  trap 'handle_install_interrupt INT' INT
+  trap 'handle_install_interrupt TERM' TERM
+  trap 'handle_install_interrupt HUP' HUP
 
   [[ -d $SSHD_CONFIG_D ]] ||
     die "drop-in directory '$SSHD_CONFIG_D' does not exist"
@@ -1488,8 +1644,18 @@ install_dropin() {
   fi
   # Copy the existing drop-in aside BEFORE replacing it, so the target itself
   # is never absent: the copy is the backup, and the rename below is atomic.
+  #
+  # `-R`, and not for directories. Without it `cp` FOLLOWS what it is given, and
+  # a drop-in that is not a plain regular file is not restored as what it was:
+  # a symlink comes back as a regular file holding a copy of its target's bytes
+  # (so a rollback silently detaches a managed file from whatever it pointed
+  # at), a dangling symlink fails the copy outright and refuses an install that
+  # had nothing to lose, and a NAMED PIPE blocks the copy forever -- an
+  # unbounded privileged call on the install path, measured, sitting one step
+  # before the bounded verify. With -R each of those is recreated as itself and
+  # the copy returns.
   if [[ -e $target || -L $target ]]; then
-    if ! run_privileged cp -p -- "$target" "$saved_target"; then
+    if ! run_privileged cp -Rp -- "$target" "$saved_target"; then
       rollback_install
       die "could not copy the existing '$target' aside; refusing to replace a file that could not then be restored"
     fi
@@ -1523,6 +1689,11 @@ install_dropin() {
     rollback_install
     die "the effective configuration did NOT verify as fully hardened; the tree was rolled back to the state this install found it in, and no success is claimed"
   fi
+  # Disarmed here and not at the end of the function: the new drop-in is
+  # published and verified, so from this line on an interrupt must leave the
+  # hardening in place. What follows only removes the rollback copies, which are
+  # dot-prefixed and inert whether or not they are cleaned up.
+  trap - INT TERM HUP
   if ! run_privileged rm -f -- "$saved_target" "$saved_legacy"; then
     warn "could not remove the rollback copies under '$SSHD_CONFIG_D'; they are dot-prefixed and inert, but should be cleaned up"
   fi
@@ -2130,10 +2301,32 @@ validate_readiness_knobs() {
 # daemon. Each value is checked as a canonical integer and range-bounded on
 # BOTH sides (1-65535) before it reaches arithmetic or a probe argv.
 PROBE_PORTS=()
+# The file the bounded port resolution writes to, and the command that writes
+# it. A command substitution reads its child through a pipe and waits for the
+# pipe to close, which is exactly the unbounded wait this call had; run_bounded
+# hands over an argument vector and cannot carry a redirection, so the
+# redirection lives in the command it runs.
+PORT_RESOLUTION_OUTPUT=''
+resolve_ports_command() {
+  "$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" >"$PORT_RESOLUTION_OUTPUT" 2>&1
+}
+
 resolve_probe_ports() {
   local status=0 output listing port existing duplicate
   PROBE_PORTS=()
-  output="$("$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
+  PORT_RESOLUTION_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/ssh-hardening-ports.XXXXXX")" ||
+    die "could not create a temporary file to resolve the effective sshd port into; failing closed before the disruptive step. sshd was not touched."
+  # BOUNDED for the reason the syntax check above is: this is the third and last
+  # reader of the configuration tree before the restart, it is the same `sshd
+  # -G` that blocks forever on a named pipe reached through an Include glob, and
+  # a tree that grew one between the verify and this call would otherwise park
+  # the reload here with nothing printed.
+  run_bounded "$VERIFY_DEADLINE_SECONDS" resolve_ports_command || status=$?
+  output="$(cat "$PORT_RESOLUTION_OUTPUT" 2>/dev/null || :)"
+  rm -f "$PORT_RESOLUTION_OUTPUT"
+  if [[ $status -eq $BOUNDED_TIMEOUT_STATUS ]]; then
+    die "resolving the effective sshd port ('$SSHD_BIN -G') was still running after ${VERIFY_DEADLINE_SECONDS}s and was stopped, so there is no port to probe readiness on; refusing to restart blind. sshd was not touched. One known cause: a named pipe reached through an Include glob, which blocks sshd forever on the open."
+  fi
   if [[ $status -ne 0 ]]; then
     die "could not resolve the effective sshd port ('$SSHD_BIN -G' exited $status); refusing to restart a daemon whose readiness could not then be probed. sshd was not touched. Output: $output"
   fi
@@ -2269,10 +2462,28 @@ reload_sshd() {
 
   # 4. Syntax: never restart onto a configuration sshd cannot parse.
   # Privileged, because -t reads the root-owned host keys.
+  #
+  # BOUNDED by the same watchdog the verify below uses, because this call is the
+  # same shape of risk and reaches sshd FIRST. `sshd -t` opens every file in its
+  # own Include graph with no type filter, so one named pipe under the drop-in
+  # glob blocks it forever (measured 2026-08-01 against OpenSSH 10.0p2: -t and
+  # -G both hit a 10s probe timeout where the same tree without the pipe exits
+  # 0). This script's own walk skips a non-regular entry and reports nothing
+  # wrong, so an unbounded call here parked --reload before it reached the
+  # verify's deadline, before the kickstart, and before anything printed.
+  #
+  # Its output is NOT captured any more. Capturing it means a pipe or a
+  # temporary file, and a pipe is what makes the read unbounded again; sshd's
+  # own message goes straight to this run's stderr instead, one step earlier
+  # than it used to appear.
   status=0
-  output="$(run_privileged "$SSHD_BIN" -t -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
+  run_bounded "$VERIFY_DEADLINE_SECONDS" \
+    run_privileged "$SSHD_BIN" -t -f "$SSHD_MAIN_CONFIG" || status=$?
+  if [[ $status -eq $BOUNDED_TIMEOUT_STATUS ]]; then
+    die "the configuration's syntax check ('$SSHD_BIN -t') was still running after ${VERIFY_DEADLINE_SECONDS}s and was stopped, so whether sshd can parse this tree is unknown; refusing to restart onto it. sshd was not touched. One known cause: a named pipe reached through an Include glob, which blocks sshd forever on the open."
+  fi
   if [[ $status -ne 0 ]]; then
-    die "the configuration failed sshd's syntax check ('$SSHD_BIN -t' exited $status); refusing to restart onto it. sshd was not touched. Output: $output"
+    die "the configuration failed sshd's syntax check ('$SSHD_BIN -t' exited $status); refusing to restart onto it. sshd was not touched. Its own message is above."
   fi
 
   # 5. The full three-way verify: never restart onto a configuration that
