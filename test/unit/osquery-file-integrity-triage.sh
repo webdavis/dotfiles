@@ -202,4 +202,35 @@ assert_json "$out" "vanished target"
 [[ "$(jq -r '.recorded' <<<"$out")" == "not in the manifest" ]] ||
   fail "an unmanifested target did not say the manifest has no tuple for it -- $out"
 
-printf 'osquery-file-integrity-triage: OK (short recorded/on-disk hashes; a name-matching record renders the transition and says it is not proof; an unmatched, stale, absent or malformed record each degrade to a stated line, loudly and without losing the page)\n'
+# ---- 8. ALL THREE ROW KINDS render the transition in the direction the run
+#      actually moved. The producer writes the absent side of an add or a remove
+#      as an EMPTY column, and a tab is an IFS WHITESPACE character, so decoding
+#      a row with `IFS=$'\t' read -r name state before after` collapsed the two
+#      tabs of an `added` row into one delimiter and shifted the version into the
+#      BEFORE field: a package that had just appeared rendered as "14.1.1 ->
+#      none", i.e. as a package that had just been REMOVED. Only `changed` rows
+#      were covered before, which is the one shape that survives the collapse. --
+added_target="$home/.local/bin/ripgrep"
+removed_target="$home/.local/bin/oldpkg"
+changed_target="$home/.local/bin/jq"
+write_record "$recent_epoch" "$recent_iso" \
+  "$(printf 'ripgrep\tadded\t\t14.1.1')" \
+  "$(printf 'oldpkg\tremoved\t9.9\t')" \
+  "$(printf 'jq\tchanged\t1.7.1\t1.8.0')"
+
+out="$(triage "$added_target")"
+assert_json "$out" "added row"
+grep -qF 'recorded upgrade: ripgrep none -> 14.1.1' <<<"$(jq -r '.upgrade' <<<"$out")" ||
+  fail "an ADDED package did not render as none -> version -- $(jq -r '.upgrade' <<<"$out")"
+
+out="$(triage "$removed_target")"
+assert_json "$out" "removed row"
+grep -qF 'recorded upgrade: oldpkg 9.9 -> none' <<<"$(jq -r '.upgrade' <<<"$out")" ||
+  fail "a REMOVED package did not render as version -> none -- $(jq -r '.upgrade' <<<"$out")"
+
+out="$(triage "$changed_target")"
+assert_json "$out" "changed row"
+grep -qF 'recorded upgrade: jq 1.7.1 -> 1.8.0' <<<"$(jq -r '.upgrade' <<<"$out")" ||
+  fail "a CHANGED package did not render its version transition -- $(jq -r '.upgrade' <<<"$out")"
+
+printf 'osquery-file-integrity-triage: OK (short recorded/on-disk hashes; a name-matching record renders the transition and says it is not proof; added, removed and changed rows each render in the direction the run moved; an unmatched, stale, absent or malformed record each degrade to a stated line, loudly and without losing the page)\n'

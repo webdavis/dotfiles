@@ -206,7 +206,7 @@ _file_integrity_upgrade_line() {
   local target="$1" record="$OSQUERY_UPGRADE_RECORD"
   local basename_of_target="${target##*/}"
   local epoch iso now age window rows=0
-  local name state version_before version_after
+  local row rest name state version_before version_after
   local matched="" matched_before="" matched_after=""
   local -a changed_names=()
 
@@ -235,9 +235,25 @@ _file_integrity_upgrade_line() {
     return 0
   fi
 
-  while IFS=$'\t' read -r name state version_before version_after || [[ -n $name ]]; do
+  while IFS= read -r row || [[ -n $row ]]; do
     rows=$((rows + 1))
     ((rows == 1)) && continue # the run timestamp, already read above
+    # FIELD DECODING BY EXPANSION, NOT BY `read`. A tab is one of the three IFS
+    # WHITESPACE characters, so `IFS=$'\t' read -r name state before after`
+    # treats a RUN of tabs as a single delimiter and drops the empty column the
+    # producer writes for the absent side of an add or a remove. An `added` row
+    # (name, added, EMPTY, version) decoded as (name, added, version, EMPTY) and
+    # rendered backwards: a package that had just appeared read as one that had
+    # just been removed. Splitting on each delimiter in turn keeps an empty
+    # column exactly where the producer put it. A row with too few columns lands
+    # a copy of the tail in `state`, which the recognised-state check below
+    # refuses along with every other row shape this cannot describe.
+    name="${row%%$'\t'*}"
+    rest="${row#*$'\t'}"
+    state="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    version_before="${rest%%$'\t'*}"
+    version_after="${rest#*$'\t'}"
     [[ -n $name ]] || continue
     if ((rows > OSQUERY_UPGRADE_RECORD_MAX_ROWS)); then
       printf 'osquery file-integrity triage: the upgrade record at %s lists more than %s rows; this page carries no correlation\n' \
