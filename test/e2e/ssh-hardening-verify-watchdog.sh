@@ -439,8 +439,13 @@ syntax_elapsed=$((SECONDS - syntax_started))
   fail "8: the wedged syntax check took ${syntax_elapsed}s, past the ${WEDGED_RUN_LIMIT_SECONDS}s the bound allows"
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
   fail '8: a reload whose syntax check never answered must not report success'
+# Both halves, because either alone is satisfied by the wrong thing: `sshd -t`
+# also fails this reload when it EXITS nonzero, and every other bounded step
+# reports being stopped in the same words.
 grep -qi 'syntax check' <<<"$SSH_RUN_ERR" ||
   fail "8: the failure must name the step that was stopped (stderr: $SSH_RUN_ERR)"
+grep -qi 'was still running after' <<<"$SSH_RUN_ERR" ||
+  fail "8: the syntax check must be reported as STOPPED at its bound, not as a configuration that failed to parse (stderr: $SSH_RUN_ERR)"
 grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
   fail "8: nothing was restarted, and the refusal must say so (stderr: $SSH_RUN_ERR)"
 assert_no_kickstart '8'
@@ -464,8 +469,13 @@ port_elapsed=$((SECONDS - port_started))
   fail "9: the wedged port resolution took ${port_elapsed}s, past the ${WEDGED_RUN_LIMIT_SECONDS}s the bound allows"
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
   fail '9: a reload whose port resolution never answered must not report success'
-grep -qi 'port' <<<"$SSH_RUN_ERR" ||
+# The full phrase, not the word "port": the readiness failure, the
+# no-port-at-all refusal and the out-of-range refusal all carry that word, and
+# any of them passing here would let the case go green on the wrong branch.
+grep -qi 'resolving the effective sshd port' <<<"$SSH_RUN_ERR" ||
   fail "9: the failure must name the step that was stopped (stderr: $SSH_RUN_ERR)"
+grep -qi 'was still running after' <<<"$SSH_RUN_ERR" ||
+  fail "9: the port resolution must be reported as STOPPED at its bound (stderr: $SSH_RUN_ERR)"
 assert_no_kickstart '9'
 assert_pids_reaped '9 (wedged port resolution)'
 
