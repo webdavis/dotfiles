@@ -509,21 +509,23 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
 
 @test "T-PCTL-pretty-printed-baseline-round-trips: a valid single-document baseline is trusted whatever its whitespace" {
   # The baseline rule counts DOCUMENTS, not lines: a hand-inspected (indented,
-  # multi-line) baseline is still one document, so its control priors stay
-  # trusted and a steady-deviant control stays silent instead of re-paging as a
-  # first observation.
+  # multi-line) baseline is still ONE document and stays trusted. Pinned through a
+  # STEADY-DEVIANT control, because that is what needs a trusted prior to stay
+  # quiet: distrust the baseline and the Guest account pages all over again as a
+  # first observation, every 60 seconds.
   declare_posture_controls
-  seed_baseline "$(jq -n --argjson seed "$healthy_seed" '$seed')"
+  seed_baseline "$(jq -n --argjson seed "$healthy_seed" '$seed + {guest: "enabled"}')"
   set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_SYSADMINCTL_GUEST_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account enabled."
 
   run run_poller
   [[ $status -eq 0 ]] || {
     echo "status $status: $output"
     false
   }
-  assert_no_page
+  assert_no_page # already reported: the prior is what keeps this quiet
   assert_baseline_scalar filevault on
-  assert_baseline_scalar guest disabled
+  assert_baseline_scalar guest enabled
 }
 
 @test "T-PCTL-empty-controls-file-gaps: a controls file declaring zero controls pages a gap instead of silently watching nothing" {
