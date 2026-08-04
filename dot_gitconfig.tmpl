@@ -1,3 +1,6 @@
+{{- /* Homebrew prefix, derived from platform data rather than from a `brew --prefix` at apply time, which would need brew already installed to render this file. Every absolute Homebrew path below comes from it; test/unit/gitconfig-homebrew-prefix-derivation.sh fails if one is pinned to a literal again. */ -}}
+{{- $platform := printf "%s/%s" .chezmoi.os .chezmoi.arch -}}
+{{- $homebrewPrefix := index (dict "darwin/arm64" "/opt/homebrew" "darwin/amd64" "/usr/local") $platform | default "/home/linuxbrew/.linuxbrew" -}}
 [user]
   name = Stephen A. Davis
   email = 23553256+webdavis@users.noreply.github.com
@@ -10,7 +13,7 @@
   defaultBranch = main
 
 [gpg]
-  program = /opt/homebrew/bin/gpg
+  program = {{ $homebrewPrefix }}/bin/gpg
 
 [core]
   editor = nvim
@@ -80,7 +83,7 @@
 # test/unit/gitconfig-tool-and-url-hygiene.sh asserts that both stay absent.
 [difftool "nvimdiff"]
   # Shadows the built-in nvimdiff diff command, for `git difftool` only.
-  cmd = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
+  cmd = {{ $homebrewPrefix }}/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
 
 [diff]
   submodule = log
@@ -139,11 +142,11 @@
 
 [credential "https://github.com"]
   helper =
-  helper = !/opt/homebrew/bin/gh auth git-credential
+  helper = !{{ $homebrewPrefix }}/bin/gh auth git-credential
 
 [credential "https://gist.github.com"]
   helper =
-  helper = !/opt/homebrew/bin/gh auth git-credential
+  helper = !{{ $homebrewPrefix }}/bin/gh auth git-credential
 
 # Shorthand and legacy-URL rewrites. Every one of them lands on SSH, because SSH
 # and HTTPS are the only transports GitHub still answers. GitHub permanently
