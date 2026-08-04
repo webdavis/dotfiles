@@ -28,11 +28,12 @@
 #      disjoint and their union equals the roster exactly (every roster skill
 #      has exactly one provenance).
 #   6. The lock's hermesRegistry table (skills hermes OWNS from a registry and
-#      the weekly phase updates) is a subset of the roster, each entry is
-#      well-formed (non-empty profiles array, source skills.sh|clawhub|
-#      official, non-empty identifier + lockKey), and it is DISJOINT from the
-#      store-symlinked set: no skill is both hermes-owned and store-symlinked
-#      (a store-fed skill must never be `hermes skills update`d).
+#      the weekly phase updates) holds exactly the pinned hermes-owned set, is
+#      a subset of the roster, each entry is well-formed (non-empty profiles
+#      array, source skills.sh|clawhub|official, non-empty identifier +
+#      lockKey), and it is DISJOINT from the store-symlinked set: no skill is
+#      both hermes-owned and store-symlinked (a store-fed skill must never be
+#      `hermes skills update`d).
 #   7. The hermes symlink declarations equal the non-empty hermesProfiles map
 #      exactly: each store-symlinked skill is declared in exactly its mapped
 #      skills dirs ("default" = dot_hermes/skills, any other profile =
@@ -194,8 +195,38 @@ if [[ $union_sorted != "$roster_sorted" ]]; then
   exit 1
 fi
 
-# --- Rule 6: hermesRegistry is a well-formed, roster-scoped, disjoint set ---
+# --- Rule 6: hermesRegistry is the pinned, well-formed, disjoint set --------
 registry_keys="$(jq -r '.hermesRegistry // {} | keys[]' "$LOCK" | sort)"
+
+# The hermes-owned set, pinned literally like the collision names and the forks
+# exemptions. Every other check in this rule validates the entries that ARE
+# there, so an emptied or wholesale-deleted table satisfied all of them
+# vacuously, and so did dropping a single row: the weekly
+# `hermes -p <profile> skills update <lockKey>` phase would simply stop
+# refreshing those skills, with nothing red anywhere. Adding or removing a
+# hermes-owned skill is a deliberate edit here, in the same commit as the lock.
+HERMES_REGISTRY_EXPECTED=(
+  conventional-commits
+  faceless-explainer
+  general-video
+  hyperframes
+  hyperframes-keyframes
+  hyperframes-registry
+  motion-graphics
+  tiktok-crawling
+  video-transcript-downloader
+)
+# Checked before the set comparison purely for the message: a missing table and
+# a wrong table are different mistakes, and the diff below cannot say which.
+[[ -n $registry_keys ]] ||
+  fail "the lock has no hermesRegistry entries; the weekly hermes registry-update phase would refresh nothing (restore the table, or drop HERMES_REGISTRY_EXPECTED in the same commit if hermes really owns no skills)"
+expected_registry="$(printf '%s\n' "${HERMES_REGISTRY_EXPECTED[@]}" | sort)"
+if [[ $registry_keys != "$expected_registry" ]]; then
+  printf "FAIL: the lock's hermesRegistry table does not hold exactly the pinned hermes-owned set:\n" >&2
+  diff <(printf '%s\n' "$expected_registry") <(printf '%s\n' "$registry_keys") >&2 || true
+  exit 1
+fi
+
 stray_registry="$(comm -23 <(printf '%s\n' "$registry_keys") <(printf '%s\n' "$roster_sorted"))"
 [[ -z $stray_registry ]] || fail "hermesRegistry names a non-roster skill: $stray_registry"
 bad_registry="$(jq -r '.hermesRegistry // {} | to_entries[]
