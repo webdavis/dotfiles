@@ -149,12 +149,21 @@ page_exposure_and_persist() {
   persist_baseline active
 }
 
-# Read the prior baseline. Only active/inactive is a valid funnel baseline; a
-# corrupt/absent value is treated as no trustworthy baseline (R2-5b).
+# Read the prior baseline ONCE, as a WHOLE FILE: it must slurp (-s) to exactly
+# ONE top-level object before its funnel value is even looked at. Only
+# active/inactive is then a valid funnel baseline; a corrupt/absent value is
+# treated as no trustworthy baseline (R2-5b).
+#
+# The whole-file rule is not decoration. Read per document, `.funnel // empty`
+# emits one result PER document and nothing for a document that lacks the key,
+# so an active baseline followed by a second document collapses back to a clean
+# "active" that would be trusted as a steady exposure, and the public-exposure
+# page below would never fire. A public-exposure detector must not read a corrupt
+# file as steady state.
 prev_funnel=""
 state_was_corrupt=0
 if [[ -f $STATE ]]; then
-  prev_funnel=$(jq -r '.funnel // empty' <"$STATE" 2>/dev/null || echo "")
+  prev_funnel=$(jq -re -s 'if (length == 1 and (.[0] | type == "object")) then (.[0].funnel // "") else error("not one object") end' <"$STATE" 2>/dev/null) || prev_funnel=""
 fi
 case "$prev_funnel" in
   active | inactive) ;;
@@ -211,8 +220,14 @@ fi
 if [[ -z $funnel_json ]]; then
   gap_and_exit "- ${bt}tailscale funnel status --json${bt} returned no output, so the funnel state is unreadable."
 fi
-# Malformed (non-JSON) output is a gap, not a silent inactive. jq empty validates
-# JSON (any value, including {} and null) and fails only on a PARSE error.
+# Malformed (non-JSON) output is a gap, not a silent inactive. This is a PARSE
+# check and nothing more: jq empty accepts any value ({} and null included), and
+# it accepts a multi-document stream too, so it says nothing about the SHAPE of
+# what came back. That is fine here and only here, because the input is one
+# capture of one CLI run rather than a file something else may have appended to,
+# and because the classifier below decides the funnel state on its own terms and
+# gaps on any shape it does not recognize. The prior-baseline read above, which
+# DOES read a file, takes the stricter whole-file rule instead.
 if ! printf '%s' "$funnel_json" | jq empty >/dev/null 2>&1; then
   gap_and_exit "- ${bt}tailscale funnel status --json${bt} returned output that is not valid JSON, so the funnel state is unreadable."
 fi

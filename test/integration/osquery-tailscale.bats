@@ -421,6 +421,40 @@ SERVE_ONLY='{"Web":{"dresden.tailnet.ts.net:443":{"Handlers":{"/":{"Proxy":"http
   assert_baseline_funnel inactive # the garbage is recovered to a valid baseline
 }
 
+@test "T-TS-concatenated-state-active-pages: a state holding two concatenated documents is not a baseline, so a live funnel still pages" {
+  # `.funnel // empty` emits one result PER document of a concatenated stream and
+  # nothing at all for a document that lacks the key, so an active baseline
+  # followed by {} collapses back to a clean "active". Trusted, that reads as a
+  # steady exposure and the public-exposure page never fires: the one detector
+  # for a Funnel opened to the public internet goes silent on a corrupt file.
+  seed_funnel_state concatenated-active
+  set_funnel "$FUNNEL_ON"
+  run run_tailscale_monitor
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'PUBLIC internet'
+  assert_baseline_funnel active
+}
+
+@test "T-TS-pretty-printed-state-round-trips: a valid single-document baseline is trusted whatever its whitespace" {
+  # The rule counts DOCUMENTS, not lines: an indented, hand-inspected baseline is
+  # still one document, so a steady active funnel stays silent rather than
+  # re-paging an exposure the operator has already been told about.
+  seed_funnel_state pretty-active
+  set_funnel "$FUNNEL_ON"
+  run run_tailscale_monitor
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_no_page
+  assert_baseline_funnel active
+}
+
 # --- B14: a funnel found active on recovery from a blind window pages ------------
 
 @test "T-TS-funnel-after-blind-pages: a funnel found active on recovery from a blind window pages" {

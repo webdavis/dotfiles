@@ -120,7 +120,11 @@ teardown_tailscale_harness() {
 # seed_funnel_state <token> -- write the prior baseline (and gap marker) the run
 # starts from. "" removes it (first run); active/inactive write the 0600 JSON
 # baseline; gap writes an inactive baseline PLUS the page-once gap marker (a prior
-# blind window); corrupt writes non-JSON garbage.
+# blind window); corrupt writes non-JSON garbage; concatenated-active writes two
+# valid JSON documents (an active baseline, then an empty object), the shape a
+# per-document read collapses back into a clean "active" it must not trust;
+# pretty-active writes the same active baseline indented across several lines,
+# which is still ONE document and must stay trusted.
 seed_funnel_state() {
   local marker="$OSQUERY_TAILSCALE_STATE.gap"
   rm -f "$OSQUERY_TAILSCALE_STATE" "$marker"
@@ -128,6 +132,11 @@ seed_funnel_state() {
     "") : ;;
     active) _write_state_0600 '{"funnel":"active"}' ;;
     inactive) _write_state_0600 '{"funnel":"inactive"}' ;;
+    concatenated-active) _write_state_0600 '{"funnel":"active"}
+{}' ;;
+    pretty-active) _write_state_0600 '{
+  "funnel": "active"
+}' ;;
     gap)
       _write_state_0600 '{"funnel":"inactive"}'
       : >"$marker"
