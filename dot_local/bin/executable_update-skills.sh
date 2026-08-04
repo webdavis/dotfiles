@@ -3476,6 +3476,15 @@ if [[ $DRYRUN == "--dry-run" ]]; then
   update_hermes_registry_skills # its dry branch logs would-update lines only
   run_fork_drift_watch          # its dry branch logs would-drift-check lines only
   log "done (dry-run)"
+  # A preview that REFUSED part of its work is not a preview of the run: the
+  # fan-out refuses outright on a malformed claudeDelivery table, and the routing
+  # probe records a missing prerequisite, so a caller reading exit 0 accepted an
+  # incomplete picture as the whole one. Same signal the install-only path gives,
+  # and it costs nothing on a healthy machine, where a dry run records nothing.
+  if [[ $REQUIRED_FAILURES -gt 0 ]]; then
+    log "dry-run finished with $REQUIRED_FAILURES refusal(s)/required-phase failure(s); this preview is INCOMPLETE"
+    exit 1
+  fi
   exit 0
 fi
 

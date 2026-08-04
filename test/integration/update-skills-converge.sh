@@ -294,9 +294,16 @@ done
 # CONSUMER itself must refuse. nonclaude has no Claude link now (convergence
 # removed it above). Rewrite claudeDelivery to an array and preview: the fan-out
 # must NOT offer to create nonclaude's link, and must report the malformed table.
-LOCK_FILE="$HOME/.agents/custom-skill-lock.json"
 jq '.claudeDelivery = ["nonclaude"]' "$LOCK_FILE" >"$LOCK_FILE.tmp" && mv "$LOCK_FILE.tmp" "$LOCK_FILE"
+set +e
 dry_out="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1)"
+dry_rc=$?
+set -e
+# A preview that refused part of its work must SAY SO in its exit status:
+# automation that reads exit 0 otherwise accepts an incomplete preview as the
+# whole picture.
+[[ $dry_rc -ne 0 ]] ||
+  fail "a --dry-run that refused the Claude fan-out still exited 0: $dry_out"
 if grep -qE 'would create .*/\.claude/skills/nonclaude' <<<"$dry_out"; then
   printf '%s\n' "$dry_out" >&2
   fail "a malformed claudeDelivery failed OPEN; the Claude fan-out offered to restore the de-delivered nonclaude link"
