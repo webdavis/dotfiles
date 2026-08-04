@@ -618,12 +618,17 @@ narrowing: the explicit add targets `--agent claude-code --agent codex` only, so
 copies (devin, goose) are no longer refreshed by these runs.
 
 `update-skills.sh` runs weekly via the `com.webdavis.update-skills` LaunchAgent (24 hourly Monday retry
-slots, 00:00-23:00, `RunAtLoad=false`, logs to `~/.local/log/skills/`); a slot defers while a harness
-shows recent activity and the last slot alerts loudly (`UPDATE_SKILLS_FORCE=1` bypasses, used by tests);
-the same gate covers the hermes registry-update phase, which runs after the store refresh (hermes skill
-updates are unattended-safe: no GUI restarts, no gateway restart; sessions pick up content at next start,
-and a deferred run just means the updates land on a later slot). The script installs only what the lock
-declares, so the registered-skill count cannot grow from a run.
+slots, 00:00-23:00, `RunAtLoad=false`, logs to `~/.local/log/skills/`). **A slot runs whatever the
+machine is doing.** There is no activity gate: one used to defer the run while claude, codex or hermes
+had touched a per-turn file in the last 15 minutes, and on a machine in daily use that deferred all 24
+slots, so the update never ran. It also bought nothing, because the publish is one atomic exchange with
+one retained generation and a harness reads skill content at invocation time, so the worst a swap
+mid-session costs is that the next invocation reads the new copy. What still holds a slot back is the
+per-week success stamp (`UPDATE_SKILLS_FORCE=1` bypasses it, used by tests and manual runs), the kernel
+lock that serializes two updaters (the second exits 75 and a later slot retries), and a refused roster.
+The hermes registry-update phase runs after the store refresh and is unattended-safe as well: no GUI
+restarts, no gateway restart, sessions pick up content at next start. The script installs only what the
+lock declares, so the registered-skill count cannot grow from a run.
 
 **Adding a skill:** if it has an official full-tree GitHub upstream, add an `npxTracked` entry
 (`{"repo": "owner/repo"}`); if it is ClawHub-published, add a `clawhubTracked` entry

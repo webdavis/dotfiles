@@ -12,7 +12,7 @@
 #   stale updater-owned links are reaped, while foreign files there survive.
 #
 # The real script runs unmodified in a sandbox: a FULL run (offline stubs) so
-# destructive convergence happens, FORCE to bypass the idle-gate.
+# destructive convergence happens, FORCE to bypass the weekly stamp.
 set -euo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR

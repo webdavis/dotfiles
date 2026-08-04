@@ -12,7 +12,7 @@
 #   hermes     -> hermesRegistry (weekly registry-update phase)
 #   routing    -> superpowersRouting (assert-hermes-superpowers-routing.sh)
 #
-# The run is a FULL run under UPDATE_SKILLS_FORCE=1 (idle-gate bypassed) with a
+# The run is a FULL run under UPDATE_SKILLS_FORCE=1 (weekly stamp bypassed) with a
 # HERMETIC PATH: a sandbox bin holding only the tools the script needs, so the
 # real clawhub/hermes (both installed on this host) are absent unless the case
 # explicitly stubs them.

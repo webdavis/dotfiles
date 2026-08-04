@@ -7,7 +7,7 @@
 # no absent path at all) both false-no-op'd forever. Now the no-op is allowed
 # only after validating, for every roster skill: the link resolves into the
 # current generation, SKILL.md is present, the npx lock entry is present, and
-# the required tier overlay is present. Any drift builds an idle-gated repair
+# the required tier overlay is present. Any drift builds a repair
 # candidate.
 # Cases:
 #   1. fully healthy roster -> true no-op (no exchange, no CLI calls);

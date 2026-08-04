@@ -15,13 +15,12 @@
 # unhealthy skills, plus the symlink-fan-out convergence, the Codex overlay
 # re-assert, and the superpowers routing re-assert. It skips the weekly
 # npx/clawhub UPDATE passes, the hermes registry-update phase, and the fork
-# drift-check. Publishing an addition still swaps the whole live generation
-# via an atomic exchange, so when a live generation exists the updater
-# idle-gates that exchange and DEFERS (exit 75) under an active agent session
-# rather than swap a folder mid-turn; this wrapper then keeps its retry marker
-# so the next apply re-fires (see the deferred branch below). A fresh machine
-# with no live generation publishes by a plain rename (no exchange, no
-# readers), which is what lets the bootstrap complete unattended at apply time.
+# drift-check. Publishing an addition swaps the whole live generation via one
+# atomic exchange, and a fresh machine with no live generation publishes by a
+# plain rename, so the bootstrap completes unattended at apply time. When
+# another update-skills run already holds the serialize lock, the updater exits
+# 75 without doing the work; this wrapper then keeps its retry marker so the
+# next apply re-fires (see the deferred branch below).
 #
 # RETRY WITHOUT ABORTING THE APPLY. A chezmoiscript that exits non-zero aborts
 # the whole `chezmoi apply`, so a failed first install must NOT exit non-zero.
@@ -74,9 +73,10 @@ bump_retry_marker() {
 }
 
 # Capture the updater's exit code without tripping set -e; distinguish three
-# outcomes: 0 = installed (clear the marker), 75 = deferred by harness activity
-# (KEEP the marker so the next apply re-fires; NOT a failure), other = hard
-# failure (bump the marker). None of them exits non-zero from this script.
+# outcomes: 0 = installed (clear the marker), 75 = deferred because another run
+# holds the serialize lock (KEEP the marker so the next apply re-fires; NOT a
+# failure), other = hard failure (bump the marker). None of them exits non-zero
+# from this script.
 rc=0
 "$UPDATER" --install-only || rc=$?
 if [[ $rc -eq 0 ]]; then
@@ -85,12 +85,12 @@ if [[ $rc -eq 0 ]]; then
   # apply re-fires run_onchange (idempotent, nothing absent to install).
   rm -f "$MARKER"
 elif [[ $rc -eq 75 ]]; then
-  # Deferred (R2-6): the updater found roster work but a live agent session was
-  # active, so it deferred the generation exchange. The install is still
-  # OUTSTANDING, so bump/create the retry marker to re-fire run_onchange on the
-  # next apply; this is not a failure, so no failure relay.
+  # Deferred: another update-skills run held the serialize lock, so this one
+  # attempted nothing. The install is still OUTSTANDING, so bump/create the retry
+  # marker to re-fire run_onchange on the next apply; this is not a failure, so
+  # no failure relay.
   count="$(bump_retry_marker)"
-  printf 'update-skills first-install deferred to avoid swapping under a live session (attempt %s); it re-fires on the next apply\n' "$count" >&2
+  printf 'update-skills first-install deferred; another run held the lock (attempt %s); it re-fires on the next apply\n' "$count" >&2
 else
   # Hard failure: bump the counter and relay, but never abort the apply.
   count="$(bump_retry_marker)"

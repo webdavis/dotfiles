@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # update-skills-install-only-gate.sh (integration-fix F3): --install-only must
-# not publish/exchange when nothing is absent, and must gate the exchange behind
-# the idle gate when a live generation exists. It bypassed the idle gate on the
-# premise it never swaps existing folders, but it always called publish; with
-# zero absent skills it still exchanged the live generation (displacing a
-# concurrent write, switching readers mid-session). The fix computes the absent
-# set FIRST: empty -> no build, no exchange; non-empty with a live generation ->
-# the exchange is idle-gated. This test asserts:
+# not publish/exchange when nothing is absent. It always called publish, so with
+# zero absent skills it still exchanged the live generation, displacing a
+# concurrent out-of-band write for no gain. The fix computes the needs-work set
+# FIRST: empty -> no build, no exchange. This test asserts:
 #   1. zero absent -> no exchange (generation id unchanged), no CLI calls;
-#   2. one absent + an active harness -> deferred (no exchange, skill not added);
-#   3. one absent + idle -> added, and the exchange happened (id changed).
+#   2. one absent -> added, and the exchange happened (id changed);
+#   3. a live agent world does not hold the install back (the activity gate that
+#      used to defer this exchange is gone; see test/e2e/update-skills-unattended.sh
+#      for why).
 set -euo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
@@ -56,8 +55,9 @@ write_lock() { # $@ = tracked skill names
 EOF
 }
 
-# Stubs: ps honors FAKE_PS (the simulated process world); npx logs argv and
-# writes a SKILL.md per --skill.
+# Stubs: ps honors FAKE_PS (the simulated process world, kept so a reintroduced
+# activity gate observes the world this test stages rather than the real
+# machine's); npx logs argv and writes a SKILL.md per --skill.
 stub="$tmp/stub"
 mkdir -p "$stub"
 NPX_LOG="$tmp/npx.log"
@@ -83,16 +83,11 @@ EOF
 chmod +x "$stub/ps" "$stub/npx"
 export PATH="$stub:$PATH"
 
-# Activity evidence surface pointed at the tmp HOME.
-ACT_CLAUDE="$HOME/act/claude"
-export UPDATE_SKILLS_CLAUDE_ACTIVITY_DIR="$ACT_CLAUDE"
-export UPDATE_SKILLS_CODEX_ACTIVITY_DIR="$HOME/act/codex"
-export UPDATE_SKILLS_HERMES_ACTIVITY_DIR="$HOME/act/hermes"
-export UPDATE_SKILLS_IDLE_THRESHOLD=900
-harness_active() {
-  rm -rf "$HOME/act"
-  mkdir -p "$1"
-  : >"$1/live.jsonl"
+# A per-turn file whose mtime is now, in the location the removed activity gate
+# probed by default, so case 3 stages the world that used to defer.
+stage_live_agent_activity() {
+  mkdir -p "$HOME/.claude/projects"
+  : >"$HOME/.claude/projects/live.jsonl"
 }
 gen_id() { jq -r '.id' "$CURRENT/generation.json" 2>/dev/null || echo NONE; }
 
@@ -119,39 +114,35 @@ printf '%s\n' "$out1" | grep -qF 'present and healthy; no changes' ||
 [[ ! -s $NPX_LOG ]] ||
   fail "case 1: a package CLI was invoked though nothing was absent: $(cat "$NPX_LOG")"
 
-# --- Case 2: one absent + active harness -> deferred exchange -----------------
-# A deferral now exits the distinct retryable code 75 (R2-6), not 0.
+# --- Case 2: one absent -> added, exchange happened ---------------------------
 write_lock alpha beta
-harness_active "$ACT_CLAUDE"
 : >"$NPX_LOG"
-set +e
-out2="$(FAKE_PS="$HARNESS" bash "$SCRIPT" --install-only 2>&1)"
-rc2=$?
-set -e
-[[ $rc2 -eq 75 ]] ||
-  fail "case 2: install-only deferred on activity did not exit the retryable code 75 (got $rc2): $out2"
-printf '%s\n' "$out2" | grep -qiF 'deferring the generation exchange' ||
-  fail "case 2: install-only with an active harness did not defer the exchange: $out2"
-[[ "$(gen_id)" == "$id_setup" ]] ||
-  fail "case 2: the generation was exchanged despite an active harness"
-[[ ! -e "$AGENTS/skills/beta" && ! -L "$AGENTS/skills/beta" ]] ||
-  fail "case 2: absent beta was installed despite the deferral"
-[[ ! -s $NPX_LOG ]] ||
-  fail "case 2: the lane ran though the exchange was deferred: $(cat "$NPX_LOG")"
-
-# --- Case 3: one absent + idle -> added, exchange happened --------------------
-rm -rf "$HOME/act" # no fresh activity
-: >"$NPX_LOG"
-out3="$(FAKE_PS="$NO_HARNESS" bash "$SCRIPT" --install-only 2>&1)" ||
-  fail "install-only (idle add) exited non-zero: $out3"
+out2="$(FAKE_PS="$NO_HARNESS" bash "$SCRIPT" --install-only 2>&1)" ||
+  fail "install-only (add) exited non-zero: $out2"
 [[ -L "$AGENTS/skills/beta" && -f "$AGENTS/skills/beta/SKILL.md" ]] ||
-  fail "case 3: absent beta was not installed while idle"
+  fail "case 2: absent beta was not installed"
 [[ "$(gen_id)" != "$id_setup" ]] ||
-  fail "case 3: the generation was not exchanged when an absent skill was added"
+  fail "case 2: the generation was not exchanged when an absent skill was added"
 grep -q -- '--skill beta' "$NPX_LOG" ||
-  fail "case 3: the npx lane did not install beta: $(cat "$NPX_LOG")"
+  fail "case 2: the npx lane did not install beta: $(cat "$NPX_LOG")"
 # alpha (already present) is untouched and still resolves.
 [[ -L "$AGENTS/skills/alpha" && -f "$AGENTS/skills/alpha/SKILL.md" ]] ||
-  fail "case 3: alpha stopped resolving after the additive install"
+  fail "case 2: alpha stopped resolving after the additive install"
+id_case2="$(gen_id)"
+
+# --- Case 3: one absent + a live agent world -> still added -------------------
+# The exchange under an agent session is safe (one atomic swap, one retained
+# generation, content read at invocation time), so activity no longer defers it.
+write_lock alpha beta gamma
+stage_live_agent_activity
+: >"$NPX_LOG"
+out3="$(FAKE_PS="$HARNESS" bash "$SCRIPT" --install-only 2>&1)" ||
+  fail "install-only with a live agent world exited non-zero: $out3"
+grep -qi 'deferring' <<<"$out3" &&
+  fail "case 3: install-only deferred under a live agent world; the activity gate is back: $out3"
+[[ -L "$AGENTS/skills/gamma" && -f "$AGENTS/skills/gamma/SKILL.md" ]] ||
+  fail "case 3: absent gamma was not installed under a live agent world"
+[[ "$(gen_id)" != "$id_case2" ]] ||
+  fail "case 3: the generation was not exchanged under a live agent world"
 
 echo "update-skills-install-only-gate: OK"
