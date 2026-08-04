@@ -692,6 +692,44 @@ line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" versions
 grep -qF '2.03.0' <<<"$line" ||
   fail "the control character was not stripped in place (want the joined 2.03.0): '$line'"
 
+# ── 4d. The RAW DIFF under that summary. A second consumer needs what moved as
+#       data rather than as a Discord sentence: the weekly Homebrew job persists
+#       it so the osquery file-integrity page can ask whether a recorded upgrade
+#       plausibly explains a file that changed. Both readings come from this one
+#       walk, so the channel and the page can never disagree about what a week
+#       did. ────────────────────────────────────────────────────────────────
+tuples() { unattended_log_change_tuples "$before" "$after"; }
+
+write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
+write_snapshot "$after" "alpha:aaa1" "beta:bbb1"
+[[ -z "$(tuples)" ]] || fail "an unchanged pair emitted tuples: $(tuples)"
+
+write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
+write_snapshot "$after" "alpha:aaa2" "beta:bbb1"
+[[ "$(tuples)" == "$(printf 'alpha\tchanged\taaa1\taaa2')" ]] ||
+  fail "a changed entry did not render as a changed tuple: $(tuples)"
+
+write_snapshot "$before" "alpha:aaa1"
+write_snapshot "$after" "alpha:aaa1" "delta:ddd1"
+[[ "$(tuples)" == "$(printf 'delta\tadded\t\tddd1')" ]] ||
+  fail "an added entry did not render with an empty before column: $(tuples)"
+
+write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
+write_snapshot "$after" "alpha:aaa1"
+[[ "$(tuples)" == "$(printf 'beta\tremoved\tbbb1\t')" ]] ||
+  fail "a removed entry did not render with an empty after column: $(tuples)"
+
+# A TAB inside a fingerprint must not shift a column. The tuple is tab
+# separated and is read back field by field, so a fingerprint carrying one
+# would move the state into a version and make a change read as something the
+# consumer cannot describe. Tabs are DELETED rather than replaced, which is
+# what the code-span quoting already does to every control character, so the
+# rendered summary reads exactly as it did before.
+write_snapshot "$before" 'tabbed:1.0'
+printf 'tabbed\t2.0\t3.0\n' >"$after"
+[[ "$(tuples)" == "$(printf 'tabbed\tchanged\t1.0\t2.03.0')" ]] ||
+  fail "a tab inside a fingerprint shifted a tuple column: $(tuples)"
+
 # ── 5. The route name the library posts to is the one the config declares and
 #      the apply-time status check probes. A rename in one place and not the
 #      others is a 404 on every entry, which relay reports but nobody reads. ──

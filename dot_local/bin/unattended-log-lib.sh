@@ -300,6 +300,48 @@ __unattended_log_code() {
   printf '`%s`' "$text"
 }
 
+# unattended_log_change_tuples <before-file> <after-file>
+#
+# The raw diff between two snapshots, one line per name that MOVED, tab
+# separated:
+#
+#   <name>	<added|removed|changed>	<before-fingerprint>	<after-fingerprint>
+#
+# The absent side of an add or a remove is the empty string. A pair with nothing
+# between them prints nothing at all.
+#
+# WHY THIS IS SEPARATE FROM THE SENTENCE ABOVE IT. The Discord entry is one
+# consumer; the other is the osquery file-integrity page, which asks whether a
+# recorded upgrade plausibly explains a file whose content hash left its
+# known-good manifest. That question needs the transition as DATA, and it is
+# asked days after the run that answered it, so the weekly Homebrew job persists
+# these lines to disk. Both readings come from this one walk, so the channel and
+# the page can never disagree about what a week did.
+#
+# A TAB inside a fingerprint is DELETED before it is emitted. The tuple is tab
+# separated and is read back field by field, so a fingerprint carrying one would
+# shift the state into a version column. Deleted rather than replaced, because
+# the code-span quoting already deletes every control character, so the rendered
+# summary is unchanged by this.
+unattended_log_change_tuples() {
+  local before="$1" after="$2" name fingerprint_after fingerprint_before
+  while IFS=$'\t' read -r name fingerprint_after; do
+    [[ -n $name ]] || continue
+    if ! fingerprint_before="$(__unattended_log_lookup "$before" "$name")"; then
+      printf '%s\t%s\t%s\t%s\n' "$name" added "" "${fingerprint_after//$'\t'/}"
+    elif [[ $fingerprint_before != "$fingerprint_after" ]]; then
+      printf '%s\t%s\t%s\t%s\n' "$name" changed \
+        "${fingerprint_before//$'\t'/}" "${fingerprint_after//$'\t'/}"
+    fi
+  done <"$after"
+  while IFS=$'\t' read -r name fingerprint_before; do
+    [[ -n $name ]] || continue
+    if ! __unattended_log_lookup "$after" "$name" >/dev/null; then
+      printf '%s\t%s\t%s\t%s\n' "$name" removed "${fingerprint_before//$'\t'/}" ""
+    fi
+  done <"$before"
+}
+
 # unattended_log_change_line <before-file> <after-file> <label> <caveat> <style>
 #
 # One sentence describing what moved between two snapshots. Both files hold
@@ -328,28 +370,33 @@ __unattended_log_code() {
 # See that function for what it prevents.
 unattended_log_change_line() {
   local before="$1" after="$2" label="$3" caveat="$4" style="$5"
-  local total=0 name fingerprint_after fingerprint_before shown
+  local total=0 name state fingerprint_before fingerprint_after shown
   local -a changed=()
-  while IFS=$'\t' read -r name fingerprint_after; do
+  # The TOTAL is the tracked population, which the tuples deliberately do not
+  # describe: they list only what MOVED. It is the after-rows plus the removals,
+  # because counting the after-rows alone renders the impossible "2 of 0 tracked
+  # entries changed" on an emptied snapshot.
+  while IFS=$'\t' read -r name _; do
     [[ -n $name ]] || continue
     total=$((total + 1))
-    if ! fingerprint_before="$(__unattended_log_lookup "$before" "$name")"; then
-      changed+=("$(__unattended_log_code "$name") (added)")
-    elif [[ $fingerprint_before != "$fingerprint_after" ]]; then
-      if [[ $style == "versions" ]]; then
-        changed+=("$(__unattended_log_code "$name") $(__unattended_log_code "$fingerprint_before") -> $(__unattended_log_code "$fingerprint_after")")
-      else
-        changed+=("$(__unattended_log_code "$name")")
-      fi
-    fi
   done <"$after"
-  while IFS=$'\t' read -r name fingerprint_before; do
+  while IFS=$'\t' read -r name state fingerprint_before fingerprint_after; do
     [[ -n $name ]] || continue
-    if ! __unattended_log_lookup "$after" "$name" >/dev/null; then
-      changed+=("$(__unattended_log_code "$name") (removed)")
-      total=$((total + 1))
-    fi
-  done <"$before"
+    case "$state" in
+      added) changed+=("$(__unattended_log_code "$name") (added)") ;;
+      removed)
+        changed+=("$(__unattended_log_code "$name") (removed)")
+        total=$((total + 1))
+        ;;
+      *)
+        if [[ $style == "versions" ]]; then
+          changed+=("$(__unattended_log_code "$name") $(__unattended_log_code "$fingerprint_before") -> $(__unattended_log_code "$fingerprint_after")")
+        else
+          changed+=("$(__unattended_log_code "$name")")
+        fi
+        ;;
+    esac
+  done < <(unattended_log_change_tuples "$before" "$after")
 
   if [[ ${#changed[@]} -eq 0 ]]; then
     printf '%s: 0 of %d tracked entries changed. %s' "$label" "$total" "$caveat"
