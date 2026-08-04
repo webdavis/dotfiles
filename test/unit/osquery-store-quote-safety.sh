@@ -27,10 +27,8 @@ fail() {
   exit 1
 }
 
-command -v sqlite3 >/dev/null 2>&1 || {
-  printf 'SKIP: sqlite3 not on PATH; cannot exercise the store helpers\n'
-  exit 0
-}
+command -v sqlite3 >/dev/null 2>&1 ||
+  fail "sqlite3 is not on PATH; the alert store IS SQLite, so this is a broken environment rather than a reason to skip"
 [[ -f $DISPATCH ]] || fail "missing dispatch library: $DISPATCH"
 
 # The strict interpreter: macOS system bash 3.2 when present, else plain bash.

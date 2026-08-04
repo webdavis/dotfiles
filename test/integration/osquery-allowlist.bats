@@ -282,7 +282,12 @@ stub_launchd() {
   printf 'plist-bytes\n' >"$plist"
   stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo
 
-  export ALLOWLIST_OSQUERYI_LINGER=5
+  # The grandchild has to outlive a REAL `chezmoi apply` plus the manifest-runner
+  # spy that `-a` performs before this test looks at it, and it is detached, so a
+  # wide window costs the run nothing while a narrow one fails the pin on a
+  # contended runner for a reason that has nothing to do with fd hygiene. The
+  # already-exited branch below says "widen ALLOWLIST_OSQUERYI_LINGER"; this is that.
+  export ALLOWLIST_OSQUERYI_LINGER=60
   export ALLOWLIST_OSQUERYI_LINGER_PID_FILE="$ALLOWLIST_HOME/linger-pid"
   run run_allowlist -a com.foo.agent
   [ "$status" -eq 0 ] || {

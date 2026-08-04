@@ -138,7 +138,12 @@ STUB
   # about fd inheritance and would pass for the wrong reason.
   local banner_pid=""
   local attempt
-  for ((attempt = 0; attempt < 40; attempt++)); do
+  # The loop breaks the moment the file appears, so a healthy run still costs
+  # milliseconds; the ceiling only decides how long a MISSING banner takes to be
+  # reported. Two seconds was not enough of it: this waits on a forked stub under
+  # `bats --jobs 4` on a shared runner, and a fork that is merely slow reported
+  # itself as a drainer that never fired the banner at all.
+  for ((attempt = 0; attempt < 200; attempt++)); do
     [[ -s $BANNER_PID_FILE ]] && break
     sleep 0.05
   done

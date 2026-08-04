@@ -22,8 +22,10 @@ new_file="$REPO_ROOT/dot_config/osquery/private_page-launchd-allowlist.txt"
 old_file="$REPO_ROOT/dot_config/osquery/launch-allowlist.txt"
 
 if ! command -v jq >/dev/null 2>&1; then
-  printf 'SKIP: jq not found (run inside the nix dev shell)\n'
-  exit 0
+  # Hard stop, not a skip: every NDJSON assertion below runs through jq, so
+  # without it this file would report a green run that checked nothing.
+  printf 'FAIL: jq is not on PATH; it is this repo'"'"'s JSON tool everywhere, so this is a broken environment rather than a reason to skip\n' >&2
+  exit 1
 fi
 
 fails=0

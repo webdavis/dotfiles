@@ -23,10 +23,8 @@ fail() {
   exit 1
 }
 
-command -v sqlite3 >/dev/null 2>&1 || {
-  printf 'SKIP: sqlite3 not on PATH; cannot exercise the local-notification store\n'
-  exit 0
-}
+command -v sqlite3 >/dev/null 2>&1 ||
+  fail "sqlite3 is not on PATH; the local-notification store IS SQLite, so this is a broken environment rather than a reason to skip"
 [[ -f $DISPATCH ]] || fail "missing dispatch library: $DISPATCH"
 
 work="$(mktemp -d)"
