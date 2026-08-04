@@ -67,13 +67,31 @@ take_allowlist_write_lock() {
   "$lockf_bin" -s 9
 }
 
-# The JSON label of an allowlist line, or empty for a comment/blank/non-JSON line.
+# The JSON label of an allowlist line, or empty for a comment/blank/non-tuple line.
+# `-R` reads the LINE as a raw string and `fromjson?` parses it, so a line counts as
+# an entry only when it holds EXACTLY ONE JSON value. That is the rule
+# allowlist_verdict applies when it consults the deployed file, and matching it is
+# what keeps writer and consumer agreeing on what an entry is: read as a STREAM
+# instead, a line holding two concatenated tuples reports two labels, matches
+# neither, and survives a rewrite the consumer honors it for nothing.
 # 9>&- so this jq (spawned under the write lock) never inherits the lock fd - see the
 # fd-inheritance note on take_allowlist_write_lock.
-entry_label() { jq -r '.label // empty' 9>&- <<<"$1" 2>/dev/null || true; }
+entry_label() { jq -Rr 'fromjson? | .label // empty' 9>&- <<<"$1" 2>/dev/null || true; }
+
+# line_is_one_tuple <line> -- status 0 when the line holds exactly one JSON object.
+# The refusal predicate below; same one-value-per-line rule as entry_label, so the
+# two can never disagree about which lines are entries.
+line_is_one_tuple() { jq -Re 'fromjson? | type == "object"' 9>&- <<<"$1" >/dev/null 2>&1; }
 
 # Rewrite an allowlist file, preserving comment/blank lines and dropping any tuple for
 # <label>. Reads <file>, writes the filtered result to stdout (a no-op if it is absent).
+#
+# A non-comment line that is not exactly one JSON tuple REFUSES the whole rewrite
+# (nonzero, reason on stderr). Editing around it silently is the failure this
+# closes: the label read cannot match such a line, so the line survives while the
+# command reports a removal it did not make, or an add lands a second tuple for a
+# label the file already mentions. A corrupt source is fixed by hand, not curated
+# around.
 _without_label() {
   local drop="$1" file="$2" line
   [[ -f $file ]] || return 0
@@ -84,6 +102,11 @@ _without_label() {
         continue
         ;;
     esac
+    if ! line_is_one_tuple "$line"; then
+      printf 'refused: the allowlist source holds a line that is not a single JSON tuple; repair %s by hand before curating it\n' \
+        "$file" >&2
+      return 1
+    fi
     [[ "$(entry_label "$line")" == "$drop" ]] && continue
     printf '%s\n' "$line"
   done <"$file"
@@ -244,7 +267,10 @@ allow_label() {
   fi
   local temp
   temp=$(mktemp 9>&-)
-  _without_label "$label" "$source_file" >"$temp"
+  if ! _without_label "$label" "$source_file" >"$temp"; then
+    rm -f "$temp" 9>&-
+    exit 1
+  fi
   jq -cn --arg label "$label" --arg path "$rel_path" --arg program "$rel_prog" --arg sha256 "$sha" \
     '{label:$label, path:$path, program:$program, sha256:$sha256}' 9>&- >>"$temp"
   publish_allowlist "$temp" "$source_file" || exit 1
@@ -273,7 +299,10 @@ deny_label() {
   fi
   local temp
   temp=$(mktemp 9>&-)
-  _without_label "$label" "$source_file" >"$temp"
+  if ! _without_label "$label" "$source_file" >"$temp"; then
+    rm -f "$temp" 9>&-
+    exit 1
+  fi
   publish_allowlist "$temp" "$source_file" || exit 1
   printf 'denied: %s\n' "$label"
 }
