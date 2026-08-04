@@ -431,13 +431,14 @@ check on `main` under branch protection, so the auto-merge cannot land until it 
 
 ### Agent Skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code always
-(symlinks declared in chezmoi: `private_dot_claude/skills/symlink_*` for the full roster), Codex always
-(it scans the store natively, no declarations), and hermes for exactly the store-symlink subset of the
-delivery model below (`dot_hermes/skills/` and `dot_hermes/profiles/<name>/skills/` symlinks). The
-committed roster is the complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the
-store, the lock's `tiers` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables,
-the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
+`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code for the
+roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
+`private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
+hermes for exactly the store-symlink subset of the delivery model below (`dot_hermes/skills/` and
+`dot_hermes/profiles/<name>/skills/` symlinks). The committed roster is the complete wanted set:
+`test/unit/skills-roster-fanout.sh` fails the build if the store, the lock's `tiers` / `claudeDelivery` /
+`hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables, the per-harness
+declarations, or the settings modify-template's `skillOverrides` ever disagree.
 
 **Store provenance: who installs and refreshes each store copy** (the lock at
 `dot_agents/custom-skill-lock.json` records it):
@@ -486,6 +487,15 @@ the per-harness declarations, or the settings modify-template's `skillOverrides`
   the content. The official mechanism covers all three harnesses (`cua-driver skills status` links Claude
   Code, Codex via the store, and hermes itself), and the weekly run refreshes the pack via
   `cua-driver skills update`, the app's own GitHub-Releases updater, never a write through the symlink.
+
+**Claude delivery (the lock's `claudeDelivery` table):** a store entry mapped to `"none"` is one this
+vertical deliberately does NOT deliver to Claude Code. It carries no `private_dot_claude/skills`
+declaration and `update-skills.sh` skips it in the weekly Claude fan-out, so a `~/.claude/skills` link
+removed by hand stays removed instead of coming back on the next Monday. An absent key is the default, a
+store symlink. `last30days` is the one entry today. The table states only what THIS vertical does: it
+names no other delivery mechanism and reads no other lock, per the operator's strict-decoupling ruling.
+`"none"` is the only legal value, and a malformed table refuses the run rather than failing open, in
+every mode including `--dry-run`.
 
 **Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (28). Core
 skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
@@ -639,9 +649,10 @@ row to `tiers` (plus the `skillOverrides` template entry and the `agents/openai.
 on-demand) and `hermesProfiles` (`[]` when hermes should not carry it from the store, the named profiles
 when it should), add a `hermesRegistry` entry when hermes owns it from a registry (never both a non-empty
 `hermesProfiles` mapping and a `hermesRegistry` entry, they are disjoint), declare its Claude symlink
-and, only for store-symlinked skills, the mapped hermes symlinks, and run `just test`, the roster test
-tells you what is missing. **Removing one:** delete the store entry (or `npxTracked` row), every lock
-table row, and every declaration in the same commit.
+unless it gets a `claudeDelivery` `"none"` row instead, and, only for store-symlinked skills, the mapped
+hermes symlinks, then run `just test`, the roster test tells you what is missing. **Removing one:**
+delete the store entry (or `npxTracked` row), every lock table row, and every declaration in the same
+commit.
 
 **On-demand use of an unregistered skill:** point the agent at the file, "read
 `~/.agents/skills/<name>/SKILL.md` and follow it." Router/search-and-load indirection layers were
