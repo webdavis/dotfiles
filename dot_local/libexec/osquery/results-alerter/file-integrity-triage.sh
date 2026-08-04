@@ -100,6 +100,14 @@ OSQUERY_UPGRADE_RECORD_WINDOW_DAYS=3
 # file anyone can append to would be a way to stall paging.
 OSQUERY_UPGRADE_RECORD_MAX_ROWS=500
 
+# The most bytes that may be read, and the size past which the record is refused
+# whole. The row cap above bounds how many LINES are walked; it does not bound
+# the read itself, because a single line with no newline in it can be as large as
+# the disk allows and would be read in full before the first row was counted. At
+# 500 rows this leaves over 500 bytes per row, and the real file averages well
+# under a hundred.
+OSQUERY_UPGRADE_RECORD_MAX_BYTES=262144
+
 # How many package names an unmatched line lists before it counts the rest. The
 # whole sentence is capped at 240 characters by the renderer, so a long list
 # would be truncated mid-name and take the timestamp with it.
@@ -205,18 +213,58 @@ _file_integrity_disk_hash() {
 _file_integrity_upgrade_line() {
   local target="$1" record="$OSQUERY_UPGRADE_RECORD"
   local basename_of_target="${target##*/}"
-  local epoch iso now age window rows=0
+  local epoch iso now age window rows=0 bytes snapshot=""
   local row rest name state version_before version_after
   local matched="" matched_before="" matched_after=""
   local -a changed_names=()
 
-  if [[ ! -r $record ]]; then
+  if [[ ! -e $record ]]; then
     printf 'no upgrade record on this machine'
     return 0
   fi
-  # The first line dates the record. Read on its own open rather than inside the
-  # row loop, so the row loop needs no line counter and the two shapes never mix.
-  read -r epoch iso <"$record" 2>/dev/null || true
+  # WHAT MAY BE READ AT ALL. The record path is not a trust input: it lives in
+  # the operator-writable state dir, so anything can be standing there. A
+  # readable FIFO with no writer is the shape that matters, because `read` on it
+  # blocks FOREVER, and it blocks while the alerter holds its single-instance
+  # lock, so the page is never sent and the cursor never advances: every page on
+  # the machine stops behind one named pipe. A character device does the same by
+  # never yielding a newline. A regular file is the only shape that cannot, so it
+  # is the only shape accepted. SYMLINKS ARE FOLLOWED, deliberately: `-f` judges
+  # the final target, so a link to a regular file is read (a normal way to place
+  # state) and a link to a pipe or a device is refused exactly like the bare one.
+  if [[ ! -f $record || ! -r $record ]]; then
+    printf 'osquery file-integrity triage: the upgrade record at %s is not a readable regular file; this page carries no correlation\n' \
+      "$record" >&2
+    printf 'the upgrade record could not be read'
+    return 0
+  fi
+  # ONE OPEN, ONE SNAPSHOT, BOUNDED. Both shapes (the run line and the package
+  # rows) are parsed from these same bytes. Two opens could straddle the atomic
+  # rename the producer publishes with, and would then pair one generation's
+  # timestamp with the other generation's transitions: a correlation that no run
+  # ever produced, rendered as if it had. The read is capped because this is the
+  # alert path. The type check above already refuses the shapes that block
+  # forever, so what is left to bound is size, and a byte cap bounds that
+  # directly; a watchdog child (the shape ssh-hardening --verify uses to bound a
+  # blocking `sshd -G`) would buy nothing here, since there is no external
+  # process to signal, only this shell reading a local file. A record over the
+  # cap is refused WHOLE rather than parsed from its first bytes, for the same
+  # reason an unrecognised row refuses the whole record: a partial reading
+  # rendered as a complete one is the failure this correlation exists to avoid.
+  snapshot="$(head -c "$((OSQUERY_UPGRADE_RECORD_MAX_BYTES + 1))" -- "$record" 2>/dev/null)" || snapshot=""
+  bytes="$(printf '%s' "$snapshot" | LC_ALL=C wc -c)" || bytes=""
+  bytes="${bytes//[[:space:]]/}"
+  if [[ ! $bytes =~ ^[0-9]+$ ]] || ((bytes > OSQUERY_UPGRADE_RECORD_MAX_BYTES)); then
+    printf 'osquery file-integrity triage: the upgrade record at %s could not be read within %s bytes; this page carries no correlation\n' \
+      "$record" "$OSQUERY_UPGRADE_RECORD_MAX_BYTES" >&2
+    printf 'the upgrade record could not be read'
+    return 0
+  fi
+  # The first line dates the record, taken from the snapshot rather than from a
+  # second open of the file.
+  row="${snapshot%%$'\n'*}"
+  epoch="${row%%$'\t'*}"
+  iso="${row#*$'\t'}"
   if [[ ! $epoch =~ ^[0-9]{1,11}$ ]] ||
     [[ ! $iso =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
     printf 'osquery file-integrity triage: the upgrade record at %s does not start with a run timestamp; this page carries no correlation\n' \
@@ -235,7 +283,7 @@ _file_integrity_upgrade_line() {
     return 0
   fi
 
-  while IFS= read -r row || [[ -n $row ]]; do
+  while IFS= read -r row; do
     rows=$((rows + 1))
     ((rows == 1)) && continue # the run timestamp, already read above
     # FIELD DECODING BY EXPANSION, NOT BY `read`. A tab is one of the three IFS
@@ -279,7 +327,7 @@ _file_integrity_upgrade_line() {
       matched_before="${version_before:-none}"
       matched_after="${version_after:-none}"
     fi
-  done <"$record"
+  done <<<"$snapshot"
 
   if [[ -n $matched ]]; then
     printf 'recorded upgrade: %s %s -> %s at %s (the name matches this file, which is not proof)' \

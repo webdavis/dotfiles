@@ -233,4 +233,116 @@ assert_json "$out" "changed row"
 grep -qF 'recorded upgrade: jq 1.7.1 -> 1.8.0' <<<"$(jq -r '.upgrade' <<<"$out")" ||
   fail "a CHANGED package did not render its version transition -- $(jq -r '.upgrade' <<<"$out")"
 
+# triage_bounded <target> -- run the helper with a WATCHDOG, so a record shape
+# that blocks fails this suite instead of wedging it. A plain triage() call is a
+# command substitution, which waits forever; the cases below are exactly the
+# shapes that never return, so the call has to be bounded from the outside.
+#
+# The bound is a killer subshell rather than a poll loop, so the passing path
+# sleeps for NOTHING: `wait` returns the instant the helper exits and the killer
+# is torn down unused. The killer detaches its own stdin and stdout so a lingering
+# sleep can never hold the suite runner's pipe open.
+triage_bounded_out=""
+triage_bounded() {
+  local target="$1" child killer status=0
+  : >"$triage_stderr"
+  HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest" \
+    OSQUERY_MANAGED_BIN_MANIFEST="$work/no-bin-manifest.sha256" \
+    OSQUERY_UPGRADE_RECORD="$record" \
+    bash -c '
+      set -euo pipefail
+      source "$1"
+      source "$2"
+      file_integrity_triage "$3"
+    ' _ "$PIPELINE_HELPER" "$HELPER" "$target" >"$work/bounded.out" 2>"$triage_stderr" &
+  child=$!
+  {
+    sleep 10
+    kill -KILL "$child" 2>/dev/null || true
+  } </dev/null >/dev/null 2>&1 &
+  killer=$!
+  wait "$child" || status=$?
+  kill "$killer" 2>/dev/null || true
+  triage_bounded_out="$(cat "$work/bounded.out")"
+  return "$status"
+}
+
+# ---- 9. A record path that is NOT A REGULAR FILE is refused rather than read.
+#      The record lives in the operator-writable state dir, so its path is not a
+#      trust input: a readable FIFO with no writer standing there makes `read`
+#      block FOREVER, and it blocks while the alerter holds its single-instance
+#      lock, so the page is never sent and the cursor never advances. Every page
+#      on the machine stops behind one named pipe. A character device does the
+#      same thing by never yielding a newline. ----
+fifo_record="$work/record.fifo"
+rm -f "$fifo_record"
+mkfifo "$fifo_record"
+record="$fifo_record"
+rc=0
+triage_bounded "$target" || rc=$?
+[[ $rc -eq 0 ]] ||
+  fail "a FIFO upgrade record blocked or failed the helper (exit $rc); every page waits behind it"
+assert_json "$triage_bounded_out" "fifo record"
+grep -qF 'could not be read' <<<"$(jq -r '.upgrade' <<<"$triage_bounded_out")" ||
+  fail "a FIFO record did not degrade to a stated could-not-read line -- $triage_bounded_out"
+[[ -s $triage_stderr ]] || fail "a FIFO record degraded SILENTLY; it must say so on stderr"
+
+record="/dev/zero"
+rc=0
+triage_bounded "$target" || rc=$?
+[[ $rc -eq 0 ]] ||
+  fail "a character-device upgrade record blocked or failed the helper (exit $rc)"
+assert_json "$triage_bounded_out" "device record"
+grep -qF 'could not be read' <<<"$(jq -r '.upgrade' <<<"$triage_bounded_out")" ||
+  fail "a character-device record did not degrade to a stated could-not-read line -- $triage_bounded_out"
+record="$work/last-upgrade-changes.tsv"
+
+# ---- 10. The record is read ONCE. It is published by an atomic rename, so two
+#      opens can straddle a replacement and pair one generation's timestamp with
+#      the other generation's package rows, which is a rendered correlation that
+#      never existed. The interleaving is driven deterministically rather than
+#      raced: the helper reads its clock between the two opens it used to do, so
+#      a `date` shim on PATH is a hook that fires exactly there, and it swaps the
+#      record for a second generation. The shim leaves a MARKER and the marker is
+#      asserted, so this can never pass by quietly failing to drive the swap.
+#      EPOCHSECONDS is unset for the same reason: with it set, bash answers the
+#      clock read from its own variable and never forks the shim. ----
+shim_bin="$work/shim-bin"
+mkdir -p "$shim_bin"
+gen_b_record="$work/generation-b.tsv"
+{
+  printf '%s\t%s\n' "$recent_epoch" "$recent_iso"
+  printf 'ripgrep\tchanged\t14.1.0\t14.1.1\n'
+} >"$gen_b_record"
+cat >"$shim_bin/date" <<SHIM
+#!/usr/bin/env bash
+# Publish generation B over the record, the way the weekly job does.
+: >"$work/date-shim-fired"
+cp "$gen_b_record" "$record.next"
+mv -f "$record.next" "$record"
+exec /bin/date "\$@"
+SHIM
+chmod +x "$shim_bin/date"
+# Generation A: the SAME timestamp, a DIFFERENT transition for the same package.
+write_record "$recent_epoch" "$recent_iso" "$(printf 'ripgrep\tchanged\t13.0.0\t14.0.0')"
+rm -f "$work/date-shim-fired"
+out="$(PATH="$shim_bin:$PATH" HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest" \
+  OSQUERY_MANAGED_BIN_MANIFEST="$work/no-bin-manifest.sha256" \
+  OSQUERY_UPGRADE_RECORD="$record" \
+  bash -c '
+    set -euo pipefail
+    # Without this the clock read below is answered from bash own variable and
+    # the shim, which is the hook that drives the swap, never runs.
+    unset EPOCHSECONDS
+    source "$1"
+    source "$2"
+    file_integrity_triage "$3"
+  ' _ "$PIPELINE_HELPER" "$HELPER" "$home/.local/bin/ripgrep" 2>"$triage_stderr")"
+[[ -e $work/date-shim-fired ]] ||
+  fail "the record-swap hook never fired, so this case proved nothing about how often the record is opened"
+assert_json "$out" "single read"
+upgrade="$(jq -r '.upgrade' <<<"$out")"
+grep -qF 'recorded upgrade: ripgrep 13.0.0 -> 14.0.0' <<<"$upgrade" ||
+  fail "the helper re-opened the record and rendered a generation it did not date -- $upgrade"
+
 printf 'osquery-file-integrity-triage: OK (short recorded/on-disk hashes; a name-matching record renders the transition and says it is not proof; added, removed and changed rows each render in the direction the run moved; an unmatched, stale, absent or malformed record each degrade to a stated line, loudly and without losing the page)\n'
