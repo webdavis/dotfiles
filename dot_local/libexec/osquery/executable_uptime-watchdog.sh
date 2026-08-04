@@ -111,13 +111,26 @@ field_raw() {
   printf '%s' "${line#*"$label = "}"
 }
 
-# Prior cross-run state. Absent or corrupt (unparseable) starts fresh, never a
-# crash: a fresh start means empty streaks and no false growth signal.
+# Prior cross-run state, read ONCE and validated as a WHOLE FILE: it must slurp
+# (-s) to exactly ONE top-level object. Absent, unparseable, or anything else
+# starts fresh, never a crash: a fresh start means empty streaks and no false
+# growth signal.
+#
+# Slurped rather than checked with a bare `jq -e .`, which takes its exit status
+# from the LAST document of a concatenated stream and so passes a file holding
+# two documents. That matters because every read below queries this value, and a
+# stream fans a query out to one result PER document: the numeric guards reject
+# the resulting two-line values, but a `// ""` fallback emits an EMPTY line for a
+# document lacking the key, which command substitution strips - so a trailing {}
+# collapses the fan-out back to a single clean value that passes its guard. The
+# audit's paged-fingerprint marker reads that way, and adopting one from a
+# corrupt file silences the manifest-audit page for that tamper permanently.
+# Validating here fixes every later read at once: each one queries this
+# in-memory document, and none of them re-reads the file.
 prev_state="{}"
 if [[ -r $STATE ]]; then
-  prev_state="$(cat "$STATE" 2>/dev/null || printf '{}')"
+  prev_state="$(jq -ce -s 'if (length == 1 and (.[0] | type == "object")) then .[0] else error("not one object") end' <"$STATE" 2>/dev/null)" || prev_state="{}"
 fi
-printf '%s' "$prev_state" | jq -e . >/dev/null 2>&1 || prev_state="{}"
 
 uid="$(id -u)"
 problems=()

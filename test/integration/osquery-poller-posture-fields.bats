@@ -466,6 +466,68 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_baseline_unchanged
 }
 
+@test "T-PCTL-multidoc-baseline-distrusted: a baseline holding two concatenated documents is no prior, and its doubling is never written back" {
+  # The same whole-file rule the controls file gets, for the BASELINE. Reading
+  # it with `.field // empty` queries a concatenated stream and emits one result
+  # per document; a document that LACKS the field emits nothing, so a prior
+  # followed by {} collapses to one clean value and passes the trio validation
+  # as a trustworthy baseline. It is not one.
+  #
+  # The refused-controls-file path then folds the fresh trio into that prior
+  # (`. + $trio`), which over a two-document prior emits TWO documents and
+  # persists the doubling. That is the amplifier: the next tick reads a trio
+  # fanned across two documents, fails the domain guards, and re-pages every
+  # declared control as a first observation.
+  seed_baseline "$healthy_seed
+{}"
+  set_posture_controls '{"not":"an array"}' # refused, so the fold-in path runs
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1 # the controls-file gap, and nothing fabricated from the prior
+  assert_page_body_has 'not a JSON array'
+  # Persisted as exactly ONE document: the doubling is not amplified.
+  run jq -e -s 'length == 1 and (.[0] | type == "object")' "$OSQUERY_POSTURE_STATE"
+  [[ $status -eq 0 ]] || {
+    echo "expected exactly one JSON object in the baseline; baseline:"
+    cat "$OSQUERY_POSTURE_STATE"
+    false
+  }
+  # And no field carried over from the distrusted prior.
+  run jq -e 'has("filevault") | not' "$OSQUERY_POSTURE_STATE"
+  [[ $status -eq 0 ]] || {
+    echo "expected no control field lifted from the distrusted baseline; baseline:"
+    cat "$OSQUERY_POSTURE_STATE"
+    false
+  }
+}
+
+@test "T-PCTL-pretty-printed-baseline-round-trips: a valid single-document baseline is trusted whatever its whitespace" {
+  # The baseline rule counts DOCUMENTS, not lines: a hand-inspected (indented,
+  # multi-line) baseline is still ONE document and stays trusted. Pinned through a
+  # STEADY-DEVIANT control, because that is what needs a trusted prior to stay
+  # quiet: distrust the baseline and the Guest account pages all over again as a
+  # first observation, every 60 seconds.
+  declare_posture_controls
+  seed_baseline "$(jq -n --argjson seed "$healthy_seed" '$seed + {guest: "enabled"}')"
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_SYSADMINCTL_GUEST_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account enabled."
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_no_page # already reported: the prior is what keeps this quiet
+  assert_baseline_scalar filevault on
+  assert_baseline_scalar guest enabled
+}
+
 @test "T-PCTL-empty-controls-file-gaps: a controls file declaring zero controls pages a gap instead of silently watching nothing" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline

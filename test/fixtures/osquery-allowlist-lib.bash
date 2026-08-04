@@ -144,6 +144,26 @@ seed_allowlist_tuple() {
   "$ALLOWLIST_CHEZMOI" apply --force >/dev/null 2>&1
 }
 
+# Seed a raw line into the allowlist source verbatim (same source-then-apply route
+# as seed_allowlist_tuple), for the shapes a well-formed tuple cannot express: a
+# line holding two concatenated JSON documents, a comment, a blank.
+seed_allowlist_raw_line() {
+  printf '%s\n' "$1" >>"$ALLOWLIST_SOURCE_FILE"
+  "$ALLOWLIST_CHEZMOI" apply --force >/dev/null 2>&1
+}
+
+# One line holding TWO concatenated tuples for <label>: what a doubled write, or
+# a lost newline between two appends, leaves behind. Each document parses alone,
+# so a per-document read reports a label for it; only a one-value-per-line rule
+# refuses it. The consumer (allowlist-verdict) already applies that rule, so a
+# line like this can never suppress anything.
+doubled_tuple_line() {
+  local tuple
+  tuple="$(jq -cn --arg label "$1" --arg path "$2" --arg program "$3" \
+    '{label:$label, path:$path, program:$program, sha256:""}')"
+  printf '%s%s' "$tuple" "$tuple"
+}
+
 # Membership by the JSON .label field (the file is NDJSON tuples now, R2-1).
 assert_allowlisted() {
   if ! grep -qF "\"label\":\"$1\"" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then

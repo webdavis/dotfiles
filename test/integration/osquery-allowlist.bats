@@ -146,6 +146,84 @@ stub_launchd() {
   }
 }
 
+@test "denying (-d) refuses a source line holding two concatenated tuples instead of reporting a removal it did not make" {
+  # The per-line label read parsed the line as a JSON STREAM, so two concatenated
+  # tuples yielded two labels, matched neither, and the line survived the rewrite
+  # while the command reported "denied" and refreshed the manifest. The consumer
+  # reads one value per line and ignores such a line entirely, so nothing was ever
+  # suppressed by it; what is wrong is the writer editing around a corrupt source
+  # and calling it a removal. Refuse the whole mutation instead: loud, non-zero,
+  # nothing deployed.
+  seed_allowlist_raw_line "$(doubled_tuple_line com.foo.agent '~/Library/LaunchAgents/com.foo.agent.plist' /opt/homebrew/opt/foo/bin/foo)"
+  local before
+  before="$(cat "$ALLOWLIST_SOURCE_FILE")"
+
+  run run_allowlist -d com.foo.agent
+  [ "$status" -ne 0 ] || {
+    echo "expected -d to refuse a malformed source, got exit 0: $output"
+    false
+  }
+  [[ $output == *"single JSON tuple"* ]] || {
+    echo "expected stderr to name the malformed line; got: $output"
+    false
+  }
+  [ "$(cat "$ALLOWLIST_SOURCE_FILE")" = "$before" ] || {
+    echo "expected the source untouched by a refused deny; source: $(cat "$ALLOWLIST_SOURCE_FILE")"
+    false
+  }
+  refute_manifest_refreshed
+}
+
+@test "adding (-a) refuses a source line holding two concatenated tuples instead of appending beside it" {
+  # Same refusal for the add path: appending a fresh tuple beside a corrupt line
+  # the rewrite could not drop is how a label ends up stored twice.
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo
+  seed_allowlist_raw_line "$(doubled_tuple_line com.foo.agent '~/Library/LaunchAgents/com.foo.agent.plist' /opt/homebrew/opt/foo/bin/foo)"
+  local before
+  before="$(cat "$ALLOWLIST_SOURCE_FILE")"
+
+  run run_allowlist -a com.foo.agent
+  [ "$status" -ne 0 ] || {
+    echo "expected -a to refuse a malformed source, got exit 0: $output"
+    false
+  }
+  [[ $output == *"single JSON tuple"* ]] || {
+    echo "expected stderr to name the malformed line; got: $output"
+    false
+  }
+  [ "$(cat "$ALLOWLIST_SOURCE_FILE")" = "$before" ] || {
+    echo "expected the source untouched by a refused add; source: $(cat "$ALLOWLIST_SOURCE_FILE")"
+    false
+  }
+  refute_manifest_refreshed
+}
+
+@test "curating around comments and blank lines still round-trips: one tuple per line is the only rule" {
+  # The refusal is about a line carrying more than one JSON value, nothing else:
+  # comments and blanks are preserved verbatim, and a well-formed tuple on its own
+  # line is still dropped by -d.
+  seed_allowlist_raw_line '# operator-curated own agents'
+  seed_allowlist_raw_line ''
+  seed_allowlist_tuple com.foo.agent '~/Library/LaunchAgents/com.foo.agent.plist' /opt/homebrew/opt/foo/bin/foo
+  seed_allowlist_tuple com.bar.agent '~/Library/LaunchAgents/com.bar.agent.plist' /opt/homebrew/opt/bar/bin/bar
+
+  run run_allowlist -d com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected -d of a present label to exit 0, got $status: $output"
+    false
+  }
+  assert_not_allowlisted com.foo.agent
+  assert_allowlisted com.bar.agent
+  run grep -qxF '# operator-curated own agents' "$OSQUERY_LAUNCHD_ALLOWLIST"
+  [ "$status" -eq 0 ] || {
+    echo "expected the comment line preserved; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+}
+
 @test "listing (-l) prints exactly the current entry lines to stdout and exits 0" {
   seed_allowlist_tuple com.foo.agent '~/Library/LaunchAgents/com.foo.agent.plist' /opt/homebrew/opt/foo/bin/foo
   seed_allowlist_tuple com.bar.agent '~/Library/LaunchAgents/com.bar.agent.plist' /opt/homebrew/opt/bar/bin/bar

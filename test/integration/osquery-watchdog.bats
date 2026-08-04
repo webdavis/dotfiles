@@ -415,6 +415,73 @@ teardown() { teardown_watchdog_harness; }
   }
 }
 
+@test "T-WATCH-state-concatenated-starts-fresh: a state file holding two concatenated documents is not trusted, so a confirmed tamper still pages" {
+  # A corruption gate of the shape `jq -e .` takes its exit status from the LAST
+  # document of a concatenated stream, so two valid documents back to back read
+  # as healthy. Each later read then runs against the stream: a `// -1` fallback
+  # emits one line PER document (which every numeric guard rejects), but a `// ""`
+  # fallback emits an EMPTY line for a document that lacks the key, and command
+  # substitution strips it - so a trailing {} collapses the fan-out back to one
+  # clean value that passes its guard. The paged-fingerprint marker is read that
+  # way, and a marker resurrected from a corrupt state silences the manifest-audit
+  # page for that exact tamper forever (a fingerprint already paged for never
+  # pages again). A whole-file "exactly one object" read is what refuses it.
+  local fingerprint corrupt_document
+  tamper_manifested_file
+  run run_watchdog # tick 1: the divergence is seen once (confirming), silent
+  [[ $status -eq 0 ]] || {
+    echo "tick1 status $status: $output"
+    false
+  }
+  assert_no_page
+  fingerprint="$(jq -r '.pipeline_audit.fingerprint' "$OSQUERY_WATCHDOG_STATE")"
+
+  # A state claiming this exact divergence was ALREADY paged for, as two valid
+  # concatenated documents. The second document is what collapses the fan-out.
+  corrupt_document="$(jq -cn --arg fp "$fingerprint" \
+    '{agents: {}, pending: {count: -1, growth_streak: 0},
+      pipeline_audit: {fingerprint: $fp, streak: 1, paged_fingerprint: $fp}}')"
+  seed_watchdog_state "$corrupt_document
+{}"
+
+  run run_watchdog # tick 2: the corrupt state must start fresh, not adopt its marker
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_no_page
+  assert_state_has '"paged_fingerprint":""'
+
+  run run_watchdog # tick 3: confirmed against a fresh baseline, so it pages
+  [[ $status -eq 0 ]] || {
+    echo "tick3 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'divergence'
+}
+
+@test "T-WATCH-state-pretty-printed-round-trips: a valid single-document state is trusted whatever its whitespace" {
+  # The corruption gate counts DOCUMENTS, not lines: a hand-inspected (indented,
+  # multi-line) state file is still exactly one document and must keep its
+  # streak memory, or the crash-loop alarm would silently reset every tick.
+  set_agent com.webdavis.osquery-digest 40 1 # observation 1: streak 1
+  run run_watchdog
+  assert_no_page
+  jq . "$OSQUERY_WATCHDOG_STATE" >"$WD_HOME/pretty-state.json"
+  cp "$WD_HOME/pretty-state.json" "$OSQUERY_WATCHDOG_STATE"
+
+  set_agent com.webdavis.osquery-digest 41 1 # it re-ran and failed again
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_body_has 'crash'
+}
+
 @test "T-WATCH-state-unpersistable-pages: an unwritable state dir pages CRIT (the streak alarms would otherwise silently degrade)" {
   # With the state unwritable, prev_state resets to {} every tick, so a crash-looping
   # agent's streak resets to 1 each run and never reaches the loop threshold: the
