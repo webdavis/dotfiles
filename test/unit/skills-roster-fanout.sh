@@ -53,8 +53,9 @@
 #      wins those names and the store symlink is the wanted delivery.
 #   9. The lock's forks drift-watch table covers exactly the vendored dirs
 #      (minus the documented exemptions) and every entry is well-formed.
-#  10. Every roster size CLAUDE.md states equals the computed one, so the
-#      prose a maintainer reads cannot drift away from the tables.
+#  10. Every roster size the documentation states (CLAUDE.md plus the skills
+#      runbook) equals the computed one, so the prose a maintainer reads
+#      cannot drift away from the tables.
 # Codex has no declarations to check: it scans ~/.agents/skills natively; its
 # on-demand policy files (agents/openai.yaml) are committed alongside vendored
 # skills and re-asserted at run time by update-skills.sh for the npx ones.
@@ -406,7 +407,7 @@ done
 # Note the table is not only content FORKS: elevenlabs is vendored-not-forked
 # (npx cannot install it full-tree) and is watched for exactly the same reason,
 # which is why the coverage rule is "vendored", not "carries fork: true".
-FORKS_UNWATCHED_VENDORED=(tiktok-crawling) # documented at CLAUDE.md, Agent Skills
+FORKS_UNWATCHED_VENDORED=(tiktok-crawling) # docs/runbooks/agent-skills-store.md
 
 # Real directories only: dot_agents/skills also holds symlink_*.tmpl chezmoi
 # declarations for app-owned packs, which hold no content of ours to drift.
@@ -502,20 +503,34 @@ forks_count=0
 # fix.
 #
 # Matching runs against the PARAGRAPH-UNWRAPPED text, not the file's lines.
-# mdformat re-wraps CLAUDE.md at 105 columns, so a sentence's number and its
-# surrounding words routinely straddle a line break (the HyperFrames one does
-# today), and a line-based pattern would then have to be re-tuned every time an
-# unrelated word shifts the wrap. Unwrapping makes the patterns depend on the
-# prose, which is the thing being pinned, and not on the column width.
-DOCUMENTATION="$REPO_ROOT/CLAUDE.md"
-[[ -f $DOCUMENTATION ]] || fail "missing documentation file: $DOCUMENTATION"
-documentation_unwrapped="$(awk '
-  /^[[:space:]]*$/ { if (block != "") { print block; block = "" } ; next }
-  { line = $0; sub(/^[[:space:]]+/, "", line)
-    block = (block == "" ? line : block " " line) }
-  END { if (block != "") print block }
-' "$DOCUMENTATION")"
-[[ -n $documentation_unwrapped ]] || fail "unwrapping $DOCUMENTATION produced no text"
+# mdformat re-wraps both documents at 105 columns, so a sentence's number and
+# its surrounding words routinely straddle a line break (the HyperFrames one
+# does today), and a line-based pattern would then have to be re-tuned every
+# time an unrelated word shifts the wrap. Unwrapping makes the patterns depend
+# on the prose, which is the thing being pinned, and not on the column width.
+#
+# TWO documents are read as one corpus. The repo CLAUDE.md carries the roster
+# size and the runbook carries the per-lane and per-tier figures, and either
+# file may restate one the other already gives. Reading them together pins a
+# number wherever it is written, and the agree-with-itself check below then
+# catches two copies that disagree, which is the failure a single-file rule
+# would have missed once the deep-dive moved out of CLAUDE.md.
+DOCUMENTATION_FILES=(
+  "$REPO_ROOT/CLAUDE.md"
+  "$REPO_ROOT/docs/runbooks/agent-skills-store.md"
+)
+documentation_unwrapped=""
+for documentation in "${DOCUMENTATION_FILES[@]}"; do
+  [[ -f $documentation ]] || fail "missing documentation file: $documentation"
+  unwrapped="$(awk '
+    /^[[:space:]]*$/ { if (block != "") { print block; block = "" } ; next }
+    { line = $0; sub(/^[[:space:]]+/, "", line)
+      block = (block == "" ? line : block " " line) }
+    END { if (block != "") print block }
+  ' "$documentation")"
+  [[ -n $unwrapped ]] || fail "unwrapping $documentation produced no text"
+  documentation_unwrapped="${documentation_unwrapped}${unwrapped}"$'\n'
+done
 
 core_count="$(jq -r '[.tiers | to_entries[] | select(.value == "core")] | length' "$LOCK")"
 on_demand_count="$(jq -r '[.tiers | to_entries[] | select(.value == "on-demand")] | length' "$LOCK")"
@@ -534,16 +549,16 @@ documented_count_is() {
   local stated distinct
   stated="$(printf '%s\n' "$documentation_unwrapped" | sed -n "s/$expression/\\1/p" | sort -u)"
   [[ -n $stated ]] ||
-    fail "no CLAUDE.md sentence states the $label any more, so this rule now pins nothing; restore the wording, or update the pattern in test/unit/skills-roster-fanout.sh in the same commit"
+    fail "no sentence in ${DOCUMENTATION_FILES[*]} states the $label any more, so this rule now pins nothing; restore the wording, or update the pattern in test/unit/skills-roster-fanout.sh in the same commit"
   distinct="$(printf '%s\n' "$stated" | wc -l | tr -d ' ')"
   [[ $distinct -eq 1 ]] ||
-    fail "CLAUDE.md states $distinct different values for the $label ($(printf '%s' "$stated" | tr '\n' ' ')); they cannot all be right"
+    fail "the documentation states $distinct different values for the $label ($(printf '%s' "$stated" | tr '\n' ' ')); they cannot all be right"
   [[ $stated == "$expected" ]] ||
-    fail "CLAUDE.md says the $label is $stated; the lock and the declarations say $expected"
+    fail "the documentation says the $label is $stated; the lock and the declarations say $expected"
 }
 
-# The backticks in these patterns are CLAUDE.md's own markdown around a table
-# name, matched literally; nothing here is a command substitution.
+# The backticks in these patterns are the documentation's own markdown around a
+# table name, matched literally; nothing here is a command substitution.
 # shellcheck disable=SC2016
 {
   documented_count_is "$roster_count" 'roster size' \
