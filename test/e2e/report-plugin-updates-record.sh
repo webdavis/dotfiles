@@ -362,4 +362,30 @@ shopt -u nullglob dotglob
   fail "the run wrote its reading INSIDE the directory sitting at the snapshot path: ${snapshot_dir_contents[*]}"
 rmdir "$SNAPSHOT"
 
+# ── 13. THE SNAPSHOT IS REPLACED, NEVER OVERWRITTEN IN PLACE. A plain copy onto
+#       the live snapshot truncates it before it has the new content, so a run
+#       interrupted mid-write (a full disk, a reboot, a killed launchd job)
+#       leaves a short file behind and the NEXT run reads every plugin missing
+#       from it as newly added: a fabricated change list, the one thing this
+#       record must never produce. Rename is what makes the swap all-or-nothing,
+#       and a rename gives the path a new inode while a copy keeps the old one,
+#       so the inode is what this asserts. ────────────────────────────────────
+# GNU form first, BSD fallback second. The BSD flag means "file system status"
+# under GNU coreutils, so it SUCCEEDS with the wrong output instead of failing
+# over, and the fallback would never run.
+inode_of() { stat -c %i "$1" 2>/dev/null || stat -f %i "$1"; }
+rm -rf "$HOME/.local/state"
+write_plugin_state "8.0.0"
+run_helper --scheduled
+[[ -f $SNAPSHOT ]] || fail "the baseline for the atomic-replacement case was not recorded: $RUN_OUTPUT"
+snapshot_inode_before="$(inode_of "$SNAPSHOT")"
+rm -rf "$STATE_DIR/log-week-claims"
+write_plugin_state "8.1.0"
+run_helper --scheduled
+[[ $RUN_RC -eq 0 ]] || fail "the run that should have replaced the snapshot exited $RUN_RC: $RUN_OUTPUT"
+grep -qF 'exa@claude-plugins-official	8.1.0' "$SNAPSHOT" ||
+  fail "the snapshot does not carry the new reading: $(cat "$SNAPSHOT")"
+[[ "$(inode_of "$SNAPSHOT")" != "$snapshot_inode_before" ]] ||
+  fail "the snapshot was written in place rather than renamed over; a write interrupted halfway leaves a truncated snapshot and the next run reports every plugin as newly added"
+
 echo "report-plugin-updates-record: OK"

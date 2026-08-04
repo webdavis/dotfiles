@@ -230,6 +230,28 @@ plugin_snapshot() {
   ' "$INSTALLED_PLUGINS_FILE" | sort
 }
 
+# write_snapshot <reading> -- replace the snapshot ALL AT ONCE, or say so.
+#
+# A plain copy onto the live snapshot truncates it before it holds the new
+# content, so a run interrupted between those two moments (a full disk, a reboot,
+# a killed launchd job) leaves a short file behind, and the next run reads every
+# plugin missing from it as newly added. A fabricated change list is the one
+# thing this record must never produce, and it is worse than no record at all.
+#
+# The staging file is a SIBLING in the state directory, not in TMPDIR: rename(2)
+# is atomic only within one filesystem, and nothing guarantees TMPDIR is on this
+# one. Both callers go through here, so the baseline write and the post-delivery
+# write get the same guarantee.
+write_snapshot() {
+  local reading="$1" staged=""
+  if staged="$(mktemp "$SNAPSHOT_FILE.XXXXXX" 2>/dev/null)" && [[ -n $staged ]] &&
+    cp "$reading" "$staged" && mv -f "$staged" "$SNAPSHOT_FILE"; then
+    return 0
+  fi
+  [[ -n $staged ]] && rm -f "$staged"
+  return 1
+}
+
 mkdir -p "$STATE_DIR" 2>/dev/null || {
   printf '%s: the state directory %s could not be created; nothing can be compared or remembered\n' \
     "$AGENT_NAME" "$STATE_DIR" >&2
@@ -312,7 +334,7 @@ if [[ ! -f $SNAPSHOT_FILE ]]; then
     printf '%s: this is not a scheduled run, so the baseline was NOT written\n' "$AGENT_NAME"
     exit 0
   fi
-  if ! cp "$current" "$SNAPSHOT_FILE"; then
+  if ! write_snapshot "$current"; then
     printf '%s: the baseline could not be written to %s\n' "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
     exit 1
   fi
@@ -336,7 +358,7 @@ fi
 # a change consumed by a run that told nobody is reported by the next one
 # instead. The success marker follows the same rule, so the gap in the next entry
 # is measured from a run that actually posted.
-if ! cp "$current" "$SNAPSHOT_FILE"; then
+if ! write_snapshot "$current"; then
   printf '%s: the entry was delivered but the snapshot at %s could not be updated; the next entry will repeat this change\n' \
     "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
   exit 1
