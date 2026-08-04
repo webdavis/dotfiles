@@ -2,7 +2,7 @@
 goals, active branches, temporary workarounds) that wouldn't make sense if
 multiple workstreams, PRs, or branches were in progress simultaneously.
 Document general principles, workflows, and architecture, not transient
-project state. -->
+project state. Conditional operational detail belongs in docs/runbooks/. -->
 
 # CLAUDE.md
 
@@ -10,24 +10,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A [chezmoi](https://www.chezmoi.io/) dotfiles repository. Chezmoi manages files in
-`~/.local/share/chezmoi/` (source state) and applies them to `$HOME` (target state). Files use chezmoi
-naming conventions: `dot_` prefix maps to `.`, `private_` sets permissions, `executable_` sets +x, and
-`.tmpl` suffix indicates Go templates.
+A [chezmoi](https://www.chezmoi.io/) dotfiles repository. **This checkout is the chezmoi source
+directory**: `.chezmoi.toml.tmpl` sets both `sourceDir` and `workingTree` to this repo's path, so there
+is no separate `~/.local/share/chezmoi` copy to keep in sync.
+
+Chezmoi applies the source state here to the target state in `$HOME`. Everything not excluded by
+`.chezmoiignore` reaches the target; the source-name prefixes control naming and mode rather than
+membership: `dot_` maps to `.`, `private_` restricts permissions to the user, `executable_` sets `+x`,
+`symlink_` creates a link, `modify_` runs the file as a script over the existing target, `run_` executes
+it, and a `.tmpl` suffix marks a Go template. An unprefixed entry such as `Library/` deploys under its
+own name.
+
+## Runbooks
+
+Conditional detail lives under `docs/runbooks/` and is read on demand, not carried in this file:
+
+| Runbook                                           | Covers                                                                 |
+| ------------------------------------------------- | ---------------------------------------------------------------------- |
+| `docs/runbooks/agent-skills-store.md`             | the cross-harness skills store, its lock, and the plugin update record |
+| `docs/runbooks/claude-code-settings.md`           | the `modify_settings.json` field model and plugin-state trade          |
+| `docs/runbooks/git-hooks.md`                      | all four hooks, the dispatcher design, and the pre-push history        |
+| `docs/runbooks/local-daemons.md`                  | atuin, happy and tailscaled: config, gotchas, diagnostic ladders       |
+| `docs/runbooks/macos-defaults.md`                 | the two defaults runners, the capture workflow, the gotchas            |
+| `docs/runbooks/macos-fresh-machine-quickstart.md` | first-apply setup, TCC grants, LuLu, and SSH hardening                 |
+| `docs/runbooks/age-key.md`                        | the age identity behind encrypted source files                         |
 
 ## Key Commands
 
-### Linting & Formatting
+### Linting and formatting
 
-All lint/format tooling is orchestrated by [treefmt](https://treefmt.com/) via
+All lint and format tooling is orchestrated by [treefmt](https://treefmt.com/) via
 [treefmt-nix](https://github.com/numtide/treefmt-nix): `treefmt.nix` holds the formatter configuration,
-and the flake's `checks.treefmt` derivation makes `nix flake check` fail on any format drift. Use the
-justfile shortcuts:
+and the flake's `checks.treefmt` derivation makes `nix flake check` fail on any format drift.
 
 ```bash
-just l             # Format everything in place (shfmt, mdformat, nixfmt, taplo + jq/yq validators)
+just l             # run all eleven formatters (four rewrite in place, seven check only)
 just L             # lint-check: check-only drift gate (runs `nix flake check`)
-just s             # Shellcheck only (incl. rendered chezmoi templates)
+just s             # shellcheck, plain files and rendered chezmoi templates
 just S             # shfmt (format shell files) only
 just m             # mdformat only
 just n             # nixfmt only
@@ -37,16 +56,21 @@ just y             # yq (YAML validation) only
 just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
+Four of the eleven rewrite files: shfmt, mdformat, nixfmt and taplo. The other seven only read and fail
+the run on bad input: shellcheck, actionlint, `jq-validate`, `yq-validate`,
+`shellcheck-rendered-template`, `osquery-config-render` and `espanso-match-render`.
+
 `just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
-dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. Lint drift is gated
-at pre-push and in CI (the commit hook runs only the unit suite; see Git Hooks and Testing).
+dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. It runs
+`nix flake check` for the host system only; `just c` is the `--all-systems` variant. Lint drift is gated
+at pre-push and in CI.
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
 ### Testing
 
 ```bash
-just test-unit          # Unit suite only (fast commit gate, ~2s)
+just test-unit          # Unit suite only (the fast commit gate)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
 just test-system        # The suite that tests the checker and runner themselves
@@ -57,33 +81,39 @@ just ship               # the three gates CI runs, in CI order, the explicit pre
 Tests live in suites by DESIGN: `test/unit/` (single component, stub/fixture driven, no flows, no sleeps,
 FAST is the admission rule), `test/integration/` (multi-component with stubbed boundaries), `test/e2e/`
 (whole-script flows and deliberately timing-bound tests), and `test/test-system/` (tests of the checker
-and runner themselves; its sourced helpers live in `test/test-system/helpers/`). All are plain executable
-`.sh` scripts (source-only, `.chezmoiignore`d) plus optional bats suites (`test/**/*.bats`).
+and runner themselves). All are plain executable `.sh` scripts (source-only, `.chezmoiignore`d) plus
+optional bats suites (`test/**/*.bats`).
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
-(replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle) and
-a WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-suite candidate;
-warnings never fail the run. **CI** runs `just test`, which is exactly the four suite recipes, and
-`just ship` runs CI's whole gate list on demand (the `--all-systems` flake check, `just test` inside the
-flake's `run` shell, and the zizmor workflow audit, in that order; `test/unit/ship-ci-gate-parity.sh`
-fails when `ship` and `.github/workflows/lint.yml` stop describing the same work). The pre-push hook
-deliberately does NOT run any suite (see Git Hooks). Each suite's runner executes its own `.sh` and
-`.bats` once (bats via `nix develop .#run --command bats --jobs 4` when the host lacks bats, and the
-checker's placement rules keep any bats from hiding outside a suite). So a commit can briefly carry an
-integration or e2e regression, and so can a push: **CI is the only gate that runs the suite**, and it
-runs on pull requests and on pushes to `main` only (that trigger scope is asserted by
-`test/unit/ship-ci-gate-parity.sh`, which fails if the workflow stops matching it). A push to a topic
-branch with no open pull request runs the suite nowhere; `just ship` is how you cover that window
-deliberately.
+(replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle;
+shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY performance
+summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings never fail the
+run.
 
-`just validate-tests` (`test/validate-tests.sh`, a dependency of every test recipe) fails if a `*.sh` or
-`*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
-`test/` root; a suite's `helpers/` and `test/fixtures/**` are exempt. Add a test by dropping a new
-executable `test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth
-`dirname "${BASH_SOURCE[0]}")/../..`); it is picked up automatically.
+**CI** runs `just test`, which is exactly the four suite recipes, and `just ship` runs CI's whole gate
+list on demand (the `--all-systems` flake check, `just test` inside the flake's `run` shell, and the
+zizmor workflow audit, in that order; `test/unit/ship-ci-gate-parity.sh` fails when `ship` and
+`.github/workflows/lint.yml` stop describing the same work). The pre-push hook deliberately runs no
+suite. Each suite's runner executes its own `.sh` and `.bats` once (bats via
+`nix develop .#run --command bats --jobs 4` when the host lacks bats, and the checker's placement rules
+keep any bats from hiding outside a suite).
 
-### Chezmoi Operations
+So a commit can briefly carry an integration or e2e regression, and so can a push: **CI is the only gate
+that runs the suite**, and it runs on pull requests and on pushes to `main` only (that trigger scope is
+asserted by `test/unit/ship-ci-gate-parity.sh`). A push to a topic branch with no open pull request runs
+the suite nowhere; `just ship` is how you cover that window deliberately.
+
+`just validate-tests` (`test/validate-tests.sh`, a dependency of all four suite recipes) fails if a
+`*.sh` or `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may
+sit at `test/` root. Three trees are carved out: a suite's own `helpers/`, the shared cross-suite
+`test/helpers/`, and `test/fixtures/**`. The two helper trees admit non-executable `*.sh` only, so an
+executable file or a `.bats` there still fails. The checker also rejects any symlink below `test/`, a
+non-executable suite `*.sh`, and a nested file in a flat suite. Add a test by dropping a new executable
+`test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth `dirname "${BASH_SOURCE[0]}")/../..`); it is
+picked up automatically.
+
+### Chezmoi operations
 
 ```bash
 just d                                      # chezmoi diff --exclude=templates
@@ -94,798 +124,329 @@ chezmoi diff                                # diff all (including templates)
 chezmoi edit <file>                         # edit a template (prefer over direct edit of .tmpl)
 ```
 
-**Important for AI agents:** always use `--exclude=templates` or apply specific non-template files by
-name:
+**`--exclude=templates` does not make an apply vault-free.** It skips `.tmpl` entries, but it does NOT
+skip a `modify_` template (measured 2026-08-02, recorded in `test/unit/claude-enabled-plugins.sh`), and
+two modify-templates call `keepassxc`: `modify_private_dot_claude.json` (target `~/.claude.json`) and
+`Library/Application Support/Claude/modify_private_claude_desktop_config.json`. So `just a` and `just d`
+still reach the vault: run them from an interactive terminal with KeePassXC unlocked. To stay off the
+vault entirely, apply specific files by name:
 
 ```bash
-chezmoi apply --exclude=templates --force   # safe, no KeePassXC prompt
-chezmoi apply ~/.fzf_bindings               # specific non-template file
-chezmoi diff --exclude=templates            # diff non-template files
+chezmoi apply ~/.fzf_bindings               # specific non-template, non-modify file
 ```
 
-**Never run bare `chezmoi apply` from Claude Code**, the following templates call `keepassxc` and will
-fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
-`~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
-`~/Library/Application Support/Claude/claude_desktop_config.json`,
-`~/Library/Application Support/espanso/match/identity.yml`, `~/.config/gogcli/credentials.json`. Apply
-those from an interactive terminal with KeePassXC unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`,
-`~/.claude/settings.json`) are safe to apply from automation.
+Ten targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+`~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
+`~/.config/himalaya/config.toml`, `~/.config/relay/auth.json`, `~/.config/gogcli/credentials.json`,
+`~/Library/Application Support/Claude/claude_desktop_config.json`, and
+`~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
+`~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 
-### Claude Code Settings
+### Cutover tooling
 
-`private_dot_claude/modify_settings.json` is a chezmoi **modify-template** (no `.tmpl` extension by
-chezmoi convention) that selectively enforces a fixed set of stable fields in `~/.claude/settings.json`.
-On every `chezmoi apply`, the script reads the current target file, overlays the stable fields below via
-`setValueAtPath`, and writes the merged result back.
+Two operator-run scripts in `scripts/`, invoked by absolute path (no justfile recipe):
 
-Fields fall into **three** categories, not two.
-
-**1. Chezmoi-controlled stable fields.** Overwritten from the template on every apply, whatever the live
-file holds:
-
-- `permissions.allow` (read-only tools), `permissions.deny` (`.env`, `secrets/**`, `.ssh/id_*`, etc.),
-  `permissions.defaultMode` = `bypassPermissions`.
-- `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights, `Notification`
-  (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
-  `~/.claude/audit.log`.
-- `statusLine`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup), `autoUpdatesChannel`
-  (= `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`,
-  starts the Remote Control bridge every session).
-- Four `extraKnownMarketplaces` entries, each with `autoUpdate` = `true`: `ponytail`, `openai-codex`,
-  `worktrunk`, `last30days-skill`. Claude Code refreshes a marketplace and its installed plugins at
-  startup on its own, but only defaults that on for marketplaces Anthropic publishes (read out of the
-  shipped 2.1.220 binary on 2026-08-03), so without these four entries those plugins sit at their install
-  version forever. The write is per marketplace key, so a marketplace added with
-  `claude plugin marketplace add` keeps its own entry. What those silent startup updates changed is
-  recorded weekly by `~/.local/bin/report-plugin-updates.sh`; see **Plugin Update Record**.
-
-**2. Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
-`skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
-
-**3. `enabledPlugins`, which is neither.** The **roster** is chezmoi-controlled and the per-plugin
-**state** is not. The template declares twelve plugin ids (keys are `<name>@<marketplace>`, which is the
-form Claude Code writes, not the bare name the CLI prints on success) and the write is whole-value, so a
-marketplace plugin enabled live but missing from the declaration is turned OFF by the next apply. Within
-that roster, both members of Claude Code's own union for this key are the machine's to set and are
-carried through unchanged: the JSON boolean `false` that `claude plugin disable` writes, and the JSON
-array of version constraints that its schema calls the extended format (a plugin held at a reviewed
-release). Every other shape renders `true`: an absent key, a JSON null, a string and a number.
-
-So `claude plugin disable <id>` STICKS across applies for the twelve declared ids, and applying is not
-the way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
-containment verb a scheduled apply can silently revoke is not containment.
-
-**The promise stops at the twelve, and an erased entry costs different things depending on where the
-plugin came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped
-binary on 2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged
-settings' `enabledPlugins` entries and skips any whose value is undefined, so an id the file does not
-hold is never loaded. Erasing an undeclared marketplace plugin's `false` therefore leaves it off, by a
-different mechanism, though the file stops recording why. A plugin under `~/.claude/skills/` is found by
-scanning that directory instead, and its entry only adjusts state afterwards; with no entry it falls back
-to the plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks into
-`~/.claude/skills/` is that second kind, so a `claude plugin disable` on one writes a `false` that the
-next apply erases, and the skill comes back on. Nothing is drifting today, the live file holds exactly
-the twelve ids, but the skills case needs one `claude plugin disable` to become real.
-
-**Read the price before relying on this.** It is not the recovery ergonomics (though those are real:
-`claude plugin disable --all` is one command, there is no `enable --all`, so undoing a mass disable is
-one `claude plugin enable` per declared plugin). The price is that **this repo no longer re-asserts
-plugin state at all.** The old whole-value write forced every declared plugin back to `true` on every
-apply, which incidentally remediated tampering. Now a live `false` is carried forward for as long as it
-sits in the file, and because the render reproduces it byte for byte, `chezmoi status` and `chezmoi diff`
-print nothing for it (measured 2026-08-02), which includes `just d`. Stated plainly: any process running
-as this user, which is every agent with Bash under `permissions.defaultMode = bypassPermissions`,
-permanently disables `security-guidance` or `superpowers` by writing one boolean, and nothing in this
-repo detects it or restores it. Auditing that key means reading `~/.claude/settings.json` or running
-`claude plugin list`; drift tooling will not raise it.
-
-**And "sticks" means "against an apply", not "cannot load".** Settings precedence runs user < project \<
-local < flag < policy, so a repo whose project settings enable the plugin loads it there whatever
-`~/.claude/settings.json` says. Claude Code ships an `ineffective-disable` diagnostic for exactly that
-case (the diagnostic id and all five source names are in the shipped 2.1.220 binary, read 2026-08-02).
-
-`--exclude=templates` does not skip a modify-template (measured 2026-08-02), so this path runs on every
-`just a`, not only on a full apply.
-
-**When the live file is not JSON, the whole apply dies.** Reading the live file is what makes preserving
-its state possible, and a modify-template that cannot read it fails the entire run: every later target
-and every `run_after_` script is skipped, and the unreadable file is left in place, so `permissions.deny`
-is not restored either. Whitespace-only and empty files are handled (the read is trimmed first), and so
-is anything that parses. A file that is non-empty and is not JSON, such as a write truncated by a crash
-or a full disk, is not, and no template can fix it: chezmoi's JSON readers all fail the template on bad
-input and Go templates have no error recovery, so there is nothing to fall back from. **Recovery:** the
-apply's own error names `modify_settings.json`; repair `~/.claude/settings.json` if you can, and reach
-for deletion knowing what it costs. **Deleting re-enables every disabled plugin and drops every version
-pin.** Plugin state is the one managed thing the template reads out of the live file rather than
-declaring, so with nothing to read all twelve ids render `true`. Everything else this repo manages does
-come back from the template, and free-drift keys are lost as before. Nothing reports the plugin loss
-afterwards, either: a rendered `false` is byte-identical to the live one, so `chezmoi status`,
-`chezmoi diff` and `just d` say nothing about this key in any case. Note the disabled set before
-deleting, by eye if the file no longer parses, and put it back with one `claude plugin disable <id>` per
-plugin. Repairing this automatically needs something that runs before the template, which does not exist
-yet.
-
-`test/unit/claude-enabled-plugins.sh` applies the template into a throwaway destination once per
-live-file shape per target OS and pins all of the above, including the three unparseable shapes, which it
-requires to fail, to name the template in the error, and to leave the live file byte-identical.
-
-**Promote a `/config` toggle to stable** by adding a `setValueAtPath` call for that key in
-`private_dot_claude/modify_settings.json` and committing.
-
-Background: `/config` writes ergonomic toggles directly into `~/.claude/settings.json` (verified
-empirically), and Claude Code does not provide a user-level `~/.claude/settings.local.json` for
-overrides, only project-scope `.claude/settings.local.json` exists. The modify-template approach is the
-cleanest way to keep policy fields under chezmoi control while letting `/config` mutate everything else
-freely. See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template
-\+ `setValueAtPath` reference.
-
-**A corrupt live file cannot block the apply.** The template reads `~/.claude/settings.json` and hands it
-to `fromJson`, which hard errors on input that is not JSON, and a modify-template that errors aborts the
-whole apply rather than one target. No template can catch that, so the repair runs first:
-`.chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh` moves an unreadable settings
-file into `~/workspaces/backups/<timestamp>.claude-settings-quarantined.backup.json` (moved, never
-deleted), warns loudly, and leaves `{}` for the template to rebuild from. A readable file is left
-byte-identical, including the shapes that are not JSON objects (empty, whitespace-only, a whole-file
-array), and an absent one stays absent. What the move costs is per-plugin state, which lives only in the
-live file: every declared plugin comes back enabled, so a disable has to be re-applied with
-`claude plugin disable <id>` after a quarantine.
-
-### Git Hooks
-
-All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/git/hooks`, set in
-`dot_gitconfig.tmpl`), so they apply to every repo:
-
-- **`prepare-commit-msg`: user-wide AI commit messages.** Prepopulates a Conventional Commits message via
-  Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass with
-  `SKIP_AI_COMMIT=1`.
-
-- **`pre-commit`: per-repo FAST gate (unit tests + secret scan), via a dispatcher.**
-  `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
-  tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
-  runs `just test-unit` (the unit suite only, see Testing) then `gitleaks git --staged --redact` (blocks
-  any staged plaintext secret; gitleaks is provisioned as a Homebrew formula, and the stage is skipped
-  when the binary is absent). Both must pass; a failure blocks the commit. Lint drift, the integration
-  and e2e suites, and the full flake check moved out of the commit loop to keep it fast: the flake check
-  runs at pre-push, the integration and e2e suites at CI or via `just ship`. No install step: the
-  dispatcher is user-wide and the repo hook is committed with its executable bit.
-
-- **`pre-push`: per-repo lint gate only, via a dispatcher.** `dot_config/git/hooks/executable_pre-push`
-  mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/pre-push` when
-  present, no-op otherwise). This repo's `.githooks/pre-push` runs `just lint-check` (the treefmt drift
-  gate, roughly 20s whenever nix has to build the check derivation, which is every push that changed a
-  tracked file) and nothing else. **CI is the authority on the test suite.** Run the suite locally on
-  demand with `just ship`.
-
-  It used to run `just test` as well. Measured once, on 2026-07-29, a push cost 7m20s to 7m37s, of which
-  about 6m30s was integration + e2e + test-system; integration alone took 216s of that. It runs its `.sh`
-  tests one at a time and its `.bats` files under `bats --jobs 4`. Those seconds are one reading on one
-  day, not a tracked figure: no test pins them, and the suite keeps growing. CI then ran the identical
-  recipe 10 to 12 minutes later and the commit hook had already run the unit camp, so one suite ran three
-  times per push and every round of rework paid for all three. It also could not do the job it was there
-  for: this hook tests the WORKING TREE while CI tests the COMMIT, and on PR #116 the local gate passed
-  while CI failed, on an edit that was never staged.
-
-  **What this narrowed:** every push used to run the whole suite locally, whatever the branch. CI runs on
-  pull requests and on pushes to `main`, so a push to a topic branch with no open pull request now runs
-  the suite nowhere. None of this touches branch protection, which is weaker than "cannot merge red"
-  anyway: `lint` is a required status check on `main`, so a red pull request is blocked there, but
-  `enforce_admins` is off, so a repository administrator can merge one red regardless. Widening the
-  workflow's `push` trigger to every branch was weighed and rejected: `push` and `pull_request` both fire
-  once a branch has a pull request, so it would run two identical macOS jobs per push for the whole life
-  of every branch, to cover the window before a pull request exists. `just ship` covers that window on
-  demand instead.
-
-- **`post-commit`: per-repo hooks, via a dispatcher.** `dot_config/git/hooks/executable_post-commit`
-  mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit` when
-  present, no-op otherwise). Nothing global runs graphify anymore; a repo that wants a knowledge-graph
-  rebuild after each commit opts in by tracking its own `.githooks/post-commit`. The old
-  global-by-default design (graphify inlined in the dispatcher with a `.githooks/no-graphify` opt-out
-  marker) is gone. **This repo opts in:** its `.githooks/post-commit` launches `graphify update .`
-  detached (a full rebuild measures ~2s here; the detach keeps any rebuild off the commit path) with
-  `PYTHONHASHSEED=0` for reproducible clustering, logging to
-  `~/.local/log/graphify/dotfiles-post-commit.log`. `graphify-out/graph.json` is the **committed map**
-  (the rest of `graphify-out/` stays gitignored); the rebuilt map appears as an unstaged change to fold
-  into the next commit, and map-only commits skip the rebuild (loop prevention). Cross-branch merges of
-  the map union-merge via the `graphify-union` driver (`.gitattributes` + `[merge "graphify-union"]` in
-  `dot_gitconfig.tmpl`); without the driver git falls back to a normal conflict, resolvable by
-  regenerating (`graphify update .`). Per-commit escape hatch: `GRAPHIFY_SKIP_HOOK=1`.
-
-**Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
-per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
-authoritative while letting any repo opt into pre-commit checks. **Do not reintroduce Git LFS here**,
-`git lfs install` writes exactly such an override, and this repo tracks no LFS files.
-
-Bypass all hooks for one commit: `git commit --no-verify`.
+- `scripts/cutover-gate.sh <1|2|3|4|5>` runs one ordered cutover gate (preflight, activation,
+  reconciliation, soak, closure), keeping its ledger under `~/.local/state/cutover`. Covered by
+  `test/integration/cutover-gate-*.sh`.
+- `scripts/live-reconcile.sh` converges the live skills fan-out to the committed lock, `--dry-run` first.
+  Covered by `test/integration/live-reconcile.sh`.
 
 ## Architecture
 
-### Source-Only Files
+### Source-only files
 
-Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`test/`, `treefmt.nix`, `.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`,
-`.editorconfig`, `.mdformat.toml`, `assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`,
-`.gitattributes`, `graphify-out/`, `.worktrees/`, `**/.DS_Store`. Only chezmoi-managed files (`dot_`,
-`private_`, `run_`, etc. prefixes) reach the target state.
+Dev and CI files excluded from `$HOME` via `.chezmoiignore`: `README.md`, `LICENSE`, `CLAUDE.md`,
+`AGENTS.md`, `.gitignore`, `.gitattributes`, `assets/`, `docs/`, `private/`, `justfile`, `.envrc`,
+`scripts/`, `test/`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`, `.githooks/`, `graphify-out/`,
+`flake.nix`, `flake.lock`, `treefmt.nix`, plus the failsafe globs `tmp.*`, `*.rayconfig`,
+`*extension-diagnostics*` and `**/.DS_Store`, the vendored-skill `.git`/`node_modules` trees, and the
+Rust `target` dirs under `.local/share/herdr/`. A trailing OS-conditional block ignores `Library` and six
+macOS-only `.local/bin` scripts on Linux.
 
-### Minimum Chezmoi Version
+`.worktrees/` is NOT in `.chezmoiignore`; it is gitignored and treefmt-excluded instead.
+
+### Minimum chezmoi version
 
 `.chezmoiversion` requires >= 2.62.3.
 
-### Secrets Management
+### Secrets management
 
 Secrets are managed via chezmoi's KeePassXC integration (`keepassxc-cli`). The database path is
-configured in `.chezmoi.toml.tmpl`. Template files (`.tmpl`) use `{{ keepassxc "entry-name" }}` or
-`{{ keepassxcAttribute "entry-name" "attr-name" }}` to pull secrets at apply time. The
-`.install-password-manager.sh` hook auto-installs KeePassXC if missing.
+configured in `.chezmoi.toml.tmpl`. Templates select a field off the record, for example
+`{{ (keepassxc "Entry Name").Password }}`, or read a custom attribute with
+`{{ keepassxcAttribute "entry-name" "attr-name" }}`. The `.install-password-manager.sh` hook, wired as
+`[hooks.read-source-state.pre]`, installs KeePassXC when missing; it is best effort and only warns when
+`brew` cannot.
 
-### System Package Management
+Whole-file secrets use `age` encryption (identity at `~/.config/chezmoi/key.txt`); see
+`docs/runbooks/age-key.md`.
 
-Packages declared in `.chezmoidata/system_packages_autoinstall.yaml` under `packages.macos.homebrew` with
-keys: `taps`, `formulae`, `casks`, `mas`, plus sibling `uv` (uv tool installs, e.g. `graphifyy`, which
-provides the `graphify` CLI behind the post-commit dispatcher), `npm` (npm globals, e.g.
-`@colbymchenry/codegraph`; its hermes MCP (Model Context Protocol) enablement lives in the encrypted
-hermes config and is tracked as separate follow-up work), and `volta` lists consumed by the same script.
-The `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` script generates a Brewfile from
-this data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
-`run_once_before_00-install-homebrew.sh.tmpl` ensures `/opt/homebrew/bin/brew` exists on fresh machines.
+### System package management
+
+Packages are declared in `.chezmoidata/system_packages_autoinstall.yaml` under `packages.macos.homebrew`
+with keys `taps`, `formulae`, `casks` and `mas`, plus three siblings of `homebrew` under
+`packages.macos`: `uv` (uv tool installs, e.g. `graphifyy`, which provides the `graphify` CLI behind the
+post-commit dispatcher), `npm` (npm globals, e.g. `@colbymchenry/codegraph` and `happy`), and `volta`.
+One script, `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, consumes all of them: it
+generates a Brewfile from the data, runs `brew bundle`, then runs a guarded
+`brew bundle cleanup --force`. Prerequisite: `run_once_before_00-install-homebrew.sh.tmpl` runs the
+upstream installer when `command -v brew` finds nothing.
+
+Two behaviors of the cleanup stage matter. Cleanup is **withheld entirely** while `tmux` or `sesh` is
+still installed, because the herdr migration owns their teardown. And
+`.chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl` **refuses** a cleanup that would remove more than a
+safety threshold unless `HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP=1` is set.
 
 Third-party taps whose formulae or casks must be trusted under Homebrew's `HOMEBREW_REQUIRE_TAP_TRUST`
-gate are listed under a `trusted_taps` key in the same data file. A pre-bundle loop in
-`run_onchange_before_10-system-packages.sh.tmpl` runs `brew trust --tap` for each before `brew bundle`,
-so the bundle does not refuse to load them. Add a tap there when `brew bundle` reports it as untrusted.
+gate are listed under a `trusted_taps` key in the same data file. A pre-bundle loop runs `brew tap` then
+`brew trust --tap` for each before `brew bundle`, so the bundle does not refuse to load them. Add a tap
+there when `brew bundle` reports it as untrusted.
 
 **Homebrew install workflow (for AI agents):**
 
 1. Install the package immediately: `brew install <formula>` or `brew install --cask <cask>`.
 1. On success, add it to `.chezmoidata/system_packages_autoinstall.yaml` in the appropriate list
    (formulae, casks, taps, mas), maintaining alphabetical order.
-1. Remind the user to run `chezmoi apply` when appropriate.
+1. Remind the user to run `chezmoi apply` when appropriate. Do not run it directly; see the KeePassXC
+   constraint above.
 
-Do **not** run `chezmoi apply` directly, see the KeePassXC constraint above.
+### macOS defaults management
 
-### macOS Defaults Management
+Two `.chezmoiscripts/` runners apply declarative macOS settings on darwin and no-op on Linux:
+`run_onchange_after_30-macos-defaults.sh.tmpl` (per-user and per-machine `defaults` records from
+`.chezmoidata/macos_defaults.yaml`) and `run_onchange_after_41-macos-system-setup.sh.tmpl` (sudo system
+commands and MagicDNS `/etc/hosts` pins from `.chezmoidata/macos_system_setup.yaml`). A third data file,
+`.chezmoidata/macos_posture_controls.yaml`, is verify-tier only and is read by the osquery poller at
+runtime.
 
-Two `.chezmoidata/` files declaratively track macOS settings; two `.chezmoiscripts/` runners apply them
-at `chezmoi apply` time on darwin (no-op on Linux):
+The capture workflow (`just defaults-capture`), the drift check (`just D`), and the two implementation
+gotchas that must not be "cleaned up" are in `docs/runbooks/macos-defaults.md`.
 
-- `.chezmoidata/macos_defaults.yaml` + `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`,
-  per-user `defaults write` records, plus a `killall` list (Dock/Finder/SystemUIServer/cfprefsd; cfprefsd
-  kill is required for plist changes to take effect immediately).
-- `.chezmoidata/macos_system_setup.yaml` +
-  `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`, sudo system commands (one `sudo -v`
-  upfront, then loop), plus structured `tailnet_pins` data from which the template generates the MagicDNS
-  `/etc/hosts` pin commands. Early-returns when both lists are empty.
+### Claude Code settings
 
-**Daily workflow:**
+`private_dot_claude/modify_settings.json` is a chezmoi modify-template that enforces a fixed set of
+stable fields in `~/.claude/settings.json` (permissions, hooks, `skillOverrides`, `statusLine`,
+`cleanupPeriodDays`, `autoUpdatesChannel`, `remoteControlAtStartup`, `extraKnownMarketplaces`) while
+letting `/config` toggles drift freely. `enabledPlugins` is a third case: the roster is declared, the
+per-plugin disable state is read back out of the live file. The full field model, the plugin-state trade
+and the corrupt-file recovery path are in `docs/runbooks/claude-code-settings.md`.
 
-| Operation                           | Command                                          |
-| ----------------------------------- | ------------------------------------------------ |
-| Discover available domains          | `just defaults-list`                             |
-| Browse one domain's keys            | `just defaults-show <domain>`                    |
-| Bulk inspection (paged)             | `just defaults-dump`                             |
-| Capture a setting into YAML         | `just defaults-capture <domain> <key> [current]` |
-| Check for drift                     | `just D`                                         |
-| Force reapply (revert disk to YAML) | `just defaults-apply`                            |
+### Agent skills (cross-harness store)
 
-The capture helper is the canonical way to add a tracked setting: toggle it in System Settings, run
-`just defaults-capture`, then `chezmoi apply` to commit. The helper refuses to silently overwrite a
-tracked entry whose live value diverges from YAML (exits 4): resolve via `just defaults-apply` to revert,
-or hand-edit YAML to capture the new intent.
+`~/.agents/skills` is the single canonical skills store (35 roster skills), serving Claude Code (chezmoi
+symlink declarations under `private_dot_claude/skills/`), Codex (native store scan, no declarations) and
+hermes (declared symlinks into the default profile and four specialist profiles). Provenance, tiering and
+fan-out are recorded in `dot_agents/custom-skill-lock.json`, and `test/unit/skills-roster-fanout.sh`
+fails the build whenever the store, the lock tables and the per-harness declarations disagree.
+`~/.local/bin/update-skills.sh` refreshes the npx-, clawhub- and app-owned lanes weekly, publishing a new
+generation with one atomic exchange.
 
-**Aerospace required defaults:** `com.apple.dock mru-spaces=false` is the single most common Aerospace
-breakage. Several `com.apple.WindowManager` keys (Stage Manager, Sequoia tiling) are recommended off. See
-the design spec in the chezmoi source tree at
-`docs/superpowers/specs/2026-05-05-macos-defaults-management-design.md` for the full list.
+`docs/runbooks/agent-skills-store.md` carries the delivery model, the lane mechanics, the fork
+drift-watch states, the generation-exchange guarantee, the schedule, and how to add or remove a skill.
 
-**Implementation gotchas that future maintainers must not "clean up":**
+### Global instruction files
 
-- **`drift.sh` requires `shopt -s lastpipe`** (line 14). Bash's default behavior runs the right-hand side
-  of a pipeline in a subshell, so `drift_count` increments inside `yq | while ...` would be discarded
-  after the loop. Without `lastpipe`, `just D` would always exit 0 even when drift exists, silent false
-  negative. The setting is a correctness requirement, not cosmetic.
-- **The Tier 1 runner template uses `{{ if index . "host" }}`, not `{{ if .host }}`.** Go's
-  `text/template` errors with `map has no entry for key "host"` when the YAML record has no `host` field,
-  which is the common case. The `index` form returns the empty value for absent keys (treated as falsy by
-  `if`); the `.field` form throws. Don't simplify.
+The global ruleset for Claude Code and Codex is one shared partial,
+`.chezmoitemplates/global-agent-rules.md`, pulled into both `private_dot_claude/CLAUDE.md.tmpl` (target
+`~/.claude/CLAUDE.md`) and `private_dot_codex/AGENTS.md.tmpl` (target `~/.codex/AGENTS.md`) with
+`includeTemplate`, between a pair of `shared-rules` markers. Harness-specific rules go in the including
+file, below the shared block. `test/integration/global-instruction-parity.sh` renders both targets and
+byte-compares what lands between the markers, so an edit to one copy fails the build. Edit the partial,
+never a harness copy.
 
-### Template Files
+### Git hooks
+
+Four hooks live in the user-wide dir (`core.hooksPath = ~/.config/git/hooks`, set in
+`dot_gitconfig.tmpl`). `prepare-commit-msg` prepopulates a Conventional Commits message via
+`claude -p --model=sonnet` (bypass with `SKIP_AI_COMMIT=1`). The other three are dispatchers that act
+only when the repository tracks its own executable `.githooks/<name>`: this repo's `pre-commit` runs
+`just test-unit` plus gitleaks, its `pre-push` runs `just lint-check` and no suite, and its `post-commit`
+rebuilds the graphify map (skip with `GRAPHIFY_SKIP_HOOK=1`).
+
+A per-repo `core.hooksPath` override would shadow the user-wide hook, which is why dispatchers exist and
+why **Git LFS must not be reintroduced here** (`git lfs install` writes exactly such an override).
+`docs/runbooks/git-hooks.md` has the full behavior of each hook and the reasoning behind the pre-push
+narrowing.
+
+### Template files
 
 Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files (e.g.
-`.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, and scripts in `.chezmoiscripts/`).
-Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`.
+`.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, and most of `.chezmoiscripts/`). Templates
+branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`. Reusable fragments live in
+`.chezmoitemplates/` and are pulled in with `includeTemplate`.
 
-### Template Shellcheck Workaround
+### Template shellcheck workaround
 
 Shell templates contain Go template syntax that shellcheck can't parse directly, so the
 `shellcheck-rendered-template` formatter in `treefmt.nix` renders first
-(`CI=1 chezmoi execute-template --no-tty <file`) and shellchecks the result. Its include list is
-discovered programmatically at Nix eval time, not hand-picked: every `.chezmoiscripts/*.sh.tmpl` plus
-every shell `dot_*.tmpl` at the repo root (first line a shell shebang or `# shellcheck shell=` directive,
-or a Go-template directive whose first non-directive line is such a shebang), minus any template that (or
-whose `includeTemplate` partial) invokes `keepassxc` through a `{{ ... }}` directive, since those need an
-interactive KeePassXC unlock. Two includeTemplate fragments
-(`.chezmoitemplates/herdr-plugin-build.sh.tmpl` and `.chezmoitemplates/herdr-health-check.sh.tmpl`) are
-excluded with documented reasons because they only render through their includers. After a successful
-render, a blank (empty or whitespace-only) result is skipped rather than shellchecked, so an OS-gated
-template on the other OS (which renders to nothing) does not fail SC2148; a render failure stays fatal.
+(`CI=1 chezmoi --source "$PWD" execute-template --no-tty <file`, with a throwaway `HOME` because the Nix
+sandbox has none) and shellchecks the result. `--source "$PWD"` is load-bearing: it is what makes
+`includeTemplate` resolve against this checkout.
+
+Its include list is discovered programmatically at Nix eval time, not hand-picked: every
+`.chezmoiscripts/*.sh.tmpl` plus every shell `dot_*.tmpl` at the repo root (first line a shell shebang or
+`# shellcheck shell=` directive, or a Go-template directive whose first non-directive line is such a
+shebang), minus anything the classifier in `scripts/render-coverage-classifier.nix` calls unsafe to
+render. A template is unsafe on any of three grounds: it or a partial it includes invokes `keepassxc`
+(which needs an interactive unlock), it carries a Go action split across lines, or it passes
+`includeTemplate` a name that is not a static string literal.
+
+Three `.chezmoitemplates/` fragments are excluded with documented reasons because they only render
+through their includers: `herdr-plugin-build.sh.tmpl`, `herdr-health-check.sh.tmpl` and
+`brew-bundle-cleanup-guard.sh.tmpl`.
+
+After a successful render, a blank (empty or whitespace-only) result is skipped rather than shellchecked,
+so an OS-gated template on the other OS does not fail SC2148; a render failure stays fatal.
 `test/integration/rendered-template-coverage.sh` enforces this universe: it re-reads the formatter's
-actual include list via `nix eval` and fails when discovery drops a template, with a fixture layer under
-`test/fixtures/render-coverage` guarding the classifier against blind spots. The `CI=1` env var is
-defensive (vestigial from an earlier bashrc CI-vs-interactive branch). A sibling formatter,
-`osquery-config-render`, renders the JSON-bodied `.chezmoitemplates/osquery/*.conf` templates via
-`includeTemplate` and validates the result with jq.
+actual include list via `nix eval` and fails when discovery drops a template, when a stale exclusion
+lingers, or when a fixture under `test/fixtures/render-coverage` classifies differently in the bash
+mirror and the production Nix predicates. The `CI=1` env var is defensive here (vestigial from an earlier
+bashrc branch), but it is load-bearing for the sibling `espanso-match-render` formatter, whose vault
+reads sit behind `{{ if (env "CI") }}`.
 
-### OS Targeting
+Two more sibling formatters render before validating: `osquery-config-render` renders the JSON-bodied
+`.chezmoitemplates/osquery/**/*.conf` templates via `includeTemplate` and checks them with jq, and
+`espanso-match-render` renders the espanso `*.yml.tmpl` match files and checks them with yq.
 
-`.chezmoiignore` conditionally ignores paths by OS (e.g., `.config/yabai` and `Library` on Linux).
-Template files use `{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content.
+### OS targeting
 
-### Dev Environment (Nix Flake)
+`.chezmoiignore` conditionally ignores paths by OS: on Linux it drops `Library` and the six macOS-only
+scripts under `.local/bin` (the four `macos-defaults-*` helpers, `rotate-logs.sh` and
+`brew-shellenv-cache-refresh.sh`). Template files use `{{ if eq .chezmoi.os "darwin" }}` for
+macOS-specific content.
 
-`flake.nix` provides two dev shells (for `x86_64-linux` and `aarch64-darwin`):
+### Dev environment (Nix flake)
+
+`flake.nix` provides two dev shells for `x86_64-linux` and `aarch64-darwin`:
 
 - `default`, interactive shell with colored status output.
 - `run`, headless shell used by `just` and CI.
 
-Tools provided: the repo-configured `treefmt` wrapper (bundling shellcheck, shfmt, mdformat with the GFM
-plugin, nixfmt, taplo, actionlint, and the jq/yq/chezmoi-render validators from `treefmt.nix`), plus
-bats, chezmoi, and zizmor.
+Both share six build inputs: the repo-configured `treefmt` wrapper (bundling shellcheck, shfmt, mdformat
+with the GFM plugin, nixfmt, taplo, actionlint and the five validators from `treefmt.nix`), bats,
+`parallel` (required by `bats --jobs`, and absent from GitHub's macOS runners), chezmoi, `just` (so CI
+can call `nix develop .#run --command just test`), and zizmor.
 
 ### CI
 
-GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and PRs, with
-workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout, and actions
-SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh weekly; its PRs auto-merge
-once the lint check passes, via `.github/workflows/dependabot-automerge.yml`; `lint` is a required status
-check on `main` under branch protection, so the auto-merge cannot land until it is green). Steps:
-`nix flake check --all-systems` (the treefmt drift gate), `just test`, and
-`zizmor --offline .github/workflows`, the latter two inside the flake's `run` shell.
+GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and on pull
+requests, with workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout,
+and actions SHA-pinned to full commit SHAs. `.github/dependabot.yml` keeps the pins fresh weekly behind a
+7-day release cooldown; its PRs auto-merge via `.github/workflows/dependabot-automerge.yml`, which uses
+`gh pr merge --auto` so branch protection, where `lint` is a required status check on `main`, is what
+actually holds the merge until green.
 
-### Agent Skills (cross-harness store)
+Four steps: checkout, install Nix, `nix flake check --all-systems` (the treefmt drift gate), then
+`just test` and `zizmor --offline .github/workflows` inside the flake's `run` shell.
 
-`~/.agents/skills` is the single canonical skills store (35 roster skills). It serves Claude Code for the
-roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
-`private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
-hermes for exactly the store-symlink subset of the delivery model below (`dot_hermes/skills/` and
-`dot_hermes/profiles/<name>/skills/` symlinks). The committed roster is the complete wanted set:
-`test/unit/skills-roster-fanout.sh` fails the build if the store, the lock's `tiers` / `claudeDelivery` /
-`hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables, the per-harness
-declarations, or the settings modify-template's `skillOverrides` ever disagree.
+### Background jobs and LaunchAgents
 
-**Store provenance: who installs and refreshes each store copy** (the lock at
-`dot_agents/custom-skill-lock.json` records it):
+Every scheduled or supervised job on dresden is a chezmoi-tracked plist under `Library/LaunchAgents/`,
+bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 
-- **npx-tracked** (the `npxTracked` table, 27 skills): the store copy is installed and refreshed by the
-  official npx `skills` CLI from an official GitHub upstream, latest from `main` (no pin).
-  `~/.local/bin/update-skills.sh` installs and refreshes them via an explicit
-  `npx skills add <repo> --skill <name> --agent claude-code --agent codex -g -y` per repo group, run
-  against the weekly candidate generation (never the bulk `npx skills update`, whose lock-walk logs some
-  failures at exit 0; the explicit add also reconciles lock-absent roster skills). No `~/.codex` dir;
-  Codex reads the store natively. These skills are NOT vendored in chezmoi. Includes the 12 curated
-  HeyGen HyperFrames skills (router `hyperframes`; domains
-  `hyperframes-core/-animation/-keyframes/-creative`, `media-use`, `hyperframes-cli`,
-  `hyperframes-registry`; workflows `general-video`, `faceless-explainer`, `embedded-captions`,
-  `motion-graphics`; `figma`, `music-to-video`, and four others deliberately excluded). Also includes
-  `home-assistant-best-practices` (the official `homeassistant-ai/skills` repo's one skill): Home
-  Assistant config/YAML AUTHORING guidance, not runtime control; it complements the clawhub-tracked
-  `home-assistant` runtime skill everywhere, and it is the one Home Assistant skill that DOES fan out to
-  hermes (default profile), as authoring guidance atop Bob's native Home Assistant runtime tools. Also
-  includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`, `obsidian-bases`,
-  `obsidian-cli`, `obsidian-markdown`), all on-demand, all `hermesProfiles: []`. Note what on-demand
-  costs `defuddle`: it advertises itself as an automatic substitute for WebFetch whenever a user pastes a
-  URL, so demoted it never fires unless the agent is told to use it. That is deliberate and is one line
-  to revert.
-- **ClawHub-tracked** (the `clawhubTracked` table, 3 skills: `home-assistant`, `sql-toolkit`,
-  `summarize-pro`): the store copy is installed and refreshed by the `clawhub` CLI from ClawHub. The npx
-  lane cannot source ClawHub (`npx skills add` is GitHub-only), so ClawHub-only skills get their own
-  auto-update lane instead of staying vendored. Each entry records the owner-qualified slug and registry.
-  `update-skills.sh` installs an absent one in a throwaway `--workdir` and moves the CLI's nested
-  `@owner/<name>` output flat into the candidate store (v0.23.1 always nests; the skill's
-  `.clawhub/origin.json` travels along and pins the owner); the weekly lane then refreshes each in place
-  with `clawhub --workdir <candidate>/.agents --dir skills update <name>` (bare store names resolve
-  through `origin.json` even when several ClawHub users publish the name). Two mechanical realities
-  (verified live): Finder `.DS_Store` litter breaks the CLI's fingerprint match, so it is scrubbed
-  pre-update, and the repo-asserted Codex overlay makes the CLI refuse with "local changes"; the pass
-  sets exactly that file aside (byte-equal check) and retries once, and any OTHER local change is a loud
-  relayed WARN. Automation never passes `--force`, and never `--force-install` (ClawHub's scan bypass).
-- **Vendored** (committed under `dot_agents/skills/`, refreshed only by `chezmoi apply`): the `forks`
-  table records each one's upstream for weekly drift-watch. `moshi` and `herdr` are deliberate content
-  forks (`fork: true`); `elevenlabs` is vendored because npx cannot install it full-tree (its `SKILL.md`
-  sits at the repo root beside a `scripts/` dir npx drops, even with `--full-depth`). `tiktok-crawling`
-  is the one plain committed dir with no `forks` entry: a ClawHub-published skill left vendored because
-  hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster name
-  (`tiktok-scraping-yt-dlp`).
-- **App-owned symlink** (`cua-driver`): the store entry is a symlink into `~/.cua-driver`; the app owns
-  the content. The official mechanism covers all three harnesses (`cua-driver skills status` links Claude
-  Code, Codex via the store, and hermes itself), and the weekly run refreshes the pack via
-  `cua-driver skills update`, the app's own GitHub-Releases updater, never a write through the symlink.
+| LaunchAgent                                        | What it does                                                |
+| -------------------------------------------------- | ----------------------------------------------------------- |
+| `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                         |
+| `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge                  |
+| `com.webdavis.homebrew-weekly-upgrade`             | weekly unattended `brew upgrade`, reported to the log route |
+| `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)         |
+| `com.webdavis.report-plugin-updates`               | weekly record of what Claude Code auto-updated              |
+| `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                                     |
+| `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider                   |
+| `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                        |
+| `com.webdavis.osquery-results-alerter`             | turns osquery results into notifications                    |
+| `com.webdavis.osquery-alert-drainer`               | drains the queued alerts                                    |
+| `com.webdavis.osquery-digest`                      | periodic roll-up                                            |
+| `com.webdavis.osquery-firewall-gatekeeper-monitor` | watches firewall and Gatekeeper posture                     |
+| `com.webdavis.osquery-tailscale-monitor`           | watches tailscaled posture                                  |
+| `com.webdavis.osquery-uptime-watchdog`             | watches for a machine that stopped reporting                |
 
-**Claude delivery (the lock's `claudeDelivery` table):** a store entry mapped to `"none"` is one this
-vertical deliberately does NOT deliver to Claude Code. It carries no `private_dot_claude/skills`
-declaration and `update-skills.sh` skips it in the weekly Claude fan-out, so a `~/.claude/skills` link
-removed by hand stays removed instead of coming back on the next Monday. An absent key is the default, a
-store symlink. `last30days` is the one entry today. The table states only what THIS vertical does: it
-names no other delivery mechanism and reads no other lock, per the operator's strict-decoupling ruling.
-`"none"` is the only legal value, and a malformed table refuses the run rather than failing open, in
-every mode including `--dry-run`.
+The osquery side is configured by `run_onchange_before_50-setup-osquery.sh.tmpl` from the JSON-bodied
+templates under `.chezmoitemplates/osquery/`, with its control catalog in
+`.chezmoidata/macos_posture_controls.yaml`.
 
-**Retiring an EXISTING link is manual, and the run says so.** Deleting the chezmoi declaration does not
-remove a `~/.claude/skills` link already on the machine (chezmoi never deletes a target it no longer
-manages), and the apply-time `--install-only` pass is additive, so it removes nothing either. The link
-therefore survives until the next FULL weekly run reaps it, and for that window Claude Code sees two
-sources under one name. `converge_dir` now WARNS with the absolute path in the additive mode, naming what
-it is leaving behind for the operator to delete. No removal is scripted, by operator ruling.
+### SSH hardening
 
-**Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (27). Core
-skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
-explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"`, one
-`setValueAtPath` per skill in the settings modify-template (per-key, so overrides the user sets for other
-skills drift freely); in Codex via an additive `agents/openai.yaml`
-(`policy: allow_implicit_invocation: false`, Codex then never auto-invokes the skill, while explicit
-`$name` invocation keeps working). The overlay is committed next to each vendored skill; for npx- and
-clawhub-tracked skills (whose folders the add/update passes replace wholesale) `update-skills.sh`
-re-asserts it on every run from the tiers table, and when an upstream skill ships its own
-`agents/openai.yaml` (the official `hyperframes-keyframes` carries an `interface:` block there), the
-policy is APPENDED so upstream metadata survives, never overwritten. Store entries that are SYMLINKS to
-app-owned content (`cua-driver`) never get an overlay, writing through the link would modify content this
-repo does not own, so `cua-driver` stays implicitly invocable in Codex (a deliberate, documented
-asymmetry).
+`~/.local/bin/ssh-hardening.sh` (source `dot_local/bin/executable_ssh-hardening.sh`) generates, installs,
+verifies, reloads and rolls back a public-key-only sshd drop-in at
+`/etc/ssh/sshd_config.d/000-ssh-hardening.conf`. It is operator-invoked: no LaunchAgent, no chezmoiscript
+and no justfile recipe runs it. Installing is inert for the running service; only `--reload` restarts
+sshd, and it refuses to claim success without a real SSH banner exchange.
 
-**Hermes delivery is two-lane, under the five-profile architecture** (default/Bob, elaine, butters,
-concerned, nicodemus):
+Every sshd call it makes runs under a watchdog (`SSH_HARDENING_VERIFY_DEADLINE`, default 120s), which
+polls in 0.25s ticks because bash has no wait-with-timeout and stock macOS ships no `timeout(1)`, then
+sends `TERM` to the whole process group, waits a 2s grace, sends `KILL`, and returns 124 the way
+`timeout(1)` does. It exists because a named pipe in the drop-in directory blocks `sshd -G` forever (sshd
+resolves its own `Include` globs with no type filter), and before the watchdog a hang parked the install
+with the new drop-in already published and the legacy file already moved aside.
+`test/e2e/ssh-hardening-verify-watchdog.sh` drives a TERM-ignoring wedge to pin both the deadline and the
+group kill. The reload and lockout-recovery procedure is in
+`docs/runbooks/macos-fresh-machine-quickstart.md`.
 
-- **Store-symlink lane (the lock's `hermesProfiles` table)**: the store copy is symlinked into the named
-  profiles' `skills/` dirs (`default` = `~/.hermes/skills`, a specialist =
-  `~/.hermes/profiles/<name>/skills`), declared in chezmoi and re-asserted by `update-skills.sh` at run
-  time (creating profile `skills/` dirs when absent). `[]` means the store copy reaches no hermes
-  profile. Fan-out is driven ENTIRELY by this table: non-empty means symlink, `[]` means do not. The
-  final live-truth map: default = `herdr`, `moshi`, `lobster`, `todoist-cli`, `summarize-pro`,
-  `home-assistant-best-practices`; butters = `chrome-devtools-axi`; concerned = `elevenlabs`,
-  `last30days`; elaine = `lobster`; nicodemus = `gh-axi`, `kubernetes-specialist`, `sql-toolkit`.
-  `home-assistant` maps to `[]`: hermes carries native Home Assistant runtime tools, so the runtime skill
-  would be redundant there, its store copy serves Claude/Codex only (the authoring companion,
-  `home-assistant-best-practices`, is what default carries).
-- **Hermes-owned lane (the lock's `hermesRegistry` table)**: hermes installed the skill from a registry
-  (skills.sh / ClawHub / the official registry) and owns a real hub dir in the profile. The weekly
-  `update-skills.sh` hermes phase keeps these fresh: `hermes -p <profile> skills update <lockKey>` per
-  entry, keyed by the entry's `lockKey`, never a list name (a ClawHub slug can differ from the skill's
-  frontmatter name: `tiktok-crawling` installs `tiktok-scraping-yt-dlp`). These skills have NO store
-  symlink declaration, a store symlink would shadow the hub-owned dir, which is why `hermesRegistry` and
-  the non-empty `hermesProfiles` set are DISJOINT. Blocked/refused updates are loud logged warnings
-  (relayed via `relay.sh`), never errors; automation never passes `--force` (bypassing a security scan
-  needs per-invocation operator confirmation) and never uninstalls. `held: true` skips a skill visibly
-  (none currently held). The default profile (Bob) is walked like any other, its un-entanglement is done
-  (2026-07-09), and with `sql-toolkit` and `summarize-pro` since moved to the clawhub-tracked store lane,
-  the registry table holds no default-profile entry: `conventional-commits` in nicodemus, the rest in
-  concerned. The retired hub installs (nicodemus `sql-toolkit`, default `summarize-pro`) are unowned live
-  state to hand-remove, never automated.
+### Herdr workspace management
 
-Name collisions resolve catalog-first (operator ruling): the `humanizer` and `hyperframes` store copies
-serve Claude/Codex only and are never symlinked hermes-side, hermes gets those names from its own
-catalog/hub. `summarize-pro` and `todoist-cli` left the collision set: their only hermes copies were hub
-installs (since retired), so no catalog copy wins those names and the store symlink is the wanted
-delivery. `test/unit/skills-roster-fanout.sh` enforces this independently of the tables so a future lock
-edit cannot quietly re-route a collision name through the store.
-
-**Superpowers→hermes routing (the lock's `superpowersRouting` table):** the live
-`~/.hermes/skills/hermes-superpowers/` mirror is hand-patched so the five skills with hermes-native
-adaptations (`writing-plans`, `requesting-code-review`, `subagent-driven-development`,
-`systematic-debugging`, `test-driven-development`) are referenced by their adaptation names instead of
-`superpowers:<name>`, keeping the workflow out of the disabled legacy duplicates. The mapping lives in
-the lock's `superpowersRouting` table, and `~/.local/bin/assert-hermes-superpowers-routing.sh` re-asserts
-it idempotently on every `update-skills.sh` run and after any superpowers re-mirror, a re-assert that
-fixes anything is logged loudly (and relayed), because it means something stomped the mirror.
-`assert-hermes-superpowers-routing.sh --check` is the health probe: non-zero lists the stale files and
-changes nothing. Scope is the hermes mirror ONLY. Claude Code's superpowers plugin keeps its
-`superpowers:*` references untouched.
-
-**Local forks (`moshi`, `herdr`), updating:** they deliberately diverge from upstream, so
-`update-skills.sh` never touches them. When updating them, or when their upstreams ship new features,
-first compare against upstream (https://herdr.dev/docs/preview/agent-skill/ and
-https://getmoshi.app/skill), then port wanted changes into the vendored copy by hand. A `note` on a
-`forks` entry records anything a future maintainer would otherwise have to re-derive (why `elevenlabs` is
-vendored without being a content fork; why `herdr`'s recorded hash deliberately lags its `skillPath`);
-the entries carry no line-by-line divergence log. The weekly run drift-checks the `forks` upstreams and,
-when one changed, alerts in the run log (`~/.local/log/skills/`) and via `relay.sh` when that exists.
-After the hand comparison, bump that fork's `lastComparedTreeHash` to the new upstream hash.
-
-Each outcome gets its own relay state, because the remedies differ. **Drift** (`FORK DRIFT`,
-`fork-drift`) means upstream content moved, so compare and port, then bump the hash. **A missing path**
-(`FORK PATH MISSING`, `fork-path-missing`) means the upstream is fine but the recorded `skillPath` is
-gone, so re-point `skillPath` and leave `lastComparedTreeHash` alone: bumping it would silence a
-comparison nobody has made. **An unreachable upstream** (`FORK UNREACHABLE`, `fork-upstream-unreachable`)
-means the fetch failed, and the log carries git's own message so a renamed, deleted or newly private
-upstream is not filed under "check your network" forever. **An upstream with no usable HEAD**
-(`FORK NO UPSTREAM HEAD`, `fork-upstream-headless`) cloned fine and has no commit to compare against, so
-the default branch was renamed or the repository is empty, and the recorded `skillPath` is not what is
-missing. **An unstageable clone** (`fork-clone-unstageable`) means there was no temp dir to fetch into,
-so nothing was compared. **A clone that never answered** (`FORK CLONE TIMED OUT`, `fork-clone-timeout`)
-means the fetch was still running at its deadline (5 minutes, `UPDATE_SKILLS_FORK_CLONE_DEADLINE`
-overrides it) and was stopped. **A broken lock** (`fork-lock-broken`, `fork-lock-missing`,
-`fork-walk-incomplete`) means the `forks` table, one of its entries, or the walk itself could not be
-used, so some or every upstream went unwatched. **A lock with no `forks` table at all**
-(`fork-table-absent`) is reported rather than read as a clean zero-entry watch: an empty `{}` is how a
-lock says there is deliberately nothing to watch, while an absent key is what a typo or a dropped table
-leaves behind, and that used to print what a healthy run prints.
-
-The deadline is what keeps "advisory" literal. The watch runs after the generation exchange has published
-and before the success stamp is written, so a fetch that never answers parks the whole weekly update
-rather than skipping one fork, and every later slot stalls at the same line. The clone also runs with the
-run's serialize-lock file descriptor closed: killing git does not reap a transport helper that never
-reads its stdin, and an inherited copy of that descriptor keeps the kernel lock held, which defers every
-later slot over a fork nobody could clone.
-
-Everything the phase finds is relayed, not just logged: an upstream nobody compared is exactly the
-failure this watch exists to prevent, and a line in `~/.local/log/skills/` that nobody reads is how that
-happens quietly. The two lock-level pushes carry a namespaced `--project` (`lock:file`,
-`lock:forks-table`) so they cannot collide with a fork's own name. The drift clone ignores every git
-config channel that can rewrite a URL, the two file-based ones (global and system) plus the two
-command-scope ones (`GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n` and `GIT_CONFIG_PARAMETERS`, which is how
-`git -c` reaches subprocesses and hooks). The repo's own `https://github.com/` to `git@github.com:`
-rewrite would otherwise turn an anonymous public fetch into an SSH fetch whose failures look like an
-unreachable upstream, and a rewrite through the command-scope channels would compare a different
-repository while naming the recorded URL.
-
-The `forks` table is ADVISORY data: nothing in the mutating path reads it, so a malformed table or entry
-is reported by the watch and never refuses the weekly update (an unquoted `lastComparedTreeHash`, the one
-field edited by hand after clearing a drift, used to refuse every slot). Its shape is enforced at build
-time instead, by `test/unit/skills-roster-fanout.sh`, which also fails when the table stops covering
-every vendored skill dir. `tiktok-crawling` is the one deliberate exemption, named in that test.
-
-**Generation-exchange updates:** every npx- and clawhub-tracked skill lives inside ONE live generation
-directory, `~/.agents/.skills-current` (real dirs under `skills/`, the npx CLI lock, and
-`generation.json` as the ready marker); the store names `~/.agents/skills/<name>` are stable symlinks
-into it and `~/.agents/.skill-lock.json` is a symlink to its lock, so sibling references like
-`../hyperframes-core` stay coherent within one generation. The weekly run builds a candidate generation
-as a fake HOME under `~/.agents/.skills-generations/<id>/home`, runs the package-CLI lanes against it
-under `env -i` (HOME/XDG/TMPDIR/npm cache pinned inside), validates the whole candidate, and publishes
-with one atomic exchange (`gmv --exchange --no-copy -T`); a lane or validation failure discards the whole
-candidate and the live generation is untouched. The honest guarantee: any path resolution during or after
-the exchange yields a complete tree from exactly one generation; a session that cached a resolved path
-keeps a complete previous generation for at least a week (one is retained), then gets a clean ENOENT,
-never partial content. Out-of-band writers (the HyperFrames workflows self-update via
-`npx hyperframes skills update`, upstream-controlled, no supported disable) bypass this exactly as they
-always did; the weekly recovery pass detects a store real dir where a link is expected and re-absorbs
-that content into the next candidate. The weekly success stamp is the ISO week PLUS the roster-lock and
-updater hashes, so a roster or updater change after a Monday success un-stamps the week and a later slot
-rebuilds; per-skill failure streaks escalate the alert wording at 2 consecutive failed weeks. Accepted
-narrowing: the explicit add targets `--agent claude-code --agent codex` only, so out-of-roster agent
-copies (devin, goose) are no longer refreshed by these runs.
-
-`update-skills.sh` runs weekly via the `com.webdavis.update-skills` LaunchAgent (24 hourly Monday retry
-slots, 00:00-23:00, `RunAtLoad=false`, logs to `~/.local/log/skills/`). **A slot runs whatever the
-machine is doing.** There is no activity gate: one used to defer the run while claude, codex or hermes
-had touched a per-turn file in the last 15 minutes, and on a machine in daily use that deferred all 24
-slots, so the update never ran. It also bought nothing, because the publish is one atomic exchange with
-one retained generation and a harness reads skill content at invocation time, so the worst a swap
-mid-session costs is that the next invocation reads the new copy. What still holds a slot back is the
-per-week success stamp (`UPDATE_SKILLS_FORCE=1` bypasses it, used by tests and manual runs), the kernel
-lock that serializes two updaters (the second exits 75 and a later slot retries), and a refused roster.
-The hermes registry-update phase runs after the store refresh and is unattended-safe as well: no GUI
-restarts, no gateway restart, sessions pick up content at next start. The script installs only what the
-lock declares, so the registered-skill count cannot grow from a run.
-
-**Adding a skill:** if it has an official full-tree GitHub upstream, add an `npxTracked` entry
-(`{"repo": "owner/repo"}`); if it is ClawHub-published, add a `clawhubTracked` entry
-(`{"slug": "@owner/name", "registry": "https://clawhub.ai"}`); otherwise vendor it under
-`dot_agents/skills/` (with a `forks` drift-watch entry when it has a watchable upstream). Then add its
-row to `tiers` (plus the `skillOverrides` template entry and the `agents/openai.yaml` overlay when
-on-demand) and `hermesProfiles` (`[]` when hermes should not carry it from the store, the named profiles
-when it should), add a `hermesRegistry` entry when hermes owns it from a registry (never both a non-empty
-`hermesProfiles` mapping and a `hermesRegistry` entry, they are disjoint), declare its Claude symlink
-unless it gets a `claudeDelivery` `"none"` row instead, and, only for store-symlinked skills, the mapped
-hermes symlinks, then run `just test`, the roster test tells you what is missing. **Removing one:**
-delete the store entry (or `npxTracked` row), every lock table row, and every declaration in the same
-commit.
-
-**On-demand use of an unregistered skill:** point the agent at the file, "read
-`~/.agents/skills/<name>/SKILL.md` and follow it." Router/search-and-load indirection layers were
-evaluated and rejected (measured lossy and slow at this library size); Hermes's larger native catalog
-(`~/.hermes/skills/<category>/`) remains Hermes-only.
-
-### Herdr Workspace Management
-
-Workspaces (project-anchored tab groups, ≈ tmux sessions) are configured at
-`dot_config/herdr/config.toml`. Eight project workspaces are reached by quick-jump chords, bound on nine
+Workspaces (project-anchored tab groups, roughly tmux sessions) are configured at
+`dot_config/herdr/config.toml`. Eight project workspaces are reached by quick-jump chords bound on nine
 keys, mostly `prefix+ctrl+<letter>`, but the dotfiles chord is `prefix+ctrl+.` (a period, sent via CSI-u)
-with a `prefix+.` fallback for terminals without CSI-u. See the design spec at
-`docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` for the full mapping table. On
-every terminal launch `~/.bashrc` auto-attaches to the persistent herdr session, which opens the
-last-focused workspace (homelab in practice, once visited, since the session persists), herdr has no
-launch-into-workspace flag. Jump to homelab anytime via the `h` alias or the `prefix+ctrl+h` chord; the
-other workspaces are on-demand via their own chords.
+with a `prefix+.` fallback for terminals without CSI-u. The design spec at
+`docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` has the full mapping table.
+
+On every terminal launch `~/.bashrc` auto-attaches to the persistent herdr session, which opens the
+last-focused workspace (homelab in practice, once visited, since the session persists); herdr has no
+launch-into-workspace flag. Jump to homelab anytime via the `h` alias or the `prefix+ctrl+h` chord.
 
 Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
 (`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
-`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`), so herdr execs it directly as argv,
-with no `/bin/sh -lc` wrapper. Built + linked by `run_onchange_after_57` (mirrors the `last-workspace`
-plugin). It shells the `herdr` CLI (no Rust SDK); the gain over the old shell-keybinding binary is ~5 ms
-(the wrapper) and is imperceptible. The value is the idiomatic plugin integration. Plugin actions get
-`HERDR_PANE_ID` (not `HERDR_ACTIVE_PANE_ID`).
+`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`), so herdr execs it directly as argv
+with no `/bin/sh -lc` wrapper. It is built and linked by `run_onchange_after_57`, mirroring the
+`last-workspace` plugin, and it shells the `herdr` CLI rather than using a Rust SDK. The gain over the
+old shell-keybinding binary is about 5 ms (the wrapper) and is imperceptible; the value is the idiomatic
+plugin integration. Plugin actions get `HERDR_PANE_ID`, and the binary falls back to
+`HERDR_ACTIVE_PANE_ID` when that is absent.
 
-### Git Worktrees (Worktrunk)
+### Herdr native status
+
+Workspace state (per-pane agent status: blocked, working, done, idle) is rendered by herdr, with no
+third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent state.
+Claude Code, Codex, Cursor, OpenCode and others are recognized out of the box.
+
+### Git worktrees (worktrunk)
 
 Git worktrees are managed by [worktrunk](https://worktrunk.dev/). Config in
-`dot_config/worktrunk/config.toml`: squash+rebase+remove merges with `verify = true`, and
-`delete-branch = false` keeps the branch ref after merge. `wt up` rebases every worktree against upstream
-safely.
+`dot_config/worktrunk/config.toml`: squash plus rebase plus remove merges with `verify = true`, and
+`delete-branch = false` keeps the branch ref after merge. `wt up` fetches with `--prune` and rebases
+every worktree against upstream, skipping ones with no upstream or a rebase already in progress, and
+aborting and warning rather than leaving a worktree half-rebased.
 
-### Bashrc Init Ordering
+### Bashrc init ordering
 
-Starship initializes early; zoxide and atuin initialize after the interactive block (both modify
-`PROMPT_COMMAND`; atuin last). `bash-preexec` is sourced explicitly from Homebrew (atuin 18.x stopped
-bundling it) BEFORE `atuin init`, atuin's `__atuin_preexec`/`__atuin_precmd` and our long-running command
-timer both register into `preexec_functions` / `precmd_functions`. A naked `DEBUG` trap would clobber
-atuin's recording. Direnv hook runs early. Carapace universal completion loads after `gh completion`.
+The canonical order inside the interactive block is direnv, starship, zoxide, atuin. Direnv's hook runs
+early and is the first of the three `PROMPT_COMMAND` writers; starship initializes next; zoxide and atuin
+initialize late within the interactive block, atuin last.
 
-### Shell History (Atuin)
+`bash-preexec` is sourced explicitly from Homebrew (atuin 18.x stopped bundling it) BEFORE `atuin init`,
+because atuin's `__atuin_preexec` and `__atuin_precmd` and this repo's long-running command timer all
+register into `preexec_functions` and `precmd_functions`. A naked `DEBUG` trap would clobber atuin's
+recording.
 
-Atuin daemon mode is enabled (`[daemon] enabled = true; autostart = false`). The daemon's lifecycle is
-managed by `~/Library/LaunchAgents/com.webdavis.atuin-daemon.plist` (`KeepAlive=true`,
-`atuin daemon start --force` so a stale socket from a prior crash auto-cleans on restart). Command
-recording is decoupled from `PROMPT_COMMAND` via the daemon. History stored in SQLite at
-`~/.local/share/atuin/history.db`. Sync v2 records opt-in (`[sync] records = true`) future-proofs the
-local DB schema even though `auto_sync = false`. `filter_mode = "host"` restricts Ctrl-R to the current
-machine's history. Bash's built-in history is fully removed, atuin owns all recording.
+Carapace provides universal completion, including for `gh` and `git`; it loads after bash-completion@2
+and direnv and before starship.
 
-**Diagnostic ladder** when history stops recording:
-
-```bash
-atuin doctor                              # built-in: socket, db, env, shell hooks
-launchctl list | grep atuin               # status: '0' = healthy, '-' = not running
-ps aux | grep '[a]tuin daemon'            # daemon process
-tail ~/.local/log/atuin-daemon.log        # crash messages
-atuin daemon status; atuin --version      # 'Version' line should equal 'atuin <ver>'
-```
-
-Past failures: stale `~/.local/share/atuin/atuin.sock` causing `EADDRINUSE` restart loops (now
-self-healing via `--force`); missing `bash-preexec` after atuin 18.x dropped its bundle (now sourced
-explicitly in bashrc before `atuin init`); `brew` upgrading atuin in-place while the daemon kept running
-stale code, silently breaking recording via gRPC schema drift (now self-healing via
-`.chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl` plus a mtime check in
-`dot_bashrc.tmpl` after `atuin init`). `atuin status` is for *sync* status only and errors when not
-logged in, it is not a "is the daemon working" check; use `atuin daemon status` (reports `Version`,
-`Protocol`, `Healthy`) for daemon health.
-
-### Plugin Update Record
-
-Claude Code updates marketplaces and their installed plugins at startup by itself (see the
-`extraKnownMarketplaces` entries under **Claude Code Settings**), so nothing here installs or upgrades a
-plugin. What Claude Code does not do is leave a record, so `~/.local/bin/report-plugin-updates.sh` is the
-record: read-only, weekly, one entry to the same `#unattended-upgrades` channel and in the same shape as
-the weekly Homebrew upgrade and the weekly skills update (`dot_local/bin/unattended-log-lib.sh` holds the
-shared entry shape and the reasoning behind it).
-
-- **Source of truth:** `~/.claude/plugins/installed_plugins.json`, the file Claude Code maintains (schema
-  version 2, verified against the live file 2026-08-03). Only USER-scope install records are read. The
-  two sibling files were checked and rejected: `known_marketplaces.json` records marketplaces rather than
-  plugin versions, and `plugin-catalog-cache.json` lists what is available, not what is installed.
-- **Fingerprint:** `version` when the marketplace publishes a real one, else `gitCommitSha`, else the
-  literal `unknown`. `lastUpdated` was rejected as a further fallback because six plugins carried their
-  marketplace's own `lastUpdated` to the second, so a plain marketplace refresh would have reported all
-  six as changed every week.
-- **What reaches the channel:** plugin ids and fingerprints, nothing else. Never an `installPath` (an
-  absolute home path), never a marketplace source URL.
-- **State:** `~/.local/state/report-plugin-updates/`, holding the previous reading, the success marker
-  and the ISO-week guard. The snapshot moves only AFTER an entry is delivered, so a change the gateway
-  refused is reported by the next run instead of being lost.
-- **Schedule:** `com.webdavis.report-plugin-updates`, Monday 13:00, `RunAtLoad=false`, logging to
-  `~/.local/log/plugins/report-updates.log`. It passes `--scheduled`, and only a scheduled run posts,
-  moves the snapshot or advances the marker; a manual run prints the comparison and changes nothing.
-- **The baseline is seeded at APPLY time**, by the loader chezmoiscript calling `--seed-baseline`, not by
-  the first scheduled run. The apply that deploys this record is the apply that turns the marketplace
-  auto-updates on, so a baseline first recorded the following Monday absorbs everything Claude Code
-  changed in between and reports it never. Seeding is idempotent, an existing baseline is left alone, so
-  a routine apply cannot re-baseline over a change nobody has reported yet. It is also best effort and
-  never pages: a machine with no readable inventory yet seeds nothing, says so, and leaves the baseline
-  to the first scheduled run.
-- **A first run with no baseline** records one and posts nothing. **A quiet week still posts**, naming
-  zero changes, because a clean week and a dead LaunchAgent otherwise produce identical silence. **An
-  inventory it cannot read posts no record at all** and alerts on the priority route instead, since the
-  only change list it could build from a file it cannot read is a false "nothing changed". That set
-  includes a file holding more than one top-level JSON document (jq accepts a stream, and both copies
-  would reach the reading) and an install record whose shape it cannot interpret (dropping one out of the
-  reading announces the plugin as REMOVED). An inventory with no USER-scope records is NOT in that set:
-  it is a real reading of a real machine, and its removals are reported.
-- **The snapshot is replaced by rename**, never written in place, so a run interrupted halfway cannot
-  leave a short file that the next run reads as a batch of new plugins. A snapshot path that exists and
-  is not a regular file refuses the run, and a reading that cannot be persisted alerts, because both
-  otherwise produce a machine that reports nothing while looking healthy.
-
-### Happy Daemon (Remote Agent Control)
-
-[happy](https://happy.engineering/) bridges Claude Code sessions to the Happy mobile and web apps for
-remote control; the local daemon is that bridge. Its lifecycle is managed by
-`~/Library/LaunchAgents/com.webdavis.happy-daemon.plist` (`KeepAlive=true`, `RunAtLoad=true`), loaded on
-every `chezmoi apply` by `.chezmoiscripts/run_onchange_after_62-load-happy-daemon-launchagent.sh.tmpl`
-(`bootout` + `bootstrap` with a 3-try retry loop, mirroring the atuin loader). `happy` itself is an npm
-global tracked under `npm:` in `.chezmoidata/system_packages_autoinstall.yaml`, and logs go to
-`~/.local/log/happy-daemon.log`.
-
-**The one gotcha: use `start-sync`, not `start`.** The plist runs `happy daemon start-sync`, which keeps
-the daemon in the foreground. The documented command, `happy daemon start`, detaches (forks, then
-returns), which under `KeepAlive` looks like an instant exit and restart-loops, orphaning a daemon each
-cycle. `start-sync` is the foreground entry point that `start` spawns internally; it is NOT listed in
-`happy daemon --help`, so the plist comment is the only record of why it is used. launchd then supervises
-a two-process tree: the `start-sync` process it keeps alive, which in turn manages the real daemon.
-
-**Diagnostic ladder** when remote control stops connecting:
-
-```bash
-happy daemon status                        # 'Daemon is running' + PID, port, version
-launchctl list | grep happy                # col 1 = live PID, col 2 = last exit status
-ps aux | grep '[h]appy daemon'             # supervised start-sync process + the daemon it spawns
-tail ~/.local/log/happy-daemon.log         # crash messages
-happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
-```
-
-### Tailscale (headless daemon)
-
-Tailscale runs as the open-source `tailscale` **formula** (not the `tailscale-app` GUI cask) as a launchd
-**system daemon** via `sudo tailscaled install-system-daemon` (a root-owned copy in `/usr/local/bin`; the
-brew formula stays user-owned so `brew upgrade` runs unattended). It boots before login and uses the
-`utun` interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
-weakness on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time
-manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the
-admin console, node-key expiry will not force reauthentication (no auth keys, no rotation, no KeePassXC).
-`run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those one-time
-steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
-
-**DNS:** always `--accept-dns=true`, never a static `100.100.100.100` global resolver (breaks
-off-tailnet). The OSS-macOS weak spot is the resolver registration layer (`tailscale/tailscale#13461`,
-`#19139`): tailscaled's internal MagicDNS resolver stays healthy, but its registration of the
-`<tailnet>.ts.net` suffix route with macOS can silently half-fail (search-domain fragment written, no
-nameserver route), including at home, so tailnet names stop resolving through the system resolver while
-all other DNS works. Remedy:
-`sudo tailscale set --accept-dns=false && sudo tailscale set --accept-dns=true`, then
-`sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`; verify with
-`dscacheutil -q host -a name <peer>.<tailnet>.ts.net` (not `dig`, dig bypasses `/etc/resolver`). Durable
-fallback: needed peers are pinned in `/etc/hosts` declaratively, structured `tailnet_pins` data in
-`macos_system_setup.yaml` from which the Tier-2 sudo runner template generates the idempotent pin
-commands at `chezmoi apply` (tailscaled never manages that file, so entries coexist; tailnet IPs are
-stable per node).
-
-**Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
-running daemon is a separate root-owned copy a formula upgrade does not touch. After upgrading the
-`tailscale` formula, re-run `sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon` to
-refresh the daemon copy. On this machine (dresden) `sudo` is passwordless (the operator's `!authenticate`
-sudoers config, not managed by this repo), so the re-copy is a single command; on a fresh machine expect
-a password prompt.
-
-**Daemon-host role:** when an always-home Mac exists and takes over the daemon-host role, this machine
-(dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and the
-always-home Mac runs this daemon. Make the chezmoi config machine-conditional then.
-
-### AI Commit Messages
-
-The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
-by `core.hooksPath = ~/.config/git/hooks`) pipes the full staged diff (no truncation) to
-`claude -p --model=sonnet` with a 30-second timeout, and prepopulates the commit editor with the returned
-Conventional Commits message (subject, optional body, optional footers). Bails on
-`-m`/`-F`/merge/rebase/cherry-pick and on `SKIP_AI_COMMIT=1`. Chains to a repo-local
-`.git/hooks/prepare-commit-msg` if present. Never blocks a commit, worst case the editor opens with an
-empty message.
-
-A per-repo `core.hooksPath` override (e.g. what `git lfs install` writes) would shadow this hook; that is
-why the per-repo pre-commit lint uses the dispatcher described under Git Hooks rather than an override.
-
-### Long-running Command Notifier
+### Long-running command notifier
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
-framework). Commands ≥ 30s fire an `alerter` macOS notification; ≥ 5 min additionally pulse Hue lights
-via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/herdr/claude/fzf) are skipped.
-
-### Herdr Native Status
-
-Workspace state (per-pane agent status: blocked / working / done / idle) is rendered by herdr, no
-third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent state.
-Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
+framework). Commands at 30s or longer fire an `alerter` macOS notification; at 5 minutes or longer they
+additionally pulse Hue lights via `~/.local/bin/hue-pulse.sh`, which is handed the exit code and pulses
+green on success, red otherwise. Interactive TUIs are skipped by a prefix match on the command line:
+`vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`.
 
 ## Code Style
 
 - Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
   `treefmt.nix`). When running shfmt by hand, pass these flags explicitly, `.editorconfig` only covers
-  `dot_fzf*` and `dot_bash*` patterns, for editors.
+  `dot_fzf*` and `dot_bash*` patterns, for editors. Note that shfmt and shellcheck both exclude `*.tmpl`
+  and `dot_agents/skills/**`, so templated shell is covered by the render-then-lint formatter instead.
 - **Bash follows the [Wooledge BashGuide](https://mywiki.wooledge.org/BashGuide) practices.** The rules
   that come up most in this repo:
   - `set -euo pipefail` at the top of every script; double-quote every expansion.
@@ -901,7 +462,10 @@ Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
   - Validate numeric arguments with a `[[ =~ ]]` pattern before using them.
   - Unknown CLI arguments/commands are an error: usage to stderr, exit non-zero, never a silent
     fallthrough to help with exit 0.
-- Markdown: wrapped at 105 columns, non-consecutive numbering (`mdformat` with `.mdformat.toml`).
+- Markdown: wrapped at 105 columns, non-consecutive numbering (`mdformat` with `.mdformat.toml`, which
+  also pins LF line endings and strict round-trip validation). mdformat never touches skill, agent or
+  command definitions (`private_dot_claude/{skills,agents,commands}/**`, `dot_agents/**`), which rely on
+  YAML frontmatter it would mangle, nor `docs/superpowers/**`.
 - Nix: formatted with nixfmt (RFC 166 style, `treefmt.nix` pins `pkgs.nixfmt-rfc-style` because the bare
   `nixfmt` attribute in nixpkgs 25.05 is still nixfmt-classic).
 - TOML: formatted with `taplo`. `dot_aerospace.toml` is excluded (preserves user's visual alignment).
@@ -917,6 +481,10 @@ of work.
 ## Security
 
 - `*bash_secret*` patterns are gitignored to prevent accidental commits of Bash secret files.
-- Claude Code settings include a deny list for sensitive paths (`.env`, `secrets/**`, `credentials.json`,
-  `.aws/credentials`, `.ssh/id_*`) that applies even under `bypassPermissions`.
-- KeePassXC database is the single source of truth for secrets pulled into templates.
+- Claude Code settings deny reads of six sensitive paths (`.env`, `.env.*`, `secrets/**`,
+  `credentials.json`, `.aws/credentials`, `.ssh/id_*`) alongside
+  `permissions.defaultMode = bypassPermissions`, so the deny list is what stands between an agent and
+  those files.
+- KeePassXC is the single source of truth for secrets pulled into templates, including the age identity
+  itself, which `run_before_05-restore-age-key.sh.tmpl` fetches from the vault at apply time.
+- `gitleaks git --staged` blocks any staged plaintext secret at pre-commit.
