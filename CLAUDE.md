@@ -509,6 +509,13 @@ names no other delivery mechanism and reads no other lock, per the operator's st
 `"none"` is the only legal value, and a malformed table refuses the run rather than failing open, in
 every mode including `--dry-run`.
 
+**Retiring an EXISTING link is manual, and the run says so.** Deleting the chezmoi declaration does not
+remove a `~/.claude/skills` link already on the machine (chezmoi never deletes a target it no longer
+manages), and the apply-time `--install-only` pass is additive, so it removes nothing either. The link
+therefore survives until the next FULL weekly run reaps it, and for that window Claude Code sees two
+sources under one name. `converge_dir` now WARNS with the absolute path in the additive mode, naming what
+it is leaving behind for the operator to delete. No removal is scripted, by operator ruling.
+
 **Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (27). Core
 skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
 explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"`, one
@@ -765,10 +772,25 @@ shared entry shape and the reasoning behind it).
 - **Schedule:** `com.webdavis.report-plugin-updates`, Monday 13:00, `RunAtLoad=false`, logging to
   `~/.local/log/plugins/report-updates.log`. It passes `--scheduled`, and only a scheduled run posts,
   moves the snapshot or advances the marker; a manual run prints the comparison and changes nothing.
-- **First run** records a baseline and posts nothing. **A quiet week still posts**, naming zero changes,
-  because a clean week and a dead LaunchAgent otherwise produce identical silence. **An unreadable state
-  file posts no record at all** and alerts on the priority route instead, since the only change list it
-  could build from a file it cannot read is a false "nothing changed".
+- **The baseline is seeded at APPLY time**, by the loader chezmoiscript calling `--seed-baseline`, not by
+  the first scheduled run. The apply that deploys this record is the apply that turns the marketplace
+  auto-updates on, so a baseline first recorded the following Monday absorbs everything Claude Code
+  changed in between and reports it never. Seeding is idempotent, an existing baseline is left alone, so
+  a routine apply cannot re-baseline over a change nobody has reported yet. It is also best effort and
+  never pages: a machine with no readable inventory yet seeds nothing, says so, and leaves the baseline
+  to the first scheduled run.
+- **A first run with no baseline** records one and posts nothing. **A quiet week still posts**, naming
+  zero changes, because a clean week and a dead LaunchAgent otherwise produce identical silence. **An
+  inventory it cannot read posts no record at all** and alerts on the priority route instead, since the
+  only change list it could build from a file it cannot read is a false "nothing changed". That set
+  includes a file holding more than one top-level JSON document (jq accepts a stream, and both copies
+  would reach the reading) and an install record whose shape it cannot interpret (dropping one out of the
+  reading announces the plugin as REMOVED). An inventory with no USER-scope records is NOT in that set:
+  it is a real reading of a real machine, and its removals are reported.
+- **The snapshot is replaced by rename**, never written in place, so a run interrupted halfway cannot
+  leave a short file that the next run reads as a batch of new plugins. A snapshot path that exists and
+  is not a regular file refuses the run, and a reading that cannot be persisted alerts, because both
+  otherwise produce a machine that reports nothing while looking healthy.
 
 ### Happy Daemon (Remote Agent Control)
 
