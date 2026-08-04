@@ -77,8 +77,15 @@ trap cleanup EXIT
 # Block until the holder reports it applied the inserts: deterministic, no sleep.
 # By the time SYNC-DONE arrives the rows are committed into the WAL, and the
 # holder still owns the connection, so no checkpoint has folded them away.
+#
+# The read is bounded. A holder that DIED gives EOF and the loop ends on its own,
+# but a holder that is alive and simply never emits the marker (a sqlite3 build
+# that refuses WAL, or one still waiting on input) would block this read forever,
+# and an unattended CI job turns that into a six-hour timeout instead of a
+# failure. `read -t` returns nonzero on expiry exactly as it does on EOF, so both
+# shapes land on the same loud failure below.
 sync_seen=0
-while IFS= read -r line <&"${HOLDER[0]}"; do
+while IFS= read -r -t 60 line <&"${HOLDER[0]}"; do
   if [[ $line == *SYNC-DONE* ]]; then
     sync_seen=1
     break
