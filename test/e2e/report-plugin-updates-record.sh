@@ -272,4 +272,25 @@ run_helper --schedule
 grep -qF 'unknown argument' <<<"$RUN_OUTPUT" ||
   fail "the unknown-argument error does not name the problem: $RUN_OUTPUT"
 
+# ── 9. A DOUBLED inventory is REFUSED. jq reads its input as a SEQUENCE of JSON
+#      documents, so a file holding the same object twice parses fine and the
+#      key-walk emits rows from BOTH copies. Left unchecked the snapshot carries
+#      two fingerprints for one plugin, and a machine where nothing moved reports
+#      a version transition every single week. Concatenation is what a crashed or
+#      racing writer leaves behind, and it is the shape most parsers reject. ────
+rm -rf "$STATE_DIR/log-week-claims"
+write_plugin_state "5.0.0"
+snapshot_before="$(cat "$SNAPSHOT")"
+sed 's/5\.0\.0/9.9.9/g' "$PLUGIN_STATE" >"$tmp/second-document.json"
+cat "$tmp/second-document.json" >>"$PLUGIN_STATE"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a doubled inventory exited 0; two documents were read as one reading: $RUN_OUTPUT"
+refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
+  "a doubled inventory still posted a record, so a machine where nothing moved reports a transition"
+[[ -n "$(alert_entries)" ]] ||
+  fail "a doubled inventory alerted nobody: $RUN_OUTPUT"
+[[ "$(cat "$SNAPSHOT")" == "$snapshot_before" ]] ||
+  fail "a doubled inventory moved the snapshot: $(cat "$SNAPSHOT")"
+
 echo "report-plugin-updates-record: OK"

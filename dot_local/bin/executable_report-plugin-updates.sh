@@ -168,6 +168,18 @@ record_entry() {
 # and the exit status carries it: pipefail hands the jq failure back through the
 # sort.
 #
+# EXACTLY ONE DOCUMENT, which is why this slurps. jq reads its input as a
+# SEQUENCE of JSON values, so a file holding the inventory twice (what a crashed
+# writer, an interrupted rewrite, or two writers racing leave behind) parses
+# without complaint and this key-walk emits rows from BOTH copies. The snapshot
+# then carries two fingerprints for one plugin id, and a machine where nothing
+# moved reports a version transition every week until someone notices. Slurping
+# and counting is the single-value test (the same shape as
+# .chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh).
+# `== 1` and not that script's `<= 1`: it tolerates a zero-value file because the
+# template it protects treats an empty file as an absent one, whereas an empty
+# inventory here is a reading nobody can compare against.
+#
 # STDERR IS THE CALLER'S TO REDIRECT, and is deliberately not merged into stdout
 # here. Merged, any line jq ever writes to stderr on an otherwise SUCCESSFUL run
 # would be sorted into the snapshot as a row with no tab, which
@@ -176,8 +188,11 @@ record_entry() {
 # never produce, so the two streams stay apart.
 plugin_snapshot() {
   # shellcheck disable=SC2016 # a jq program: $id is a jq binding, not a shell variable
-  "$JQ" -er '
-    if (.plugins? | type) != "object" then
+  "$JQ" -ers '
+    if length != 1 then
+      error("installed_plugins.json holds \(length) top-level JSON documents; exactly one is expected")
+    else .[0] end
+    | if (.plugins? | type) != "object" then
       error("installed_plugins.json has no plugins object")
     elif (.plugins | length) == 0 then
       error("installed_plugins.json records no installed plugins")
