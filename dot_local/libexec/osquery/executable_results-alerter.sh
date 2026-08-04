@@ -25,9 +25,11 @@ set -euo pipefail
 LOG="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.results.log}"
 STATE="${OSQUERY_RESULTS_OFFSET:-$HOME/.local/state/osquery-results-offset}"
 
-# The dispatch library and the seven pipeline helpers, from the libexec home (the
-# same deployed path the other consumers source; literal so the relocation guard
-# can assert it).
+# The dispatch library and the six REQUIRED pipeline helpers, from the libexec
+# home (the same deployed path the other consumers source; literal so the
+# relocation guard can assert it). These sources are deliberately UNGUARDED:
+# without any one of them there is no detection, no routing and no delivery, so
+# an absent file must abort under errexit rather than page a half-run pipeline.
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 # shellcheck source=/dev/null
@@ -39,11 +41,29 @@ source "$HOME/.local/libexec/osquery/results-alerter/allowlist-verdict.sh"
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 # shellcheck source=/dev/null
-source "$HOME/.local/libexec/osquery/results-alerter/file-integrity-triage.sh"
-# shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/results-alerter/digest-store.sh"
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/results-alerter/render-page.sh"
+
+# The one OPTIONAL helper, sourced CONDITIONALLY and never fatally. It adds
+# display-only triage facts to a file-integrity page, and route.sh already calls
+# it behind a `declare -F file_integrity_triage` guard, so a page without it
+# costs two LINES. Sourced beside the required libraries above it cost far more:
+# this entry runs under `set -euo pipefail`, so a file that had not been deployed
+# yet aborted the run BEFORE any routing, delivery or checkpointing, and every
+# page on the machine was blocked until the file came back. That is strictly
+# worse than the missing-line case the router's fallback was written to tolerate,
+# so the guard below is what makes that fallback reachable at all. LOUD when
+# absent: this stderr is the alerter's launchd log, and a partial deploy that
+# quietly drops facts off every page is exactly the state that stays invisible.
+OSQUERY_TRIAGE_HELPER="$HOME/.local/libexec/osquery/results-alerter/file-integrity-triage.sh"
+if [[ -r $OSQUERY_TRIAGE_HELPER ]]; then
+  # shellcheck source=/dev/null
+  source "$OSQUERY_TRIAGE_HELPER"
+else
+  printf 'results-alerter: WARNING the file-integrity triage helper is missing at %s; pages still fire, without their recorded/on-disk hashes and upgrade correlation (run chezmoi apply)\n' \
+    "$OSQUERY_TRIAGE_HELPER" >&2
+fi
 
 # The single-instance lock file sits beside the cursor it guards, so every alerter
 # invocation contends on one lock no matter what launched it (a WatchPaths burst can
