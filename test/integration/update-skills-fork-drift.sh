@@ -371,7 +371,7 @@ assert_clone_dir_removed() {
 # Byte-level snapshot of the fork before any run (assertion 4 compares later).
 fork_snapshot_before="$(cd "$fork_store_dir" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256)"
 
-# Run 1: upstream unchanged. FORCE bypasses the idle-gate (a harness is by
+# Run 1: upstream unchanged. FORCE bypasses the weekly stamp (a harness is by
 # definition running this test).
 output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --check-forks-only 2>&1)" ||
   fail "--check-forks-only exited non-zero with an unreachable upstream in the lock: $output"

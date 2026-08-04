@@ -162,7 +162,7 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 }
 EOF
 
-# The real script, unmodified. FORCE bypasses the idle-gate, which would
+# The real script, unmodified. FORCE bypasses the weekly stamp, which would
 # otherwise refuse to run while a harness (the one executing this test) is up.
 output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --install-only 2>&1)" || fail "update-skills.sh --install-only exited non-zero: $output"
 

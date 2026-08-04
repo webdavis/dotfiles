@@ -36,8 +36,7 @@
     "summarize-pro": "on-demand",
     "tiktok-crawling": "on-demand",
     "todoist-cli": "core",
-    "video-transcript-downloader": "on-demand",
-    "website-to-video": "on-demand"
+    "video-transcript-downloader": "on-demand"
   },
   "claudeDelivery": {
     "last30days": "none"
@@ -102,8 +101,7 @@
     "todoist-cli": [
       "default"
     ],
-    "video-transcript-downloader": [],
-    "website-to-video": []
+    "video-transcript-downloader": []
   },
   "hermesRegistry": {
     "conventional-commits": {
@@ -272,9 +270,6 @@
     },
     "video-transcript-downloader": {
       "repo": "steipete/agent-scripts"
-    },
-    "website-to-video": {
-      "repo": "heygen-com/hyperframes"
     }
   },
   "clawhubTracked": {

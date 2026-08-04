@@ -19,7 +19,7 @@
 # "updater-owned" = a symlink whose literal target points under ~/.agents/skills
 # (works for dangling links too, the string still points there).
 #
-# The real script runs unmodified in a sandbox: FORCE bypasses the idle-gate and
+# The real script runs unmodified in a sandbox: FORCE bypasses the weekly stamp and
 # the weekly stamp, offline stubs neutralize the network passes, and the FULL run
 # exercises destructive convergence (replace/remove), which the additive
 # --install-only bootstrap deliberately never does.
@@ -129,7 +129,7 @@ printf 'mirror\n' >"$HERMES/hermes-superpowers/marker"
 # runs only on the FULL weekly path, never under the additive --install-only
 # bootstrap, so this test exercises a FULL run. Offline stubs stand in for the
 # network passes a full run would otherwise make (npx update; the hermes
-# registry phase for the dualname hub entry). FORCE bypasses the idle-gate and
+# registry phase for the dualname hub entry). FORCE bypasses the weekly stamp and
 # the weekly stamp, so the second (idempotence) run reconverges instead of
 # early-exiting on the stamp.
 stub_dir="$tmp/stubs"

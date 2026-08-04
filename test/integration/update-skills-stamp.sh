@@ -5,7 +5,7 @@
 # when no future slot remains this Monday, fires the loud exhaustion alert. A
 # failure on any other day withholds the stamp but claims no exhaustion.
 #
-# The real script runs unmodified in a sandbox. FORCE bypasses the idle-gate (so
+# The real script runs unmodified in a sandbox. FORCE bypasses the weekly stamp (so
 # the run proceeds), an npx stub is made to FAIL the install of a tracked skill,
 # and date/alerter are stubbed so the slot-aware branch and the alert are
 # observable.

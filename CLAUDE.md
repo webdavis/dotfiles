@@ -443,7 +443,7 @@ check on `main` under branch protection, so the auto-merge cannot land until it 
 
 ### Agent Skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code for the
+`~/.agents/skills` is the single canonical skills store (35 roster skills). It serves Claude Code for the
 roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
 `private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
 hermes for exactly the store-symlink subset of the delivery model below (`dot_hermes/skills/` and
@@ -455,26 +455,26 @@ declarations, or the settings modify-template's `skillOverrides` ever disagree.
 **Store provenance: who installs and refreshes each store copy** (the lock at
 `dot_agents/custom-skill-lock.json` records it):
 
-- **npx-tracked** (the `npxTracked` table, 28 skills): the store copy is installed and refreshed by the
+- **npx-tracked** (the `npxTracked` table, 27 skills): the store copy is installed and refreshed by the
   official npx `skills` CLI from an official GitHub upstream, latest from `main` (no pin).
   `~/.local/bin/update-skills.sh` installs and refreshes them via an explicit
   `npx skills add <repo> --skill <name> --agent claude-code --agent codex -g -y` per repo group, run
   against the weekly candidate generation (never the bulk `npx skills update`, whose lock-walk logs some
   failures at exit 0; the explicit add also reconciles lock-absent roster skills). No `~/.codex` dir;
-  Codex reads the store natively. These skills are NOT vendored in chezmoi. Includes the 13 curated
+  Codex reads the store natively. These skills are NOT vendored in chezmoi. Includes the 12 curated
   HeyGen HyperFrames skills (router `hyperframes`; domains
   `hyperframes-core/-animation/-keyframes/-creative`, `media-use`, `hyperframes-cli`,
-  `hyperframes-registry`; workflows `general-video`, `website-to-video`, `faceless-explainer`,
-  `embedded-captions`, `motion-graphics`; `figma`, `music-to-video`, and four others deliberately
-  excluded). Also includes `home-assistant-best-practices` (the official `homeassistant-ai/skills` repo's
-  one skill): Home Assistant config/YAML AUTHORING guidance, not runtime control; it complements the
-  clawhub-tracked `home-assistant` runtime skill everywhere, and it is the one Home Assistant skill that
-  DOES fan out to hermes (default profile), as authoring guidance atop Bob's native Home Assistant
-  runtime tools. Also includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`,
-  `obsidian-bases`, `obsidian-cli`, `obsidian-markdown`), all on-demand, all `hermesProfiles: []`. Note
-  what on-demand costs `defuddle`: it advertises itself as an automatic substitute for WebFetch whenever
-  a user pastes a URL, so demoted it never fires unless the agent is told to use it. That is deliberate
-  and is one line to revert.
+  `hyperframes-registry`; workflows `general-video`, `faceless-explainer`, `embedded-captions`,
+  `motion-graphics`; `figma`, `music-to-video`, and four others deliberately excluded). Also includes
+  `home-assistant-best-practices` (the official `homeassistant-ai/skills` repo's one skill): Home
+  Assistant config/YAML AUTHORING guidance, not runtime control; it complements the clawhub-tracked
+  `home-assistant` runtime skill everywhere, and it is the one Home Assistant skill that DOES fan out to
+  hermes (default profile), as authoring guidance atop Bob's native Home Assistant runtime tools. Also
+  includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`, `obsidian-bases`,
+  `obsidian-cli`, `obsidian-markdown`), all on-demand, all `hermesProfiles: []`. Note what on-demand
+  costs `defuddle`: it advertises itself as an automatic substitute for WebFetch whenever a user pastes a
+  URL, so demoted it never fires unless the agent is told to use it. That is deliberate and is one line
+  to revert.
 - **ClawHub-tracked** (the `clawhubTracked` table, 3 skills: `home-assistant`, `sql-toolkit`,
   `summarize-pro`): the store copy is installed and refreshed by the `clawhub` CLI from ClawHub. The npx
   lane cannot source ClawHub (`npx skills add` is GitHub-only), so ClawHub-only skills get their own
@@ -509,7 +509,7 @@ names no other delivery mechanism and reads no other lock, per the operator's st
 `"none"` is the only legal value, and a malformed table refuses the run rather than failing open, in
 every mode including `--dry-run`.
 
-**Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (28). Core
+**Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (27). Core
 skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
 explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"`, one
 `setValueAtPath` per skill in the settings modify-template (per-key, so overrides the user sets for other
@@ -646,12 +646,17 @@ narrowing: the explicit add targets `--agent claude-code --agent codex` only, so
 copies (devin, goose) are no longer refreshed by these runs.
 
 `update-skills.sh` runs weekly via the `com.webdavis.update-skills` LaunchAgent (24 hourly Monday retry
-slots, 00:00-23:00, `RunAtLoad=false`, logs to `~/.local/log/skills/`); a slot defers while a harness
-shows recent activity and the last slot alerts loudly (`UPDATE_SKILLS_FORCE=1` bypasses, used by tests);
-the same gate covers the hermes registry-update phase, which runs after the store refresh (hermes skill
-updates are unattended-safe: no GUI restarts, no gateway restart; sessions pick up content at next start,
-and a deferred run just means the updates land on a later slot). The script installs only what the lock
-declares, so the registered-skill count cannot grow from a run.
+slots, 00:00-23:00, `RunAtLoad=false`, logs to `~/.local/log/skills/`). **A slot runs whatever the
+machine is doing.** There is no activity gate: one used to defer the run while claude, codex or hermes
+had touched a per-turn file in the last 15 minutes, and on a machine in daily use that deferred all 24
+slots, so the update never ran. It also bought nothing, because the publish is one atomic exchange with
+one retained generation and a harness reads skill content at invocation time, so the worst a swap
+mid-session costs is that the next invocation reads the new copy. What still holds a slot back is the
+per-week success stamp (`UPDATE_SKILLS_FORCE=1` bypasses it, used by tests and manual runs), the kernel
+lock that serializes two updaters (the second exits 75 and a later slot retries), and a refused roster.
+The hermes registry-update phase runs after the store refresh and is unattended-safe as well: no GUI
+restarts, no gateway restart, sessions pick up content at next start. The script installs only what the
+lock declares, so the registered-skill count cannot grow from a run.
 
 **Adding a skill:** if it has an official full-tree GitHub upstream, add an `npxTracked` entry
 (`{"repo": "owner/repo"}`); if it is ClawHub-published, add a `clawhubTracked` entry

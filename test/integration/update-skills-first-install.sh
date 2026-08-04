@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # update-skills-first-install.sh, a fresh machine must reproduce the full skills
 # store at apply time, not wait for the weekly Monday LaunchAgent (RunAtLoad is
-# false, so the agent's first chance is Monday, or never, given the idle-gate).
+# false, so the agent's first chance is the Monday after provisioning).
 #
 # Asserts:
 #   1. the run_onchange chezmoiscript invokes the DEPLOYED updater with
@@ -9,12 +9,9 @@
 #   2. its rendered content re-hashes when the lock changes, so run_onchange
 #      re-fires on any roster edit;
 #   3. --install-only against an empty HOME installs ABSENT skills and skips
-#      present ones. It is exempt from the TOP-LEVEL idle gate, so it runs
-#      even under an active session; on a fresh machine with no live
-#      generation it publishes by a plain rename (no exchange), so the
-#      bootstrap completes here regardless of the session. (Once a live
-#      generation exists, a later install-only idle-gates its own exchange and
-#      defers under activity - exercised in update-skills-install-defer-retry.)
+#      present ones. It runs even under an active session; on a fresh machine
+#      with no live generation it publishes by a plain rename (no exchange), so
+#      the bootstrap completes here regardless of the session.
 set -euo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
@@ -58,7 +55,7 @@ rm -rf "$fixture_src"
   fail "the rendered first-install script did not change when the lock changed (run_onchange would not re-fire)"
 
 # ── 3. empty HOME: --install-only installs absent, skips present, under a live
-#      session (the idle-gate must not block a swap-free install pass).
+#      session (nothing may block a swap-free install pass).
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 HOME="$tmp/home"
@@ -129,7 +126,7 @@ export PATH="$stub:$PATH"
 out="$(bash "$UPDATER" --install-only 2>&1)" ||
   fail "--install-only exited non-zero under an active session: $out"
 [[ -f "$HOME/.agents/skills/freshskill/SKILL.md" ]] ||
-  fail "absent skill freshskill was not installed by the first-install pass (idle-gate blocked --install-only?): $out"
+  fail "absent skill freshskill was not installed by the first-install pass: $out"
 [[ -f "$HOME/.agents/skills/already/local.marker" ]] ||
   fail "present skill 'already' was reinstalled by the install pass (marker lost)"
 grep -q 'add fixture/freshskill' "$NPX_LOG" ||

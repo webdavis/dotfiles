@@ -10,16 +10,16 @@
 #
 #   - A run that changed NOTHING still posts. Suppressing the empty entry throws
 #     away the main reason the channel is worth having.
-#   - A run that did NOTHING AT ALL posts too, as a distinct class. On this
-#     machine that is the only class that will ever fire: update-skills has never
-#     completed a run here, ~/.local/state/update-skills does not exist, and the
-#     entire run log is five identical "deferring this run" lines. The record is
+#   - A run that did NOTHING AT ALL posts too, as a distinct class. A refused
+#     roster, a held serialize lock and a week that already finished all reach it,
+#     and each would otherwise leave the week completely silent. The record is
 #     what makes that visible.
 #   - Every entry carries its own gap, because launchd COALESCES missed calendar
 #     intervals into one event on wake, so a healthy job can produce one entry
 #     covering three weeks and an absent entry proves nothing.
 #   - One entry per class per ISO week (so two at most, and only in a week that
-#     defers before it completes). 24 hourly Monday slots would otherwise post 24.
+#     attempts nothing before it completes). 24 hourly Monday slots would
+#     otherwise post 24.
 #   - A MANUAL run posts nothing. An operator running the script by hand on a
 #     Wednesday must not make a dead LaunchAgent look alive; that inverts the
 #     signal.
@@ -27,7 +27,8 @@
 #     priority channel. Act on one, record the other.
 #
 # End-to-end: the real script, a sandboxed HOME, a stub relay that records which
-# ROUTE each call went to, and stub ps/date/npx as in update-skills-defer.sh.
+# ROUTE each call went to, and stub ps/date/npx as in
+# test/e2e/update-skills-unattended.sh.
 set -euo pipefail
 
 # git hooks (this can run under pre-commit) leak GIT_DIR/GIT_INDEX_FILE; unset so
@@ -119,25 +120,14 @@ exit 0
 STUB
 chmod +x "$HOME/.local/bin/relay.sh"
 
-# Declared before the stubs because two of them bake this path in (the lanes run
-# under `env -i`, so a stub cannot read it from the environment).
-ACT_CLAUDE="$HOME/act/claude"
-
 stub_dir="$tmp/stubs"
 mkdir -p "$stub_dir"
-# ps stub. Normally it answers FAKE_PS. When the mid-run arming marker exists it
-# switches to reporting an agent process as soon as the npx stub has run, which
-# is how section 14 makes a harness "turn active during the build": the top-level
-# activity check sees a quiet machine and proceeds, and the pre-exchange check
-# sees an active one. Both paths are the real script's; only the world it
-# observes changes underneath it.
-cat >"$stub_dir/ps" <<EOF
+# ps stub: answers FAKE_PS. The script reads no process table any more; the stub
+# stays so a reintroduced activity gate would observe the world this test stages
+# rather than the real machine's.
+cat >"$stub_dir/ps" <<'EOF'
 #!/usr/bin/env bash
-if [[ -e "$tmp/arm-mid-run-defer" && -e "$tmp/agent-arrived" ]]; then
-  printf '%s\n' '/opt/homebrew/bin/claude --remote-control'
-  exit 0
-fi
-printf '%s\n' "\${FAKE_PS:-}"
+printf '%s\n' "${FAKE_PS:-}"
 EOF
 cat >"$stub_dir/date" <<'EOF'
 #!/usr/bin/env bash
@@ -150,19 +140,11 @@ for arg in "$@"; do
 done
 exec /bin/date "$@"
 EOF
-# npx stub. It also carries section 14's trigger: the build lanes are the one
-# place that runs between the top-level activity check and the pre-exchange one,
-# so this is where a harness can plausibly turn active mid-run. The paths are
-# baked in rather than read from the environment because the lanes run under
-# `env -i`.
-cat >"$stub_dir/npx" <<EOF
+# npx stub: the weekly lane's only job here is to succeed so the run reaches its
+# record.
+cat >"$stub_dir/npx" <<'EOF'
 #!/usr/bin/env bash
 echo "stub npx"
-if [[ -e "$tmp/arm-mid-run-defer" ]]; then
-  mkdir -p "$ACT_CLAUDE"
-  : >"$ACT_CLAUDE/live.jsonl"
-  : >"$tmp/agent-arrived"
-fi
 exit 0
 EOF
 # clawhub stub (same shape as test/integration/update-skills-generation-lanes.sh):
@@ -192,7 +174,7 @@ exit 0
 EOF
 # mktemp stub: inert unless MKTEMP_FAIL_TEMPLATE names a substring of one of its
 # arguments, in which case that ONE allocation fails and every other call is the
-# real mktemp. Section 17 needs the RECORD's workspace to fail while the roster
+# real mktemp. Section 16 needs the RECORD's workspace to fail while the roster
 # snapshot and the generation lanes keep theirs, and an unusable TMPDIR cannot do
 # that: it would break every allocation, and macOS mktemp ignores TMPDIR in the
 # bare form while the flake devshell ships GNU coreutils mktemp, which honours
@@ -216,19 +198,12 @@ export PATH="$stub_dir:$PATH"
 export FAKE_WEEK="2026-31"
 export UNATTENDED_LOG_HERMES_URL="http://hermes.test/webhooks/unattended-upgrades"
 
-export UPDATE_SKILLS_CLAUDE_ACTIVITY_DIR="$ACT_CLAUDE"
-export UPDATE_SKILLS_CODEX_ACTIVITY_DIR="$HOME/act/codex"
-export UPDATE_SKILLS_HERMES_ACTIVITY_DIR="$HOME/act/hermes"
-export UPDATE_SKILLS_IDLE_THRESHOLD=900
-
-AGENT_WORLD='/opt/homebrew/bin/claude --remote-control'
 QUIET_WORLD='/usr/bin/python3 /usr/local/bin/some-tool.py --flag'
 
-harness_active() {
-  mkdir -p "$ACT_CLAUDE"
-  : >"$ACT_CLAUDE/live.jsonl"
-}
-harness_absent() { rm -rf "$HOME/act"; }
+# The vehicle for "this slot attempted nothing": an unparseable roster is refused
+# before any mutation, which is one of the record's deferred-class call sites and
+# the cheapest to stage.
+stage_refused_roster() { printf 'not json at all\n' >"$HOME/.agents/custom-skill-lock.json"; }
 
 RUN_OUTPUT=""
 # run_updater <world> [args...] -- run the real script; never let a non-zero exit
@@ -251,21 +226,20 @@ GUARD="$HOME/.local/state/update-skills/log-week-claims"
 
 reset_state() {
   rm -rf "$HOME/.local/state"
-  harness_absent
 }
 
-# ── 1. A SCHEDULED run that defers posts the DEFERRED class, and says the gap is
-#      unknown because nothing has ever succeeded here. That is this machine's
-#      real state, and it is the whole point of the class. ────────────────────
+# ── 1. A SCHEDULED run that attempts NOTHING posts the DEFERRED class, and says
+#      the gap is unknown because nothing has ever succeeded here. Until one run
+#      completes, that is the whole point of the class. ──────────────────────
 reset_state
-harness_active
-run_updater "$AGENT_WORLD" --scheduled
+stage_refused_roster
+run_updater "$QUIET_WORLD" --scheduled
 entries="$(log_entries)"
-[[ -n $entries ]] || fail "a scheduled deferral posted NO record entry: $RUN_OUTPUT"
+[[ -n $entries ]] || fail "a scheduled slot that attempted nothing posted NO record entry: $RUN_OUTPUT"
 grep -qF -- '--remote-only' <<<"$entries" ||
   fail "the record was not posted with --remote-only (it would banner + buzz every week): $entries"
 grep -qF -- '--state deferred' <<<"$entries" ||
-  fail "a deferral did not post the 'deferred' class: $entries"
+  fail "a slot that attempted nothing did not post the 'deferred' class: $entries"
 grep -qiE 'nothing was attempted' <<<"$entries" ||
   fail "the deferred entry does not say nothing was attempted: $entries"
 grep -qiE 'NEVER RECORDED' <<<"$entries" ||
@@ -282,10 +256,10 @@ grep -qF -- "--project $this_host" <<<"$entries" ||
 # ── 2. The once-per-week guard. 24 hourly Monday slots must not become 24
 #      messages. ────────────────────────────────────────────────────────────────
 reset_state
+stage_refused_roster
 total_entries=0
 for _ in $(seq 1 24); do
-  harness_active
-  run_updater "$AGENT_WORLD" --scheduled
+  run_updater "$QUIET_WORLD" --scheduled
   total_entries=$((total_entries + $(log_entry_count)))
 done
 [[ $total_entries -eq 1 ]] ||
@@ -294,7 +268,7 @@ done
 # ── 3. A COMPLETED run later in the SAME week still gets its entry. Leaving
 #      "deferred, nothing attempted" as the newest message of a week the job
 #      actually finished would invert the health signal the record carries. ────
-harness_absent
+restage_lock
 run_updater "$QUIET_WORLD" --scheduled
 entries="$(log_entries)"
 grep -qF -- '--state completed' <<<"$entries" ||
@@ -303,17 +277,17 @@ grep -qF -- '--state completed' <<<"$entries" ||
 # ...and the completed entry is not repeated, nor buried by a later deferral.
 run_updater "$QUIET_WORLD" --scheduled
 [[ "$(log_entry_count)" -eq 0 ]] || fail "a second completed entry was posted in the same week"
-harness_active
-run_updater "$AGENT_WORLD" --scheduled
+stage_refused_roster
+run_updater "$QUIET_WORLD" --scheduled
 [[ "$(log_entry_count)" -eq 0 ]] ||
   fail "a deferral after a completed entry posted, burying the truer message"
+restage_lock
 
 # ── 4. A run that changed NOTHING still posts, and says so. This is the
 #      deliberate opposite of the usual "do not be noisy" instinct: an entry that
 #      changed nothing is precisely where the gap figure is the only information
 #      the entry carries. ───────────────────────────────────────────────────────
 reset_state
-harness_absent
 export FAKE_WEEK="2026-32"
 run_updater "$QUIET_WORLD" --scheduled
 entries="$(log_entries)"
@@ -346,8 +320,9 @@ grep -qiF 'hermes' <<<"$entries" ||
 #      real elapsed figure rather than NEVER. ─────────────────────────────────
 [[ -s $MARKER ]] || fail "a completed run did not record its successful-run timestamp at $MARKER"
 export FAKE_WEEK="2026-33"
-harness_active
-run_updater "$AGENT_WORLD" --scheduled
+stage_refused_roster
+run_updater "$QUIET_WORLD" --scheduled
+restage_lock
 entries="$(log_entries)"
 grep -qE 'last successful run: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z \([^)]+ ago\)' <<<"$entries" ||
   fail "the entry does not carry the previous successful run and the elapsed gap: $entries"
@@ -362,7 +337,6 @@ refute 'NEVER RECORDED' "$entries" "the entry still claims no run was ever recor
 recorded_iso="$(awk '{print $2}' "$MARKER")"
 printf '%s %s\n' "$(($(/bin/date +%s) - 691200))" "$recorded_iso" >"$MARKER"
 export FAKE_WEEK="2026-34"
-harness_absent
 run_updater "$QUIET_WORLD" --scheduled
 entries="$(log_entries)"
 grep -qF -- '--state completed' <<<"$entries" || fail "the back-dated week posted no completed entry: $RUN_OUTPUT"
@@ -376,11 +350,11 @@ grep -qE 'last successful run: [^ ]+ \(8d 0h ago\)' <<<"$entries" ||
 #      dead LaunchAgent look alive. ───────────────────────────────────────────
 reset_state
 export FAKE_WEEK="2026-36"
-harness_active
-run_updater "$AGENT_WORLD"
+stage_refused_roster
+run_updater "$QUIET_WORLD"
 [[ "$(log_entry_count)" -eq 0 ]] ||
-  fail "a MANUAL run posted a weekly record: $(log_entries)"
-harness_absent
+  fail "a MANUAL run that attempted nothing posted a weekly record: $(log_entries)"
+restage_lock
 run_updater "$QUIET_WORLD"
 [[ "$(log_entry_count)" -eq 0 ]] ||
   fail "a MANUAL completed run posted a weekly record: $(log_entries)"
@@ -442,7 +416,6 @@ if [[ ! -e $holder_held ]]; then
   wait "$holder_pid" 2>/dev/null || true
   fail "could not stage a held serialize lock; the contention case did not run"
 fi
-harness_absent
 : >"$RELAY_LOG"
 contended_rc=0
 FAKE_PS="$QUIET_WORLD" bash "$SCRIPT" --scheduled >/dev/null 2>&1 || contended_rc=$?
@@ -473,7 +446,6 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
   "forks": {}
 }
 EOF
-harness_absent
 run_updater "$QUIET_WORLD" --scheduled
 entries="$(log_entries)"
 grep -qF -- '--state deferred' <<<"$entries" ||
@@ -501,7 +473,6 @@ grep -qF -- '--agent update-skills' <<<"$(alert_entries)" ||
 reset_state
 export FAKE_WEEK="2026-40"
 restage_lock_with_routing
-harness_absent
 run_updater "$QUIET_WORLD" --scheduled
 entries="$(log_entries)"
 grep -qF -- '--state completed' <<<"$entries" ||
@@ -536,30 +507,7 @@ grep -qF -- '--state deferred' <<<"$entries" ||
 grep -qiE 'already completed' <<<"$entries" ||
   fail "the no-op entry does not say the week was already finished: $entries"
 
-# ── 14. A harness that turns active DURING the build defers the generation
-#       exchange, and that is its own record call site: the run got past the
-#       top-level activity check, so none of the deferral cases above reach it.
-#       It is also the deferral that matters most to read, because the live
-#       generation is left untouched after a full candidate build. The build
-#       lanes are the seam: the npx stub plants the activity the pre-exchange
-#       check then sees. ────────────────────────────────────────────────────
-reset_state
-export FAKE_WEEK="2026-42"
-restage_lock
-harness_absent
-rm -f "$tmp/agent-arrived"
-: >"$tmp/arm-mid-run-defer"
-run_updater "$QUIET_WORLD" --scheduled
-rm -f "$tmp/arm-mid-run-defer" "$tmp/agent-arrived"
-grep -qiE 'exchange' <<<"$RUN_OUTPUT" ||
-  fail "the run never reached the generation exchange, so this case did not test what it claims: $RUN_OUTPUT"
-entries="$(log_entries)"
-grep -qF -- '--state deferred' <<<"$entries" ||
-  fail "a run whose generation exchange deferred recorded nothing: $entries | $RUN_OUTPUT"
-grep -qiE 'nothing was published' <<<"$entries" ||
-  fail "the exchange-deferral entry does not say the live generation is unchanged: $entries"
-
-# ── 15. A CORRUPT successful-run marker must not take the run down with it. The
+# ── 14. A CORRUPT successful-run marker must not take the run down with it. The
 #       gap is read at start-up, before the lock, the alert paths and every
 #       record call site, and this script runs under set -e: an epoch of
 #       `0837000000` (a truncated or half-written marker; two of the ten digits
@@ -569,7 +517,6 @@ grep -qiE 'nothing was published' <<<"$entries" ||
 reset_state
 export FAKE_WEEK="2026-43"
 restage_lock
-harness_absent
 mkdir -p "$(dirname "$MARKER")"
 printf '0837000000 2026-07-10T12:00:00Z\n' >"$MARKER"
 run_updater "$QUIET_WORLD" --scheduled
@@ -579,7 +526,7 @@ grep -qF -- '--state completed' <<<"$entries" ||
 refute 'value too great for base' "$RUN_OUTPUT" \
   "the run leaked a bash arithmetic error reading its own successful-run marker"
 
-# ── 16. An unwritable state dir must not end the run AFTER the publish and
+# ── 15. An unwritable state dir must not end the run AFTER the publish and
 #       BEFORE the record. The success stamp was written by an unguarded
 #       redirection, and this script runs under set -e, so a state dir that could
 #       not be written stopped the run right there: after the new generation was
@@ -588,7 +535,6 @@ refute 'value too great for base' "$RUN_OUTPUT" \
 reset_state
 export FAKE_WEEK="2026-44"
 restage_lock
-harness_absent
 mkdir -p "$HOME/.local/state"
 chmod 500 "$HOME/.local/state"
 run_updater "$QUIET_WORLD" --scheduled
@@ -601,7 +547,7 @@ grep -qiE 'stamp[^.]*(could not|WITHHELD|not written)' <<<"$entries" ||
 grep -qF -- '--agent update-skills' <<<"$(alert_entries)" ||
   fail "a run that could not mark the week done alerted nobody: $RUN_OUTPUT"
 
-# ── 17. A RECORD SNAPSHOT WORKSPACE that cannot be allocated must not end the
+# ── 16. A RECORD SNAPSHOT WORKSPACE that cannot be allocated must not end the
 #       run. This script runs under set -e and the allocation was an unguarded
 #       command substitution, so a failed mktemp (an absent, unwritable or full
 #       TMPDIR) stopped the run right there: after the store migration, before
@@ -614,7 +560,6 @@ reset_state
 export FAKE_WEEK="2026-45"
 restage_lock
 clawhub_version "1.0.0"
-harness_absent
 : >"$RELAY_LOG"
 RUN_OUTPUT="$(MKTEMP_FAIL_TEMPLATE=update-skills-record FAKE_PS="$QUIET_WORLD" \
   bash "$SCRIPT" --scheduled 2>&1)" || true
@@ -643,4 +588,4 @@ grep -qE 'run at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' <<<"$en
 grep -qE 'required-phase failures: [0-9]' <<<"$entries" ||
   fail "the degraded entry dropped the required-phase count: $entries"
 
-printf 'update-skills-weekly-record: OK (every deferral and refusal path records: activity, lock contention, an unparseable roster, a zero roster, an already-finished week and a mid-run exchange deferral; a completed run reports both lanes, what it cannot see, the required-phase count and what became of the weekly stamp; 24 slots post one entry; manual and dry runs post none; failures still alert the existing route; a corrupt marker, an unwritable state dir and a record workspace that could not be allocated do not end the run before it records)\n'
+printf 'update-skills-weekly-record: OK (every deferral and refusal path records: lock contention, an unparseable roster, a zero roster and an already-finished week; a completed run reports both lanes, what it cannot see, the required-phase count and what became of the weekly stamp; 24 slots post one entry; manual and dry runs post none; failures still alert the existing route; a corrupt marker, an unwritable state dir and a record workspace that could not be allocated do not end the run before it records)\n'

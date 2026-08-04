@@ -7,7 +7,7 @@
 #   * --install-only is truly ADDITIVE. It may create a missing store install
 #     and create an absent symlink, but it must NEVER replace a wrong-target
 #     link or remove a stale one. Destructive reconciliation belongs only to the
-#     full weekly path behind the idle gate. A wrong-target link under
+#     full weekly path. A wrong-target link under
 #     --install-only is left untouched and a loud warning is logged.
 #
 # The real script runs unmodified in a sandbox. Fixture store = three real skill
