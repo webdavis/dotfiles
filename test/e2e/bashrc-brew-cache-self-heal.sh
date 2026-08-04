@@ -203,12 +203,28 @@ wait_for_invocations() {
   return 1
 }
 
+# Wait for the CONTENT a regeneration leaves behind, which is what the assertions
+# that follow actually read. Waiting on the invocation counter instead is a race:
+# the stub records its invocation on its FIRST line, before it prints the payload,
+# and the writer then still has to capture that output into a temp file and
+# rename it over the cache, so a wait on the counter resumes while the cache file
+# is absent or still holds the old bytes. The counter wait remains right for the
+# cases that assert a regeneration was LAUNCHED and cannot wait on a result,
+# because their whole point is that the repair does not converge.
+wait_for_file_content() {
+  local file="$1" wanted="$2" deadline=$((SECONDS + REGENERATION_TIMEOUT_SECONDS))
+  while ((SECONDS < deadline)); do
+    if grep -qF "$wanted" "$file" 2>/dev/null; then return 0; fi
+    sleep "$POLL_INTERVAL_SECONDS"
+  done
+  return 1
+}
+
 assert_regenerated() {
   local host="$1" label="$2"
-  wait_for_invocations "$host" 1 ||
-    fail "$label: the guard never regenerated the cache (brew was never invoked)"
-  grep -qF "$STUB_PAYLOAD" "$host/home/$CACHE_RELATIVE" ||
-    fail "$label: the cache does not carry the regenerated output"
+  wait_for_file_content "$host/home/$CACHE_RELATIVE" "$STUB_PAYLOAD" ||
+    fail "$label: the cache did not carry the regenerated output within" \
+      "${REGENERATION_TIMEOUT_SECONDS}s (brew invocations: $(invocation_count "$host"))"
   local litter
   litter="$(find "$host/home/${CACHE_RELATIVE%/*}" -maxdepth 1 -name "${CACHE_RELATIVE##*/}.*" -print)"
   [[ -z $litter ]] || fail "$label: a temp file was left behind: $litter"
@@ -248,7 +264,9 @@ start_shell "$host"
 assert_shell_was_silent "$host" 'fresh host'
 assert_regenerated "$host" 'fresh host'
 [[ -f $host/home/$LOG_RELATIVE ]] || fail 'fresh host: no log file was created'
-grep -qF 'Regenerated' "$host/home/$LOG_RELATIVE" ||
+# Bounded rather than immediate for the same reason: the writer prints its report
+# AFTER the rename, so the log line trails the cache content the assert waited on.
+wait_for_file_content "$host/home/$LOG_RELATIVE" 'Regenerated' ||
   fail "fresh host: the writer's report did not land in the log"
 [[ -s $host/home/$STAMP_RELATIVE ]] ||
   fail 'fresh host: the repair attempt was not recorded, so nothing bounds the retries'
