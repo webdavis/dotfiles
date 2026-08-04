@@ -248,6 +248,43 @@ grep -qiE 'claudeDelivery.*(malformed|refus)' <<<"$stream_dry" ||
   fail "the --dry-run fan-out did not report the multi-document lock's claudeDelivery table: $stream_dry"
 cp "$GOOD_LOCK" "$LOCK_FILE"
 
+# ── A claudeDelivery KEY holding a newline forges a second exemption.
+# The undelivered-name reader is line-oriented (one name per line), so the single
+# key "keeper\nmover" is one entry to the schema and TWO names to the reader, and
+# converge_dir reaps every updater-owned link outside the desired set: one forged
+# key removed BOTH skills' ~/.claude links. Both must survive, and the run must
+# say why.
+jq '.claudeDelivery = {"keeper\nmover": "none"}' "$GOOD_LOCK" >"$LOCK_FILE"
+set +e
+newline_out="$(run)"
+newline_rc=$?
+set -e
+for s in keeper mover; do
+  [[ -L "$CLAUDE/$s" && "$(readlink "$CLAUDE/$s")" == "../../.agents/skills/$s" ]] ||
+    fail "a newline inside a claudeDelivery key removed the Claude link for $s: $newline_out"
+done
+[[ $newline_rc -ne 0 ]] ||
+  fail "a claudeDelivery key holding a newline ran to completion instead of failing closed: $newline_out"
+# The preview reaches the fan-out without the roster gate in front of it, so the
+# fan-out's own check has to refuse the forged key too, or the preview announces
+# a reap that the gate is the only thing preventing.
+newline_dry="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1 || true)"
+if grep -qE 'would remove stale .*/\.claude/skills/(keeper|mover)' <<<"$newline_dry"; then
+  printf '%s\n' "$newline_dry" >&2
+  fail "the --dry-run fan-out previewed reaping a link forged by a newline inside a claudeDelivery key"
+fi
+grep -qiE 'claudeDelivery.*(malformed|refus)' <<<"$newline_dry" ||
+  fail "the --dry-run fan-out did not report the forged claudeDelivery key: $newline_dry"
+cp "$GOOD_LOCK" "$LOCK_FILE"
+# ...and the legitimate single-key table still de-delivers exactly its own name:
+# a validator that refused every key would leave nonclaude linked instead.
+run >/dev/null || fail "the run refused a legitimate single-key claudeDelivery table"
+[[ ! -e "$CLAUDE/nonclaude" && ! -L "$CLAUDE/nonclaude" ]] ||
+  fail "the legitimate claudeDelivery 'none' entry stopped taking effect"
+for s in keeper mover; do
+  [[ -L "$CLAUDE/$s" ]] || fail "the legitimate run removed the Claude link for $s"
+done
+
 # ── A MALFORMED claudeDelivery must not fail OPEN in the Claude fan-out.
 # __update_skills_claude_undelivered fails open (an empty undelivered set) on a
 # wrong-shaped table, and the fan-out would then RESTORE nonclaude's de-delivered

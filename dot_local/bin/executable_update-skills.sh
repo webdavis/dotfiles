@@ -876,7 +876,8 @@ __gen_roster_schema_ok() {
       and ((.clawhubTracked // {}) | to_entries
         | all((.value | type == "object")
           and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
-      and ((.claudeDelivery // {}) | to_entries | all(.value == "none")))
+      and ((.claudeDelivery // {}) | to_entries | all(.value == "none"))
+      and ((.claudeDelivery // {}) | keys | all(test("[[:cntrl:]]") | not)))
   ' "$1" >/dev/null 2>&1
 }
 
@@ -2370,6 +2371,13 @@ converge_dir() {
 # other direction is unthinkable here: a jq that failed would otherwise mark
 # every roster skill undelivered and step 2 of converge_dir would reap the
 # ENTIRE Claude fan-out on one bad read.
+#
+# ONE NAME PER LINE is this reader's whole contract, which is why the two
+# validators refuse a key holding a control character. A key spelled
+# "gh-axi\nhumanizer" is one exemption to the schema and TWO names here, and the
+# second one costs a link: converge_dir removes every updater-owned link outside
+# the desired set, so one forged name reaps a delivery nobody de-delivered. No
+# store name contains a control character, so nothing legitimate is refused.
 __update_skills_claude_undelivered() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   jq -r '.claudeDelivery // {} | to_entries[] | select(.value == "none") | .key' \
@@ -2396,7 +2404,8 @@ __update_skills_claude_delivery_malformed() {
   jq -e -s 'length == 1 and (.[0] |
       (has("claudeDelivery") | not)
       or ((.claudeDelivery | type == "object")
-        and (.claudeDelivery | to_entries | all(.value == "none"))))' \
+        and (.claudeDelivery | to_entries | all(.value == "none"))
+        and (.claudeDelivery | keys | all(test("[[:cntrl:]]") | not))))' \
     "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 && return 1
   return 0
 }
