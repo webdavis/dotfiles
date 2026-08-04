@@ -84,10 +84,8 @@ run_loud_local 0 "osascript fallback succeeds"
 # (d) Errexit safety of the existing one-CRIT caller: a drain pass that
 # dead-letters a record fires _loud_local; with a FAILING notifier the drain
 # must complete and exit 0 under set -euo pipefail, never abort mid-sweep.
-command -v sqlite3 >/dev/null 2>&1 || {
-  printf 'osquery-loud-local-status: OK (a, a2, b, b2, c; d skipped: no sqlite3)\n'
-  exit 0
-}
+command -v sqlite3 >/dev/null 2>&1 ||
+  fail "sqlite3 is not on PATH; the drain's store IS SQLite, so this is a broken environment rather than a reason to skip case (d)"
 rm -f "$work/bin/osascript"
 printf '#!/usr/bin/env bash\nexit 64\n' >"$work/bin/alerter" # notifier always fails
 chmod +x "$work/bin/alerter"
