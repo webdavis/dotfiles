@@ -270,6 +270,31 @@ page_f="$(UPGRADE_RECORD="$UPGRADE_RECORD" run_gate_render "$triage_manifest" "$
 assert_paged "$(jq -r '.pbody' <<<"$page_f")" "Recorded:" \
   "a well-formed triage object was dropped, so the page lost the facts it exists to carry"
 
+# ---- Pass F: the triage helper's DIAGNOSTICS reach the alerter log. Every way
+#      the correlation can degrade is written to stderr on purpose (an unreadable
+#      record, a record that is not a regular file, a record with a row it cannot
+#      describe), and the alerter's stderr is its launchd log, which is the only
+#      place those states are ever visible. The gate called the helper with
+#      2>/dev/null, so the page said the record could not be read and the log
+#      never said which path or why. Silencing it also cost nothing it protected:
+#      the call is already guarded, so a noisy helper could never fail the page. --
+noisy_triage="$work/noisy-triage.sh"
+cat >"$noisy_triage" <<'NOISY'
+# shellcheck shell=bash
+file_integrity_triage() {
+  printf 'osquery file-integrity triage: the upgrade record at /nowhere/record.tsv is not a readable regular file\n' >&2
+  printf '{"recorded":"?","ondisk":"?","upgrade":"the upgrade record could not be read"}\n'
+  return 0
+}
+NOISY
+gate_stderr="$work/gate-stderr"
+: >"$gate_stderr"
+page_g="$(TRIAGE_OVERRIDE="$noisy_triage" run_gate "$triage_manifest" "$absent_bin_manifest" \
+  "$(fe pipeline_integrity "$tampered" "$event_hash" UPDATED)" 2>"$gate_stderr")"
+assert_paged "$page_g" TAG11 "a helper that warns must still page"
+grep -qF '/nowhere/record.tsv' "$gate_stderr" ||
+  fail "the triage helper's diagnostic never reached the alerter log: $(cat "$gate_stderr")"
+
 # Every paged line is a CRIT finding.
 for out in "$page_a" "$page_b" "$page_c" "$page_d"; do
   [[ -z $out ]] && continue

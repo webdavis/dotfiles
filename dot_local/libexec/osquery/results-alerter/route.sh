@@ -326,8 +326,16 @@ route_findings() {
             # mattered. The check is jq-side (one pass, no second fork) and the
             # `and` short-circuits, so a triage value that is not an object at all
             # is refused before anything indexes it.
+            #
+            # ITS STDERR IS LEFT ALONE, which is the point of writing those
+            # diagnostics at all: the helper says on stderr WHICH path it could
+            # not read and why, this stage's stderr is the alerter's stderr, and
+            # that is the launchd log. Redirecting it to /dev/null left a page
+            # saying the record could not be read and a log that never said which
+            # record or what was wrong with it, and it protected nothing, since
+            # the call below is already guarded against a helper that fails.
             if declare -F file_integrity_triage >/dev/null 2>&1; then
-              triage=$(file_integrity_triage "$target" 2>/dev/null) || triage=""
+              triage=$(file_integrity_triage "$target") || triage=""
               if [[ -n $triage ]] &&
                 enriched=$(jq -c --argjson t "$triage" '
                   if ($t | type) == "object"
