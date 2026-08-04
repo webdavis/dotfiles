@@ -41,11 +41,17 @@
 #   7. what comes back is the file that was there, not just its bytes: a
 #      symlinked drop-in is restored as a symlink to the same target
 #   8. --reload's syntax check and port resolution are bounded too, so the two
-#      sshd calls that bracket the verify cannot park the reload
+#      sshd calls that bracket the verify cannot park the reload, and so is
+#      --rollback's recovery proof, which runs after the removal
 #   9. a deadline so large that its tick arithmetic overflows is refused rather
 #      than believed
 #  10. a healthy verify survives `stty tostop`, which stops a background process
 #      group on its first write to the terminal
+#
+# A case's label is a stable identifier, not an index into that list and not the
+# order the cases run in: 3 and 4 run first on purpose (a bound that broke the
+# normal path would make everything below pass for the wrong reason), and 8, 9
+# and 12 all pin property 8, one bounded call each.
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
@@ -479,6 +485,37 @@ grep -qi 'was still running after' <<<"$SSH_RUN_ERR" ||
 assert_no_kickstart '9'
 assert_pids_reaped '9 (wedged port resolution)'
 
+# --- 12: --rollback's recovery proof is bounded too ---------------------------
+# The last sshd call in the file that this script waits on, and the one whose
+# hang is easiest to talk yourself out of: it runs AFTER the drop-in has been
+# removed, so the way back in is already open and only the sentence saying so is
+# missing. That is precisely the moment the sentence matters. The operator ran
+# --rollback because they are locked out, and a mode that goes silent there
+# leaves them unable to tell "password access is restored" from "the removal
+# never happened".
+#
+# The wedge matches the first `-T` call, which is the recovery gate's own
+# resolution; nothing earlier on this path makes one.
+
+rm -f "$SSHD_CONFIG_D"/* "$SSHD_CONFIG_D"/.[!.]* 2>/dev/null || :
+write_hardened_dropin
+reset_wedge
+
+rollback_started=$SECONDS
+WEDGE_MATCH='* -T *' SSH_TREE_MUTATION_HOOK="$WEDGE_HOOK" run_ssh_reload --rollback
+rollback_elapsed=$((SECONDS - rollback_started))
+[[ $rollback_elapsed -le $WEDGED_RUN_LIMIT_SECONDS ]] ||
+  fail "12: the wedged recovery proof took ${rollback_elapsed}s, past the ${WEDGED_RUN_LIMIT_SECONDS}s the bound allows"
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '12: a rollback whose recovery proof never answered must not claim password access is restored'
+refute_contains "$SSH_RUN_OUT" 'rollback complete' \
+  '12: an unproven recovery must not claim the rollback completed'
+grep -qi 'stopped at its' <<<"$SSH_RUN_ERR" ||
+  fail "12: the failure must say the proof was stopped at its bound, not merely that it errored (stderr: $SSH_RUN_ERR)"
+[[ ! -e $dropin ]] ||
+  fail '12: the removal happens before the proof, and a stopped proof must not put the hardening back'
+assert_pids_reaped '12 (wedged recovery proof)'
+
 # --- 10: a deadline whose tick arithmetic overflows is refused ----------------
 # The wait is counted in ticks, four per second, and bash arithmetic is signed
 # 64-bit. 2305843009213693952 * 4 is exactly -9223372036854775808, so the budget
@@ -534,5 +571,5 @@ grep -qF 'install complete' <<<"$tostop_output" ||
   fail "11: the install must complete under 'stty tostop' (transcript: $tostop_output)"
 assert_no_escalation '11 (stty tostop)'
 
-printf 'ssh-hardening-verify-watchdog: OK (a verify wedged inside sshd is stopped at its deadline in %ss and rolled back, TERM-ignoring wedges included; an interrupt rolls back the same way and reaps the verify group; a symlinked drop-in comes back as a symlink; --reload bounds its syntax check and its port resolution; an overflowing deadline falls back to the default; and a healthy verify still installs, under a tostop terminal too)\n' \
+printf 'ssh-hardening-verify-watchdog: OK (a verify wedged inside sshd is stopped at its deadline in %ss and rolled back, TERM-ignoring wedges included; an interrupt rolls back the same way and reaps the verify group; a symlinked drop-in comes back as a symlink; --reload bounds its syntax check and its port resolution and --rollback bounds its recovery proof; an overflowing deadline falls back to the default; and a healthy verify still installs, under a tostop terminal too)\n' \
   "$wedged_elapsed"

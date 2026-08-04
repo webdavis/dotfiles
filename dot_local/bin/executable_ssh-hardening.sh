@@ -2639,7 +2639,30 @@ PASSWORD_CHANNEL_ERROR=2
 # neither yes nor no) is the ERROR outcome, never a quiet pass, and every
 # command's status is captured explicitly so the answer does not depend on
 # errexit, which callers judging a status have switched off.
+# The file the bounded recovery resolutions write to, the spec the next one
+# asks about, and the command that runs it. Same shape as the port resolution
+# above and for the same reason: run_bounded takes an argument vector and
+# cannot carry a redirection, so the redirection lives in the command.
+PASSWORD_CHANNEL_OUTPUT=''
+PASSWORD_CHANNEL_SPEC=''
+password_channel_command() {
+  "$SSHD_BIN" -G -T -C "$PASSWORD_CHANNEL_SPEC" -f "$SSHD_MAIN_CONFIG" \
+    >"$PASSWORD_CHANNEL_OUTPUT" 2>&1
+}
+
+# check_password_channel: owns the temporary file resolve_password_channel
+# writes through, so the many ways that function can answer early do not each
+# have to remember to clean up. The status is passed through untouched.
 check_password_channel() {
+  local status=0
+  PASSWORD_CHANNEL_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/ssh-hardening-recovery.XXXXXX")" ||
+    return "$PASSWORD_CHANNEL_ERROR"
+  resolve_password_channel || status=$?
+  rm -f "$PASSWORD_CHANNEL_OUTPUT"
+  return "$status"
+}
+
+resolve_password_channel() {
   local invoking_user status=0 output spec key value channel_open
   invoking_user="$(id -un)" || status=$?
   if [[ $status -ne 0 || -z $invoking_user ]]; then
@@ -2649,8 +2672,13 @@ check_password_channel() {
     "user=$invoking_user,host=localhost,addr=127.0.0.1" \
     "user=$invoking_user,host=recovery.invalid,addr=198.51.100.23"; do
     status=0
-    output="$("$SSHD_BIN" -G -T -C "$spec" -f "$SSHD_MAIN_CONFIG" 2>&1)" ||
-      status=$?
+    # BOUNDED like every other sshd call this script waits on. This one runs
+    # AFTER the drop-in has been removed, so a hang here parks the mode with
+    # the removal done and the proof missing: the way back in is open and the
+    # operator watching for the sentence that says so never gets one.
+    PASSWORD_CHANNEL_SPEC="$spec"
+    run_bounded "$VERIFY_DEADLINE_SECONDS" password_channel_command || status=$?
+    output="$(cat "$PASSWORD_CHANNEL_OUTPUT" 2>/dev/null || :)"
     if [[ $status -ne 0 ]]; then
       return "$PASSWORD_CHANNEL_ERROR"
     fi
@@ -2703,7 +2731,7 @@ confirm_password_access_restored() {
       die "'$target' is absent, but the interactive password channels (PasswordAuthentication and KbdInteractiveAuthentication) still resolve OFF for a sampled connection, so something else under '$SSHD_CONFIG_D' (or the main config) is still enforcing the policy and password access is NOT restored. Inspect the remaining files there."
       ;;
     *)
-      die "could not verify that password access is restored: the recovery check errored (sshd resolution or its parsing failed) instead of answering; refusing to guess either way"
+      die "could not verify that password access is restored: the recovery check errored instead of answering (an sshd resolution failed, was stopped at its ${VERIFY_DEADLINE_SECONDS}s bound, or could not be parsed); refusing to guess either way. The removal itself already happened, so re-run --rollback once the tree can be resolved to get the answer."
       ;;
   esac
 }
