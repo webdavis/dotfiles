@@ -79,6 +79,24 @@ die() {
 command -v jq >/dev/null 2>&1 || die "jq is required to read the skills lock"
 [[ -f $COMMITTED_LOCK ]] || die "no committed lock at $COMMITTED_LOCK"
 
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+
+# The lock decides what gets DELETED below, so its shape is validated before any
+# of it is believed. A malformed value does not announce itself: jq's `.[][]?`
+# and `index($p)` both answer a string quietly, exit 0, and hand back a wanted
+# set that is simply missing entries, which the prune then reads as "undeclared"
+# and removes. Refusing on shape is what stops a typo in the lock from deleting
+# live links.
+jq -e '
+  (.tiers // {}) as $t | (.hermesProfiles // {}) as $h
+  | ($t | type == "object") and ($h | type == "object")
+    and ([$t[] | type] | all(. == "string"))
+    and ([$h[] | type] | all(. == "array"))
+    and ([$h[][] | type] | all(. == "string"))
+' "$COMMITTED_LOCK" >/dev/null 2>&1 ||
+  die "$COMMITTED_LOCK is malformed: tiers must map names to strings and hermesProfiles must map names to arrays of profile names. Nothing is pruned against a lock that cannot be read exactly"
+
 if [[ $DRY_RUN -eq 1 ]]; then
   say "live-reconcile: DRY RUN, nothing will be written."
 else
@@ -96,10 +114,13 @@ fi
 
 # ── every roster skill has a store entry ───────────────────────────────────
 roster=()
+roster_list="$scratch/roster"
+jq -r '.tiers // {} | keys[]' "$COMMITTED_LOCK" >"$roster_list" ||
+  die "could not read the tiers table out of $COMMITTED_LOCK"
 while IFS= read -r skill; do
   [[ -n $skill ]] || continue
   roster+=("$skill")
-done < <(jq -r '.tiers // {} | keys[]' "$COMMITTED_LOCK")
+done <"$roster_list"
 [[ ${#roster[@]} -gt 0 ]] || die "the lock's tiers table is empty; there is no roster to converge"
 
 present=()
@@ -139,11 +160,29 @@ done
 # ~/.hermes/profiles/<name>/skills, one level deeper, so the relative target
 # differs. Fan-out is driven ENTIRELY by hermesProfiles: an empty list means
 # the store copy reaches no hermes profile.
+# The profile universe is the lock's profiles UNION the profile directories that
+# already exist. A profile only reachable through the lock disappears from the
+# walk the moment its last skill is de-mapped, and its stale store links then
+# survive forever while this reports convergence. update-skills.sh walks the
+# same union for the same reason.
 profiles=()
+profile_list="$scratch/profiles"
+{
+  jq -r '.hermesProfiles // {} | [.[][]?] | unique | .[]' "$COMMITTED_LOCK" ||
+    die "could not read hermesProfiles out of $COMMITTED_LOCK"
+  [[ -d "$HOME/.hermes/skills" ]] && printf 'default\n'
+  if [[ -d "$HOME/.hermes/profiles" ]]; then
+    for dir in "$HOME/.hermes/profiles"/*/; do
+      [[ -d "${dir}skills" ]] || continue
+      dir="${dir%/}"
+      printf '%s\n' "${dir##*/}"
+    done
+  fi
+} | LC_ALL=C sort -u >"$profile_list"
 while IFS= read -r profile; do
   [[ -n $profile ]] || continue
   profiles+=("$profile")
-done < <(jq -r '.hermesProfiles // {} | [.[][]?] | unique | .[]' "$COMMITTED_LOCK")
+done <"$profile_list"
 
 for profile in "${profiles[@]}"; do
   if [[ $profile == "default" ]]; then
@@ -154,14 +193,21 @@ for profile in "${profiles[@]}"; do
     prefix="../../../../.agents/skills"
   fi
 
+  # The wanted set decides what the prune below DELETES, so a partial read of it
+  # is destructive: jq streams rows and then fails, the loop sees a short list,
+  # and every skill after the failure looks undeclared. Materialize it through a
+  # checked command so a failure refuses instead of pruning.
   wanted=()
+  wanted_list="$scratch/wanted-$profile"
+  jq -r --arg p "$profile" '.hermesProfiles // {} | to_entries[]
+    | select((.value // []) | index($p) != null) | .key' "$COMMITTED_LOCK" >"$wanted_list" ||
+    die "could not read the hermesProfiles mapping for profile '$profile'; nothing is pruned on a partial read"
   while IFS= read -r skill; do
     [[ -n $skill ]] || continue
     [[ -d "$STORE/$skill" || -L "$STORE/$skill" ]] || continue
     wanted+=("$skill")
     link_to "$link_dir/$skill" "$prefix/$skill"
-  done < <(jq -r --arg p "$profile" '.hermesProfiles // {} | to_entries[]
-    | select((.value // []) | index($p) != null) | .key' "$COMMITTED_LOCK")
+  done <"$wanted_list"
 
   # Prune the other direction: a symlink INTO the store that the lock no longer
   # declares. Real directories are hub-owned installs and are never touched.

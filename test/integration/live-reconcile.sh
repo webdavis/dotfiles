@@ -295,6 +295,73 @@ else
   report bad "H: ran without a repo handle (rc=$RC, err: $(cat "$err_file"))"
 fi
 
+# ── Case I: an unreadable lock must never drive pruning ────────────────────
+# A malformed hermesProfiles value does not announce itself: jq's `.[][]?` and
+# `index($p)` both answer a string quietly and exit 0, so the wanted set comes
+# back missing entries and the prune reads them as undeclared. (Checked live:
+# both expressions return rc=0 against a scalar value.) The lock's shape is
+# validated before anything is deleted.
+hI="$work/homeI"
+build_home "$hI"
+lockI="$hI/workspaces/Ivy/webdavis/dotfiles/dot_agents/custom-skill-lock.json"
+{
+  printf '{\n'
+  printf '  "tiers": {"alpha": "core", "beta": "on-demand"},\n'
+  printf '  "hermesProfiles": {"alpha": ["default"], "beta": "concerned"},\n'
+  printf '  "superpowersRouting": {}\n'
+  printf '}\n'
+} >"$lockI"
+cp "$lockI" "$hI/.agents/custom-skill-lock.json"
+ln -s '../../.agents/skills/alpha' "$hI/.hermes/skills/alpha"
+snapshot "$hI" >"$work/beforeI"
+tool "$hI"
+snapshot "$hI" >"$work/afterI"
+if [[ $RC -ne 0 ]] && grep -qi 'malformed' "$err_file"; then
+  report ok "I: a lock whose shape cannot be trusted refuses"
+else
+  report bad "I: a malformed lock drove a live run (rc=$RC, err: $(cat "$err_file"))"
+fi
+if diff -q "$work/beforeI" "$work/afterI" >/dev/null; then
+  report ok "I: nothing was pruned on the partial read"
+else
+  report bad "I: a partial read deleted links:"$'\n'"$(diff -u "$work/beforeI" "$work/afterI")"
+fi
+
+# ── Case J: a profile that lost its last assignment is still pruned ────────
+# Walking only the profiles the lock still names means a de-mapped profile
+# disappears from the walk, and its stale store links survive forever while the
+# run reports convergence.
+hJ="$work/homeJ"
+build_home "$hJ"
+lockJ="$hJ/workspaces/Ivy/webdavis/dotfiles/dot_agents/custom-skill-lock.json"
+{
+  printf '{\n'
+  printf '  "tiers": {"alpha": "core", "beta": "on-demand", "gamma": "on-demand"},\n'
+  printf '  "hermesProfiles": {"alpha": [], "beta": ["concerned"], "gamma": []},\n'
+  printf '  "superpowersRouting": {}\n'
+  printf '}\n'
+} >"$lockJ"
+cp "$lockJ" "$hJ/.agents/custom-skill-lock.json"
+# the default profile's last assignment is gone, but its old link is still there
+ln -s '../../.agents/skills/alpha' "$hJ/.hermes/skills/alpha"
+tool "$hJ" --dry-run
+if grep -q '.hermes/skills/alpha' "$out_file"; then
+  report ok "J: the dry run still plans the prune for a de-mapped profile"
+else
+  report bad "J: a de-mapped profile fell out of the walk (out: $(cat "$out_file"))"
+fi
+tool "$hJ"
+if [[ ! -L "$hJ/.hermes/skills/alpha" ]]; then
+  report ok "J: the stale link in the de-mapped profile is pruned"
+else
+  report bad "J: a stale store link survived because its profile left the lock"
+fi
+if [[ -f "$hJ/.hermes/skills/hub-owned/SKILL.md" ]]; then
+  report ok "J: hub-owned content in that profile is still untouched"
+else
+  report bad "J: the de-mapped-profile prune deleted hub-owned content"
+fi
+
 if [[ $failures -gt 0 ]]; then
   printf 'live-reconcile: %d assertion(s) FAILED\n' "$failures" >&2
   exit 1
