@@ -855,6 +855,16 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # malformed committed forks entry, and check_fork_drift validates the table and
 # every entry at RUN time, reporting each failure loudly and per entry without
 # refusing the run that publishes and prunes.
+#
+# `claudeDelivery` IS validated here, unlike `forks`, because the MUTATING Claude
+# fan-out reads it (converge_claude_skills subtracts the "none" set from the store
+# links). __update_skills_claude_undelivered fails OPEN by design: a jq that
+# errored yields an empty undelivered set, which quietly RESTORES an exempted
+# skill's ~/.claude link. A deployed claudeDelivery that is an array or a string,
+# or an object whose values are not "none", drives exactly that fail-open. Reject
+# a present-but-non-object table and any value other than the string "none"
+# (absent means the default, delivered), so a malformed delivery table refuses the
+# run loudly instead of silently restoring a de-delivered skill.
 __gen_roster_schema_ok() {
   jq -e '
     def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
@@ -863,11 +873,13 @@ __gen_roster_schema_ok() {
     and object_or_absent("npxTracked")
     and object_or_absent("clawhubTracked")
     and object_or_absent("tiers")
+    and object_or_absent("claudeDelivery")
     and ((.npxTracked // {}) | to_entries
       | all((.value | type == "object") and nonempty_string(.value.repo)))
     and ((.clawhubTracked // {}) | to_entries
       | all((.value | type == "object")
         and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
+    and ((.claudeDelivery // {}) | to_entries | all(.value == "none"))
   ' "$1" >/dev/null 2>&1
 }
 
@@ -2617,15 +2629,68 @@ converge_dir() {
   done
 }
 
-# Claude fan-out: every store skill (the full roster) gets a ~/.claude/skills
-# link. Claude is not profile-scoped, tiering there is the settings
-# modify-template's job, not the fan-out's.
+# Store names this vertical deliberately does not deliver to Claude Code: the
+# lock's claudeDelivery table, value "none". The table says only what THIS
+# vertical does; it names no other delivery mechanism and reads no other lock.
+#
+# FAIL OPEN, on purpose. An absent or unreadable lock yields an empty set, so
+# the fan-out falls back to its previous behaviour (link the whole store). The
+# other direction is unthinkable here: a jq that failed would otherwise mark
+# every roster skill undelivered and step 2 of converge_dir would reap the
+# ENTIRE Claude fan-out on one bad read.
+__update_skills_claude_undelivered() {
+  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  jq -r '.claudeDelivery // {} | to_entries[] | select(.value == "none") | .key' \
+    "$CUSTOM_SKILL_LOCK" 2>/dev/null || true
+}
+
+# 0 (true) when the lock's claudeDelivery table is PRESENT but not the known shape
+# (an object whose every value is the string "none"). The schema gate
+# (__gen_roster_schema_ok) rejects a malformed table, but it runs only in the
+# mutating modes' setup; --dry-run reaches converge_claude_skills without it, and
+# __update_skills_claude_undelivered fails OPEN on a wrong-shaped table (empty
+# undelivered set), which would RESTORE a de-delivered skill's ~/.claude link. So
+# the fan-out validates the table at the point of use and refuses (no fan-out, no
+# reap) rather than fail open, in every mode. Absent or a valid "none" object is
+# NOT malformed.
+__update_skills_claude_delivery_malformed() {
+  [[ -f $CUSTOM_SKILL_LOCK ]] || return 1
+  jq -e '(has("claudeDelivery") | not)
+    or ((.claudeDelivery | type == "object") and (.claudeDelivery | to_entries | all(.value == "none")))' \
+    "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 && return 1
+  return 0
+}
+
+# Claude fan-out: every store skill (the roster minus the claudeDelivery "none"
+# set) gets a ~/.claude/skills link. Claude is not profile-scoped, tiering there
+# is the settings modify-template's job, not the fan-out's.
+#
+# The subtraction is what makes a de-delivered skill STAY de-delivered: this
+# function used to link every store entry unconditionally, so removing a link by
+# hand bought exactly one week before the next Monday put it back.
 converge_claude_skills() {
-  local -a desired=()
-  local skill_path skill
+  local -a desired=() undelivered=()
+  local skill_path skill undelivered_name
+  # Refuse the fan-out on a malformed claudeDelivery instead of failing open and
+  # restoring a de-delivered link. No fan-out means no create AND no reap, so the
+  # existing links are left exactly as they are (safe in every mode, including the
+  # --dry-run preview that reaches here without the roster snapshot gate).
+  if __update_skills_claude_delivery_malformed; then
+    record_required_failure "converge: the roster's claudeDelivery table is malformed (not an object whose values are all \"none\"); refusing the Claude fan-out rather than fail open and restore a de-delivered link"
+    return 0
+  fi
+  while IFS= read -r undelivered_name; do
+    [[ -n $undelivered_name ]] && undelivered+=("$undelivered_name")
+  done < <(__update_skills_claude_undelivered)
   for skill_path in "$STORE"/*; do
     [[ -d $skill_path || -L $skill_path ]] || continue
     skill="${skill_path##*/}"
+    for undelivered_name in ${undelivered[@]+"${undelivered[@]}"}; do
+      if [[ $undelivered_name == "$skill" ]]; then
+        log "converge: $skill is claudeDelivery none; the Claude fan-out skips it"
+        continue 2
+      fi
+    done
     desired+=("$skill")
   done
   if [[ ${#desired[@]} -gt 0 ]]; then

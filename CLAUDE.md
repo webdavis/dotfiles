@@ -131,12 +131,19 @@ file holds:
 - `statusLine`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup), `autoUpdatesChannel`
   (= `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`,
   starts the Remote Control bridge every session).
+- Four `extraKnownMarketplaces` entries, each with `autoUpdate` = `true`: `ponytail`, `openai-codex`,
+  `worktrunk`, `last30days-skill`. Claude Code refreshes a marketplace and its installed plugins at
+  startup on its own, but only defaults that on for marketplaces Anthropic publishes (read out of the
+  shipped 2.1.220 binary on 2026-08-03), so without these four entries those plugins sit at their install
+  version forever. The write is per marketplace key, so a marketplace added with
+  `claude plugin marketplace add` keeps its own entry. What those silent startup updates changed is
+  recorded weekly by `~/.local/bin/report-plugin-updates.sh`; see **Plugin Update Record**.
 
 **2. Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
 
 **3. `enabledPlugins`, which is neither.** The **roster** is chezmoi-controlled and the per-plugin
-**state** is not. The template declares nine plugin ids (keys are `<name>@<marketplace>`, which is the
+**state** is not. The template declares twelve plugin ids (keys are `<name>@<marketplace>`, which is the
 form Claude Code writes, not the bare name the CLI prints on success) and the write is whole-value, so a
 marketplace plugin enabled live but missing from the declaration is turned OFF by the next apply. Within
 that roster, both members of Claude Code's own union for this key are the machine's to set and are
@@ -144,21 +151,21 @@ carried through unchanged: the JSON boolean `false` that `claude plugin disable`
 array of version constraints that its schema calls the extended format (a plugin held at a reviewed
 release). Every other shape renders `true`: an absent key, a JSON null, a string and a number.
 
-So `claude plugin disable <id>` STICKS across applies for the nine declared ids, and applying is not the
-way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
+So `claude plugin disable <id>` STICKS across applies for the twelve declared ids, and applying is not
+the way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
 containment verb a scheduled apply can silently revoke is not containment.
 
-**The promise stops at the nine, and an erased entry costs different things depending on where the plugin
-came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped binary on
-2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged settings'
-`enabledPlugins` entries and skips any whose value is undefined, so an id the file does not hold is never
-loaded. Erasing an undeclared marketplace plugin's `false` therefore leaves it off, by a different
-mechanism, though the file stops recording why. A plugin under `~/.claude/skills/` is found by scanning
-that directory instead, and its entry only adjusts state afterwards; with no entry it falls back to the
-plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks into
+**The promise stops at the twelve, and an erased entry costs different things depending on where the
+plugin came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped
+binary on 2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged
+settings' `enabledPlugins` entries and skips any whose value is undefined, so an id the file does not
+hold is never loaded. Erasing an undeclared marketplace plugin's `false` therefore leaves it off, by a
+different mechanism, though the file stops recording why. A plugin under `~/.claude/skills/` is found by
+scanning that directory instead, and its entry only adjusts state afterwards; with no entry it falls back
+to the plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks into
 `~/.claude/skills/` is that second kind, so a `claude plugin disable` on one writes a `false` that the
 next apply erases, and the skill comes back on. Nothing is drifting today, the live file holds exactly
-the nine ids, but the skills case needs one `claude plugin disable` to become real.
+the twelve ids, but the skills case needs one `claude plugin disable` to become real.
 
 **Read the price before relying on this.** It is not the recovery ergonomics (though those are real:
 `claude plugin disable --all` is one command, there is no `enable --all`, so undoing a mass disable is
@@ -190,7 +197,7 @@ input and Go templates have no error recovery, so there is nothing to fall back 
 apply's own error names `modify_settings.json`; repair `~/.claude/settings.json` if you can, and reach
 for deletion knowing what it costs. **Deleting re-enables every disabled plugin and drops every version
 pin.** Plugin state is the one managed thing the template reads out of the live file rather than
-declaring, so with nothing to read all nine ids render `true`. Everything else this repo manages does
+declaring, so with nothing to read all twelve ids render `true`. Everything else this repo manages does
 come back from the template, and free-drift keys are lost as before. Nothing reports the plugin loss
 afterwards, either: a rendered `false` is byte-identical to the live one, so `chezmoi status`,
 `chezmoi diff` and `just d` say nothing about this key in any case. Note the disabled set before
@@ -425,13 +432,14 @@ check on `main` under branch protection, so the auto-merge cannot land until it 
 
 ### Agent Skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code always
-(symlinks declared in chezmoi: `private_dot_claude/skills/symlink_*` for the full roster), Codex always
-(it scans the store natively, no declarations), and hermes for exactly the store-symlink subset of the
-delivery model below (`dot_hermes/skills/` and `dot_hermes/profiles/<name>/skills/` symlinks). The
-committed roster is the complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the
-store, the lock's `tiers` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables,
-the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
+`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code for the
+roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
+`private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
+hermes for exactly the store-symlink subset of the delivery model below (`dot_hermes/skills/` and
+`dot_hermes/profiles/<name>/skills/` symlinks). The committed roster is the complete wanted set:
+`test/unit/skills-roster-fanout.sh` fails the build if the store, the lock's `tiers` / `claudeDelivery` /
+`hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables, the per-harness
+declarations, or the settings modify-template's `skillOverrides` ever disagree.
 
 **Store provenance: who installs and refreshes each store copy** (the lock at
 `dot_agents/custom-skill-lock.json` records it):
@@ -480,6 +488,15 @@ the per-harness declarations, or the settings modify-template's `skillOverrides`
   the content. The official mechanism covers all three harnesses (`cua-driver skills status` links Claude
   Code, Codex via the store, and hermes itself), and the weekly run refreshes the pack via
   `cua-driver skills update`, the app's own GitHub-Releases updater, never a write through the symlink.
+
+**Claude delivery (the lock's `claudeDelivery` table):** a store entry mapped to `"none"` is one this
+vertical deliberately does NOT deliver to Claude Code. It carries no `private_dot_claude/skills`
+declaration and `update-skills.sh` skips it in the weekly Claude fan-out, so a `~/.claude/skills` link
+removed by hand stays removed instead of coming back on the next Monday. An absent key is the default, a
+store symlink. `last30days` is the one entry today. The table states only what THIS vertical does: it
+names no other delivery mechanism and reads no other lock, per the operator's strict-decoupling ruling.
+`"none"` is the only legal value, and a malformed table refuses the run rather than failing open, in
+every mode including `--dry-run`.
 
 **Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (28). Core
 skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
@@ -633,9 +650,10 @@ row to `tiers` (plus the `skillOverrides` template entry and the `agents/openai.
 on-demand) and `hermesProfiles` (`[]` when hermes should not carry it from the store, the named profiles
 when it should), add a `hermesRegistry` entry when hermes owns it from a registry (never both a non-empty
 `hermesProfiles` mapping and a `hermesRegistry` entry, they are disjoint), declare its Claude symlink
-and, only for store-symlinked skills, the mapped hermes symlinks, and run `just test`, the roster test
-tells you what is missing. **Removing one:** delete the store entry (or `npxTracked` row), every lock
-table row, and every declaration in the same commit.
+unless it gets a `claudeDelivery` `"none"` row instead, and, only for store-symlinked skills, the mapped
+hermes symlinks, then run `just test`, the roster test tells you what is missing. **Removing one:**
+delete the store entry (or `npxTracked` row), every lock table row, and every declaration in the same
+commit.
 
 **On-demand use of an unregistered skill:** point the agent at the file, "read
 `~/.agents/skills/<name>/SKILL.md` and follow it." Router/search-and-load indirection layers were
@@ -705,6 +723,36 @@ stale code, silently breaking recording via gRPC schema drift (now self-healing 
 `dot_bashrc.tmpl` after `atuin init`). `atuin status` is for *sync* status only and errors when not
 logged in, it is not a "is the daemon working" check; use `atuin daemon status` (reports `Version`,
 `Protocol`, `Healthy`) for daemon health.
+
+### Plugin Update Record
+
+Claude Code updates marketplaces and their installed plugins at startup by itself (see the
+`extraKnownMarketplaces` entries under **Claude Code Settings**), so nothing here installs or upgrades a
+plugin. What Claude Code does not do is leave a record, so `~/.local/bin/report-plugin-updates.sh` is the
+record: read-only, weekly, one entry to the same `#unattended-upgrades` channel and in the same shape as
+the weekly Homebrew upgrade and the weekly skills update (`dot_local/bin/unattended-log-lib.sh` holds the
+shared entry shape and the reasoning behind it).
+
+- **Source of truth:** `~/.claude/plugins/installed_plugins.json`, the file Claude Code maintains (schema
+  version 2, verified against the live file 2026-08-03). Only USER-scope install records are read. The
+  two sibling files were checked and rejected: `known_marketplaces.json` records marketplaces rather than
+  plugin versions, and `plugin-catalog-cache.json` lists what is available, not what is installed.
+- **Fingerprint:** `version` when the marketplace publishes a real one, else `gitCommitSha`, else the
+  literal `unknown`. `lastUpdated` was rejected as a further fallback because six plugins carried their
+  marketplace's own `lastUpdated` to the second, so a plain marketplace refresh would have reported all
+  six as changed every week.
+- **What reaches the channel:** plugin ids and fingerprints, nothing else. Never an `installPath` (an
+  absolute home path), never a marketplace source URL.
+- **State:** `~/.local/state/report-plugin-updates/`, holding the previous reading, the success marker
+  and the ISO-week guard. The snapshot moves only AFTER an entry is delivered, so a change the gateway
+  refused is reported by the next run instead of being lost.
+- **Schedule:** `com.webdavis.report-plugin-updates`, Monday 13:00, `RunAtLoad=false`, logging to
+  `~/.local/log/plugins/report-updates.log`. It passes `--scheduled`, and only a scheduled run posts,
+  moves the snapshot or advances the marker; a manual run prints the comparison and changes nothing.
+- **First run** records a baseline and posts nothing. **A quiet week still posts**, naming zero changes,
+  because a clean week and a dead LaunchAgent otherwise produce identical silence. **An unreadable state
+  file posts no record at all** and alerts on the priority route instead, since the only change list it
+  could build from a file it cannot read is a false "nothing changed".
 
 ### Happy Daemon (Remote Agent Control)
 

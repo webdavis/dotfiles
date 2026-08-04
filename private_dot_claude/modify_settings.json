@@ -18,7 +18,8 @@
 
     STABLE       overwritten from here on every apply, whatever the live file
                  says: permissions, hooks, statusLine, skillOverrides,
-                 cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup.
+                 cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
+                 and the four extraKnownMarketplaces entries this repo declares.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.
     enabledPlugins  the ROSTER is fixed here and the per-plugin STATE is not.
@@ -242,11 +243,11 @@
        and all five source names are in the shipped 2.1.220 binary, read
        2026-08-02).
 
-       ponytail is a marketplace plugin rather than an official one: its
-       marketplace is added separately (`claude plugin marketplace add
-       DietrichGebert/ponytail`) and its entry only records that it should be
-       ENABLED once installed. Enabling a plugin that is not installed is inert,
-       so the declaration is safe on a fresh machine. --- */ -}}
+       Four of these come from marketplaces Anthropic does not ship: ponytail,
+       worktrunk, last30days and codex. An entry here only records that the
+       plugin should be ENABLED once installed, and enabling a plugin that is
+       not installed is inert, so the declaration is safe on a fresh machine.
+       The marketplaces themselves are declared in the block below. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
@@ -256,7 +257,10 @@
     "swift-lsp@claude-plugins-official"
     "rust-analyzer-lsp@claude-plugins-official"
     "codex@openai-codex"
-    "ponytail@ponytail" -}}
+    "ponytail@ponytail"
+    "skill-creator@claude-plugins-official"
+    "worktrunk@worktrunk"
+    "last30days@last30days-skill" -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
        `slice`, so the value test below already covers absence. Measured
@@ -274,6 +278,46 @@
 {{-   $enabledPlugins = set $enabledPlugins $pluginName $pluginEnabled -}}
 {{- end -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
+
+{{- /* --- stable: the non-Anthropic marketplaces, each one AUTO-UPDATING.
+
+       Claude Code updates a marketplace and its installed plugins at startup on
+       its own, so nothing in this repo has to fetch or install anything. What it
+       will not do unasked is update a marketplace Anthropic does not publish.
+       Read out of the shipped 2.1.220 binary on 2026-08-03: an entry with no
+       `autoUpdate` falls back to membership of a built-in set of Anthropic
+       marketplace names (claude-plugins-official, anthropic-agent-skills and
+       siblings), so every marketplace declared here defaults to NOT updating and
+       its plugins sit at whatever version they were installed at, forever, with
+       nothing saying so. The schema is
+       `autoUpdate: boolean().optional().describe("Whether to automatically
+       update this marketplace and its installed plugins on startup")`.
+
+       WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
+       schema declares `source` REQUIRED, so writing the flag alone onto a fresh
+       machine would produce an entry Claude Code rejects. The repo owns these
+       four keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       writes at the path, so a marketplace the operator adds through
+       `claude plugin marketplace add` keeps its own entry untouched (measured
+       2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
+       arrives as a JSON null, an array or a string is replaced by a map rather
+       than erroring, so no kind guard is needed here).
+
+       `installLocation` is deliberately not declared. The schema calls it
+       auto-generated when absent, and it holds an absolute cache path that
+       differs per machine. --- */ -}}
+{{- $merged = setValueAtPath "extraKnownMarketplaces.ponytail" (dict
+    "source" (dict "source" "github" "repo" "DietrichGebert/ponytail")
+    "autoUpdate" true) $merged -}}
+{{- $merged = setValueAtPath "extraKnownMarketplaces.openai-codex" (dict
+    "source" (dict "source" "github" "repo" "openai/codex-plugin-cc")
+    "autoUpdate" true) $merged -}}
+{{- $merged = setValueAtPath "extraKnownMarketplaces.worktrunk" (dict
+    "source" (dict "source" "github" "repo" "max-sixty/worktrunk")
+    "autoUpdate" true) $merged -}}
+{{- $merged = setValueAtPath "extraKnownMarketplaces.last30days-skill" (dict
+    "source" (dict "source" "github" "repo" "mvanhorn/last30days-skill")
+    "autoUpdate" true) $merged -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
        invokes them). Source of truth: the tiers table in
