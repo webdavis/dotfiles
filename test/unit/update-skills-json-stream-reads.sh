@@ -80,6 +80,7 @@ jq -e '.skills | has("alpha")' "$AGENTS/.skill-lock.json" >/dev/null ||
 mkdir -p "$STATE_DIR"
 printf '{"alpha":{"last_failed_week":"1970-01","consecutive_failed_weeks":1}}\n{}\n' \
   >"$STREAK_FILE"
+# shellcheck disable=SC2034 # read by __gen_update_failure_streaks in the sourced script
 GEN_FAILED_SKILLS=(alpha)
 __gen_update_failure_streaks
 [[ "$(jq -s 'length' "$STREAK_FILE")" == "1" ]] ||

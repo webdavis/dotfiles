@@ -3552,10 +3552,10 @@ if [[ $DRYRUN == "--dry-run" ]]; then
   converge_claude_skills
   converge_hermes_skills
   report_unrostered_live_content # names delist leftovers; removes nothing
-  refresh_app_owned_cua_pack    # its dry branch logs the would-run line only
-  assert_superpowers_routing    # --dry-run probe of the routing script (read-only)
-  update_hermes_registry_skills # its dry branch logs would-update lines only
-  run_fork_drift_watch          # its dry branch logs would-drift-check lines only
+  refresh_app_owned_cua_pack     # its dry branch logs the would-run line only
+  assert_superpowers_routing     # --dry-run probe of the routing script (read-only)
+  update_hermes_registry_skills  # its dry branch logs would-update lines only
+  run_fork_drift_watch           # its dry branch logs would-drift-check lines only
   log "done (dry-run)"
   # A preview that REFUSED part of its work is not a preview of the run: the
   # fan-out refuses outright on a malformed claudeDelivery table, and the routing
