@@ -62,8 +62,13 @@
 # render-page.sh, whose jq program is bash SINGLE-QUOTED; an apostrophe in a
 # rendered string ends that quoting and breaks the renderer.
 
-# The upgrade record, written by ~/.local/bin/homebrew-weekly-upgrade.sh at the
-# end of every run whose package listing could be read. Keep this literal in sync
+# The upgrade record, written by ~/.local/bin/homebrew-weekly-upgrade.sh TWICE per
+# run whose package listing could be read: the run line alone before the first
+# brew step, then the whole thing again with the package rows once the run is
+# done. Both carry the same timestamp, so the two are one record at two levels of
+# detail; the pre-upgrade publish is what makes the record cover the window it
+# describes, since a watched file rewritten in the first seconds of a run would
+# otherwise be correlated against the PREVIOUS week. Keep this literal in sync
 # with the producer; test/unit/osquery-file-integrity-triage.sh pins them equal,
 # because a rename in one alone leaves this answering no-record forever, which
 # reads exactly like a quiet month of upgrades.
@@ -76,9 +81,11 @@
 #
 #   <name>	<added|removed|changed>	<before-version>	<after-version>
 #
-# The absent side of an add or a remove is the empty string. A run that changed
-# nothing writes line 1 alone, which is a fact worth having: it dates the last
-# time anything upgraded at all.
+# The absent side of an add or a remove is the empty string. LINE 1 ALONE has two
+# readings, which is why the sentence rendered for it states what the run
+# recorded rather than what it did: a run still in flight has compared nothing
+# yet, and a finished run that moved nothing dates the last time anything
+# upgraded at all.
 OSQUERY_UPGRADE_RECORD="${OSQUERY_UPGRADE_RECORD:-$HOME/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv}"
 
 # How recent a recorded upgrade must be to be offered as an explanation.
@@ -99,6 +106,14 @@ OSQUERY_UPGRADE_RECORD_WINDOW_DAYS=3
 # few hundred), and this runs on the alert path, where an unbounded read of a
 # file anyone can append to would be a way to stall paging.
 OSQUERY_UPGRADE_RECORD_MAX_ROWS=500
+
+# The most bytes that may be read, and the size past which the record is refused
+# whole. The row cap above bounds how many LINES are walked; it does not bound
+# the read itself, because a single line with no newline in it can be as large as
+# the disk allows and would be read in full before the first row was counted. At
+# 500 rows this leaves over 500 bytes per row, and the real file averages well
+# under a hundred.
+OSQUERY_UPGRADE_RECORD_MAX_BYTES=262144
 
 # How many package names an unmatched line lists before it counts the rest. The
 # whole sentence is capped at 240 characters by the renderer, so a long list
@@ -205,18 +220,58 @@ _file_integrity_disk_hash() {
 _file_integrity_upgrade_line() {
   local target="$1" record="$OSQUERY_UPGRADE_RECORD"
   local basename_of_target="${target##*/}"
-  local epoch iso now age window rows=0
-  local name state version_before version_after
+  local epoch iso now age window rows=0 bytes snapshot=""
+  local row rest name state version_before version_after
   local matched="" matched_before="" matched_after=""
   local -a changed_names=()
 
-  if [[ ! -r $record ]]; then
+  if [[ ! -e $record ]]; then
     printf 'no upgrade record on this machine'
     return 0
   fi
-  # The first line dates the record. Read on its own open rather than inside the
-  # row loop, so the row loop needs no line counter and the two shapes never mix.
-  read -r epoch iso <"$record" 2>/dev/null || true
+  # WHAT MAY BE READ AT ALL. The record path is not a trust input: it lives in
+  # the operator-writable state dir, so anything can be standing there. A
+  # readable FIFO with no writer is the shape that matters, because `read` on it
+  # blocks FOREVER, and it blocks while the alerter holds its single-instance
+  # lock, so the page is never sent and the cursor never advances: every page on
+  # the machine stops behind one named pipe. A character device does the same by
+  # never yielding a newline. A regular file is the only shape that cannot, so it
+  # is the only shape accepted. SYMLINKS ARE FOLLOWED, deliberately: `-f` judges
+  # the final target, so a link to a regular file is read (a normal way to place
+  # state) and a link to a pipe or a device is refused exactly like the bare one.
+  if [[ ! -f $record || ! -r $record ]]; then
+    printf 'osquery file-integrity triage: the upgrade record at %s is not a readable regular file; this page carries no correlation\n' \
+      "$record" >&2
+    printf 'the upgrade record could not be read'
+    return 0
+  fi
+  # ONE OPEN, ONE SNAPSHOT, BOUNDED. Both shapes (the run line and the package
+  # rows) are parsed from these same bytes. Two opens could straddle the atomic
+  # rename the producer publishes with, and would then pair one generation's
+  # timestamp with the other generation's transitions: a correlation that no run
+  # ever produced, rendered as if it had. The read is capped because this is the
+  # alert path. The type check above already refuses the shapes that block
+  # forever, so what is left to bound is size, and a byte cap bounds that
+  # directly; a watchdog child (the shape ssh-hardening --verify uses to bound a
+  # blocking `sshd -G`) would buy nothing here, since there is no external
+  # process to signal, only this shell reading a local file. A record over the
+  # cap is refused WHOLE rather than parsed from its first bytes, for the same
+  # reason an unrecognised row refuses the whole record: a partial reading
+  # rendered as a complete one is the failure this correlation exists to avoid.
+  snapshot="$(head -c "$((OSQUERY_UPGRADE_RECORD_MAX_BYTES + 1))" -- "$record" 2>/dev/null)" || snapshot=""
+  bytes="$(printf '%s' "$snapshot" | LC_ALL=C wc -c)" || bytes=""
+  bytes="${bytes//[[:space:]]/}"
+  if [[ ! $bytes =~ ^[0-9]+$ ]] || ((bytes > OSQUERY_UPGRADE_RECORD_MAX_BYTES)); then
+    printf 'osquery file-integrity triage: the upgrade record at %s could not be read within %s bytes; this page carries no correlation\n' \
+      "$record" "$OSQUERY_UPGRADE_RECORD_MAX_BYTES" >&2
+    printf 'the upgrade record could not be read'
+    return 0
+  fi
+  # The first line dates the record, taken from the snapshot rather than from a
+  # second open of the file.
+  row="${snapshot%%$'\n'*}"
+  epoch="${row%%$'\t'*}"
+  iso="${row#*$'\t'}"
   if [[ ! $epoch =~ ^[0-9]{1,11}$ ]] ||
     [[ ! $iso =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
     printf 'osquery file-integrity triage: the upgrade record at %s does not start with a run timestamp; this page carries no correlation\n' \
@@ -235,9 +290,25 @@ _file_integrity_upgrade_line() {
     return 0
   fi
 
-  while IFS=$'\t' read -r name state version_before version_after || [[ -n $name ]]; do
+  while IFS= read -r row; do
     rows=$((rows + 1))
     ((rows == 1)) && continue # the run timestamp, already read above
+    # FIELD DECODING BY EXPANSION, NOT BY `read`. A tab is one of the three IFS
+    # WHITESPACE characters, so `IFS=$'\t' read -r name state before after`
+    # treats a RUN of tabs as a single delimiter and drops the empty column the
+    # producer writes for the absent side of an add or a remove. An `added` row
+    # (name, added, EMPTY, version) decoded as (name, added, version, EMPTY) and
+    # rendered backwards: a package that had just appeared read as one that had
+    # just been removed. Splitting on each delimiter in turn keeps an empty
+    # column exactly where the producer put it. A row with too few columns lands
+    # a copy of the tail in `state`, which the recognised-state check below
+    # refuses along with every other row shape this cannot describe.
+    name="${row%%$'\t'*}"
+    rest="${row#*$'\t'}"
+    state="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    version_before="${rest%%$'\t'*}"
+    version_after="${rest#*$'\t'}"
     [[ -n $name ]] || continue
     if ((rows > OSQUERY_UPGRADE_RECORD_MAX_ROWS)); then
       printf 'osquery file-integrity triage: the upgrade record at %s lists more than %s rows; this page carries no correlation\n' \
@@ -263,7 +334,7 @@ _file_integrity_upgrade_line() {
       matched_before="${version_before:-none}"
       matched_after="${version_after:-none}"
     fi
-  done <"$record"
+  done <<<"$snapshot"
 
   if [[ -n $matched ]]; then
     printf 'recorded upgrade: %s %s -> %s at %s (the name matches this file, which is not proof)' \
@@ -271,7 +342,13 @@ _file_integrity_upgrade_line() {
     return 0
   fi
   if [[ ${#changed_names[@]} -eq 0 ]]; then
-    printf 'no recorded upgrade names this file; the run at %s changed nothing' "$iso"
+    # "recorded no package change", not "changed nothing". The producer publishes
+    # the run line before its first brew step and fills in the rows afterwards,
+    # so this shape is read by two different runs: a week that genuinely moved
+    # nothing, and a run still in flight that has not compared anything yet. The
+    # first wording is true of both; the second would claim a completed run about
+    # one that is still going.
+    printf 'no recorded upgrade names this file; the run at %s recorded no package change' "$iso"
     return 0
   fi
   # Names only, no versions: the whole sentence shares a 240-character cap with

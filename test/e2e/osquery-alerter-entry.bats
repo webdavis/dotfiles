@@ -220,3 +220,23 @@ run_entry() { run bash "$ENTRY"; }
   [ "$(crit_page_count)" -eq 1 ]
   [ "$(cursor_offset)" -eq "$(log_size)" ]
 }
+
+# (k) The OPTIONAL triage helper is absent. It adds display-only facts to a
+#     file-integrity page and route.sh already guards its call with
+#     `declare -F`, so a partial deploy must cost a page two LINES and nothing
+#     else. Sourced beside the required libraries it did far worse: the entry
+#     runs under `set -euo pipefail`, so a missing file aborted the run BEFORE
+#     any routing, delivery or checkpoint, and every page on the machine was
+#     blocked until the file came back. The absence is also said out loud,
+#     because this stderr is the alerter's launchd log and a silently degraded
+#     page is how a partial deploy stays invisible.
+@test "T-ENTRY-optional-triage: an absent triage helper still pages, loudly" {
+  rm -f "$HOME/.local/libexec/osquery/results-alerter/file-integrity-triage.sh"
+  seed_cursor 0
+  append_row "$ADMIN_ROW"
+  run_entry
+  [ "$status" -eq 0 ]
+  [ "$(crit_page_count)" -eq 1 ]               # the page still went out
+  [ "$(cursor_offset)" -eq "$(log_size)" ]     # and the batch was checkpointed
+  grep -qi 'triage' <<<"$output"               # the run said the helper is gone
+}
