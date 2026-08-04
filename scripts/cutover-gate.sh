@@ -154,20 +154,36 @@ require_clean_tree() {
   ok "tree is clean, fully visible (no dirty, no untracked, no graphify-out residue, nothing deployable untracked)"
 }
 
-# Every source path `chezmoi managed` names that `git ls-files` does not.
+# Every source FILE `chezmoi managed` names that `git ls-files` does not.
 # chezmoi managed honours .chezmoiignore (it is not one of the data-only reads
 # twpayne/chezmoi#4940 breaks), so it is the honest authority on what deploys.
+#
+# TWO THINGS THIS COMPARISON MUST GET RIGHT, both measured on dresden 2026-08-04
+# when the first version reported 281 offenders against a tree that had none:
+#
+#   --exclude=dirs. `chezmoi managed` names managed DIRECTORIES as well as
+#   files; `git ls-files` never names a directory. Without the exclusion every
+#   managed directory is an offender that no commit can ever clear, so the gate
+#   is unpassable by construction. 73 of the 281 were directories.
+#
+#   LC_ALL=C on comm, not only on sort. comm assumes its inputs are sorted in
+#   ITS OWN collation. Pinning the sorts to C while comm ran under the login
+#   locale (en_US.UTF-8 here) made comm treat correctly-sorted input as
+#   unsorted and emit nonsense: 208 of the 281 were files that ARE tracked and
+#   appear verbatim in both lists. A gate that names tracked files as
+#   deployable-but-unclassified teaches the operator to disbelieve it, which is
+#   worse than no gate.
 managed_but_untracked() {
   local managed tracked
   managed="$scratch/managed"
   tracked="$scratch/tracked"
-  chezmoi managed --source "$repo" --path-style source-relative >"$managed" ||
+  chezmoi managed --source "$repo" --path-style source-relative --exclude=dirs >"$managed" ||
     die "chezmoi managed failed against $repo; the deployable set cannot be established"
   git -C "$repo" ls-files >"$tracked" ||
     die "git ls-files failed in $repo"
   LC_ALL=C sort -o "$managed" "$managed"
   LC_ALL=C sort -o "$tracked" "$tracked"
-  comm -23 "$managed" "$tracked"
+  LC_ALL=C comm -23 "$managed" "$tracked"
 }
 
 # chezmoi's DATA-ONLY reads (`chezmoi data`, `chezmoi execute-template`) walk
