@@ -2730,7 +2730,26 @@ else
   __update_skills_acquire_lock || __update_skills_lock_rc=$?
   if [[ $__update_skills_lock_rc -eq 75 ]]; then
     log "another run holds the lock; deferring (retryable, exit 75)"
-    __update_skills_record deferred "nothing was attempted: another update-skills run already holds the serialize lock, so this slot deferred (exit 75). A later slot retries."
+    # SEMANTICS OF A CONTENDED LAST SLOT. Contention stays a deferral in every
+    # mode: nothing was attempted, so it is not a required failure and the exit
+    # stays the retryable 75. What changes on the LAST scheduled slot is that
+    # there is no later slot behind it. The holder (an --install-only run from a
+    # chezmoi apply, say) writes no weekly stamp, so the week ends with the full
+    # update never run, no stamp, and, before this, nothing said: the same
+    # silence a week that simply worked produces. So the last slot ALERTS, on the
+    # same route a required-phase failure uses at exhaustion, and the run is
+    # recovered by hand with one update-skills.sh.
+    #
+    # It does not WAIT for the lock instead. A holder can run for many minutes,
+    # and blocking the last slot on it trades a visible miss for an invisible
+    # stall inside a launchd job nobody is watching.
+    __update_skills_contention_detail="another update-skills run already holds the serialize lock, so this slot deferred (exit 75). A later slot retries."
+    if __update_skills_scheduled_budget_exhausted; then
+      __update_skills_contention_detail="another update-skills run held the serialize lock on the LAST scheduled slot this week, so this week's update never ran. No later slot remains: re-run ~/.local/bin/update-skills.sh by hand."
+      log "EXHAUSTED: lock contention on the last scheduled slot this week; no later slot remains, so this week's update did not run"
+      __update_skills_alert "Weekly skills update deferred over lock contention on the LAST scheduled slot this week; no later slot remains, so it did not run. Re-run ~/.local/bin/update-skills.sh."
+    fi
+    __update_skills_record deferred "nothing was attempted: $__update_skills_contention_detail"
     exit 75
   elif [[ $__update_skills_lock_rc -ne 0 ]]; then
     record_required_failure "could not acquire the serialize lock (rc $__update_skills_lock_rc; e.g. ~/.agents is not writable); no build, no publish, no stamp"
