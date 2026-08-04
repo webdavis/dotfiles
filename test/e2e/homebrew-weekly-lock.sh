@@ -29,6 +29,13 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# The helper keeps its bookkeeping (the last-success marker, the week guard, and
+# the upgrade record the osquery file-integrity page reads) under this directory,
+# which defaults to the invoking user's real ~/.local/state. Point it at the
+# sandbox: a test run must not write into the record a security page correlates
+# against.
+export HOMEBREW_WEEKLY_STATE_DIR="$tmp/state"
+
 lockfile="$tmp/weekly.lock"
 parked="$tmp/parked"
 go="$tmp/go"

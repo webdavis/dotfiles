@@ -23,6 +23,10 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HELPER="$REPO_ROOT/dot_local/bin/executable_homebrew-weekly-upgrade.sh"
+# The osquery file-integrity triage helper, sourced ONLY to read back the record
+# path it expects. It is the consumer of what this job persists, and the two must
+# not agree merely by copy-paste.
+TRIAGE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/file-integrity-triage.sh"
 
 fail() {
   printf 'homebrew-weekly-record: FAIL -- %s\n' "$*" >&2
@@ -244,6 +248,33 @@ refute 'yq 4' "$entries" "an unchanged formula was listed as changed"
 # shellcheck disable=SC2016 # the backticks are Discord code-span syntax, not a substitution
 grep -qF 'App Store apps: 1 of 1 tracked entries changed (`Xcode` `16.2` -> `16.3`)' <<<"$entries" ||
   fail "an upgraded App Store app's version transition was not reported: $entries"
+
+# ── 4b. The same run leaves a DURABLE record of what it moved, at the exact path
+#       the osquery file-integrity page reads days later. That page fires when a
+#       watched file leaves its known-good manifest, and a vendor update and a
+#       tamper used to render the same body; the record is what lets it say
+#       whether a recorded upgrade plausibly explains the file. The path is
+#       asserted by SOURCING the consumer rather than by repeating a literal
+#       here: a rename in one of the two scripts alone leaves that page answering
+#       no-record forever, which reads exactly like a quiet month of upgrades. ──
+record_path="$(bash -c 'source "$1"; printf "%s" "$OSQUERY_UPGRADE_RECORD"' _ "$TRIAGE_HELPER")"
+[[ -n $record_path ]] || fail "the triage helper does not name an upgrade record path"
+[[ -f $record_path ]] ||
+  fail "the run left no upgrade record at the path the file-integrity page reads ($record_path): $RUN_OUTPUT"
+read -r record_epoch record_iso <"$record_path"
+[[ $record_epoch =~ ^[0-9]+$ ]] ||
+  fail "the record does not open with an epoch the correlation can do arithmetic on: $(cat "$record_path")"
+[[ $record_iso =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] ||
+  fail "the record does not open with an ISO 8601 UTC stamp the page can render: $(cat "$record_path")"
+grep -qF "$(printf 'jq\tchanged\t1.7.1\t1.8.0')" "$record_path" ||
+  fail "the record does not carry the version transition as data: $(cat "$record_path")"
+grep -qF "$(printf 'ripgrep\tadded\t\t14.1.1')" "$record_path" ||
+  fail "the record does not mark a newly installed formula as added: $(cat "$record_path")"
+refute '^yq' "$(cat "$record_path")" "the record lists a formula that did not move"
+# The App Store lane is deliberately absent: those apps install into
+# /Applications, which no known-good manifest covers, so a mas transition could
+# never explain one of these pages and would only crowd out the line.
+refute 'Xcode' "$(cat "$record_path")" "the record carries App Store apps, which no file-integrity page can be about"
 unset MAS_AFTER
 
 # ── 5. FAILURES go to the EXISTING alert route, and the record still goes out
