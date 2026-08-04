@@ -26,13 +26,14 @@ ROUTE="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/route.sh"
 PIPELINE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 ALLOWLIST_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/allowlist-verdict.sh"
 TRIAGE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/file-integrity-triage.sh"
+RENDER_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/render-page.sh"
 
 fail() {
   printf 'osquery-route-pipeline: FAIL -- %s\n' "$*" >&2
   exit 1
 }
 
-for h in "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER" "$TRIAGE_HELPER"; do
+for h in "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER" "$TRIAGE_HELPER" "$RENDER_HELPER"; do
   [[ -f $h ]] || fail "missing helper: $h"
 done
 
@@ -76,6 +77,30 @@ run_gate() {
         digest_append() { printf "%s\n" "$1" >>"$DIGEST_SPY"; }
         route_findings
       ' _ "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER" "${TRIAGE_OVERRIDE:-$TRIAGE_HELPER}"
+}
+
+# run_gate_render <manifest> <bin-manifest> <finding...> -> the {pcount, pbody}
+# object the entry delivers. Same gate, with the RENDERER on the end, because the
+# facts the gate attaches are not consumed until rendering: a finding the gate
+# accepted and the renderer cannot print is a page that was confirmed and then
+# lost, and only running both stages can tell the two apart.
+run_gate_render() {
+  local manifest="$1" bin_manifest="$2"
+  shift 2
+  printf '%s\n' "$@" |
+    HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest" \
+      OSQUERY_MANAGED_BIN_MANIFEST="$bin_manifest" OSQUERY_PIPELINE_REHASH_DELAY=0 \
+      OSQUERY_LAUNCHD_ALLOWLIST="$work/no-allowlist.txt" DIGEST_SPY="$spy" \
+      OSQUERY_UPGRADE_RECORD="${UPGRADE_RECORD:-$work/no-upgrade-record.tsv}" bash -c '
+        set -euo pipefail
+        source "$1"
+        source "$2"
+        source "$3"
+        source "$4"
+        source "$5"
+        digest_append() { printf "%s\n" "$1" >>"$DIGEST_SPY"; }
+        route_findings | render_page
+      ' _ "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER" "${TRIAGE_OVERRIDE:-$TRIAGE_HELPER}" "$RENDER_HELPER"
 }
 
 # assert_paged / refute_paged <pages> <tag> <message>. The negative form is a plain
@@ -205,6 +230,70 @@ page_d="$(TRIAGE_OVERRIDE="$broken_triage" run_gate "$triage_manifest" "$absent_
 [[ $broken_rc -eq 0 ]] ||
   fail "a triage helper that FAILS aborted the gate itself (exit $broken_rc), so the page was lost"
 assert_paged "$page_d" TAG11 "a triage helper that FAILS must not take the page down with it"
+
+# ---- Pass E: a triage object whose SYNTAX is right and whose member TYPES are
+#      wrong. The gate used to check that the helper returned parseable JSON and
+#      nothing else, so a half-deployed helper answering
+#      {"recorded":"abc","ondisk":{},"upgrade":"lead"} was attached whole. The
+#      renderer prints those members as strings, an object cannot be rendered as
+#      one, and jq exits non-zero: the page the verdict had already confirmed was
+#      never written, and because the entry checkpoints only after delivery, every
+#      retry wedged on the same batch. The shape is checked where it is attached,
+#      and a mismatch costs the page its two triage LINES and nothing else. ----
+wrongtype_triage="$work/wrongtype-triage.sh"
+cat >"$wrongtype_triage" <<'WRONGTYPE'
+# shellcheck shell=bash
+file_integrity_triage() {
+  printf '{"recorded":"abc","ondisk":{},"upgrade":"lead"}\n'
+  return 0
+}
+WRONGTYPE
+render_rc=0
+page_e="$(TRIAGE_OVERRIDE="$wrongtype_triage" run_gate_render "$triage_manifest" "$absent_bin_manifest" \
+  "$(fe pipeline_integrity "$tampered" "$event_hash" UPDATED)")" || render_rc=$?
+[[ $render_rc -eq 0 ]] ||
+  fail "a triage object with wrong member types killed the render (exit $render_rc), so a confirmed page was lost"
+[[ "$(jq -r '.pcount' <<<"$page_e")" == 1 ]] ||
+  fail "a triage object with wrong member types cost the page itself -- $page_e"
+page_e_body="$(jq -r '.pbody' <<<"$page_e")"
+assert_paged "$page_e_body" "tamperedTAG11.sh" \
+  "the page no longer names the file whose bytes left the manifest"
+refute_paged "$page_e_body" "Recorded:" \
+  "a triage object the renderer cannot print was still attached to the finding"
+refute_paged "$page_e_body" "Upgrade record:" \
+  "a triage object the renderer cannot print was still attached to the finding"
+
+# The same renderer prints the triage lines when the helper answers the shape it
+# promises, so the check above rejects a broken object rather than every object.
+page_f="$(UPGRADE_RECORD="$UPGRADE_RECORD" run_gate_render "$triage_manifest" "$absent_bin_manifest" \
+  "$(fe pipeline_integrity "$tampered" "$event_hash" UPDATED)")"
+assert_paged "$(jq -r '.pbody' <<<"$page_f")" "Recorded:" \
+  "a well-formed triage object was dropped, so the page lost the facts it exists to carry"
+
+# ---- Pass F: the triage helper's DIAGNOSTICS reach the alerter log. Every way
+#      the correlation can degrade is written to stderr on purpose (an unreadable
+#      record, a record that is not a regular file, a record with a row it cannot
+#      describe), and the alerter's stderr is its launchd log, which is the only
+#      place those states are ever visible. The gate called the helper with
+#      2>/dev/null, so the page said the record could not be read and the log
+#      never said which path or why. Silencing it also cost nothing it protected:
+#      the call is already guarded, so a noisy helper could never fail the page. --
+noisy_triage="$work/noisy-triage.sh"
+cat >"$noisy_triage" <<'NOISY'
+# shellcheck shell=bash
+file_integrity_triage() {
+  printf 'osquery file-integrity triage: the upgrade record at /nowhere/record.tsv is not a readable regular file\n' >&2
+  printf '{"recorded":"?","ondisk":"?","upgrade":"the upgrade record could not be read"}\n'
+  return 0
+}
+NOISY
+gate_stderr="$work/gate-stderr"
+: >"$gate_stderr"
+page_g="$(TRIAGE_OVERRIDE="$noisy_triage" run_gate "$triage_manifest" "$absent_bin_manifest" \
+  "$(fe pipeline_integrity "$tampered" "$event_hash" UPDATED)" 2>"$gate_stderr")"
+assert_paged "$page_g" TAG11 "a helper that warns must still page"
+grep -qF '/nowhere/record.tsv' "$gate_stderr" ||
+  fail "the triage helper's diagnostic never reached the alerter log: $(cat "$gate_stderr")"
 
 # Every paged line is a CRIT finding.
 for out in "$page_a" "$page_b" "$page_c" "$page_d"; do

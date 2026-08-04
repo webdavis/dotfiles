@@ -129,4 +129,70 @@ run "" 16 1 --scheduled
 stamp_fields="$(wc -w <"$STAMP" | tr -d ' ')"
 [[ $stamp_fields -eq 3 ]] || fail "the stamp is not <week> <lock-hash> <updater-hash> (got $stamp_fields fields): $(<"$STAMP")"
 
+# 4) The updater hash is THIS run's identity, captured at start-up. A chezmoi
+#    apply landing mid-run must not make an old parent stamp the NEW updater's
+#    hash: that stamp matches what the next slot computes, so the new updater
+#    early-exits and the code recorded as having run never runs.
+#
+#    The run is a COPY of the script (the repo file is never touched), and the
+#    npx stub replaces that copy mid-run, by rename, exactly as an apply does:
+#    the running process keeps its open inode, and only the path's bytes change.
+copy="$tmp/update-skills-copy.sh"
+cp "$SCRIPT" "$copy"
+chmod +x "$copy"
+old_hash="$(shasum -a 256 "$copy" | awk '{print $1}')"
+cat >"$stub/npx" <<EOF
+#!/usr/bin/env bash
+# Replace the updater on disk mid-run (rename, like an apply), then behave like
+# the install stub above.
+if [[ ! -e "$tmp/updater-replaced" ]]; then
+  cp "$copy" "$tmp/updater-new.sh"
+  printf '# a new updater landed mid-run\n' >>"$tmp/updater-new.sh"
+  mv "$tmp/updater-new.sh" "$copy"
+  chmod +x "$copy"
+  : >"$tmp/updater-replaced"
+fi
+mode=""
+skill=""
+prev=""
+for a in "\$@"; do
+  case "\$a" in add) mode=add ;; esac
+  [[ \$prev == "--skill" ]] && skill="\$a"
+  prev="\$a"
+done
+if [[ \$mode == "add" ]]; then
+  mkdir -p "\$HOME/.agents/skills/\$skill"
+  printf -- '---\nname: %s\ndescription: fixture\n---\n' "\$skill" >"\$HOME/.agents/skills/\$skill/SKILL.md"
+  cli_lock="\${XDG_STATE_HOME:-\$HOME/.local/state}/skills/.skill-lock.json"
+  mkdir -p "\$(dirname "\$cli_lock")"
+  [[ -f \$cli_lock ]] || printf '{"version":3,"skills":{}}\n' >"\$cli_lock"
+  jq --arg s "\$skill" '.skills[\$s] = {source: "github:fixture"}' \
+    "\$cli_lock" >"\$cli_lock.tmp" && mv "\$cli_lock.tmp" "\$cli_lock"
+fi
+echo stub
+EOF
+chmod +x "$stub/npx"
+rm -rf "$HOME/.local/state" "$HOME/.agents/.skills-current" "$HOME/.agents/.skills-generations"
+rm -f "$tmp/updater-replaced" "$tmp/npx-add-fail"
+OUT="$(FAKE_HOUR=04 FAKE_DOW=1 UPDATE_SKILLS_FORCE=1 bash "$copy" 2>&1)" ||
+  fail "the mid-run-replacement run exited non-zero: $OUT"
+[[ -e "$tmp/updater-replaced" ]] ||
+  fail "the stub never replaced the updater, so this case proved nothing: $OUT"
+new_hash="$(shasum -a 256 "$copy" | awk '{print $1}')"
+[[ $new_hash != "$old_hash" ]] || fail "the replacement did not change the updater's bytes"
+[[ -f $STAMP ]] || fail "the mid-run-replacement run wrote no stamp: $OUT"
+stamped_updater="$(awk '{print $3}' <"$STAMP")"
+[[ $stamped_updater == "$old_hash" ]] ||
+  fail "the stamp records an updater this run never executed (want $old_hash, got $stamped_updater)"
+gen_updater="$(jq -r '.updaterHash' "$HOME/.agents/.skills-current/generation.json")"
+[[ $gen_updater == "$old_hash" ]] ||
+  fail "generation.json records an updater this run never executed (want $old_hash, got $gen_updater)"
+# ...and the consequence: the replacement updater does NOT read that stamp as
+# its own, so a later slot rebuilds instead of early-exiting.
+OUT="$(FAKE_HOUR=05 FAKE_DOW=1 bash "$copy" 2>&1)" ||
+  fail "the follow-up run under the new updater exited non-zero: $OUT"
+if grep -qi 'already succeeded' <<<"$OUT"; then
+  fail "the replacement updater early-exited on a stamp written for the old one: $OUT"
+fi
+
 echo "update-skills-stamp: OK"

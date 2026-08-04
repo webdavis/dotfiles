@@ -193,11 +193,19 @@ early_exited || fail "a run whose week already succeeded did not early-exit: $RU
 proceeded && fail "a stamped week re-ran the full pass instead of early-exiting: $RUN_OUTPUT"
 
 # A stamp for the same week but a DIFFERENT roster hash must NOT early-exit (a
-# roster change un-stamps the week).
+# roster change un-stamps the week). "Did not early-exit" is not the claim worth
+# making on its own: any other early return, under any other message, satisfies
+# it while the rebuild never happens. So the run has to REACH ITS WORK, which
+# means the npx lane ran and the run reached its end.
 printf '%s %s %s' "$FAKE_WEEK" "deadbeef" "$updater_hash" >"$HOME/.local/state/update-skills/last-success"
+: >"$NPX_LOG"
 RUN_OUTPUT="$(FAKE_PS="$UNRELATED_PYTHON" FAKE_HOUR=08 bash "$SCRIPT" 2>&1)" ||
   fail "the roster-changed run exited non-zero: $RUN_OUTPUT"
 early_exited && fail "a stamp with a stale roster hash early-exited instead of rebuilding: $RUN_OUTPUT"
+proceeded ||
+  fail "a stamp with a stale roster hash did not reach the end of a full run: $RUN_OUTPUT"
+[[ -s $NPX_LOG ]] ||
+  fail "a stamp with a stale roster hash skipped the npx lane, so nothing was rebuilt: $RUN_OUTPUT"
 
 # A completed run writes a stamp that begins with the current ISO week.
 run_updater "$UNRELATED_PYTHON"

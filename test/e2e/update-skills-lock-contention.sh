@@ -87,8 +87,14 @@ for s in "${skills[@]}"; do
     "$cli_lock" >"$cli_lock.tmp" && mv "$cli_lock.tmp" "$cli_lock"
 done
 EOF
-# no-op alerter: the real one blocks for its --timeout waiting for interaction.
-printf '#!/usr/bin/env bash\nexit 0\n' >"$stub/alerter"
+# alerter stub: the real one blocks for its --timeout waiting for interaction.
+# It RECORDS rather than no-ops, because part C asserts that an alert fired.
+ALERTER_LOG="$tmp/alerter.log"
+: >"$ALERTER_LOG"
+cat >"$stub/alerter" <<EOF
+#!/usr/bin/env bash
+printf 'alerter %s\n' "\$*" >>"$ALERTER_LOG"
+EOF
 chmod +x "$stub/npx" "$stub/alerter"
 export PATH="$stub:$PATH"
 
@@ -138,5 +144,61 @@ chmod 700 "$AGENTS"
   fail "a hard lock-acquisition failure did not exit 1 (got $rc_hard): $out_hard"
 grep -qi 'REQUIRED-FAILURE' <<<"$out_hard" ||
   fail "a hard lock-acquisition failure recorded no required failure: $out_hard"
+
+# ── Part C: contention on the LAST scheduled slot is loud ─────────────────────
+# A deferral is retryable only while a later slot exists. On the last Monday
+# slot there is none: the holder (an --install-only run from an apply, say)
+# writes no weekly stamp, so a week can end with the full update never run and
+# nothing said about it, which reads exactly like a week that simply worked.
+# Contention stays a deferral (exit 75, not a required failure, nothing was
+# attempted); what the last slot adds is the alert. A slot with time left behind
+# it must stay quiet, which the control below pins.
+cat >"$stub/date" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  +%H) printf '%s\n' "${FAKE_HOUR:-04}" ;;
+  +%u) printf '%s\n' "${FAKE_DOW:-1}" ;;
+  *) exec /bin/date "$@" ;;
+esac
+EOF
+chmod +x "$stub/date"
+
+# run_contended <hour> <dow> [--scheduled] : hold the lock for the whole run.
+run_contended() {
+  local hour="$1" dow="$2" sched="${3:-}"
+  local -a run_args=()
+  [[ $sched == "--scheduled" ]] && run_args=(--scheduled)
+  : >"$ALERTER_LOG"
+  exec 8>>"$LOCKFILE"
+  /usr/bin/lockf -s -t 0 8 || fail "the test could not pre-acquire the serialize lock"
+  set +e
+  CONTENDED_OUT="$(FAKE_HOUR="$hour" FAKE_DOW="$dow" bash "$SCRIPT" "${run_args[@]}" 8>&- 2>&1)"
+  CONTENDED_RC=$?
+  set -e
+  exec 8>&-
+}
+
+run_contended 23 1 --scheduled
+[[ $CONTENDED_RC -eq 75 ]] ||
+  fail "last-slot contention did not exit the retryable 75 (got $CONTENDED_RC): $CONTENDED_OUT"
+grep -qi 'EXHAUSTED' <<<"$CONTENDED_OUT" ||
+  fail "contention on the last scheduled slot did not log exhaustion: $CONTENDED_OUT"
+[[ -s $ALERTER_LOG ]] ||
+  fail "contention on the last scheduled slot fired no alert, so the week ends silently: $CONTENDED_OUT"
+if grep -qi 'REQUIRED-FAILURE' <<<"$CONTENDED_OUT"; then
+  fail "a deferral was recorded as a required failure; nothing was attempted: $CONTENDED_OUT"
+fi
+
+# Control: same contention with slots still to come stays quiet.
+run_contended 04 1 --scheduled
+[[ $CONTENDED_RC -eq 75 ]] ||
+  fail "mid-week contention did not exit the retryable 75 (got $CONTENDED_RC): $CONTENDED_OUT"
+[[ ! -s $ALERTER_LOG ]] ||
+  fail "contention on a slot with later slots remaining alerted: $(cat "$ALERTER_LOG")"
+
+# Control: a MANUAL run never claims scheduled-budget exhaustion, whatever the hour.
+run_contended 23 1
+[[ ! -s $ALERTER_LOG ]] ||
+  fail "a manual contended run claimed scheduled-budget exhaustion: $(cat "$ALERTER_LOG")"
 
 echo "update-skills-lock-contention: OK"

@@ -113,7 +113,23 @@ done
 write_lock alpha
 mkdir -p "$AGENTS/skills/gamma"
 printf 'FOREIGN-GAMMA\n' >"$AGENTS/skills/gamma/keep.txt"
+# gamma is also what a DELISTED skill leaves behind: a store dir the roster no
+# longer names, plus the skillOverrides entry the settings template stops
+# declaring but never erases. Nothing removes either, by ruling, so the run has
+# to at least NAME them; before this they were found by reading files by hand.
+mkdir -p "$HOME/.claude"
+printf '{"skillOverrides":{"gamma":"user-invocable-only","alpha":"user-invocable-only"}}\n' \
+  >"$HOME/.claude/settings.json"
 out2="$(run_full)" || fail "phase 2 run exited non-zero: $out2"
+
+grep -q "UNROSTERED: $AGENTS/skills/gamma is not in the roster" <<<"$out2" ||
+  fail "the run said nothing about store content the roster no longer declares: $out2"
+grep -qi 'skillOverrides entry for it' <<<"$out2" ||
+  fail "the run named the unrostered store dir but not the settings override left with it: $out2"
+# A ROSTERED skill is never reported, whatever settings.json says about it.
+if grep -q "UNROSTERED.*skills/alpha" <<<"$out2"; then
+  fail "a rostered skill was reported as unrostered leftover content: $out2"
+fi
 
 # beta is gone from the store (no symlink, no dir).
 [[ ! -e "$AGENTS/skills/beta" && ! -L "$AGENTS/skills/beta" ]] ||

@@ -465,7 +465,17 @@ __gen_hash_file() {
 # lock (what skills the repo wants + how) and this updater script (how they are
 # built). A change in either must invalidate the weekly stamp and force a rebuild.
 __gen_custom_lock_hash() { __gen_hash_file "$CUSTOM_SKILL_LOCK"; }
-__gen_updater_hash() { __gen_hash_file "${BASH_SOURCE[0]}"; }
+# The updater hash is THIS PROCESS'S identity, so it is read ONCE, here, from the
+# bytes on disk at start-up, and every later record uses the captured value.
+# Reading the path again at write time recorded whatever was there THEN: a
+# chezmoi apply landing mid-run made an old parent stamp the NEW updater's hash
+# into generation.json and the weekly stamp, and the new updater then matched
+# that stamp and early-exited every remaining slot, so the code recorded as
+# having run never ran. Captured, the mismatch survives and a later slot
+# rebuilds. (The apply also replaces the file by rename, so this process keeps
+# executing the inode it opened; the hash and the bytes stay the same answer.)
+GEN_UPDATER_HASH="$(__gen_hash_file "${BASH_SOURCE[0]}")"
+__gen_updater_hash() { printf '%s' "$GEN_UPDATER_HASH"; }
 
 # The weekly success stamp value: the ISO year-week PLUS the custom-lock hash and
 # the updater hash. A roster change (custom-lock) or an updater change after a
@@ -848,21 +858,36 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # a present-but-non-object table and any value other than the string "none"
 # (absent means the default, delivered), so a malformed delivery table refuses the
 # run loudly instead of silently restoring a de-delivered skill.
+#
+# The gate reads the lock SLURPED, and the -s is the load-bearing part.
+# `jq -e '<filter>' file` reads a STREAM of values and evaluates the filter once
+# per document, so its exit status is the LAST document's verdict while every
+# extractor downstream still reads them ALL. A roster with a second top-level
+# `{}` appended therefore passed every check here on the trailing empty object
+# (an absent table is legal) and the run went on to read the real tables out of
+# the first document: with claudeDelivery emptied in that first document, the
+# undelivered-name reader returned nothing and convergence RECREATED a
+# deliberately absent Claude link before stamping the week a success. Slurping
+# and requiring exactly one value is the single-value test; the same shape
+# guards ~/.claude/settings.json in run_before_12-quarantine-unparseable-claude-settings.sh
+# and the forks table in __gen_fork_lock_single_document below.
 __gen_roster_schema_ok() {
-  jq -e '
+  jq -e -s '
     def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
     def nonempty_string($v): ($v | type) == "string" and ($v | length) > 0;
-    (type == "object")
-    and object_or_absent("npxTracked")
-    and object_or_absent("clawhubTracked")
-    and object_or_absent("tiers")
-    and object_or_absent("claudeDelivery")
-    and ((.npxTracked // {}) | to_entries
-      | all((.value | type == "object") and nonempty_string(.value.repo)))
-    and ((.clawhubTracked // {}) | to_entries
-      | all((.value | type == "object")
-        and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
-    and ((.claudeDelivery // {}) | to_entries | all(.value == "none"))
+    length == 1 and (.[0] |
+      (type == "object")
+      and object_or_absent("npxTracked")
+      and object_or_absent("clawhubTracked")
+      and object_or_absent("tiers")
+      and object_or_absent("claudeDelivery")
+      and ((.npxTracked // {}) | to_entries
+        | all((.value | type == "object") and nonempty_string(.value.repo)))
+      and ((.clawhubTracked // {}) | to_entries
+        | all((.value | type == "object")
+          and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
+      and ((.claudeDelivery // {}) | to_entries | all(.value == "none"))
+      and ((.claudeDelivery // {}) | keys | all(test("[[:cntrl:]]") | not)))
   ' "$1" >/dev/null 2>&1
 }
 
@@ -1521,12 +1546,17 @@ __gen_reconcile_candidate_npx_lock() {
   local candidate_lock="$AGENTS/.skill-lock.json"
   local cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
   local base cli reconciled
+  # Each input must be EXACTLY ONE JSON value, not the stream `jq -e .` accepts:
+  # both are handed to --argjson below, which refuses a stream outright, so an
+  # unreadable-for-our-purpose lock has to reach the '{}' fallback here instead
+  # of failing the whole reconcile. `length == 1` (not `<= 1`) keeps the empty
+  # file on the fallback path too, where the old `jq -e .` already put it.
   base="$(cat "$candidate_lock" 2>/dev/null || printf '{}')"
-  jq -e . <<<"$base" >/dev/null 2>&1 || base='{}'
+  jq -e -s 'length == 1' <<<"$base" >/dev/null 2>&1 || base='{}'
   cli='{}'
   if [[ -f $cli_lock ]]; then
     cli="$(cat "$cli_lock" 2>/dev/null || printf '{}')"
-    jq -e . <<<"$cli" >/dev/null 2>&1 || cli='{}'
+    jq -e -s 'length == 1' <<<"$cli" >/dev/null 2>&1 || cli='{}'
   fi
   if ! reconciled="$(jq -n \
     --argjson base "$base" \
@@ -1640,9 +1670,12 @@ __gen_validate_candidate() {
     log "validate: candidate has no ready marker"
     return 1
   }
-  # npx lock must be valid JSON.
-  jq -e . "$agents/.skill-lock.json" >/dev/null 2>&1 || {
-    log "validate: candidate .skill-lock.json is not valid JSON"
+  # npx lock must be ONE JSON value. Slurped, because `jq -e .` accepts a STREAM
+  # and every later reader of this file answers from the LAST document alone
+  # (`.skills | has($n)` in the drift report and the health check), so a
+  # two-document lock could publish while claiming a skill it does not hold.
+  jq -e -s 'length == 1' "$agents/.skill-lock.json" >/dev/null 2>&1 || {
+    log "validate: candidate .skill-lock.json is not one JSON value"
     return 1
   }
   # A FULL candidate's npx lock must hold EXACTLY the npxTracked key set
@@ -1889,7 +1922,11 @@ __gen_update_failure_streaks() {
   week="$(date +%G-%V)"
   mkdir -p "$STATE_DIR" 2>/dev/null || return 0
   streaks="$(cat "$STREAK_FILE" 2>/dev/null || true)"
-  jq -e . <<<"$streaks" >/dev/null 2>&1 || streaks='{}'
+  # ONE JSON OBJECT or start over. `jq -e .` accepted a stream (whose per-name
+  # reads below then yield one line per document, so no week ever compares equal
+  # and every slot re-increments) and accepted a bare scalar (whose `.[$n]` read
+  # is a jq error, fatal under errexit inside the command substitution).
+  jq -e -s 'length == 1 and (.[0] | type == "object")' <<<"$streaks" >/dev/null 2>&1 || streaks='{}'
   local -a escalated=()
   local -a seen=()
   local dup
@@ -2352,6 +2389,13 @@ converge_dir() {
 # other direction is unthinkable here: a jq that failed would otherwise mark
 # every roster skill undelivered and step 2 of converge_dir would reap the
 # ENTIRE Claude fan-out on one bad read.
+#
+# ONE NAME PER LINE is this reader's whole contract, which is why the two
+# validators refuse a key holding a control character. A key spelled
+# "gh-axi\nhumanizer" is one exemption to the schema and TWO names here, and the
+# second one costs a link: converge_dir removes every updater-owned link outside
+# the desired set, so one forged name reaps a delivery nobody de-delivered. No
+# store name contains a control character, so nothing legitimate is refused.
 __update_skills_claude_undelivered() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   jq -r '.claudeDelivery // {} | to_entries[] | select(.value == "none") | .key' \
@@ -2367,10 +2411,19 @@ __update_skills_claude_undelivered() {
 # the fan-out validates the table at the point of use and refuses (no fan-out, no
 # reap) rather than fail open, in every mode. Absent or a valid "none" object is
 # NOT malformed.
+#
+# Slurped, for the reason __gen_roster_schema_ok is: an unslurped `jq -e` reads a
+# STREAM and answers for the LAST document only, so a lock with a second
+# top-level `{}` appended looked table-less (and therefore fine) here while the
+# reader above still read the first document's table. A multi-document lock is
+# malformed for this purpose whatever its documents say.
 __update_skills_claude_delivery_malformed() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 1
-  jq -e '(has("claudeDelivery") | not)
-    or ((.claudeDelivery | type == "object") and (.claudeDelivery | to_entries | all(.value == "none")))' \
+  jq -e -s 'length == 1 and (.[0] |
+      (has("claudeDelivery") | not)
+      or ((.claudeDelivery | type == "object")
+        and (.claudeDelivery | to_entries | all(.value == "none"))
+        and (.claudeDelivery | keys | all(test("[[:cntrl:]]") | not))))' \
     "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 && return 1
   return 0
 }
@@ -2412,6 +2465,57 @@ converge_claude_skills() {
   else
     converge_dir "$CLAUDE" "../../.agents/skills"
   fi
+}
+
+# Live content the roster no longer declares. WARN ONLY, and that is the ruling,
+# not an oversight: nothing in this vertical removes what the lock stopped
+# naming. Delisting a skill (deleting its rows from the lock) leaves its store
+# directory where it is and leaves its ~/.claude/settings.json skillOverrides
+# entry where it is, and until now nothing said so, so the leftovers were found
+# by reading files by hand. A run that names them is the operator's cue to
+# remove them by hand, which stays the only way they go.
+#
+# The roster is the lock's tiers table, which covers exactly the roster
+# (test/unit/skills-roster-fanout.sh fails the build otherwise), so vendored and
+# app-owned store entries are rostered and stay quiet. Only a name the lock no
+# longer carries is reported.
+#
+# The override half is reported only for a name the STORE also carries, which is
+# the delist shape. A skillOverrides key with no store entry is not evidence of
+# anything: Claude Code takes overrides for skills from sources this vertical
+# does not deliver, and naming those would be a weekly false positive.
+report_unrostered_live_content() {
+  [[ -d $STORE ]] || return 0
+  local -a rostered=()
+  local name entry rostered_name found overrides="" settings="$HOME/.claude/settings.json"
+  while IFS= read -r name; do
+    [[ -n $name ]] && rostered+=("$name")
+  done < <(jq -r '.tiers // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  # No roster to compare against (absent lock, empty or unreadable tiers) is not
+  # evidence that every store entry is a leftover. Say nothing rather than name
+  # the whole store.
+  [[ ${#rostered[@]} -gt 0 ]] || return 0
+  if [[ -f $settings ]]; then
+    overrides="$(jq -r -s 'if length == 1 then (.[0].skillOverrides // {} | keys[]?) else empty end' \
+      "$settings" 2>/dev/null || true)"
+  fi
+  for entry in "$STORE"/*; do
+    [[ -e $entry || -L $entry ]] || continue
+    name="${entry##*/}"
+    found=""
+    for rostered_name in "${rostered[@]}"; do
+      [[ $rostered_name == "$name" ]] && {
+        found=1
+        break
+      }
+    done
+    [[ -n $found ]] && continue
+    if printf '%s\n' "$overrides" | grep -qxF -- "$name"; then
+      log "UNROSTERED: $STORE/$name is not in the roster, and $settings still carries a skillOverrides entry for it. Nothing here removes either; remove both by hand if this is a delist leftover."
+    else
+      log "UNROSTERED: $STORE/$name is not in the roster. Nothing here removes it; remove it by hand if this is a delist leftover."
+    fi
+  done
 }
 
 # Hermes fan-out is profile-driven by the lock's hermesProfiles map. "default" is
@@ -2695,7 +2799,26 @@ else
   __update_skills_acquire_lock || __update_skills_lock_rc=$?
   if [[ $__update_skills_lock_rc -eq 75 ]]; then
     log "another run holds the lock; deferring (retryable, exit 75)"
-    __update_skills_record deferred "nothing was attempted: another update-skills run already holds the serialize lock, so this slot deferred (exit 75). A later slot retries."
+    # SEMANTICS OF A CONTENDED LAST SLOT. Contention stays a deferral in every
+    # mode: nothing was attempted, so it is not a required failure and the exit
+    # stays the retryable 75. What changes on the LAST scheduled slot is that
+    # there is no later slot behind it. The holder (an --install-only run from a
+    # chezmoi apply, say) writes no weekly stamp, so the week ends with the full
+    # update never run, no stamp, and, before this, nothing said: the same
+    # silence a week that simply worked produces. So the last slot ALERTS, on the
+    # same route a required-phase failure uses at exhaustion, and the run is
+    # recovered by hand with one update-skills.sh.
+    #
+    # It does not WAIT for the lock instead. A holder can run for many minutes,
+    # and blocking the last slot on it trades a visible miss for an invisible
+    # stall inside a launchd job nobody is watching.
+    __update_skills_contention_detail="another update-skills run already holds the serialize lock, so this slot deferred (exit 75). A later slot retries."
+    if __update_skills_scheduled_budget_exhausted; then
+      __update_skills_contention_detail="another update-skills run held the serialize lock on the LAST scheduled slot this week, so this week's update never ran. No later slot remains: re-run ~/.local/bin/update-skills.sh by hand."
+      log "EXHAUSTED: lock contention on the last scheduled slot this week; no later slot remains, so this week's update did not run"
+      __update_skills_alert "Weekly skills update deferred over lock contention on the LAST scheduled slot this week; no later slot remains, so it did not run. Re-run ~/.local/bin/update-skills.sh."
+    fi
+    __update_skills_record deferred "nothing was attempted: $__update_skills_contention_detail"
     exit 75
   elif [[ $__update_skills_lock_rc -ne 0 ]]; then
     record_required_failure "could not acquire the serialize lock (rc $__update_skills_lock_rc; e.g. ~/.agents is not writable); no build, no publish, no stamp"
@@ -3436,11 +3559,21 @@ if [[ $DRYRUN == "--dry-run" ]]; then
   __gen_dryrun_drift_report
   converge_claude_skills
   converge_hermes_skills
-  refresh_app_owned_cua_pack    # its dry branch logs the would-run line only
-  assert_superpowers_routing    # --dry-run probe of the routing script (read-only)
-  update_hermes_registry_skills # its dry branch logs would-update lines only
-  run_fork_drift_watch          # its dry branch logs would-drift-check lines only
+  report_unrostered_live_content # names delist leftovers; removes nothing
+  refresh_app_owned_cua_pack     # its dry branch logs the would-run line only
+  assert_superpowers_routing     # --dry-run probe of the routing script (read-only)
+  update_hermes_registry_skills  # its dry branch logs would-update lines only
+  run_fork_drift_watch           # its dry branch logs would-drift-check lines only
   log "done (dry-run)"
+  # A preview that REFUSED part of its work is not a preview of the run: the
+  # fan-out refuses outright on a malformed claudeDelivery table, and the routing
+  # probe records a missing prerequisite, so a caller reading exit 0 accepted an
+  # incomplete picture as the whole one. Same signal the install-only path gives,
+  # and it costs nothing on a healthy machine, where a dry run records nothing.
+  if [[ $REQUIRED_FAILURES -gt 0 ]]; then
+    log "dry-run finished with $REQUIRED_FAILURES refusal(s)/required-phase failure(s); this preview is INCOMPLETE"
+    exit 1
+  fi
   exit 0
 fi
 
@@ -3536,6 +3669,10 @@ refresh_app_owned_cua_pack
 # exactly the hermes profile skills dirs its hermesProfiles mapping names.
 converge_claude_skills
 converge_hermes_skills
+
+# NAME the live content the roster no longer declares (delist leftovers). This
+# removes nothing; it is the only thing that says the leftovers are there.
+report_unrostered_live_content
 
 # VERIFY the Codex overlays through the store links (asserted in the candidate;
 # a missing one here is a required failure, never an in-place write); vendored

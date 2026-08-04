@@ -212,6 +212,79 @@ if printf '%s\n' "$second" | grep -qiE 'converge: (created|replaced|removed)'; t
   fail "a no-op convergence run still logged create/replace/remove actions: $second"
 fi
 
+# ── A MULTI-DOCUMENT roster lock must not resurrect a de-delivered link.
+# `jq -e '<filter>' file` reads a STREAM and evaluates the filter once per
+# document, so its exit status is the LAST document's while every extractor still
+# reads them all. A roster with claudeDelivery emptied and a second top-level
+# `{}` appended therefore satisfied the schema gate on that trailing object, the
+# undelivered-name reader came back empty, and the full run RECREATED
+# nonclaude's deliberately absent ~/.claude link and stamped the week a success.
+# Both readers are pinned here: the FULL run must refuse at the roster gate, and
+# the --dry-run preview (which skips that gate entirely) must refuse at the
+# fan-out's own claudeDelivery check.
+LOCK_FILE="$HOME/.agents/custom-skill-lock.json"
+GOOD_LOCK="$tmp/good-lock.json"
+cp "$LOCK_FILE" "$GOOD_LOCK"
+STAMP="$HOME/.local/state/update-skills/last-success"
+rm -f "$STAMP"
+jq '.claudeDelivery = []' "$GOOD_LOCK" >"$LOCK_FILE"
+printf '{}' >>"$LOCK_FILE"
+set +e
+stream_out="$(run)"
+stream_rc=$?
+set -e
+[[ $stream_rc -ne 0 ]] ||
+  fail "a multi-document roster lock ran to completion instead of failing closed: $stream_out"
+[[ ! -e "$CLAUDE/nonclaude" && ! -L "$CLAUDE/nonclaude" ]] ||
+  fail "a multi-document roster lock recreated the de-delivered nonclaude Claude link: $(readlink "$CLAUDE/nonclaude" 2>/dev/null)"
+[[ ! -f $STAMP ]] ||
+  fail "a multi-document roster lock still stamped the week: $(cat "$STAMP")"
+stream_dry="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1 || true)"
+if grep -qE 'would create .*/\.claude/skills/nonclaude' <<<"$stream_dry"; then
+  printf '%s\n' "$stream_dry" >&2
+  fail "the --dry-run fan-out offered to restore nonclaude's link from a multi-document lock"
+fi
+grep -qiE 'claudeDelivery.*(malformed|refus)' <<<"$stream_dry" ||
+  fail "the --dry-run fan-out did not report the multi-document lock's claudeDelivery table: $stream_dry"
+cp "$GOOD_LOCK" "$LOCK_FILE"
+
+# ── A claudeDelivery KEY holding a newline forges a second exemption.
+# The undelivered-name reader is line-oriented (one name per line), so the single
+# key "keeper\nmover" is one entry to the schema and TWO names to the reader, and
+# converge_dir reaps every updater-owned link outside the desired set: one forged
+# key removed BOTH skills' ~/.claude links. Both must survive, and the run must
+# say why.
+jq '.claudeDelivery = {"keeper\nmover": "none"}' "$GOOD_LOCK" >"$LOCK_FILE"
+set +e
+newline_out="$(run)"
+newline_rc=$?
+set -e
+for s in keeper mover; do
+  [[ -L "$CLAUDE/$s" && "$(readlink "$CLAUDE/$s")" == "../../.agents/skills/$s" ]] ||
+    fail "a newline inside a claudeDelivery key removed the Claude link for $s: $newline_out"
+done
+[[ $newline_rc -ne 0 ]] ||
+  fail "a claudeDelivery key holding a newline ran to completion instead of failing closed: $newline_out"
+# The preview reaches the fan-out without the roster gate in front of it, so the
+# fan-out's own check has to refuse the forged key too, or the preview announces
+# a reap that the gate is the only thing preventing.
+newline_dry="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1 || true)"
+if grep -qE 'would remove stale .*/\.claude/skills/(keeper|mover)' <<<"$newline_dry"; then
+  printf '%s\n' "$newline_dry" >&2
+  fail "the --dry-run fan-out previewed reaping a link forged by a newline inside a claudeDelivery key"
+fi
+grep -qiE 'claudeDelivery.*(malformed|refus)' <<<"$newline_dry" ||
+  fail "the --dry-run fan-out did not report the forged claudeDelivery key: $newline_dry"
+cp "$GOOD_LOCK" "$LOCK_FILE"
+# ...and the legitimate single-key table still de-delivers exactly its own name:
+# a validator that refused every key would leave nonclaude linked instead.
+run >/dev/null || fail "the run refused a legitimate single-key claudeDelivery table"
+[[ ! -e "$CLAUDE/nonclaude" && ! -L "$CLAUDE/nonclaude" ]] ||
+  fail "the legitimate claudeDelivery 'none' entry stopped taking effect"
+for s in keeper mover; do
+  [[ -L "$CLAUDE/$s" ]] || fail "the legitimate run removed the Claude link for $s"
+done
+
 # ── A MALFORMED claudeDelivery must not fail OPEN in the Claude fan-out.
 # __update_skills_claude_undelivered fails open (an empty undelivered set) on a
 # wrong-shaped table, and the fan-out would then RESTORE nonclaude's de-delivered
@@ -221,9 +294,16 @@ fi
 # CONSUMER itself must refuse. nonclaude has no Claude link now (convergence
 # removed it above). Rewrite claudeDelivery to an array and preview: the fan-out
 # must NOT offer to create nonclaude's link, and must report the malformed table.
-LOCK_FILE="$HOME/.agents/custom-skill-lock.json"
 jq '.claudeDelivery = ["nonclaude"]' "$LOCK_FILE" >"$LOCK_FILE.tmp" && mv "$LOCK_FILE.tmp" "$LOCK_FILE"
+set +e
 dry_out="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1)"
+dry_rc=$?
+set -e
+# A preview that refused part of its work must SAY SO in its exit status:
+# automation that reads exit 0 otherwise accepts an incomplete preview as the
+# whole picture.
+[[ $dry_rc -ne 0 ]] ||
+  fail "a --dry-run that refused the Claude fan-out still exited 0: $dry_out"
 if grep -qE 'would create .*/\.claude/skills/nonclaude' <<<"$dry_out"; then
   printf '%s\n' "$dry_out" >&2
   fail "a malformed claudeDelivery failed OPEN; the Claude fan-out offered to restore the de-delivered nonclaude link"
