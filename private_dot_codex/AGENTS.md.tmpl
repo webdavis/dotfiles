@@ -1,0 +1,36 @@
+<!-- Evergreen file. General principles, not transient state. Everything between the shared-rules
+     markers comes from .chezmoitemplates/global-agent-rules.md and is byte-identical to the same
+     block in ~/.claude/CLAUDE.md. Edit the partial, not this file. -->
+
+# Global Rules
+
+<!-- shared-rules:begin -->
+{{ includeTemplate "global-agent-rules.md" . }}
+<!-- shared-rules:end -->
+
+## Codex
+
+- Skills live in the shared store at `~/.agents/skills/`, which Codex scans natively. A skill carrying
+  `policy: allow_implicit_invocation: false` in its `agents/openai.yaml` is on-demand: it loads only
+  when invoked as `$name`.
+- Slash commands under `~/.claude/commands/` are Claude Code's, so the flows they describe are read and
+  followed by hand here.
+
+<!-- The codegraph CLI owns the marked block below and rewrites it in place. This copy is reflowed to
+     the repo's 105-column markdown convention with the em-dashes removed, so a codegraph rewrite shows
+     up as a chezmoi diff to read and fold back rather than a silent overwrite. -->
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it
+BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call, the
+  relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops
+  grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it
+  is listed but deferred, load it by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely, indexing is the user's decision.
+<!-- CODEGRAPH_END -->
