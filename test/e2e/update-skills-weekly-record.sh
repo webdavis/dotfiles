@@ -384,13 +384,15 @@ grep -qF -- '--state deferred' <<<"$entries" ||
 grep -qiE 'refus|roster' <<<"$entries" ||
   fail "the refusal entry does not say why nothing was attempted: $entries"
 
-# ── 10. LOCK CONTENTION is the second way a slot ends up attempting nothing, and
-#       it reaches a DIFFERENT record call site than the harness-activity
-#       deferral above (the lock is taken before the activity check, so nothing
-#       else in this file can reach it). Deferred is the class that actually
-#       fires on this machine, so every path that produces one is pinned. It is a
-#       record and not an alert: nothing was attempted, so there is nothing to
-#       act on. ────────────────────────────────────────────────────────────────
+# ── 10. LOCK CONTENTION is the second way a slot ends up attempting nothing (the
+#       roster refusal above is the first), and it reaches its own record call
+#       site: the lock is taken before anything else, so no other case in this
+#       file passes through it. Deferred is the class that actually fires on this
+#       machine, so every path that produces one is pinned. It is a record and
+#       not an alert, because nothing was attempted and a later slot retries;
+#       the one exception is contention on the LAST slot, which has no later slot
+#       behind it and does alert (pinned in
+#       test/e2e/update-skills-lock-contention.sh). ─────────────────────────────
 reset_state
 export FAKE_WEEK="2026-38"
 restage_lock

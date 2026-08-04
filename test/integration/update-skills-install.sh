@@ -162,8 +162,9 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 }
 EOF
 
-# The real script, unmodified. FORCE bypasses the weekly stamp, which would
-# otherwise refuse to run while a harness (the one executing this test) is up.
+# The real script, unmodified. FORCE is inert here and kept only so the command
+# reads the same as its siblings: --install-only never consults or writes the
+# weekly success stamp, which is what FORCE bypasses.
 output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --install-only 2>&1)" || fail "update-skills.sh --install-only exited non-zero: $output"
 
 # 1) Absent npx-tracked skills get installed into the store.
