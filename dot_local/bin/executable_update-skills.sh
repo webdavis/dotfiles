@@ -465,7 +465,17 @@ __gen_hash_file() {
 # lock (what skills the repo wants + how) and this updater script (how they are
 # built). A change in either must invalidate the weekly stamp and force a rebuild.
 __gen_custom_lock_hash() { __gen_hash_file "$CUSTOM_SKILL_LOCK"; }
-__gen_updater_hash() { __gen_hash_file "${BASH_SOURCE[0]}"; }
+# The updater hash is THIS PROCESS'S identity, so it is read ONCE, here, from the
+# bytes on disk at start-up, and every later record uses the captured value.
+# Reading the path again at write time recorded whatever was there THEN: a
+# chezmoi apply landing mid-run made an old parent stamp the NEW updater's hash
+# into generation.json and the weekly stamp, and the new updater then matched
+# that stamp and early-exited every remaining slot, so the code recorded as
+# having run never ran. Captured, the mismatch survives and a later slot
+# rebuilds. (The apply also replaces the file by rename, so this process keeps
+# executing the inode it opened; the hash and the bytes stay the same answer.)
+GEN_UPDATER_HASH="$(__gen_hash_file "${BASH_SOURCE[0]}")"
+__gen_updater_hash() { printf '%s' "$GEN_UPDATER_HASH"; }
 
 # The weekly success stamp value: the ISO year-week PLUS the custom-lock hash and
 # the updater hash. A roster change (custom-lock) or an updater change after a
