@@ -363,6 +363,17 @@ read_error="$work_dir/read-error"
 if ! plugin_snapshot >"$current" 2>"$read_error"; then
   printf '%s: %s could not be read as an installed-plugin inventory:\n%s\n' \
     "$AGENT_NAME" "$INSTALLED_PLUGINS_FILE" "$(cat "$read_error")" >&2
+  # A DEPLOY-TIME SEED NEVER PAGES. Every fresh machine reaches this line during
+  # its first apply, before Claude Code has written an inventory at all, and
+  # there is no first transition to lose and nobody at a keyboard to act on it.
+  # The exit status still says the seed did not happen, which is all the loader
+  # needs. The SCHEDULED run stays the loud path: if the file is still
+  # unreadable on Monday, that is a weekly record that cannot report, and it
+  # alerts.
+  if [[ -n $SEED_BASELINE ]]; then
+    printf '%s: no baseline was seeded; the first scheduled run records one instead\n' "$AGENT_NAME" >&2
+    exit 1
+  fi
   alert plugin-state-unreadable \
     "$(printf 'The Claude Code plugin record on %s could not read %s as an installed-plugin inventory, so it reported NOTHING rather than a false quiet week. The snapshot was left alone, so the next successful run reports the whole gap. jq said: %s' \
       "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" \

@@ -469,4 +469,22 @@ grep -qE '11\.0\.0.*->.*11\.5\.0' <<<"$entries" ||
 run_helper --scheduled --seed-baseline
 [[ $RUN_RC -eq 2 ]] || fail "--scheduled together with --seed-baseline did not exit 2 (got $RUN_RC): $RUN_OUTPUT"
 
+# ── 17. THE DEPLOY-TIME SEED DOES NOT PAGE. A machine whose plugin inventory
+#       does not exist yet has no first transition to lose and nobody at a
+#       keyboard to act on an alert, and every fresh machine reaches this line
+#       during its first apply. The scheduled run stays the loud path. ────────
+rm -rf "$HOME/.local/state"
+rm -f "$PLUGIN_STATE"
+run_helper --seed-baseline
+[[ $RUN_RC -ne 0 ]] || fail "a seed with no inventory to read exited 0: $RUN_OUTPUT"
+refute '.' "$(cat "$RELAY_LOG")" \
+  "the deploy-time seed alerted about an inventory Claude Code has not written yet; every fresh machine would page during its first apply"
+[[ ! -f $SNAPSHOT ]] || fail "a seed that read nothing still recorded a baseline"
+
+# The asymmetry is the point: the SCHEDULED run on the same unreadable file does
+# alert, because by then it is a weekly record that cannot report.
+run_helper --scheduled
+[[ -n "$(alert_entries)" ]] ||
+  fail "the scheduled run did not alert on an inventory it could not read: $RUN_OUTPUT"
+
 echo "report-plugin-updates-record: OK"
