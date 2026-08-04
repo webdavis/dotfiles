@@ -9,10 +9,15 @@
 # skills (the lock's clawhubTracked table; their store copies are installed by
 # the `clawhub` CLI, not vendored). Rules:
 #   1. Claude (private_dot_claude/skills) declares exactly one store symlink
-#      per roster skill, the full roster reaches Claude regardless of
-#      provenance, and each declaration's TARGET is the store path for its own
-#      name (same shape rule 7 pins hermes-side; a typo there plants a dangling
-#      ~/.claude/skills link and the skill silently never loads).
+#      per roster skill MINUS the lock's claudeDelivery "none" set, regardless
+#      of provenance, and each declaration's TARGET is the store path for its
+#      own name (same shape rule 7 pins hermes-side; a typo there plants a
+#      dangling ~/.claude/skills link and the skill silently never loads).
+#      claudeDelivery keys must be roster skills and their only legal value is
+#      "none", meaning THIS vertical deliberately does not serve Claude Code
+#      for that store entry. An absent key is the default, a declared symlink.
+#      The field says nothing about who else might serve that capability;
+#      nothing here reads any lock but the skills lock.
 #   2. The lock's tiers table covers exactly the roster; every value is
 #      "core" or "on-demand".
 #   3. The Claude settings modify-template demotes exactly the on-demand set:
@@ -28,11 +33,12 @@
 #      disjoint and their union equals the roster exactly (every roster skill
 #      has exactly one provenance).
 #   6. The lock's hermesRegistry table (skills hermes OWNS from a registry and
-#      the weekly phase updates) is a subset of the roster, each entry is
-#      well-formed (non-empty profiles array, source skills.sh|clawhub|
-#      official, non-empty identifier + lockKey), and it is DISJOINT from the
-#      store-symlinked set: no skill is both hermes-owned and store-symlinked
-#      (a store-fed skill must never be `hermes skills update`d).
+#      the weekly phase updates) holds exactly the pinned hermes-owned set, is
+#      a subset of the roster, each entry is well-formed (non-empty profiles
+#      array, source skills.sh|clawhub|official, non-empty identifier +
+#      lockKey), and it is DISJOINT from the store-symlinked set: no skill is
+#      both hermes-owned and store-symlinked (a store-fed skill must never be
+#      `hermes skills update`d).
 #   7. The hermes symlink declarations equal the non-empty hermesProfiles map
 #      exactly: each store-symlinked skill is declared in exactly its mapped
 #      skills dirs ("default" = dot_hermes/skills, any other profile =
@@ -125,12 +131,41 @@ claude_declarations() {
   done
 }
 
+# The store entries this vertical does not deliver to Claude Code. The value is
+# pinned to the single word "none" so the table cannot grow a second spelling
+# that means the same thing; a key naming a non-roster skill is a stale
+# exemption quietly widening the hole, exactly like a stale forks exemption.
+claude_undelivered="$(jq -r '.claudeDelivery // {} | keys[]' "$LOCK" | sort)"
+bad_delivery="$(jq -r '.claudeDelivery // {} | to_entries[] | select(.value != "none") | "\(.key)=\(.value)"' "$LOCK")"
+[[ -z $bad_delivery ]] ||
+  fail "claudeDelivery values must be \"none\" (absent means the default, a declared store symlink): $bad_delivery"
+stray_delivery="$(comm -23 <(printf '%s\n' "$claude_undelivered") <(printf '%s\n' "$roster_sorted"))"
+[[ -z $stray_delivery ]] ||
+  fail "claudeDelivery names a non-roster skill, so the exemption covers nothing: $stray_delivery"
+
+claude_expected="$(comm -23 <(printf '%s\n' "$roster_sorted") <(printf '%s\n' "$claude_undelivered") | sed '/^$/d')"
+[[ -n $claude_expected ]] || fail "claudeDelivery exempts the WHOLE roster; Claude would be served nothing"
 claude_declared="$(claude_declarations | sort)"
-if [[ $claude_declared != "$roster_sorted" ]]; then
-  printf 'FAIL: private_dot_claude/skills symlink declarations do not match the skills roster:\n' >&2
-  diff <(printf '%s\n' "$roster_sorted") <(printf '%s\n' "$claude_declared") >&2 || true
+if [[ $claude_declared != "$claude_expected" ]]; then
+  printf 'FAIL: private_dot_claude/skills symlink declarations do not match the roster minus the claudeDelivery "none" set:\n' >&2
+  diff <(printf '%s\n' "$claude_expected") <(printf '%s\n' "$claude_declared") >&2 || true
   exit 1
 fi
+
+# The RUNTIME half of the same decision. chezmoi only declares what a fresh
+# machine gets; update-skills.sh's weekly Claude fan-out is what re-links an
+# existing one, and it linked EVERY store entry unconditionally until this
+# field existed, so a hand-removed link came straight back on the next Monday.
+# The BEHAVIOURAL guard is test/integration/update-skills-converge.sh, which
+# runs the fan-out against a fixture lock; this is the cheap tripwire that fires
+# in the commit gate. It matches the READ, not the word: measured 2026-08-03,
+# repointing the jq filter at another table while leaving the comments alone
+# kept a bare `grep -q claudeDelivery` green, so the guard has to name the
+# expression the value actually comes from.
+UPDATER_SCRIPT="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+CLAUDE_DELIVERY_LOCK_READ='.claudeDelivery // {}'
+grep -qF -- "$CLAUDE_DELIVERY_LOCK_READ" "$UPDATER_SCRIPT" ||
+  fail "update-skills.sh no longer reads '$CLAUDE_DELIVERY_LOCK_READ' out of the lock, so its weekly Claude fan-out would re-create every exempted link. If the read was deliberately respelled, update this constant and confirm test/integration/update-skills-converge.sh still passes"
 
 # --- Rule 2: tiers covers exactly the roster -------------------------------
 tier_keys="$(jq -r '.tiers // {} | keys[]' "$LOCK" | sort)"
@@ -194,8 +229,38 @@ if [[ $union_sorted != "$roster_sorted" ]]; then
   exit 1
 fi
 
-# --- Rule 6: hermesRegistry is a well-formed, roster-scoped, disjoint set ---
+# --- Rule 6: hermesRegistry is the pinned, well-formed, disjoint set --------
 registry_keys="$(jq -r '.hermesRegistry // {} | keys[]' "$LOCK" | sort)"
+
+# The hermes-owned set, pinned literally like the collision names and the forks
+# exemptions. Every other check in this rule validates the entries that ARE
+# there, so an emptied or wholesale-deleted table satisfied all of them
+# vacuously, and so did dropping a single row: the weekly
+# `hermes -p <profile> skills update <lockKey>` phase would simply stop
+# refreshing those skills, with nothing red anywhere. Adding or removing a
+# hermes-owned skill is a deliberate edit here, in the same commit as the lock.
+HERMES_REGISTRY_EXPECTED=(
+  conventional-commits
+  faceless-explainer
+  general-video
+  hyperframes
+  hyperframes-keyframes
+  hyperframes-registry
+  motion-graphics
+  tiktok-crawling
+  video-transcript-downloader
+)
+# Checked before the set comparison purely for the message: a missing table and
+# a wrong table are different mistakes, and the diff below cannot say which.
+[[ -n $registry_keys ]] ||
+  fail "the lock has no hermesRegistry entries; the weekly hermes registry-update phase would refresh nothing (restore the table, or drop HERMES_REGISTRY_EXPECTED in the same commit if hermes really owns no skills)"
+expected_registry="$(printf '%s\n' "${HERMES_REGISTRY_EXPECTED[@]}" | sort)"
+if [[ $registry_keys != "$expected_registry" ]]; then
+  printf "FAIL: the lock's hermesRegistry table does not hold exactly the pinned hermes-owned set:\n" >&2
+  diff <(printf '%s\n' "$expected_registry") <(printf '%s\n' "$registry_keys") >&2 || true
+  exit 1
+fi
+
 stray_registry="$(comm -23 <(printf '%s\n' "$registry_keys") <(printf '%s\n' "$roster_sorted"))"
 [[ -z $stray_registry ]] || fail "hermesRegistry names a non-roster skill: $stray_registry"
 bad_registry="$(jq -r '.hermesRegistry // {} | to_entries[]

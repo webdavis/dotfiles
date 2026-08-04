@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.report-plugin-updates</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/bash</string>
+    <string>{{ .chezmoi.homeDir }}/.local/bin/report-plugin-updates.sh</string>
+    <!-- Marks this as the SCHEDULED (not manual) run: only a scheduled run posts
+         an entry, advances the success marker or moves the snapshot. Without it,
+         running this by hand on a Wednesday would post a weekly entry and a dead
+         LaunchAgent would look alive, inverting the one signal that record
+         carries. Mirrors the same marker in
+         com.webdavis.homebrew-weekly-upgrade.plist.tmpl. -->
+    <string>--scheduled</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <!-- Monday 13:00, an hour after com.webdavis.homebrew-weekly-upgrade, so the
+       two weekly records do not land in the channel at the same minute and the
+       reading is taken well into a working day, when a Claude Code session has
+       had the chance to start and perform the auto-update this reports on.
+       launchd coalesces missed intervals into one run on wake, which is why
+       every entry states its own gap rather than the channel being a heartbeat
+       anyone counts (see unattended-log-lib.sh). -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>13</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/plugins/report-updates.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/plugins/report-updates.log</string>
+</dict>
+</plist>

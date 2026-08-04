@@ -219,6 +219,86 @@ rcD=$?
 set -e
 assert_fail_closed "case D (malformed clawhub entry)" "$rcD" "$outD"
 
+# --- Case I: claudeDelivery is an ARRAY (the fail-open shape) ------------------
+# converge_claude_skills subtracts the claudeDelivery "none" set from the store's
+# Claude links, and __update_skills_claude_undelivered fails OPEN: a jq that
+# errored on a wrong-shaped table yields an EMPTY undelivered set, silently
+# RESTORING an exempted skill's ~/.claude link. A deployed array or string must
+# refuse the run, not sail past the gate into that fail-open.
+reset_stamp
+cat >"$LOCK" <<'EOF'
+{
+  "version": 2,
+  "tiers": {"alpha": "core", "gamma": "core"},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
+  "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}},
+  "claudeDelivery": ["alpha"],
+  "forks": {}
+}
+EOF
+set +e
+outI="$(run_full)"
+rcI=$?
+set -e
+assert_fail_closed "case I (claudeDelivery array)" "$rcI" "$outI"
+
+# --- Case J: a claudeDelivery VALUE other than "none" -------------------------
+# Only "none" is meaningful (absent means the default, delivered). A value the
+# undelivered read does not recognise is silently ignored, which is the same
+# fail-open wearing a valid-object mask, so it too refuses.
+reset_stamp
+cat >"$LOCK" <<'EOF'
+{
+  "version": 2,
+  "tiers": {"alpha": "core", "gamma": "core"},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
+  "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}},
+  "claudeDelivery": {"alpha": "store"},
+  "forks": {}
+}
+EOF
+set +e
+outJ="$(run_full)"
+rcJ=$?
+set -e
+assert_fail_closed "case J (claudeDelivery bad value)" "$rcJ" "$outJ"
+
+# --- Case K: a WELL-FORMED claudeDelivery still publishes ----------------------
+# The boundary: a valid "none" table must NOT refuse, or the gate above is just a
+# new way to wedge the weekly update. An ABSENT table is already covered by the
+# healthy setup run; this pins that a present, valid one sails through.
+reset_stamp
+cat >"$LOCK" <<'EOF'
+{
+  "version": 2,
+  "tiers": {"alpha": "core", "gamma": "core"},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
+  "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}},
+  "claudeDelivery": {"gamma": "none"},
+  "forks": {}
+}
+EOF
+id_before_outK="$(gen_id)"
+set +e
+outK="$(run_full)"
+rcK=$?
+set -e
+[[ $rcK -eq 0 ]] ||
+  fail "case K (valid claudeDelivery): refused a well-formed table (rc=$rcK): $outK"
+if grep -qi 'REQUIRED-FAILURE' <<<"$outK"; then
+  fail "case K (valid claudeDelivery): a well-formed table recorded a required failure: $outK"
+fi
+[[ -f $STAMP ]] ||
+  fail "case K (valid claudeDelivery): a well-formed table did not stamp success: $outK"
+[[ "$(gen_id)" != "$id_before_outK" ]] ||
+  fail "case K (valid claudeDelivery): the live generation was never exchanged: $outK"
+
 # --- Cases E and F: a malformed forks table must NOT refuse the weekly run ----
 # The opposite of every case above, and deliberately so. `forks` is the fork
 # drift-watch's input and NOTHING in the mutating path reads it, so a typo

@@ -83,6 +83,16 @@ PLACEHOLDER="CHEZMOI_TEMPLATE_PLACEHOLDER"
 # placeholder cannot stand in for one, so their presence means this test's
 # neutralizer no longer models the file and must be taught to.
 CONTROL_FLOW_ACTIONS='{{-?[[:space:]]*(if|else|end|range|with|block|define|template)\b'
+# Go template actions that EMIT NOTHING: a comment, and a variable assignment.
+# Both render to the empty string, so the neutralizer drops the whole line rather
+# than standing a literal in for it, since a bare placeholder on its own line is
+# not a config line git can parse. dot_gitconfig.tmpl derives the Homebrew prefix
+# this way, one step per line.
+NON_EMITTING_ACTION_LINE='^[[:space:]]*\{\{-?[[:space:]]*(/\*.*\*/|\$[A-Za-z_][A-Za-z0-9_]*[[:space:]]*:=.*)[[:space:]]*-?\}\}[[:space:]]*$'
+# The same two actions sharing a line with config text. Dropping such a line would
+# take the config text with it, so the line-of-its-own shape above is required
+# rather than assumed.
+INLINE_NON_EMITTING_ACTION='\{\{[^}]*(:=|/\*)'
 
 # Bug class 11: git exports GIT_DIR and friends into every hook, and a stale one
 # would redirect the config reads below at the wrong repository. XDG_CONFIG_HOME
@@ -256,14 +266,21 @@ DELIVERED_SYMLINK_TARGET_PATHS="$(list_chezmoi_delivered_target_paths "$CHEZMOI_
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+stripped="$work/gitconfig.tmpl"
 parsed="$work/gitconfig"
 
+# grep rather than sed, because the pattern carries the `/` of a comment
+# delimiter, which sed would read as the end of its address.
+grep -Ev "$NON_EMITTING_ACTION_LINE" "$GITCONFIG_TEMPLATE" >"$stripped"
 # Fail closed: neutralizing a control-flow action into a literal would silently
-# change which sections the parser sees.
-if grep -Eq "$CONTROL_FLOW_ACTIONS" "$GITCONFIG_TEMPLATE"; then
+# change which sections the parser sees, and an assignment or comment left inline
+# would have taken a config line with it had the line been dropped.
+if grep -Eq "$CONTROL_FLOW_ACTIONS" "$stripped"; then
   fail "$GITCONFIG_TEMPLATE now uses Go template control flow; this test's neutralizer only handles value actions and must be updated"
 fi
-sed -E "s/\{\{[^}]*\}\}/$PLACEHOLDER/g" "$GITCONFIG_TEMPLATE" >"$parsed"
+grep -Eq "$INLINE_NON_EMITTING_ACTION" "$stripped" &&
+  fail "$GITCONFIG_TEMPLATE now puts a Go template assignment or comment on a line that also carries config text; this test's neutralizer drops such actions by the line and must be updated"
+sed -E "s/\{\{[^}]*\}\}/$PLACEHOLDER/g" "$stripped" >"$parsed"
 grep -q '{{' "$parsed" && fail "template directives survived neutralization; the parsed config is not trustworthy"
 git config --file "$parsed" --list >/dev/null 2>&1 ||
   fail "the neutralized template is not parseable by git config --file"
