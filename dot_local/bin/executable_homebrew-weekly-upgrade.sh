@@ -81,6 +81,16 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   LOG_ENTRY_HEADER="$(unattended_log_entry_header "$LOG_SUCCESS_MARKER")"
 fi
 
+# The upgrade record's timestamp, read ONCE here and used by both the record this
+# run publishes before it starts and the one it finalizes after (see
+# write_upgrade_record). It dates the moment the run BEGAN, which is what makes
+# the record cover the window it describes: the epoch is what the consumer does
+# arithmetic on and the ISO string is what it renders, and two `date` calls could
+# disagree about which run they belong to.
+UPGRADE_RECORD_EPOCH=""
+UPGRADE_RECORD_ISO=""
+read -r UPGRADE_RECORD_EPOCH UPGRADE_RECORD_ISO < <(date -u '+%s %Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || true
+
 # The relay script by ABSOLUTE path. The LaunchAgent's PATH is
 # /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin, with no
 # ~/.local/bin in it, so a bare `relay.sh` would never be found under launchd and
@@ -165,8 +175,26 @@ __homebrew_package_snapshot() {
   esac
 }
 
-# write_upgrade_record -- persist what this run moved, so something days later
-# can ask whether an upgrade plausibly explains a file that changed.
+# write_upgrade_record <started|completed> -- persist what this run moved, so
+# something days later can ask whether an upgrade plausibly explains a file that
+# changed.
+#
+# PUBLISHED TWICE, ONE RUN. `started` writes the run line alone before the first
+# brew step; `completed` rewrites it with the package rows once the after
+# snapshot is taken. Both carry the SAME timestamp, so the two are one record at
+# two levels of detail rather than two runs. It was written only at the end
+# before, and that left the whole upgrade window uncovered: a watched file
+# rewritten in the first seconds of a run pages while the newest record on disk
+# is still the previous week's, so the correlation answers "no recorded upgrade
+# in the last 3 days" about a file an upgrade is moving right then.
+#
+# THE LIMIT, since this is a lead and its limits are what keep it honest: a page
+# fired mid-run reads a record that dates the run and names NOTHING, because
+# nothing has been compared yet. That renders as the no-match line, which states
+# what the run recorded rather than claiming a mapping; it is the same sentence a
+# genuinely empty week produces. Naming the packages mid-run would mean diffing
+# the Cellar on every page, which is the fork-brew-from-the-alert-path this
+# deliberately does not do.
 #
 # WHO READS IT. The osquery file-integrity page fires when a watched file leaves
 # its known-good manifest, and a vendor update and a tamper used to render the
@@ -193,20 +221,30 @@ __homebrew_package_snapshot() {
 # previous record whole rather than a torn one. Best effort throughout: upgrading
 # matters more than bookkeeping, and every failure is stated rather than silent.
 write_upgrade_record() {
-  local epoch="" iso=""
+  local phase="$1"
+  case "$phase" in
+    started | completed) ;;
+    *)
+      printf 'homebrew-weekly-upgrade: WARNING unknown upgrade-record phase: %s; no record was written\n' "$phase" >&2
+      return 0
+      ;;
+  esac
   [[ -n $brew_snapshot_ok ]] || {
-    printf 'homebrew-weekly-upgrade: the package listing could not be read, so the upgrade record was left at its previous contents; a stale record simply falls out of the correlation window\n' >&2
+    printf 'homebrew-weekly-upgrade: the package listing could not be read, so this run adds no package rows to the upgrade record; the correlation line will name nothing\n' >&2
     return 0
   }
-  read -r epoch iso < <(date -u '+%s %Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || true
-  if [[ ! $epoch =~ ^[0-9]+$ || -z $iso ]]; then
+  if [[ ! $UPGRADE_RECORD_EPOCH =~ ^[0-9]+$ || -z $UPGRADE_RECORD_ISO ]]; then
     printf 'homebrew-weekly-upgrade: WARNING this clock could not be read, so no upgrade record was written for this run\n' >&2
     return 0
   fi
   mkdir -p "$STATE_DIR" 2>/dev/null || true
   if ! {
-    printf '%s\t%s\n' "$epoch" "$iso"
-    unattended_log_change_tuples "$snapshot_dir/brew.before" "$snapshot_dir/brew.after"
+    printf '%s\t%s\n' "$UPGRADE_RECORD_EPOCH" "$UPGRADE_RECORD_ISO"
+    # An `if`, not a `&&` list: the group's status is what the caller tests, and
+    # a false test as the last statement would report a written record as failed.
+    if [[ $phase == completed ]]; then
+      unattended_log_change_tuples "$snapshot_dir/brew.before" "$snapshot_dir/brew.after"
+    fi
   } >"$UPGRADE_RECORD.tmp" 2>/dev/null; then
     printf 'homebrew-weekly-upgrade: WARNING could not write the upgrade record at %s; the file-integrity page will report no recorded upgrade\n' \
       "$UPGRADE_RECORD" >&2
@@ -332,6 +370,9 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
     trap 'rm -rf "$snapshot_dir"' EXIT
     __homebrew_package_snapshot brew >"$snapshot_dir/brew.before" || brew_snapshot_ok=""
     __homebrew_package_snapshot mas >"$snapshot_dir/mas.before" || mas_snapshot_ok=""
+    # Published BEFORE the first brew step, so the record covers the window it
+    # describes rather than appearing only once the window has closed.
+    write_upgrade_record started
   else
     snapshot_dir=""
     brew_snapshot_ok=""
@@ -365,7 +406,7 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   if [[ -n $snapshot_dir ]]; then
     __homebrew_package_snapshot brew >"$snapshot_dir/brew.after" || brew_snapshot_ok=""
     __homebrew_package_snapshot mas >"$snapshot_dir/mas.after" || mas_snapshot_ok=""
-    write_upgrade_record
+    write_upgrade_record completed
   fi
   weekly_record completed "$(printf '%s\n%s\nfailed steps: %d' \
     "$(unattended_log_change_section "$brew_snapshot_ok" \

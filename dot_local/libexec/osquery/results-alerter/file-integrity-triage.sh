@@ -335,7 +335,13 @@ _file_integrity_upgrade_line() {
     return 0
   fi
   if [[ ${#changed_names[@]} -eq 0 ]]; then
-    printf 'no recorded upgrade names this file; the run at %s changed nothing' "$iso"
+    # "recorded no package change", not "changed nothing". The producer publishes
+    # the run line before its first brew step and fills in the rows afterwards,
+    # so this shape is read by two different runs: a week that genuinely moved
+    # nothing, and a run still in flight that has not compared anything yet. The
+    # first wording is true of both; the second would claim a completed run about
+    # one that is still going.
+    printf 'no recorded upgrade names this file; the run at %s recorded no package change' "$iso"
     return 0
   fi
   # Names only, no versions: the whole sentence shares a 240-character cap with

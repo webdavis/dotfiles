@@ -277,6 +277,66 @@ refute '^yq' "$(cat "$record_path")" "the record lists a formula that did not mo
 refute 'Xcode' "$(cat "$record_path")" "the record carries App Store apps, which no file-integrity page can be about"
 unset MAS_AFTER
 
+# ── 4c. THE RECORD COVERS THE UPGRADE IT DESCRIBES. It used to be written only
+#       after every brew step had finished, so a watched file rewritten early in
+#       the upgrade paged while the newest record on disk was still last week's:
+#       the correlation answered "no recorded upgrade in the last 3 days" about a
+#       file that an upgrade was moving at that very moment, which is the exact
+#       false reading the line exists to prevent. The run now publishes its
+#       timestamp before the first brew step and fills in what moved afterwards,
+#       both by atomic rename. The brew stub below copies the record at the
+#       instant `brew upgrade` runs, which is what a page fired then would read.
+rm -rf "$HOME/.local/state"
+MID_RUN_RECORD="$tmp/record-mid-upgrade.tsv"
+cat >"$tmp/brew" <<'MOCK'
+#!/usr/bin/env bash
+if [[ ${1:-} == "list" ]]; then
+  if [[ -e "$UPGRADE_MARKER" ]]; then printf '%s\n' "$BREW_AFTER"; else printf '%s\n' "$BREW_BEFORE"; fi
+  exit 0
+fi
+if [[ ${1:-} == "upgrade" ]]; then
+  # Mid-run: whatever the file-integrity page would read if a watched file
+  # changed right now.
+  [[ -f $RECORD_PATH ]] && cp "$RECORD_PATH" "$MID_RUN_RECORD"
+  : >"$UPGRADE_MARKER"
+fi
+echo "mock brew $*"
+exit 0
+MOCK
+chmod +x "$tmp/brew"
+rm -f "$UPGRADE_MARKER" "$MID_RUN_RECORD"
+RUN_OUTPUT="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" \
+  HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" HOMEBREW_WEEKLY_LOCKFILE="$tmp/lock.midrun" \
+  MAS_VERSIONS="$MAS_VERSIONS" RECORD_PATH="$record_path" MID_RUN_RECORD="$MID_RUN_RECORD" \
+  bash "$HELPER" --scheduled 2>&1)"
+[[ -f $MID_RUN_RECORD ]] ||
+  fail "no upgrade record existed while the upgrade was running, so a page fired then correlates against last week: $RUN_OUTPUT"
+read -r mid_epoch mid_iso <"$MID_RUN_RECORD"
+[[ $mid_epoch =~ ^[0-9]+$ ]] ||
+  fail "the mid-run record does not open with an epoch: $(cat "$MID_RUN_RECORD")"
+[[ $mid_iso =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] ||
+  fail "the mid-run record does not open with an ISO 8601 UTC stamp: $(cat "$MID_RUN_RECORD")"
+# The page reads it through the real consumer, not through a restatement of what
+# the consumer is assumed to do.
+mid_upgrade_line="$(OSQUERY_UPGRADE_RECORD="$MID_RUN_RECORD" bash -c '
+  set -euo pipefail
+  source "$1"
+  file_integrity_triage "$2"
+' _ "$TRIAGE_HELPER" "$HOME/.local/bin/ripgrep" 2>/dev/null | jq -r '.upgrade')"
+refute 'no upgrade record' "$mid_upgrade_line" \
+  "a file changed during the upgrade correlates against no record at all"
+refute 'no recorded upgrade in the last' "$mid_upgrade_line" \
+  "a file changed during the upgrade correlates as having no recent upgrade"
+grep -qF "the run at $mid_iso" <<<"$mid_upgrade_line" ||
+  fail "the mid-run correlation does not date the run that was in flight: $mid_upgrade_line"
+# The finalized record is the SAME run, not a second one: one clock reading dates
+# both, so a page before the run finished and a page after it agree on when.
+read -r final_epoch _ <"$record_path"
+[[ $final_epoch == "$mid_epoch" ]] ||
+  fail "the finalized record dates a different moment than the one the run published ($final_epoch vs $mid_epoch)"
+grep -qF "$(printf 'ripgrep\tadded\t\t14.1.1')" "$record_path" ||
+  fail "the finalized record does not carry what the run moved: $(cat "$record_path")"
+
 # ── 5. FAILURES go to the EXISTING alert route, and the record still goes out
 #      saying how many steps failed. A failing weekly upgrade that tells nobody
 #      is the gap this closes. ─────────────────────────────────────────────────
