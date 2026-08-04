@@ -50,13 +50,20 @@
 # can: chezmoi's three JSON readers (fromJson, fromJsonc, fromYaml) all fail the
 # template on bad input, and Go's text/template has no recover, so there is
 # nothing to fall back FROM (measured 2026-08-02 on chezmoi 2.62.3 and 2.71.1;
-# `try`, `catch` and every lenient-parse name probed are undefined). Repairing
-# that needs something outside this template that runs BEFORE it. So the shapes
-# that abort are not left unmentioned: UNPARSEABLE_LIVE_FILE_CASES applies each
-# one, requires the failure, requires the apply's error to NAME the template so
-# the operator is not left guessing, and requires the live file to come back
+# `try`, `catch` and every lenient-parse name probed are undefined). So the
+# shapes that abort are not left unmentioned: UNPARSEABLE_LIVE_FILE_CASES applies
+# each one, requires the failure, requires the apply's error to NAME the template
+# so the operator is not left guessing, and requires the live file to come back
 # byte-identical so the failure is inert rather than destructive. If someone
 # fixes the limitation, those cases fail and say where to move them.
+#
+# WHAT KEEPS THOSE SHAPES AWAY FROM A REAL APPLY. The repair is a separate
+# script that runs BEFORE this template rather than a change to the template:
+# .chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh moves
+# an unreadable live file into ~/workspaces/backups and leaves `{}` behind.
+# test/unit/claude-settings-quarantine.sh pins that side, reusing these three
+# fixtures byte for byte. The cases here still describe what the template does
+# when a bad file reaches it, which is what the quarantine exists to prevent.
 #
 # WHY THE STABLE FIELDS ARE ASSERTED HERE AT ALL. The version of this file that
 # shipped before 2026-08-02 asserted only enabledPlugins, and measured green at
