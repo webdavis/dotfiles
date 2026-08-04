@@ -39,7 +39,10 @@ merged="$(printf '%s' "$base" | jq \
   ensure("Stop"; $d) | ensure("PermissionRequest"; $b)
 ')" || exit 0
 
-# Validate the merged candidate before writing: it must still be a single object with an object "hooks".
+# Validate the merged candidate before writing: it must still be an object with an object "hooks".
+# SINGLENESS is not re-checked here and does not need to be: this value came out of the jq above,
+# which emitted one document from the one document the -es read at line 24 admitted. The check that
+# a STREAM never gets in is that read, not this one.
 printf '%s' "$merged" | jq -e 'type=="object" and (.hooks|type=="object")' >/dev/null 2>&1 || {
   printf 'relay-codex-hooks: refusing to write a non-object merge result; leaving %s untouched.\n' "$hooks" >&2
   exit 0
