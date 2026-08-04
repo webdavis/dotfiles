@@ -193,13 +193,34 @@ readonly -a DECLARED_PLUGINS=(
   'codex@openai-codex'
   'document-skills@anthropic-agent-skills'
   'frontend-design@claude-plugins-official'
+  'last30days@last30days-skill'
   'playwright@claude-plugins-official'
   'ponytail@ponytail'
   'rust-analyzer-lsp@claude-plugins-official'
   'security-guidance@claude-plugins-official'
+  'skill-creator@claude-plugins-official'
   'superpowers@claude-plugins-official'
   'swift-lsp@claude-plugins-official'
+  'worktrunk@worktrunk'
 )
+
+# A marketplace the OPERATOR added, which this repo does not declare. It must
+# come back out of the apply unchanged. extraKnownMarketplaces is written one
+# key at a time, so a whole-map write here would erase every marketplace added
+# through `claude plugin marketplace add`, which is the same loss the
+# enabledPlugins roster requirement exists for, one level down.
+readonly OPERATOR_ADDED_MARKETPLACE='operator-added-marketplace'
+readonly OPERATOR_ADDED_MARKETPLACE_REPO='operator/added-marketplace'
+
+# A marketplace this repo DOES declare, carrying a live `autoUpdate: false`. It
+# must come back true. This is the axis on which marketplaces differ from
+# plugins: a live `false` for a declared PLUGIN is the operator's disable and is
+# preserved, while a live `false` here means that marketplace and its plugins
+# stop updating, which is the thing the declaration exists to prevent. Its
+# expected post-apply value is in STABLE_FIELD_VALUES like every other stable
+# scalar, and assert_test_constants proves the name below is one of them.
+readonly LIVE_AUTOUPDATE_DISABLED_MARKETPLACE='ponytail'
+readonly LIVE_AUTOUPDATE_DISABLED_MARKETPLACE_REPO='DietrichGebert/ponytail'
 
 # Roles played by individual declared plugins inside the fixtures below. Each
 # one must be a member of DECLARED_PLUGINS, which assert_test_constants proves,
@@ -244,6 +265,12 @@ readonly NULL_VALUED_DECLARED_PLUGIN='frontend-design@claude-plugins-official'
 #                              undeclared.
 #   non-boolean-plugin-values  declared plugins carrying an array, a string, a
 #                              number and a null, none of which is a disable.
+#   operator-added-marketplace extraKnownMarketplaces holding a marketplace this
+#                              repo does not declare, next to a declared one
+#                              whose autoUpdate is live FALSE. The undeclared
+#                              entry must survive and the declared flag must be
+#                              forced back to true: marketplace auto-update is a
+#                              stable field, unlike per-plugin enabled state.
 readonly -a LIVE_FILE_CASES=(
   'no-live-file'
   'empty-live-file'
@@ -256,6 +283,7 @@ readonly -a LIVE_FILE_CASES=(
   'undeclared-plugins-only'
   'declared-plugin-disabled'
   'non-boolean-plugin-values'
+  'operator-added-marketplace'
 )
 
 # The live-file shapes that are non-empty and are NOT JSON. Each one aborts the
@@ -342,6 +370,14 @@ readonly LIVE_VERSION_CONSTRAINT_RENDERED='[1.4.2]'
 # compared ACROSS cases, which is what catches a stable field whose content
 # depends on the shape of the live file. Reporting a placeholder for scalars
 # instead of their value let exactly that mutation live through a whole run.
+#
+# `extraKnownMarketplaces` itself is absent from this table ON PURPOSE, and only
+# the four declared entries' leaves are named. The container's detail is its
+# entry count, and that count legitimately varies with the live file: this repo
+# declares four marketplaces and the operator-added-marketplace case carries a
+# fifth that must survive. Listing the container would make the cross-case
+# invariance check fail for a render doing exactly what it should. The leaves
+# below are invariant, which is what the marketplace declarations actually claim.
 readonly -a STABLE_FIELD_KINDS=(
   'permissions=map'
   'permissions.allow=slice'
@@ -355,6 +391,14 @@ readonly -a STABLE_FIELD_KINDS=(
   'cleanupPeriodDays=int64'
   'autoUpdatesChannel=string'
   'remoteControlAtStartup=bool'
+  'extraKnownMarketplaces.last30days-skill.autoUpdate=bool'
+  'extraKnownMarketplaces.last30days-skill.source.repo=string'
+  'extraKnownMarketplaces.openai-codex.autoUpdate=bool'
+  'extraKnownMarketplaces.openai-codex.source.repo=string'
+  'extraKnownMarketplaces.ponytail.autoUpdate=bool'
+  'extraKnownMarketplaces.ponytail.source.repo=string'
+  'extraKnownMarketplaces.worktrunk.autoUpdate=bool'
+  'extraKnownMarketplaces.worktrunk.source.repo=string'
 )
 
 # Stable fields that must additionally be NON-EMPTY. Emptiness is asserted, and
@@ -383,6 +427,14 @@ readonly -a STABLE_FIELD_VALUES=(
   'cleanupPeriodDays=36525'
   'autoUpdatesChannel=stable'
   'remoteControlAtStartup=true'
+  'extraKnownMarketplaces.last30days-skill.autoUpdate=true'
+  'extraKnownMarketplaces.last30days-skill.source.repo=mvanhorn/last30days-skill'
+  'extraKnownMarketplaces.openai-codex.autoUpdate=true'
+  'extraKnownMarketplaces.openai-codex.source.repo=openai/codex-plugin-cc'
+  'extraKnownMarketplaces.ponytail.autoUpdate=true'
+  'extraKnownMarketplaces.ponytail.source.repo=DietrichGebert/ponytail'
+  'extraKnownMarketplaces.worktrunk.autoUpdate=true'
+  'extraKnownMarketplaces.worktrunk.source.repo=max-sixty/worktrunk'
 )
 
 # statusLine.command holds an absolute path built from .chezmoi.homeDir, which
@@ -465,6 +517,18 @@ readonly FIXTURE_NON_BOOLEAN_PLUGIN_VALUES_TEMPLATE='
       (env "CLAUDE_STRING_VALUED_DECLARED_PLUGIN") "false"
       (env "CLAUDE_NUMBER_VALUED_DECLARED_PLUGIN") 0
       (env "CLAUDE_NULL_VALUED_DECLARED_PLUGIN") (fromJson "null")) -}}
+{{ $fixture | toPrettyJson }}'
+
+# shellcheck disable=SC2016 # a Go template, as above.
+readonly FIXTURE_OPERATOR_ADDED_MARKETPLACE_TEMPLATE='
+{{- $fixture := dict
+    (env "CLAUDE_PASSTHROUGH_SETTING_KEY") true
+    "extraKnownMarketplaces" (dict
+      (env "CLAUDE_OPERATOR_ADDED_MARKETPLACE") (dict
+        "source" (dict "source" "github" "repo" (env "CLAUDE_OPERATOR_ADDED_MARKETPLACE_REPO")))
+      (env "CLAUDE_LIVE_AUTOUPDATE_DISABLED_MARKETPLACE") (dict
+        "source" (dict "source" "github" "repo" (env "CLAUDE_LIVE_AUTOUPDATE_DISABLED_MARKETPLACE_REPO"))
+        "autoUpdate" false)) -}}
 {{ $fixture | toPrettyJson }}'
 
 # The sandbox chezmoi config for one render. `data.chezmoi.os` is what makes the
@@ -693,6 +757,10 @@ render_fixture_template() {
     CLAUDE_NUMBER_VALUED_DECLARED_PLUGIN="$NUMBER_VALUED_DECLARED_PLUGIN" \
     CLAUDE_NULL_VALUED_DECLARED_PLUGIN="$NULL_VALUED_DECLARED_PLUGIN" \
     CLAUDE_LIVE_VERSION_CONSTRAINT_ENTRY="$LIVE_VERSION_CONSTRAINT_ENTRY" \
+    CLAUDE_OPERATOR_ADDED_MARKETPLACE="$OPERATOR_ADDED_MARKETPLACE" \
+    CLAUDE_OPERATOR_ADDED_MARKETPLACE_REPO="$OPERATOR_ADDED_MARKETPLACE_REPO" \
+    CLAUDE_LIVE_AUTOUPDATE_DISABLED_MARKETPLACE="$LIVE_AUTOUPDATE_DISABLED_MARKETPLACE" \
+    CLAUDE_LIVE_AUTOUPDATE_DISABLED_MARKETPLACE_REPO="$LIVE_AUTOUPDATE_DISABLED_MARKETPLACE_REPO" \
     render_template "$1"
 }
 
@@ -751,6 +819,7 @@ case_fixture_template() {
     'undeclared-plugins-only') printf '%s' "$FIXTURE_UNDECLARED_PLUGINS_ONLY_TEMPLATE" ;;
     'declared-plugin-disabled') printf '%s' "$FIXTURE_DECLARED_PLUGIN_DISABLED_TEMPLATE" ;;
     'non-boolean-plugin-values') printf '%s' "$FIXTURE_NON_BOOLEAN_PLUGIN_VALUES_TEMPLATE" ;;
+    'operator-added-marketplace') printf '%s' "$FIXTURE_OPERATOR_ADDED_MARKETPLACE_TEMPLATE" ;;
     *) return 1 ;;
   esac
 }
@@ -764,6 +833,10 @@ case_expected_fixture_plugin_container_kind() {
   case "$1" in
     'null-enabled-plugins') printf 'invalid\n' ;;
     'array-enabled-plugins') printf 'slice\n' ;;
+    # This case's fixture is about extraKnownMarketplaces and carries no
+    # enabledPlugins key at all, which is its own realistic shape: a settings
+    # file that has marketplaces and no per-plugin state yet.
+    'operator-added-marketplace') printf 'invalid\n' ;;
     *) printf 'map\n' ;;
   esac
 }
@@ -985,6 +1058,20 @@ assert_test_constants() {
       fail "$role_plugin is in DECLARED_PLUGINS, so the assertion that it is REMOVED contradicts the assertion that every declared plugin is rendered"
     fi
   done
+  # The marketplace the fixture turns OFF live must be one this repo declares,
+  # or the case measures a marketplace nothing was ever going to force back on
+  # and passes for the wrong reason.
+  local stable_values
+  stable_values="$(sorted_lines "${STABLE_FIELD_VALUES[@]}")"
+  grep -qxF "extraKnownMarketplaces.$LIVE_AUTOUPDATE_DISABLED_MARKETPLACE.autoUpdate=true" <<<"$stable_values" ||
+    fail "STABLE_FIELD_VALUES does not require extraKnownMarketplaces.$LIVE_AUTOUPDATE_DISABLED_MARKETPLACE.autoUpdate to render true, so the fixture that sets it false live proves nothing"
+  grep -qxF "extraKnownMarketplaces.$LIVE_AUTOUPDATE_DISABLED_MARKETPLACE.source.repo=$LIVE_AUTOUPDATE_DISABLED_MARKETPLACE_REPO" <<<"$stable_values" ||
+    fail "the fixture builds $LIVE_AUTOUPDATE_DISABLED_MARKETPLACE with repo $LIVE_AUTOUPDATE_DISABLED_MARKETPLACE_REPO, which is not the repo STABLE_FIELD_VALUES requires; the fixture and the declaration disagree about the same marketplace"
+  # The operator's marketplace must NOT be one this repo declares, or the
+  # survival assertion is satisfied by the declaration itself.
+  if grep -q "^extraKnownMarketplaces\.$OPERATOR_ADDED_MARKETPLACE\." <<<"$stable_values"; then
+    fail "$OPERATOR_ADDED_MARKETPLACE is a DECLARED marketplace, so asserting it survives measures the declaration rather than the passthrough"
+  fi
   ((failures == 0)) || finish
 }
 
@@ -1203,6 +1290,24 @@ assert_stable_fields_survived() {
   done
 }
 
+# assert_operator_marketplace_survived <case> <operating-system> -- the entry
+# this repo does NOT declare must come back out of the apply with its own repo
+# intact. It is read from the applied file's bytes rather than through the
+# report template, because the report is driven by STABLE_FIELD_PATHS and this
+# key is deliberately not one of them: it exists in one case only, so a path
+# entry for it would report `invalid` in the other ten and fail there.
+#
+# Both the NAME and the REPO are required. The name alone would still pass for a
+# render that kept the key and replaced its contents, which is the same loss.
+assert_operator_marketplace_survived() {
+  local requested_case="$1" operating_system="$2" settings_path
+  settings_path="$(case_settings_path "$requested_case" "$operating_system")"
+  grep -qF -- "$OPERATOR_ADDED_MARKETPLACE" "$settings_path" ||
+    fail "[$operating_system/$requested_case] the apply ERASED the operator's own marketplace $OPERATOR_ADDED_MARKETPLACE; extraKnownMarketplaces has to be written one declared key at a time, or every marketplace added with \`claude plugin marketplace add\` is lost on the next apply"
+  grep -qF -- "$OPERATOR_ADDED_MARKETPLACE_REPO" "$settings_path" ||
+    fail "[$operating_system/$requested_case] the operator's marketplace $OPERATOR_ADDED_MARKETPLACE kept its key but lost its source repo $OPERATOR_ADDED_MARKETPLACE_REPO, so the entry no longer resolves to anything"
+}
+
 # The stable block of the first case verified, and the case it came from. Every
 # later case must produce the same block: the SHAPE of the live settings file
 # must not change one byte of what this repo manages outside enabledPlugins.
@@ -1258,6 +1363,9 @@ verify_case() {
   assert_rendered_enabled_plugins "$requested_case" "$operating_system"
   assert_stable_fields_survived "$requested_case" "$operating_system"
   assert_stable_block_is_invariant "$requested_case" "$operating_system"
+  if [[ $requested_case == 'operator-added-marketplace' ]]; then
+    assert_operator_marketplace_survived "$requested_case" "$operating_system"
+  fi
   verified_case_count=$((verified_case_count + 1))
 }
 
