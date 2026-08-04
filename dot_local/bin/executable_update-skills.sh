@@ -2459,6 +2459,57 @@ converge_claude_skills() {
   fi
 }
 
+# Live content the roster no longer declares. WARN ONLY, and that is the ruling,
+# not an oversight: nothing in this vertical removes what the lock stopped
+# naming. Delisting a skill (deleting its rows from the lock) leaves its store
+# directory where it is and leaves its ~/.claude/settings.json skillOverrides
+# entry where it is, and until now nothing said so, so the leftovers were found
+# by reading files by hand. A run that names them is the operator's cue to
+# remove them by hand, which stays the only way they go.
+#
+# The roster is the lock's tiers table, which covers exactly the roster
+# (test/unit/skills-roster-fanout.sh fails the build otherwise), so vendored and
+# app-owned store entries are rostered and stay quiet. Only a name the lock no
+# longer carries is reported.
+#
+# The override half is reported only for a name the STORE also carries, which is
+# the delist shape. A skillOverrides key with no store entry is not evidence of
+# anything: Claude Code takes overrides for skills from sources this vertical
+# does not deliver, and naming those would be a weekly false positive.
+report_unrostered_live_content() {
+  [[ -d $STORE ]] || return 0
+  local -a rostered=()
+  local name entry rostered_name found overrides="" settings="$HOME/.claude/settings.json"
+  while IFS= read -r name; do
+    [[ -n $name ]] && rostered+=("$name")
+  done < <(jq -r '.tiers // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  # No roster to compare against (absent lock, empty or unreadable tiers) is not
+  # evidence that every store entry is a leftover. Say nothing rather than name
+  # the whole store.
+  [[ ${#rostered[@]} -gt 0 ]] || return 0
+  if [[ -f $settings ]]; then
+    overrides="$(jq -r -s 'if length == 1 then (.[0].skillOverrides // {} | keys[]?) else empty end' \
+      "$settings" 2>/dev/null || true)"
+  fi
+  for entry in "$STORE"/*; do
+    [[ -e $entry || -L $entry ]] || continue
+    name="${entry##*/}"
+    found=""
+    for rostered_name in "${rostered[@]}"; do
+      [[ $rostered_name == "$name" ]] && {
+        found=1
+        break
+      }
+    done
+    [[ -n $found ]] && continue
+    if printf '%s\n' "$overrides" | grep -qxF -- "$name"; then
+      log "UNROSTERED: $STORE/$name is not in the roster, and $settings still carries a skillOverrides entry for it. Nothing here removes either; remove both by hand if this is a delist leftover."
+    else
+      log "UNROSTERED: $STORE/$name is not in the roster. Nothing here removes it; remove it by hand if this is a delist leftover."
+    fi
+  done
+}
+
 # Hermes fan-out is profile-driven by the lock's hermesProfiles map. "default" is
 # ~/.hermes/skills (Bob), any other name is ~/.hermes/profiles/<name>/skills
 # (created here when absent, so a mapping can land before its profile exists on
@@ -3500,6 +3551,7 @@ if [[ $DRYRUN == "--dry-run" ]]; then
   __gen_dryrun_drift_report
   converge_claude_skills
   converge_hermes_skills
+  report_unrostered_live_content # names delist leftovers; removes nothing
   refresh_app_owned_cua_pack    # its dry branch logs the would-run line only
   assert_superpowers_routing    # --dry-run probe of the routing script (read-only)
   update_hermes_registry_skills # its dry branch logs would-update lines only
@@ -3609,6 +3661,10 @@ refresh_app_owned_cua_pack
 # exactly the hermes profile skills dirs its hermesProfiles mapping names.
 converge_claude_skills
 converge_hermes_skills
+
+# NAME the live content the roster no longer declares (delist leftovers). This
+# removes nothing; it is the only thing that says the leftovers are there.
+report_unrostered_live_content
 
 # VERIFY the Codex overlays through the store links (asserted in the candidate;
 # a missing one here is a required failure, never an in-place write); vendored
