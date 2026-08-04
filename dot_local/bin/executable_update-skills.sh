@@ -2307,8 +2307,14 @@ converge_dir() {
     done
   fi
   # 2) remove updater-owned links no longer desired (stale drift). Additive
-  #    --install-only never removes; only the full weekly path reconciles.
-  [[ -n $additive ]] && return 0
+  #    --install-only never removes; only the full weekly path reconciles. It
+  #    does NAME what it leaves behind, though, because the apply that
+  #    de-delivers a skill is exactly an --install-only run: the live link
+  #    survives until some later FULL weekly run reaps it, and for that whole
+  #    window the harness sees two sources under one name (this link and
+  #    whatever replaced the skill, e.g. a plugin providing the same capability).
+  #    Nothing here removes it, by operator ruling; the warning IS the mechanism
+  #    and the named path is the operator's to delete by hand.
   for path in "$dir"/*; do
     [[ -e $path || -L $path ]] || continue # skip the un-globbed literal when the dir is empty
     name="${path##*/}"
@@ -2324,7 +2330,9 @@ converge_dir() {
     [[ -n $is_desired ]] && continue
     if __update_skills_is_owned_link "$path" "$prefix"; then
       old_target="$(readlink "$path" 2>/dev/null || true)"
-      if [[ -n $dry ]]; then
+      if [[ -n $additive ]]; then
+        log "converge: WARN $path is no longer delivered and --install-only never removes; REMOVE IT BY HAND or it stays a second source under that name until a full weekly run reaps it (currently $old_target)"
+      elif [[ -n $dry ]]; then
         log "converge: would remove stale $path (currently $old_target)"
       elif rm -f "$path"; then
         log "converge: removed stale $path (was $old_target)"
