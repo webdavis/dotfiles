@@ -309,6 +309,5 @@
 {{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.website-to-video" "user-invocable-only" $merged -}}
 
 {{ $merged | toPrettyJson }}

@@ -425,7 +425,7 @@ check on `main` under branch protection, so the auto-merge cannot land until it 
 
 ### Agent Skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code always
+`~/.agents/skills` is the single canonical skills store (35 roster skills). It serves Claude Code always
 (symlinks declared in chezmoi: `private_dot_claude/skills/symlink_*` for the full roster), Codex always
 (it scans the store natively, no declarations), and hermes for exactly the store-symlink subset of the
 delivery model below (`dot_hermes/skills/` and `dot_hermes/profiles/<name>/skills/` symlinks). The
@@ -436,26 +436,26 @@ the per-harness declarations, or the settings modify-template's `skillOverrides`
 **Store provenance: who installs and refreshes each store copy** (the lock at
 `dot_agents/custom-skill-lock.json` records it):
 
-- **npx-tracked** (the `npxTracked` table, 28 skills): the store copy is installed and refreshed by the
+- **npx-tracked** (the `npxTracked` table, 27 skills): the store copy is installed and refreshed by the
   official npx `skills` CLI from an official GitHub upstream, latest from `main` (no pin).
   `~/.local/bin/update-skills.sh` installs and refreshes them via an explicit
   `npx skills add <repo> --skill <name> --agent claude-code --agent codex -g -y` per repo group, run
   against the weekly candidate generation (never the bulk `npx skills update`, whose lock-walk logs some
   failures at exit 0; the explicit add also reconciles lock-absent roster skills). No `~/.codex` dir;
-  Codex reads the store natively. These skills are NOT vendored in chezmoi. Includes the 13 curated
+  Codex reads the store natively. These skills are NOT vendored in chezmoi. Includes the 12 curated
   HeyGen HyperFrames skills (router `hyperframes`; domains
   `hyperframes-core/-animation/-keyframes/-creative`, `media-use`, `hyperframes-cli`,
-  `hyperframes-registry`; workflows `general-video`, `website-to-video`, `faceless-explainer`,
-  `embedded-captions`, `motion-graphics`; `figma`, `music-to-video`, and four others deliberately
-  excluded). Also includes `home-assistant-best-practices` (the official `homeassistant-ai/skills` repo's
-  one skill): Home Assistant config/YAML AUTHORING guidance, not runtime control; it complements the
-  clawhub-tracked `home-assistant` runtime skill everywhere, and it is the one Home Assistant skill that
-  DOES fan out to hermes (default profile), as authoring guidance atop Bob's native Home Assistant
-  runtime tools. Also includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`,
-  `obsidian-bases`, `obsidian-cli`, `obsidian-markdown`), all on-demand, all `hermesProfiles: []`. Note
-  what on-demand costs `defuddle`: it advertises itself as an automatic substitute for WebFetch whenever
-  a user pastes a URL, so demoted it never fires unless the agent is told to use it. That is deliberate
-  and is one line to revert.
+  `hyperframes-registry`; workflows `general-video`, `faceless-explainer`, `embedded-captions`,
+  `motion-graphics`; `figma`, `music-to-video`, and four others deliberately excluded). Also includes
+  `home-assistant-best-practices` (the official `homeassistant-ai/skills` repo's one skill): Home
+  Assistant config/YAML AUTHORING guidance, not runtime control; it complements the clawhub-tracked
+  `home-assistant` runtime skill everywhere, and it is the one Home Assistant skill that DOES fan out to
+  hermes (default profile), as authoring guidance atop Bob's native Home Assistant runtime tools. Also
+  includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`, `obsidian-bases`,
+  `obsidian-cli`, `obsidian-markdown`), all on-demand, all `hermesProfiles: []`. Note what on-demand
+  costs `defuddle`: it advertises itself as an automatic substitute for WebFetch whenever a user pastes a
+  URL, so demoted it never fires unless the agent is told to use it. That is deliberate and is one line
+  to revert.
 - **ClawHub-tracked** (the `clawhubTracked` table, 3 skills: `home-assistant`, `sql-toolkit`,
   `summarize-pro`): the store copy is installed and refreshed by the `clawhub` CLI from ClawHub. The npx
   lane cannot source ClawHub (`npx skills add` is GitHub-only), so ClawHub-only skills get their own
@@ -481,7 +481,7 @@ the per-harness declarations, or the settings modify-template's `skillOverrides`
   Code, Codex via the store, and hermes itself), and the weekly run refreshes the pack via
   `cua-driver skills update`, the app's own GitHub-Releases updater, never a write through the symlink.
 
-**Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (28). Core
+**Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (27). Core
 skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
 explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"`, one
 `setValueAtPath` per skill in the settings modify-template (per-key, so overrides the user sets for other
