@@ -390,7 +390,14 @@ touch -t 200001010000 "$MF_MANIFEST"
 ) &
 settle_pid=$!
 got=0
-run_verdict "$settle_target" "$settle_hash" UPDATED 4 || got=$?
+# The settle budget here is a CEILING the happy path never spends, not a
+# measurement: the verdict re-checks once a second and returns the moment the
+# writer's tuple lands, so a passing run still costs about a second. It is wide
+# because the pass/fail must not turn on how promptly a contended runner
+# schedules that one-second writer subshell -- with a 4-second ceiling the writer
+# had roughly three seconds of slack, which a loaded macos-latest job can eat.
+# Only a verdict that never settles pays the full ceiling, and that run is red.
+run_verdict "$settle_target" "$settle_hash" UPDATED 30 || got=$?
 wait "$settle_pid"
 [[ $got -eq 1 ]] ||
   fail "a manifest that lands during the settle window must resolve to SILENT (got rc $got)"
@@ -403,7 +410,11 @@ got=0
 run_verdict "$settle_target" "$settle_hash" UPDATED 2 || got=$?
 elapsed=$(($(date +%s) - start))
 [[ $got -eq 0 ]] || fail "a tuple that never arrives must still PAGE (got rc $got)"
-((elapsed <= 6)) || fail "the settle wait is not bounded (${elapsed}s for a 2s window)"
+# The bug this catches is an UNBOUNDED wait, which never returns at all, so the
+# threshold only has to sit far below "forever" -- it never had the resolution to
+# tell a 2-second window from the 5-second default (5 passed at 6 too). Twenty
+# seconds still catches the unbounded wait and no longer turns on runner load.
+((elapsed <= 20)) || fail "the settle wait is not bounded (${elapsed}s for a 2s window)"
 
 # --- an ATTRIBUTE-only apply can settle too ----------------------------------
 # A chmod moves a file's inode CHANGE time, not its modification time. Keying the
@@ -430,7 +441,8 @@ touch -t 200001010000 "$MF_MANIFEST"
 ) &
 chmod_settle_pid=$!
 got=0
-run_verdict "$chmod_settle_target" "$chmod_settle_hash" ATTRIBUTES_MODIFIED 5 || got=$?
+# Same ceiling-not-measurement reasoning as the content-settle case above.
+run_verdict "$chmod_settle_target" "$chmod_settle_hash" ATTRIBUTES_MODIFIED 30 || got=$?
 wait "$chmod_settle_pid"
 [[ $got -eq 1 ]] ||
   fail "an attribute-only change whose manifest lands inside the settle window must resolve to SILENT (got rc $got)"
@@ -467,7 +479,11 @@ HOME="$MF_HOME" OSQUERY_PIPELINE_MANIFEST="$miss_manifest" \
     done
   ' _ "$VERDICT" "$misses" >/dev/null 2>&1
 elapsed=$(($(date +%s) - start))
-((elapsed <= 8)) ||
+# The bug is a PER-FINDING budget, which costs misses x 3 = 30 seconds here. The
+# threshold has to separate one budget from ten, so anything comfortably under 30
+# does the job; 8 left only five seconds of headroom over the expected ~3, which
+# a contended runner spends on ten rounds of shasum plus two stat calls each.
+((elapsed <= 20)) ||
   fail "$misses misses took ${elapsed}s: the settle budget is per finding, not per alerter run (a stall vector)"
 
 # --- THE ALLOWLIST BINDING SURVIVES THE SAME APPLY RACE ----------------------
@@ -546,7 +562,8 @@ touch -t 200001010000 "$MF_MANIFEST"
 ) &
 allowlist_settle_pid=$!
 got=0
-run_allowlist_verdict 4 || got=$?
+# Same ceiling-not-measurement reasoning as the content-settle case above.
+run_allowlist_verdict 30 || got=$?
 wait "$allowlist_settle_pid"
 [[ $got -eq 0 ]] ||
   fail "a legitimate apply must NOT false-page: the allowlist binding has to settle when the manifest lands (got rc $got)"
@@ -561,7 +578,9 @@ run_allowlist_verdict 2 || got=$?
 elapsed=$(($(date +%s) - start))
 [[ $got -eq 1 ]] ||
   fail "an allowlist the manifest never vouches for must not suppress (got rc $got)"
-((elapsed <= 6)) || fail "the allowlist binding wait is not bounded (${elapsed}s for a 2s window)"
+# Twenty for the same reason as the pipeline twin above: the bug is an unbounded
+# wait, and the old threshold had no resolution below that anyway.
+((elapsed <= 20)) || fail "the allowlist binding wait is not bounded (${elapsed}s for a 2s window)"
 
 if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
