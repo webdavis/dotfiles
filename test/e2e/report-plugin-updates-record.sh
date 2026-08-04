@@ -406,4 +406,30 @@ chmod 755 "$STATE_DIR"
 grep -qF "$SNAPSHOT" <<<"$(alert_entries)" ||
   fail "the alert does not name the path that could not be written: $(alert_entries)"
 
+# ── 15. A RUN THAT CANNOT RECORD ITSELF does not exit 0. The success marker is
+#       what the next entry measures its gap from, so a delivered entry followed
+#       by an unwritable marker leaves the channel claiming a gap from a run that
+#       never happened. The library warns and returns 0 by design (a job must not
+#       die over its own bookkeeping), so the helper has to check the marker
+#       itself rather than lean on errexit to notice. ─────────────────────────
+rm -rf "$HOME/.local/state"
+write_plugin_state "10.0.0"
+run_helper --scheduled
+[[ -f $SNAPSHOT ]] || fail "the baseline for the marker case was not recorded: $RUN_OUTPUT"
+rm -rf "$STATE_DIR/log-week-claims" "$MARKER"
+mkdir -p "$MARKER"
+write_plugin_state "10.1.0"
+run_helper --scheduled
+rmdir "$MARKER"
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a run that could not record its own success exited 0, so the next entry reports a gap from a run that did not happen: $RUN_OUTPUT"
+grep -qF "$MARKER" <<<"$RUN_OUTPUT" ||
+  fail "the failure does not name the marker it could not write: $RUN_OUTPUT"
+
+# The repo requires errexit everywhere, and this helper spent its first release
+# without it. Pinned in source because the failures errexit catches are the ones
+# nobody has thought of yet, which is exactly what no behavioural test can reach.
+grep -qF 'set -euo pipefail' "$HELPER" ||
+  fail "the helper does not run under set -euo pipefail"
+
 echo "report-plugin-updates-record: OK"

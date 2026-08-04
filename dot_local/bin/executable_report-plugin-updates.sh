@@ -34,7 +34,15 @@
 #                would look alive, inverting the one signal the record carries.
 #                A manual run still prints the comparison to stdout, which is
 #                what makes it useful for checking the helper by hand.
-set -uo pipefail
+#
+# ERREXIT IS ON, and every failure this helper means to TOLERATE is guarded where
+# it happens rather than by leaving errexit off: the relay call inside alert(),
+# the host lookup that falls back to unknown-host, and the library's own
+# bookkeeping write, which warns and returns 0 by design so a weekly job never
+# dies over its marker file. Everything else that fails stops the run, because
+# the alternative is this record continuing past a broken step and posting an
+# entry assembled from whatever survived.
+set -euo pipefail
 
 # The state Claude Code owns, and the state this helper owns. Both are
 # overridable so the tests can point the whole mechanism at a sandbox.
@@ -101,6 +109,22 @@ readonly RECORD_CAVEAT='Versions are what Claude Code records in installed_plugi
 
 readonly RECORD_LABEL='Claude Code plugins'
 readonly RECORD_SOURCE_DESCRIPTION='reading ~/.claude/plugins/installed_plugins.json'
+
+# mark_success_or_exit -- record this run, and stop if the record did not land.
+#
+# The library's own writer warns and returns 0 whatever happened, on purpose: no
+# weekly job should die over its bookkeeping file. That leaves this helper to
+# check the result, because the marker is what the NEXT entry measures its gap
+# from, and an entry claiming a gap from a run that never happened is a lie in
+# the only field a reader uses to judge whether this channel is alive. Errexit
+# cannot catch this one for us, which is exactly why it is spelled out.
+mark_success_or_exit() {
+  unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+  [[ -f $LOG_SUCCESS_MARKER && -s $LOG_SUCCESS_MARKER ]] && return 0
+  printf '%s: this run finished but could not record itself at %s; the next entry would measure its gap from a run that never happened\n' \
+    "$AGENT_NAME" "$LOG_SUCCESS_MARKER" >&2
+  exit 1
+}
 
 # alert <state> <detail> -- the EXISTING relay route, so this lands in the
 # priority channel beside every other alert on this machine. Best effort: a
@@ -346,15 +370,19 @@ if [[ ! -f $SNAPSHOT_FILE ]]; then
         "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
     exit 1
   fi
-  unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+  mark_success_or_exit
   exit 0
 fi
 
 # The one sentence describing what moved, in the shape the other two weekly jobs
 # use. Both readings succeeded by this point, which is why the ok flag is a
 # literal: the failure path above exits rather than reaching here.
-change_line="$(unattended_log_change_section 1 "$SNAPSHOT_FILE" "$current" \
-  "$RECORD_LABEL" "$RECORD_CAVEAT" versions "$RECORD_SOURCE_DESCRIPTION")"
+if ! change_line="$(unattended_log_change_section 1 "$SNAPSHOT_FILE" "$current" \
+  "$RECORD_LABEL" "$RECORD_CAVEAT" versions "$RECORD_SOURCE_DESCRIPTION")"; then
+  printf '%s: the two readings could not be compared; nothing was posted and the snapshot was left alone\n' \
+    "$AGENT_NAME" >&2
+  exit 1
+fi
 printf '%s\n' "$change_line"
 
 if ! record_entry completed "$change_line"; then
@@ -374,5 +402,5 @@ if ! write_snapshot "$current"; then
       "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
   exit 1
 fi
-unattended_log_mark_success "$LOG_SUCCESS_MARKER"
+mark_success_or_exit
 exit 0
