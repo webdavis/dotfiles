@@ -331,8 +331,8 @@ out="$(PATH="$shim_bin:$PATH" HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest"
   OSQUERY_UPGRADE_RECORD="$record" \
   bash -c '
     set -euo pipefail
-    # Without this the clock read below is answered from bash own variable and
-    # the shim, which is the hook that drives the swap, never runs.
+    # Without this, bash answers the helper clock read from its own
+    # EPOCHSECONDS, and the shim that drives the swap never runs.
     unset EPOCHSECONDS
     source "$1"
     source "$2"

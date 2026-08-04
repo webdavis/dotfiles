@@ -62,8 +62,13 @@
 # render-page.sh, whose jq program is bash SINGLE-QUOTED; an apostrophe in a
 # rendered string ends that quoting and breaks the renderer.
 
-# The upgrade record, written by ~/.local/bin/homebrew-weekly-upgrade.sh at the
-# end of every run whose package listing could be read. Keep this literal in sync
+# The upgrade record, written by ~/.local/bin/homebrew-weekly-upgrade.sh TWICE per
+# run whose package listing could be read: the run line alone before the first
+# brew step, then the whole thing again with the package rows once the run is
+# done. Both carry the same timestamp, so the two are one record at two levels of
+# detail; the pre-upgrade publish is what makes the record cover the window it
+# describes, since a watched file rewritten in the first seconds of a run would
+# otherwise be correlated against the PREVIOUS week. Keep this literal in sync
 # with the producer; test/unit/osquery-file-integrity-triage.sh pins them equal,
 # because a rename in one alone leaves this answering no-record forever, which
 # reads exactly like a quiet month of upgrades.
@@ -76,9 +81,11 @@
 #
 #   <name>	<added|removed|changed>	<before-version>	<after-version>
 #
-# The absent side of an add or a remove is the empty string. A run that changed
-# nothing writes line 1 alone, which is a fact worth having: it dates the last
-# time anything upgraded at all.
+# The absent side of an add or a remove is the empty string. LINE 1 ALONE has two
+# readings, which is why the sentence rendered for it states what the run
+# recorded rather than what it did: a run still in flight has compared nothing
+# yet, and a finished run that moved nothing dates the last time anything
+# upgraded at all.
 OSQUERY_UPGRADE_RECORD="${OSQUERY_UPGRADE_RECORD:-$HOME/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv}"
 
 # How recent a recorded upgrade must be to be offered as an explanation.

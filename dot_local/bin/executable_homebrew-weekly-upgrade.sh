@@ -213,9 +213,11 @@ __homebrew_package_snapshot() {
 # manifest covers and no file-integrity watch reads, so a mas transition could
 # never explain one of these pages and listing it would only pad the line.
 #
-# ONE CLOCK READING for both timestamp fields (the house idiom from
-# unattended_log_entry_header): the epoch is what the reader does arithmetic on
-# and the ISO string is what it renders, and two `date` calls could disagree.
+# ONE CLOCK READING for both timestamp fields AND for both phases (the house
+# idiom from unattended_log_entry_header), taken once near the top of this script
+# into UPGRADE_RECORD_EPOCH / UPGRADE_RECORD_ISO: the epoch is what the reader
+# does arithmetic on and the ISO string is what it renders, and separate `date`
+# calls could disagree, which here would also make one run look like two.
 #
 # Written to a temp file and moved into place, so a reader mid-write sees the
 # previous record whole rather than a torn one. Best effort throughout: upgrading
