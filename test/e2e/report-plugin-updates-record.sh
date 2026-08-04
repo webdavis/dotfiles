@@ -340,4 +340,26 @@ grep -qF 'Claude Code plugins: 3 of 3 tracked entries changed' <<<"$entries" ||
 grep -qF '(removed)' <<<"$entries" ||
   fail "the entry does not mark the plugins as removed: $entries"
 
+# ── 12. A SNAPSHOT PATH THAT IS NOT A REGULAR FILE is refused loudly. A directory
+#       there (a stray mkdir, a restore that recreated the tree wrong) reads as
+#       "no baseline yet" on every run, takes every copy INSIDE itself, and exits
+#       0 having recorded nothing: a machine that looks healthy and permanently
+#       reports nothing at all. ──────────────────────────────────────────────────
+rm -rf "$HOME/.local/state"
+mkdir -p "$SNAPSHOT"
+write_plugin_state "7.0.0"
+run_helper --scheduled
+[[ $RUN_RC -ne 0 ]] ||
+  fail "a snapshot path that is a directory exited 0, so nothing will ever be compared or reported: $RUN_OUTPUT"
+[[ -n "$(alert_entries)" ]] ||
+  fail "a snapshot path that is a directory alerted nobody: $RUN_OUTPUT"
+refute "url=$UNATTENDED_LOG_HERMES_URL" "$(cat "$RELAY_LOG")" \
+  "a run that could not use its snapshot path still posted a record"
+shopt -s nullglob dotglob
+snapshot_dir_contents=("$SNAPSHOT"/*)
+shopt -u nullglob dotglob
+[[ ${#snapshot_dir_contents[@]} -eq 0 ]] ||
+  fail "the run wrote its reading INSIDE the directory sitting at the snapshot path: ${snapshot_dir_contents[*]}"
+rmdir "$SNAPSHOT"
+
 echo "report-plugin-updates-record: OK"

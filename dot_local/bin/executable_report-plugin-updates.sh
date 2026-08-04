@@ -239,6 +239,22 @@ mkdir -p "$STATE_DIR" 2>/dev/null || {
   exit 1
 }
 
+# The snapshot has to be a REGULAR FILE, and anything else is refused here rather
+# than discovered later. A DIRECTORY at that path (a stray mkdir, a restore that
+# recreated the tree wrong, an interrupted move) makes the absent-snapshot test
+# below true on every run: each one takes its copy INSIDE the directory, finds no
+# baseline next time, and exits 0 having recorded nothing. That is the shape of
+# failure this record exists to end, a machine that looks healthy while saying
+# nothing, and it never resolves on its own.
+if [[ -e $SNAPSHOT_FILE && ! -f $SNAPSHOT_FILE ]]; then
+  printf '%s: the snapshot path %s is not a regular file; nothing can be compared or remembered\n' \
+    "$AGENT_NAME" "$SNAPSHOT_FILE" >&2
+  alert plugin-record-broken \
+    "$(printf 'The Claude Code plugin record on %s cannot use its snapshot path %s, which exists but is not a regular file. Every run would read it as a first run, write inside it and report nothing. Remove whatever is at that path.' \
+      "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" "$SNAPSHOT_FILE")"
+  exit 1
+fi
+
 # Without the library there is no entry shape, no week guard and no gap figure,
 # so this helper can do nothing but exit. That has to be ALERTED rather than
 # logged, because the symptom of leaving it at a stderr line is a channel that
