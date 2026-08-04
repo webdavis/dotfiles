@@ -309,14 +309,32 @@ route_findings() {
             # holds the standing rule that a correlation never says safe.
             #
             # GUARDED AT EVERY STEP so a page cannot be lost to a fact that is
-            # merely nice to have: an absent helper, a helper that fails, and
-            # output that is not JSON each leave the finding exactly as the
-            # verdict produced it. Both conditions are `if` tests, which is what
-            # keeps `set -e` from ending the pass on any of them.
+            # merely nice to have: an absent helper, a helper that fails, output
+            # that is not JSON, and output whose SHAPE the renderer cannot print
+            # each leave the finding exactly as the verdict produced it. Both
+            # conditions are `if` tests, which is what keeps `set -e` from ending
+            # the pass on any of them.
+            #
+            # THE SHAPE IS CHECKED HERE, not merely the syntax. render-page.sh
+            # prints all three members as strings, and an object or a number
+            # cannot be rendered as one: jq exits non-zero, the whole render dies,
+            # and the page the verdict had ALREADY confirmed is never written.
+            # The entry checkpoints only after delivery, so every retry then
+            # wedged on the same batch. A half-deployed or hostile helper
+            # answering {"recorded":"abc","ondisk":{},"upgrade":"lead"} is valid
+            # JSON, which is why parseability was never the property that
+            # mattered. The check is jq-side (one pass, no second fork) and the
+            # `and` short-circuits, so a triage value that is not an object at all
+            # is refused before anything indexes it.
             if declare -F file_integrity_triage >/dev/null 2>&1; then
               triage=$(file_integrity_triage "$target" 2>/dev/null) || triage=""
               if [[ -n $triage ]] &&
-                enriched=$(jq -c --argjson t "$triage" '.triage = $t' <<<"$obj" 2>/dev/null); then
+                enriched=$(jq -c --argjson t "$triage" '
+                  if ($t | type) == "object"
+                     and (["recorded", "ondisk", "upgrade"] | all(($t[.] | type) == "string"))
+                  then .triage = $t
+                  else .
+                  end' <<<"$obj" 2>/dev/null); then
                 obj="$enriched"
               fi
             fi
