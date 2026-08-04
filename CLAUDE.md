@@ -44,7 +44,7 @@ All lint and format tooling is orchestrated by [treefmt](https://treefmt.com/) v
 and the flake's `checks.treefmt` derivation makes `nix flake check` fail on any format drift.
 
 ```bash
-just l             # run all eleven formatters (six rewrite, five validate only)
+just l             # run all eleven formatters (four rewrite in place, seven check only)
 just L             # lint-check: check-only drift gate (runs `nix flake check`)
 just s             # shellcheck, plain files and rendered chezmoi templates
 just S             # shfmt (format shell files) only
@@ -56,9 +56,9 @@ just y             # yq (YAML validation) only
 just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
-The eleven are shellcheck, shfmt, mdformat, nixfmt, taplo, actionlint, and the five validators
-(`jq-validate`, `yq-validate`, `shellcheck-rendered-template`, `osquery-config-render`,
-`espanso-match-render`), which never write and fail the run on bad input.
+Four of the eleven rewrite files: shfmt, mdformat, nixfmt and taplo. The other seven only read and fail
+the run on bad input: shellcheck, actionlint, `jq-validate`, `yq-validate`,
+`shellcheck-rendered-template`, `osquery-config-render` and `espanso-match-render`.
 
 `just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
 dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. It runs
@@ -128,8 +128,8 @@ chezmoi edit <file>                         # edit a template (prefer over direc
 skip a `modify_` template (measured 2026-08-02, recorded in `test/unit/claude-enabled-plugins.sh`), and
 two modify-templates call `keepassxc`: `modify_private_dot_claude.json` (target `~/.claude.json`) and
 `Library/Application Support/Claude/modify_private_claude_desktop_config.json`. So `just a` and `just d`
-still reach the vault and need KeePassXC available; without an interactive TTY they fail rather than
-prompt. To stay off the vault entirely, apply specific files by name:
+still reach the vault: run them from an interactive terminal with KeePassXC unlocked. To stay off the
+vault entirely, apply specific files by name:
 
 ```bash
 chezmoi apply ~/.fzf_bindings               # specific non-template, non-modify file
@@ -272,9 +272,9 @@ narrowing.
 ### Template files
 
 Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files (e.g.
-`.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, and 36 scripts in `.chezmoiscripts/`).
-Templates branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`. Reusable fragments live
-in `.chezmoitemplates/` and are pulled in with `includeTemplate`.
+`.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, and most of `.chezmoiscripts/`). Templates
+branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`. Reusable fragments live in
+`.chezmoitemplates/` and are pulled in with `includeTemplate`.
 
 ### Template shellcheck workaround
 
