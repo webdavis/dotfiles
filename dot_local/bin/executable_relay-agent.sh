@@ -14,9 +14,15 @@ branch=""
 [[ -n $cwd && -d $cwd ]] && branch="$(git -C "$cwd" branch --show-current 2>/dev/null || true)"
 detail=""
 if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
-  reply="$(jq -rs -R '[ splits("\n") | select(length > 0) | fromjson? | select(type=="object") ] as $a
+  # Read only the transcript TAIL. The reply extraction needs the last user turn
+  # and what follows, never the whole file, and a long session grows the
+  # transcript past 200MB. Measured 2026-08-05: each slurp of the full file held
+  # ~33MB resident and minutes of CPU, and a stop-hook loop piled up 33
+  # concurrent jq processes. 4MB of tail parses in well under a second (a cut
+  # first line is dropped by fromjson? by design).
+  reply="$(tail -c 4000000 "$transcript" | jq -rs -R '[ split("\n")[] | select(length > 0) | fromjson? | select(type=="object") ] as $a
     | ([ $a | to_entries[] | select(.value.type=="user" and ((.value.message.content|type)=="string" or ((.value.message.content[0]?.type)=="text"))) | .key ] | last // -1) as $s
-    | [ $a[$s+1:][] | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text ] | join("\n\n")' "$transcript" 2>/dev/null || true)"
+    | [ $a[$s+1:][] | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text ] | join("\n\n")' 2>/dev/null || true)"
   reply="$(printf '%s' "$reply" | tr '\n\r\t' '   ' | tr -s ' ' | sed 's/^ *//; s/ *$//')"
   [[ ${#reply} -le 8000 ]] || reply="${reply: -8000}" # cap only long turns; the offset empties short strings
   used_codex=""
