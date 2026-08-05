@@ -137,7 +137,6 @@ packages:
         - sevenzip
         - socat
         - starship
-        - steipete/tap/goplaces
         - steipete/tap/peekaboo
         - steipete/tap/remindctl
         - steipete/tap/sag
