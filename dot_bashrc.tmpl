@@ -254,11 +254,13 @@ if [[ $- == *i* ]]; then
   # Zoxide alias.
   alias cd='z'
 
-  # Modern tool aliases (v2 §16.1).
-  alias ls='eza --icons'
-  alias ll='eza -la --git --icons'
-  alias la='eza -a --icons'
-  alias lt='eza --tree --level=2 --icons --git-ignore'
+  # Modern tool aliases (v2 §16.1). --icons takes an optional WHEN value and
+  # eza's parser eats the NEXT argv word for it, so `ll dir/` fails with
+  # "invalid value 'dir/' for '--icons'" unless the value is attached with =.
+  alias ls='eza --icons=auto'
+  alias ll='eza -la --git --icons=auto'
+  alias la='eza -a --icons=auto'
+  alias lt='eza --tree --level=2 --icons=auto --git-ignore'
   alias cp='cp -i'
   alias mv='mv -i'
   alias bat='bat --color=always'
