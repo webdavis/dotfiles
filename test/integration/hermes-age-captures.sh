@@ -19,13 +19,13 @@ fail() {
   exit 1
 }
 
-# Collect every committed .age capture under dot_hermes. `find` (not a globstar glob) so the test does not
+# Collect every committed .age capture under private_dot_hermes. `find` (not a globstar glob) so the test does not
 # depend on bash 4+ -- macOS /bin/bash is 3.2 and lacks globstar.
 captures=()
 while IFS= read -r -d '' f; do
   captures+=("$f")
-done < <(find dot_hermes -type f -name '*.age' -print0)
-[[ ${#captures[@]} -gt 0 ]] || fail "no dot_hermes/**/*.age captures found -- nothing to validate"
+done < <(find private_dot_hermes -type f -name '*.age' -print0)
+[[ ${#captures[@]} -gt 0 ]] || fail "no private_dot_hermes/**/*.age captures found -- nothing to validate"
 
 # Layer 1: structure only.
 for f in "${captures[@]}"; do
@@ -91,7 +91,7 @@ echo "hermes-age-captures: OK (${#captures[@]} captures decrypt to nonzero plain
 #     together. Keep both: this layer is what the operator's own machine checks
 #     before anything is applied.
 #   - the prompt spends every field relay.sh actually sends.
-root_capture="dot_hermes/encrypted_private_config.yaml.age"
+root_capture="private_dot_hermes/encrypted_private_config.yaml.age"
 [[ -f $root_capture ]] || fail "missing root capture $root_capture"
 plain_dir="$(mktemp -d)"
 trap 'rm -rf "$plain_dir"' EXIT

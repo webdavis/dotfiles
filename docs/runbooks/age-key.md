@@ -22,11 +22,11 @@ recovery both cover all of them. There are five files.
 
 | Source file (in this repo)                                                | Decrypts to                                |
 | ------------------------------------------------------------------------- | ------------------------------------------ |
-| `dot_hermes/encrypted_private_config.yaml.age`                            | `~/.hermes/config.yaml` (root, Bob)        |
-| `dot_hermes/profiles/private_butters/encrypted_private_config.yaml.age`   | `~/.hermes/profiles/butters/config.yaml`   |
-| `dot_hermes/profiles/private_concerned/encrypted_private_config.yaml.age` | `~/.hermes/profiles/concerned/config.yaml` |
-| `dot_hermes/profiles/private_elaine/encrypted_private_config.yaml.age`    | `~/.hermes/profiles/elaine/config.yaml`    |
-| `dot_hermes/profiles/private_nicodemus/encrypted_private_config.yaml.age` | `~/.hermes/profiles/nicodemus/config.yaml` |
+| `private_dot_hermes/encrypted_private_config.yaml.age`                            | `~/.hermes/config.yaml` (root, Bob)        |
+| `private_dot_hermes/profiles/private_butters/encrypted_private_config.yaml.age`   | `~/.hermes/profiles/butters/config.yaml`   |
+| `private_dot_hermes/profiles/private_concerned/encrypted_private_config.yaml.age` | `~/.hermes/profiles/concerned/config.yaml` |
+| `private_dot_hermes/profiles/private_elaine/encrypted_private_config.yaml.age`    | `~/.hermes/profiles/elaine/config.yaml`    |
+| `private_dot_hermes/profiles/private_nicodemus/encrypted_private_config.yaml.age` | `~/.hermes/profiles/nicodemus/config.yaml` |
 
 The Codegraph Model Context Protocol enablement is a section inside the root `~/.hermes/config.yaml`, so
 it rides the root capture above rather than a separate encrypted file. There is no standalone Codegraph

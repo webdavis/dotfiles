@@ -41,8 +41,8 @@
 #      `hermes skills update`d).
 #   7. The hermes symlink declarations equal the non-empty hermesProfiles map
 #      exactly: each store-symlinked skill is declared in exactly its mapped
-#      skills dirs ("default" = dot_hermes/skills, any other profile =
-#      dot_hermes/profiles/<name>/skills, where the source dir may carry a
+#      skills dirs ("default" = private_dot_hermes/private_skills, any other profile =
+#      private_dot_hermes/profiles/<name>/private_skills, where the source dir may carry a
 #      private_ prefix) with the correct relative target for that dir's depth,
 #      no stray declarations.
 #   8. Collision-named skills (humanizer, hyperframes, hermes's catalog wins
@@ -330,25 +330,25 @@ expected_hermes="$(
     | .key as $skill | .value[] | "\(.)\t\($skill)"' "$LOCK" |
     while IFS=$'\t' read -r profile skill; do
       if [[ $profile == "default" ]]; then
-        printf 'dot_hermes/skills/%s\n' "$skill"
+        printf 'private_dot_hermes/skills/%s\n' "$skill"
       else
-        printf 'dot_hermes/profiles/%s/skills/%s\n' "$profile" "$skill"
+        printf 'private_dot_hermes/profiles/%s/skills/%s\n' "$profile" "$skill"
       fi
     done | sort
 )"
 
 hermes_declaration_dirs() {
-  printf '%s\n' "$REPO_ROOT/dot_hermes/skills"
+  printf '%s\n' "$REPO_ROOT/private_dot_hermes/private_skills"
   local profile_dir
-  for profile_dir in "$REPO_ROOT/dot_hermes/profiles"/*/; do
-    printf '%s\n' "${profile_dir%/}/skills"
+  for profile_dir in "$REPO_ROOT/private_dot_hermes/profiles"/*/; do
+    printf '%s\n' "${profile_dir%/}/private_skills"
   done
 }
 
 actual_hermes="$(
   while IFS= read -r dir; do
     [[ -d $dir ]] || continue
-    if [[ $dir == "$REPO_ROOT/dot_hermes/skills" ]]; then
+    if [[ $dir == "$REPO_ROOT/private_dot_hermes/private_skills" ]]; then
       expected_prefix="../../.agents/skills/"
     else
       expected_prefix="../../../../.agents/skills/"
@@ -369,9 +369,13 @@ actual_hermes="$(
       # profile. Failure messages above keep the source spelling, so they still
       # name a file that exists.
       compared_dir="${dir#"$REPO_ROOT"/}"
-      if [[ $compared_dir == dot_hermes/profiles/*/skills ]]; then
-        profile_source="${compared_dir#dot_hermes/profiles/}"
-        compared_dir="dot_hermes/profiles/$(target_name "${profile_source%/skills}")/skills"
+      # The skills dir itself is private_ (hermes chmods its tree to 0700, and a
+      # non-private source made every apply fight it back to 0755); normalize it
+      # the same way as the profile dirs so the rule compares target spellings.
+      compared_dir="${compared_dir%private_skills}skills"
+      if [[ $compared_dir == private_dot_hermes/profiles/*/skills ]]; then
+        profile_source="${compared_dir#private_dot_hermes/profiles/}"
+        compared_dir="private_dot_hermes/profiles/$(target_name "${profile_source%/skills}")/skills"
       fi
       printf '%s/%s\n' "$compared_dir" "$skill"
     done

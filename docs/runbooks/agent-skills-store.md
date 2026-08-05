@@ -3,8 +3,8 @@
 `~/.agents/skills` is the single canonical skills store (35 roster skills). It serves Claude Code for the
 roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
 `private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
-hermes for exactly the store-symlink subset of the delivery model below (`dot_hermes/skills/` and
-`dot_hermes/profiles/<name>/skills/` symlinks).
+hermes for exactly the store-symlink subset of the delivery model below (`private_dot_hermes/private_skills/` and
+`private_dot_hermes/profiles/<name>/private_skills/` symlinks).
 
 The committed roster is the complete wanted set. `test/unit/skills-roster-fanout.sh` fails the build if
 the store, the lock's `tiers` / `claudeDelivery` / `hermesProfiles` / `hermesRegistry` / `npxTracked` /
@@ -151,7 +151,7 @@ The profiles are default (Bob), elaine, butters, concerned and nicodemus.
 ### Store-symlink lane (the lock's `hermesProfiles` table)
 
 The store copy is symlinked into the named profiles' `skills/` dirs (`default` = `~/.hermes/skills`, a
-specialist = `~/.hermes/profiles/<name>/skills`), declared in chezmoi and re-asserted by
+specialist = `~/.hermes/profiles/<name>/private_skills`), declared in chezmoi and re-asserted by
 `update-skills.sh` at run time, which creates a profile `skills/` dir when absent. `[]` means the store
 copy reaches no hermes profile. Fan-out is driven ENTIRELY by this table: non-empty means symlink, `[]`
 means do not.
