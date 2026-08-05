@@ -183,6 +183,7 @@ declare -A EXCLUDED=(
   [".chezmoitemplates/herdr-plugin-build.sh.tmpl"]='includeTemplate fragment: needs a (dict "id" ...) arg, so it never renders standalone; exercised through its includers run_onchange_after_55/57, which ARE covered'
   [".chezmoitemplates/herdr-health-check.sh.tmpl"]='includeTemplate fragment: defines a shell function with no standalone shebang entry point, so it never renders on its own; exercised through its covered includer run_after_58-herdr-migration-verify'
   [".chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl"]='includeTemplate fragment: defines a shell function with no standalone shebang entry point, so it never renders on its own; exercised through its covered includers run_onchange_before_10-system-packages and run_after_58-herdr-migration-verify'
+  [".chezmoitemplates/cli-print-style-lib.sh.tmpl"]='includeTemplate fragment: defines the report_section/report_line shell functions with no standalone shebang entry point, so it never renders on its own; exercised through its covered includers run_after_35-setup-yt-dlp and run_after_59-hermes-config-migrate, and pinned directly by test/unit/cli-print-style-lib-format.sh'
 )
 
 # Host-tool guards: plain test/*.sh scripts run with host tools.

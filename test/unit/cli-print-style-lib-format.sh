@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# report-lib-format.sh: the shared apply-output helper produces the G2 header
+# cli-print-style-lib-format.sh: the shared apply-output helper produces the G2 header
 # the operator chose (bold 256-color-212 tool name, faint "── context"), prints
 # a separating blank line first, honors REPORT_LIB_PLAIN=1, and the two
 # printing run_ scripts actually source it.
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LIB="$REPO_ROOT/dot_local/bin/report-lib.sh"
+LIB="$REPO_ROOT/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -56,9 +56,11 @@ out="$(REPORT_LIB_PLAIN=1 report_section "yt-dlp" "nightly update")"
 # 5. The printing scripts actually source the lib (an unsourced helper is the
 #    mutation that reverts them to unowned output while cases 1-4 stay green).
 for script in run_after_35-setup-yt-dlp.sh.tmpl run_after_59-hermes-config-migrate.sh.tmpl; do
-  grep -Eq '^[[:space:]]*source "\$HOME/.local/bin/report-lib.sh"' \
+  grep -Fq 'includeTemplate "cli-print-style-lib.sh.tmpl"' \
     "$REPO_ROOT/.chezmoiscripts/$script" ||
-    fail "$script does not source report-lib.sh; its output loses the section header"
+    fail "$script does not inline cli-print-style-lib.sh.tmpl; its output loses the section header"
+  grep -Eq '^[[:space:]]*report_section "' "$REPO_ROOT/.chezmoiscripts/$script" ||
+    fail "$script inlines the lib but never calls report_section, so its prints are headerless (an unused include passed the old check)"
 done
 
-printf 'report-lib-format: OK (G2 header pinned byte-for-byte, plain mode clean, both printers wired)\n'
+printf 'cli-print-style-lib-format: OK (G2 header pinned byte-for-byte, plain mode clean, both printers wired)\n'

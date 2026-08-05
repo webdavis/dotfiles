@@ -104,7 +104,7 @@
 {{- end -}}
 
 {{- /* --- stable: scalars and policy --- */ -}}
-{{- $merged = setValueAtPath "cleanupPeriodDays" 36525 $merged -}}
+{{- $merged = setValueAtPath "cleanupPeriodDays" 365 $merged -}}
 {{- $merged = setValueAtPath "autoUpdatesChannel" "stable" $merged -}}
 {{- $merged = setValueAtPath "remoteControlAtStartup" true $merged -}}
 {{- /* xhigh is the maximum effortLevel enum value (low/medium/high/xhigh) */ -}}

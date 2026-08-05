@@ -425,14 +425,14 @@ readonly -a STABLE_CONTAINER_FIELDS=(
 )
 
 # The stable fields whose exact VALUE is the policy, so kind and presence say
-# nothing on their own. `cleanupPeriodDays` at 36525 is what stops Claude Code
-# deleting session history, `defaultMode` is the permission posture, and each of
+# nothing on their own. `cleanupPeriodDays` at 365 keeps a year of session
+# history (operator ruling 2026-08-05, twice affirmed; was 36525), `defaultMode` is the permission posture, and each of
 # the others is a documented setting in CLAUDE.md whose whole content is one
 # scalar. Split on the FIRST `=`, so a value may contain one.
 readonly -a STABLE_FIELD_VALUES=(
   'permissions.defaultMode=bypassPermissions'
   'statusLine.type=command'
-  'cleanupPeriodDays=36525'
+  'cleanupPeriodDays=365'
   'autoUpdatesChannel=stable'
   'remoteControlAtStartup=true'
   'effortLevel=xhigh'
@@ -1264,7 +1264,7 @@ assert_stable_fields_survived() {
 
   # The stable fields that are one scalar each. Kind and presence pass unchanged
   # when the value itself is wrong, and a wrong value here is the whole setting:
-  # cleanupPeriodDays at anything but 36525 puts session cleanup back on.
+  # cleanupPeriodDays at anything but 365 changes the retention policy.
   for field_value in "${STABLE_FIELD_VALUES[@]}"; do
     path="${field_value%%=*}"
     expected_value="${field_value#*=}"

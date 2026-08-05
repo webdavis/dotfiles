@@ -1,5 +1,7 @@
-# report-lib.sh: shared apply-output formatting, SOURCED by run_ scripts (no
-# executable_ or dot_ prefix on purpose, mirroring macos-defaults-lib.sh).
+# cli-print-style-lib.sh.tmpl: shared apply-output formatting, INLINED into run_
+# scripts via includeTemplate (the repo convention for repo-internal script
+# fragments, alongside brew-bundle-cleanup-guard.sh.tmpl). Nothing deploys to
+# $HOME: this library exists only inside the rendered scripts.
 #
 # Contract (operator rulings 2026-08-05): a no-op apply prints NOTHING, so a
 # script sources this and calls report_section only when it actually has

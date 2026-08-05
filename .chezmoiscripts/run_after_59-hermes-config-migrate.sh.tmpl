@@ -22,14 +22,9 @@ command -v hermes >/dev/null 2>&1 || exit 0
 # Blank lines are BUFFERED, not printed on sight: the ones that framed the
 # filtered block (and any run of trailing blanks) would otherwise survive as
 # stray whitespace. A blank prints only when real content follows it.
-# report-lib provides the G2 section header (bold tool name, faint context);
-# inline fallback keeps this script self-sufficient if the lib is absent.
-if [[ -r "$HOME/.local/bin/report-lib.sh" ]]; then
-  # shellcheck source=/dev/null
-  source "$HOME/.local/bin/report-lib.sh"
-else
-  report_section() { printf '\n%s ── %s\n' "$1" "${2:-}"; }
-fi
+# G2 section headers (operator ruling 2026-08-05); the library is inlined at
+# render time, so no runtime sourcing.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 migrate_output="$(hermes config migrate </dev/null 2>&1 | awk '
   /^[[:space:]]*$/ { if (!skipping) blanks++; next }
   /Checking configuration for updates/ { next }
