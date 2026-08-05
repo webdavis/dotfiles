@@ -170,10 +170,30 @@ if [[ $multiplexer_present == false ]]; then
   assert_taps_trusted
   trust_checkpoint '30-after-reassert'
   # Guarded: refuses a bulk cleanup against a partial/empty Brewfile (returns 0
-  # on refuse or clean, non-zero only on a real cleanup failure -- so set -e
-  # still aborts the apply on a genuine failure, as before).
-  brew_bundle_cleanup_guarded "$brewfile"
+  # on refuse or clean, non-zero only on a real cleanup failure).
+  #
+  # `brew bundle cleanup --force` DESTROYS the Homebrew trust store and then
+  # fails on its own trailing `brew cleanup`, which can no longer load casks or
+  # formulae from the taps it just untrusted. Proven on dresden 2026-08-05 by the
+  # checkpoints above: the store read `present bytes=385` at 00, 10, 20 and 30,
+  # and was ABSENT immediately after this call, on an apply that reported
+  # `/opt/homebrew/bin/brew cleanup exited with 1`. Four applies died here.
+  #
+  # So a failure from this call is tolerated ONCE, and only by repairing its
+  # precondition and redoing the step it botched. This is deliberately not a
+  # blanket `|| true`: the retry runs the same command against a restored trust
+  # store, and a second failure is a real one that aborts the apply under set -e.
+  cleanup_rc=0
+  brew_bundle_cleanup_guarded "$brewfile" || cleanup_rc=$?
   trust_checkpoint '40-after-cleanup'
+  if [[ $cleanup_rc -ne 0 ]]; then
+    printf 'brew bundle cleanup exited %d. Restoring the trust store it destroys and retrying the cleanup once; a second failure aborts.\n' \
+      "$cleanup_rc" >&2
+    assert_taps_trusted
+    trust_checkpoint '50-after-trust-restore'
+    "$brew_bin" cleanup
+    trust_checkpoint '60-after-retry-cleanup'
+  fi
 fi
 
 # The ecosystem tools (uv, node/npm, volta) were just installed by the bundle at
