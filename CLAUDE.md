@@ -227,10 +227,11 @@ gotchas that must not be "cleaned up" are in `docs/runbooks/macos-defaults.md`.
 
 `private_dot_claude/modify_settings.json` is a chezmoi modify-template that enforces a fixed set of
 stable fields in `~/.claude/settings.json` (permissions, hooks, `skillOverrides`, `statusLine`,
-`cleanupPeriodDays`, `autoUpdatesChannel`, `remoteControlAtStartup`, `extraKnownMarketplaces`) while
-letting `/config` toggles drift freely. `enabledPlugins` is a third case: the roster is declared, the
-per-plugin disable state is read back out of the live file. The full field model, the plugin-state trade
-and the corrupt-file recovery path are in `docs/runbooks/claude-code-settings.md`.
+`cleanupPeriodDays`, `autoUpdatesChannel`, `remoteControlAtStartup`, `effortLevel`,
+`extraKnownMarketplaces`) while letting `/config` toggles drift freely. `enabledPlugins` is a third case:
+the roster is declared, the per-plugin disable state is read back out of the live file. The full field
+model, the plugin-state trade and the corrupt-file recovery path are in
+`docs/runbooks/claude-code-settings.md`.
 
 ### Agent skills (cross-harness store)
 
