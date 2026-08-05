@@ -1,0 +1,7 @@
+; npm 11.x blocks package install scripts unless allowlisted, and warns on every
+; global install otherwise. These are the declared globals (and their native-addon
+; dependencies) whose postinstall steps are genuinely needed: native builds
+; (better-sqlite3, tree-sitter*, onnxruntime-node, esbuild) and tool unpacking
+; (happy). Allowlisting named packages keeps the block-by-default posture;
+; operator-approved 2026-08-05.
+allow-scripts=@doist/todoist-cli,@google/genai,@mistweaverco/tree-sitter-graphql,@mistweaverco/tree-sitter-kulala,agentmail-cli,better-sqlite3,esbuild,happy,node-llama-cpp,onnxruntime-node,protobufjs,tree-sitter,tree-sitter-go,tree-sitter-javascript,tree-sitter-python,tree-sitter-rust,tree-sitter-typescript
