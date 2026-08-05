@@ -244,7 +244,31 @@ while IFS= read -r skill; do
     continue
   fi
   if [[ -L "$STORE/$skill" ]]; then
-    blocker "on-demand skill '$skill' has no Codex overlay and its store entry is a symlink; nothing is written through a store link"
+    # WHERE the link points decides whether this is a defect or the documented
+    # design. A link OUT of ~/.agents points at content another application
+    # owns, and docs/runbooks/agent-skills-store.md is explicit that such an
+    # entry never gets an overlay, because writing through the link would
+    # modify content this repository does not own. cua-driver is that case and
+    # it is permanent: reporting it as a divergence "to resolve before the
+    # cutover proceeds" asked for a resolution that must never happen, and
+    # since the tool exits non-zero on any blocker, gate 3 could never pass.
+    #
+    # A link that stays INSIDE ~/.agents is the generation exchange's own, and
+    # the updater owns it. That one keeps its blocker: another lane really is
+    # responsible, and staying silent would hide a real handoff gap.
+    link_target="$(cd "$(dirname "$STORE/$skill")" && readlink "$STORE/$skill")"
+    case "$link_target" in
+      /*) resolved="$link_target" ;;
+      *) resolved="$STORE/$link_target" ;;
+    esac
+    case "$resolved" in
+      "$HOME"/.agents/*)
+        blocker "on-demand skill '$skill' has no Codex overlay and its store entry links inside the agents store; the skills updater owns that content"
+        ;;
+      *)
+        say "  exempt: on-demand skill $skill is app-owned content at $resolved, so no Codex overlay is written through the link (documented in docs/runbooks/agent-skills-store.md)"
+        ;;
+    esac
     continue
   fi
   plan "assert the Codex overlay for on-demand skill $skill ($overlay)"
