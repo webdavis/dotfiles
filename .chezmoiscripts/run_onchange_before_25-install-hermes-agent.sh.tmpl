@@ -1,0 +1,15 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Install hermes-agent at the pinned ref. run_onchange re-fires only when the ref below changes
+# (a deliberate pin bump). Runs after run_onchange_before_10 has installed uv/node/git via brew.
+# Idempotent: skips when the live checkout is already at the pinned ref, so first-adding this script
+# on an existing machine never needlessly reinstalls a working hermes.
+set -euo pipefail
+# Pinned hermes-agent ref: {{ .hermes.ref }}
+if command -v hermes >/dev/null 2>&1 &&
+  [[ "$(git -C "$HOME/.hermes/hermes-agent" rev-parse HEAD 2>/dev/null || true)" == "{{ .hermes.ref }}" ]]; then
+  exit 0
+fi
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh |
+  bash -s -- --branch {{ .hermes.branch }} --commit {{ .hermes.ref }} --skip-setup
+{{ end -}}

@@ -1,0 +1,17 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Reconcile the just-applied config.yaml to the installed hermes version's schema. Keeps auto-updates
+# compatible with the tracked (possibly older-schema) source: chezmoi decrypts and writes the source,
+# this migrates it forward. No-op once the tracked source is captured at the current schema. EOF-safe:
+# migrate's prompts default to skip on EOF (verified in hermes source); API keys come from .env, not the
+# prompts.
+#
+# NUMBERING. The only ordering this needs is "after chezmoi wrote the config, before run_after_68 reads
+# it", and every run_after_ script satisfies the first half by definition. It sat at 67 in the tree it
+# came from; here 67 is the rotate-logs LaunchAgent loader, so it takes the free 59 slot instead and 67
+# keeps meaning one thing. test/integration/hermes-route-status.sh pins that, by refusing any mention of
+# run_after_67 in the route check next door.
+set -euo pipefail
+command -v hermes >/dev/null 2>&1 || exit 0
+hermes config migrate </dev/null || true
+{{ end -}}

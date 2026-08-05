@@ -19,7 +19,8 @@
     STABLE       overwritten from here on every apply, whatever the live file
                  says: permissions, hooks, statusLine, skillOverrides,
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
-                 and the four extraKnownMarketplaces entries this repo declares.
+                 effortLevel, and the four extraKnownMarketplaces entries this
+                 repo declares.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.
     enabledPlugins  the ROSTER is fixed here and the per-plugin STATE is not.
@@ -106,6 +107,8 @@
 {{- $merged = setValueAtPath "cleanupPeriodDays" 36525 $merged -}}
 {{- $merged = setValueAtPath "autoUpdatesChannel" "stable" $merged -}}
 {{- $merged = setValueAtPath "remoteControlAtStartup" true $merged -}}
+{{- /* xhigh is the maximum effortLevel enum value (low/medium/high/xhigh) */ -}}
+{{- $merged = setValueAtPath "effortLevel" "xhigh" $merged -}}
 
 {{- $permissions := dict
     "allow" (list

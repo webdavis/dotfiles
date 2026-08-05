@@ -32,7 +32,9 @@ Overwritten from the template on every apply, whatever the live file holds.
   `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.
 - `statusLine`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup), `autoUpdatesChannel`
   (= `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`,
-  starts the Remote Control bridge every session).
+  starts the Remote Control bridge every session), `effortLevel` (= `xhigh`, the top of the
+  `low`/`medium`/`high`/`xhigh` enum; stable rather than free-drift so a `/config` write cannot quietly
+  leave a session on a lower reasoning budget).
 - Four `extraKnownMarketplaces` entries, each with `autoUpdate` = `true`: `ponytail`, `openai-codex`,
   `worktrunk`, `last30days-skill`. Claude Code refreshes a marketplace and its installed plugins at
   startup on its own, but only defaults that on for marketplaces Anthropic publishes (read out of the

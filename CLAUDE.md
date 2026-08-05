@@ -135,10 +135,10 @@ vault entirely, apply specific files by name:
 chezmoi apply ~/.fzf_bindings               # specific non-template, non-modify file
 ```
 
-Ten targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Eleven targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
 `~/.config/himalaya/config.toml`, `~/.config/relay/auth.json`, `~/.config/gogcli/credentials.json`,
-`~/Library/Application Support/Claude/claude_desktop_config.json`, and
+`~/.hermes/.env`, `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 
@@ -227,10 +227,11 @@ gotchas that must not be "cleaned up" are in `docs/runbooks/macos-defaults.md`.
 
 `private_dot_claude/modify_settings.json` is a chezmoi modify-template that enforces a fixed set of
 stable fields in `~/.claude/settings.json` (permissions, hooks, `skillOverrides`, `statusLine`,
-`cleanupPeriodDays`, `autoUpdatesChannel`, `remoteControlAtStartup`, `extraKnownMarketplaces`) while
-letting `/config` toggles drift freely. `enabledPlugins` is a third case: the roster is declared, the
-per-plugin disable state is read back out of the live file. The full field model, the plugin-state trade
-and the corrupt-file recovery path are in `docs/runbooks/claude-code-settings.md`.
+`cleanupPeriodDays`, `autoUpdatesChannel`, `remoteControlAtStartup`, `effortLevel`,
+`extraKnownMarketplaces`) while letting `/config` toggles drift freely. `enabledPlugins` is a third case:
+the roster is declared, the per-plugin disable state is read back out of the live file. The full field
+model, the plugin-state trade and the corrupt-file recovery path are in
+`docs/runbooks/claude-code-settings.md`.
 
 ### Agent skills (cross-harness store)
 
@@ -419,6 +420,10 @@ Git worktrees are managed by [worktrunk](https://worktrunk.dev/). Config in
 every worktree against upstream, skipping ones with no upstream or a rebase already in progress, and
 aborting and warning rather than leaving a worktree half-rebased.
 
+`worktree-path` puts worktrees at `~/.herdr/worktrees/<repo>/<branch>`, which is herdr's own layout:
+herdr hardcodes `<directory>/<repo>/<branch-slug>` and worktrunk's path is templatable, so worktrunk
+bends to match and both tools create worktrees in one place rather than two.
+
 ### Bashrc init ordering
 
 The canonical order inside the interactive block is direnv, starship, zoxide, atuin. Direnv's hook runs
@@ -436,10 +441,16 @@ and direnv and before starship.
 ### Long-running command notifier
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
-framework). Commands at 30s or longer fire an `alerter` macOS notification; at 5 minutes or longer they
-additionally pulse Hue lights via `~/.local/bin/hue-pulse.sh`, which is handed the exit code and pulses
-green on success, red otherwise. Interactive TUIs are skipped by a prefix match on the command line:
-`vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`.
+framework). The shell is a relay producer like the Claude and Codex hooks and the weekly jobs, so both
+tiers call `~/.local/bin/relay.sh` rather than raising their own banner: the state is `done` or `failed`
+off the exit code, the detail is the command name and how long it ran, and the pane is `HERDR_PANE_ID`,
+which is what makes relay's banner focus that pane on click. Commands at 30s or longer go out
+`--local-only` (banner only); at 5 minutes or longer they fan out to the phone and Discord as well and
+pulse Hue lights via `~/.local/bin/hue-pulse.sh`, which is handed the exit code and pulses green on
+success, red otherwise. Interactive TUIs are skipped by a prefix match on the command line: `vim`,
+`nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The agent CLIs
+are on that list because they fire their own relay hooks. `test/integration/bashrc-long-command-relay.sh`
+pins the contract.
 
 ## Code Style
 

@@ -1,0 +1,3 @@
+hermes:
+  ref: a4091e49f10ddceaac1a902848aabfb1b9aae210 # v0.17.0 / 2026.6.19 main tip; bump deliberately, then re-capture the config
+  branch: main
