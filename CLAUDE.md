@@ -135,10 +135,10 @@ vault entirely, apply specific files by name:
 chezmoi apply ~/.fzf_bindings               # specific non-template, non-modify file
 ```
 
-Ten targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Eleven targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
 `~/.config/himalaya/config.toml`, `~/.config/relay/auth.json`, `~/.config/gogcli/credentials.json`,
-`~/Library/Application Support/Claude/claude_desktop_config.json`, and
+`~/.hermes/.env`, `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 

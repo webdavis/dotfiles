@@ -290,6 +290,7 @@ declare -A SECRET_SOURCE_TARGET_PINS=(
   ["dot_config/relay/private_auth.json.tmpl"]=".config/relay/auth.json"
   ["dot_gitconfig.tmpl"]=".gitconfig"
   ["dot_hermes/encrypted_private_config.yaml.age"]=".hermes/config.yaml.age"
+  ["dot_hermes/private_dot_env.tmpl"]=".hermes/.env"
   ["dot_hermes/profiles/private_butters/encrypted_private_config.yaml.age"]=".hermes/profiles/butters/config.yaml.age"
   ["dot_hermes/profiles/private_concerned/encrypted_private_config.yaml.age"]=".hermes/profiles/concerned/config.yaml.age"
   ["dot_hermes/profiles/private_elaine/encrypted_private_config.yaml.age"]=".hermes/profiles/elaine/config.yaml.age"
