@@ -105,7 +105,19 @@ install_plugin() {
 
 update_ytdlp() {
   [[ -x "${YTDLP_BIN}" ]] || return 0
-  "${YTDLP_BIN}" -U 2>/dev/null || echo "Warning: yt-dlp update check failed."
+  # Quiet when nothing changed: `yt-dlp -U` narrates "Latest version... is up
+  # to date" on every run, which made every apply chatty. An actual update or a
+  # failure still prints in full (operator ruling 2026-08-05: a no-op apply
+  # prints nothing).
+  local update_output
+  if update_output="$("${YTDLP_BIN}" -U 2>&1)"; then
+    [[ $update_output == *"is up to date"* ]] || printf '%s
+' "${update_output}"
+  else
+    printf '%s
+' "${update_output}"
+    echo "Warning: yt-dlp update check failed."
+  fi
 }
 
 update_pot_server() {
@@ -173,8 +185,6 @@ main() {
   fi
 
   ensure_pot_launchagent
-
-  echo "yt-dlp setup complete."
 }
 
 main

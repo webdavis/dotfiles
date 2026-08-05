@@ -24,8 +24,11 @@ command -v hermes >/dev/null 2>&1 || exit 0
 # stray whitespace. A blank prints only when real content follows it.
 hermes config migrate </dev/null 2>&1 | awk '
   /^[[:space:]]*$/ { if (!skipping) blanks++; next }
+  /Checking configuration for updates/ { next }
   /optional API key\(s\) not configured/ { skipping = 1; blanks = 0; next }
   skipping && /^[[:space:]]*•/ { next }
-  { skipping = 0; while (blanks > 0) { print ""; blanks-- }; print }
+  # Anything that still prints names its owner (operator ruling 2026-08-05:
+  # a bare "checking for updates" line attributes to nothing).
+  { skipping = 0; while (blanks > 0) { print ""; blanks-- }; print "hermes config migrate: " $0 }
 ' || true
 {{ end -}}
