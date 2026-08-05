@@ -8,8 +8,8 @@
 # so 401 is deliberately not reported here as a restart-me condition.)
 #
 # It runs in the AFTER phase, which is what makes the check meaningful: by then chezmoi has decrypted and
-# written ~/.hermes/config.yaml, so the file this reads is the one the next gateway start will load. No
-# other script applies or migrates that config; chezmoi writes it directly from the encrypted source.
+# written ~/.hermes/config.yaml and run_after_59-hermes-config-migrate has migrated it forward to the
+# installed hermes version's schema, so the file this reads is the one the next gateway start will load.
 #
 # TWO routes are checked, because they fail differently and only one of them is noticeable:
 #   relay                 alerts. An alert that never arrives is usually noticed anyway, because whatever
