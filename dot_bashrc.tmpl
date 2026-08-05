@@ -450,15 +450,26 @@ if [[ $- == *i* ]]; then
     [[ -z $__cmd_notify_start ]] && return
     local elapsed=$((SECONDS - __cmd_notify_start))
     __cmd_notify_start=""
-    # Skip known interactive TUIs.
+    # Skip known interactive TUIs (agent CLIs included: they fire their own relay hooks).
     [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|hermes|codex|fzf) ]] && return
+    local cmd="${__cmd_notify_name%% *}" state="done" dur="${elapsed}s"
+    ((exit_code == 0)) || {
+      state="failed"
+      dur="${elapsed}s, exit $exit_code"
+    }
     # Wrap each background call in a subshell so jobs aren't attached to this
-    # interactive shell (otherwise `fg`/`jobs` would grab them).
+    # interactive shell (otherwise `fg`/`jobs` would grab them). The shell is a
+    # relay producer like the Claude and Codex hooks and the weekly jobs, rather
+    # than a second notifier beside it: relay decides presence (at the desk,
+    # banner only; away, add the phone push), writes the Discord paper trail, and
+    # makes the banner clickable, which is what carries the pane. --local-only
+    # keeps the first tier to the banner; the second tier fans out and pulses the
+    # lights. test/integration/bashrc-long-command-relay.sh pins that contract.
     if ((elapsed >= 300)); then
-      (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
       ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
+      ("$HOME/.local/bin/relay.sh" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     elif ((elapsed >= 30)); then
-      (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+      ("$HOME/.local/bin/relay.sh" --local-only --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     fi
   }
 
