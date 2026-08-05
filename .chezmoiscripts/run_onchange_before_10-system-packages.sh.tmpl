@@ -26,6 +26,28 @@ if "$brew_bin" tap | grep -q '^domt4/autoupdate$'; then
   "$brew_bin" autoupdate delete 2>/dev/null || true
 fi
 
+# DIAGNOSTIC INSTRUMENTATION for task #118: the Homebrew trust store empties
+# during an apply, and no command reproduces it in isolation (brew cleanup, a
+# non-forced brew bundle cleanup, brew update, an untap, and sixteen rapid
+# trust writes were each ruled out by direct experiment on 2026-08-05). Rather
+# than keep guessing at candidates, every stage boundary below records the
+# store's state, so the NEXT failing apply names the stage that loses it.
+#
+# Deliberately jq-free (this is a before_ script that can run before jq exists)
+# and append-only. Remove this block, and its five call sites, when #118 closes.
+TRUST_TRACE="${TRUST_TRACE:-$HOME/.local/state/homebrew-trust-trace.log}"
+trust_checkpoint() {
+  local store="${XDG_CONFIG_HOME:-$HOME/.config}/homebrew/trust.json" state
+  if [[ -f $store ]]; then
+    state="present bytes=$(wc -c <"$store" 2>/dev/null | tr -d ' ')"
+  else
+    state="ABSENT"
+  fi
+  mkdir -p "$(dirname "$TRUST_TRACE")" 2>/dev/null || true
+  printf '%s\t%-26s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$state" >>"$TRUST_TRACE" 2>/dev/null || true
+}
+trust_checkpoint '00-script-start'
+
 # The declared taps Homebrew must be willing to load formulae, casks and
 # commands from. Held in an array so the trust pass can both apply and VERIFY.
 trusted_taps=(
@@ -73,6 +95,7 @@ assert_taps_trusted() {
   return 1
 }
 assert_taps_trusted
+trust_checkpoint '10-after-trust-pass'
 
 # --- live-migration ordering safety (herdr replaces tmux/sesh) ---
 # `brew bundle --cleanup` uninstalls any formula/cask absent from the desired
@@ -133,6 +156,7 @@ mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
 "$brew_bin" bundle --file="$brewfile"
+trust_checkpoint '20-after-brew-bundle'
 {{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
 if [[ $multiplexer_present == false ]]; then
   # Re-assert trust HERE rather than relying on the pass at the top of this
@@ -144,10 +168,12 @@ if [[ $multiplexer_present == false ]]; then
   # cleanup can be assumed to see. Cheap to repeat: every call is a no-op once
   # the store holds the tap.
   assert_taps_trusted
+  trust_checkpoint '30-after-reassert'
   # Guarded: refuses a bulk cleanup against a partial/empty Brewfile (returns 0
   # on refuse or clean, non-zero only on a real cleanup failure -- so set -e
   # still aborts the apply on a genuine failure, as before).
   brew_bundle_cleanup_guarded "$brewfile"
+  trust_checkpoint '40-after-cleanup'
 fi
 
 # The ecosystem tools (uv, node/npm, volta) were just installed by the bundle at
