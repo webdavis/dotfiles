@@ -1,0 +1,44 @@
+# report-lib.sh: shared apply-output formatting, SOURCED by run_ scripts (no
+# executable_ or dot_ prefix on purpose, mirroring macos-defaults-lib.sh).
+#
+# Contract (operator rulings 2026-08-05): a no-op apply prints NOTHING, so a
+# script sources this and calls report_section only when it actually has
+# something to say. Anything printed names its owner, and decoupled sections
+# are visually distinct. The chosen look is the "G2" style picked from the gum
+# samples: a bold colored tool name, an optional faint context, no boxes.
+#
+# Deliberately dependency-free: G2 is three ANSI SGR sequences (bold, 256-color
+# 212, faint), so gum was evaluated and NOT adopted (it earns its keep for
+# boxes and interactive widgets, neither used here). Color is emitted by
+# default even though run_ scripts write through chezmoi's pipe rather than a
+# TTY, because the operator reads applies interactively; REPORT_LIB_PLAIN=1
+# forces plain text for anything piping a report into a log.
+#
+# shellcheck shell=bash
+
+# report_section <tool> [context]
+#   Prints a blank separator line, then the header:  <tool> ── <context>
+report_section() {
+  local tool="$1" context="${2:-}"
+  printf '\n'
+  if [[ ${REPORT_LIB_PLAIN:-} == 1 ]]; then
+    if [[ -n $context ]]; then
+      printf '%s ── %s\n' "$tool" "$context"
+    else
+      printf '%s\n' "$tool"
+    fi
+    return 0
+  fi
+  # bold + 256-color 212 for the name; faint for the context rule
+  if [[ -n $context ]]; then
+    printf '\033[1;38;5;212m%s\033[0m\033[2m ── %s\033[0m\n' "$tool" "$context"
+  else
+    printf '\033[1;38;5;212m%s\033[0m\n' "$tool"
+  fi
+}
+
+# report_line <text...>
+#   Body text under the current section, printed as-is.
+report_line() {
+  printf '%s\n' "$*"
+}

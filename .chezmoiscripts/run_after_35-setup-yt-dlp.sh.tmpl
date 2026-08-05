@@ -3,6 +3,15 @@
 
 set -uo pipefail
 
+# G2 section headers for anything this script prints (operator ruling
+# 2026-08-05: printed output names its owner and sections separate visually).
+if [[ -r "$HOME/.local/bin/report-lib.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "$HOME/.local/bin/report-lib.sh"
+else
+  report_section() { printf '\n%s ── %s\n' "$1" "${2:-}"; }
+fi
+
 # =============================================================================
 # Configuration
 # =============================================================================
