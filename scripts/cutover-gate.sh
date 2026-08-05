@@ -43,9 +43,10 @@ INT_BRANCH="integration/modernization"
 GH_TARGET="github.com/webdavis/dotfiles"
 REFERENCE_PRS=(25 31 32)
 
-# Gate 4's soak window. Gate 5 "runs days after Gate 1", so three days is the
-# default; --window-hours overrides it.
-SOAK_HOURS_DEFAULT=72
+# Gate 4's soak window. Operator ruling 2026-08-05: no soak wait; gate 4's value
+# is the topology re-verify and smoke re-run, not the clock, so the default is
+# zero and --window-hours can restore a window on a machine that wants one.
+SOAK_HOURS_DEFAULT=0
 
 # The PRESERVE list is orthogonal to the managed-label universe (checklist item
 # 13): these are package/OS-owned services that are never retirement
@@ -63,7 +64,7 @@ usage() {
   printf '  2 --second-session-open   activation preflight and attached landing at the pin\n' >&2
   printf '  2 --post-apply            execute the approved retirement after the staged apply\n' >&2
   printf '  3                         reconciliation, verification, test suite, smoke checks\n' >&2
-  printf '  4 [--window-hours <n>]    soak the final topology (default %s hours)\n' "$SOAK_HOURS_DEFAULT" >&2
+  printf '  4 [--window-hours <n>]    re-verify the final topology (default %s hours of soak)\n' "$SOAK_HOURS_DEFAULT" >&2
   printf '  5                         re-verify the pins and close the reference PRs\n' >&2
   exit 2
 }
@@ -1170,7 +1171,8 @@ case "$gate" in
           WINDOW_HOURS="$2"
           # the regex is checked FIRST, so the arithmetic never sees a
           # non-numeric argument
-          if ! [[ $WINDOW_HOURS =~ ^[0-9]+$ ]] || [[ $((10#$WINDOW_HOURS)) -le 0 ]]; then
+          # zero is legal: it means "re-verify now, no wait" (the default)
+          if ! [[ $WINDOW_HOURS =~ ^[0-9]+$ ]]; then
             usage
           fi
           shift 2
