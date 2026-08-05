@@ -419,6 +419,10 @@ Git worktrees are managed by [worktrunk](https://worktrunk.dev/). Config in
 every worktree against upstream, skipping ones with no upstream or a rebase already in progress, and
 aborting and warning rather than leaving a worktree half-rebased.
 
+`worktree-path` puts worktrees at `~/.herdr/worktrees/<repo>/<branch>`, which is herdr's own layout:
+herdr hardcodes `<directory>/<repo>/<branch-slug>` and worktrunk's path is templatable, so worktrunk
+bends to match and both tools create worktrees in one place rather than two.
+
 ### Bashrc init ordering
 
 The canonical order inside the interactive block is direnv, starship, zoxide, atuin. Direnv's hook runs
