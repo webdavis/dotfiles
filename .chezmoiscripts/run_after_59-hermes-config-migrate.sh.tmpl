@@ -29,7 +29,7 @@ migrate_output="$(hermes config migrate </dev/null 2>&1 | awk '
   /^[[:space:]]*$/ { if (!skipping) blanks++; next }
   /Checking configuration for updates/ { next }
   /optional API key\(s\) not configured/ { skipping = 1; blanks = 0; next }
-  skipping && /^[[:space:]]*\xe2\x80\xa2/ { next }
+  skipping && /^[[:space:]]*•/ { next }
   { skipping = 0; while (blanks > 0) { print ""; blanks-- }; print }
 ' || true)"
 if [[ -n $migrate_output ]]; then
