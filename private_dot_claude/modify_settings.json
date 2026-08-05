@@ -109,6 +109,19 @@
 {{- $merged = setValueAtPath "remoteControlAtStartup" true $merged -}}
 {{- /* xhigh is the maximum effortLevel enum value (low/medium/high/xhigh) */ -}}
 {{- $merged = setValueAtPath "effortLevel" "xhigh" $merged -}}
+{{- /* Stable env passthroughs (operator, 2026-08-05). Per-key on purpose so any
+      env var the operator sets by hand drifts freely, the same per-key pattern
+      the skill-override block above uses. */ -}}
+{{- $merged = setValueAtPath "env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" "1" $merged -}}
+{{- $merged = setValueAtPath "env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY" "1" $merged -}}
+{{- $merged = setValueAtPath "env.DISABLE_TELEMETRY" "1" $merged -}}
+{{- $merged = setValueAtPath "env.DISABLE_ERROR_REPORTING" "1" $merged -}}
+{{- $merged = setValueAtPath "env.DISABLE_NON_ESSENTIAL_MODEL_CALLS" "1" $merged -}}
+{{- $merged = setValueAtPath "env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE" "75" $merged -}}
+{{- /* Empty attribution strings turn off the Claude co-author/footer natively,
+      which is what the global no-AI-trailer rule has enforced by hand. */ -}}
+{{- $merged = setValueAtPath "attribution.commit" "" $merged -}}
+{{- $merged = setValueAtPath "attribution.pr" "" $merged -}}
 
 {{- $permissions := dict
     "allow" (list
