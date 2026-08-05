@@ -127,4 +127,15 @@ reassert="$(awk -v s="$bundle_line" -v e="$cleanup_line" \
 [[ $reassert -ge 1 ]] ||
   fail "assert_taps_trusted is not re-called between the bundle and brew_bundle_cleanup_guarded; trust established at the top of the script is not trust the cleanup sees"
 
+# 5. The Brewfile declares trust. This is the ROOT-CAUSE fix, found 2026-08-05
+#    via the stage checkpoints: `brew bundle cleanup --force` resets Homebrew's
+#    global trust store to the Brewfile's `trusted:` declarations (documented in
+#    Homebrew's bundle/subcommand/cleanup.rb), so a Brewfile with none reset the
+#    store to EMPTY and the trailing `brew cleanup` then refused every
+#    third-party cask. Every declared trusted tap must carry `, trusted: true`
+#    on its Brewfile line or the wipe returns.
+brewfile_trusted="$(grep -c '^tap ".*", trusted: true$' "$rendered")"
+[[ $brewfile_trusted -eq $declared ]] ||
+  fail "the Brewfile declares trusted: true on $brewfile_trusted tap(s) but $declared taps are in trusted_taps; brew bundle cleanup --force resets the trust store to the Brewfile's declarations, so any gap reintroduces the wipe"
+
 printf 'homebrew-tap-trust-verified: OK (%d taps declared; guard passes complete, refuses one-short and empty, and runs before the cleanup)\n' "$declared"

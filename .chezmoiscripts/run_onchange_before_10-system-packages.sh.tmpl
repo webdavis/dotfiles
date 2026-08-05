@@ -142,8 +142,9 @@ fi
 brewfile=$(mktemp)
 trap 'rm -f "$brewfile"' EXIT
 cat >"$brewfile" <<EOF
+{{ $trusted := .packages.macos.homebrew.trusted_taps -}}
 {{ range .packages.macos.homebrew.taps -}}
-tap {{ . | quote }}
+tap {{ . | quote }}{{ if has . $trusted }}, trusted: true{{ end }}
 {{ end -}}
 {{ range .packages.macos.homebrew.formulae -}}
 brew {{ . | quote }}
