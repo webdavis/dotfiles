@@ -478,10 +478,27 @@ build_delta_ledger() {
     int_entry="$(tree_entry "$INT_SHA" "$path")"
     main_entry="$(tree_entry "$MAIN_SHA" "$path")"
     if [[ -z $int_entry && -z $main_entry ]]; then
-      # the path is in the manifest, so it exists on at least one side; two
-      # empty lookups mean the lookup itself failed, never "identical"
-      printf 'missing\t%s\tneither side resolved, so this path could not be classified\n' \
-        "$path" >>"$missing"
+      # BOTH SIDES EMPTY IS TWO DIFFERENT SITUATIONS, and the first version of
+      # this branch conflated them. The manifest is `git diff PHASE_A_BASE
+      # INT_SHA`, so a path integration DELETED is in the manifest yet absent at
+      # INT_SHA. When main deleted it too, both lookups come back empty and the
+      # two branches AGREE in the strongest way available: the file is gone from
+      # both. Measured on dresden 2026-08-05, 92 of the 201 remaining blockers
+      # were exactly this (the tmux helpers, the retired Claude LaunchAgent, the
+      # sesh configs, the retired skills), and demanding a written reason for
+      # each would have meant asserting a decision for 92 non-events.
+      #
+      # The discriminator is the base: a path that existed at PHASE_A_BASE and
+      # is gone from both pins was deleted deliberately, twice. A path absent
+      # from the base as well has no business being in a diff against the base,
+      # so that one is still a real anomaly and still refuses.
+      if git -C "$repo" cat-file -e "$PHASE_A_BASE:$path" 2>/dev/null; then
+        printf 'landed-unchanged\t%s\tdeleted at the pinned integration and at the pinned main, so both sides agree it is gone\n' \
+          "$path" >>"$ledger"
+      else
+        printf 'missing\t%s\tabsent from the base and from both pins, so the manifest entry itself is unexplained\n' \
+          "$path" >>"$missing"
+      fi
       continue
     fi
     if [[ $int_entry == "$main_entry" ]]; then
