@@ -26,14 +26,54 @@ if "$brew_bin" tap | grep -q '^domt4/autoupdate$'; then
   "$brew_bin" autoupdate delete 2>/dev/null || true
 fi
 
-# Pre-trust taps that require it. `brew tap` first (no-op if already tapped) so
-# `brew trust` has a target to operate on, then trust. Both idempotent and safe
-# to re-run. Required because `brew bundle` will refuse to install formulae from
-# untrusted taps when HOMEBREW_REQUIRE_TAP_TRUST is set.
+# The declared taps Homebrew must be willing to load formulae, casks and
+# commands from. Held in an array so the trust pass can both apply and VERIFY.
+trusted_taps=(
 {{ range .packages.macos.homebrew.trusted_taps -}}
-"$brew_bin" tap {{ . | quote }} 2>/dev/null || true
-"$brew_bin" trust --tap {{ . | quote }} 2>/dev/null || true
-{{ end }}
+  {{ . | quote }}
+{{ end -}}
+)
+
+# Tap, trust, then PROVE the trust persisted, and refuse to continue if it did
+# not. `brew tap-info` is the authority: it prints a bare `Trusted` or
+# `Untrusted` line reflecting the same store brew consults when it loads a cask,
+# so this cannot pass while the store is empty. It is also jq-free, which
+# matters because this is a before_ script that can run before jq is installed.
+#
+# WHY THIS VERIFIES rather than fires and forgets. Measured on dresden
+# 2026-08-05: the old form (`brew trust --tap X 2>/dev/null || true`, per tap)
+# printed success for all sixteen taps while `brew trust --json v1` reported
+# every list empty. The apply then died two hundred lines later inside
+# `brew cleanup` with "Refusing to load cask mediosz/tap/swipeaerospace from
+# untrusted tap mediosz/tap", which reads as a cleanup bug rather than as the
+# trust failure it actually was. Suppressing stderr and forcing exit 0 is what
+# turned a precise failure into a misleading one.
+#
+# The comment this replaces was also wrong about WHEN trust is enforced. It said
+# trust was needed "when HOMEBREW_REQUIRE_TAP_TRUST is set"; that variable is
+# unset on this host, in brew.env and in this repo, and Homebrew enforced tap
+# trust anyway.
+assert_taps_trusted() {
+  local tap missing=()
+  # An empty declaration means there is deliberately nothing to trust.
+  [[ ${#trusted_taps[@]} -gt 0 ]] || return 0
+  for tap in "${trusted_taps[@]}"; do
+    # `brew tap` first (no-op when already tapped) so `brew trust` has a target.
+    "$brew_bin" tap "$tap" >/dev/null 2>&1 || true
+    "$brew_bin" trust --tap "$tap" >/dev/null 2>&1 || true
+  done
+  for tap in "${trusted_taps[@]}"; do
+    "$brew_bin" tap-info "$tap" 2>/dev/null | grep -qx 'Trusted' || missing+=("$tap")
+  done
+  [[ ${#missing[@]} -eq 0 ]] && return 0
+  printf 'brew tap trust did not persist for %d of %d declared tap(s): %s\n' \
+    "${#missing[@]}" "${#trusted_taps[@]}" "${missing[*]}" >&2
+  printf 'Homebrew refuses to load casks from an untrusted tap, so the cleanup stage below would fail with an error that names the cask rather than the trust. Trust them by hand, then re-apply:\n' >&2
+  printf '  brew trust --tap %s\n' "${missing[@]}" >&2
+  return 1
+}
+assert_taps_trusted
+
 # --- live-migration ordering safety (herdr replaces tmux/sesh) ---
 # `brew bundle --cleanup` uninstalls any formula/cask absent from the desired
 # set below, including tmux/sesh once they leave the manifest. Removing the old
@@ -95,6 +135,15 @@ EOF
 "$brew_bin" bundle --file="$brewfile"
 {{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
 if [[ $multiplexer_present == false ]]; then
+  # Re-assert trust HERE rather than relying on the pass at the top of this
+  # script. On dresden 2026-08-05 trust was present when this script started
+  # (every tap reported "Already trusted tap") and absent by the time the
+  # cleanup loaded its first cask, inside a single run. The cleanup stage untaps
+  # whatever the Brewfile does not declare, and that is the only thing running
+  # in between, so trust established two hundred lines earlier is not trust the
+  # cleanup can be assumed to see. Cheap to repeat: every call is a no-op once
+  # the store holds the tap.
+  assert_taps_trusted
   # Guarded: refuses a bulk cleanup against a partial/empty Brewfile (returns 0
   # on refuse or clean, non-zero only on a real cleanup failure -- so set -e
   # still aborts the apply on a genuine failure, as before).
