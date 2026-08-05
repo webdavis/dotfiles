@@ -19,9 +19,13 @@ command -v hermes >/dev/null 2>&1 || exit 0
 # 2026-08-05). Filter that one ℹ️ block out of OUR relay of its output; the
 # required-keys ⚠️ block and everything else pass through untouched. The run
 # stays best-effort (|| true), exactly as it was before the filter.
+# Blank lines are BUFFERED, not printed on sight: the ones that framed the
+# filtered block (and any run of trailing blanks) would otherwise survive as
+# stray whitespace. A blank prints only when real content follows it.
 hermes config migrate </dev/null 2>&1 | awk '
-  /optional API key\(s\) not configured/ { skipping = 1; next }
+  /^[[:space:]]*$/ { if (!skipping) blanks++; next }
+  /optional API key\(s\) not configured/ { skipping = 1; blanks = 0; next }
   skipping && /^[[:space:]]*•/ { next }
-  { skipping = 0; print }
+  { skipping = 0; while (blanks > 0) { print ""; blanks-- }; print }
 ' || true
 {{ end -}}

@@ -234,6 +234,24 @@ fi
 # Materialized under an explicit status check for the same reason the managed
 # listing is: a dump that emitted some entries and then failed must abort, never
 # leave a path silently without a mode.
+#
+# The throwaway state is SEEDED with the config template's hash first. A fresh
+# state has no configState record, and chezmoi compares that nil against the
+# real template's hash on every apply-family command, so the un-seeded dump
+# printed "config file template has changed, run chezmoi init" on EVERY apply,
+# a warning no `chezmoi init` could ever clear because this state file is
+# recreated each run. Diagnosed 2026-08-05 from a --debug apply (the warning
+# surfaced at this script's start) and chezmoi v2.72.0 source (applyArgs in
+# internal/cmd/config.go); proven both ways: unseeded dump warns, seeded is
+# silent. Best-effort on purpose: a failed seed only means the cosmetic warning
+# returns, never a failed manifest rewrite.
+config_template="${CHEZMOI_SOURCE_DIR:-$HOME/workspaces/Ivy/webdavis/dotfiles}/.chezmoi.toml.tmpl"
+if [[ -r $config_template ]]; then
+  config_template_sha256="$(shasum -a 256 "$config_template" | awk '{print $1}')"
+  chezmoi "${chezmoi_args[@]}" --persistent-state "$dump_state_dir/state.boltdb" \
+    state set --bucket=configState --key=configState \
+    --value="{\"configTemplateContentsSHA256\":\"$config_template_sha256\"}" 2>/dev/null || true
+fi
 if ! chezmoi "${chezmoi_args[@]}" --persistent-state "$dump_state_dir/state.boltdb" \
   dump --format=json "${pipeline_paths[@]}" "${managed_bin_paths[@]}" >"$dump_json"; then
   printf 'osquery known-good manifests: could not dump the managed files, refusing to rewrite any manifest\n' >&2
