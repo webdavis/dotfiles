@@ -13,5 +13,15 @@
 # run_after_67 in the route check next door.
 set -euo pipefail
 command -v hermes >/dev/null 2>&1 || exit 0
-hermes config migrate </dev/null || true
+# The migrate subcommand prints an informational block listing every OPTIONAL
+# API key not configured, 180 lines on this machine, with no supported quiet
+# switch (hermes_cli/config.py hardcodes migrate_config(quiet=False), read
+# 2026-08-05). Filter that one ℹ️ block out of OUR relay of its output; the
+# required-keys ⚠️ block and everything else pass through untouched. The run
+# stays best-effort (|| true), exactly as it was before the filter.
+hermes config migrate </dev/null 2>&1 | awk '
+  /optional API key\(s\) not configured/ { skipping = 1; next }
+  skipping && /^[[:space:]]*•/ { next }
+  { skipping = 0; print }
+' || true
 {{ end -}}
