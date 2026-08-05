@@ -3,8 +3,8 @@
 `~/.agents/skills` is the single canonical skills store (35 roster skills). It serves Claude Code for the
 roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
 `private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
-hermes for exactly the store-symlink subset of the delivery model below (`private_dot_hermes/private_skills/` and
-`private_dot_hermes/profiles/<name>/private_skills/` symlinks).
+hermes for exactly the store-symlink subset of the delivery model below
+(`private_dot_hermes/private_skills/` and `private_dot_hermes/profiles/<name>/private_skills/` symlinks).
 
 The committed roster is the complete wanted set. `test/unit/skills-roster-fanout.sh` fails the build if
 the store, the lock's `tiers` / `claudeDelivery` / `hermesProfiles` / `hermesRegistry` / `npxTracked` /

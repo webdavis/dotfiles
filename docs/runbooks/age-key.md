@@ -20,8 +20,8 @@ post-quantum identities (`AGE-SECRET-KEY-PQ-1…`); everything below applies to 
 Each `encrypted_` source file below decrypts to the listed target on `chezmoi apply`. Rotation and
 recovery both cover all of them. There are five files.
 
-| Source file (in this repo)                                                | Decrypts to                                |
-| ------------------------------------------------------------------------- | ------------------------------------------ |
+| Source file (in this repo)                                                        | Decrypts to                                |
+| --------------------------------------------------------------------------------- | ------------------------------------------ |
 | `private_dot_hermes/encrypted_private_config.yaml.age`                            | `~/.hermes/config.yaml` (root, Bob)        |
 | `private_dot_hermes/profiles/private_butters/encrypted_private_config.yaml.age`   | `~/.hermes/profiles/butters/config.yaml`   |
 | `private_dot_hermes/profiles/private_concerned/encrypted_private_config.yaml.age` | `~/.hermes/profiles/concerned/config.yaml` |
