@@ -257,15 +257,38 @@ rm -f "$hF/app-owned/gamma/agents/openai.yaml"
 snapshot "$hF" >"$work/beforeF"
 tool "$hF"
 snapshot "$hF" >"$work/afterF"
-if [[ $RC -eq 1 ]] && grep -q 'gamma' "$err_file"; then
-  report ok "F: a missing overlay behind a store symlink is reported, not fixed"
+# gamma links OUT of ~/.agents, so it is app-owned content. The runbook
+# (docs/runbooks/agent-skills-store.md) says such an entry never gets an
+# overlay, which makes the state permanent. This case used to demand rc=1, and
+# that made gate 3 unpassable: the tool exits non-zero on any blocker, so it
+# refused a condition that must never be resolved. The exemption is now
+# reported and NOT counted.
+if [[ $RC -eq 0 ]] && grep -q 'exempt.*gamma' "$out_file"; then
+  report ok "F: an app-owned store symlink is an exemption, not a counted divergence"
 else
-  report bad "F: an app-owned store symlink was not reported (rc=$RC, err: $(cat "$err_file"))"
+  report bad "F: an app-owned store symlink did not read as an exemption (rc=$RC, out: $(cat "$out_file"), err: $(cat "$err_file"))"
 fi
 if [[ ! -e "$hF/app-owned/gamma/agents/openai.yaml" ]]; then
   report ok "F: nothing was written through the store symlink"
 else
   report bad "F: the tool wrote through an app-owned store symlink"
+fi
+
+# ── Case F2: a link INSIDE the store is the updater's, and still blocks ────
+# The exemption must turn on WHERE the link points, not on a link existing. A
+# store entry pointing into ~/.agents belongs to the generation exchange, and
+# staying silent there would hide a real handoff gap.
+hF2="$work/homeF2"
+build_home "$hF2"
+rm -rf "$hF2/.agents/skills/gamma"
+mkdir -p "$hF2/.agents/.skills-current/skills/gamma"
+printf -- '---\nname: gamma\n---\n' >"$hF2/.agents/.skills-current/skills/gamma/SKILL.md"
+ln -s "$hF2/.agents/.skills-current/skills/gamma" "$hF2/.agents/skills/gamma"
+tool "$hF2"
+if [[ $RC -eq 1 ]] && grep -q 'gamma' "$err_file"; then
+  report ok "F2: a store link inside the agents store is still an unfixable divergence"
+else
+  report bad "F2: an in-store link stopped being reported, so the exemption covers every symlink (rc=$RC, err: $(cat "$err_file"))"
 fi
 
 # ── Case G: the deployed lock diverges from the committed one ──────────────
