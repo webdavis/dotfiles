@@ -170,7 +170,20 @@
     "defaultMode" "bypassPermissions" -}}
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
-{{- /* --- stable: hooks (paths use $home for portability) --- */ -}}
+{{- /* --- stable: hooks (paths use $home for portability) ---
+
+     The blocked notification hangs off PermissionRequest, NOT off
+     Notification/permission_prompt, and it is deliberately NOT async. Both
+     halves are load bearing. PermissionRequest runs BEFORE the prompt is
+     shown and its exit code decides the request, so it is the only seam
+     through which relay-agent can hand the payload to moshi-hook and return
+     the operator's phone answer; an async hook has its exit code discarded by
+     construction, which is the whole feature gone. And running relay-agent on
+     BOTH events would notify twice for one prompt (PermissionRequest fires,
+     then the prompt appears and Notification fires), so this is one seam per
+     harness, matching Codex's PermissionRequest entry in
+     hooks/codex/install-hooks.sh. alerter keeps the Notification slot: it is a
+     local sound, not a notification pns routes.  --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
 {{- $hooks := dict
     "UserPromptSubmit" (list (dict
@@ -188,14 +201,13 @@
           "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh done" $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
-      "hooks" (list
-        (dict
-          "type" "command"
-          "command" "alerter --timeout 30 --title 'Claude Code' --message 'Needs attention' --sound default")
-        (dict
-          "type" "command"
-          "async" true
-          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh blocked" $home)))))
+      "hooks" (list (dict
+        "type" "command"
+        "command" "alerter --timeout 30 --title 'Claude Code' --message 'Needs attention' --sound default"))))
+    "PermissionRequest" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh blocked" $home)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"
