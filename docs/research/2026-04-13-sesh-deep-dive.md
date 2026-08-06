@@ -380,7 +380,7 @@ startup_script = "nvim"
 [[window]]
 name = "server"
 startup_script = "npm run dev"
-path = "~/projects/api"    # optional: override session path
+path = "~/projects/api"        # optional: override session path
 
 [[window]]
 name = "logs"
@@ -516,8 +516,8 @@ Sesh auto-generates session names using a hierarchy:
 The `dir_length` config controls how many path components appear in directory-based names:
 
 ```toml
-dir_length = 2   # ~/workspaces/webdavis/uriel -> "webdavis/uriel"
-dir_length = 1   # ~/workspaces/webdavis/uriel -> "uriel" (default)
+dir_length = 2 # ~/workspaces/webdavis/uriel -> "webdavis/uriel"
+dir_length = 1 # ~/workspaces/webdavis/uriel -> "uriel" (default)
 ```
 
 Session names have dots and colons replaced (tmux restrictions). Characters that tmux cannot handle are
@@ -642,7 +642,11 @@ sesh list --json | jq '.[].name'
 Customize which sources appear first in listings:
 
 ```toml
-sort_order = ["config", "tmux", "zoxide"]   # configs first, then running sessions, then zoxide
+sort_order = [
+  "config",
+  "tmux",
+  "zoxide",
+] # configs first, then running sessions, then zoxide
 ```
 
 ### Pane Listing

@@ -314,8 +314,8 @@ Karl's `.chezmoi.toml.tmpl`:
 
 ```toml
 [git]
-    autoCommit = true
-    autoPush = true
+autoCommit = true
+autoPush = true
 ```
 
 Every `chezmoi apply` automatically commits and pushes changes to the source directory. Stephen does NOT

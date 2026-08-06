@@ -467,24 +467,24 @@ Add rules for common apps you likely use:
 
 ```toml
 [[on-window-detected]]
-    if.app-id = 'com.apple.finder'
-    check-further-callbacks = true
-    run = ['layout floating']
+if.app-id = 'com.apple.finder'
+check-further-callbacks = true
+run = ['layout floating']
 
 [[on-window-detected]]
-    if.app-id = 'com.apple.ActivityMonitor'
-    check-further-callbacks = true
-    run = ['layout floating']
+if.app-id = 'com.apple.ActivityMonitor'
+check-further-callbacks = true
+run = ['layout floating']
 
 [[on-window-detected]]
-    if.app-id = 'com.mitchellh.ghostty'
-    check-further-callbacks = true
-    run = ['move-node-to-workspace "1:Main"']
+if.app-id = 'com.mitchellh.ghostty'
+check-further-callbacks = true
+run = ['move-node-to-workspace "1:Main"']
 
 [[on-window-detected]]
-    if.app-id = 'company.thebrowser.Browser'  # Arc
-    check-further-callbacks = true
-    run = ['move-node-to-workspace "2:Work"']
+if.app-id = 'company.thebrowser.Browser'  # Arc
+check-further-callbacks = true
+run = ['move-node-to-workspace "2:Work"']
 ```
 
 ### 6.4 Sticky Windows
@@ -561,9 +561,9 @@ contain `keepassxc` template calls (which look like secrets but are not):
 
 ```toml
 [allowlist]
-  paths = [
-    '''.*\.tmpl$'''
-  ]
+paths = [
+  '''.*\.tmpl$''',
+]
 ```
 
 ### 8.2 Bracketed Paste (inputrc)
@@ -597,8 +597,8 @@ encrypted files remain protected:
 ```toml
 # In .chezmoi.toml.tmpl:
 [age]
-  identity = "~/.config/chezmoi/key.txt"
-  recipient = "age1..."
+identity = "~/.config/chezmoi/key.txt"
+recipient = "age1..."
 ```
 
 Files prefixed with `encrypted_` in the source state will be decrypted on apply. This is complementary to
@@ -616,12 +616,12 @@ Chezmoi 2.46+ promoted hooks to stable. You can run commands before/after specif
 ```toml
 # In .chezmoi.toml.tmpl:
 [hooks.apply.pre]
-  command = "echo"
-  args = ["Applying chezmoi changes..."]
+command = "echo"
+args = ["Applying chezmoi changes..."]
 
 [hooks.apply.post]
-  command = "terminal-notifier"
-  args = ["-title", "Chezmoi", "-message", "Apply complete"]
+command = "terminal-notifier"
+args = ["-title", "Chezmoi", "-message", "Apply complete"]
 ```
 
 ### 9.2 External Resources via .chezmoiexternal
@@ -631,9 +631,9 @@ example, managing TPM and tmux plugins:
 
 ```toml
 [".tmux/plugins/tpm"]
-    type = "git-repo"
-    url = "https://github.com/tmux-plugins/tpm.git"
-    refreshPeriod = "168h"
+type = "git-repo"
+url = "https://github.com/tmux-plugins/tpm.git"
+refreshPeriod = "168h"
 ```
 
 This is cleaner than the `if-shell` auto-install block in your tmux.conf. Chezmoi handles cloning and

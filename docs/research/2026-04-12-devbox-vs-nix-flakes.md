@@ -109,7 +109,9 @@ configuration cannot represent. Current workarounds:
 
 ```json
 {
-  "packages": ["python@3.12"],
+  "packages": [
+    "python@3.12"
+  ],
   "shell": {
     "init_hook": [
       "python -m venv .venv",

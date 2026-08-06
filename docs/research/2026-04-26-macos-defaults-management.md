@@ -665,17 +665,17 @@ namespace and matches the user's "scoped data" convention.
 macos:
   defaults:
     # Dock
-    - { domain: "com.apple.dock", key: "autohide",          type: bool,   value: true }
-    - { domain: "com.apple.dock", key: "tilesize",          type: int,    value: 48 }
-    - { domain: "com.apple.dock", key: "orientation",       type: string, value: "bottom" }
-    - { domain: "com.apple.dock", key: "show-recents",      type: bool,   value: false }
-    - { domain: "com.apple.dock", key: "mineffect",         type: string, value: "scale" }
+    - {domain: com.apple.dock, key: autohide, type: bool, value: true}
+    - {domain: com.apple.dock, key: tilesize, type: int, value: 48}
+    - {domain: com.apple.dock, key: orientation, type: string, value: bottom}
+    - {domain: com.apple.dock, key: show-recents, type: bool, value: false}
+    - {domain: com.apple.dock, key: mineffect, type: string, value: scale}
     # ... etc
   killall:
-    - "Dock"
-    - "Finder"
-    - "SystemUIServer"
-    - "cfprefsd"
+    - Dock
+    - Finder
+    - SystemUIServer
+    - cfprefsd
 ```
 
 Why YAML: lint pipeline already covers it via `yq` (per CLAUDE.md). Why scalar-only `value` field:
@@ -813,61 +813,74 @@ Tahoe).
 macos:
   defaults:
     # ===== Dock =====
-    - { domain: "com.apple.dock", key: "autohide",                  type: bool,   value: true }
-    - { domain: "com.apple.dock", key: "autohide-delay",            type: float,  value: 0 }
-    - { domain: "com.apple.dock", key: "autohide-time-modifier",    type: float,  value: 0.4 }
-    - { domain: "com.apple.dock", key: "tilesize",                  type: int,    value: 48 }
-    - { domain: "com.apple.dock", key: "orientation",               type: string, value: "bottom" }
-    - { domain: "com.apple.dock", key: "mineffect",                 type: string, value: "scale" }
-    - { domain: "com.apple.dock", key: "show-recents",              type: bool,   value: false }
-    - { domain: "com.apple.dock", key: "minimize-to-application",   type: bool,   value: true }
-    - { domain: "com.apple.dock", key: "show-process-indicators",   type: bool,   value: true }
+    - {domain: com.apple.dock, key: autohide, type: bool, value: true}
+    - {domain: com.apple.dock, key: autohide-delay, type: float, value: 0}
+    - {domain: com.apple.dock, key: autohide-time-modifier, type: float, value: 
+        0.4}
+    - {domain: com.apple.dock, key: tilesize, type: int, value: 48}
+    - {domain: com.apple.dock, key: orientation, type: string, value: bottom}
+    - {domain: com.apple.dock, key: mineffect, type: string, value: scale}
+    - {domain: com.apple.dock, key: show-recents, type: bool, value: false}
+    - {domain: com.apple.dock, key: minimize-to-application, type: bool, value: 
+        true}
+    - {domain: com.apple.dock, key: show-process-indicators, type: bool, value: 
+        true}
 
     # ===== Finder =====
-    - { domain: "com.apple.finder",          key: "ShowPathbar",                 type: bool,   value: true }
-    - { domain: "com.apple.finder",          key: "ShowStatusBar",               type: bool,   value: true }
-    - { domain: "com.apple.finder",          key: "FXPreferredViewStyle",        type: string, value: "Nlsv" }   # list view
-    - { domain: "com.apple.finder",          key: "_FXShowPosixPathInTitle",     type: bool,   value: true }
-    - { domain: "com.apple.finder",          key: "FXEnableExtensionChangeWarning", type: bool, value: false }
-    - { domain: "com.apple.finder",          key: "FXDefaultSearchScope",        type: string, value: "SCcf" }   # current folder
-    - { domain: "com.apple.finder",          key: "NewWindowTarget",             type: string, value: "PfHm" }   # home dir
-    - { domain: "NSGlobalDomain",            key: "AppleShowAllExtensions",      type: bool,   value: true }
-
-    # ===== Keyboard =====
-    - { domain: "NSGlobalDomain",            key: "KeyRepeat",                   type: int,    value: 2 }        # fast
-    - { domain: "NSGlobalDomain",            key: "InitialKeyRepeat",            type: int,    value: 15 }
-    - { domain: "NSGlobalDomain",            key: "ApplePressAndHoldEnabled",    type: bool,   value: false }    # holding key repeats
+    - {domain: com.apple.finder, key: ShowPathbar, type: bool, value: true}
+    - {domain: com.apple.finder, key: ShowStatusBar, type: bool, value: true}
+    - {domain: com.apple.finder, key: FXPreferredViewStyle, type: string, value: 
+        Nlsv}                                                                                                    # list view
+    - {domain: com.apple.finder, key: _FXShowPosixPathInTitle, type: bool, value: 
+        true}
+    - {domain: com.apple.finder, key: FXEnableExtensionChangeWarning, type: bool,
+      value: false}
+    - {domain: com.apple.finder, key: FXDefaultSearchScope, type: string, value: 
+        SCcf}                                                                                                    # current folder
+    - {domain: com.apple.finder, key: NewWindowTarget, type: string, value: PfHm}                                # home dir
+    - {domain: NSGlobalDomain, key: AppleShowAllExtensions, type: bool, value: 
+        true}
+    - {domain: NSGlobalDomain, key: KeyRepeat, type: int, value: 2}                                              # fast
+    - {domain: NSGlobalDomain, key: InitialKeyRepeat, type: int, value: 15}
+    - {domain: NSGlobalDomain, key: ApplePressAndHoldEnabled, type: bool, value: 
+        false}                                                                                                   # holding key repeats
 
     # ===== Trackpad =====
-    - { domain: "com.apple.AppleMultitouchTrackpad",   key: "Clicking",          type: bool,   value: true }     # tap to click
-    - { domain: "com.apple.driver.AppleBluetoothMultitouch.trackpad", key: "Clicking", type: bool, value: true }
+    - {domain: com.apple.AppleMultitouchTrackpad, key: Clicking, type: bool, 
+        value: true}                                                                                             # tap to click
+    - {domain: com.apple.driver.AppleBluetoothMultitouch.trackpad, key: Clicking,
+      type: bool, value: true}
 
     # ===== Screenshots =====
-    - { domain: "com.apple.screencapture",   key: "type",                        type: string, value: "png" }
-    - { domain: "com.apple.screencapture",   key: "disable-shadow",              type: bool,   value: true }
-    - { domain: "com.apple.screencapture",   key: "show-thumbnail",              type: bool,   value: false }    # no floating preview
+    - {domain: com.apple.screencapture, key: type, type: string, value: png}
+    - {domain: com.apple.screencapture, key: disable-shadow, type: bool, value: 
+        true}
+    - {domain: com.apple.screencapture, key: show-thumbnail, type: bool, value: 
+        false}                                                                                                   # no floating preview
     # location: ~/Pictures/Screenshots, set via the runner because it needs $HOME
-    - { domain: "com.apple.screencapture",   key: "location",                    type: string, value: "~/Pictures/Screenshots" }
+    - {domain: com.apple.screencapture, key: location, type: string, value: 
+        ~/Pictures/Screenshots}
 
     # ===== Screensaver =====
-    - { domain: "com.apple.screensaver",     key: "askForPassword",              type: int,    value: 1 }
-    - { domain: "com.apple.screensaver",     key: "askForPasswordDelay",         type: int,    value: 0 }
-
-    # ===== Mission Control / Spaces =====
-    - { domain: "com.apple.dock",            key: "mru-spaces",                  type: bool,   value: false }    # don't reorder
+    - {domain: com.apple.screensaver, key: askForPassword, type: int, value: 1}
+    - {domain: com.apple.screensaver, key: askForPasswordDelay, type: int, value: 
+        0}
+    - {domain: com.apple.dock, key: mru-spaces, type: bool, value: false}                                        # don't reorder
 
     # ===== TextEdit =====
-    - { domain: "com.apple.TextEdit",        key: "RichText",                    type: int,    value: 0 }        # plain text default
+    - {domain: com.apple.TextEdit, key: RichText, type: int, value: 0}                                           # plain text default
 
     # ===== Global =====
-    - { domain: "NSGlobalDomain",            key: "NSWindowResizeTime",          type: float,  value: 0.001 }
-    - { domain: "NSGlobalDomain",            key: "ApplePersistenceIgnoreState", type: bool,   value: true }     # don't restore windows on app launch
+    - {domain: NSGlobalDomain, key: NSWindowResizeTime, type: float, value: 
+        0.001}
+    - {domain: NSGlobalDomain, key: ApplePersistenceIgnoreState, type: bool, 
+        value: true}                                                                                             # don't restore windows on app launch
 
   killall:
-    - "Dock"
-    - "Finder"
-    - "SystemUIServer"
-    - "cfprefsd"
+    - Dock
+    - Finder
+    - SystemUIServer
+    - cfprefsd
 ```
 
 That's 31 settings. The user should:
