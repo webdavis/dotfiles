@@ -46,6 +46,22 @@ _OSQUERY_ALERT_SEQUENCE=0
 # returns 0: a logging problem must never break alert delivery, so the caller
 # carries on and only this log line is lost. Only metadata is ever logged, never
 # the body or the HMAC secret.
+# _osquery_applescript_literal <text>: TEXT as an AppleScript string literal
+# body, safe to place between double quotes in an `osascript -e` program.
+#
+# BACKSLASH FIRST, then the quote. Escaping only the quote (which this file did
+# until 2026-08-05) leaves `\"` intact in the input: AppleScript reads the
+# backslash as escaping the backslash and the quote as CLOSING the literal, so
+# the rest of the finding text becomes AppleScript SOURCE. osquery reports
+# attacker-influenced strings (file names, launchd labels), and this path runs
+# whenever `alerter` is absent, so that turns the alert pipeline into an
+# execution path. render-page.sh strips backticks and newlines, not these.
+_osquery_applescript_literal() {
+  local text="$1"
+  text=${text//\\/\\\\}
+  printf '%s' "${text//\"/\\\"}"
+}
+
 _osquery_log() {
   mkdir -p "$(dirname "$OSQUERY_DELIVERY_LOG")" 2>/dev/null || true
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$OSQUERY_DELIVERY_LOG" 2>/dev/null || true
@@ -680,11 +696,14 @@ _notify_locally() {
       alerter --timeout 60 --title "$plain_title" --message "$plain_detail" >/dev/null 2>&1 &
     fi
   else
-    local escaped_detail=${plain_detail//\"/\\\"}
+    local escaped_detail escaped_title escaped_sound
+    escaped_detail="$(_osquery_applescript_literal "$plain_detail")"
+    escaped_title="$(_osquery_applescript_literal "$plain_title")"
     if [[ -n $sound ]]; then
-      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\" sound name \"$sound\"" >/dev/null 2>&1 || true
+      escaped_sound="$(_osquery_applescript_literal "$sound")"
+      osascript -e "display notification \"$escaped_detail\" with title \"$escaped_title\" sound name \"$escaped_sound\"" >/dev/null 2>&1 || true
     else
-      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\"" >/dev/null 2>&1 || true
+      osascript -e "display notification \"$escaped_detail\" with title \"$escaped_title\"" >/dev/null 2>&1 || true
     fi
   fi
 }
@@ -776,13 +795,17 @@ _osquery_show_banner_confirm_delete() { # <notification_id-or-empty> <title> <me
   # osascript posts the notification and returns immediately, so its own exit
   # status IS the outcome; an absent osascript is command-not-found (nonzero).
   # The clause order (title, subtitle, sound name) is the verified-parsing one.
-  local escaped=${message//\"/\\\"}
-  local osascript_command="display notification \"$escaped\" with title \"$title\""
+  local escaped escaped_title escaped_sound
+  escaped="$(_osquery_applescript_literal "$message")"
+  escaped_title="$(_osquery_applescript_literal "$title")"
+  local osascript_command="display notification \"$escaped\" with title \"$escaped_title\""
   if [[ -n $subtitle ]]; then
-    local escaped_subtitle=${subtitle//\"/\\\"}
+    local escaped_subtitle
+    escaped_subtitle="$(_osquery_applescript_literal "$subtitle")"
     osascript_command+=" subtitle \"$escaped_subtitle\""
   fi
-  osascript_command+=" sound name \"$sound\""
+  escaped_sound="$(_osquery_applescript_literal "$sound")"
+  osascript_command+=" sound name \"$escaped_sound\""
   if osascript -e "$osascript_command" >/dev/null 2>&1; then
     if [[ -n $notification_id ]]; then
       _osquery_delete_local_notification_row "$notification_id" ||
@@ -1136,7 +1159,8 @@ _attempt_alert_delivery() { # <url> <request_id> <secret> <body>
         return 0
         ;;
       429 | 5?? | 000) # transient, back off and retry (base overridable for tests)
-        if [[ $attempt -lt 3 ]]; then sleep "$((attempt * ${OSQUERY_RETRY_BACKOFF_BASE:-1}))"; fi ;;
+        if [[ $attempt -lt 3 ]]; then sleep "$((attempt * ${OSQUERY_RETRY_BACKOFF_BASE:-1}))"; fi
+        ;;
       *) break ;; # 401/413/etc, retry won't help
     esac
   done

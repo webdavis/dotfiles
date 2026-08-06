@@ -123,6 +123,20 @@
 {{- $merged = setValueAtPath "attribution.commit" "" $merged -}}
 {{- $merged = setValueAtPath "attribution.pr" "" $merged -}}
 
+{{- /* PATH SEMANTICS ARE LOAD-BEARING IN THE DENY LIST. A bare or ./-prefixed
+       pattern is CURRENT-DIRECTORY relative, so `Read(.ssh/id_*)` in USER
+       settings matched a project's own .ssh directory and never ~/.ssh, which
+       is the file it was written to protect (Claude Code permissions docs;
+       found 2026-08-05 by a security review, after CLAUDE.md had claimed that
+       protection for months). Home-anchored rules need the ~/ prefix. The
+       first four entries stay relative ON PURPOSE: a project's own .env,
+       secrets/ and credentials.json are exactly what those mean.
+
+       KNOWN LIMIT, unchanged by this fix: deny only covers the Bash commands
+       Claude Code recognizes as file reads, and the allow list carries
+       `Bash(grep *)` and `Bash(find *)`, either of which reads a key anyway.
+       Moot at defaultMode bypassPermissions; it matters the moment the mode
+       tightens. */ -}}
 {{- $permissions := dict
     "allow" (list
       "Read"
@@ -143,8 +157,16 @@
       "Read(.env.*)"
       "Read(secrets/**)"
       "Read(credentials.json)"
-      "Read(.aws/credentials)"
-      "Read(.ssh/id_*)")
+      "Read(~/.aws/credentials)"
+      "Read(~/.ssh/id_*)"
+      "Read(~/.ssh/*_rsa)"
+      "Read(~/.ssh/*_ed25519)"
+      "Read(~/.claude/.credentials.json)"
+      "Read(~/.codex/auth.json)"
+      "Read(~/.config/relay/auth.json)"
+      "Read(~/.config/osquery/webhook-secret)"
+      "Read(~/.hermes/.env)"
+      "Read(~/**/*.kdbx)")
     "defaultMode" "bypassPermissions" -}}
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
@@ -154,16 +176,16 @@
     "UserPromptSubmit" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s/.local/bin/claude-user-prompt-start.sh" $home)))))
+        "command" (printf "%s/.local/libexec/pns/claude-hooks/claude-user-prompt-start.sh" $home)))))
     "Stop" (list (dict
       "hooks" (list
         (dict
           "type" "command"
-          "command" (printf "%s/.local/bin/claude-stop-pulse.sh" $home))
+          "command" (printf "%s/.local/libexec/pns/claude-hooks/claude-stop-pulse.sh" $home))
         (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/bin/relay-agent.sh done" $home)))))
+          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh done" $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
       "hooks" (list
@@ -173,25 +195,20 @@
         (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/bin/relay-agent.sh blocked" $home)))))
+          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh blocked" $home)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/bin/relay-agent.sh asked" $home))))
+          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh asked" $home))))
       (dict
         "matcher" "ExitPlanMode"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/bin/relay-agent.sh plan-ready" $home)))))
-    "PreToolUse" (list (dict
-      "matcher" "Bash"
-      "hooks" (list (dict
-        "type" "command"
-        "command" (printf "%s/.local/bin/claude-audit.sh" $home))))) -}}
+          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh plan-ready" $home))))) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
 {{- /* --- stable: statusLine (path uses $home) --- */ -}}
