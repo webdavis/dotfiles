@@ -5586,118 +5586,6 @@
       "norm_label": "executable_moshi.sh script"
     },
     {
-      "label": "executable_claude-stop-pulse.sh",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/claude-hooks/executable_claude-stop-pulse.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "file"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_claude_hooks_executable_claude_stop_pulse",
-      "community": 158,
-      "norm_label": "executable_claude-stop-pulse.sh"
-    },
-    {
-      "label": "executable_claude-stop-pulse.sh script",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/claude-hooks/executable_claude-stop-pulse.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_claude_hooks_executable_claude_stop_pulse_sh__entry",
-      "community": 158,
-      "norm_label": "executable_claude-stop-pulse.sh script"
-    },
-    {
-      "label": "executable_claude-user-prompt-start.sh",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/claude-hooks/executable_claude-user-prompt-start.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "file"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_claude_hooks_executable_claude_user_prompt_start",
-      "community": 159,
-      "norm_label": "executable_claude-user-prompt-start.sh"
-    },
-    {
-      "label": "executable_claude-user-prompt-start.sh script",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/claude-hooks/executable_claude-user-prompt-start.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_claude_hooks_executable_claude_user_prompt_start_sh__entry",
-      "community": 159,
-      "norm_label": "executable_claude-user-prompt-start.sh script"
-    },
-    {
-      "label": "executable_relay-agent.sh",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/codex-hooks/executable_relay-agent.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "file"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_codex_hooks_executable_relay_agent",
-      "community": 172,
-      "norm_label": "executable_relay-agent.sh"
-    },
-    {
-      "label": "executable_relay-agent.sh script",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/codex-hooks/executable_relay-agent.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_codex_hooks_executable_relay_agent_sh__entry",
-      "community": 172,
-      "norm_label": "executable_relay-agent.sh script"
-    },
-    {
-      "label": "executable_relay-codex-hooks.sh",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/codex-hooks/executable_relay-codex-hooks.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "file"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_codex_hooks_executable_relay_codex_hooks",
-      "community": 182,
-      "norm_label": "executable_relay-codex-hooks.sh"
-    },
-    {
-      "label": "executable_relay-codex-hooks.sh script",
-      "file_type": "code",
-      "source_file": "dot_local/libexec/pns/codex-hooks/executable_relay-codex-hooks.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "_origin": "ast",
-      "id": "dot_local_libexec_pns_codex_hooks_executable_relay_codex_hooks_sh__entry",
-      "community": 182,
-      "norm_label": "executable_relay-codex-hooks.sh script"
-    },
-    {
       "label": "executable_relay.sh",
       "file_type": "code",
       "source_file": "dot_local/libexec/pns/executable_relay.sh",
@@ -5850,6 +5738,146 @@
       "id": "dot_local_libexec_pns_helpers_event_pns_pane_is_safe",
       "community": 190,
       "norm_label": "pns_pane_is_safe()"
+    },
+    {
+      "label": "pns_session_id_is_safe()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/helpers/event.sh",
+      "source_location": "L86",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_helpers_event_pns_session_id_is_safe",
+      "community": 190,
+      "norm_label": "pns_session_id_is_safe()"
+    },
+    {
+      "label": "pns_session_was_long()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/helpers/event.sh",
+      "source_location": "L95",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_helpers_event_pns_session_was_long",
+      "community": 190,
+      "norm_label": "pns_session_was_long()"
+    },
+    {
+      "label": "executable_stop-pulse.sh",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/claude/executable_stop-pulse.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_claude_executable_stop_pulse",
+      "community": 152,
+      "norm_label": "executable_stop-pulse.sh"
+    },
+    {
+      "label": "executable_stop-pulse.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/claude/executable_stop-pulse.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_claude_executable_stop_pulse_sh__entry",
+      "community": 152,
+      "norm_label": "executable_stop-pulse.sh script"
+    },
+    {
+      "label": "executable_user-prompt-start.sh",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/claude/executable_user-prompt-start.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_claude_executable_user_prompt_start",
+      "community": 158,
+      "norm_label": "executable_user-prompt-start.sh"
+    },
+    {
+      "label": "executable_user-prompt-start.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/claude/executable_user-prompt-start.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_claude_executable_user_prompt_start_sh__entry",
+      "community": 158,
+      "norm_label": "executable_user-prompt-start.sh script"
+    },
+    {
+      "label": "executable_install-hooks.sh",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_codex_executable_install_hooks",
+      "community": 159,
+      "norm_label": "executable_install-hooks.sh"
+    },
+    {
+      "label": "executable_install-hooks.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_codex_executable_install_hooks_sh__entry",
+      "community": 159,
+      "norm_label": "executable_install-hooks.sh script"
+    },
+    {
+      "label": "executable_relay-agent.sh",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/executable_relay-agent.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_executable_relay_agent",
+      "community": 172,
+      "norm_label": "executable_relay-agent.sh"
+    },
+    {
+      "label": "executable_relay-agent.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/pns/hooks/executable_relay-agent.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_pns_hooks_executable_relay_agent_sh__entry",
+      "community": 172,
+      "norm_label": "executable_relay-agent.sh script"
     },
     {
       "label": "executable_reconcile-hosts-pin.sh",
@@ -19048,32 +19076,32 @@
       "norm_label": "assert_plist_kv()"
     },
     {
-      "label": "relay-codex-hooks.sh",
+      "label": "pns-codex-install-hooks.sh",
       "file_type": "code",
-      "source_file": "test/unit/relay-codex-hooks.sh",
+      "source_file": "test/unit/pns-codex-install-hooks.sh",
       "source_location": "L1",
       "metadata": {
         "language": "bash",
         "kind": "file"
       },
       "_origin": "ast",
-      "id": "test_unit_relay_codex_hooks",
-      "community": 284,
-      "norm_label": "relay-codex-hooks.sh"
+      "id": "test_unit_pns_codex_install_hooks",
+      "community": 182,
+      "norm_label": "pns-codex-install-hooks.sh"
     },
     {
-      "label": "relay-codex-hooks.sh script",
+      "label": "pns-codex-install-hooks.sh script",
       "file_type": "code",
-      "source_file": "test/unit/relay-codex-hooks.sh",
+      "source_file": "test/unit/pns-codex-install-hooks.sh",
       "source_location": "L1",
       "metadata": {
         "language": "bash",
         "kind": "bash_entrypoint"
       },
       "_origin": "ast",
-      "id": "test_unit_relay_codex_hooks_sh__entry",
-      "community": 284,
-      "norm_label": "relay-codex-hooks.sh script"
+      "id": "test_unit_pns_codex_install_hooks_sh__entry",
+      "community": 182,
+      "norm_label": "pns-codex-install-hooks.sh script"
     },
     {
       "label": "rendered-template-shellcheck-wrapper.sh",
@@ -20838,346 +20866,6 @@
       "id": "chezmoitemplates_global_agent_rules_agents",
       "community": 65,
       "norm_label": "agents"
-    },
-    {
-      "label": "AGENTS.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "agents",
-      "community": 152,
-      "norm_label": "agents.md"
-    },
-    {
-      "label": "CLAUDE.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "community": 152,
-      "norm_label": "claude.md"
-    },
-    {
-      "label": "What This Is",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_what_this_is",
-      "community": 152,
-      "norm_label": "what this is"
-    },
-    {
-      "label": "Runbooks",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L24",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_runbooks",
-      "community": 152,
-      "norm_label": "runbooks"
-    },
-    {
-      "label": "Key Commands",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L38",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_key_commands",
-      "community": 152,
-      "norm_label": "key commands"
-    },
-    {
-      "label": "Linting and formatting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L40",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_linting_and_formatting",
-      "community": 152,
-      "norm_label": "linting and formatting"
-    },
-    {
-      "label": "Testing",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L65",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_testing",
-      "community": 152,
-      "norm_label": "testing"
-    },
-    {
-      "label": "Chezmoi operations",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L109",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_chezmoi_operations",
-      "community": 152,
-      "norm_label": "chezmoi operations"
-    },
-    {
-      "label": "Cutover tooling",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L137",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_cutover_tooling",
-      "community": 152,
-      "norm_label": "cutover tooling"
-    },
-    {
-      "label": "Architecture",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L148",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "community": 152,
-      "norm_label": "architecture"
-    },
-    {
-      "label": "Source-only files and OS targeting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L150",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_source_only_files_and_os_targeting",
-      "community": 152,
-      "norm_label": "source-only files and os targeting"
-    },
-    {
-      "label": "Minimum chezmoi version",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L160",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_minimum_chezmoi_version",
-      "community": 152,
-      "norm_label": "minimum chezmoi version"
-    },
-    {
-      "label": "Secrets management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L164",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_secrets_management",
-      "community": 152,
-      "norm_label": "secrets management"
-    },
-    {
-      "label": "System package management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L176",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_system_package_management",
-      "community": 152,
-      "norm_label": "system package management"
-    },
-    {
-      "label": "macOS defaults management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L205",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_macos_defaults_management",
-      "community": 152,
-      "norm_label": "macos defaults management"
-    },
-    {
-      "label": "Claude Code settings",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L217",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_code_settings",
-      "community": 152,
-      "norm_label": "claude code settings"
-    },
-    {
-      "label": "Agent skills (cross-harness store)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L227",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_agent_skills_cross_harness_store",
-      "community": 152,
-      "norm_label": "agent skills (cross-harness store)"
-    },
-    {
-      "label": "Global instruction files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L240",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_global_instruction_files",
-      "community": 152,
-      "norm_label": "global instruction files"
-    },
-    {
-      "label": "Git hooks",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L249",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_git_hooks",
-      "community": 152,
-      "norm_label": "git hooks"
-    },
-    {
-      "label": "Template files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L263",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_template_files",
-      "community": 152,
-      "norm_label": "template files"
-    },
-    {
-      "label": "Template shellcheck workaround",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L270",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_template_shellcheck_workaround",
-      "community": 152,
-      "norm_label": "template shellcheck workaround"
-    },
-    {
-      "label": "Dev environment (no nix)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L296",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_dev_environment_no_nix",
-      "community": 152,
-      "norm_label": "dev environment (no nix)"
-    },
-    {
-      "label": "CI",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_ci",
-      "community": 152,
-      "norm_label": "ci"
-    },
-    {
-      "label": "Where deployed scripts live",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L317",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_where_deployed_scripts_live",
-      "community": 152,
-      "norm_label": "where deployed scripts live"
-    },
-    {
-      "label": "Background jobs and LaunchAgents",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L364",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_background_jobs_and_launchagents",
-      "community": 152,
-      "norm_label": "background jobs and launchagents"
-    },
-    {
-      "label": "SSH hardening",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L390",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_ssh_hardening",
-      "community": 152,
-      "norm_label": "ssh hardening"
-    },
-    {
-      "label": "Herdr workspace management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L407",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_herdr_workspace_management",
-      "community": 152,
-      "norm_label": "herdr workspace management"
-    },
-    {
-      "label": "Herdr native status",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L426",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_herdr_native_status",
-      "community": 152,
-      "norm_label": "herdr native status"
-    },
-    {
-      "label": "Git worktrees (worktrunk)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L432",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_git_worktrees_worktrunk",
-      "community": 152,
-      "norm_label": "git worktrees (worktrunk)"
-    },
-    {
-      "label": "Bashrc init ordering",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L444",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_bashrc_init_ordering",
-      "community": 152,
-      "norm_label": "bashrc init ordering"
-    },
-    {
-      "label": "Long-running command notifier",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L458",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_long_running_command_notifier",
-      "community": 152,
-      "norm_label": "long-running command notifier"
-    },
-    {
-      "label": "Code Style",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L471",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_code_style",
-      "community": 152,
-      "norm_label": "code style"
-    },
-    {
-      "label": "Git Commits",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L499",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_git_commits",
-      "community": 152,
-      "norm_label": "git commits"
-    },
-    {
-      "label": "Security",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L506",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_security",
-      "community": 152,
-      "norm_label": "security"
     },
     {
       "label": "CLAUDE.md",
@@ -48098,46 +47786,6 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/pns/claude-hooks/executable_claude-stop-pulse.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "dot_local_libexec_pns_claude_hooks_executable_claude_stop_pulse",
-      "target": "dot_local_libexec_pns_claude_hooks_executable_claude_stop_pulse_sh__entry",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/pns/claude-hooks/executable_claude-user-prompt-start.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "dot_local_libexec_pns_claude_hooks_executable_claude_user_prompt_start",
-      "target": "dot_local_libexec_pns_claude_hooks_executable_claude_user_prompt_start_sh__entry",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/pns/codex-hooks/executable_relay-agent.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "dot_local_libexec_pns_codex_hooks_executable_relay_agent",
-      "target": "dot_local_libexec_pns_codex_hooks_executable_relay_agent_sh__entry",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/pns/codex-hooks/executable_relay-codex-hooks.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "dot_local_libexec_pns_codex_hooks_executable_relay_codex_hooks",
-      "target": "dot_local_libexec_pns_codex_hooks_executable_relay_codex_hooks_sh__entry",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/pns/executable_relay.sh",
@@ -48182,7 +47830,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/pns/executable_relay.sh",
-      "source_location": "L146",
+      "source_location": "L156",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_pns_executable_relay_sh__entry",
@@ -48223,6 +47871,26 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/pns/helpers/event.sh",
+      "source_location": "L86",
+      "weight": 1.0,
+      "source": "dot_local_libexec_pns_helpers_event",
+      "target": "dot_local_libexec_pns_helpers_event_pns_session_id_is_safe",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/pns/helpers/event.sh",
+      "source_location": "L95",
+      "weight": 1.0,
+      "source": "dot_local_libexec_pns_helpers_event",
+      "target": "dot_local_libexec_pns_helpers_event_pns_session_was_long",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/pns/helpers/event.sh",
       "source_location": "L16",
       "weight": 1.0,
       "source": "dot_local_libexec_pns_helpers_event",
@@ -48247,6 +47915,46 @@
       "weight": 1.0,
       "source": "dot_local_libexec_pns_helpers_event",
       "target": "dot_local_libexec_pns_helpers_event_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/pns/hooks/claude/executable_stop-pulse.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_libexec_pns_hooks_claude_executable_stop_pulse",
+      "target": "dot_local_libexec_pns_hooks_claude_executable_stop_pulse_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/pns/hooks/claude/executable_user-prompt-start.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_libexec_pns_hooks_claude_executable_user_prompt_start",
+      "target": "dot_local_libexec_pns_hooks_claude_executable_user_prompt_start_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_libexec_pns_hooks_codex_executable_install_hooks",
+      "target": "dot_local_libexec_pns_hooks_codex_executable_install_hooks_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/pns/hooks/executable_relay-agent.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_libexec_pns_hooks_executable_relay_agent",
+      "target": "dot_local_libexec_pns_hooks_executable_relay_agent_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -65333,11 +65041,11 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "test/unit/relay-codex-hooks.sh",
+      "source_file": "test/unit/pns-codex-install-hooks.sh",
       "source_location": "L1",
       "weight": 1.0,
-      "source": "test_unit_relay_codex_hooks",
-      "target": "test_unit_relay_codex_hooks_sh__entry",
+      "source": "test_unit_pns_codex_install_hooks",
+      "target": "test_unit_pns_codex_install_hooks_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -67317,336 +67025,6 @@
       "weight": 1.0,
       "source": "chezmoitemplates_global_agent_rules",
       "target": "chezmoitemplates_global_agent_rules_verification_before_completion",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "weight": 1.0,
-      "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L148",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L471",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_code_style",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L499",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_git_commits",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L38",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_key_commands",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L24",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_runbooks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L506",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_security",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_what_this_is",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L109",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_chezmoi_operations",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L137",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_cutover_tooling",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L40",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_linting_and_formatting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L65",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_testing",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L227",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_agent_skills_cross_harness_store",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L364",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_background_jobs_and_launchagents",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L444",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_bashrc_init_ordering",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_ci",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L217",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_claude_code_settings",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L296",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_dev_environment_no_nix",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L249",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_git_hooks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L432",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_git_worktrees_worktrunk",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L240",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_global_instruction_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L426",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_herdr_native_status",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L407",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_herdr_workspace_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L458",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_long_running_command_notifier",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L205",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_macos_defaults_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L160",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_minimum_chezmoi_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L164",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_secrets_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L150",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_source_only_files_and_os_targeting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L390",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_ssh_hardening",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L176",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_system_package_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L263",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_template_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L270",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_template_shellcheck_workaround",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L317",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_agents_where_deployed_scripts_live",
       "confidence_score": 1.0
     },
     {
@@ -86751,5 +86129,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "6e214d36d0802ec30a282e1dee5c685b3bc2cc8c"
+  "built_at_commit": "c587914ca09e60366f5405b1fdb33f34f9f45943"
 }
