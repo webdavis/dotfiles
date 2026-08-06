@@ -439,11 +439,23 @@ if [[ $- == *i* ]]; then
   # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
   # Uses bash-preexec (sourced above) instead of a naked DEBUG trap, which would
   # clobber atuin's recording.
+  #
+  # THE TIMER IS PS0, NOT PREEXEC. bash-preexec never fires preexec for the
+  # FIRST command of a session (measured 2026-08-06: trap installed, re-arm
+  # entry last in PROMPT_COMMAND, and still no preexec until the second
+  # command), so a timer that starts in preexec misses exactly the case that
+  # matters most, opening a terminal to kick off a long build. PS0 is bash's
+  # own after-read-before-execute hook and fires for every interactively read
+  # command including the first. The array-subscript form assigns inside the
+  # subscript's arithmetic and expands to the (unset) element, so the prompt
+  # shows nothing. preexec still carries the NAME, which PS0 cannot see; on
+  # the first command the name falls back to history in precmd.
   __cmd_notify_start=""
   __cmd_notify_name=""
+  # shellcheck disable=SC2034  # expanded by bash at prompt time, not referenced
+  PS0='${__cmd_notify_ps0[__cmd_notify_start=SECONDS]}'
 
   __cmd_notify_preexec() {
-    __cmd_notify_start=$SECONDS
     __cmd_notify_name="$1"
   }
 
@@ -452,6 +464,10 @@ if [[ $- == *i* ]]; then
     [[ -z $__cmd_notify_start ]] && return
     local elapsed=$((SECONDS - __cmd_notify_start))
     __cmd_notify_start=""
+    # First command of a session: preexec never ran, so the name is empty and
+    # history is the only witness. HISTIGNORE'd commands stay empty, which is
+    # fine: the name only feeds the skip list and the banner text.
+    [[ -z $__cmd_notify_name ]] && __cmd_notify_name="$(fc -ln -0 2>/dev/null | sed 's/^[[:space:]]*//')"
     # Skip known interactive TUIs (agent CLIs included: they fire their own relay hooks).
     [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|hermes|codex|fzf) ]] && return
     local cmd="${__cmd_notify_name%% *}" state="done" dur="${elapsed}s"
