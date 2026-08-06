@@ -39,8 +39,8 @@ Overwritten from the template on every apply, whatever the live file holds.
   shipped 2.1.220 binary on 2026-08-03), so without these four entries those plugins sit at their install
   version forever. The write is per marketplace key, so a marketplace added with
   `claude plugin marketplace add` keeps its own entry. What those silent startup updates changed is
-  recorded weekly by `~/.local/bin/report-plugin-updates.sh`; see the plugin update record in
-  `docs/runbooks/agent-skills-store.md`.
+  recorded weekly by `~/.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh`; see the
+  plugin update record in `docs/runbooks/agent-skills-store.md`.
 
 ## 2. Free-drift (Claude Code owns)
 

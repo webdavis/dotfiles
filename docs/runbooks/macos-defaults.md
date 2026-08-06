@@ -16,9 +16,9 @@ read by the osquery posture poller at runtime rather than by either runner.
   or pin, so a file of purely verify or manual records prompts for nothing.
 
 The `/etc/hosts` pin work is not inline in the Tier 2 template. The template hands one pin per line to
-`~/.local/libexec/tailnet/reconcile-hosts-pin.sh` (source:
-`dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh`), which converges the record to exactly one
-line per pin rather than guarding and appending.
+`~/.local/libexec/tailscale/reconcile-hosts-pin.sh` (source:
+`dot_local/libexec/tailscale/executable_reconcile-hosts-pin.sh`), which converges the record to exactly
+one line per pin rather than guarding and appending.
 
 ## Daily workflow
 
@@ -47,11 +47,11 @@ tracked entry whose live value diverges from YAML (exits 4). Resolve that by run
 ## Implementation gotchas that must not be "cleaned up"
 
 - **`macos-defaults-drift.sh` requires `shopt -s lastpipe`**
-  (`dot_local/bin/executable_macos-defaults-drift.sh`, line 22). Bash's default behavior runs the
-  right-hand side of a pipeline in a subshell, so the `drift_count` increments inside the
-  `yq | while ...` loop would be discarded after the loop. Without `lastpipe`, `just D` would always exit
-  0 even when drift exists, a silent false negative. The same applies to `indeterminate_count`, which
-  drives a separate fail-closed `exit 3`. The setting is a correctness requirement, not cosmetic.
+  (`dot_local/libexec/macos-defaults/executable_macos-defaults-drift.sh`, line 22). Bash's default
+  behavior runs the right-hand side of a pipeline in a subshell, so the `drift_count` increments inside
+  the `yq | while ...` loop would be discarded after the loop. Without `lastpipe`, `just D` would always
+  exit 0 even when drift exists, a silent false negative. The same applies to `indeterminate_count`,
+  which drives a separate fail-closed `exit 3`. The setting is a correctness requirement, not cosmetic.
 - **The Tier 1 runner template uses `{{ if index . "host" }}`, not `{{ if .host }}`.** Go's
   `text/template` errors with `map has no entry for key "host"` when the YAML record has no `host` field,
   which is the common case. The `index` form returns the empty value for absent keys (treated as falsy by

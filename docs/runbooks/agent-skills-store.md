@@ -45,7 +45,8 @@ The lock at `dot_agents/custom-skill-lock.json` records it.
 ### npx-tracked (the `npxTracked` table, 27 skills)
 
 The store copy is installed and refreshed by the official npx `skills` CLI from an official GitHub
-upstream, latest from `main` (no pin). `~/.local/bin/update-skills.sh` installs and refreshes them via an
+upstream, latest from `main` (no pin).
+`~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` installs and refreshes them via an
 explicit `npx --yes skills@latest add <repo> --skill <name> --agent claude-code --agent codex -g -y` per
 repo group, run against the weekly candidate generation. It never uses the bulk `npx skills update`,
 whose lock-walk logs some failures at exit 0; the explicit add also reconciles lock-absent roster skills.
@@ -201,9 +202,9 @@ hermes-native adaptations (`writing-plans`, `requesting-code-review`, `subagent-
 `superpowers:<name>`, keeping the workflow out of the disabled legacy duplicates.
 
 The mapping lives in the lock's `superpowersRouting` table, and
-`~/.local/bin/assert-hermes-superpowers-routing.sh` re-asserts it idempotently on every
-`update-skills.sh` run and after any superpowers re-mirror. A re-assert that fixes anything is logged
-loudly and relayed, because it means something stomped the mirror.
+`~/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh` re-asserts it
+idempotently on every `update-skills.sh` run and after any superpowers re-mirror. A re-assert that fixes
+anything is logged loudly and relayed, because it means something stomped the mirror.
 `assert-hermes-superpowers-routing.sh --check` is the health probe: non-zero lists the stale files and
 changes nothing. Scope is the hermes mirror ONLY. Claude Code's superpowers plugin keeps its
 `superpowers:*` references untouched.
@@ -347,9 +348,10 @@ size). Hermes's larger native catalog (`~/.hermes/skills/<category>/`) remains H
 Claude Code updates marketplaces and their installed plugins at startup by itself (see the
 `extraKnownMarketplaces` entries in `docs/runbooks/claude-code-settings.md`), so nothing here installs or
 upgrades a plugin. What Claude Code does not do is leave a record, so
-`~/.local/bin/report-plugin-updates.sh` is the record: read-only, weekly, one entry to the same
-`#unattended-upgrades` channel and in the same shape as the weekly Homebrew upgrade and the weekly skills
-update (`dot_local/bin/unattended-log-lib.sh` holds the shared entry shape and the reasoning behind it).
+`~/.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh` is the record: read-only, weekly,
+one entry to the same `#unattended-upgrades` channel and in the same shape as the weekly Homebrew upgrade
+and the weekly skills update (`dot_local/libexec/unattended-upgrades/helpers/log-entries.sh` holds the
+shared entry shape and the reasoning behind it).
 
 - **Source of truth:** `~/.claude/plugins/installed_plugins.json`, the file Claude Code maintains (schema
   version 2, verified against the live file 2026-08-03; the script records that provenance in a comment

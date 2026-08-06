@@ -39,11 +39,8 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 
 ### Linting and formatting
 
-All lint and format tooling is orchestrated by the STANDALONE [treefmt](https://treefmt.com/) binary (a
-brew formula), configured in `treefmt.toml`. Nix is gone from this repo (operator ruling 2026-08-05):
-tools come from Homebrew, declared in `.chezmoidata/system_packages_autoinstall.yaml`, plus the
-uv-managed `mdformat` (installed with the `mdformat-gfm` plugin). Nix stays installed on the machine for
-other uses; nothing here invokes it.
+All lint and format tooling is orchestrated by the STANDALONE [treefmt](https://treefmt.com/) binary,
+configured in `treefmt.toml`.
 
 ```bash
 just l             # run all ten formatters (three rewrite in place, seven check only)
@@ -57,10 +54,8 @@ just y             # yq (YAML validation) only
 just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
-Three of the ten rewrite files: shfmt, mdformat and taplo. The other seven only read and fail the run on
-bad input: shellcheck, actionlint, `jq-validate`, `yq-validate`, `shellcheck-rendered-template`,
-`osquery-config-render` and `espanso-match-render` (the render-and-validate ones are plain scripts under
-`scripts/`).
+Three formatters rewrite files (shfmt, mdformat, taplo); the other seven only read and fail the run on
+bad input, and the four render-then-validate ones are plain scripts under `scripts/treefmt/`.
 
 `just l` auto-formats in place. `just lint-check` is the drift gate at pre-push and in CI; standalone
 treefmt has no dry-run mode and no sandbox, so a red gate has ALSO already written the fixes into the
@@ -78,13 +73,11 @@ just test               # All four suites (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
 
-**The suite was purged on 2026-08-05 (operator ruling: tests must be fast or they go).** 243 files went
-to 82: `test/unit/` holds 70 fast `.sh` tests (single component, sub-second each, FAST is the admission
-rule), `test/integration/` and `test/e2e/` hold six bats files covering the osquery notification pipeline
-(the long-lived bash tool that keeps bats coverage until its SP3 Rust port), and `test/test-system/`
-holds 6 runner self-checks. bats is HOST bats-core (brew formula), never nix. The deleted 160+ files
-remain in git history as a cherry-pick pool; restore individual logic asserts, never wholesale (task
-#120). Every restored or new test must beat the speed bar or stay dead.
+**Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
+slow one is deleted rather than tolerated. `test/unit/` is single-component `.sh`; bats survives only
+where a long-lived bash tool earns it (the osquery notification pipeline), through HOST bats-core;
+`test/test-system/` holds the runner's own checks. A large purge in 2026-08 left 160+ deleted files in
+git history as a cherry-pick pool: restore individual logic asserts from it, never wholesale.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
@@ -124,8 +117,8 @@ chezmoi edit <file>                         # edit a template (prefer over direc
 ```
 
 **`--exclude=templates` does not make an apply vault-free.** It skips `.tmpl` entries, but it does NOT
-skip a `modify_` template (measured 2026-08-02, recorded in `test/unit/claude-enabled-plugins.sh`), and
-two modify-templates call `keepassxc`: `modify_private_dot_claude.json` (target `~/.claude.json`) and
+skip a `modify_` template (measured 2026-08-02), and two modify-templates call `keepassxc`:
+`modify_private_dot_claude.json` (target `~/.claude.json`) and
 `Library/Application Support/Claude/modify_private_claude_desktop_config.json`. So `just a` and `just d`
 still reach the vault: run them from an interactive terminal with KeePassXC unlocked. To stay off the
 vault entirely, apply specific files by name:
@@ -147,24 +140,22 @@ Two operator-run scripts in `scripts/`, invoked by absolute path (no justfile re
 
 - `scripts/cutover-gate.sh <1|2|3|4|5>` runs one ordered cutover gate (preflight, activation,
   reconciliation, soak, closure), keeping its ledger under `~/.local/state/cutover`. Covered by
-  `test/integration/cutover-gate-*.sh`.
+  `test/unit/cutover-gate-{usage,deletion-agreement,managed-comparison}.sh`.
 - `dot_local/libexec/unattended-upgrades/agent-skills/executable_live-reconcile.sh` converges the live
   skills fan-out to the committed lock, `--dry-run` first. Covered by
-  `test/integration/live-reconcile.sh`.
+  `test/unit/live-reconcile-app-owned-exemption.sh`.
 
 ## Architecture
 
-### Source-only files
+### Source-only files and OS targeting
 
-Dev and CI files excluded from `$HOME` via `.chezmoiignore`: `README.md`, `LICENSE`, `CLAUDE.md`,
-`AGENTS.md`, `.gitignore`, `.gitattributes`, `assets/`, `docs/`, `private/`, `justfile`, `.envrc`,
-`scripts/`, `test/`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`, `.githooks/`, `graphify-out/`,
-`treefmt.toml`, plus the failsafe globs `tmp.*`, `*.rayconfig`, `*extension-diagnostics*` and
-`**/.DS_Store`, the vendored-skill `.git`/`node_modules` trees, and the Rust `target` dirs under
-`.local/share/herdr/`. A trailing OS-conditional block ignores `Library` and six macOS-only `.local/bin`
-scripts on Linux.
+`.chezmoiignore` declares both: which dev and CI files never reach `$HOME`, and a trailing OS-conditional
+block that drops `Library` and the macOS-only helpers on Linux. Read the file rather than a copy of it
+here; this paragraph used to transcribe it and drifted twice. Templates branch on
+`{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content.
 
-`.worktrees/` is NOT in `.chezmoiignore`; it is gitignored and treefmt-excluded instead.
+One thing the file does not say: `.worktrees/` is deliberately NOT in it; it is gitignored and
+treefmt-excluded instead.
 
 ### Minimum chezmoi version
 
@@ -252,9 +243,8 @@ The global ruleset for Claude Code and Codex is one shared partial,
 `.chezmoitemplates/global-agent-rules.md`, pulled into both `private_dot_claude/CLAUDE.md.tmpl` (target
 `~/.claude/CLAUDE.md`) and `private_dot_codex/AGENTS.md.tmpl` (target `~/.codex/AGENTS.md`) with
 `includeTemplate`, between a pair of `shared-rules` markers. Harness-specific rules go in the including
-file, below the shared block. `test/integration/global-instruction-parity.sh` renders both targets and
-byte-compares what lands between the markers, so an edit to one copy fails the build. Edit the partial,
-never a harness copy.
+file, below the shared block. Edit the partial, never a harness copy: the test that byte-compared the two
+rendered copies went with the slow-suite purge on 2026-08-05, so nothing catches a divergence now.
 
 ### Git hooks
 
@@ -302,13 +292,6 @@ but it is load-bearing for the sibling `espanso-match-render` formatter, whose v
 Two more sibling formatters render before validating: `osquery-config-render` renders the JSON-bodied
 `.chezmoitemplates/osquery/**/*.conf` templates via `includeTemplate` and checks them with jq, and
 `espanso-match-render` renders the espanso `*.yml.tmpl` match files and checks them with yq.
-
-### OS targeting
-
-`.chezmoiignore` conditionally ignores paths by OS: on Linux it drops `Library` and the six macOS-only
-scripts under `.local/bin` (the four `macos-defaults-*` helpers, `rotate-logs.sh` and
-`brew-shellenv-cache-refresh.sh`). Template files use `{{ if eq .chezmoi.os "darwin" }}` for
-macOS-specific content.
 
 ### Dev environment (no nix)
 
@@ -408,10 +391,9 @@ polls in 0.25s ticks because bash has no wait-with-timeout and stock macOS ships
 sends `TERM` to the whole process group, waits a 2s grace, sends `KILL`, and returns 124 the way
 `timeout(1)` does. It exists because a named pipe in the drop-in directory blocks `sshd -G` forever (sshd
 resolves its own `Include` globs with no type filter), and before the watchdog a hang parked the install
-with the new drop-in already published and the legacy file already moved aside.
-`test/e2e/ssh-hardening-verify-watchdog.sh` drives a TERM-ignoring wedge to pin both the deadline and the
-group kill. The reload and lockout-recovery procedure is in
-`docs/runbooks/macos-fresh-machine-quickstart.md`.
+with the new drop-in already published and the legacy file already moved aside. The watchdog's deadline
+and group kill are no longer pinned by a test, which went with the slow-suite purge on 2026-08-05. The
+reload and lockout-recovery procedure is in `docs/runbooks/macos-fresh-machine-quickstart.md`.
 
 ### Herdr workspace management
 
@@ -429,10 +411,8 @@ Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **pl
 (`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
 `type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`), so herdr execs it directly as argv
 with no `/bin/sh -lc` wrapper. It is built and linked by `run_onchange_after_57`, mirroring the
-`last-workspace` plugin, and it shells the `herdr` CLI rather than using a Rust SDK. The gain over the
-old shell-keybinding binary is about 5 ms (the wrapper) and is imperceptible; the value is the idiomatic
-plugin integration. Plugin actions get `HERDR_PANE_ID`, and the binary falls back to
-`HERDR_ACTIVE_PANE_ID` when that is absent.
+`last-workspace` plugin, and it shells the `herdr` CLI rather than using a Rust SDK. Plugin actions get
+`HERDR_PANE_ID`, and the binary falls back to `HERDR_ACTIVE_PANE_ID` when that is absent.
 
 ### Herdr native status
 
@@ -478,12 +458,11 @@ and pulse Hue lights via `~/.local/libexec/pns/hue-pulse.sh`, which is handed th
 green on success, red otherwise. Interactive TUIs are skipped by a prefix match on the command line:
 `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The
 agent CLIs are on that list because they fire their own relay hooks.
-`test/integration/bashrc-long-command-relay.sh` pins the contract.
 
 ## Code Style
 
 - Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
-  `treefmt.nix`). When running shfmt by hand, pass these flags explicitly, `.editorconfig` only covers
+  `treefmt.toml`). When running shfmt by hand, pass these flags explicitly, `.editorconfig` only covers
   `dot_fzf*` and `dot_bash*` patterns, for editors. Note that shfmt and shellcheck both exclude `*.tmpl`
   and `dot_agents/skills/**`, so templated shell is covered by the render-then-lint formatter instead.
 - **Bash follows the [Wooledge BashGuide](https://mywiki.wooledge.org/BashGuide) practices.** The rules

@@ -117,7 +117,7 @@ test: test-unit test-integration test-e2e test-system
 #
 # A green run does NOT promise CI green: it reads the working tree; CI reads
 # the pushed commit. An edit you never staged can make ship green and CI red;
-# that is the PR #116 failure CLAUDE.md records under Git Hooks.
+# that is the PR #116 failure `docs/runbooks/git-hooks.md` records.
 ship:
   just lint-check
   just test

@@ -111,8 +111,8 @@ dscacheutil -q host -a name <peer>.<tailnet>.ts.net   # not dig, which bypasses 
 
 Durable fallback: needed peers are pinned in `/etc/hosts` declaratively, from structured `tailnet_pins`
 data in `.chezmoidata/macos_system_setup.yaml`. The Tier 2 sudo runner hands one pin per line to
-`~/.local/libexec/tailnet/reconcile-hosts-pin.sh`, which converges the file to exactly one line per pin.
-Tailscaled never manages `/etc/hosts`, so the entries coexist, and tailnet IPs are stable per node.
+`~/.local/libexec/tailscale/reconcile-hosts-pin.sh`, which converges the file to exactly one line per
+pin. Tailscaled never manages `/etc/hosts`, so the entries coexist, and tailnet IPs are stable per node.
 
 ### Updates
 
