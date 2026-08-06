@@ -133,9 +133,14 @@ event() {
 
 # --- macos-banner ----------------------------------------------------------
 
-@test "the banner focuses the pane it was given" {
-  event async 'pane-7' | "$PNS/channels/executable_macos-banner.sh"
-  run grep -q 'herdr agent focus pane-7' "$BATS_TEST_TMPDIR/notifier.argv"
+@test "the banner's click switches to the pane's WORKSPACE before focusing the pane" {
+  # One herdr server, many workspaces, one Ghostty window: `agent focus` alone
+  # moves focus inside the pane's workspace while the SCREEN keeps showing
+  # whichever workspace the operator was in, so a cross-workspace click went
+  # nowhere (measured 2026-08-06). The workspace id is the pane id's prefix.
+  # Both commands ride the click; nothing moves focus at notify time.
+  event async 'wW:p21' | "$PNS/channels/executable_macos-banner.sh"
+  run grep -q 'herdr workspace focus wW; herdr agent focus wW:p21' "$BATS_TEST_TMPDIR/notifier.argv"
   [ "$status" -eq 0 ]
 }
 
