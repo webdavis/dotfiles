@@ -468,7 +468,7 @@ if [[ $- == *i* ]]; then
     # keeps the first tier to the banner; the second tier fans out and pulses the
     # lights. test/integration/bashrc-long-command-relay.sh pins that contract.
     if ((elapsed >= 300)); then
-      ("$HOME/.local/libexec/pns/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
+      ("$HOME/.local/libexec/pns/channels/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
       ("$HOME/.local/libexec/pns/relay.sh" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     elif ((elapsed >= 30)); then
       ("$HOME/.local/libexec/pns/relay.sh" --local-only --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)

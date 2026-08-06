@@ -53,16 +53,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-auth_file="${RELAY_AUTH_FILE:-$HOME/.config/relay/auth.json}"
-moshi_url="${RELAY_MOSHI_URL:-https://api.getmoshi.app/api/webhook}"
-hermes_url="${RELAY_HERMES_URL:-http://127.0.0.1:8644/webhooks/relay}"
+pns_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The DECISION CORE. Every branch below that decides what happens (rather than
+# doing it) lives in helpers/event.sh as a pure function, which is what makes
+# those decisions testable one behavior at a time without spawning this script.
+# shellcheck source=dot_local/libexec/pns/helpers/event.sh
+source "${PNS_HELPERS_DIR:-$pns_dir/helpers}/event.sh"
 
-title="${agent:-relay} · ${state:-done}${project:+ · $project}"
-# Body is the summary itself (branch-prefixed), not a redundant "state, project" header the title already
-# carries -- so the phone push / macOS banner spend their short preview on the summary, not boilerplate.
-message="${branch:+($branch) }${detail:-${state:-done}}"
-# Phone push + macOS banner clip long summaries mid-sentence; pre-trim to the last full sentence within
-# ~260 chars so they end cleanly. Discord (#relay) keeps the full text below -- it has no length ceiling.
+# Endpoints and credentials belong to the channels now, each reading the same
+# env names (RELAY_AUTH_FILE, RELAY_MOSHI_URL, RELAY_HERMES_URL) with the same
+# defaults. The engine deliberately knows none of them: that is what makes it
+# destination-agnostic.
+
+title="$(pns_title "$agent" "$state" "$project")"
+message="$(pns_message "$branch" "$detail" "$state")"
+# Phone push and macOS banner clip long summaries mid-sentence; pre-trim to the
+# last full sentence within ~260 chars so they end cleanly. Discord keeps the
+# full text. This stays here rather than in the core because it forks python.
 preview="$(printf '%s' "$message" | python3 -c 'import re, sys
 s = sys.stdin.read()
 if len(s) <= 260:
@@ -74,112 +81,70 @@ else:
             cut = m.end()
     sys.stdout.write(s[:cut] if cut else s[:259].rstrip() + "…")' 2>/dev/null || printf '%s' "$message")"
 
-# Presence gating for the phone push only: at the desk (recent keyboard/mouse input) the local banner +
-# Discord log suffice, so skip moshi; away (idle past the threshold) add it. Fail-safe: if idle is unknown
-# (probe failed) treat as away so a push is never dropped. RELAY_IDLE_SECS overrides the probe (test/manual);
-# RELAY_FORCE_PHONE=1 always pushes. HIDIdleTime is input-idle -> works under the never-sleep power policy.
-desk_idle="${RELAY_DESK_IDLE_SECS:-600}"
-# Fail OPEN on ANY uncertainty. Validate the raw nanosecond field AND the threshold as plain decimal
-# digits BEFORE any arithmetic, because two silent-drop traps hide here: a PRESENT-but-garbled
-# HIDIdleTime line awk-coerces to 0 ("actively typing") and suppresses the push, and a non-numeric
-# threshold aborts the bash arithmetic comparison under set -u (rc=1, dropping every channel). So we
-# pull the raw $NF (not a pre-divided int), require all-digits on it and on the threshold, and only then
-# compare. Any invalid or absent value = presence unknown = want_phone stays 1 (treat as "user away").
-# RELAY_IDLE_SECS overrides the probe; RELAY_IOREG overrides the probe binary (tests point it at a stub).
+# Presence gating applies to the phone alone: at the desk the banner and the
+# Discord entry suffice, so the push is skipped; away, it is added. The
+# fail-open rules and the reasons behind them live with the verdict, in
+# helpers/event.sh. RELAY_IDLE_SECS overrides the probe (tests and manual
+# runs); RELAY_IOREG points it at a stub.
+# The idle PROBE is impure and lives here; the VERDICT is pns_wants_phone.
 #
-# The probe runs ONLY when a phone push could actually fire. Both narrowing flags suppress the moshi leg
-# outright, so under either one the probe's answer is unused -- and it is an unbounded pipe to ioreg with
-# no timeout. On the --remote-only path that is not merely wasted work: the POST there is SYNCHRONOUS, so
-# a wedged ioreg holds the weekly job before the delivery it exists to report, after the week's guard is
-# spent and while the caller still holds its serialize lock.
-want_phone=1
-if [[ -z $local_only && -z $remote_only && -z ${RELAY_FORCE_PHONE:-} ]]; then
-  idle_secs="${RELAY_IDLE_SECS:-}"
-  if [[ -z $idle_secs ]]; then
-    idle_ns="$("${RELAY_IOREG:-/usr/sbin/ioreg}" -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print $NF}' || true)"
-    [[ $idle_ns =~ ^[0-9]+$ ]] && idle_secs=$((idle_ns / 1000000000))
-  fi
-  if [[ $idle_secs =~ ^[0-9]+$ && $desk_idle =~ ^[0-9]+$ && $idle_secs -lt $desk_idle ]]; then want_phone=""; fi
+# The probe runs ONLY when a phone push could actually fire. Both narrowing
+# flags suppress the moshi leg outright, so under either one the answer is
+# unused, and it is an unbounded pipe to ioreg with no timeout. On the
+# --remote-only path that is not merely wasted work: the POST there is
+# SYNCHRONOUS, so a wedged ioreg holds the weekly job before the delivery it
+# exists to report, after the week's guard is spent and while the caller still
+# holds its serialize lock. HIDIdleTime is input-idle, which is what works
+# under the never-sleep power policy.
+idle_secs="${RELAY_IDLE_SECS:-}"
+if [[ -z $local_only && -z $remote_only && -z ${RELAY_FORCE_PHONE:-} && -z $idle_secs ]]; then
+  idle_ns="$("${RELAY_IOREG:-/usr/sbin/ioreg}" -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print $NF}' || true)"
+  [[ $idle_ns =~ ^[0-9]+$ ]] && idle_secs=$((idle_ns / 1000000000))
 fi
+want_phone=""
+pns_wants_phone "$idle_secs" "${RELAY_DESK_IDLE_SECS:-600}" \
+  "$local_only" "$remote_only" "${RELAY_FORCE_PHONE:-}" && want_phone=1
 
-# moshi -- token read from the 0600 file by jq; body sent on stdin (never on argv)
-moshi_body="$(jq -c --arg t "$title" --arg m "$preview" \
-  'if .moshi_secret then {token: .moshi_secret, title: $t, message: $m} else empty end' "$auth_file" 2>/dev/null || true)"
-if [[ -n $moshi_body && -z $local_only && -z $remote_only && -n $want_phone ]]; then
-  (curl -fsS -m 10 -X POST "$moshi_url" -H 'Content-Type: application/json' --data @- <<<"$moshi_body" >/dev/null 2>&1 || true) &
-fi
+# ---------------------------------------------------------------------------
+# Channel dispatch
+#
+# Everything above is the ENGINE: it renders the event and decides WHICH
+# channels fire (the narrowing flags, presence gating). Everything below hands
+# that event to plugins in channels/, one JSON object on stdin each. A channel
+# decides only HOW to deliver and whether it can; it always exits 0 and says
+# nothing unless asked to deliver synchronously. channels/moshi.sh carries the
+# full contract.
+#
+# This forecasts the SP3 Rust architecture deliberately: core stays
+# destination-agnostic so the published crate is not wired to one person's
+# stack, and a channel stays an executable taking JSON on stdin so it can be
+# written in any language. Adding a destination means dropping a file in
+# channels/ and routing to it here, not editing delivery code.
+# ---------------------------------------------------------------------------
+channels_dir="${PNS_CHANNELS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/channels}"
 
-# hermes -- body carries no secret; HMAC key read from the file by python (never argv/env); body on stdin
-hermes_body="$(jq -cn --arg a "$agent" --arg s "$state" --arg p "$project" --arg d "$message" \
-  '{agent: $a, state: $s, project: $p, detail: $d}' || true)"
-sig="$(printf '%s' "$hermes_body" | python3 -c 'import hmac, hashlib, json, sys
-secret = json.load(open(sys.argv[1])).get("hermes_secret") or ""
-sys.stdout.write(hmac.new(secret.encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest() if secret else "")' "$auth_file" 2>/dev/null || true)"
-hermes_ready=""
-[[ -n $hermes_body && -n $sig ]] && hermes_ready=1
-if [[ -n $remote_only ]]; then
-  # --remote-only: the LOG path (weekly unattended jobs -> #unattended-upgrades),
-  # the mirror of --local-only. Only the hermes leg fires: no banner, no phone.
-  # An unattended Monday-slot run is idle past RELAY_DESK_IDLE_SECS by
-  # definition, so without this flag every weekly heartbeat -- including
-  # "nothing changed" -- would buzz the phone and pop a banner, which is the
-  # noise a separate channel was chosen to avoid. --local-only cannot do this
-  # job: it suppresses the hermes leg, which IS the log.
-  #
-  # And on THIS path the POST is SYNCHRONOUS with a short deadline, then its
-  # outcome is printed. The alert path can afford to discard an HTTP status: it
-  # also lit a banner and a phone, so the operator already knows. A LOG delivery
-  # cannot. A 401 (wrong key) or 404 (route in config but not loaded by the
-  # running gateway) swallowed into /dev/null leaves the channel permanently
-  # empty, and an empty channel reads as "the job stopped running" -- the exact
-  # inversion this record exists to prevent. The status line goes to STDOUT so
-  # the caller's LaunchAgent run log keeps it.
-  #
-  # It still NEVER fails the caller: every outcome is printed and dropped, and
-  # this script exits 0 below regardless. A log that cannot be delivered must
-  # not break the weekly job it is reporting on.
-  if [[ -n $local_only ]]; then
-    printf 'relay: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent\n'
-  elif [[ -z $hermes_ready ]]; then
-    # Say it. A silent exit 0 here is indistinguishable from a delivered entry.
-    printf 'relay: post SKIPPED -- no hermes signing key in %s; nothing was sent\n' "$auth_file"
-  else
-    remote_deadline="${RELAY_REMOTE_TIMEOUT:-5}"
-    [[ $remote_deadline =~ ^[0-9]+$ ]] || remote_deadline=5
-    # No -f: it turns an HTTP >= 400 into a bare exit 22, and the CODE is the
-    # whole point here. -w '%{http_code}' reports 000 when no response arrived.
-    hermes_code="$(curl -sS -o /dev/null -m "$remote_deadline" -w '%{http_code}' \
-      -X POST "$hermes_url" -H 'Content-Type: application/json' \
-      -H "X-Webhook-Signature: $sig" --data @- <<<"$hermes_body" 2>/dev/null || true)"
-    case "$hermes_code" in
-      2??) printf 'relay: posted HTTP %s\n' "$hermes_code" ;;
-      000) printf 'relay: post FAILED HTTP 000 (no response; is the hermes gateway up?)\n' ;;
-      '') printf 'relay: post FAILED (curl reported no HTTP status at all)\n' ;;
-      *) printf 'relay: post FAILED HTTP %s\n' "$hermes_code" ;;
-    esac
-  fi
-elif [[ -n $hermes_ready && -z $local_only ]]; then
-  (curl -fsS -m 10 -X POST "$hermes_url" -H 'Content-Type: application/json' \
-    -H "X-Webhook-Signature: $sig" --data @- <<<"$hermes_body" >/dev/null 2>&1 || true) &
-fi
+# send <channel> <mode>: hand the event to one channel. A channel that is
+# missing is simply not installed, which is not an error.
+send() {
+  local channel="$channels_dir/$1.sh" mode="$2"
+  [[ -x $channel ]] || return 0
+  jq -cn --arg a "$agent" --arg s "$state" --arg p "$project" --arg b "$branch" \
+    --arg d "$detail" --arg t "$title" --arg m "$message" --arg v "$preview" \
+    --arg n "$pane" --arg o "$mode" \
+    '{agent: $a, state: $s, project: $p, branch: $b, detail: $d,
+      title: $t, message: $m, preview: $v, pane: $n, mode: $o}' |
+    "$channel" || true
+}
 
-# local clickable notification -> focus the exact herdr pane on click
-if [[ -z $remote_only ]] && command -v terminal-notifier >/dev/null 2>&1; then
-  exec_cmd=":"
-  # -execute takes a SHELL STRING, so the pane id is validated rather than
-  # quoted: a pane carrying `; curl ... | sh` would otherwise run when the
-  # operator clicks the banner. relay-agent fills --pane from $HERDR_PANE_ID,
-  # which is environment this script does not own. herdr pane ids are word
-  # characters; anything else drops the click action rather than the banner.
-  if [[ -n $pane ]]; then
-    if [[ $pane =~ ^[A-Za-z0-9._-]+$ ]]; then
-      exec_cmd="herdr agent focus $pane"
-    else
-      printf 'relay: refusing a pane id with shell metacharacters; the banner will not focus a pane\n' >&2
-    fi
-  fi
-  (terminal-notifier -title "$title" -message "$preview" -sound default \
-    -activate com.mitchellh.ghostty -execute "$exec_cmd" >/dev/null 2>&1 || true) &
+plan="$(pns_channel_plan "$local_only" "$remote_only" "$want_phone")"
+if [[ -z $plan ]]; then
+  # A legitimate verdict, and one that must be SAID: a silent exit here is
+  # indistinguishable from a delivered notification.
+  printf 'relay: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent\n'
+else
+  while read -r channel mode; do
+    [[ -n $channel ]] && send "$channel" "$mode"
+  done <<<"$plan"
 fi
 
 exit 0
