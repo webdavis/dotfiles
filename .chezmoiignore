@@ -27,10 +27,8 @@ test/
 # metadata, never target state.
 graphify-out/
 
-# Nix flake files:
-flake.nix
-flake.lock
-treefmt.nix
+# Lint orchestrator config (dev/CI only, must never deploy to $HOME):
+treefmt.toml
 
 # Failsafe so that stray tmp files in the source tree don't get applied to HOME.
 tmp.*
@@ -52,11 +50,11 @@ tmp.*
 
 {{- if eq .chezmoi.os "linux" }}
 Library
-.local/bin/macos-defaults-drift.sh
-.local/bin/macos-defaults-apply.sh
-.local/bin/macos-defaults-capture.sh
-.local/bin/macos-defaults-lib.sh
+.local/libexec/macos-defaults/macos-defaults-drift.sh
+.local/libexec/macos-defaults/macos-defaults-apply.sh
+.local/libexec/macos-defaults/macos-defaults-capture.sh
+.local/libexec/macos-defaults/helpers/defaults-records.sh
 # Rotation is driven by a launchd agent and reads sizes with BSD `stat -f`.
-.local/bin/rotate-logs.sh
-.local/bin/brew-shellenv-cache-refresh.sh
+.local/libexec/compress-and-truncate-local-logs.sh
+.local/libexec/brew-shellenv-cache-refresh.sh
 {{- end }}

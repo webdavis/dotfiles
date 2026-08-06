@@ -1,0 +1,110 @@
+# treefmt configuration for the STANDALONE treefmt binary (brew formula), the
+# single lint/format orchestrator. Replaces treefmt.nix + treefmt-nix: same
+# formatters and rules, no nix evaluation (operator ruling 2026-08-05). Tool
+# versions come from Homebrew (.chezmoidata/system_packages_autoinstall.yaml)
+# and the uv-managed mdformat; single-contributor repo, so cross-machine
+# version pinning lost its audience.
+#
+# Style rules preserved:
+#   - shell: shfmt -i 2 -ci -s; shellcheck (root .shellcheckrc disables SC1090/SC1091)
+#   - markdown: mdformat + GFM plugin, honoring .mdformat.toml (105-column wrap)
+#   - TOML: taplo, with dot_aerospace.toml excluded (user-preferred alignment)
+#   - JSON/YAML: validation-only via jq/yq (scripts/*-validate.sh)
+#   - chezmoi templates: render-then-check via scripts/ (shellcheck, osquery
+#     JSON, espanso YAML)
+# nixfmt is gone with the .nix files it formatted.
+
+[global]
+excludes = [
+  ".direnv/**",
+  # Generated knowledge-graph artifacts; the committed graph.json is
+  # machine-written and must never be reformatted.
+  "graphify-out/**",
+  ".superpowers/**",
+  ".worktrees/**",
+  "**/vendor/**",
+  "**/.vendor/**",
+  "**/node_modules/**",
+]
+
+# dot_agents/skills/** is vendored third-party skill content: it must stay
+# byte-identical to upstream/live, so it is never linted or reformatted.
+[formatter.shellcheck]
+command = "shellcheck"
+includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
+excludes = ["*.tmpl", "dot_agents/skills/**"]
+
+[formatter.shfmt]
+command = "shfmt"
+options = ["-i", "2", "-ci", "-s", "-w"]
+includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
+excludes = ["*.tmpl", "dot_agents/skills/**"]
+
+# RULE: skill/agent/command markdown is authored prose with YAML frontmatter;
+# mdformat is never allowed to touch it (see the old treefmt.nix note; the
+# frontmatter plugin travels with the uv-installed mdformat, but the rule
+# stands). docs/research/2026-04-12-worktrunk.md fails mdformat's round-trip
+# validator; quarantined so the rest stays linted.
+[formatter.mdformat]
+command = "mdformat"
+includes = ["*.md"]
+excludes = [
+  "private_dot_claude/skills/**",
+  "private_dot_claude/agents/**",
+  "private_dot_claude/commands/**",
+  "dot_agents/**",
+  "docs/superpowers/**",
+  "docs/research/2026-04-12-worktrunk.md",
+]
+
+# dot_aerospace.toml keeps user-preferred visual alignment taplo would strip.
+[formatter.taplo]
+command = "taplo"
+options = ["format"]
+includes = ["*.toml"]
+excludes = ["dot_aerospace.toml"]
+
+[formatter.actionlint]
+command = "actionlint"
+includes = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
+
+# JSON validation. modify_ templates share the .json extension but hold Go
+# template directives jq cannot parse; both spellings because patterns match
+# whole paths from the tree root.
+[formatter.jq-validate]
+command = "scripts/treefmt/jq-validate.sh"
+includes = ["*.json"]
+excludes = ["modify_*", "**/modify_*"]
+
+# YAML validation; workflow YAML is actionlint's. The espanso tree is
+# hand-edited YAML that reaches $HOME. A .yml.tmpl is Go-template text no YAML
+# parser can read; espanso-match-render below gates those.
+[formatter.yq-validate]
+command = "scripts/treefmt/yq-validate.sh"
+includes = [
+  ".chezmoidata/*.yaml",
+  ".chezmoidata/*.yml",
+  "Library/Application Support/espanso/**/*.yaml",
+  "Library/Application Support/espanso/**/*.yml",
+]
+
+[formatter.espanso-match-render]
+command = "scripts/treefmt/espanso-match-render.sh"
+includes = [
+  "Library/Application Support/espanso/**/*.yaml.tmpl",
+  "Library/Application Support/espanso/**/*.yml.tmpl",
+]
+
+# Every shell template is handed over; the script classifies per file (shell?
+# vault-free?) and renders + shellchecks the safe set. Replaces the nix-eval
+# discovery in the old treefmt.nix.
+[formatter.shellcheck-rendered-template]
+command = "scripts/treefmt/shellcheck-rendered-template.sh"
+includes = [".chezmoiscripts/*.sh.tmpl", "dot_*.tmpl"]
+
+[formatter.osquery-config-render]
+command = "scripts/treefmt/osquery-config-render.sh"
+includes = [
+  ".chezmoitemplates/osquery/*.conf",
+  ".chezmoitemplates/osquery/**/*.conf",
+]

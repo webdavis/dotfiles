@@ -52,6 +52,7 @@ packages:
         - atomicparsley
         - atuin
         - bash
+        - bats-core
         - bash-completion@2
         - bash-preexec
         - bat
@@ -135,6 +136,8 @@ packages:
         - ruff
         - sd
         - sevenzip
+        - shellcheck
+        - shfmt
         - socat
         - starship
         - steipete/tap/peekaboo
@@ -144,12 +147,14 @@ packages:
         - swiftlint
         - switchaudio-osx
         - tailscale
+        - taplo
         - tart
         - tealdeer
         - terminal-notifier
         - tokei
         - trash-cli
         - tree
+        - treefmt
         - uv
         - vapor
         - volta
@@ -163,6 +168,7 @@ packages:
         - xz
         - yakitrak/yakitrak/notesmd-cli
         - yq
+        - zizmor
         - zoxide
       casks:
         - affinity

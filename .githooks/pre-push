@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Pre-push gate. Lint drift only: about 20 seconds whenever it has to build the
-# check derivation, which is every push that changed a tracked file, and a few
-# seconds when nix already has that build.
+# Pre-push gate. Lint drift only: the standalone treefmt binary over the whole
+# tree, about 16 seconds uncached (no nix involved since 2026-08-05).
 #
 # No suite runs here. CI is the authority on the suite: it gates the merge, and
 # it tests the pushed COMMIT while this hook can only test the working tree, and
@@ -22,10 +21,11 @@ set -euo pipefail
 # these checks are ref-independent, so stdin is intentionally unused.
 printf "%s\n" "Running pre-push checks..."
 
-# Check-only format/lint drift gate: builds the flake's treefmt check
-# derivation (sandboxed copy; never mutates the working tree or index).
+# Format/lint drift gate. Standalone treefmt has no dry-run mode, so a red
+# gate has ALSO already written the fixes into the working tree: stage them,
+# amend or commit, and push again.
 if ! just lint-check; then
-  printf "\n%s\n" "❌ Lint drift! Run 'just l' to auto-fix, commit the result, and push again."
+  printf "\n%s\n" "❌ Lint drift! treefmt already fixed the files; stage the changes, commit, and push again."
   exit 1
 fi
 

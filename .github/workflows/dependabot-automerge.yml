@@ -5,7 +5,10 @@ permissions:
   contents: read
 jobs:
   automerge:
-    if: github.actor == 'dependabot[bot]'
+    # The PR author, not github.actor: the actor is whoever triggered this run
+    # (a re-run makes that a human), so it is spoofable as a bot check
+    # (zizmor bot-conditions, flagged by zizmor 1.29).
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write

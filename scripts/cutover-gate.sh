@@ -857,7 +857,7 @@ gate2() {
 # checkout, run by absolute path, dry-run before live. It is never authored ad
 # hoc during the cutover.
 run_live_reconcile() {
-  local tool="$repo/scripts/live-reconcile.sh"
+  local tool="$HOME/.local/libexec/unattended-upgrades/agent-skills/live-reconcile.sh"
   [[ -x $tool ]] ||
     die "$tool is missing or not executable; gate 3 runs the merged reconcile tool, it does not author one"
   # Checking HEAD proves nothing about a working-tree file: the dry run and the
@@ -865,11 +865,11 @@ run_live_reconcile() {
   # code that was proven clean is not the code that mutates the machine. Both
   # invocations are gated on the file still being byte-identical to the blob at
   # the pinned commit, which is the reviewed one.
-  require_pinned_tool "$tool" 'scripts/live-reconcile.sh'
+  require_pinned_tool "$tool" 'dot_local/libexec/unattended-upgrades/agent-skills/executable_live-reconcile.sh'
   "$tool" --dry-run ||
     die "the reconcile dry run failed; nothing is reconciled live until the dry run is clean"
   ok "reconcile dry run clean"
-  require_pinned_tool "$tool" 'scripts/live-reconcile.sh'
+  require_pinned_tool "$tool" 'dot_local/libexec/unattended-upgrades/agent-skills/executable_live-reconcile.sh'
   "$tool" ||
     die "the live reconcile failed"
   ok "live reconcile converged"
@@ -955,13 +955,37 @@ run_repo_test_suite() {
 # vanish at the next logout. The KeePassXC templates are not a problem to
 # exclude at this point in the procedure either: the operator has just run the
 # staged apply with the database unlocked, so a full status can render them.
+# Sets CHEZMOI_DRIFT instead of printing, and routes the status REPORT through
+# --output, because chezmoi renders its KeePassXC password prompt to STDOUT (a
+# bubbletea program, verified against v2.72.0 under a pty). Capturing stdout
+# with $(...) therefore swallows the prompt and the gate hangs on a password
+# the operator cannot see, which is exactly how the first real --post-apply
+# run died. With --output the report goes to a file and stdout stays on the
+# terminal, so the prompt is visible.
+# Two classes are excluded, learned from the first real post-apply run:
+#   - scripts: plain run_ scripts report R on EVERY status because they run on
+#     every apply, so "empty including scripts" is unachievable by design and
+#     proves nothing about the apply that just ran.
+#   - the three agent-owned Claude JSON files: Claude Code and Claude Desktop
+#     rewrite them continuously while running, so they show MM at any moment
+#     on a live machine. Their managed fields are re-asserted by the templates
+#     at every apply; their byte state is never stable and is not evidence.
 chezmoi_drift() {
-  local drift
-  drift="$(
+  local out
+  out="$(mktemp)"
+  (
     cd "$repo" || exit 1
-    chezmoi status
-  )" || die "chezmoi status failed; if it could not render the KeePassXC-gated templates, unlock the database and re-run this gate rather than narrowing the check"
-  printf '%s' "$drift"
+    chezmoi status --exclude=scripts --output "$out"
+  ) || {
+    rm -f "$out"
+    die "chezmoi status failed; if it could not render the KeePassXC-gated templates, unlock the database and re-run this gate rather than narrowing the check"
+  }
+  CHEZMOI_DRIFT="$(awk '
+    substr($0, 4) != ".claude.json" &&
+    substr($0, 4) != ".claude/settings.json" &&
+    substr($0, 4) != "Library/Application Support/Claude/claude_desktop_config.json"
+  ' "$out")"
+  rm -f "$out"
 }
 
 # Gate 2, stage 2. The staged apply is a manual step this runner deliberately
@@ -970,20 +994,19 @@ chezmoi_drift() {
 # failed halfway (a brew bundle that died on an unavailable formula) or never
 # ran at all. Convergence over every managed entry IS that evidence.
 require_apply_converged() {
-  local drift
-  drift="$(chezmoi_drift)"
-  [[ -z $drift ]] ||
-    die "chezmoi still reports source-to-target drift, so the staged apply did not converge. Finish or repair the apply before anything is retired:"$'\n'"$drift"
+  chezmoi_drift
+  [[ -z $CHEZMOI_DRIFT ]] ||
+    die "chezmoi still reports source-to-target drift, so the staged apply did not converge. Finish or repair the apply before anything is retired:"$'\n'"$CHEZMOI_DRIFT"
   ok "the staged apply converged: no source-to-target drift over any managed entry"
 }
 
 # The live smoke set: notifications, the hermes gateway, the osquery pipeline,
 # and source-to-target convergence. Gate 4 re-runs it at the end of the soak.
 run_smoke_checks() {
-  local note="$1" relay="$HOME/.local/bin/relay.sh"
+  local note="$1" relay="$HOME/.local/libexec/pns/relay.sh"
   local heartbeat="$HOME/.local/libexec/osquery/heartbeat.sh"
   local freshness="$HOME/.local/libexec/osquery/canary-freshness.sh"
-  local drift now canary age max_age
+  local now canary age max_age
 
   [[ -x $relay ]] || die "$relay is missing; notifications cannot be proven to work"
   "$relay" --agent cutover-gate --state 'done' --project cutover --detail "$note" ||
@@ -1017,15 +1040,15 @@ run_smoke_checks() {
     die "the osqueryd heartbeat canary is ${age}s old against a ${max_age}s bound, so the daemon is not producing scheduled results"
   ok "osquery heartbeat sent and its canary is fresh (${age}s)"
 
-  drift="$(chezmoi_drift)"
-  [[ -z $drift ]] ||
-    die "chezmoi reports source-to-target drift:"$'\n'"$drift"
+  chezmoi_drift
+  [[ -z $CHEZMOI_DRIFT ]] ||
+    die "chezmoi reports source-to-target drift:"$'\n'"$CHEZMOI_DRIFT"
   ok "no source-to-target drift over any managed entry"
 }
 
 gate3() {
   say "gate 3, reconciliation and verification. This will:"
-  say "  - run $repo/scripts/live-reconcile.sh, dry-run then live"
+  say "  - run $repo/dot_local/libexec/unattended-upgrades/agent-skills/executable_live-reconcile.sh, dry-run then live"
   say "  - probe every manifest entry domain-qualified against its predicate"
   say "  - run the repository test suite and the live smoke checks"
   say ''
