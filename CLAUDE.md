@@ -86,8 +86,8 @@ deleted on sight: LaunchAgent plist field assertions, "is this hook wired in", `
 branching, roster-versus-lock-table agreement, justfile-versus-CI-workflow parity, markdown heading
 guards, and meta-tests about how other tests are written. The question to ask is whether gutting our
 source logic while leaving the declarations intact would turn the test red. If it would not, it is not
-testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price:
-a config that disagrees with itself is now caught by review, not by a gate.
+testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a
+config that disagrees with itself is now caught by review, not by a gate.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
@@ -96,8 +96,8 @@ shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A
 summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings never fail the
 run.
 
-**CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines (`just
-lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
+**CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines
+(`just lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
 agreement any more: the parity test was declaration-consistency checking, not tool behavior, so it went
 with the 2026-08-05 scope ruling. **Edit one and you must edit the other by hand.** The pre-push hook
 deliberately runs no suite. Each suite's runner executes its own `.sh` and `.bats` once, with host
@@ -108,9 +108,9 @@ that runs the suite**, and it runs on pull requests and on pushes to `main` only
 branch with no open pull request runs the suite nowhere; `just ship` is how you cover that window
 deliberately.
 
-`just validate-tests` (`test/validate-tests.sh`, a dependency of every suite recipe) fails if a
-`*.sh` or `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may
-sit at `test/` root. Three trees are carved out: a suite's own `helpers/`, the shared cross-suite
+`just validate-tests` (`test/validate-tests.sh`, a dependency of every suite recipe) fails if a `*.sh` or
+`*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
+`test/` root. Three trees are carved out: a suite's own `helpers/`, the shared cross-suite
 `test/helpers/`, and `test/fixtures/**`. The two helper trees admit non-executable `*.sh` only, so an
 executable file or a `.bats` there still fails. The checker also rejects any symlink below `test/`, a
 non-executable suite `*.sh`, and a nested file in a flat suite. Add a test by dropping a new executable
@@ -244,9 +244,9 @@ fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces 
 any more:** the roster guard was declaration-consistency checking, not tool behavior, so it went with the
 2026-08-05 scope ruling. Adding or removing a skill means editing the store, every lock table and every
 per-harness declaration by hand, and a missed one now surfaces as a skill quietly not reaching a harness
-rather than as a red build.
-`~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` refreshes the npx-, clawhub- and
-app-owned lanes weekly, publishing a new generation with one atomic exchange.
+rather than as a red build. `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh`
+refreshes the npx-, clawhub- and app-owned lanes weekly, publishing a new generation with one atomic
+exchange.
 
 `docs/runbooks/agent-skills-store.md` carries the delivery model, the lane mechanics, the fork
 drift-watch states, the generation-exchange guarantee, the schedule, and how to add or remove a skill.
