@@ -79,7 +79,7 @@ CI_SETUP_ACTIONS=("actions/checkout")
 # chezmoi's package manifest, not from the rehearsal.
 # shellcheck disable=SC2016 # the value is literal command TEXT compared byte for byte; $HOME/$GITHUB_PATH must not expand here
 CI_SETUP_RUN_COMMANDS=(
-  'brew install actionlint age bash bats-core chezmoi jq just shellcheck shfmt taplo treefmt uv yq zizmor && uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"'
+  'brew install actionlint age bash bats-core chezmoi coreutils jq just shellcheck shfmt taplo treefmt uv yq zizmor && uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"'
 )
 # Step keys that change whether a command gates, without changing the command.
 UNMODELLED_STEP_KEYS=("if" "continue-on-error")
