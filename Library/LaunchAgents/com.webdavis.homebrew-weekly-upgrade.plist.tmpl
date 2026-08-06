@@ -7,7 +7,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/bash</string>
-    <string>{{ .chezmoi.homeDir }}/.local/bin/homebrew-weekly-upgrade.sh</string>
+    <string>{{ .chezmoi.homeDir }}/.local/libexec/unattended-upgrades/homebrew-weekly-upgrade.sh</string>
     <!-- Marks this as the SCHEDULED (not manual) run: only a scheduled run posts
          the weekly record to #unattended-upgrades. Without it, `just brew-upgrade`
          on a Wednesday would post a weekly entry and a dead LaunchAgent would look

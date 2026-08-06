@@ -165,7 +165,7 @@ on-mode-changed = []
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#exec-and-forget
     ctrl-cmd-comma = 'exec-and-forget open -a Finder'
-    ctrl-cmd-period = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "KeePassXC"'
+    ctrl-cmd-period = 'exec-and-forget open -a KeePassXC'
 
     alt-ctrl-cmd-shift-backtick = 'exec-and-forget open -na Brave\ Browser --args --incognito'
     alt-ctrl-cmd-shift-semicolon = 'exec-and-forget open -a Ghostty'
@@ -194,11 +194,11 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Discord'
 
     # Smart lights, Studio (3F - Studio)
-    f8  = 'exec-and-forget ~/.local/bin/smart-lights --brightness down'
-    f9  = 'exec-and-forget ~/.local/bin/smart-lights --power'
-    f10 = 'exec-and-forget ~/.local/bin/smart-lights --brightness up'
-    f5  = 'exec-and-forget ~/.local/bin/smart-lights --scene previous'
-    f6  = 'exec-and-forget ~/.local/bin/smart-lights --scene next'
+    f8  = 'exec-and-forget ~/.local/libexec/control-hue-lights.sh --brightness down'
+    f9  = 'exec-and-forget ~/.local/libexec/control-hue-lights.sh --power'
+    f10 = 'exec-and-forget ~/.local/libexec/control-hue-lights.sh --brightness up'
+    f5  = 'exec-and-forget ~/.local/libexec/control-hue-lights.sh --scene previous'
+    f6  = 'exec-and-forget ~/.local/libexec/control-hue-lights.sh --scene next'
     f4  = 'exec-and-forget openhue set scene "CC Halo Daylight" -r "3F - Studio"'
     f7  = 'exec-and-forget openhue set scene "CC Halo Amber" -r "3F - Studio"'
 

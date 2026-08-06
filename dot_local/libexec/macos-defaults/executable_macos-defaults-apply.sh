@@ -23,7 +23,7 @@ set -euo pipefail
 # Note: no `shopt -s lastpipe` here, the loops below don't mutate
 # outer-scope state (no counter to preserve, unlike drift.sh).
 
-# shellcheck source=dot_local/bin/macos-defaults-lib.sh
+# shellcheck source=dot_local/libexec/macos-defaults/helpers/defaults-records.sh
 source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
 
 # The status every refusal exits with, named once: the shared "data file missing,

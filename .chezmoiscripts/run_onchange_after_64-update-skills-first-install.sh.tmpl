@@ -41,14 +41,14 @@
 # instead of aborting the whole render on a cat error.
 #
 # lock hash:     {{ include "dot_agents/custom-skill-lock.json" | sha256sum }}
-# updater hash:  {{ include "dot_local/bin/executable_update-skills.sh" | sha256sum }}
+# updater hash:  {{ include "dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh" | sha256sum }}
 # pending retry: {{ if stat (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending") }}{{ (output "sh" "-c" (printf "cat %s 2>/dev/null || true" (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending" | squote))) | regexFind "^[0-9]+" }}{{ end }}
 set -euo pipefail
 
-UPDATER="$HOME/.local/bin/update-skills.sh"
+UPDATER="$HOME/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh"
 MARKER_DIR="$HOME/.local/state/skills"
 MARKER="$MARKER_DIR/first-install-pending"
-RELAY="$HOME/.local/bin/relay.sh"
+RELAY="$HOME/.local/libexec/pns/relay.sh"
 
 # Soft-gate on the deployed updater existing: a half-provisioned machine (updater
 # not yet applied) skips silently, exactly like the other loader chezmoiscripts.

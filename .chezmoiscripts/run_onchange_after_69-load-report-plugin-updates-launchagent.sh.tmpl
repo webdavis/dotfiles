@@ -25,7 +25,7 @@ mkdir -p "$HOME/.local/log/plugins"
 #
 # Seeding is idempotent: an existing baseline is left alone, so re-running this
 # on every plist change costs nothing and cannot swallow a change.
-HELPER="$HOME/.local/bin/report-plugin-updates.sh"
+HELPER="$HOME/.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh"
 if [[ -x $HELPER ]]; then
   # Never fatal. A chezmoiscript that exits non-zero aborts the whole apply, and
   # a machine with no plugin inventory yet has no first transition to lose.

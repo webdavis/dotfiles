@@ -5,7 +5,7 @@
 # lives in the tracked, unit-tested relay-codex-hooks.sh. Runs after the 60-series
 # moshi-hook setup (which strips Codex from moshi-hook) so relay owns Codex's pushes.
 set -euo pipefail
-script="$HOME/.local/bin/relay-codex-hooks.sh"
+script="$HOME/.local/libexec/pns/codex-hooks/relay-codex-hooks.sh"
 if [[ -x $script ]]; then
   "$script" || true
 fi

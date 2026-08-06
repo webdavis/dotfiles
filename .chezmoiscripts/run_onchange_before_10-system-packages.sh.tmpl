@@ -11,20 +11,10 @@ set -euo pipefail
 # this and re-syncs.
 exit 0
 {{ end -}}
-# Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX, as the autoupdate
-# block below already does) so every brew/uv/volta call goes through one place.
+# Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX) so every
+# brew/uv/volta call goes through one place.
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
 brew_bin="$brew_prefix/bin/brew"
-
-# Tear down the old domt4/autoupdate daily auto-upgrader (replaced by the
-# com.webdavis.homebrew-weekly-upgrade Monday-noon LaunchAgent). MUST run BEFORE
-# the `brew bundle cleanup` below untaps domt4/autoupdate -- otherwise the
-# `brew autoupdate` subcommand is gone when we call it. Guarded on the tap being
-# present so it is a clean no-op once removed / on fresh machines.
-if "$brew_bin" tap | grep -q '^domt4/autoupdate$'; then
-  "$brew_bin" autoupdate stop 2>/dev/null || true
-  "$brew_bin" autoupdate delete 2>/dev/null || true
-fi
 
 # DIAGNOSTIC INSTRUMENTATION for task #118: the Homebrew trust store empties
 # during an apply, and no command reproduces it in isolation (brew cleanup, a

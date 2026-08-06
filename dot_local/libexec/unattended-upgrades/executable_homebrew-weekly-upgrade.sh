@@ -58,13 +58,13 @@ for arg in "$@"; do
 done
 
 # The weekly record. Shared with update-skills.sh so the two jobs report in the
-# same shape; see unattended-log-lib.sh for why every entry states its own gap.
+# same shape; see helpers/log-entries.sh for why every entry states its own gap.
 # A missing library is LOUD and never fatal: upgrading matters more than
 # bookkeeping, but a silently absent record is the invisibility it exists to end.
-UNATTENDED_LOG_LIB="$(dirname "${BASH_SOURCE[0]}")/unattended-log-lib.sh"
+UNATTENDED_LOG_LIB="$(dirname "${BASH_SOURCE[0]}")/helpers/log-entries.sh"
 UNATTENDED_LOG_AVAILABLE=""
 if [[ -r $UNATTENDED_LOG_LIB ]]; then
-  # shellcheck source=dot_local/bin/unattended-log-lib.sh
+  # shellcheck source=dot_local/libexec/unattended-upgrades/helpers/log-entries.sh
   source "$UNATTENDED_LOG_LIB"
   UNATTENDED_LOG_AVAILABLE=1
 else
@@ -95,7 +95,7 @@ read -r UPGRADE_RECORD_EPOCH UPGRADE_RECORD_ISO < <(date -u '+%s %Y-%m-%dT%H:%M:
 # /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin, with no
 # ~/.local/bin in it, so a bare `relay.sh` would never be found under launchd and
 # every alert would vanish exactly when it mattered.
-RELAY="${HOMEBREW_WEEKLY_RELAY:-$HOME/.local/bin/relay.sh}"
+RELAY="${HOMEBREW_WEEKLY_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
 
 # weekly_alert <state> <detail> -- the EXISTING relay route, so this lands in the
 # priority channel beside every other alert on this machine. Best effort: a
@@ -268,7 +268,7 @@ write_upgrade_record() {
 # crash), so there is no stale-lock class. Non-darwin hosts (no /usr/bin/lockf)
 # proceed unlocked: the contending scheduled runs are darwin-only. Absolute path
 # because a stripped PATH would not carry /usr/bin. (House precedent: the same
-# kernel-lock shape guards ~/.local/bin/update-skills.sh.)
+# kernel-lock shape guards ~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh.)
 acquire_lock() {
   [[ -x /usr/bin/lockf ]] || return 0
   mkdir -p "$(dirname "$LOCKFILE")" 2>/dev/null || return 1

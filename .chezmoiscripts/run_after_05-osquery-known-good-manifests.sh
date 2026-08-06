@@ -180,8 +180,13 @@ fi
 #
 # The bin arm is NON-RECURSIVE on purpose: ~/.local/bin holds tools, and a managed
 # file in a SUBDIRECTORY of it would be a different kind of thing that nothing has
-# asked to cover. There are none today, so covering them would be scope this change
-# did not weigh.
+# asked to cover. There are none today.
+#
+# The libexec arm IS recursive, because nesting is that tree's design: internal
+# tools are grouped by owner (pns/, unattended-upgrades/, macos-defaults/), a tool
+# with private helpers gets its own directory, and shared code sits in helpers/.
+# A `case` pattern's `*` matches slashes, so one arm covers every depth. It sits
+# AFTER the osquery arm so the pipeline keeps its own manifest.
 pipeline_paths=()
 managed_bin_paths=()
 while IFS= read -r target; do
@@ -200,6 +205,7 @@ while IFS= read -r target; do
     "$home"/.config/osquery/page-launchd-allowlist.txt) pipeline_paths+=("$target") ;;
     "$home"/.local/bin/*/*) : ;; # a managed file in a subdirectory: not covered
     "$home"/.local/bin/*) managed_bin_paths+=("$target") ;;
+    "$home"/.local/libexec/*) managed_bin_paths+=("$target") ;;
   esac
 done <"$sorted_list"
 

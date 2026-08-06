@@ -465,7 +465,7 @@ unattended_log_change_section() {
 # callers do, but neither treats it as fatal.
 unattended_log_post() {
   local agent="$1" state="$2" project="$3" detail="$4" outcome
-  local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/bin/relay.sh}"
+  local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
   if [[ ! -x $relay_script ]]; then
     printf 'unattended-log: relay.sh is not executable at %s; this entry was NOT delivered (run chezmoi apply)\n' "$relay_script"
     return 1
@@ -504,7 +504,7 @@ unattended_log_post() {
 # observed -- so it covers exactly what is knowable, that an attempt was made.
 unattended_log_alert_delivery_failure() {
   local guard="$1" agent="$2"
-  local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/bin/relay.sh}"
+  local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
   if [[ ! -x $relay_script ]]; then
     printf 'unattended-log: relay.sh is not executable at %s; the broken-record-channel alert was NOT delivered either, and this week stays unclaimed so a later run retries it\n' "$relay_script"
     return 0

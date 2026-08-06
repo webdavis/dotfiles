@@ -106,55 +106,55 @@ swap_pane_right = "prefix+alt+l"
 [[keys.command]]
 key = "prefix+ctrl+h"
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh homelab $HOME/workspaces/Ivy/webdavis/homelab"
+command = "$HOME/.local/libexec/herdr-jump.sh homelab $HOME/workspaces/Ivy/webdavis/homelab"
 description = "jump to homelab workspace (auto-start)"
 
 [[keys.command]]
 key = "prefix+ctrl+."
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
+command = "$HOME/.local/libexec/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
 description = "jump to dotfiles workspace (CSI-u; fallback below)"
 
 [[keys.command]]
 key = "prefix+."
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
+command = "$HOME/.local/libexec/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
 description = "jump to dotfiles workspace (fallback for terminals without CSI-u)"
 
 [[keys.command]]
 key = "prefix+ctrl+c"
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh casually-concerned $HOME/workspaces/Ivy/casually-concerned"
+command = "$HOME/.local/libexec/herdr-jump.sh casually-concerned $HOME/workspaces/Ivy/casually-concerned"
 description = "jump to casually-concerned workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+i"
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh Ivy $HOME/workspaces/Ivy"
+command = "$HOME/.local/libexec/herdr-jump.sh Ivy $HOME/workspaces/Ivy"
 description = "jump to Ivy vault workspace (also fires on prefix+Tab via ctrl+i alias)"
 
 [[keys.command]]
 key = "prefix+ctrl+j"
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh justdavis-ansible $HOME/workspaces/Ivy/karlmdavis/justdavis-ansible"
+command = "$HOME/.local/libexec/herdr-jump.sh justdavis-ansible $HOME/workspaces/Ivy/karlmdavis/justdavis-ansible"
 description = "jump to justdavis-ansible workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+e"
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh essential-feed-case-study $HOME/workspaces/Ivy/webdavis/essential-feed-case-study"
+command = "$HOME/.local/libexec/herdr-jump.sh essential-feed-case-study $HOME/workspaces/Ivy/webdavis/essential-feed-case-study"
 description = "jump to essential-feed-case-study workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+n"
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh netpulse $HOME/workspaces/Ivy/webdavis/netpulse"
+command = "$HOME/.local/libexec/herdr-jump.sh netpulse $HOME/workspaces/Ivy/webdavis/netpulse"
 description = "jump to netpulse workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+p"
 type = "shell"
-command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
+command = "$HOME/.local/libexec/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
 description = "jump to plantpulse workspace"
 
 # Workspace-level back-and-forth (a true "last_workspace" MRU toggle). herdr has

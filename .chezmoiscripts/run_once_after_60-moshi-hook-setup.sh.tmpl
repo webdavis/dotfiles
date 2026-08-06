@@ -12,7 +12,7 @@
 #
 # Claude Code and Codex are deliberately EXCLUDED from `moshi-hook install --target`
 # below -- relay owns their pushes (Claude via the modify-template; Codex via
-# ~/.local/bin/relay-codex-hooks.sh, merged into ~/.codex/hooks.json beside herdr's).
+# ~/.local/libexec/pns/codex-hooks/relay-codex-hooks.sh, merged into ~/.codex/hooks.json beside herdr's).
 # moshi-hook's installer writes its own hooks into ~/.claude/settings.json on
 # many events, including UserPromptSubmit -- which fires a Moshi push on every
 # prompt submission (the unwanted "user POST" notification). moshi-hook exposes

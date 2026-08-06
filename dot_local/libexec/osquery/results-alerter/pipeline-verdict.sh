@@ -277,7 +277,8 @@ _pipeline_manifest_is_trustworthy() {
 # which is the seam that keeps every fixture out of /var.
 _pipeline_manifest_for() {
   case "$1" in
-    "$HOME"/.local/bin/*) printf '%s' "${OSQUERY_MANAGED_BIN_MANIFEST:-$MANAGED_BIN_MANIFEST}" ;;
+    "$HOME"/.local/libexec/osquery/*) printf '%s' "${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}" ;;
+    "$HOME"/.local/bin/* | "$HOME"/.local/libexec/*) printf '%s' "${OSQUERY_MANAGED_BIN_MANIFEST:-$MANAGED_BIN_MANIFEST}" ;;
     *) printf '%s' "${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}" ;;
   esac
 }
@@ -399,17 +400,18 @@ _pipeline_is_tracked() {
     "$HOME"/.local/libexec/osquery/*) return 0 ;;
     "$HOME"/Library/LaunchAgents/com.webdavis.osquery-*.plist) return 0 ;;
     "$HOME"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
-    "$HOME"/.local/bin/*) _managed_bin_is_tracked "$target" ;;
+    "$HOME"/.local/bin/* | "$HOME"/.local/libexec/*) _managed_bin_is_tracked "$target" ;;
     *) return 1 ;;
   esac
 }
 
-# _managed_bin_is_tracked <target>: 0 when a ~/.local/bin path is ours to judge.
+# _managed_bin_is_tracked <target>: 0 when a ~/.local/bin or ~/.local/libexec path
+# is ours to judge.
 #
-# MANIFEST-DRIVEN, not directory-driven, and that is the whole reason covering this
-# directory is affordable. ~/.local/bin holds the chezmoi-managed operator scripts
-# (update-skills.sh, homebrew-weekly-upgrade.sh, the claude-* hooks, the Relay
-# tools) side by side with third-party shims that chezmoi does not manage and that
+# MANIFEST-DRIVEN, not directory-driven, and that is the whole reason covering
+# these directories is affordable. ~/.local/bin holds a chezmoi-managed script
+# (ssh-hardening.sh) side by side with third-party shims that chezmoi does not
+# manage and that
 # rewrite themselves on their own schedule: herdr, mise, bob, hermes, yt-dlp, and a
 # pile of symlinks into pipx and uv tool directories. Tracking the whole directory
 # the way the pipeline home is tracked would page on every one of those

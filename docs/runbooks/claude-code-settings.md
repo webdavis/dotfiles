@@ -25,14 +25,12 @@ Overwritten from the template on every apply, whatever the live file holds.
     `relay-agent.sh blocked`.
   - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, both calling
     `relay-agent.sh`.
-  - `PreToolUse` (`Bash` matcher) runs `~/.local/bin/claude-audit.sh`, which writes
-    `~/.claude/audit.log`.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (27 today), each set to
   `user-invocable-only`, sourced from `dot_agents/custom-skill-lock.json` and gated by
   `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.
-- `statusLine`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup), `autoUpdatesChannel`
-  (= `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`,
-  starts the Remote Control bridge every session), `effortLevel` (= `xhigh`, the top of the
+- `statusLine`, `cleanupPeriodDays` (= 365, a year of session retention), `autoUpdatesChannel` (=
+  `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`, starts
+  the Remote Control bridge every session), `effortLevel` (= `xhigh`, the top of the
   `low`/`medium`/`high`/`xhigh` enum; stable rather than free-drift so a `/config` write cannot quietly
   leave a session on a lower reasoning budget).
 - Four `extraKnownMarketplaces` entries, each with `autoUpdate` = `true`: `ponytail`, `openai-codex`,

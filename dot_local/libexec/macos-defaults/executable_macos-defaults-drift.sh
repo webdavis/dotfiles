@@ -21,7 +21,7 @@
 set -euo pipefail
 shopt -s lastpipe
 
-# shellcheck source=dot_local/bin/macos-defaults-lib.sh
+# shellcheck source=dot_local/libexec/macos-defaults/helpers/defaults-records.sh
 source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
 
 DATA_FILE="$(macos_defaults_data_file)" || exit $?

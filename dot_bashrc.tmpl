@@ -64,7 +64,7 @@ export USER="${USER:-$(whoami)}"
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 HOMEBREW_PREFIX='/opt/homebrew'
 
-# Brew PATH/env, sourced from a cache that ~/.local/bin/brew-shellenv-cache-refresh.sh
+# Brew PATH/env, sourced from a cache that ~/.local/libexec/brew-shellenv-cache-refresh.sh
 # generates from the real `brew shellenv`. The self-heal block in the interactive
 # half of this file is what runs it automatically, whenever the cache is missing
 # or unusable or stale; `just brew-cache-refresh` runs it on demand. The
@@ -91,7 +91,7 @@ HOMEBREW_PREFIX='/opt/homebrew'
 # atomic implementation) or launching a detached background process out of every
 # `ssh host cmd`, which is the classic way to leave an ssh channel hanging. The
 # supported answer for a headless host is to run the writer once from
-# provisioning: ~/.local/bin/brew-shellenv-cache-refresh.sh (it is idempotent),
+# provisioning: ~/.local/libexec/brew-shellenv-cache-refresh.sh (it is idempotent),
 # or `just brew-cache-refresh`.
 __brew_shellenv="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
 # USABLE means all three: a regular file (-f, so a directory named like the cache
@@ -380,7 +380,7 @@ if [[ $- == *i* ]]; then
   __brew_shellenv_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
   __brew_shellenv_generator="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
   __brew_shellenv_paths_file="${HOMEBREW_PREFIX:-/opt/homebrew}/etc/paths"
-  __brew_shellenv_writer="$HOME/.local/bin/brew-shellenv-cache-refresh.sh"
+  __brew_shellenv_writer="$HOME/.local/libexec/brew-shellenv-cache-refresh.sh"
   __brew_shellenv_log="$HOME/.local/log/brew-shellenv-selfheal.log"
   __brew_shellenv_attempt_stamp="$HOME/.local/log/brew-shellenv-selfheal.attempt"
   __brew_shellenv_retry_interval_seconds=3600
@@ -468,10 +468,10 @@ if [[ $- == *i* ]]; then
     # keeps the first tier to the banner; the second tier fans out and pulses the
     # lights. test/integration/bashrc-long-command-relay.sh pins that contract.
     if ((elapsed >= 300)); then
-      ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
-      ("$HOME/.local/bin/relay.sh" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
+      ("$HOME/.local/libexec/pns/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
+      ("$HOME/.local/libexec/pns/relay.sh" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     elif ((elapsed >= 30)); then
-      ("$HOME/.local/bin/relay.sh" --local-only --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
+      ("$HOME/.local/libexec/pns/relay.sh" --local-only --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     fi
   }
 

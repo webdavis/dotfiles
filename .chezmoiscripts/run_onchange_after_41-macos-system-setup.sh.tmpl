@@ -183,8 +183,8 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
      invisible. The logic now lives in a deployed script with named constants
      and pure, individually testable predicates:
 
-       dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh
-         -> ~/.local/libexec/tailnet/reconcile-hosts-pin.sh
+       dot_local/libexec/tailscale/executable_reconcile-hosts-pin.sh
+         -> ~/.local/libexec/tailscale/reconcile-hosts-pin.sh
 
      Read that file for the convergence, ownership, install and gate
      contracts; this template's only job is to hand it one pin per line.
@@ -225,8 +225,8 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
      OPTION and a newline turned a -xF pattern into a pattern LIST. The helper
      compares fields only with [[ = ]], uses no grep at all, and keeps every
      printf format constant, so a % in the data is not a directive. */ -}}
-tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/.local/libexec/tailnet/reconcile-hosts-pin.sh"
-tailnet_pin_helper_expected_sha256='{{ include "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh" | sha256sum }}'
+tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/.local/libexec/tailscale/reconcile-hosts-pin.sh"
+tailnet_pin_helper_expected_sha256='{{ include "dot_local/libexec/tailscale/executable_reconcile-hosts-pin.sh" | sha256sum }}'
 if [[ ! -x $tailnet_pin_helper ]]; then
   echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is missing or not executable" >&2
   exit 1

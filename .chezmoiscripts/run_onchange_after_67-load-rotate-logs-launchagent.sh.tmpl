@@ -1,7 +1,7 @@
 #!/bin/bash
 # run_onchange_after_67-load-rotate-logs-launchagent.sh
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.rotate-logs.plist.tmpl" | sha256sum }}
-# script hash: {{ include "dot_local/bin/executable_rotate-logs.sh" | sha256sum }}
+# script hash: {{ include "dot_local/libexec/executable_compress-and-truncate-local-logs.sh" | sha256sum }}
 
 {{- if eq .chezmoi.os "darwin" }}
 set -euo pipefail

@@ -3,7 +3,7 @@
 # Arg 1 = state (done|blocked|asked|plan-ready). Always exits 0.
 set -euo pipefail
 state="${1:-done}"
-relay="${RELAY_BIN:-$HOME/.local/bin/relay.sh}"
+relay="${RELAY_BIN:-$HOME/.local/libexec/pns/relay.sh}"
 input="$(cat 2>/dev/null || true)"
 cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 transcript="$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)"

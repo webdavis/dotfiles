@@ -36,17 +36,17 @@ This repo's `.githooks/pre-commit` runs `just test-unit` (the unit suite only), 
 provisioned as a Homebrew formula, and that stage is skipped when the binary is absent. Both must pass; a
 failure blocks the commit.
 
-Lint drift, the integration and end-to-end suites, and the full flake check are deliberately outside the
-commit loop: the flake check runs at pre-push, the other suites at CI or via `just ship`. There is no
-install step, since the dispatcher is user-wide and the repo hook is committed with its executable bit.
+Lint drift and the other suites are deliberately outside the commit loop: lint runs at pre-push, the full
+suite at CI or via `just ship`. There is no install step, since the dispatcher is user-wide and the repo
+hook is committed with its executable bit.
 
 ## pre-push: per-repo lint gate only
 
 `dot_config/git/hooks/executable_pre-push` mirrors the pre-commit dispatcher and also forwards git's
-stdin ref list. This repo's `.githooks/pre-push` runs `just lint-check` (the treefmt drift gate, roughly
-20s whenever nix has to build the check derivation, which is every push that changed a tracked file) and
-nothing else. **CI is the authority on the test suite.** Run the suite locally on demand with
-`just ship`.
+stdin ref list. This repo's `.githooks/pre-push` runs `just lint-check` (the standalone treefmt drift
+gate, ~16s uncached; nix left this repo on 2026-08-05) and nothing else. Standalone treefmt has no
+dry-run mode, so a red gate has also already written the fixes into the working tree: stage them and push
+again. **CI is the authority on the test suite.** Run the suite locally on demand with `just ship`.
 
 ### Why the suite left this hook
 

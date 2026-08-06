@@ -68,7 +68,7 @@ LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
 # The relay script by ABSOLUTE path. A LaunchAgent's PATH carries no
 # ~/.local/bin, so a bare `relay.sh` would never be found under launchd and
 # every alert would vanish exactly when it mattered.
-RELAY="${REPORT_PLUGIN_UPDATES_RELAY:-$HOME/.local/bin/relay.sh}"
+RELAY="${REPORT_PLUGIN_UPDATES_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
 
 # jq by absolute path for the same reason, with the same env seam.
 JQ="${REPORT_PLUGIN_UPDATES_JQ:-/opt/homebrew/bin/jq}"
@@ -105,10 +105,10 @@ fi
 # The shared entry shape. A missing library is LOUD and never silent: this whole
 # helper is a record, and a record that quietly stops being posted is the
 # invisibility it exists to end.
-UNATTENDED_LOG_LIB="$(dirname "${BASH_SOURCE[0]}")/unattended-log-lib.sh"
+UNATTENDED_LOG_LIB="$(dirname "${BASH_SOURCE[0]}")/../helpers/log-entries.sh"
 UNATTENDED_LOG_AVAILABLE=""
 if [[ -r $UNATTENDED_LOG_LIB ]]; then
-  # shellcheck source=dot_local/bin/unattended-log-lib.sh
+  # shellcheck source=dot_local/libexec/unattended-upgrades/helpers/log-entries.sh
   source "$UNATTENDED_LOG_LIB"
   UNATTENDED_LOG_AVAILABLE=1
 else

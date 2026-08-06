@@ -96,7 +96,6 @@ curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install
 ```
 
 > [!NOTE]
->
 > Upstream Nix (rather than Determinate Nix) keeps the path to
 > [nix-darwin](https://github.com/nix-darwin/nix-darwin) clean, nix-darwin defaults to managing upstream
 > Nix and conflicts with Determinate's auto-update daemon. Use the NixOS fork above for both
@@ -130,7 +129,6 @@ nix develop .#run --command treefmt
 ```
 
 > [!TIP]
->
 > You can replace `treefmt` with any command you want to execute inside the development environment (e.g.
 > `mdformat README.md`).
 
