@@ -16,7 +16,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT="$REPO_ROOT/dot_local/bin/executable_herdr-jump.sh"
+SCRIPT="$REPO_ROOT/dot_local/libexec/executable_herdr-jump.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2

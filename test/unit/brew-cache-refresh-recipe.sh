@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # `just brew-cache-refresh` must DELEGATE to the deployed writer
-# (~/.local/bin/brew-shellenv-cache-refresh.sh), the same artifact ~/.bashrc's
+# (~/.local/libexec/brew-shellenv-cache-refresh.sh), the same artifact ~/.bashrc's
 # self-heal runs, and must not carry a second copy of the atomic
 # mktemp/generate/rename sequence.
 #
@@ -15,8 +15,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RECIPE='brew-cache-refresh'
-DEPLOYED_WRITER='.local/bin/brew-shellenv-cache-refresh.sh'
-REPO_SOURCE_WRITER='dot_local/bin/executable_brew-shellenv-cache-refresh.sh'
+DEPLOYED_WRITER='.local/libexec/brew-shellenv-cache-refresh.sh'
+REPO_SOURCE_WRITER='dot_local/libexec/executable_brew-shellenv-cache-refresh.sh'
 
 fail() {
   printf 'brew-cache-refresh-recipe: FAIL -- %s\n' "$*" >&2

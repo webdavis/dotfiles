@@ -170,7 +170,7 @@ SHIM
   # stand-in unattended operator script; the shim beside it is in no manifest, the
   # way mise and herdr sit in the real directory.
   mkdir -p "$WD_HOME/.local/bin"
-  export WD_MANAGED_BIN_SCRIPT="$WD_HOME/.local/bin/update-skills.sh"
+  export WD_MANAGED_BIN_SCRIPT="$WD_HOME/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh"
   printf 'echo update-skills\n' >"$WD_MANAGED_BIN_SCRIPT"
   chmod 755 "$WD_MANAGED_BIN_SCRIPT"
   printf 'unmanaged self-updating binary\n' >"$WD_HOME/.local/bin/mise"

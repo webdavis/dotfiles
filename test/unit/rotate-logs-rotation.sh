@@ -15,7 +15,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ROTATE_LOGS="$REPO_ROOT/dot_local/bin/executable_rotate-logs.sh"
+ROTATE_LOGS="$REPO_ROOT/dot_local/libexec/executable_compress-and-truncate-local-logs.sh"
 
 failures=0
 fail() {

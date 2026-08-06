@@ -82,7 +82,7 @@ prog_scheduled="$(jq -r '[.ProgramArguments[] | select(. == "--scheduled")] | le
 [[ $prog_scheduled == "1" ]] ||
   fail "ProgramArguments does not pass exactly one --scheduled marker (got $prog_scheduled); the record would never be posted and the agent would look dead"
 helper_arg="$(jq -r '.ProgramArguments[1]' "$plist_json")"
-[[ $helper_arg == */.local/bin/report-plugin-updates.sh ]] ||
+[[ $helper_arg == */.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh ]] ||
   fail "the agent does not run the deployed helper (got $helper_arg)"
 
 # The log path the loader creates must be the one the agent writes to, or the

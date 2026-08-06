@@ -209,14 +209,16 @@ run_bats_suites() { # <bats_list_file>
   ((${#bats_files[@]} > 0)) || return 0
 
   printf '== bats (%s) ==\n' "$suite_directory"
-  # bats --jobs needs GNU parallel; the flake provides both. On a host without
-  # bats (the usual case -- `just test` runs on the host), fall back into the
-  # Nix devshell, mirroring the aggregate `test` recipe.
-  if command -v bats >/dev/null 2>&1; then
-    bats --jobs 4 "${bats_files[@]}" || status=1
-  else
-    nix develop .#run --command bats --jobs 4 "${bats_files[@]}" || status=1
+  # Host bats-core only (a brew formula, declared in the package manifest);
+  # the nix devshell fallback is gone with the flake (2026-08-05). No --jobs:
+  # parallel bats needs GNU parallel, and the six remaining bats files run in
+  # seconds serially.
+  if ! command -v bats >/dev/null 2>&1; then
+    printf 'FAIL: bats is not installed; run "brew install bats-core" (it is declared in .chezmoidata/system_packages_autoinstall.yaml)\n' >&2
+    status=1
+    return
   fi
+  bats "${bats_files[@]}" || status=1
 }
 
 # The suite directory must be given and must exist before anything runs.

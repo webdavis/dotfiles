@@ -42,8 +42,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE="$REPO_ROOT/dot_bashrc.tmpl"
-WRITER_SOURCE="$REPO_ROOT/dot_local/bin/executable_brew-shellenv-cache-refresh.sh"
-WRITER_TARGET_PATH='.local/bin/brew-shellenv-cache-refresh.sh'
+WRITER_SOURCE="$REPO_ROOT/dot_local/libexec/executable_brew-shellenv-cache-refresh.sh"
+WRITER_TARGET_PATH='.local/libexec/brew-shellenv-cache-refresh.sh'
 CACHE_PATH_EXPRESSION='${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh'
 PATHS_FILE_SUFFIX='/etc/paths'
 DELETED_APPLY_TIME_SCRIPT='run_after_44-cache-brew-shellenv'

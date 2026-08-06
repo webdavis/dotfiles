@@ -163,7 +163,7 @@ fi
 # repointing the jq filter at another table while leaving the comments alone
 # kept a bare `grep -q claudeDelivery` green, so the guard has to name the
 # expression the value actually comes from.
-UPDATER_SCRIPT="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+UPDATER_SCRIPT="$REPO_ROOT/dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"
 CLAUDE_DELIVERY_READER='__update_skills_claude_undelivered'
 CLAUDE_DELIVERY_LOCK_READ='.claudeDelivery // {}'
 # Scoped to the READER'S OWN BODY, not the whole file. The same expression also
@@ -312,7 +312,7 @@ stray_profile="$(comm -23 <(printf '%s\n' "$lock_profiles") <(printf '%s\n' "$kn
 # walked exactly like any other profile. (The derivation's correctness and
 # per-profile failure isolation are exercised against a fixture lock in
 # test/update-skills-hermes-phase.sh.)
-updater="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+updater="$REPO_ROOT/dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"
 if ! grep -q 'hermesRegistry.*profiles' "$updater"; then
   fail "update-skills.sh must derive the hermes-update profiles from the lock (hermesRegistry)"
 fi
@@ -468,7 +468,7 @@ bad_forks="$(jq -r '
 # The labels are READ OUT of the updater rather than restated here: a copy would
 # drift the moment either side is renamed, and the guard would then reserve a
 # label nothing uses while the live one collided freely.
-UPDATER="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+UPDATER="$REPO_ROOT/dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"
 reserved_relay_projects="$(sed -n 's/^FORK_RELAY_PROJECT_[A-Z_]*="\(.*\)"$/\1/p' "$UPDATER")"
 [[ -n $reserved_relay_projects ]] ||
   fail "found no FORK_RELAY_PROJECT_* labels in $UPDATER; this guard would silently reserve nothing"

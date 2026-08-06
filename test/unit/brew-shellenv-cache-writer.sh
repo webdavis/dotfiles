@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # The deployed brew-shellenv cache writer
-# (dot_local/bin/executable_brew-shellenv-cache-refresh.sh).
+# (dot_local/libexec/executable_brew-shellenv-cache-refresh.sh).
 #
 # This script is the ONE implementation of the cache write. Both callers use it:
 # ~/.bashrc's self-heal guard (the only automatic writer, since
@@ -36,7 +36,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-WRITER="$REPO_ROOT/dot_local/bin/executable_brew-shellenv-cache-refresh.sh"
+WRITER="$REPO_ROOT/dot_local/libexec/executable_brew-shellenv-cache-refresh.sh"
 CACHE_FILE_NAME='brew-shellenv.sh'
 
 fail() {

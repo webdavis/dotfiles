@@ -162,7 +162,7 @@ assert_predicate is_glob_pattern '.local/share/herdr/**/target' yes
 assert_predicate is_glob_pattern '.agents/skills/*/.git' yes
 assert_predicate is_glob_pattern 'tmp.*' yes
 assert_predicate is_glob_pattern 'Library' no
-assert_predicate is_glob_pattern '.local/bin/rotate-logs.sh' no
+assert_predicate is_glob_pattern '.local/libexec/compress-and-truncate-local-logs.sh' no
 assert_predicate is_significant_ignore_line 'Library' yes
 assert_predicate is_significant_ignore_line '# a comment' no
 assert_predicate is_significant_ignore_line '   ' no

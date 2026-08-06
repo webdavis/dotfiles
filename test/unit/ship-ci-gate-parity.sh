@@ -72,7 +72,15 @@ UNREADABLE_SCALAR_LEADERS="|>'\""
 # Actions a gate workflow may use that are not themselves gates: they put the
 # environment in place for the `run:` steps. Matched on the action name, with the
 # version pin and any trailing comment removed.
-CI_SETUP_ACTIONS=("actions/checkout" "NixOS/nix-installer-action")
+CI_SETUP_ACTIONS=("actions/checkout")
+# `run:` steps that are environment setup rather than gates, matched on EXACT
+# command text so any edit to the toolchain install line forces a decision
+# here. ship must not mirror these: the local machine gets the same tools from
+# chezmoi's package manifest, not from the rehearsal.
+# shellcheck disable=SC2016 # the value is literal command TEXT compared byte for byte; $HOME/$GITHUB_PATH must not expand here
+CI_SETUP_RUN_COMMANDS=(
+  'brew install actionlint age bash bats-core chezmoi jq just shellcheck shfmt taplo treefmt uv yq zizmor && uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"'
+)
 # Step keys that change whether a command gates, without changing the command.
 UNMODELLED_STEP_KEYS=("if" "continue-on-error")
 # When CI runs, as the block nested under the workflow's top-level `on:` key,
@@ -314,6 +322,7 @@ workflow_step_commands() {
     value="$(strip_trailing_whitespace "${BASH_REMATCH[1]}")"
     is_readable_inline_command "$value" ||
       fail "$file has a step command this reader cannot compare literally ('$value'); keep workflow commands as plain one-line scalars, or teach this reader YAML"
+    is_member "$value" "${CI_SETUP_RUN_COMMANDS[@]}" && continue
     printf '%s\n' "$value"
     found=1
   done <"$file"

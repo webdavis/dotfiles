@@ -41,7 +41,7 @@ set -euo pipefail
 unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LIB="$REPO_ROOT/dot_local/bin/macos-defaults-lib.sh"
+LIB="$REPO_ROOT/dot_local/libexec/macos-defaults/helpers/defaults-records.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2

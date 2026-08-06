@@ -23,7 +23,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+SCRIPT="$REPO_ROOT/dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"
 
 fail() {
   printf 'update-skills-change-report: FAIL -- %s\n' "$*" >&2
@@ -48,7 +48,7 @@ export HOME
 mkdir -p "$HOME/.agents/skills"
 
 export UPDATE_SKILLS_LIB_ONLY=1
-# shellcheck source=dot_local/bin/executable_update-skills.sh
+# shellcheck source=dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh
 source "$SCRIPT"
 
 # ── The SNAPSHOT reads both lanes from the places that actually hold the data:

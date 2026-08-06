@@ -2,17 +2,17 @@
 # relay-codex-hooks.sh: adds relay done+blocked to ~/.codex/hooks.json, preserves
 # herdr's SessionStart, idempotent.
 set -uo pipefail
-script="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/bin/executable_relay-codex-hooks.sh"
+script="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/libexec/pns/codex-hooks/executable_relay-codex-hooks.sh"
 [[ -x $script ]] || {
   echo "relay-codex-hooks: FAIL -- not executable" >&2
   exit 1
 }
 home="$(mktemp -d)"
 trap 'rm -rf "$home"' EXIT
-mkdir -p "$home/.codex" "$home/.local/bin"
+mkdir -p "$home/.codex" "$home/.local/libexec/pns/codex-hooks"
 # fake relay-agent so the script's -x guard passes
-printf '#!/usr/bin/env bash\n' >"$home/.local/bin/relay-agent.sh"
-chmod +x "$home/.local/bin/relay-agent.sh"
+printf '#!/usr/bin/env bash\n' >"$home/.local/libexec/pns/codex-hooks/relay-agent.sh"
+chmod +x "$home/.local/libexec/pns/codex-hooks/relay-agent.sh"
 # herdr's pre-existing SessionStart entry must survive
 cat >"$home/.codex/hooks.json" <<'JSON'
 {"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}]}}
@@ -51,9 +51,9 @@ m="$(jq '[.hooks.PermissionRequest[]?.hooks[]?.command | select(test("relay-agen
 # must NOT pass through the merge jq as rc=0-with-no-output and get written back blank. It heals from
 # {"hooks":{}} and gains relay's two entries.
 h5="$home/f5empty"
-mkdir -p "$h5/.codex" "$h5/.local/bin"
-printf '#!/usr/bin/env bash\n' >"$h5/.local/bin/relay-agent.sh"
-chmod +x "$h5/.local/bin/relay-agent.sh"
+mkdir -p "$h5/.codex" "$h5/.local/libexec/pns/codex-hooks"
+printf '#!/usr/bin/env bash\n' >"$h5/.local/libexec/pns/codex-hooks/relay-agent.sh"
+chmod +x "$h5/.local/libexec/pns/codex-hooks/relay-agent.sh"
 : >"$h5/.codex/hooks.json"
 HOME="$h5" bash "$script" >/dev/null 2>&1 || {
   echo "relay-codex-hooks: FAIL -- run errored on an empty hooks.json" >&2
@@ -71,9 +71,9 @@ jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("relay-agent.sh done"))' "$h
 # FIX F5b (multiple JSON roots -> preserve untouched): a hooks.json with two concatenated object roots is
 # malformed; the script warns and leaves the file byte-for-byte untouched, never writing two merged roots.
 h6="$home/f6multi"
-mkdir -p "$h6/.codex" "$h6/.local/bin"
-printf '#!/usr/bin/env bash\n' >"$h6/.local/bin/relay-agent.sh"
-chmod +x "$h6/.local/bin/relay-agent.sh"
+mkdir -p "$h6/.codex" "$h6/.local/libexec/pns/codex-hooks"
+printf '#!/usr/bin/env bash\n' >"$h6/.local/libexec/pns/codex-hooks/relay-agent.sh"
+chmod +x "$h6/.local/libexec/pns/codex-hooks/relay-agent.sh"
 printf '{"hooks":{}}{"hooks":{}}' >"$h6/.codex/hooks.json"
 before6="$(cat "$h6/.codex/hooks.json")"
 warn6="$(HOME="$h6" bash "$script" 2>&1 >/dev/null)"
@@ -95,9 +95,9 @@ grep -qi "untouched" <<<"$warn6" || {
 # and trusted via /hooks. When a run ADDS or CHANGES a handler, the script loudly advises trusting via
 # /hooks; an idempotent re-run (no content change) stays silent. It never synthesizes trust, never a bypass.
 h7="$home/f7trust"
-mkdir -p "$h7/.codex" "$h7/.local/bin"
-printf '#!/usr/bin/env bash\n' >"$h7/.local/bin/relay-agent.sh"
-chmod +x "$h7/.local/bin/relay-agent.sh"
+mkdir -p "$h7/.codex" "$h7/.local/libexec/pns/codex-hooks"
+printf '#!/usr/bin/env bash\n' >"$h7/.local/libexec/pns/codex-hooks/relay-agent.sh"
+chmod +x "$h7/.local/libexec/pns/codex-hooks/relay-agent.sh"
 cat >"$h7/.codex/hooks.json" <<'JSON'
 {"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}]}}
 JSON

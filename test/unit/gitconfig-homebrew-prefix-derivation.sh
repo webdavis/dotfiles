@@ -82,8 +82,8 @@ CONFIG_KEYS=(
   'credential.https://gist.github.com.helper'
 )
 declare -A EXPECTED_BINARY_BY_CONFIG_KEY=(
-  [gpg.program]=gpg
-  [difftool.nvimdiff.cmd]=nvim
+  ['gpg.program']=gpg
+  ['difftool.nvimdiff.cmd']=nvim
   ['credential.https://github.com.helper']=gh
   ['credential.https://gist.github.com.helper']=gh
 )

@@ -59,7 +59,7 @@ fi
 assert_kv RunAtLoad '<false/>'
 assert_kv Label '<string>com.webdavis.rotate-logs</string>'
 
-grep -qF '/.local/bin/rotate-logs.sh' "$rendered" ||
-  fail "the agent does not invoke ~/.local/bin/rotate-logs.sh"
+grep -qF '/.local/libexec/compress-and-truncate-local-logs.sh' "$rendered" ||
+  fail "the agent does not invoke ~/.local/libexec/compress-and-truncate-local-logs.sh"
 
 printf 'rotate-logs-plist: OK (hourly at :15, RunAtLoad false)\n'

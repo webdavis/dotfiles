@@ -39,33 +39,33 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 
 ### Linting and formatting
 
-All lint and format tooling is orchestrated by [treefmt](https://treefmt.com/) via
-[treefmt-nix](https://github.com/numtide/treefmt-nix): `treefmt.nix` holds the formatter configuration,
-and the flake's `checks.treefmt` derivation makes `nix flake check` fail on any format drift.
+All lint and format tooling is orchestrated by the STANDALONE [treefmt](https://treefmt.com/) binary (a
+brew formula), configured in `treefmt.toml`. Nix is gone from this repo (operator ruling 2026-08-05):
+tools come from Homebrew, declared in `.chezmoidata/system_packages_autoinstall.yaml`, plus the
+uv-managed `mdformat` (installed with the `mdformat-gfm` plugin). Nix stays installed on the machine for
+other uses; nothing here invokes it.
 
 ```bash
-just l             # run all eleven formatters (four rewrite in place, seven check only)
-just L             # lint-check: check-only drift gate (runs `nix flake check`)
+just l             # run all ten formatters (three rewrite in place, seven check only)
+just L             # lint-check: drift gate (treefmt --no-cache --fail-on-change); `just c` is an alias
 just s             # shellcheck, plain files and rendered chezmoi templates
 just S             # shfmt (format shell files) only
 just m             # mdformat only
-just n             # nixfmt only
 just t             # taplo (TOML) only
 just j             # jq (JSON validation, incl. rendered osquery configs) only
 just y             # yq (YAML validation) only
 just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
-Four of the eleven rewrite files: shfmt, mdformat, nixfmt and taplo. The other seven only read and fail
-the run on bad input: shellcheck, actionlint, `jq-validate`, `yq-validate`,
-`shellcheck-rendered-template`, `osquery-config-render` and `espanso-match-render`.
+Three of the ten rewrite files: shfmt, mdformat and taplo. The other seven only read and fail the run on
+bad input: shellcheck, actionlint, `jq-validate`, `yq-validate`, `shellcheck-rendered-template`,
+`osquery-config-render` and `espanso-match-render` (the render-and-validate ones are plain scripts under
+`scripts/`).
 
-`just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
-dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. It runs
-`nix flake check` for the host system only; `just c` is the `--all-systems` variant. Lint drift is gated
-at pre-push and in CI.
-
-To enter an interactive dev shell with all tools: `nix develop`.
+`just l` auto-formats in place. `just lint-check` is the drift gate at pre-push and in CI; standalone
+treefmt has no dry-run mode and no sandbox, so a red gate has ALSO already written the fixes into the
+working tree: stage them and retry. A full uncached run measures ~16s; cached runs only process changed
+files.
 
 ### Testing
 
@@ -78,11 +78,13 @@ just test               # All four suites (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
 
-Tests live in suites by DESIGN: `test/unit/` (single component, stub/fixture driven, no flows, no sleeps,
-FAST is the admission rule), `test/integration/` (multi-component with stubbed boundaries), `test/e2e/`
-(whole-script flows and deliberately timing-bound tests), and `test/test-system/` (tests of the checker
-and runner themselves). All are plain executable `.sh` scripts (source-only, `.chezmoiignore`d) plus
-optional bats suites (`test/**/*.bats`).
+**The suite was purged on 2026-08-05 (operator ruling: tests must be fast or they go).** 243 files went
+to 82: `test/unit/` holds 70 fast `.sh` tests (single component, sub-second each, FAST is the admission
+rule), `test/integration/` and `test/e2e/` hold six bats files covering the osquery notification pipeline
+(the long-lived bash tool that keeps bats coverage until its SP3 Rust port), and `test/test-system/`
+holds 6 runner self-checks. bats is HOST bats-core (brew formula), never nix. The deleted 160+ files
+remain in git history as a cherry-pick pool; restore individual logic asserts, never wholesale (task
+#120). Every restored or new test must beat the speed bar or stay dead.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
@@ -91,13 +93,11 @@ shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A
 summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings never fail the
 run.
 
-**CI** runs `just test`, which is exactly the four suite recipes, and `just ship` runs CI's whole gate
-list on demand (the `--all-systems` flake check, `just test` inside the flake's `run` shell, and the
-zizmor workflow audit, in that order; `test/unit/ship-ci-gate-parity.sh` fails when `ship` and
-`.github/workflows/lint.yml` stop describing the same work). The pre-push hook deliberately runs no
-suite. Each suite's runner executes its own `.sh` and `.bats` once (bats via
-`nix develop .#run --command bats --jobs 4` when the host lacks bats, and the checker's placement rules
-keep any bats from hiding outside a suite).
+**CI** runs `just test`, which is exactly the four suite recipes, and `just ship` runs CI's three gates
+as literal command lines (`just lint-check`, `just test`, `just lint-actions-security`;
+`test/unit/ship-ci-gate-parity.sh` compares them byte for byte against the workflow's `run:` steps and
+fails when they stop describing the same work). The pre-push hook deliberately runs no suite. Each
+suite's runner executes its own `.sh` and `.bats` once, with host bats-core.
 
 So a commit can briefly carry an integration or e2e regression, and so can a push: **CI is the only gate
 that runs the suite**, and it runs on pull requests and on pushes to `main` only (that trigger scope is
@@ -118,7 +118,6 @@ picked up automatically.
 ```bash
 just d                                      # chezmoi diff --exclude=templates
 just a                                      # chezmoi apply --exclude=templates --force
-just c                                      # nix flake check --all-systems
 chezmoi status                              # show pending changes
 chezmoi diff                                # diff all (including templates)
 chezmoi edit <file>                         # edit a template (prefer over direct edit of .tmpl)
@@ -149,8 +148,9 @@ Two operator-run scripts in `scripts/`, invoked by absolute path (no justfile re
 - `scripts/cutover-gate.sh <1|2|3|4|5>` runs one ordered cutover gate (preflight, activation,
   reconciliation, soak, closure), keeping its ledger under `~/.local/state/cutover`. Covered by
   `test/integration/cutover-gate-*.sh`.
-- `scripts/live-reconcile.sh` converges the live skills fan-out to the committed lock, `--dry-run` first.
-  Covered by `test/integration/live-reconcile.sh`.
+- `dot_local/libexec/unattended-upgrades/agent-skills/executable_live-reconcile.sh` converges the live
+  skills fan-out to the committed lock, `--dry-run` first. Covered by
+  `test/integration/live-reconcile.sh`.
 
 ## Architecture
 
@@ -159,10 +159,10 @@ Two operator-run scripts in `scripts/`, invoked by absolute path (no justfile re
 Dev and CI files excluded from `$HOME` via `.chezmoiignore`: `README.md`, `LICENSE`, `CLAUDE.md`,
 `AGENTS.md`, `.gitignore`, `.gitattributes`, `assets/`, `docs/`, `private/`, `justfile`, `.envrc`,
 `scripts/`, `test/`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`, `.githooks/`, `graphify-out/`,
-`flake.nix`, `flake.lock`, `treefmt.nix`, plus the failsafe globs `tmp.*`, `*.rayconfig`,
-`*extension-diagnostics*` and `**/.DS_Store`, the vendored-skill `.git`/`node_modules` trees, and the
-Rust `target` dirs under `.local/share/herdr/`. A trailing OS-conditional block ignores `Library` and six
-macOS-only `.local/bin` scripts on Linux.
+`treefmt.toml`, plus the failsafe globs `tmp.*`, `*.rayconfig`, `*extension-diagnostics*` and
+`**/.DS_Store`, the vendored-skill `.git`/`node_modules` trees, and the Rust `target` dirs under
+`.local/share/herdr/`. A trailing OS-conditional block ignores `Library` and six macOS-only `.local/bin`
+scripts on Linux.
 
 `.worktrees/` is NOT in `.chezmoiignore`; it is gitignored and treefmt-excluded instead.
 
@@ -240,8 +240,8 @@ symlink declarations under `private_dot_claude/skills/`), Codex (native store sc
 hermes (declared symlinks into the default profile and four specialist profiles). Provenance, tiering and
 fan-out are recorded in `dot_agents/custom-skill-lock.json`, and `test/unit/skills-roster-fanout.sh`
 fails the build whenever the store, the lock tables and the per-harness declarations disagree.
-`~/.local/bin/update-skills.sh` refreshes the npx-, clawhub- and app-owned lanes weekly, publishing a new
-generation with one atomic exchange.
+`~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` refreshes the npx-, clawhub- and
+app-owned lanes weekly, publishing a new generation with one atomic exchange.
 
 `docs/runbooks/agent-skills-store.md` carries the delivery model, the lane mechanics, the fork
 drift-watch states, the generation-exchange guarantee, the schedule, and how to add or remove a skill.
@@ -280,31 +280,24 @@ branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`. Reusable
 ### Template shellcheck workaround
 
 Shell templates contain Go template syntax that shellcheck can't parse directly, so the
-`shellcheck-rendered-template` formatter in `treefmt.nix` renders first
-(`CI=1 chezmoi --source "$PWD" execute-template --no-tty <file`, with a throwaway `HOME` because the Nix
-sandbox has none) and shellchecks the result. `--source "$PWD"` is load-bearing: it is what makes
-`includeTemplate` resolve against this checkout.
+`shellcheck-rendered-template` formatter (`scripts/treefmt/shellcheck-rendered-template.sh`) renders
+first (`CI=1 chezmoi --source "$PWD" execute-template --no-tty <file`, with a throwaway `HOME` because
+chezmoi's read-source-state pre hook chdirs there) and shellchecks the result. `--source "$PWD"` is
+load-bearing: it is what makes `includeTemplate` resolve against this checkout.
 
-Its include list is discovered programmatically at Nix eval time, not hand-picked: every
-`.chezmoiscripts/*.sh.tmpl` plus every shell `dot_*.tmpl` at the repo root (first line a shell shebang or
-`# shellcheck shell=` directive, or a Go-template directive whose first non-directive line is such a
-shebang), minus anything the classifier in `scripts/render-coverage-classifier.nix` calls unsafe to
-render. A template is unsafe on any of three grounds: it or a partial it includes invokes `keepassxc`
-(which needs an interactive unlock), it carries a Go action split across lines, or it passes
-`includeTemplate` a name that is not a static string literal.
-
-Three `.chezmoitemplates/` fragments are excluded with documented reasons because they only render
-through their includers: `herdr-plugin-build.sh.tmpl`, `herdr-health-check.sh.tmpl` and
-`brew-bundle-cleanup-guard.sh.tmpl`.
+`treefmt.toml` hands the script EVERY `.chezmoiscripts/*.sh.tmpl` and root `dot_*.tmpl`, and the script
+classifies per file (the old nix-eval classifier is gone with the flake): not a shell template (no shell
+shebang or `# shellcheck shell=` directive in the leading lines) means skip, and a file that mentions
+`keepassxc`, or transitively includes a `.chezmoitemplates/` partial that does, means skip (an
+interactive vault unlock cannot render headless; the grep is deliberately broad, so an over-match costs
+one skipped lint, never a false failure).
 
 After a successful render, a blank (empty or whitespace-only) result is skipped rather than shellchecked,
-so an OS-gated template on the other OS does not fail SC2148; a render failure stays fatal.
-`test/integration/rendered-template-coverage.sh` enforces this universe: it re-reads the formatter's
-actual include list via `nix eval` and fails when discovery drops a template, when a stale exclusion
-lingers, or when a fixture under `test/fixtures/render-coverage` classifies differently in the bash
-mirror and the production Nix predicates. The `CI=1` env var is defensive here (vestigial from an earlier
-bashrc branch), but it is load-bearing for the sibling `espanso-match-render` formatter, whose vault
-reads sit behind `{{ if (env "CI") }}`.
+so an OS-gated template on the other OS does not fail SC2148; a render failure stays fatal (the per-file
+body is `scripts/treefmt/lib-shellcheck-rendered-template.sh`, driven by
+`test/unit/rendered-template-shellcheck-wrapper.sh` with stubs). The `CI=1` env var is defensive here,
+but it is load-bearing for the sibling `espanso-match-render` formatter, whose vault reads sit behind
+`{{ if (env "CI") }}`.
 
 Two more sibling formatters render before validating: `osquery-config-render` renders the JSON-bodied
 `.chezmoitemplates/osquery/**/*.conf` templates via `includeTemplate` and checks them with jq, and
@@ -317,17 +310,14 @@ scripts under `.local/bin` (the four `macos-defaults-*` helpers, `rotate-logs.sh
 `brew-shellenv-cache-refresh.sh`). Template files use `{{ if eq .chezmoi.os "darwin" }}` for
 macOS-specific content.
 
-### Dev environment (Nix flake)
+### Dev environment (no nix)
 
-`flake.nix` provides two dev shells for `x86_64-linux` and `aarch64-darwin`:
-
-- `default`, interactive shell with colored status output.
-- `run`, headless shell used by `just` and CI.
-
-Both share six build inputs: the repo-configured `treefmt` wrapper (bundling shellcheck, shfmt, mdformat
-with the GFM plugin, nixfmt, taplo, actionlint and the five validators from `treefmt.nix`), bats,
-`parallel` (required by `bats --jobs`, and absent from GitHub's macOS runners), chezmoi, `just` (so CI
-can call `nix develop .#run --command just test`), and zizmor.
+The contributor toolchain is Homebrew plus uv, no dev shell (the flake was removed 2026-08-05): brew
+provides actionlint, bats-core, chezmoi, jq, just, shellcheck, shfmt, taplo, treefmt, yq and zizmor (all
+declared in `.chezmoidata/system_packages_autoinstall.yaml`, so this machine keeps them through the
+weekly bundle), and `uv tool install mdformat --with mdformat-gfm` provides mdformat. CI installs the
+same set by name in its first step. Nix remains installed on the machine for unrelated uses; this repo
+never invokes it.
 
 ### CI
 
@@ -338,8 +328,46 @@ and actions SHA-pinned to full commit SHAs. `.github/dependabot.yml` keeps the p
 `gh pr merge --auto` so branch protection, where `lint` is a required status check on `main`, is what
 actually holds the merge until green.
 
-Four steps: checkout, install Nix, `nix flake check --all-systems` (the treefmt drift gate), then
-`just test` and `zizmor --offline .github/workflows` inside the flake's `run` shell.
+Five steps: checkout, install the toolchain (brew + uv, classified as setup by the parity test), then the
+three gates as literal commands: `just lint-check`, `just test`, `just lint-actions-security`.
+
+### Where deployed scripts live
+
+`~/.local/bin` holds only what the OPERATOR TYPES. Everything invoked by launchd, a hook, a keybinding or
+a `just` recipe lives under `~/.local/libexec`, because `just` and launchd are the interface and the
+script beneath them is an implementation detail. Today that leaves exactly one file in `bin`
+(`ssh-hardening.sh`).
+
+Four rules decide the shape below `libexec`, in this order:
+
+1. **A directory names a DOMAIN, a SYSTEM, or a FUNCTION**, never a dependency and never a vendor.
+   `osquery/`, `macos-defaults/` and `tailscale/` name what the scripts act on (all three hold scripts
+   this repo authored, not scripts those projects ship); `pns/` names the system the scripts belong to;
+   `unattended-upgrades/` names what they do. A directory named for a CLI a script happens to shell out
+   to would need `jq/` and `curl/` siblings to be consistent, so that axis is not used.
+1. **A directory exists only when it has more than one member.** A leaf with no private helpers stays a
+   flat file (`compress-and-truncate-local-logs.sh`, `control-hue-lights.sh`, `herdr-jump.sh`). Make the
+   group the day a second member arrives, not in anticipation of one. The exception is a single file
+   whose own name cannot carry its domain: `tailscale/reconcile-hosts-pin.sh` keeps its directory because
+   the filename says nothing about Tailscale and it is the only root-executed script in the tree.
+1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
+   tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`). Never
+   `main.sh`: the basename is what shows up in `ps`, in launchd output and in every log line, so five
+   directories of `main.sh` would be five indistinguishable processes.
+1. **`helpers/` holds code shared ACROSS a group**; a helper used by exactly one tool lives in that
+   tool's own directory. `unattended-upgrades/helpers/log-entries.sh` is shared by all three weekly jobs,
+   while `agent-skills/assert-hermes-superpowers-routing.sh` sits with the updater that is its only
+   caller. This mirrors the `test/<suite>/helpers/` split.
+
+Names are verb-first where a bare noun would not say what happens (`compress-and-truncate-local-logs.sh`,
+`control-hue-lights.sh`). A stutter is accepted when removing it would leave a meaningless basename:
+`macos-defaults/macos-defaults-apply.sh` stays, because `apply.sh` in a log line says nothing.
+
+**Moving a script is never just a move.** Its path is referenced by LaunchAgent plists, `.chezmoiscripts`
+runners, Claude Code hook declarations in `modify_settings.json`, aerospace and herdr keybindings, the
+`.chezmoiignore` OS-conditional block, the justfile, and osquery's file-integrity watch paths plus the
+known-good manifest generator and the alerter's verdict routing. Chezmoi also does not delete the old
+target: the file stays in `$HOME` at its former path until it is removed by hand.
 
 ### Background jobs and LaunchAgents
 
@@ -442,15 +470,15 @@ and direnv and before starship.
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
 framework). The shell is a relay producer like the Claude and Codex hooks and the weekly jobs, so both
-tiers call `~/.local/bin/relay.sh` rather than raising their own banner: the state is `done` or `failed`
-off the exit code, the detail is the command name and how long it ran, and the pane is `HERDR_PANE_ID`,
-which is what makes relay's banner focus that pane on click. Commands at 30s or longer go out
-`--local-only` (banner only); at 5 minutes or longer they fan out to the phone and Discord as well and
-pulse Hue lights via `~/.local/bin/hue-pulse.sh`, which is handed the exit code and pulses green on
-success, red otherwise. Interactive TUIs are skipped by a prefix match on the command line: `vim`,
-`nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The agent CLIs
-are on that list because they fire their own relay hooks. `test/integration/bashrc-long-command-relay.sh`
-pins the contract.
+tiers call `~/.local/libexec/pns/relay.sh` rather than raising their own banner: the state is `done` or
+`failed` off the exit code, the detail is the command name and how long it ran, and the pane is
+`HERDR_PANE_ID`, which is what makes relay's banner focus that pane on click. Commands at 30s or longer
+go out `--local-only` (banner only); at 5 minutes or longer they fan out to the phone and Discord as well
+and pulse Hue lights via `~/.local/libexec/pns/hue-pulse.sh`, which is handed the exit code and pulses
+green on success, red otherwise. Interactive TUIs are skipped by a prefix match on the command line:
+`vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The
+agent CLIs are on that list because they fire their own relay hooks.
+`test/integration/bashrc-long-command-relay.sh` pins the contract.
 
 ## Code Style
 
@@ -477,8 +505,6 @@ pins the contract.
   also pins LF line endings and strict round-trip validation). mdformat never touches skill, agent or
   command definitions (`private_dot_claude/{skills,agents,commands}/**`, `dot_agents/**`), which rely on
   YAML frontmatter it would mangle, nor `docs/superpowers/**`.
-- Nix: formatted with nixfmt (RFC 166 style, `treefmt.nix` pins `pkgs.nixfmt-rfc-style` because the bare
-  `nixfmt` attribute in nixpkgs 25.05 is still nixfmt-classic).
 - TOML: formatted with `taplo`. `dot_aerospace.toml` is excluded (preserves user's visual alignment).
 - ShellCheck directives: SC1090 and SC1091 are globally disabled (`.shellcheckrc`).
 

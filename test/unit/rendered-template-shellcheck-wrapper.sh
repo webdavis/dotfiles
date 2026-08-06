@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # rendered-template-shellcheck-wrapper.sh drives the per-file body of the treefmt
 # rendered-template lint formatter (factored into
-# scripts/lib-shellcheck-rendered-template.sh) with a stubbed chezmoi and lint
+# scripts/treefmt/lib-shellcheck-rendered-template.sh) with a stubbed chezmoi and lint
 # tool, proving the blank-render skip semantic:
 #   (a) a template that renders whitespace-only -> skip, exit 0, shellcheck NOT run
 #   (b) a template that renders a real script    -> shellcheck runs, exit follows it
@@ -13,7 +13,7 @@ REPO_ROOT="$(
   cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
   pwd
 )"
-LIB="$REPO_ROOT/scripts/lib-shellcheck-rendered-template.sh"
+LIB="$REPO_ROOT/scripts/treefmt/lib-shellcheck-rendered-template.sh"
 
 [[ -f $LIB ]] || {
   printf 'FAIL: missing %s\n' "$LIB" >&2

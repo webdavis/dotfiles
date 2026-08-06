@@ -89,7 +89,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RECONCILE="$REPO_ROOT/dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh"
+RECONCILE="$REPO_ROOT/dot_local/libexec/tailscale/executable_reconcile-hosts-pin.sh"
 
 failures=0
 

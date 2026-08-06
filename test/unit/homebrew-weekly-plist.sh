@@ -66,7 +66,7 @@ prog_scheduled="$(jq -r '[.ProgramArguments[] | select(. == "--scheduled")] | le
 [[ $prog_scheduled == "1" ]] ||
   fail "ProgramArguments does not pass exactly one --scheduled marker (got $prog_scheduled); the weekly record would never be posted"
 helper_arg="$(jq -r '.ProgramArguments[1]' "$plist_json")"
-[[ $helper_arg == */.local/bin/homebrew-weekly-upgrade.sh ]] ||
+[[ $helper_arg == */.local/libexec/unattended-upgrades/homebrew-weekly-upgrade.sh ]] ||
   fail "the agent does not run the deployed helper (got $helper_arg)"
 
 printf 'homebrew-weekly-plist: OK (Monday 12:00, Weekday 1; RunAtLoad false; --scheduled passed once)\n'
