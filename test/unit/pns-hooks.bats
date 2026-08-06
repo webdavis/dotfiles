@@ -27,9 +27,14 @@ pulsed() { [[ -f "$BATS_TEST_TMPDIR/pulsed" ]]; }
   [ -f "$(marker abc123)" ]
 }
 
-@test "the marker is written under HOME, never in shared /tmp" {
-  payload abc123 | "$START"
-  [[ "$(marker abc123)" == "$BATS_TEST_TMPDIR"/* ]]
+@test "the DEFAULT marker location is under HOME, never shared /tmp" {
+  # PNS_STATE_DIR unset on purpose: with the override in play this asserted a
+  # path the test itself had built, which is true by construction and can never
+  # fail. The behavior worth pinning is the hook's OWN default, so HOME is
+  # redirected and the default is what gets exercised.
+  unset PNS_STATE_DIR
+  HOME="$BATS_TEST_TMPDIR/home" bash -c "printf '%s' '$(payload abc123)' | $(printf '%q' "$START")"
+  [ -f "$BATS_TEST_TMPDIR/home/.local/state/pns/session-abc123.start" ]
   [ ! -e "/tmp/claude-session-abc123-start" ]
 }
 

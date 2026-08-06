@@ -100,13 +100,4 @@ grep -qx 'dot_config/nested/stowaway.conf' <<<"$offenders" ||
   fail "an untracked deployable file was NOT reported; the gate would pass a source tree carrying it"
 rm -f "$src/dot_config/nested/stowaway.conf"
 
-# 4. The runner still pins both mechanisms explicitly. A future edit that drops
-#    either one reintroduces a 281-offender refusal on a clean tree, and cases 1
-#    through 3 would still pass on a fixture small enough to hide it.
-fn="$(extract_function)"
-grep -q -- '--exclude=dirs' <<<"$fn" ||
-  fail "managed_but_untracked no longer excludes directories; every managed dir becomes an offender"
-grep -qE 'LC_ALL=C[[:space:]]+comm' <<<"$fn" ||
-  fail "comm no longer runs under LC_ALL=C; it will judge C-sorted input unsorted and emit nonsense"
-
-printf 'cutover-gate-managed-comparison: OK (clean tree silent, directories exempt, stowaway caught, both mechanisms pinned)\n'
+printf 'cutover-gate-managed-comparison: OK (clean tree silent, directories exempt, stowaway caught)\n'

@@ -68,16 +68,26 @@ files.
 just test-unit          # Unit suite only (the fast commit gate)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
-just test-system        # The suite that tests the checker and runner themselves
-just test               # All four suites (CI runs this)
+just test-rust          # cargo test for the two herdr plugins
+just test               # The three shell suites plus the Rust tests (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
 
 **Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
-slow one is deleted rather than tolerated. `test/unit/` is single-component `.sh`; bats survives only
-where a long-lived bash tool earns it (the osquery notification pipeline), through HOST bats-core;
-`test/test-system/` holds the runner's own checks. A large purge in 2026-08 left 160+ deleted files in
-git history as a cherry-pick pool: restore individual logic asserts from it, never wholesale.
+slow one is deleted rather than tolerated. Bash unit tests are **bats**, one behavior per `@test`,
+through HOST bats-core; Rust is tested with `cargo test`. A large purge in 2026-08 left 160+ deleted
+files in git history as a cherry-pick pool: restore individual logic asserts from it, never wholesale.
+
+**We test the behavior of tools we wrote, and nothing else** (operator ruling 2026-08-05). Not chezmoi,
+not Homebrew, not launchd, not any third-party behavior, and not deployment. In scope: pns, the osquery
+pipeline, rotate-logs, update-skills, the macos-defaults library, ssh-hardening, herdr-jump,
+cutover-gate, live-reconcile, the cli-print-style library, the two herdr Rust plugins. Out of scope, and
+deleted on sight: LaunchAgent plist field assertions, "is this hook wired in", `.chezmoiignore` OS
+branching, roster-versus-lock-table agreement, justfile-versus-CI-workflow parity, markdown heading
+guards, and meta-tests about how other tests are written. The question to ask is whether gutting our
+source logic while leaving the declarations intact would turn the test red. If it would not, it is not
+testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price:
+a config that disagrees with itself is now caught by review, not by a gate.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
@@ -86,18 +96,19 @@ shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A
 summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings never fail the
 run.
 
-**CI** runs `just test`, which is exactly the four suite recipes, and `just ship` runs CI's three gates
-as literal command lines (`just lint-check`, `just test`, `just lint-actions-security`;
-`test/unit/ship-ci-gate-parity.sh` compares them byte for byte against the workflow's `run:` steps and
-fails when they stop describing the same work). The pre-push hook deliberately runs no suite. Each
-suite's runner executes its own `.sh` and `.bats` once, with host bats-core.
+**CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines (`just
+lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
+agreement any more: the parity test was declaration-consistency checking, not tool behavior, so it went
+with the 2026-08-05 scope ruling. **Edit one and you must edit the other by hand.** The pre-push hook
+deliberately runs no suite. Each suite's runner executes its own `.sh` and `.bats` once, with host
+bats-core.
 
 So a commit can briefly carry an integration or e2e regression, and so can a push: **CI is the only gate
-that runs the suite**, and it runs on pull requests and on pushes to `main` only (that trigger scope is
-asserted by `test/unit/ship-ci-gate-parity.sh`). A push to a topic branch with no open pull request runs
-the suite nowhere; `just ship` is how you cover that window deliberately.
+that runs the suite**, and it runs on pull requests and on pushes to `main` only. A push to a topic
+branch with no open pull request runs the suite nowhere; `just ship` is how you cover that window
+deliberately.
 
-`just validate-tests` (`test/validate-tests.sh`, a dependency of all four suite recipes) fails if a
+`just validate-tests` (`test/validate-tests.sh`, a dependency of every suite recipe) fails if a
 `*.sh` or `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may
 sit at `test/` root. Three trees are carved out: a suite's own `helpers/`, the shared cross-suite
 `test/helpers/`, and `test/fixtures/**`. The two helper trees admit non-executable `*.sh` only, so an
@@ -229,8 +240,11 @@ model, the plugin-state trade and the corrupt-file recovery path are in
 `~/.agents/skills` is the single canonical skills store (35 roster skills), serving Claude Code (chezmoi
 symlink declarations under `private_dot_claude/skills/`), Codex (native store scan, no declarations) and
 hermes (declared symlinks into the default profile and four specialist profiles). Provenance, tiering and
-fan-out are recorded in `dot_agents/custom-skill-lock.json`, and `test/unit/skills-roster-fanout.sh`
-fails the build whenever the store, the lock tables and the per-harness declarations disagree.
+fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces that those three agree
+any more:** the roster guard was declaration-consistency checking, not tool behavior, so it went with the
+2026-08-05 scope ruling. Adding or removing a skill means editing the store, every lock table and every
+per-harness declaration by hand, and a missed one now surfaces as a skill quietly not reaching a harness
+rather than as a red build.
 `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` refreshes the npx-, clawhub- and
 app-owned lanes weekly, publishing a new generation with one atomic exchange.
 

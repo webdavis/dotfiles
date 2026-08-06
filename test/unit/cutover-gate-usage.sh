@@ -9,9 +9,6 @@
 #     a non-zero exit, never a silent fallthrough (Wooledge house rule)
 #   - checklist item 5, the repo handle is validated at the top of EVERY
 #     invocation, so all five gates refuse when $repo/.git is missing
-#   - checklist item 16, the runner never performs the interactive
-#     `chezmoi apply` itself; the only mentions of it are prose it prints
-#   - checklist item 12, no bare `launchctl list` anywhere in the runner
 #
 # The refusal cases run with HOME pointed at an empty sandbox, so the repo
 # handle ($HOME/workspaces/Ivy/webdavis/dotfiles) cannot resolve and nothing
@@ -104,46 +101,8 @@ for gate in 1 2 3 4 5; do
   fi
 done
 
-# ── Checklist item 16: the runner never runs `chezmoi apply` itself ─────────
-# Every mention must be prose the runner prints (a comment, or an argument to
-# one of its output helpers), never an executed command.
-apply_violation=0
-while IFS= read -r line; do
-  [[ -n $line ]] || continue
-  # strip the `grep -n` line-number prefix, then the leading indentation
-  body="${line#*:}"
-  body="${body#"${body%%[![:space:]]*}"}"
-  case "$body" in
-    '#'*) continue ;;                                     # comment line
-    printf* | say\ * | ok\ * | die\ * | checkpoint\ *) ;; # printed prose
-    *)
-      apply_violation=1
-      printf '       offending line: %s\n' "$line"
-      ;;
-  esac
-done < <(grep -n 'chezmoi apply' "$RUNNER" || true)
-if [[ $apply_violation -eq 0 ]]; then
-  report ok "item 16: no executed 'chezmoi apply' in the runner"
-else
-  report bad "item 16: the runner appears to execute 'chezmoi apply' itself"
-fi
-
-# ── Checklist item 12: never a bare `launchctl list` ────────────────────────
-if grep -qE '^[^#]*launchctl[[:space:]]+list' "$RUNNER"; then
-  report bad "item 12: the runner uses 'launchctl list' (must enumerate per domain with 'launchctl print')"
-else
-  report ok "item 12: no bare 'launchctl list'"
-fi
-
-# ── Checklist item 2: the Phase A base SHA is the recorded one ──────────────
-if grep -q '2bd973369158b49535e8e16e80c968444ab23f1d' "$RUNNER"; then
-  report ok "item 2: the recorded Phase A base SHA is the manifest default"
-else
-  report bad "item 2: the recorded Phase A base SHA (2bd9733...) is not in the runner"
-fi
-
 if [[ $failures -gt 0 ]]; then
   printf 'cutover-gate-usage: %d assertion(s) FAILED\n' "$failures" >&2
   exit 1
 fi
-printf 'cutover-gate-usage: OK (gate 1-5 only, repo handle enforced per invocation, no self-apply, no launchctl list)\n'
+printf 'cutover-gate-usage: OK (gate 1-5 only, repo handle enforced per invocation)\n'
