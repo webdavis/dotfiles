@@ -86,6 +86,28 @@ mode_of() { jq -r '.mode' <"$BATS_TEST_TMPDIR/$1.event"; }
   fired macos-banner
 }
 
+@test "RELAY_SKIP_PHONE drops the phone and ONLY the phone" {
+  # The caller (hooks/relay-agent.sh forwarding a blocking event) has already
+  # raised the card on the phone through moshi-hook's own round trip, so the
+  # push here would be the same event twice; the banner and the paper trail
+  # are still wanted.
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=99999 RELAY_SKIP_PHONE=1 \
+    "$RELAY" --agent claude --state blocked --detail x >/dev/null 2>&1
+  refute_fired moshi
+  fired hermes
+  fired macos-banner
+}
+
+@test "RELAY_SKIP_PHONE beats RELAY_FORCE_PHONE" {
+  # "I have already sent it" is more specific than a standing override, and the
+  # override is the one thing that could reintroduce the double push.
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=0 RELAY_SKIP_PHONE=1 RELAY_FORCE_PHONE=1 \
+    "$RELAY" --agent claude --state blocked --detail x >/dev/null 2>&1
+  refute_fired moshi
+}
+
 @test "RELAY_FORCE_PHONE overrides presence" {
   rm -f "$BATS_TEST_TMPDIR"/*.event
   PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=0 RELAY_FORCE_PHONE=1 \

@@ -30,7 +30,82 @@ MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 
 [[ -x $MOSHI_HOOK_BIN ]] || exit 0
 
-pid="$(pgrep -f 'moshi-hook serve' 2>/dev/null | head -1)"
+# --- the two ways the interposition breaks SILENTLY --------------------------
+#
+# pns registers itself as the harness hook and forwards to moshi-hook, so the
+# phone keeps its approve/deny round trip while pns keeps the presence gate.
+# Both halves of that arrangement can be undone without anything failing, which
+# is why they are re-asserted here rather than trusted: this script already runs
+# after every upgrade, which is when both happen.
+#
+# Seams, so a test drives this without touching the operator's live files or
+# the real binary. Same names the hooks use.
+PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-$HOME/.local/libexec/pns/hooks/moshi-gate.sh}"
+MOSHI_EXTENSION_ROOT="${MOSHI_EXTENSION_ROOT:-$HOME}"
+
+# 1. THE REPOINT. pi and omp are driven by a TypeScript extension moshi
+# GENERATES, hard-coding `const helperBinary = "/opt/homebrew/bin/moshi-hook"`.
+# `moshi-hook install` and every upgrade rewrite that file, reverting the one
+# line pns owns. Nothing fails when it does; the symptom is unfiltered phone
+# pushes while the operator sits at the keyboard, which reads as moshi being
+# noisy rather than as a regression.
+if [[ -x $PNS_MOSHI_GATE ]]; then
+  for extension in \
+    "$MOSHI_EXTENSION_ROOT/.pi/agent/extensions/moshi-hooks.ts" \
+    "$MOSHI_EXTENSION_ROOT/.omp/agent/extensions/moshi-hooks.ts"; do
+    [[ -f $extension ]] || continue
+    current="$(sed -n 's/^const helperBinary = "\(.*\)"$/\1/p' "$extension" | head -1)"
+    if [[ -z $current ]]; then
+      printf 'moshi-hook: WARNING: %s no longer declares a helperBinary line this script recognizes, so pns presence gating is OFF for that harness and its pushes are unfiltered.\n' \
+        "$extension" >&2
+      continue
+    fi
+    [[ $current != "$PNS_MOSHI_GATE" ]] || continue
+    tmp="$(mktemp "$extension.XXXXXX")" || continue
+    # The copy is for the MODE, not the content, which the redirect below
+    # replaces: mktemp makes an 0600 file, and the atomic `mv` would hand that
+    # mode to a file this repo does not own. A redirect into an existing file
+    # leaves its mode alone.
+    cp -p "$extension" "$tmp"
+    if sed "s|^const helperBinary = \".*\"\$|const helperBinary = \"$PNS_MOSHI_GATE\"|" \
+      "$extension" >"$tmp" && grep -q "helperBinary = \"$PNS_MOSHI_GATE\"" "$tmp"; then
+      mv "$tmp" "$extension"
+      printf 'moshi-hook: repointed %s at the pns presence gate (it pointed at %s).\n' \
+        "$extension" "$current"
+    else
+      rm -f "$tmp"
+      printf 'moshi-hook: WARNING: could not repoint %s at the pns presence gate; its pushes are unfiltered.\n' \
+        "$extension" >&2
+    fi
+  done
+fi
+
+# 2. THE SUBCOMMAND. The per-harness hook subcommands are UNDOCUMENTED (none of
+# them appears in `moshi-hook --help`), so a rename would ship as a silent
+# no-op: every forward would return "path does not exist" instead of a
+# decision, and approve/deny from the phone would simply stop working with
+# nothing to see. moshi's top-level positional is a PATH, which is what makes
+# a gone subcommand detectable at all. An empty JSON object carries no
+# hook_event_name, so this probe notifies nobody (measured: ~50ms, silent).
+#
+# It WARNS rather than failing. This is a notification path, and refusing the
+# rest of an apply over one is the same mistake as a hook that fails a turn
+# because a push did not land.
+for subcommand in claude-hook codex-hook pi-hook omp-hook; do
+  probe="$(printf '{}' | "$MOSHI_HOOK_BIN" "$subcommand" 2>&1 >/dev/null || true)"
+  case "$probe" in
+    *'path does not exist'*)
+      printf 'moshi-hook: WARNING: the %s subcommand is gone (%s). pns forwards every %s approval to it, so approve and deny from the phone are DEAD for that harness until the name is corrected.\n' \
+        "$subcommand" "$probe" "${subcommand%-hook}" >&2
+      ;;
+  esac
+done
+
+# `|| true` because pgrep exits 1 when it matches nothing, and under pipefail
+# that status is the whole assignment's, which errexit turns into a failed
+# script and chezmoi turns into an ABORTED APPLY. A daemon that is not running
+# is the ordinary case this next line already handles, not an error.
+pid="$(pgrep -f 'moshi-hook serve' 2>/dev/null | head -1)" || true
 [[ -n $pid ]] || exit 0
 
 # The txt entry is the executable image the process is running. Capturing the

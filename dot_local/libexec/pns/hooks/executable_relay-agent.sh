@@ -2,6 +2,19 @@
 # relay-agent: build an agent state message from a hook payload, hand to relay.sh.
 # Arg 1 = state (done|blocked|asked|plan-ready). Always exits 0.
 set -euo pipefail
+# The DECISION CORE, same library relay.sh sources. The helpers directory is
+# derived by parameter expansion rather than the `cd`/`dirname` pair relay.sh
+# uses: every harness invokes this hook by absolute path, and a notification
+# path that already forks jq and python should not pay a subshell and an exec
+# to learn where it lives.
+#
+# A core that is not there ENDS THE RUN AT 0, and says why on stderr first (the
+# `source` failure names the path it wanted). Without that clause this line is
+# a new way for the hook to exit non-zero, which is the one thing it must never
+# do; and there is nothing lost by stopping, because relay.sh sources the same
+# library and would fail on the very next line anyway.
+# shellcheck source=dot_local/libexec/pns/helpers/event.sh
+source "${PNS_HELPERS_DIR:-${BASH_SOURCE[0]%/*}/../helpers}/event.sh" || exit 0
 state="${1:-done}"
 relay="${RELAY_BIN:-$HOME/.local/libexec/pns/relay.sh}"
 input="$(cat 2>/dev/null || true)"
@@ -23,8 +36,7 @@ if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
   reply="$(tail -c 4000000 "$transcript" | jq -rs -R '[ split("\n")[] | select(length > 0) | fromjson? | select(type=="object") ] as $a
     | ([ $a | to_entries[] | select(.value.type=="user" and ((.value.message.content|type)=="string" or ((.value.message.content[0]?.type)=="text"))) | .key ] | last // -1) as $s
     | [ $a[$s+1:][] | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text ] | join("\n\n")' 2>/dev/null || true)"
-  reply="$(printf '%s' "$reply" | tr '\n\r\t' '   ' | tr -s ' ' | sed 's/^ *//; s/ *$//')"
-  [[ ${#reply} -le 8000 ]] || reply="${reply: -8000}" # cap only long turns; the offset empties short strings
+  reply="$(pns_flatten_reply "$reply")" # one line, trimmed, last 8000 chars at most
   used_codex=""
   # Codex-primary: one cheap `codex exec` summarizes the whole turn + classifies it as "STATE|SUMMARY";
   # STATE may override 'done' (e.g. asking). It runs in a stripped, dedicated CODEX_HOME (minimal config:
@@ -91,5 +103,47 @@ args=(--agent "$agent" --state "$state" --project "$project")
 [[ -n $branch ]] && args+=(--branch "$branch")
 [[ -n $detail ]] && args+=(--detail "$detail")
 [[ -n ${HERDR_PANE_ID:-} ]] && args+=(--pane "$HERDR_PANE_ID")
+
+# --- moshi-hook interposition -----------------------------------------------
+# On a BLOCKING event this hook hands the payload to moshi-hook and returns
+# what moshi returns, so the operator can approve or deny from the phone, while
+# pns keeps the presence gate moshi has none of. Non-blocking events are pns's
+# own (moshi-hook is deliberately not installed for these two harnesses, see
+# run_once_after_60), so forwarding one would push the same notification twice
+# and buy nothing: moshi cannot round-trip a decision the harness is not
+# waiting for.
+#
+# THE EXIT CONTRACT AND ITS ONE EXCEPTION. Everything above this line is a
+# notification, and a notification that cannot be delivered must never fail the
+# turn it reports on, which is why this hook exits 0 on every other path. The
+# forwarded path is the exception: there the exit code is the OPERATOR'S
+# DECISION, and a `|| true` on it would answer the permission prompt for them.
+# Do not "fix" the asymmetry.
+moshi_sub=""
+gate="${PNS_MOSHI_GATE:-${BASH_SOURCE[0]%/*}/moshi-gate.sh}"
+if [[ $state == blocked && -x $gate ]] &&
+  command -v "${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}" >/dev/null 2>&1; then
+  # The harness name reaches this hook from a config file, so it is MATCHED
+  # against the harnesses pns registers itself for rather than pasted into a
+  # subcommand. Whether to forward is decided here; the gate re-checks the
+  # shape because pi and omp reach it without passing through this hook.
+  case "$agent" in
+    claude | codex) moshi_sub="$agent-hook" ;;
+  esac
+fi
+if [[ -n $moshi_sub ]]; then
+  # The notification goes out FIRST and with the phone leg suppressed: moshi is
+  # about to raise the actionable card, so relay's own push would be the same
+  # event a second time, and a round trip that waits on a human must not hold
+  # the banner and the paper trail behind it. relay's stdout is moved to stderr
+  # because this hook's stdout now belongs to moshi's reply.
+  RELAY_SKIP_PHONE=1 "$relay" "${args[@]}" >&2 || true
+  # The payload is WRITTEN BACK, byte for byte: this hook consumed stdin at the
+  # top, and a consumed-but-not-forwarded stream leaves moshi with an empty
+  # parse, after which it silently does nothing.
+  status=0
+  printf '%s' "$input" | "$gate" "$moshi_sub" || status=$?
+  exit "$status"
+fi
 "$relay" "${args[@]}" || true
 exit 0

@@ -59,6 +59,11 @@ pns_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # those decisions testable one behavior at a time without spawning this script.
 # shellcheck source=dot_local/libexec/pns/helpers/event.sh
 source "${PNS_HELPERS_DIR:-$pns_dir/helpers}/event.sh"
+# The idle PROBE is impure, so it sits beside the core rather than in it, and
+# it is shared with hooks/moshi-gate.sh so the two cannot drift into
+# disagreeing about where the operator is.
+# shellcheck source=dot_local/libexec/pns/helpers/presence.sh
+source "${PNS_HELPERS_DIR:-$pns_dir/helpers}/presence.sh"
 
 # Endpoints and credentials belong to the channels now, each reading the same
 # env names (RELAY_AUTH_FILE, RELAY_MOSHI_URL, RELAY_HERMES_URL) with the same
@@ -94,16 +99,24 @@ else:
 # --remote-only path that is not merely wasted work: the POST there is
 # SYNCHRONOUS, so a wedged ioreg holds the weekly job before the delivery it
 # exists to report, after the week's guard is spent and while the caller still
-# holds its serialize lock. HIDIdleTime is input-idle, which is what works
-# under the never-sleep power policy.
+# holds its serialize lock. RELAY_SKIP_PHONE joins that list for the same
+# reason and one sharper: it is set by the hook that is forwarding a BLOCKING
+# event to moshi, where the harness is stopped waiting on the answer.
 idle_secs="${RELAY_IDLE_SECS:-}"
-if [[ -z $local_only && -z $remote_only && -z ${RELAY_FORCE_PHONE:-} && -z $idle_secs ]]; then
-  idle_ns="$("${RELAY_IOREG:-/usr/sbin/ioreg}" -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print $NF}' || true)"
-  [[ $idle_ns =~ ^[0-9]+$ ]] && idle_secs=$((idle_ns / 1000000000))
+if [[ -z $local_only && -z $remote_only && -z ${RELAY_SKIP_PHONE:-} &&
+  -z ${RELAY_FORCE_PHONE:-} && -z $idle_secs ]]; then
+  idle_secs="$(pns_idle_secs)"
 fi
+# RELAY_SKIP_PHONE drops the phone leg and NOTHING else: the caller has already
+# raised the card on the phone by another route (moshi-hook's own round trip),
+# so a push here is the same event a second time, while the banner and the
+# paper trail are still wanted. It beats RELAY_FORCE_PHONE, because a caller
+# saying "I already sent it" is more specific than a standing override.
 want_phone=""
-pns_wants_phone "$idle_secs" "${RELAY_DESK_IDLE_SECS:-600}" \
-  "$local_only" "$remote_only" "${RELAY_FORCE_PHONE:-}" && want_phone=1
+if [[ -z ${RELAY_SKIP_PHONE:-} ]] && pns_wants_phone "$idle_secs" "${RELAY_DESK_IDLE_SECS:-600}" \
+  "$local_only" "$remote_only" "${RELAY_FORCE_PHONE:-}"; then
+  want_phone=1
+fi
 
 # ---------------------------------------------------------------------------
 # Channel dispatch
