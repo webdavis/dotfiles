@@ -120,7 +120,13 @@ pns_channel_plan() {
 # when the operator clicks the banner, and the value comes from $HERDR_PANE_ID,
 # which pns does not own.
 pns_pane_is_safe() {
-  [[ ${1:-} =~ ^[A-Za-z0-9._-]+$ ]]
+  # An ALLOWLIST, so a character is refused until it is shown to be inert in a
+  # shell word. The colon earns its place by being herdr's own separator
+  # (`wW:p21`) and by being no operator at all: `:` is only the null command in
+  # command position, never inside an argument. Without it this predicate
+  # refused every real pane id on this host, and the banner silently lost the
+  # click-to-focus that the pane id exists to carry.
+  [[ ${1:-} =~ ^[A-Za-z0-9._:-]+$ ]]
 }
 
 # pns_session_id_is_safe <id>

