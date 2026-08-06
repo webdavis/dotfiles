@@ -113,7 +113,7 @@ fi
 # paper trail are still wanted. It beats RELAY_FORCE_PHONE, because a caller
 # saying "I already sent it" is more specific than a standing override.
 want_phone=""
-if [[ -z ${RELAY_SKIP_PHONE:-} ]] && pns_wants_phone "$idle_secs" "${RELAY_DESK_IDLE_SECS:-600}" \
+if [[ -z ${RELAY_SKIP_PHONE:-} ]] && pns_wants_phone "$idle_secs" "${RELAY_DESK_IDLE_SECS:-120}" \
   "$local_only" "$remote_only" "${RELAY_FORCE_PHONE:-}"; then
   want_phone=1
 fi

@@ -47,6 +47,6 @@ source "$helpers/presence.sh" || exit 0
 # The same reading, thresholds and fail-open rules relay.sh gates its phone
 # channel with. relay's two narrowing flags are relay's own and never apply
 # here, so they are passed empty.
-pns_wants_phone "$(pns_idle_secs)" "${RELAY_DESK_IDLE_SECS:-600}" "" "" "${RELAY_FORCE_PHONE:-}" || exit 0
+pns_wants_phone "$(pns_idle_secs)" "${RELAY_DESK_IDLE_SECS:-120}" "" "" "${RELAY_FORCE_PHONE:-}" || exit 0
 
 exec "$moshi" "$sub"
