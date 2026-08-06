@@ -19,6 +19,18 @@ pane="$(jq -r '.pane // ""' <<<"$event" 2>/dev/null || true)"
 # already been vetted. Re-checking it in every channel is how the guard drifts:
 # one copy gets tightened, the rest rot, and a channel in another language could
 # not share it anyway.
+# DO NOT NARRATE THE PANE THE OPERATOR IS WATCHING. The Stop hook fires on
+# every turn end, so an unconditional banner is one spam banner per agent
+# reply while they are actively conversing. If the event's pane IS herdr's
+# focused pane, they are looking at it; the away case is the phone leg's job,
+# and a herdr that is absent or cannot answer fails OPEN because a missed
+# suppression is spam while a missed banner is a dropped notification.
+if [[ -n $pane ]] && command -v herdr >/dev/null 2>&1; then
+  focused="$(herdr pane list 2>/dev/null |
+    jq -r '.result.panes[]? | select(.focused == true) | .pane_id' 2>/dev/null | head -1 || true)"
+  [[ -n $focused && $focused == "$pane" ]] && exit 0
+fi
+
 # TWO steps on the click, and only on the click: one herdr server renders many
 # workspaces in one Ghostty window, and `agent focus` alone moves focus INSIDE
 # the pane's workspace while the screen keeps showing whichever workspace the

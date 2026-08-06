@@ -23,6 +23,14 @@ STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >"$BATS_TEST_TMPDIR/notifier.argv"
 STUB
+  # herdr stub: answers `pane list` with one focused pane, HERDR_STUB_FOCUSED.
+  # Without it every banner test would consult the OPERATOR'S live herdr, and
+  # a test's verdict would depend on which pane they happen to be reading.
+  cat >"$STUBS/herdr" <<'STUB'
+#!/usr/bin/env bash
+[[ -n ${HERDR_STUB_FOCUSED:-} ]] || exit 1
+printf '{"result":{"panes":[{"pane_id":"%s","focused":true},{"pane_id":"zz:p0","focused":false}]}}\n' "$HERDR_STUB_FOCUSED"
+STUB
   chmod +x "$STUBS"/*
   PATH="$STUBS:$PATH"
   export PATH
@@ -159,4 +167,23 @@ event() {
   rm -f "$STUBS/terminal-notifier"
   run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async)'"
   [ "$status" -eq 0 ]
+}
+
+@test "a banner for the pane the operator is WATCHING is suppressed" {
+  # The Stop hook fires on every turn end, so an unconditional banner narrates
+  # the conversation the operator is having: one spam banner per reply. If the
+  # event's pane IS the focused pane, they are already looking at it.
+  HERDR_STUB_FOCUSED='wW:p21' run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
+  [ "$status" -eq 0 ]
+  [ ! -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "a banner for an UNfocused pane still fires" {
+  HERDR_STUB_FOCUSED='wW:p99' event async 'wW:p21' | "$PNS/channels/executable_macos-banner.sh"
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "a herdr that cannot answer fails OPEN: the banner fires" {
+  event async 'wW:p21' | "$PNS/channels/executable_macos-banner.sh"
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
 }
