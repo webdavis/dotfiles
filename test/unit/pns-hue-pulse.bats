@@ -176,8 +176,8 @@ path_without() {
   openhue_called 'set room studio-id --on -x 0.6915 -y 0.3083 --brightness 100 --transition-time 1200ms'
 }
 
-@test "HUE_PULSE_ROOM chooses which room is pulsed" {
-  HUE_PULSE_ROOM='Kitchen' pulse 0
+@test "HUE_PULSE_ROOMS chooses which room is pulsed" {
+  HUE_PULSE_ROOMS='Kitchen' pulse 0
   openhue_called 'set room kitchen-id --on -x 0.17 -y 0.7 --brightness 70 --transition-time 1200ms'
 }
 
@@ -227,7 +227,7 @@ path_without() {
   # light query is what says so, because the empty-snapshot guard further down
   # would swallow an unknown room too and leave "no light was touched" true for
   # the wrong reason.
-  HUE_PULSE_ROOM='No Such Room' run pulse 0
+  HUE_PULSE_ROOMS='No Such Room' run pulse 0
   [ "$status" -eq 0 ]
   [ "$(write_call_count)" -eq 0 ]
   run grep -qF 'get light' "$OPENHUE_ARGV"
@@ -237,7 +237,7 @@ path_without() {
 @test "a room holding no lights is left alone rather than pulsed" {
   # The snapshot comes back empty, and a pulse with nothing to restore would
   # strand the room on whatever the last phase set.
-  HUE_PULSE_ROOM='Closet' run pulse 0
+  HUE_PULSE_ROOMS='Closet' run pulse 0
   [ "$status" -eq 0 ]
   [ "$(write_call_count)" -eq 0 ]
 }
@@ -256,4 +256,23 @@ path_without() {
   exec 8>&-
   [ "$status" -eq 0 ]
   [ ! -s "$OPENHUE_ARGV" ]
+}
+
+@test "every configured room pulses in ONE openhue call, so they flash together" {
+  # openhue takes up to ten rooms per call, so both rooms change in a single
+  # request rather than two. Sequential calls would visibly stagger the flash,
+  # and the point of pulsing the kitchen and the studio together is that they
+  # read as one signal.
+  HUE_PULSE_ROOMS=$'3F - Studio\nKitchen' pulse 0
+  openhue_called 'set room studio-id kitchen-id --on -x 0.17 -y 0.7 --brightness 70 --transition-time 1200ms'
+}
+
+@test "a configured room that does not exist is skipped, and the rest still pulse" {
+  HUE_PULSE_ROOMS=$'3F - Studio\nNo Such Room' pulse 0
+  openhue_called 'set room studio-id --on -x 0.17 -y 0.7 --brightness 70 --transition-time 1200ms'
+}
+
+@test "lights in EVERY configured room are restored, not just the first" {
+  HUE_PULSE_ROOMS=$'3F - Studio\nKitchen' pulse 0
+  openhue_called 'set light kitchen-strip --on --brightness 100 -x 0.3 -y 0.3 --transition-time 500ms'
 }

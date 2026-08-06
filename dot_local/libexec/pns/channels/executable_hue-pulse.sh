@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pulse the studio Hue room deep green (success) or deep red (failure)
+# Pulse the configured Hue rooms deep green (success) or deep red (failure)
 # through a bright → 20% → bright → 20% heartbeat cycle (~5 seconds), then
 # restore each light to its saved on-state, brightness, and color. Colors
 # are addressed in CIE xy at the gamut corners for maximum saturation.
@@ -8,7 +8,7 @@
 #   exit 0  → pulse deep green (xy 0.17, 0.7, gamut C green corner)
 #   exit ≠0 → pulse deep red   (xy 0.6915, 0.3083, gamut C red corner)
 #
-# Silent no-op if openhue/jq isn't installed or the target room isn't found.
+# Silent no-op if openhue/jq isn't installed or no configured room is found.
 
 set -euo pipefail
 
@@ -19,7 +19,11 @@ set -euo pipefail
 source "${PNS_HELPERS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/helpers}/event.sh"
 
 exit_code="${1:-0}"
-room_name="${HUE_PULSE_ROOM:-3F - Studio}"
+# NEWLINE-separated, because room names contain spaces ("3F - Studio") and no
+# other separator can be split on safely. openhue accepts up to ten rooms in a
+# single `set room`, so every configured room changes in ONE request and they
+# read as one signal rather than a stagger.
+rooms_raw="${HUE_PULSE_ROOMS:-$'3F - Studio\n2F - Kitchen'}"
 
 command -v openhue &>/dev/null || exit 0
 command -v jq &>/dev/null || exit 0
@@ -47,9 +51,18 @@ if [[ -x /usr/bin/lockf ]]; then
   /usr/bin/lockf -s -t 0 9 || exit 0
 fi
 
-room_id=$(openhue get room --json 2>/dev/null |
-  jq -r --arg name "$room_name" '.. | select(.Name? == $name) | .Id' | head -1 || true)
-[[ -z $room_id ]] && exit 0
+# One room listing, resolved against every configured name. A name that does
+# not exist is SKIPPED rather than fatal: a room renamed in the Hue app must
+# not take the other rooms' pulse down with it.
+rooms_json=$(openhue get room --json 2>/dev/null || true)
+room_ids=()
+while IFS= read -r room_name; do
+  [[ -n $room_name ]] || continue
+  room_id=$(printf '%s' "$rooms_json" |
+    jq -r --arg name "$room_name" '.. | select(.Name? == $name) | .Id' | head -1 || true)
+  [[ -n $room_id ]] && room_ids+=("$room_id")
+done <<<"$rooms_raw"
+[[ ${#room_ids[@]} -eq 0 ]] && exit 0
 
 state_file=$(mktemp)
 
@@ -57,9 +70,9 @@ state_file=$(mktemp)
 # the color value(s), either mirek (color temp) or CIE xy.
 # TSV columns: id  on(true|false)  brightness  mode(ct|xy)  v1  v2
 openhue get light --json 2>/dev/null |
-  jq -r --arg room "$room_id" '
+  jq -r --argjson rooms "$(printf '%s\n' "${room_ids[@]}" | jq -R . | jq -s .)" '
     .[] |
-    select(.Parent.Parent.Id == $room) |
+    select(.Parent.Parent.Id as $p | $rooms | index($p)) |
     [
       .Id,
       (.HueData.on.on | tostring),
@@ -84,7 +97,7 @@ openhue get light --json 2>/dev/null |
 read -r px py peak <<<"$(pns_pulse_color "$exit_code")"
 pulse_to() {
   # Args: brightness (0-100). 1.2s smooth ramp.
-  openhue set room "$room_id" --on -x "$px" -y "$py" \
+  openhue set room "${room_ids[@]}" --on -x "$px" -y "$py" \
     --brightness "$1" --transition-time 1200ms 2>/dev/null
 }
 # First call gates the whole pulse, if openhue is unreachable here, bail
