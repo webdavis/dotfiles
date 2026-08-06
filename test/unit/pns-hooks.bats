@@ -34,11 +34,15 @@ pulsed() { [[ -f "$BATS_TEST_TMPDIR/pulsed" ]]; }
 }
 
 @test "a later prompt in the same session does not reset the start time" {
+  # A PLANTED value rather than a real first run plus a sleep. Sleeping to make
+  # two timestamps differ is what the unit suite bans, and it would have made
+  # this the slowest test in the file for no added confidence: an unchanged
+  # marker is the behavior, and a value the clock could never produce proves it
+  # more sharply than one that merely might differ.
+  mkdir -p "$PNS_STATE_DIR"
+  printf '111' >"$(marker abc123)"
   payload abc123 | "$START"
-  local first; first="$(cat "$(marker abc123)")"
-  sleep 1
-  payload abc123 | "$START"
-  [ "$(cat "$(marker abc123)")" = "$first" ]
+  [ "$(cat "$(marker abc123)")" = 111 ]
 }
 
 @test "a session id carrying a path traversal is refused, not turned into a filename" {

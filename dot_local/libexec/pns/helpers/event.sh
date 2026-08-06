@@ -47,6 +47,16 @@ pns_wants_phone() {
 }
 
 # pns_channel_plan <local_only> <remote_only> <want_phone>
+#
+# KNOWN LIMIT, and it is the one SP3 must close: this function NAMES its
+# channels, so adding a destination means editing core policy rather than only
+# dropping a file in channels/. That is an open/closed violation and it is the
+# same coupling that would make an extracted crate useless to anyone whose
+# stack is not moshi plus hermes. Closing it needs channels to declare their
+# own routing (a manifest, or a `--policy` query the core collects), which is
+# the plugin REGISTRATION mechanism. Building that in bash and again in Rust is
+# the duplication this split exists to avoid, so the limit is named here rather
+# than half-solved.
 # One "<channel> <mode>" line per channel that should fire, in delivery order.
 # Empty output means nothing fires, which is a legitimate verdict the caller
 # has to report rather than pass over in silence.
