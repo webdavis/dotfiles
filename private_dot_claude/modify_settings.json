@@ -176,16 +176,16 @@
     "UserPromptSubmit" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s/.local/libexec/pns/claude-hooks/claude-user-prompt-start.sh" $home)))))
+        "command" (printf "%s/.local/libexec/pns/hooks/claude/user-prompt-start.sh" $home)))))
     "Stop" (list (dict
       "hooks" (list
         (dict
           "type" "command"
-          "command" (printf "%s/.local/libexec/pns/claude-hooks/claude-stop-pulse.sh" $home))
+          "command" (printf "%s/.local/libexec/pns/hooks/claude/stop-pulse.sh" $home))
         (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh done" $home)))))
+          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh done" $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
       "hooks" (list
@@ -195,20 +195,20 @@
         (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh blocked" $home)))))
+          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh blocked" $home)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh asked" $home))))
+          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh asked" $home))))
       (dict
         "matcher" "ExitPlanMode"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/codex-hooks/relay-agent.sh plan-ready" $home))))) -}}
+          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh plan-ready" $home))))) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
 {{- /* --- stable: statusLine (path uses $home) --- */ -}}

@@ -128,9 +128,19 @@ channels_dir="${PNS_CHANNELS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/
 send() {
   local channel="$channels_dir/$1.sh" mode="$2"
   [[ -x $channel ]] || return 0
+  # The pane is SANITIZED HERE, once, rather than in each channel. A channel may
+  # be written in any language, so it cannot be expected to share this guard,
+  # and duplicating the regex per channel is how one copy gets tightened and the
+  # others rot. An unsafe id is dropped from the event and the banner simply
+  # does not focus a pane.
+  local safe_pane="$pane"
+  if [[ -n $pane ]] && ! pns_pane_is_safe "$pane"; then
+    safe_pane=""
+    printf 'relay: dropped a pane id with shell metacharacters; no channel will focus a pane\n' >&2
+  fi
   jq -cn --arg a "$agent" --arg s "$state" --arg p "$project" --arg b "$branch" \
     --arg d "$detail" --arg t "$title" --arg m "$message" --arg v "$preview" \
-    --arg n "$pane" --arg o "$mode" \
+    --arg n "$safe_pane" --arg o "$mode" \
     '{agent: $a, state: $s, project: $p, branch: $b, detail: $d,
       title: $t, message: $m, preview: $v, pane: $n, mode: $o}' |
     "$channel" || true

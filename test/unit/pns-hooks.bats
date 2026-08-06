@@ -1,0 +1,103 @@
+#!/usr/bin/env bats
+# The pns HOOKS: harness event sources, as opposed to channels, which are
+# destinations. The Claude pair implements one behavior between them, a light
+# pulse when a session ran long, by writing a marker on the first prompt and
+# reading it on stop.
+
+setup() {
+  PNS="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)/dot_local/libexec/pns"
+  export PNS_STATE_DIR="$BATS_TEST_TMPDIR/state"
+  export PNS_HELPERS_DIR="$PNS/helpers"
+  # A stub channels dir, so a pulse records itself instead of touching lights.
+  export PNS_CHANNELS_DIR="$BATS_TEST_TMPDIR/channels"
+  mkdir -p "$PNS_CHANNELS_DIR"
+  printf '#!/usr/bin/env bash\nprintf "%%s" "$1" >"%s/pulsed"\n' "$BATS_TEST_TMPDIR" \
+    >"$PNS_CHANNELS_DIR/hue-pulse.sh"
+  chmod +x "$PNS_CHANNELS_DIR/hue-pulse.sh"
+  START="$PNS/hooks/claude/executable_user-prompt-start.sh"
+  STOP="$PNS/hooks/claude/executable_stop-pulse.sh"
+}
+
+payload() { jq -cn --arg s "$1" '{session_id: $s}'; }
+marker() { printf '%s/session-%s.start' "$PNS_STATE_DIR" "$1"; }
+pulsed() { [[ -f "$BATS_TEST_TMPDIR/pulsed" ]]; }
+
+@test "the first prompt writes a session marker" {
+  payload abc123 | "$START"
+  [ -f "$(marker abc123)" ]
+}
+
+@test "the marker is written under HOME, never in shared /tmp" {
+  payload abc123 | "$START"
+  [[ "$(marker abc123)" == "$BATS_TEST_TMPDIR"/* ]]
+  [ ! -e "/tmp/claude-session-abc123-start" ]
+}
+
+@test "a later prompt in the same session does not reset the start time" {
+  payload abc123 | "$START"
+  local first; first="$(cat "$(marker abc123)")"
+  sleep 1
+  payload abc123 | "$START"
+  [ "$(cat "$(marker abc123)")" = "$first" ]
+}
+
+@test "a session id carrying a path traversal is refused, not turned into a filename" {
+  payload '../../escaped' | "$START"
+  [ ! -e "$BATS_TEST_TMPDIR/escaped" ]
+  [ ! -e "$PNS_STATE_DIR/../../escaped" ]
+}
+
+@test "a payload with no session id is a silent no-op" {
+  run bash -c "printf '{}' | $(printf '%q' "$START")"
+  [ "$status" -eq 0 ]
+  [ -z "$(ls -A "$PNS_STATE_DIR" 2>/dev/null || true)" ]
+}
+
+@test "stopping after a LONG session pulses the lights green" {
+  mkdir -p "$PNS_STATE_DIR"
+  printf '%s' "$(($(date +%s) - 600))" >"$(marker abc123)"
+  payload abc123 | "$STOP"
+  pulsed
+  [ "$(cat "$BATS_TEST_TMPDIR/pulsed")" = 0 ]
+}
+
+@test "stopping after a SHORT session does not pulse" {
+  mkdir -p "$PNS_STATE_DIR"
+  printf '%s' "$(($(date +%s) - 5))" >"$(marker abc123)"
+  payload abc123 | "$STOP"
+  ! pulsed
+}
+
+@test "stopping consumes the marker, so a second stop cannot re-pulse" {
+  mkdir -p "$PNS_STATE_DIR"
+  printf '%s' "$(($(date +%s) - 600))" >"$(marker abc123)"
+  payload abc123 | "$STOP"
+  rm -f "$BATS_TEST_TMPDIR/pulsed"
+  payload abc123 | "$STOP"
+  ! pulsed
+}
+
+@test "stopping a session that was never started is a silent no-op" {
+  run bash -c "$(printf '%q' "$(command -v jq)") --version >/dev/null; printf '%s' '$(payload never-seen)' | $(printf '%q' "$STOP")"
+  [ "$status" -eq 0 ]
+  ! pulsed
+}
+
+@test "a corrupt marker DECLINES rather than crashing the hook" {
+  # Both halves matter. Before the guard, a non-numeric marker aborted the hook
+  # under `set -u` ("not: unbound variable"), so it did not pulse for the wrong
+  # reason: it crashed. A hook that exits non-zero is noise the harness
+  # reports, so the exit status is as much the behavior as the missing pulse.
+  mkdir -p "$PNS_STATE_DIR"
+  printf 'not-a-timestamp' >"$(marker abc123)"
+  run bash -c "printf '%s' '$(payload abc123)' | $(printf '%q' "$STOP")"
+  [ "$status" -eq 0 ]
+  ! pulsed
+}
+
+@test "a corrupt marker is still consumed, so it cannot wedge every later stop" {
+  mkdir -p "$PNS_STATE_DIR"
+  printf 'not-a-timestamp' >"$(marker abc123)"
+  run bash -c "printf '%s' '$(payload abc123)' | $(printf '%q' "$STOP")"
+  [ ! -f "$(marker abc123)" ]
+}

@@ -6,7 +6,7 @@
 set -euo pipefail
 
 hooks="$HOME/.codex/hooks.json"
-agent="$HOME/.local/libexec/pns/codex-hooks/relay-agent.sh"
+agent="$HOME/.local/libexec/pns/hooks/relay-agent.sh"
 [[ -x $agent ]] || exit 0 # relay-agent not deployed yet; nothing to wire
 
 done_cmd="RELAY_AGENT=codex $agent done"

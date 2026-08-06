@@ -78,3 +78,22 @@ pns_channel_plan() {
 pns_pane_is_safe() {
   [[ ${1:-} =~ ^[A-Za-z0-9._-]+$ ]]
 }
+
+# pns_session_id_is_safe <id>
+# 0 when a harness-supplied session id may be used as a FILENAME. The id
+# arrives inside the hook's JSON payload and is interpolated into a path, so a
+# value carrying `/` or `..` would write the marker outside its directory.
+pns_session_id_is_safe() {
+  [[ ${1:-} =~ ^[A-Za-z0-9._-]+$ && ${1:-} != *..* ]]
+}
+
+# pns_session_was_long <elapsed_secs> <threshold_secs>
+# 0 when a session ran long enough to be worth a light pulse. A non-numeric
+# elapsed (an unreadable or corrupt marker) is NOT long: unlike a dropped phone
+# push, a missed pulse costs nothing, so this one fails CLOSED rather than
+# flashing the room on garbage.
+pns_session_was_long() {
+  local elapsed="${1:-}" threshold="${2:-300}"
+  [[ $elapsed =~ ^[0-9]+$ && $threshold =~ ^[0-9]+$ ]] || return 1
+  ((elapsed >= threshold))
+}
