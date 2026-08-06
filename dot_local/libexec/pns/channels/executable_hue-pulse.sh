@@ -12,6 +12,12 @@
 
 set -euo pipefail
 
+# The DECISION CORE, same split relay.sh uses: which colour an exit code means
+# and which arguments put a snapshotted light back are pure functions, testable
+# without spawning this script or stubbing openhue.
+# shellcheck source=dot_local/libexec/pns/helpers/event.sh
+source "${PNS_HELPERS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/helpers}/event.sh"
+
 exit_code="${1:-0}"
 room_name="${HUE_PULSE_ROOM:-3F - Studio}"
 
@@ -75,20 +81,7 @@ openhue get light --json 2>/dev/null |
 # (no interrupting overlap). 1.2s is long enough for the ramp itself to
 # read as smooth wave motion, while the brief API-roundtrip "settle"
 # between transitions is short enough not to feel like a hitch.
-#
-# Color: CIE xy gamut-corner coords (not --rgb) so the colors hit the
-# deepest saturation the bulb is physically capable of. Hue clamps RGB to
-# its gamut and desaturates aggressively; xy bypasses that conversion.
-if [[ $exit_code -eq 0 ]]; then
-  px=0.17 # gamut C green corner
-  py=0.7
-  peak=70 # green washes toward white at full brightness (Bezold-Brücke);
-  # 70% lets the green LED primary dominate perception
-else
-  px=0.6915 # gamut C red corner
-  py=0.3083
-  peak=100 # red stays saturated at full brightness
-fi
+read -r px py peak <<<"$(pns_pulse_color "$exit_code")"
 pulse_to() {
   # Args: brightness (0-100). 1.2s smooth ramp.
   openhue set room "$room_id" --on -x "$px" -y "$py" \
@@ -107,15 +100,8 @@ sleep 1.2
 
 # Restore each light.
 while IFS=$'\t' read -r lid on_state bri mode v1 v2; do
-  if [[ $on_state == "true" ]]; then
-    if [[ $mode == "ct" ]]; then
-      openhue set light "$lid" --on --brightness "$bri" -t "$v1" --transition-time 500ms 2>/dev/null || true
-    else
-      openhue set light "$lid" --on --brightness "$bri" -x "$v1" -y "$v2" --transition-time 500ms 2>/dev/null || true
-    fi
-  else
-    openhue set light "$lid" --off --transition-time 500ms 2>/dev/null || true
-  fi
+  mapfile -t restore_args < <(pns_restore_args "$on_state" "$bri" "$mode" "$v1" "$v2")
+  openhue set light "$lid" "${restore_args[@]}" 2>/dev/null || true
 done <"$state_file"
 
 # Best-effort notifier: a failed pulse must never fail the caller (Stop hook /

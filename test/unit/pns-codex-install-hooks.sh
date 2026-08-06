@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # relay-codex-hooks.sh: adds relay done+blocked to ~/.codex/hooks.json, preserves
 # herdr's SessionStart, idempotent.
-set -uo pipefail
+# -e included deliberately: without it an unguarded invocation below cannot
+# fail this test, which is how a broken installer would pass.
+set -euo pipefail
 script="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh"
 [[ -x $script ]] || {
   echo "relay-codex-hooks: FAIL -- not executable" >&2
