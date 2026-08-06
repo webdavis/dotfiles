@@ -480,9 +480,9 @@ if [[ $- == *i* ]]; then
     # relay producer like the Claude and Codex hooks and the weekly jobs, rather
     # than a second notifier beside it: relay decides presence (at the desk,
     # banner only; away, add the phone push), writes the Discord paper trail, and
-    # makes the banner clickable, which is what carries the pane. --local-only
-    # keeps the first tier to the banner; the second tier fans out and pulses the
-    # lights. NOTHING pins this contract: the test that did was rendering a
+    # makes the banner clickable, which is what carries the pane. Both tiers go
+    # through that same gate; the only thing the 300s tier adds is the lights.
+    # NOTHING pins this contract: the test that did was rendering a
     # template to assert its text, which is declaration checking rather than tool
     # behavior, so it went with the 2026-08-05 scope ruling. Change a threshold
     # here and only a real long command will tell you.
@@ -490,7 +490,11 @@ if [[ $- == *i* ]]; then
       ("$HOME/.local/libexec/pns/channels/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
       ("$HOME/.local/libexec/pns/relay.sh" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     elif ((elapsed >= 30)); then
-      ("$HOME/.local/libexec/pns/relay.sh" --local-only --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
+      # NOT --local-only (operator ruling 2026-08-06): away means mobile, and
+      # mobile means glancing, so a 30s command must reach the phone when the
+      # presence gate says away. The tier difference is the LIGHTS and nothing
+      # else; relay's own gate decides whether the phone leg fires.
+      ("$HOME/.local/libexec/pns/relay.sh" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     fi
   }
 

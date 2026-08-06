@@ -477,11 +477,12 @@ framework). The shell is a relay producer like the Claude and Codex hooks and th
 tiers call `~/.local/libexec/pns/relay.sh` rather than raising their own banner: the state is `done` or
 `failed` off the exit code, the detail is the command name and how long it ran, and the pane is
 `HERDR_PANE_ID`, which is what makes relay's banner focus that pane on click. Commands at 30s or longer
-go out `--local-only` (banner only); at 5 minutes or longer they fan out to the phone and Discord as well
-and pulse Hue lights via `~/.local/libexec/pns/channels/hue-pulse.sh`, which is handed the exit code and
-pulses green on success, red otherwise. Interactive TUIs are skipped by a prefix match on the command
-line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`.
-The agent CLIs are on that list because they fire their own relay hooks.
+go through relay's normal presence gate (banner and Discord always, phone when away; operator ruling
+2026-08-06: away means mobile, and mobile means glancing, so 30s is enough to earn the phone); at 5
+minutes or longer they also pulse Hue lights via `~/.local/libexec/pns/channels/hue-pulse.sh`, which is
+handed the exit code and pulses green on success, red otherwise. Interactive TUIs are skipped by a prefix
+match on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`,
+`hermes`, `codex`, `fzf`. The agent CLIs are on that list because they fire their own relay hooks.
 
 ## Code Style
 
