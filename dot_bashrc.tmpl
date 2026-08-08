@@ -452,7 +452,9 @@ if [[ $- == *i* ]]; then
   # the first command the name falls back to history in precmd.
   __cmd_notify_start=""
   __cmd_notify_name=""
-  # shellcheck disable=SC2034  # expanded by bash at prompt time, not referenced
+  # shellcheck disable=SC2016,SC2034  # single quotes are THE POINT: bash must
+  # expand this at prompt time, not at assignment; and nothing references PS0
+  # by name after this line.
   PS0='${__cmd_notify_ps0[__cmd_notify_start=SECONDS]}'
 
   __cmd_notify_preexec() {
