@@ -361,24 +361,3 @@ on-mode-changed = []
     if.app-id = 'com.apple.systempreferences'
     check-further-callbacks = true
     run = ['layout floating']
-
-[[on-window-detected]]
-    if.app-id = 'com.sandstudio.airdroidcast'
-    check-further-callbacks = true
-    run = ['layout floating']
-
-# [[on-window-detected]]
-#     if.app-id = 'org.keepassxc.keepassxc'
-#     check-further-callbacks = true
-#     run = ['layout floating']
-
-[[on-window-detected]]
-    if.app-id = 'com.markmcguill.strongbox'
-    check-further-callbacks = true
-    run = ['layout floating']
-
-# [[on-window-detected]]
-#     if.app-id = 'com.flexibits.cardhop.mac'
-#     check-further-callbacks = true
-#     run = ['layout floating']
-

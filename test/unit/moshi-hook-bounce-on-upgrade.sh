@@ -69,7 +69,13 @@ STUB
   # its own executable check, the bounce path is never reached, and this suite
   # passes on the developer machine while failing on a clean CI runner. That is
   # exactly what happened on the first attempt.
+  #
+  # MOSHI_EXTENSION_ROOT is the same kind of seam for the script's OTHER phase,
+  # which rewrites the generated pi and omp extension files. Unset, it defaults
+  # to the real $HOME, and running this test would edit the operator's live
+  # files. It points at an empty sandbox here, so that phase finds nothing.
   PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+    MOSHI_EXTENSION_ROOT="$sandbox/home" PNS_MOSHI_GATE="$sandbox/no-such-gate.sh" \
     bash "$rendered" >"$sandbox/out" 2>&1 || true
 }
 
@@ -115,6 +121,7 @@ STUB
 chmod +x "$sandbox/bin/lsof"
 : >"$kickstart_log"
 PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+  MOSHI_EXTENSION_ROOT="$sandbox/home" PNS_MOSHI_GATE="$sandbox/no-such-gate.sh" \
   bash "$rendered" >"$sandbox/out" 2>&1 || true
 if kickstarted; then
   fail '4: an unreadable running image must not trigger a bounce'
@@ -137,4 +144,43 @@ fi
 [[ ! -s $sandbox/out ]] ||
   fail "5: the not-installed exit must be silent (out: $(cat "$sandbox/out"))"
 
-printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse)\n'
+# --- 6: no daemon running at all: exit 0, because a chezmoi script that exits
+# non-zero ABORTS THE APPLY. pgrep exits 1 when it matches nothing and pipefail
+# hands that status to the assignment, so this is one `|| true` away from every
+# apply on a host with the service stopped dying at this script.
+
+cat >"$sandbox/bin/pgrep" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+chmod +x "$sandbox/bin/pgrep"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+  MOSHI_EXTENSION_ROOT="$sandbox/home" PNS_MOSHI_GATE="$sandbox/no-such-gate.sh" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] ||
+  fail "6: with no daemon running the script must exit 0, got $status (out: $(cat "$sandbox/out"))"
+
+# --- 7: a RENAMED hook subcommand must be reported ---------------------------
+# The per-harness subcommands pns forwards to are undocumented, so a rename
+# ships as a silent no-op: every approval would come back "path does not exist"
+# instead of a decision, and nothing else in the system would notice. This is
+# the detector for that, and a detector whose own pattern is wrong is worse
+# than none, so the pattern is what is pinned here.
+
+cat >"$sandbox/fake-binary" <<'STUB'
+#!/bin/bash
+printf 'path does not exist: %s\n' "$1" >&2
+exit 1
+STUB
+chmod +x "$sandbox/fake-binary"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+  MOSHI_EXTENSION_ROOT="$sandbox/home" PNS_MOSHI_GATE="$sandbox/no-such-gate.sh" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+grep -q 'claude-hook subcommand is gone' "$sandbox/out" ||
+  fail "7: a renamed subcommand must be named in the warning (out: $(cat "$sandbox/out"))"
+[[ $status -eq 0 ]] ||
+  fail "7: a renamed subcommand must WARN, not abort the apply, got $status"
+
+printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse, a stopped daemon does not abort the apply, a renamed hook subcommand is reported)\n'

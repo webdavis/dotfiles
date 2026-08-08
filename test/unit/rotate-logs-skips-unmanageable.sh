@@ -34,8 +34,8 @@ trap 'chmod -R u+w "$sandbox" 2>/dev/null; rm -rf "$sandbox"' EXIT
 log_root="$sandbox/log"
 mkdir -p "$log_root"
 
-# stat(1) differs between GNU and BSD, and the nix dev shell can put GNU
-# coreutils first on PATH even on macOS, where the BSD `-f` flag then means
+# stat(1) differs between GNU and BSD, and a gnubin-fronted PATH can put
+# GNU coreutils first even on macOS, where the BSD `-f` flag then means
 # "filesystem status" and succeeds with the wrong output. GNU form first,
 # BSD form as the fallback -- the order the repo guard enforces.
 file_size() { stat -c '%s' "$1" 2>/dev/null || stat -f '%z' "$1"; }

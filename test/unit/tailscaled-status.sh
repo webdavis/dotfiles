@@ -27,7 +27,7 @@ fail() {
   exit 1
 }
 
-# Host-tool guards: plain test/*.sh scripts run outside the Nix shell.
+# Host-tool guards: plain test/*.sh scripts run against the host toolchain.
 for tool in chezmoi jq; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     printf 'SKIP: %s not on PATH; cannot render/run the status reminder\n' "$tool"

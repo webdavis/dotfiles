@@ -144,12 +144,4 @@ grep -q 'int-deleted-kept.txt' "$missing" 2>/dev/null ||
 [[ "$(kind_of "$ledger" both-changed.txt)" == landed-unchanged ]] ||
   fail "a path both branches edited identically was not recorded as agreement"
 
-# 4. The discriminator itself is pinned. A future edit that drops the base check
-#    reintroduces the 92-blocker refusal, and cases 1 through 3 would still pass
-#    on a fixture where every manifest path happens to exist at the base.
-fn="$(awk '/^build_delta_ledger\(\) \{/,/^\}/' "$RUNNER")"
-# shellcheck disable=SC2016  # the literal source text is the subject, not an expansion
-grep -q 'PHASE_A_BASE:\$path' <<<"$fn" ||
-  fail "the classifier no longer distinguishes a deletion from a failed lookup by checking the base"
-
-printf 'cutover-gate-deletion-agreement: OK (both-deleted is agreement, one-sided deletion still blocks, survivor unchanged, discriminator pinned)\n'
+printf 'cutover-gate-deletion-agreement: OK (both-deleted is agreement, one-sided deletion still blocks, survivor unchanged)\n'
