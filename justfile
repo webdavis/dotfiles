@@ -142,6 +142,31 @@ ship:
   just test
   just lint-actions-security
 
+# Install the contributor toolchain into a fresh checkout: every gate below
+# (lint-check, test, lint-actions-security) assumes these are on PATH.
+#
+# Two lanes, because the tools split by how they drift. Binary tools come from
+# Brewfile.dev, where a floating version is fine: a newer shfmt or shellcheck
+# changes findings, not formatting bytes. mdformat is the exception and the
+# reason this recipe exists rather than a bare `brew bundle`. It REWRITES
+# markdown, so a version bump silently rewraps every file and the drift gate
+# fails on work nobody did; it and all six plugins are therefore pinned to the
+# exact versions CI installs.
+#
+# THE PIN SET LIVES HERE AND IN CI, hand-synced. The toolchain step in
+# .github/workflows/lint.yml carries the same `==` versions, nothing enforces
+# that the two agree, and they must move together or local and CI disagree
+# about what formatted markdown looks like.
+setup:
+  brew bundle --file=Brewfile.dev
+  uv tool install mdformat==0.7.22 \
+    --with mdformat-gfm==0.4.1 \
+    --with mdformat-gfm-alerts==2.0.0 \
+    --with mdformat-frontmatter==2.0.8 \
+    --with mdformat-footnote==0.1.1 \
+    --with mdformat-tables==1.0.0 \
+    --with mdformat-config==0.2.1
+
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
 # cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade
 # LaunchAgent runs; use it for the first upgrade or any ad-hoc one. Runs the

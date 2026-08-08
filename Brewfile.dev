@@ -1,0 +1,36 @@
+# Brewfile.dev: the CONTRIBUTOR toolchain, installed by `just setup`.
+#
+# NOT the machine's package set. `.chezmoidata/system_packages_autoinstall.yaml`
+# owns what dresden keeps installed through the weekly bundle; this file exists
+# so a FRESH CHECKOUT can run the gates without one, and so the local set and
+# CI's are written down in the same shape.
+#
+# HAND-SYNCED WITH CI, deliberately. The toolchain step in
+# .github/workflows/lint.yml installs this same list by name, and nothing
+# enforces that the two agree (the parity test went with the 2026-08-05 scope
+# ruling: it checked declarations against declarations, not our behavior).
+# Change one and change the other by hand.
+#
+# mdformat is NOT here. It is a Python tool with plugins that must be version
+# pinned, so `just setup` installs it through uv at CI's exact versions; see
+# that recipe.
+#
+# Alphabetical. gitleaks is the one entry CI does not install, because it is
+# the pre-commit hook's secret scanner and CI never commits.
+
+brew "actionlint"
+brew "age"
+brew "bash"
+brew "bats-core"
+brew "chezmoi"
+brew "coreutils"
+brew "gitleaks"
+brew "jq"
+brew "just"
+brew "shellcheck"
+brew "shfmt"
+brew "taplo"
+brew "treefmt"
+brew "uv"
+brew "yq"
+brew "zizmor"

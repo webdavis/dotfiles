@@ -310,12 +310,20 @@ Two more sibling formatters render before validating: `osquery-config-render` re
 
 ### Dev environment (no nix)
 
-The contributor toolchain is Homebrew plus uv, no dev shell (the flake was removed 2026-08-05): brew
-provides actionlint, bats-core, chezmoi, jq, just, shellcheck, shfmt, taplo, treefmt, yq and zizmor (all
-declared in `.chezmoidata/system_packages_autoinstall.yaml`, so this machine keeps them through the
-weekly bundle), and `uv tool install mdformat --with mdformat-gfm` provides mdformat. CI installs the
-same set by name in its first step. Nix remains installed on the machine for unrelated uses; this repo
-never invokes it.
+The contributor toolchain is Homebrew plus uv, no dev shell (the flake was removed 2026-08-05).
+`just setup` installs it into a fresh checkout: `brew bundle --file=Brewfile.dev` for the binary tools
+(actionlint, age, bash, bats-core, chezmoi, coreutils, gitleaks, jq, just, shellcheck, shfmt, taplo,
+treefmt, uv, yq, zizmor), then a uv install of mdformat and its six plugins. On dresden those formulae
+are also declared in `.chezmoidata/system_packages_autoinstall.yaml`, so the weekly bundle keeps them;
+`Brewfile.dev` is what a machine without that bundle needs. Nix remains installed on the machine for
+unrelated uses; this repo never invokes it.
+
+**mdformat is version pinned and the pins live in two places.** It rewrites markdown, so a version bump
+silently rewraps every file and fails the drift gate on work nobody did. The exact `==` versions are in
+the `setup` recipe and again in the toolchain step of `.github/workflows/lint.yml`; nothing enforces that
+the two agree, so they must be moved together by hand. The same hand-sync applies to `Brewfile.dev`
+against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
+the pre-commit hook; CI never commits).
 
 ### CI
 
