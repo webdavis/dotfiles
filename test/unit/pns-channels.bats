@@ -31,9 +31,46 @@ STUB
 [[ -n ${HERDR_STUB_FOCUSED:-} ]] || exit 1
 printf '{"result":{"panes":[{"pane_id":"%s","focused":true},{"pane_id":"zz:p0","focused":false}]}}\n' "$HERDR_STUB_FOCUSED"
 STUB
+  # pgrep + nettop stubs: the real probe samples the operator's live network
+  # counters for a full second, so no test here may reach it. nettop records
+  # that it was called, which is what pins the probe to the one idle band where
+  # it can change a verdict.
+  cat >"$STUBS/pgrep" <<'STUB'
+#!/usr/bin/env bash
+[[ -n ${PGREP_STUB_PIDS:-} ]] || exit 1
+printf '%s\n' "$PGREP_STUB_PIDS"
+STUB
+  # lsappinfo stub: `front` prints a fixed ASN, `info` a CFBundleIdentifier
+  # line from LSAPPINFO_STUB_BUNDLE (exit 1 unset = lsappinfo cannot answer).
+  cat >"$STUBS/lsappinfo" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  front) [[ -n ${LSAPPINFO_STUB_BUNDLE:-} ]] || exit 1; printf 'ASN:0x0-0xtest:\n' ;;
+  info) [[ -n ${LSAPPINFO_STUB_BUNDLE:-} ]] || exit 1; printf '"CFBundleIdentifier"="%s"\n' "$LSAPPINFO_STUB_BUNDLE" ;;
+  *) exit 1 ;;
+esac
+STUB
+  cat >"$STUBS/nettop" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$BATS_TEST_TMPDIR/nettop.argv"
+printf '%s' "\${NETTOP_STUB_CSV:-}"
+STUB
   chmod +x "$STUBS"/*
   PATH="$STUBS:$PATH"
   export PATH
+  # A temp HOME: the phone-attention marker is a real file at a real path, and
+  # a test must neither read the operator's nor plant one under it.
+  HOME="$BATS_TEST_TMPDIR/home"
+  export HOME
+  export MARKER="$HOME/.local/state/pns/phone-attention.marker"
+  mkdir -p "${MARKER%/*}"
+  # The idle seam, defaulted so NO test reaches the real ioreg. Unset, the
+  # probe reads the operator's live HIDIdleTime, which is both a live probe in
+  # a unit test and a verdict that changes with whoever last touched the
+  # keyboard. 999 is the FAIL-OPEN value (past any desk threshold, so the
+  # banner fires), which is what an unknown idle already means here; a test
+  # that needs the operator present overrides it per case.
+  export RELAY_IDLE_SECS=999
   AUTH="$BATS_TEST_TMPDIR/auth.json"
   printf '{"moshi_secret":"m-tok","hermes_secret":"h-key"}\n' >"$AUTH"
   export RELAY_AUTH_FILE="$AUTH"
@@ -148,7 +185,19 @@ event() {
   # nowhere (measured 2026-08-06). The workspace id is the pane id's prefix.
   # Both commands ride the click; nothing moves focus at notify time.
   event async 'wW:p21' | "$PNS/channels/executable_macos-banner.sh"
-  run grep -q 'herdr workspace focus wW; herdr agent focus wW:p21' "$BATS_TEST_TMPDIR/notifier.argv"
+  # The ABSOLUTE path: the click runs in a bare launchd context whose PATH
+  # cannot resolve herdr, so a bare name dies silently (proven live 2026-08-07).
+  run grep -q "$STUBS/herdr workspace focus wW; $STUBS/herdr agent focus wW:p21" "$BATS_TEST_TMPDIR/notifier.argv"
+  [ "$status" -eq 0 ]
+}
+
+@test "the click activates the terminal the pane actually lives in, not a hardcoded one" {
+  # The env assignment has to ride the side of the pipe that runs the CHANNEL:
+  # a VAR=x prefix on `a | b` binds to a alone, so prefixing the event builder
+  # leaves the channel reading the operator's real terminal id.
+  __CFBundleIdentifier='test.terminal' \
+    run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
+  run grep -q -- '-activate test.terminal' "$BATS_TEST_TMPDIR/notifier.argv"
   [ "$status" -eq 0 ]
 }
 
@@ -170,11 +219,51 @@ event() {
 }
 
 @test "a banner for the pane the operator is WATCHING is suppressed" {
-  # The Stop hook fires on every turn end, so an unconditional banner narrates
-  # the conversation the operator is having: one spam banner per reply. If the
-  # event's pane IS the focused pane, they are already looking at it.
-  HERDR_STUB_FOCUSED='wW:p21' run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
+  # ALL THREE presence conditions hold here: recently-touched Mac, the
+  # terminal is the key window, and the event's pane is herdr's focused pane.
+  # Every other suppression test below knocks out exactly one of the three.
+  HERDR_STUB_FOCUSED='wW:p21' LSAPPINFO_STUB_BUNDLE='test.terminal' __CFBundleIdentifier='test.terminal' RELAY_IDLE_SECS=5 \
+    run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
   [ "$status" -eq 0 ]
+  [ ! -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "another app as the key window fires the banner, even with the pane focused" {
+  # run bash -c, not an env-prefixed pipeline: a VAR=x prefix on `a | b` binds
+  # to a only, and the channel on the right would fail-open for the wrong
+  # reason (an unset herdr stub) while the test stays green by luck.
+  HERDR_STUB_FOCUSED='wW:p21' LSAPPINFO_STUB_BUNDLE='company.thebrowser.Browser' __CFBundleIdentifier='test.terminal' RELAY_IDLE_SECS=5 \
+    run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "an operator idle past the threshold fires the banner, watching or not" {
+  HERDR_STUB_FOCUSED='wW:p21' LSAPPINFO_STUB_BUNDLE='test.terminal' __CFBundleIdentifier='test.terminal' RELAY_IDLE_SECS=999 \
+    run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "an lsappinfo that cannot answer fails OPEN: the banner fires" {
+  HERDR_STUB_FOCUSED='wW:p21' __CFBundleIdentifier='test.terminal' RELAY_IDLE_SECS=5 \
+    run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "no known terminal identity fails OPEN: the banner fires" {
+  # env -u: the test itself runs under a terminal, so the inherited value must
+  # be stripped, not merely left alone, to model a headless-started herdr.
+  HERDR_STUB_FOCUSED='wW:p21' LSAPPINFO_STUB_BUNDLE='test.terminal' RELAY_IDLE_SECS=5 \
+    run bash -c "printf '%s' '$(event async wW:p21)' | env -u __CFBundleIdentifier $(printf '%q' "$PNS/channels/executable_macos-banner.sh")"
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "PNS_TERMINAL_BUNDLE_ID beats the inherited terminal identity" {
+  # Override says the terminal is the browser, and the browser IS front, so
+  # this suppresses; with the inherited value winning instead it would fire.
+  HERDR_STUB_FOCUSED='wW:p21' LSAPPINFO_STUB_BUNDLE='company.thebrowser.Browser' __CFBundleIdentifier='test.terminal' \
+    PNS_TERMINAL_BUNDLE_ID='company.thebrowser.Browser' RELAY_IDLE_SECS=5 \
+    run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
   [ ! -f "$BATS_TEST_TMPDIR/notifier.argv" ]
 }
 
