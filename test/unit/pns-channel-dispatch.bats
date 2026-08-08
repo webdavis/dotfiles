@@ -128,3 +128,31 @@ mode_of() { jq -r '.mode' <"$BATS_TEST_TMPDIR/$1.event"; }
   relay --agent claude --state done --detail x
   fired macos-banner
 }
+
+@test "phone attention in the middle band sends the phone leg from an at-desk idle" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=50 RELAY_PHONE_ATTENTION=1 \
+    "$RELAY" --agent claude --state blocked --detail x >/dev/null 2>&1
+  fired moshi
+}
+
+@test "attention never resurrects a --local-only phone leg" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=50 RELAY_PHONE_ATTENTION=1 \
+    "$RELAY" --local-only --agent claude --state blocked --detail x >/dev/null 2>&1
+  refute_fired moshi
+}
+
+@test "attention never resurrects a RELAY_SKIP_PHONEd leg" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=50 RELAY_PHONE_ATTENTION=1 RELAY_SKIP_PHONE=1 \
+    "$RELAY" --agent claude --state blocked --detail x >/dev/null 2>&1
+  refute_fired moshi
+}
+
+@test "fresh physical input beats attention: no phone leg under the fresh floor" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=5 RELAY_PHONE_ATTENTION=1 \
+    "$RELAY" --agent claude --state blocked --detail x >/dev/null 2>&1
+  refute_fired moshi
+}

@@ -118,6 +118,25 @@ if [[ -z ${RELAY_SKIP_PHONE:-} ]] && pns_wants_phone "$idle_secs" "${RELAY_DESK_
   want_phone=1
 fi
 
+# THE ATTENTION OVERRIDE. Between the fresh-input floor and the desk threshold
+# the idle reading says "at the desk", but that is also the operator standing in
+# the hallway watching this run through Moshi on their phone, with every
+# notification landing on the screen they walked away from. A phone that is
+# demonstrably in hand (mosh bytes moving, or a deliberate Back Tap) flips that
+# verdict. The band is what confines the probes to the one place they can change
+# an answer, so the ordinary at-desk and away paths pay nothing for this.
+#
+# CALLER INTENT IS NEVER OVERRIDDEN. --local-only, --remote-only and
+# RELAY_SKIP_PHONE are a caller stating what it wants delivered, not a guess
+# about presence, so no probe may resurrect a leg they dropped. RELAY_SKIP_PHONE
+# is the sharpest of the three: the caller has ALREADY raised this card on the
+# phone through moshi-hook's own round trip, so an override here is the same
+# event arriving twice.
+if [[ -z $want_phone && -z $local_only && -z $remote_only && -z ${RELAY_SKIP_PHONE:-} ]] &&
+  pns_attention_band "$idle_secs" "${RELAY_DESK_IDLE_SECS:-120}" && pns_phone_attention; then
+  want_phone=1
+fi
+
 # ---------------------------------------------------------------------------
 # Channel dispatch
 #

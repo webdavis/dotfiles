@@ -47,6 +47,16 @@ source "$helpers/presence.sh" || exit 0
 # The same reading, thresholds and fail-open rules relay.sh gates its phone
 # channel with. relay's two narrowing flags are relay's own and never apply
 # here, so they are passed empty.
-pns_wants_phone "$(pns_idle_secs)" "${RELAY_DESK_IDLE_SECS:-120}" "" "" "${RELAY_FORCE_PHONE:-}" || exit 0
+idle_secs="$(pns_idle_secs)"
+desk_idle="${RELAY_DESK_IDLE_SECS:-120}"
+if ! pns_wants_phone "$idle_secs" "$desk_idle" "" "" "${RELAY_FORCE_PHONE:-}"; then
+  # THE ATTENTION OVERRIDE, the same two functions relay.sh uses so the two
+  # cannot drift. Between the fresh-input floor and the desk threshold the idle
+  # reading says "at the desk" while the operator may be watching this very run
+  # through Moshi on their phone, and the card is the only way to answer from
+  # there: declining here leaves the harness waiting on a prompt nobody can see.
+  pns_attention_band "$idle_secs" "$desk_idle" || exit 0
+  pns_phone_attention || exit 0
+fi
 
 exec "$moshi" "$sub"

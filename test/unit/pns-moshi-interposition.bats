@@ -60,6 +60,11 @@ STUB
   gate denied codex-hook RELAY_IDLE_SECS=99999 STUB_MOSHI_RC=2 &
   gate no_moshi claude-hook RELAY_IDLE_SECS=99999 MOSHI_HOOK_BIN="$T/bin/nothing-here" &
   gate bad_sub 'rm -rf /' RELAY_IDLE_SECS=99999 &
+  # The middle idle band (20..119s): phone signals may override the desk
+  # verdict. Seam only, the real probe must never run in a test.
+  gate attention_band codex-hook RELAY_IDLE_SECS=50 RELAY_PHONE_ATTENTION=1 STUB_MOSHI_OUT='{"decision":"allow"}' &
+  gate attention_denied codex-hook RELAY_IDLE_SECS=50 RELAY_PHONE_ATTENTION=0 &
+  gate fresh_beats_attention codex-hook RELAY_IDLE_SECS=5 RELAY_PHONE_ATTENTION=1 &
 
   # --- relay-agent, the hook the harnesses actually fire -------------------
   agent blocked_away blocked RELAY_IDLE_SECS=99999 STUB_MOSHI_RC=7 &
@@ -198,4 +203,18 @@ relay_flag() {
   # an unknown value must not become `moshi-hook <value>-hook`.
   refute_forwarded blocked_unknown
   [ "$(exit_status blocked_unknown)" = 0 ]
+}
+
+@test "phone attention in the middle band forwards the approval" {
+  [ -f "$T/attention_band.argv" ]
+}
+
+@test "no attention in the middle band still declines: the idle rule stands" {
+  [ ! -f "$T/attention_denied.argv" ]
+}
+
+@test "fresh physical input beats a streaming phone: no forward under the fresh floor" {
+  # The switching drill's r13/r25 calls: a keypress seconds ago proves hands
+  # at the desk even while Moshi streams on a screen somewhere.
+  [ ! -f "$T/fresh_beats_attention.argv" ]
 }
