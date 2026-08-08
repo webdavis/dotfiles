@@ -295,7 +295,7 @@ assert_batch_in_last() {
 }
 
 # assert_last_mode_600 - the .last forensic file is mode 600 (it holds full paths).
-# GNU stat first (the nix shell), BSD stat as the fallback (the portable order).
+# GNU stat first (Linux, or a gnubin-fronted PATH), BSD stat second: the portable order.
 assert_last_mode_600() {
   local mode
   mode=$(stat -c '%a' "$OSQUERY_DIGEST_STORE.last" 2>/dev/null || stat -f '%Lp' "$OSQUERY_DIGEST_STORE.last" 2>/dev/null)

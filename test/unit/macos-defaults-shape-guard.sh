@@ -178,7 +178,7 @@ write_record_list() { # <path> <tag>
 }
 
 [[ -f $LIB ]] || fail "missing library: $LIB"
-command -v yq >/dev/null 2>&1 || fail "yq is not on PATH; run inside the nix dev shell"
+command -v yq >/dev/null 2>&1 || fail "yq is not on PATH; brew install yq (or run: just setup)"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
