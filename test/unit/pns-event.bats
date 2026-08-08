@@ -8,6 +8,8 @@
 setup() {
   # shellcheck source=dot_local/libexec/pns/helpers/event.sh
   source "$BATS_TEST_DIRNAME/../../dot_local/libexec/pns/helpers/event.sh"
+  # shellcheck source=dot_local/libexec/pns/helpers/presence.sh
+  source "$BATS_TEST_DIRNAME/../../dot_local/libexec/pns/helpers/presence.sh"
 }
 
 # --- pns_title -------------------------------------------------------------
@@ -121,4 +123,54 @@ macos-banner async" ]
 @test "an empty pane id is refused rather than treated as a command" {
   run pns_pane_is_safe ''
   [ "$status" -eq 1 ]
+}
+
+# --- presence.sh: the impure half's PURE cores ------------------------------
+# Sourced directly like the decision core above; nothing here runs nettop,
+# ioreg, or pgrep. The fixtures are real nettop -L 2 CSV shapes.
+
+@test "a session whose bytes_in moved between samples is ACTIVE" {
+  printf '%s\n' \
+    'time,,interface,state,bytes_in,bytes_out' \
+    '01:00:00,mosh-server.111,,,1000,5000' \
+    '01:00:00,mosh-server.222,,,300,900' \
+    'time,,interface,state,bytes_in,bytes_out' \
+    '01:00:01,mosh-server.111,,,1600,7800' \
+    '01:00:01,mosh-server.222,,,300,900' | pns_mosh_rate_active
+}
+
+@test "sessions all flat between samples are INACTIVE" {
+  ! printf '%s\n' \
+    '01:00:00,mosh-server.111,,,1000,5000' \
+    '01:00:01,mosh-server.111,,,1000,5000' | pns_mosh_rate_active
+}
+
+@test "a bytes_in delta below the floor is INACTIVE, not a phone in hand" {
+  ! printf '%s\n' \
+    '01:00:00,mosh-server.111,,,1000,5000' \
+    '01:00:01,mosh-server.111,,,1050,5000' | pns_mosh_rate_active
+}
+
+@test "empty or garbage CSV is INACTIVE, never a crash" {
+  ! printf '' | pns_mosh_rate_active
+  ! printf 'no such thing\n' | pns_mosh_rate_active
+}
+
+@test "a marker younger than the TTL means the phone is in hand" {
+  m="$BATS_TEST_TMPDIR/marker"; touch "$m"
+  PNS_PHONE_MARKER_FILE="$m" pns_phone_marker_fresh
+}
+
+@test "a marker older than the TTL has expired" {
+  m="$BATS_TEST_TMPDIR/marker"; touch -t 202601010000 "$m"
+  ! PNS_PHONE_MARKER_FILE="$m" pns_phone_marker_fresh
+}
+
+@test "no marker at all is simply not a signal" {
+  ! PNS_PHONE_MARKER_FILE="$BATS_TEST_TMPDIR/absent" pns_phone_marker_fresh
+}
+
+@test "RELAY_PHONE_ATTENTION forces the attention verdict both ways" {
+  RELAY_PHONE_ATTENTION=1 pns_phone_attention
+  ! RELAY_PHONE_ATTENTION=0 pns_phone_attention
 }
