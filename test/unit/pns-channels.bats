@@ -209,13 +209,38 @@ event() {
 }
 
 @test "the banner exits 0 when terminal-notifier is not installed" {
+  # PATH is rebuilt without Homebrew, because removing the STUB alone left the
+  # real terminal-notifier reachable: this test spent its whole life posting a
+  # REAL banner with sound on every suite run while claiming to test absence
+  # (found by a recorder behind the stub dir, 2026-08-08).
+  #
   # Pins the OUTCOME, not the availability guard: with the guard removed the
-  # call would still fail into `|| true`, so no test can tell the two apart
-  # from outside. The guard is there to skip pointless work, not to change
-  # behavior, and a mutation sweep is how that got said out loud.
+  # final call still fails into `|| true` with the same exit and the same
+  # silence, so the guard is a deliberate EQUIVALENT MUTANT (it skips pointless
+  # jq forks, it does not change behavior). Said here so the next sweep does
+  # not rediscover it.
   rm -f "$STUBS/terminal-notifier"
-  run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async)'"
+  PATH="$STUBS:/usr/bin:/bin" run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async)'"
   [ "$status" -eq 0 ]
+  [ ! -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "BOTH terminal identities unknown fails OPEN: empty must never equal empty" {
+  # The surviving-mutant case: no inherited __CFBundleIdentifier AND an
+  # lsappinfo that cannot answer. Without the guard the comparison is
+  # "" == "" and the banner is wrongly silenced.
+  HERDR_STUB_FOCUSED='wW:p21' RELAY_IDLE_SECS=5 \
+    run bash -c "printf '%s' '$(event async wW:p21)' | env -u __CFBundleIdentifier $(printf '%q' "$PNS/channels/executable_macos-banner.sh")"
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
+}
+
+@test "a DIFFERENT focused pane fires the banner even with the first two conditions met" {
+  # Conditions 1 and 2 aligned on purpose, so this cannot pass by failing open
+  # at an earlier gate: the focused-pane comparison itself must do the work.
+  HERDR_STUB_FOCUSED='wW:p99' LSAPPINFO_STUB_BUNDLE='test.terminal' __CFBundleIdentifier='test.terminal' RELAY_IDLE_SECS=5 \
+    run bash -c "$(printf '%q' "$PNS/channels/executable_macos-banner.sh") <<<'$(event async wW:p21)'"
+  [ -f "$BATS_TEST_TMPDIR/notifier.argv" ]
 }
 
 @test "a banner for the pane the operator is WATCHING is suppressed" {
