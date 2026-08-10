@@ -4777,7 +4777,7 @@
       "label": "directory_verdict_for()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L226",
+      "source_location": "L247",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4791,7 +4791,7 @@
       "label": "file_verdict_for()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L234",
+      "source_location": "L255",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4805,7 +4805,7 @@
       "label": "repair_directory()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L251",
+      "source_location": "L272",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4819,7 +4819,7 @@
       "label": "repair_file()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L262",
+      "source_location": "L283",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4833,7 +4833,7 @@
       "label": "daemon_parent_pid()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L275",
+      "source_location": "L296",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4847,7 +4847,7 @@
       "label": "wait_for_daemon_parent()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L285",
+      "source_location": "L306",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4861,7 +4861,7 @@
       "label": "daemon_parent_stays_up()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L306",
+      "source_location": "L327",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4875,7 +4875,7 @@
       "label": "restart_daemon()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L320",
+      "source_location": "L341",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4889,7 +4889,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L366",
+      "source_location": "L387",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -42854,7 +42854,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L275",
+      "source_location": "L296",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_pid",
@@ -42864,7 +42864,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L306",
+      "source_location": "L327",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_stays_up",
@@ -42874,7 +42874,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L226",
+      "source_location": "L247",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_directory_verdict_for",
@@ -42904,7 +42904,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L234",
+      "source_location": "L255",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_file_verdict_for",
@@ -42914,7 +42914,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L366",
+      "source_location": "L387",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_main",
@@ -42954,7 +42954,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L251",
+      "source_location": "L272",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
@@ -42964,7 +42964,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L262",
+      "source_location": "L283",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
@@ -42984,7 +42984,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L320",
+      "source_location": "L341",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
@@ -43024,7 +43024,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L285",
+      "source_location": "L306",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_executable_osquery_converge",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_wait_for_daemon_parent",
@@ -43034,7 +43034,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L398",
+      "source_location": "L419",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_sh__entry",
@@ -43067,7 +43067,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L329",
+      "source_location": "L350",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
@@ -43078,7 +43078,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L391",
+      "source_location": "L412",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
@@ -43089,7 +43089,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L253",
+      "source_location": "L274",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
@@ -43100,7 +43100,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L265",
+      "source_location": "L286",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
@@ -43111,7 +43111,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L362",
+      "source_location": "L383",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
@@ -43122,7 +43122,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L252",
+      "source_location": "L273",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
@@ -43133,55 +43133,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L264",
+      "source_location": "L285",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L337",
-      "weight": 1.0,
-      "context": "call",
-      "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
-      "target": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L367",
-      "weight": 1.0,
-      "context": "call",
-      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
-      "target": "dot_local_libexec_osquery_executable_osquery_converge_assert_desired_state_is_complete",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L377",
-      "weight": 1.0,
-      "context": "call",
-      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
-      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L382",
-      "weight": 1.0,
-      "context": "call",
-      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
-      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
       "confidence_score": 1.0
     },
     {
@@ -43192,6 +43148,50 @@
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L388",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_assert_desired_state_is_complete",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L398",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L403",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L379",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
       "target": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_stays_up",
       "confidence_score": 1.0
     },
@@ -43199,7 +43199,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
-      "source_location": "L395",
+      "source_location": "L416",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
@@ -77011,5 +77011,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "14f8ad7cb57087295a6789a6dc9c94a999cebf43"
+  "built_at_commit": "141249a540b89a587c3c8ec8cb50d86a3aa5653c"
 }
