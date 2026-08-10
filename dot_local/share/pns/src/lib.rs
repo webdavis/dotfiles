@@ -11,6 +11,7 @@
 //! composition root is where wiring lives.
 
 pub mod render;
+pub mod routing;
 
 /// A plain decimal count, or `None` when the text is not one.
 ///
