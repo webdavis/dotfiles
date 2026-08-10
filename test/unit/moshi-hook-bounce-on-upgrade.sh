@@ -26,11 +26,9 @@ sandbox="$(mktemp -d)"
 trap 'rm -rf "$sandbox"' EXIT
 
 rendered="$sandbox/bounce.sh"
-# --source pins the render to THIS checkout. The script includeTemplate's the
-# print library, and a bare `chezmoi execute-template` resolves includes against
-# whatever source dir the ambient config names, which is another tree here and
-# nothing at all in CI. The render error is reported rather than swallowed,
-# because a hidden one reads as "the template is broken".
+# --source pins the render to THIS checkout: the template includeTemplate's the
+# print library, which has to resolve against this tree rather than against
+# whatever source dir an ambient chezmoi config happens to name.
 mkdir -p "$sandbox/render-home" # chezmoi's read-source-state pre hook chdirs into HOME
 HOME="$sandbox/render-home" CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
   <"$TEMPLATE" >"$rendered" 2>"$sandbox/render.err" ||

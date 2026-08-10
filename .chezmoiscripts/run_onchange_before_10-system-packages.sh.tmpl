@@ -179,11 +179,8 @@ if [[ $multiplexer_present == false ]]; then
   # blanket `|| true`: the retry runs the same command against a restored trust
   # store, and a second failure is a real one that aborts the apply under set -e.
   #
-  # Stdout is CAPTURED so the header can be withheld when the cleanup has
-  # nothing to say: with no removals and an empty `brew cleanup`,
-  # `brew bundle cleanup --force` prints nothing at all (Homebrew's
-  # bundle/subcommand/cleanup.rb only `puts` a non-empty result). The guard's own
-  # refusal warning is on stderr and still streams live.
+  # Stdout is CAPTURED because `brew bundle cleanup --force` prints nothing at
+  # all when it has nothing to remove, and a header must not stand over no body.
   cleanup_rc=0
   cleanup_output="$(brew_bundle_cleanup_guarded "$brewfile")" || cleanup_rc=$?
   trust_checkpoint '40-after-cleanup'
