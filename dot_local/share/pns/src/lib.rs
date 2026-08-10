@@ -10,6 +10,7 @@
 //! out of the environment. A caller decides what to do with a verdict, and the
 //! composition root is where wiring lives.
 
+pub mod pulse;
 pub mod render;
 pub mod routing;
 pub mod safety;
