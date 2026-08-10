@@ -199,6 +199,11 @@ mod tests {
     }
 
     #[test]
+    fn one_character_past_the_cap_is_already_a_cut() {
+        assert_eq!(flatten_reply("abcde", 4), "bcde");
+    }
+
+    #[test]
     fn the_tail_cut_counts_characters_rather_than_bytes() {
         assert_eq!(flatten_reply("ééééé", 2), "éé");
     }
