@@ -10,6 +10,8 @@
 //! out of the environment. A caller decides what to do with a verdict, and the
 //! composition root is where wiring lives.
 
+pub mod render;
+
 /// A plain decimal count, or `None` when the text is not one.
 ///
 /// The single gate every numeric reading passes: an idle clock, a byte floor,
