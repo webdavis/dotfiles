@@ -48,6 +48,9 @@ tmp.*
 # Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
 .local/share/herdr/**/target
 
+# Same, for the pns crate.
+.local/share/pns/target
+
 {{- if eq .chezmoi.os "linux" }}
 Library
 .local/libexec/macos-defaults/macos-defaults-drift.sh
