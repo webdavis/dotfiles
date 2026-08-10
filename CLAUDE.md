@@ -68,7 +68,7 @@ files.
 just test-unit          # Unit suite only (the fast commit gate)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
-just test-rust          # cargo test for the two herdr plugins
+just test-rust          # cargo test for the two herdr plugins and the pns crate (+ fmt/clippy for pns)
 just test               # The three shell suites plus the Rust tests (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
