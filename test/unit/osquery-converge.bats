@@ -450,6 +450,35 @@ refute_log_has() { # <fixed-substring> <file>
   [ "$(privileged_call_count)" -eq 0 ]
 }
 
+@test "a symlink planted in the desired tree under an unlisted name is refused too" {
+  # The staging scan is `! -type d` rather than `-type f` precisely so a link is
+  # seen: `-type f` would look straight past this one, and the file the tool
+  # never installs would sit there being ignored forever.
+  ln -s /etc/passwd "$DESIRED/packs/planted-link.conf"
+  rm -f "$TARGET/osquery.conf"
+  run converge
+  [ "$status" -ne 0 ]
+  [[ $output == *planted-link.conf* ]]
+  [ "$(privileged_call_count)" -eq 0 ]
+}
+
+@test "a planted file is matched on its exact relative path, not on a pattern or a basename" {
+  # Two ways that match could weaken and still pass the plain case above: an
+  # unquoted right-hand side turns the staged name into a glob, so a file
+  # called `*.conf` would match a listed pack and be waved through; and a
+  # basename comparison would wave through a pack sitting in the wrong
+  # directory. Both end in a staged file that is never installed and never
+  # mentioned.
+  printf 'planted\n' >"$DESIRED/packs/*.conf"
+  printf 'planted\n' >"$DESIRED/intrusion-detection.conf"
+  rm -f "$TARGET/osquery.conf"
+  run converge
+  [ "$status" -ne 0 ]
+  [[ $output == *"packs/*.conf"* ]]
+  [[ $output == *"desired/intrusion-detection.conf"* ]]
+  [ "$(privileged_call_count)" -eq 0 ]
+}
+
 @test "a desired file that cannot be read is never treated as converged" {
   # cmp answers 2 when it could not compare, which is not evidence that the
   # bytes match. Reading it as a match would pass over the file in silence and
