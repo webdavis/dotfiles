@@ -114,6 +114,21 @@ pns_channel_plan() {
   return 0
 }
 
+# pns_viewed_pane_redundant <event_pane> <focused_pane>
+# 0 when a phone card would describe the very pane the operator is watching:
+# both ids are present and identical. herdr mirrors focus across every
+# attached client, so the focused pane IS what a phone viewing the session
+# shows. Either id missing is unknown, and unknown fails OPEN (the card
+# fires): a duplicate card costs a glance, a dropped one costs the event.
+#
+# This is only half the verdict. The caller must ALSO hold proof the phone is
+# actively viewing (pns_moshi_viewing); the Back Tap marker never counts,
+# because a phone in hand is not a pane on screen.
+pns_viewed_pane_redundant() {
+  local event="${1:-}" focused="${2:-}"
+  [[ -n $event && -n $focused && $event == "$focused" ]]
+}
+
 # pns_pane_is_safe <pane>
 # 0 when a pane id may be interpolated into terminal-notifier's -execute, which
 # takes a SHELL STRING. A pane carrying `; curl ... | sh` would otherwise run

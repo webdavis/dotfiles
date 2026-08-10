@@ -156,3 +156,37 @@ mode_of() { jq -r '.mode' <"$BATS_TEST_TMPDIR/$1.event"; }
     "$RELAY" --agent claude --state blocked --detail x >/dev/null 2>&1
   refute_fired moshi
 }
+
+@test "the watched pane's card is suppressed, other channels untouched" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=99999 RELAY_MOSHI_VIEWING=1 \
+    RELAY_HERDR_FOCUSED_PANE=wW:p1 \
+    "$RELAY" --agent claude --state done --detail x --pane wW:p1 >/dev/null 2>&1
+  refute_fired moshi
+  fired hermes
+  fired macos-banner
+}
+
+@test "a pane the phone is not watching still cards" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=99999 RELAY_MOSHI_VIEWING=1 \
+    RELAY_HERDR_FOCUSED_PANE=wW:p2 \
+    "$RELAY" --agent claude --state done --detail x --pane wW:p1 >/dev/null 2>&1
+  fired moshi
+}
+
+@test "phone in hand without Moshi on screen still cards the focused pane" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=99999 RELAY_MOSHI_VIEWING=0 \
+    RELAY_HERDR_FOCUSED_PANE=wW:p1 \
+    "$RELAY" --agent claude --state done --detail x --pane wW:p1 >/dev/null 2>&1
+  fired moshi
+}
+
+@test "RELAY_FORCE_PHONE is caller intent and beats the viewed-pane check" {
+  rm -f "$BATS_TEST_TMPDIR"/*.event
+  PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=99999 RELAY_FORCE_PHONE=1 \
+    RELAY_MOSHI_VIEWING=1 RELAY_HERDR_FOCUSED_PANE=wW:p1 \
+    "$RELAY" --agent claude --state done --detail x --pane wW:p1 >/dev/null 2>&1
+  fired moshi
+}
