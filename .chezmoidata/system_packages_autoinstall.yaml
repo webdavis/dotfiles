@@ -81,9 +81,9 @@ packages:
         - fd
         - felixkratz/formulae/borders
         - ffmpeg
+        - fnm
         - fzf
         - gawk
-        - gemini-cli
         - gh
         - git
         - git-crypt
@@ -113,7 +113,6 @@ packages:
         - netcat
         - ngrep
         - nmap
-        - node
         - obsidian-cli
         - ollama
         - onefetch
@@ -157,7 +156,6 @@ packages:
         - treefmt
         - uv
         - vapor
-        - volta
         - websocat
         - wget
         - wireshark
@@ -247,20 +245,21 @@ packages:
       - nano-pdf
       - sherlock-project
       - whisply[mlx,app]
-    npm:
-      - "@doist/todoist-cli"
-      - agentmail-cli
-      - clawhub
-      - "@colbymchenry/codegraph"
-      - happy
-      - hyperframes
-      - "@clawdbot/lobster"
-      - "@mistweaverco/kulala-ls"
-      - mcporter
-      - "@elevenlabs/cli"
-    # Volta-managed CLI tools, each pinned to a specific Node major so the tool
-    # keeps working regardless of the active Homebrew `node` version. See
-    # https://docs.volta.sh/advanced/packages for how pinning works.
-    volta:
-      - package: "@tobilu/qmd"
-        node: "24"
+    # fnm-managed node plus the npm CLI tools that run on it. One node version
+    # per group; bumping `node` reinstalls every package under the new version
+    # at the next apply.
+    fnm:
+      - node: "24"
+        packages:
+          - "@clawdbot/lobster"
+          - "@colbymchenry/codegraph"
+          - "@doist/todoist-cli"
+          - "@elevenlabs/cli"
+          - "@google/gemini-cli"
+          - "@mistweaverco/kulala-ls"
+          - "@tobilu/qmd"
+          - agentmail-cli
+          - clawhub
+          - happy
+          - hyperframes
+          - mcporter
