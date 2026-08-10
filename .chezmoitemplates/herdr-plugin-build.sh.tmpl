@@ -153,7 +153,7 @@ report_section "herdr plugin" "$plugin_id" >&2
 if [[ ! -x $cargo_bin ]]; then
   bump_retry_marker
   printf 'cargo not found at %s; %s plugin build deferred (trigger left retryable).\n' "$cargo_bin" "$plugin_id" >&2
-  printf 'rustup (run_once_before_20) has not provisioned it yet; the next chezmoi apply retries automatically once cargo exists.\n' >&2
+  report_line 'rustup (run_once_before_20) has not provisioned it yet; the next chezmoi apply retries automatically once cargo exists.' >&2
   exit 0
 fi
 
