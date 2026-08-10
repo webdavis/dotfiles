@@ -307,14 +307,26 @@ refute_log_has() { # <fixed-substring> <file>
   restarted
 }
 
-@test "a start that fails is FATAL and never reports success" {
-  # The vendor stop is `launchctl unload` PLUS `rm` of the LaunchDaemon plist,
-  # so a guarded start after a successful stop leaves the daemon GONE while the
-  # apply reports it converged.
+@test "a start that fails is FATAL even while a daemon is still running" {
+  # The case that separates an UNGUARDED start from a guarded one. Both calls
+  # used to be silenced, so a stop that failed to unload followed by a start
+  # that failed left the PREVIOUS daemon up on its PREVIOUS configuration while
+  # the script printed 'osquery setup complete.': the liveness check alone
+  # cannot catch that, because a daemon really is running. The start's own
+  # status is what says the new configuration was never loaded.
+  rm -f "$TARGET/osquery.conf"
+  OSQUERYCTL_STOP_EXIT=1 OSQUERYCTL_START_EXIT=1 run converge
+  [ "$status" -ne 0 ]
+  [[ $output == *"'osqueryctl start' FAILED"* ]]
+}
+
+@test "a start that fails after a successful stop leaves no success line" {
+  # The other half: here the stop worked, so the daemon really is gone. A
+  # `[[ != ]]` and not a `! grep`, which set -e ignores inside bats.
   rm -f "$TARGET/osquery.conf"
   OSQUERYCTL_START_EXIT=1 run converge
   [ "$status" -ne 0 ]
-  [[ $output == *osqueryd* ]]
+  [[ $output != *"restarted osqueryd"* ]]
 }
 
 @test "a missing vendor plist refuses the restart and never stops the daemon" {
