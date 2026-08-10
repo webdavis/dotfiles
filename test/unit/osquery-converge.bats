@@ -159,7 +159,19 @@ esac
 path="${3:-}"
 mode="$(/usr/bin/stat -c '%a' "$path" 2>/dev/null || /usr/bin/stat -f '%p' "$path" 2>/dev/null)" || exit 1
 [[ ${2:-} == *%Lp* ]] && mode="$(printf '%o' "$((8#$mode & 0777))")"
-printf '%s %s %s\n' "$mode" "${FAKE_STAT_UID:-0}" "${FAKE_STAT_GID:-0}"
+# The owner substitution is SCOPED to one subtree, defaulting to the target
+# directory the stub exists for. The tool probes owners for two unrelated
+# reasons now: the live files under /var/osquery, and the directory holding the
+# privileged binary it is about to hand to sudo. One global override could not
+# model a non-root config without also declaring the stub's own bin directory
+# untrustworthy, which is a different test's subject.
+uid="${FAKE_STAT_UID:-0}"
+gid="${FAKE_STAT_GID:-0}"
+if [[ -n ${FAKE_STAT_UID_SCOPE:-} && $path != "$FAKE_STAT_UID_SCOPE"* ]]; then
+  uid=0
+  gid=0
+fi
+printf '%s %s %s\n' "$mode" "$uid" "$gid"
 STUB
 
   # An instant sleep: the restart poll waits in quarter seconds and nothing here
@@ -193,7 +205,13 @@ setup() {
   : >"$PGREP_ARGV"
   printf '4242\n' >"$DAEMON_PID_FILE"
 
+  # The default subtree the stat stub substitutes an owner for: the live tree,
+  # which is what a sandbox cannot make root-owned. A test about the trust check
+  # on a privileged binary moves the scope to the stub bin directory instead.
+  FAKE_STAT_UID_SCOPE="$TARGET"
+
   export SUDO_LOG OSQUERYCTL_LOG INSTALL_SOURCE_LOG DAEMON_PID_FILE DAEMON_LIVES PGREP_ARGV
+  export FAKE_STAT_UID_SCOPE
 }
 
 # The sandbox drive. OSQUERY_CONVERGE_TEST_SEAM is what unlocks the overrides
@@ -294,8 +312,8 @@ refute_log_has() { # <fixed-substring> <file>
   # rewrite before the daemon's next config load, whatever its bytes say.
   FAKE_STAT_UID=501 run converge
   [ "$status" -eq 0 ]
-  grep -qF -- "-n install -o root -g wheel -m 0644 $DESIRED/osquery.conf $TARGET/osquery.conf" "$SUDO_LOG"
-  grep -qF -- "-n install -d -o root -g wheel -m 0755 $TARGET" "$SUDO_LOG"
+  [[ "$(install_line_for "$TARGET/osquery.conf")" == "-n /usr/bin/install -o root -g wheel -m 0644 "*" $TARGET/osquery.conf" ]]
+  grep -qF -- "-n /usr/bin/install -d -o root -g wheel -m 0755 $TARGET" "$SUDO_LOG"
 }
 
 @test "a setuid bit on a live file reads as drift, not as a matching 0644" {
@@ -307,7 +325,7 @@ refute_log_has() { # <fixed-substring> <file>
   chmod u+s "$TARGET/osquery.conf"
   run converge
   [ "$status" -eq 0 ]
-  grep -qF -- "-n install -o root -g wheel -m 0644 $DESIRED/osquery.conf $TARGET/osquery.conf" "$SUDO_LOG"
+  [[ "$(install_line_for "$TARGET/osquery.conf")" == "-n /usr/bin/install -o root -g wheel -m 0644 "*" $TARGET/osquery.conf" ]]
 }
 
 @test "a symlink standing at the config path is replaced by a regular file" {
@@ -353,7 +371,7 @@ refute_log_has() { # <fixed-substring> <file>
   # owned by the operator, so a name resolved there is a name a user-level
   # process can answer for root.
   rm -f "$TARGET/osquery.conf"
-  FAKE_STAT_UID=501 run converge
+  FAKE_STAT_UID=501 FAKE_STAT_UID_SCOPE="$BIN" run converge
   [ "$status" -ne 0 ]
   [[ $output == *osqueryctl* ]]
   [ "$(privileged_call_count)" -eq 0 ]
@@ -487,15 +505,38 @@ refute_log_has() { # <fixed-substring> <file>
 }
 
 @test "a desired file that cannot be read is never treated as converged" {
-  # cmp answers 2 when it could not compare, which is not evidence that the
-  # bytes match. Reading it as a match would pass over the file in silence and
-  # report a converged tree; the reinstall that follows the unreadable verdict
-  # fails loudly instead, which is the direction that cannot leave a wiped
-  # /var/osquery file wiped.
+  # Once the desired state is copied into a private directory before anything is
+  # compared, an unreadable STAGING file is caught by the copy rather than by the
+  # comparison: this pins the refusal, and that it costs no privileged call. The
+  # comparison's own error direction is the LIVE case below, which is where cmp
+  # can still fail.
   chmod 000 "$DESIRED/osquery.conf"
   run converge
   [ "$status" -ne 0 ]
   [[ $output != *"restarted osqueryd"* ]]
+  [ "$(privileged_call_count)" -eq 0 ]
+}
+
+@test "a LIVE file that cannot be compared is reinstalled, never counted as converged" {
+  # cmp answers 2 when it could not compare, which is not evidence that the
+  # bytes match. Reading it as a match would pass over the file in silence and
+  # report a converged tree, so an unreadable comparison reinstalls instead.
+  #
+  # The live file is the case that still reaches this once the desired state is
+  # copied privately first, and it is the realistic one: /var/osquery is
+  # root-owned and this tool runs unprivileged until the install.
+  #
+  # An ACL rather than `chmod 000`, deliberately. Removing the mode bits would
+  # drift the MODE as well, so the file would be reinstalled either way and the
+  # test could only ever assert which label the repair line carried. A deny-read
+  # ACL leaves the mode 0644 and the owner intact, so unreadability is the only
+  # thing wrong: read as a match, the tree is fully converged and NOTHING
+  # happens, which is the silent pass this pins.
+  chmod +a "everyone deny read" "$TARGET/osquery.conf"
+  run converge
+  [ "$status" -eq 0 ]
+  [[ "$(install_line_for "$TARGET/osquery.conf")" == "-n /usr/bin/install "* ]]
+  [[ $output == *unreadable* ]]
 }
 
 @test "a symlink in the desired tree is refused rather than installed through" {
@@ -537,6 +578,30 @@ refute_log_has() { # <fixed-substring> <file>
   [[ $output == *"$TARGET"* ]]
   [ "$(deployed_mode "$ROOT/decoy")" = 700 ]
   [ -L "$TARGET" ]
+}
+
+@test "a symlink standing where the packs directory belongs claims nothing and repairs nothing" {
+  # The measured end state before this refusal existed: `install -d` exits 0
+  # without replacing the link, the tool prints "repaired ... (not a regular
+  # file)" and exits 0, and all four packs are then written THROUGH the link.
+  # Three separate lies in one run, so all three are pinned here: no repair line,
+  # no success, and nothing written into the referent.
+  #
+  # The target directory is left needing a repair of its own, which the tool
+  # would reach FIRST. Zero privileged calls is therefore also the assertion that
+  # both directory verdicts are taken before either one is acted on.
+  mkdir -p "$ROOT/decoy-packs"
+  rm -rf "$TARGET/packs"
+  ln -s "$ROOT/decoy-packs" "$TARGET/packs"
+  chmod 0775 "$TARGET"
+  run converge
+  [ "$status" -ne 0 ]
+  [ "$(privileged_call_count)" -eq 0 ]
+  [[ $output != *repaired* ]]
+  [[ $output != *installed* ]]
+  [ ! -s "$OSQUERYCTL_LOG" ]
+  [ -L "$TARGET/packs" ]
+  [ -z "$(ls -A "$ROOT/decoy-packs")" ]
 }
 
 @test "a staging directory that is itself a symlink is refused, not followed" {
