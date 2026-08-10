@@ -185,6 +185,15 @@ mod tests {
     }
 
     #[test]
+    fn a_zero_with_whitespace_around_it_is_not_all_zeroes_either() {
+        // Tolerating padding is the obvious kindness and it inverts the fail
+        // direction: unproven success has to pulse red, so only a code that
+        // reads as plainly zero earns green.
+        assert_eq!(pulse_color(" 0"), FAILURE_COLOR);
+        assert_eq!(pulse_color("0\n"), FAILURE_COLOR);
+    }
+
+    #[test]
     fn an_absent_exit_code_arrives_as_empty_and_takes_the_success_branch() {
         // The shell version reads a missing argument as zero, so absent and
         // empty are the same input and there is no third answer to give.
@@ -240,7 +249,10 @@ mod tests {
 
     #[test]
     fn an_on_state_that_is_not_exactly_true_is_restored_off() {
-        for garbled in ["TRUE", "True", "1", "", "yes"] {
+        // The last two are the prefix near-misses. The snapshot arrives as
+        // text, so a comparison that only checks the head reads a trailing
+        // newline as on and lights a lamp the snapshot found dark.
+        for garbled in ["TRUE", "True", "1", "", "yes", "true\n", "truex"] {
             assert_eq!(
                 restore_args(garbled, "42", "xy", "0.55", "0.31"),
                 ["--off", "--transition-time", "500ms"],
@@ -251,19 +263,24 @@ mod tests {
 
     #[test]
     fn any_colour_mode_that_is_not_colour_temperature_is_restored_by_coordinates() {
-        assert_eq!(
-            restore_args("true", "80", "garbled", "0.55", "0.31"),
-            [
-                "--on",
-                "--brightness",
-                "80",
-                "-x",
-                "0.55",
-                "-y",
-                "0.31",
-                "--transition-time",
-                "500ms"
-            ]
-        );
+        // "ctx" and "ct\n" are the prefix near-misses: colour temperature is
+        // the exact word, not anything that opens with it.
+        for not_ct in ["garbled", "ctx", "ct\n"] {
+            assert_eq!(
+                restore_args("true", "80", not_ct, "0.55", "0.31"),
+                [
+                    "--on",
+                    "--brightness",
+                    "80",
+                    "-x",
+                    "0.55",
+                    "-y",
+                    "0.31",
+                    "--transition-time",
+                    "500ms"
+                ],
+                "{not_ct} must not be read as colour temperature"
+            );
+        }
     }
 }

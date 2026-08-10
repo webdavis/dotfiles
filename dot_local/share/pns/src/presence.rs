@@ -329,11 +329,16 @@ mod tests {
 
     #[test]
     fn a_process_that_is_not_a_session_is_ignored_however_much_it_moved() {
+        // The last pair CONTAINS the prefix without starting with it, which is
+        // where an unanchored match would let any busy process vouch for a
+        // phone nobody is holding.
         let csv = sample(&[
             "01:00:00,mosh-serverX,,,1000,5000",
             "01:00:01,mosh-serverX,,,90000,5000",
             "01:00:00,ssh.42,,,1000,5000",
             "01:00:01,ssh.42,,,90000,5000",
+            "01:00:00,not-a-mosh-server.42,,,1000,5000",
+            "01:00:01,not-a-mosh-server.42,,,90000,5000",
         ]);
         assert!(!mosh_rate_active(&csv, DEFAULT_ATTENTION_FLOOR_BYTES));
     }
@@ -343,6 +348,19 @@ mod tests {
         let csv = sample(&[
             "01:00:00,mosh-server.111,,,9000,5000",
             "01:00:01,mosh-server.111,,,1000,5000",
+        ]);
+        assert!(!mosh_rate_active(&csv, DEFAULT_ATTENTION_FLOOR_BYTES));
+    }
+
+    #[test]
+    fn the_delta_is_first_to_last_rather_than_the_highest_sample_seen() {
+        // A counter that climbed and then reset reads as flat, because the
+        // reading is the two ends. Keeping the peak instead would call a
+        // session that restarted mid-sample a phone in hand.
+        let csv = sample(&[
+            "01:00:00,mosh-server.111,,,1000,5000",
+            "01:00:01,mosh-server.111,,,9000,5000",
+            "01:00:02,mosh-server.111,,,1000,5000",
         ]);
         assert!(!mosh_rate_active(&csv, DEFAULT_ATTENTION_FLOOR_BYTES));
     }

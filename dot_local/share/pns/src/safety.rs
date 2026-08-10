@@ -74,6 +74,15 @@ mod tests {
         assert!(!pane_is_safe(""));
     }
 
+    #[test]
+    fn the_allowlist_is_ascii_so_a_letter_from_outside_it_is_refused() {
+        // No exploit is claimed for an accented letter. The point of an
+        // allowlist is that admitting a character is a deliberate act, and
+        // relaxing the test to every unicode letter admits a hundred thousand
+        // of them in one edit, none of them examined.
+        assert!(!pane_is_safe("panée"));
+    }
+
     // --- session_id_is_safe ------------------------------------------------
 
     #[test]
@@ -112,5 +121,13 @@ mod tests {
     #[test]
     fn an_empty_session_id_is_refused_rather_than_naming_a_directory() {
         assert!(!session_id_is_safe(""));
+    }
+
+    #[test]
+    fn the_session_allowlist_is_ascii_too_because_a_filename_gets_normalised() {
+        // Two ids that differ only in how an accent is composed are one file
+        // on a normalising filesystem, so an ascii id is the one whose text
+        // and whose filename agree.
+        assert!(!session_id_is_safe("sessioné"));
     }
 }

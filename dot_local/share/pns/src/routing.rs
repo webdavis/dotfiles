@@ -256,6 +256,23 @@ mod tests {
     }
 
     #[test]
+    fn a_pane_id_that_merely_prefixes_the_focused_one_is_still_a_different_pane() {
+        // Pane 2 and pane 21 share a prefix, so a comparison that only checks
+        // the head suppresses the card about one while the operator watches
+        // the other. That is the dropped event, and it costs more than the
+        // duplicate card the fail-open direction accepts.
+        assert!(!viewed_pane_redundant("wW:p21", "wW:p2"));
+        assert!(!viewed_pane_redundant("wW:p2", "wW:p21"));
+    }
+
+    #[test]
+    fn a_focused_pane_that_differs_only_in_case_is_still_a_different_pane() {
+        // herdr's ids carry both cases (wW), so folding case merges two real
+        // panes into one and suppresses a card about a pane nobody is reading.
+        assert!(!viewed_pane_redundant("wW:p21", "ww:p21"));
+    }
+
+    #[test]
     fn an_event_without_a_pane_can_never_be_redundant() {
         assert!(!viewed_pane_redundant("", "wW:p21"));
     }

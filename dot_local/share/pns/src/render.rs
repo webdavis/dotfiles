@@ -181,6 +181,21 @@ mod tests {
     }
 
     #[test]
+    fn whitespace_outside_the_four_is_content_the_turn_wrote_rather_than_a_separator() {
+        // The set is exactly four characters. A unicode-aware split, the
+        // obvious simplification, also eats a form feed and a non-breaking
+        // space, silently rewriting text an agent chose to send.
+        assert_eq!(
+            flatten_reply("first\u{000c}second", DEFAULT_REPLY_MAX_CHARS),
+            "first\u{000c}second"
+        );
+        assert_eq!(
+            flatten_reply("first\u{00a0}second", DEFAULT_REPLY_MAX_CHARS),
+            "first\u{00a0}second"
+        );
+    }
+
+    #[test]
     fn a_reply_within_the_cap_is_left_whole() {
         assert_eq!(
             flatten_reply("short enough", DEFAULT_REPLY_MAX_CHARS),
@@ -267,6 +282,18 @@ mod tests {
     }
 
     #[test]
+    fn a_colon_does_not_end_a_sentence_however_much_a_space_follows_it() {
+        // Widening the set is the tempting edit, and it costs the whole
+        // preview: a body that opens "Result: " and never reaches a full stop
+        // would be cut to its first two words.
+        let body = format!("Result: {}", repeat('c', 400));
+        assert_eq!(
+            preview(&body),
+            format!("Result: {}…", repeat('c', PREVIEW_MAX_CHARS - 9))
+        );
+    }
+
+    #[test]
     fn punctuation_with_no_space_after_it_is_not_a_sentence_end() {
         // A version number or a file name must not be mistaken for a full stop.
         let body = format!("v1.2{}", repeat('c', 400));
@@ -283,11 +310,31 @@ mod tests {
     }
 
     #[test]
+    fn the_hard_cut_strips_only_the_right_because_the_left_is_text_nobody_cut() {
+        // Trailing whitespace is an artefact of where the cut landed; leading
+        // whitespace is how the body opened. A plain trim takes both.
+        let body = format!("   {}", repeat('d', 300));
+        assert_eq!(
+            preview(&body),
+            format!("   {}…", repeat('d', PREVIEW_MAX_CHARS - 4))
+        );
+    }
+
+    #[test]
     fn the_preview_cap_counts_characters_rather_than_bytes() {
         let body = repeat('é', 300);
         assert_eq!(
             preview(&body),
             format!("{}…", repeat('é', PREVIEW_MAX_CHARS - 1))
         );
+    }
+
+    #[test]
+    fn a_multibyte_body_that_fits_passes_through_rather_than_being_measured_in_bytes() {
+        // 200 characters and 400 bytes: a cap measured in bytes calls this
+        // over the limit and sends a body that fits down the cutting path,
+        // where the cut then indexes past the end of a shorter text.
+        let body = repeat('é', 200);
+        assert_eq!(preview(&body), body);
     }
 }
