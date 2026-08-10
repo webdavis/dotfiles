@@ -397,6 +397,16 @@ _pipeline_tuple_settles() {
 _pipeline_is_tracked() {
   local target="$1"
   case "$target" in
+    # The two TEMPLATED converge staging files, NOT tracked, matching the
+    # carve-out run_after_05 makes in the manifest itself. They are the only
+    # files under the pipeline home that the mandated
+    # `chezmoi apply --exclude=templates` does not write, so their deployed bytes
+    # legitimately lag the source state; run_after_05 states the trade in full.
+    # Tracked but unmanifested is the worst of both worlds here, since it pages
+    # forever, so the exclusion has to be made on both sides. Nothing enforces
+    # that the two agree; keep them together by hand.
+    "$HOME"/.local/libexec/osquery/osquery-converge/desired/osquery.conf | \
+      "$HOME"/.local/libexec/osquery/osquery-converge/desired/packs/agent-attack-surface.conf) return 1 ;;
     "$HOME"/.local/libexec/osquery/*) return 0 ;;
     "$HOME"/Library/LaunchAgents/com.webdavis.osquery-*.plist) return 0 ;;
     "$HOME"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
