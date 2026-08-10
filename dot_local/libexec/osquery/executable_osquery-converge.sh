@@ -273,9 +273,14 @@ resolve_osqueryctl() {
 }
 
 # probe_kind <path>: the path's type as the verdict functions name it. A symlink
-# is reported BEFORE anything else and never followed, because `install` follows
-# it: a link planted at /var/osquery/osquery.conf would redirect the root
-# daemon's config to wherever it points.
+# is reported BEFORE anything else and never followed, because the type is the
+# ONLY column that can report it: `cmp` follows a link, so a link whose referent
+# holds the desired bytes compares equal, and BSD `stat -f '%p'` lstats, so the
+# mode and owner columns describe the link, which its author sets with
+# `chmod -h 0644` (all measured). A link planted at /var/osquery/osquery.conf
+# would otherwise read as fully converged while the root daemon reads a file
+# that author still controls. `install` itself REPLACES a destination symlink
+# rather than writing through it, which is what makes the repair correct.
 probe_kind() {
   if [[ -L $1 ]]; then
     printf 'symlink'

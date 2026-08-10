@@ -67,10 +67,18 @@ _osquery_converge_attribute_verdict() {
 # Prints exactly one token: ok, absent, irregular, unreadable, content, mode,
 # owner or group. Everything but `ok` means the caller reinstalls the file.
 #
-# A SYMLINK is `irregular`, never something to install onto: `install` follows
-# the link, so a link planted at /var/osquery/osquery.conf would redirect the
-# root daemon's config to wherever it points. The same refusal covers a
-# directory or a device sitting at the path.
+# A SYMLINK is `irregular`, and the reason is that the TYPE is the only column
+# that can tell. Measured, on a link planted at /var/osquery/osquery.conf whose
+# referent holds the desired bytes: `cmp` follows the link, so the content
+# column compares EQUAL; BSD `stat -f '%p'` lstats, so the mode and owner
+# columns describe the LINK, and its author sets those with `chmod -h 0644`.
+# Every other dimension therefore reads as fully converged, while the root
+# daemon goes on reading a file that author still controls.
+#
+# NOT because `install` would write through the link. It does not: on macOS
+# `install` replaces a destination symlink and leaves the referent untouched
+# (measured), which is what makes the repair that follows this verdict correct.
+# The same refusal covers a directory or a device sitting at the path.
 #
 # One token per path, in a fixed precedence, because the token is what the
 # operator reads in the repair line: a path that is both rewritten and chmod-ed
