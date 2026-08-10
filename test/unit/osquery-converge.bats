@@ -135,6 +135,13 @@ cat "$DAEMON_PID_FILE"
 STUB
 
   # stat: the REAL mode, a substituted owner pair. See the file docblock.
+  #
+  # The MODE TOKEN is honored rather than assumed. %p carries the file type and
+  # the setuid, setgid and sticky bits; %Lp carries only the low nine
+  # permission bits. Which one the tool asks for is the difference between
+  # seeing a setuid config in the root daemon's directory and reading it as an
+  # ordinary 0644 file, so a stub that answered the same thing either way would
+  # make that choice untestable.
   cat >"$BIN/stat" <<'STUB'
 #!/bin/bash
 case "${1:-}" in
@@ -144,6 +151,7 @@ case "${1:-}" in
 esac
 path="${3:-}"
 mode="$(/usr/bin/stat -c '%a' "$path" 2>/dev/null || /usr/bin/stat -f '%p' "$path" 2>/dev/null)" || exit 1
+[[ ${2:-} == *%Lp* ]] && mode="$(printf '%o' "$((8#$mode & 0777))")"
 printf '%s %s %s\n' "$mode" "${FAKE_STAT_UID:-0}" "${FAKE_STAT_GID:-0}"
 STUB
 
@@ -270,6 +278,46 @@ refute_log_has() { # <fixed-substring> <file>
   [ "$status" -eq 0 ]
   [ "$(deployed_mode "$TARGET/osquery.conf")" = 644 ]
   restarted
+}
+
+@test "a path owned by a non-root user is reinstalled, files and directories alike" {
+  # The dimension the stubbed stat exists for: a sandbox cannot make a
+  # root-owned file, so the owner pair is substituted. osqueryd runs these
+  # queries AS ROOT, so a config owned by the login user is one that user can
+  # rewrite before the daemon's next config load, whatever its bytes say.
+  FAKE_STAT_UID=501 run converge
+  [ "$status" -eq 0 ]
+  grep -qF -- "-n install -o root -g wheel -m 0644 $DESIRED/osquery.conf $TARGET/osquery.conf" "$SUDO_LOG"
+  grep -qF -- "-n install -d -o root -g wheel -m 0755 $TARGET" "$SUDO_LOG"
+}
+
+@test "a setuid bit on a live file reads as drift, not as a matching 0644" {
+  # Why the probe asks stat for %p and not %Lp: %Lp prints only the low nine
+  # permission bits, so a setuid file in the root daemon's directory would come
+  # back looking like an ordinary 0644 config and be passed over. The repair
+  # line is the assertion rather than the resulting mode, because %Lp reads 644
+  # off a setuid file too.
+  chmod u+s "$TARGET/osquery.conf"
+  run converge
+  [ "$status" -eq 0 ]
+  grep -qF -- "-n install -o root -g wheel -m 0644 $DESIRED/osquery.conf $TARGET/osquery.conf" "$SUDO_LOG"
+}
+
+@test "a symlink standing at the config path is replaced by a regular file" {
+  # A crafted link is the case the type check exists for: this one wears the
+  # desired bytes and a 0644 mode of its own, so every other dimension reads as
+  # converged and only its TYPE says otherwise. Leaving it would point the root
+  # daemon's config at a path its author still controls. `install` replaces the
+  # link rather than writing through it (measured), so the repair is safe once
+  # the link is refused as a file.
+  cp "$DESIRED/osquery.conf" "$BATS_TEST_TMPDIR/referent.conf"
+  rm -f "$TARGET/osquery.conf"
+  ln -s "$BATS_TEST_TMPDIR/referent.conf" "$TARGET/osquery.conf"
+  chmod -h 0644 "$TARGET/osquery.conf"
+  run converge
+  [ "$status" -eq 0 ]
+  [ ! -L "$TARGET/osquery.conf" ]
+  cmp -s "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
 }
 
 @test "the install carries owner, group and mode in ONE call" {
@@ -400,6 +448,18 @@ refute_log_has() { # <fixed-substring> <file>
   [ "$status" -ne 0 ]
   [[ $output == *planted.conf* ]]
   [ "$(privileged_call_count)" -eq 0 ]
+}
+
+@test "a desired file that cannot be read is never treated as converged" {
+  # cmp answers 2 when it could not compare, which is not evidence that the
+  # bytes match. Reading it as a match would pass over the file in silence and
+  # report a converged tree; the reinstall that follows the unreadable verdict
+  # fails loudly instead, which is the direction that cannot leave a wiped
+  # /var/osquery file wiped.
+  chmod 000 "$DESIRED/osquery.conf"
+  run converge
+  [ "$status" -ne 0 ]
+  [[ $output != *"restarted osqueryd"* ]]
 }
 
 @test "a symlink in the desired tree is refused rather than installed through" {
@@ -615,3 +675,4 @@ refute_log_has() { # <fixed-substring> <file>
   [ "$status" -eq 0 ]
   [ -d "$LOG_DIR" ]
 }
+
