@@ -24,8 +24,27 @@ pub mod safety;
 /// parse, which accepts a leading `+` and surrounding shapes this must not:
 /// a reading that is not plain digits is UNKNOWN, and each caller states its
 /// own fail direction for unknown rather than inheriting a coerced number.
+///
+/// A LEADING ZERO IS UNKNOWN RATHER THAN EITHER BASE, and that is a deliberate
+/// divergence from the shell this ports. The shell validates the same
+/// digits-only shape and then reads the digits inside `(( ))`, where `0600` is
+/// OCTAL 384; this parse would say 600. Measured, that disagreement costs an
+/// event: for an idle of 500 against a desk threshold of `0600` the shell
+/// sends the phone card and a decimal reading DROPS it. Octal parity was not
+/// the answer chosen, because it cements a base nobody writing a threshold
+/// intended. Refusing the numeral is: unknown fails OPEN into a push at every
+/// site that consumes this, so the ambiguous reading costs a duplicate card
+/// instead of a lost one. A bare `0` carries no ambiguity and stays a count.
+///
+/// KNOWN LIMIT, still open: a numeral above `i64::MAX` but within `u64` reads
+/// here as itself while the shell's arithmetic wraps it negative, which lands
+/// in that same push-suppressing direction. Nothing above `u64::MAX` parses,
+/// so the gap is exactly that band.
 pub fn parse_count(raw: &str) -> Option<u64> {
     if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    if raw.len() > 1 && raw.starts_with('0') {
         return None;
     }
     raw.parse().ok()
@@ -69,5 +88,32 @@ mod tests {
     #[test]
     fn a_count_too_large_to_hold_is_unknown_rather_than_wrapped() {
         assert_eq!(parse_count("99999999999999999999999"), None);
+    }
+
+    #[test]
+    fn a_leading_zero_numeral_is_unknown_because_its_base_is_ambiguous() {
+        // The shell validates this same digits-only shape and then reads the
+        // digits inside `(( ))`, where `0600` is octal 384. Answering 600 here
+        // is the disagreement that SUPPRESSES a push, so neither reading is
+        // given and the ambiguity is reported as unknown.
+        assert_eq!(parse_count("0600"), None);
+        assert_eq!(parse_count("007"), None);
+        // A bare zero carries no ambiguity and stays a count.
+        assert_eq!(parse_count("0"), Some(0));
+    }
+
+    #[test]
+    fn an_octal_looking_threshold_still_pushes_because_it_reads_as_unknown() {
+        // The whole point of the unknown arm, measured end to end: the shell
+        // sends the phone card for an idle of 500 against a desk threshold of
+        // `0600`, because 500 is not below octal 384. Reading it as decimal
+        // 600 would drop that push instead.
+        assert!(crate::routing::wants_phone(
+            Some(500),
+            parse_count("0600"),
+            false,
+            false,
+            false,
+        ));
     }
 }
