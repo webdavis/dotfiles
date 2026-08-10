@@ -32,9 +32,11 @@ pub mod safety;
 /// event: for an idle of 500 against a desk threshold of `0600` the shell
 /// sends the phone card and a decimal reading DROPS it. Octal parity was not
 /// the answer chosen, because it cements a base nobody writing a threshold
-/// intended. Refusing the numeral is: unknown fails OPEN into a push at every
-/// site that consumes this, so the ambiguous reading costs a duplicate card
-/// instead of a lost one. A bare `0` carries no ambiguity and stays a count.
+/// intended. Refusing the numeral is: the idle clock reads unknown as away and
+/// PUSHES, so the ambiguity costs a duplicate card rather than a lost one. The
+/// only other reading taken through here, a session's inbound byte count, drops
+/// the row instead, which declines to vouch for a phone rather than inventing a
+/// signal. A bare `0` carries no ambiguity and stays a count.
 ///
 /// KNOWN LIMIT, still open: a numeral above `i64::MAX` but within `u64` reads
 /// here as itself while the shell's arithmetic wraps it negative, which lands
