@@ -329,16 +329,22 @@ refresh_tailscaled() {
 # counted by run() like any other step, which alerts on the priority route with
 # the step named.
 #
-# A tool that is not deployed is stated and NOT counted as a failed step: this
-# job's business is upgrading, it would alert every week for a condition only an
-# apply can fix, and a silently absent converge is what the warning prevents.
+# A tool that is not deployed is a FAILED STEP, not a warning this run walks past.
+# It used to return 0 on the argument that this job's business is upgrading and
+# that an absent converge is a condition only an apply can fix. That reasoning
+# had the accounting exactly backwards: run() then recorded "ok", no step was
+# counted, no alert fired and the last-success marker advanced, so a week in
+# which the cask wiped /var/osquery and NOTHING put it back reads in the record
+# as a clean week. The daemon this job upgrades is the machine's monitor, so the
+# one outcome that must never be quiet is the one where nobody repaired it.
+# Weekly noise until an apply is run is the point, not a side effect.
 #
 # shellcheck disable=SC2329,SC2317 # invoked indirectly, as an argument to run()
 converge_osquery() {
   if [[ ! -x $OSQUERY_CONVERGE ]]; then
-    printf 'homebrew-weekly-upgrade: WARNING %s is not executable, so /var/osquery was NOT converged after this upgrade; run chezmoi apply\n' \
+    printf 'homebrew-weekly-upgrade: %s is not executable, so /var/osquery was NOT converged after this upgrade and the osquery configuration may be the vendor default; run chezmoi apply\n' \
       "$OSQUERY_CONVERGE" >&2
-    return 0
+    return 1
   fi
   "$OSQUERY_CONVERGE"
 }
