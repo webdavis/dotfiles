@@ -30,6 +30,11 @@ set -uo pipefail
 BREW="${HOMEBREW_WEEKLY_BREW:-/opt/homebrew/bin/brew}"
 MAS="${HOMEBREW_WEEKLY_MAS:-/opt/homebrew/bin/mas}"
 TS="${HOMEBREW_WEEKLY_TAILSCALED:-/opt/homebrew/opt/tailscale/bin/tailscaled}"
+# The osquery converge tool, run right after the upgrade group below. The
+# osquery CASK reinstalls the vendor package and wipes our config, packs and
+# flags out of /var/osquery, and this job is the only thing on the machine that
+# upgrades that cask, so the wipe and its repair belong in the same run.
+OSQUERY_CONVERGE="${HOMEBREW_WEEKLY_OSQUERY_CONVERGE:-$HOME/.local/libexec/osquery/osquery-converge.sh}"
 LOCKFILE="${HOMEBREW_WEEKLY_LOCKFILE:-$HOME/.local/state/homebrew-weekly-upgrade.lock}"
 STATE_DIR="${HOMEBREW_WEEKLY_STATE_DIR:-$HOME/.local/state/homebrew-weekly-upgrade}"
 LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
@@ -313,6 +318,31 @@ refresh_tailscaled() {
   sudo -n "$TS" install-system-daemon
 }
 
+# Put OUR files back into /var/osquery if the osquery cask upgrade wiped them,
+# and restart the daemon if it did. This is the whole reason the converge tool
+# has a second caller: an upgrade here runs with nobody present, so without this
+# the machine could sit for a week running a root daemon with no detection
+# config and nothing would say so.
+#
+# The tool is idempotent and silent when nothing drifted, so a week that did not
+# touch osquery adds one exit-0 line to the log and nothing else. A failure is
+# counted by run() like any other step, which alerts on the priority route with
+# the step named.
+#
+# A tool that is not deployed is stated and NOT counted as a failed step: this
+# job's business is upgrading, it would alert every week for a condition only an
+# apply can fix, and a silently absent converge is what the warning prevents.
+#
+# shellcheck disable=SC2329,SC2317 # invoked indirectly, as an argument to run()
+converge_osquery() {
+  if [[ ! -x $OSQUERY_CONVERGE ]]; then
+    printf 'homebrew-weekly-upgrade: WARNING %s is not executable, so /var/osquery was NOT converged after this upgrade; run chezmoi apply\n' \
+      "$OSQUERY_CONVERGE" >&2
+    return 0
+  fi
+  "$OSQUERY_CONVERGE"
+}
+
 # TWO different facts, and they used to collapse into one. `lockf` answers 75
 # (EX_TEMPFAIL) when another process holds the lock; anything else means this run
 # could not even OPEN the lock file, e.g. its directory is not writable. Reporting
@@ -390,6 +420,12 @@ run "brew outdated" "$BREW" outdated
 run "mas outdated" "$MAS" outdated
 run "brew upgrade" "$BREW" upgrade
 run "tailscaled refresh (if upgraded)" refresh_tailscaled
+# Immediately after the brew group, not at the end of the run: between a cask
+# upgrade wiping /var/osquery and this repairing it, the root daemon is running
+# without our detection config, and `mas upgrade` plus `brew cleanup` can take
+# minutes. The window is the monitoring gap, so it is kept as short as the
+# ordering allows.
+run "osquery config converge (after upgrade)" converge_osquery
 run "mas upgrade" "$MAS" upgrade
 run "brew cleanup" "$BREW" cleanup
 
