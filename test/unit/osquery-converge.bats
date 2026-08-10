@@ -269,6 +269,19 @@ refute_log_has() { # <fixed-substring> <file>
   [ "$(privileged_call_count)" -eq 0 ]
 }
 
+@test "a file in the desired tree the tool does not install is refused, not ignored" {
+  # The list of files is NAMED rather than globbed, so that nothing planted in
+  # the staging tree is promoted root-owned into the daemon's directory. The
+  # cost of naming it is a file that could sit there being ignored forever, so
+  # the mismatch is a loud refusal instead.
+  printf 'planted\n' >"$DESIRED/packs/planted.conf"
+  rm -f "$TARGET/osquery.conf"
+  run converge
+  [ "$status" -ne 0 ]
+  [[ $output == *planted.conf* ]]
+  [ "$(privileged_call_count)" -eq 0 ]
+}
+
 @test "a symlink in the desired tree is refused rather than installed through" {
   rm -f "$DESIRED/osquery.conf"
   ln -s /etc/passwd "$DESIRED/osquery.conf"

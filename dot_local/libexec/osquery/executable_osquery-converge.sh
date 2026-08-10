@@ -201,7 +201,7 @@ drift_label() {
 # there would install through to the referent. Both are refusals, and both are
 # checked before the first sudo so a broken staging tree costs no privileged call.
 assert_desired_state_is_complete() {
-  local relative desired incomplete=0
+  local relative desired incomplete=0 staged listed candidate
   for relative in "${OSQUERY_CONVERGE_FILES[@]}"; do
     desired="$OSQUERY_CONVERGE_DESIRED_DIR/$relative"
     if [[ -L $desired ]]; then
@@ -212,6 +212,27 @@ assert_desired_state_is_complete() {
       incomplete=1
     fi
   done
+
+  # And the other direction: a file sitting in the staging tree that the list
+  # does not name is REFUSED, never quietly skipped. The list is deliberately
+  # named rather than globbed, so that nothing planted here is promoted
+  # root-owned into the root daemon's directory; the cost of that choice is a
+  # file that could be ignored forever, which is the same invisible divergence
+  # this tool exists to end. Refusing turns it into one loud sentence, and the
+  # only two ways out are to remove the file or to list it.
+  #
+  # `! -type d` rather than `-type f`, so a planted SYMLINK is seen too.
+  while IFS= read -r -d '' staged; do
+    listed=0
+    for candidate in "${OSQUERY_CONVERGE_FILES[@]}"; do
+      [[ $candidate == "${staged#"$OSQUERY_CONVERGE_DESIRED_DIR"/}" ]] && listed=1 && break
+    done
+    if [[ $listed -eq 0 ]]; then
+      fail "$staged sits in the desired-state tree but is not one of the files this tool installs, so it would be ignored forever; remove it, or add it to OSQUERY_CONVERGE_FILES beside its entry in desired/osquery.conf"
+      incomplete=1
+    fi
+  done < <(find "$OSQUERY_CONVERGE_DESIRED_DIR" -mindepth 1 ! -type d -print0 2>/dev/null)
+
   [[ $incomplete -eq 0 ]]
 }
 
