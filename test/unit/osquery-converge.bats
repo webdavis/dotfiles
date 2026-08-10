@@ -121,6 +121,8 @@ STUB
   # pgrep: only `pgrep -P 1 -x osqueryd` is asked for. The pid file IS the
   # daemon's liveness. DAEMON_LIVES models a daemon that answers a few probes
   # and is then gone, which is what a crash inside the settle window looks like.
+  # DAEMON_RESPAWN_PID models the other shape of the same crash: the daemon is
+  # never absent, but the pid answering is a NEW one from the first probe on.
   cat >"$BIN/pgrep" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$PGREP_ARGV"
@@ -130,6 +132,11 @@ if [[ -f $DAEMON_LIVES ]]; then
   remaining=$((remaining - 1))
   printf '%s' "$remaining" >"$DAEMON_LIVES"
   ((remaining < 0)) && exit 1
+fi
+if [[ -n ${DAEMON_RESPAWN_PID:-} ]]; then
+  cat "$DAEMON_PID_FILE"
+  printf '%s\n' "$DAEMON_RESPAWN_PID" >"$DAEMON_PID_FILE"
+  exit 0
 fi
 cat "$DAEMON_PID_FILE"
 STUB
@@ -688,6 +695,17 @@ refute_log_has() { # <fixed-substring> <file>
   [ "$status" -ne 0 ]
 }
 
+@test "a daemon that comes back under a NEW pid inside the settle window is a failure" {
+  # The other shape of a crash: nothing is ever absent, so a check for "is an
+  # osqueryd there" is satisfied throughout. What happened is that the daemon
+  # this run started died and KeepAlive replaced it, which is why liveness is
+  # the SAME parent staying up rather than any parent being present.
+  rm -f "$TARGET/osquery.conf"
+  DAEMON_RESPAWN_PID=9999 run converge
+  [ "$status" -ne 0 ]
+  [[ $output == *"gone again"* ]]
+}
+
 @test "the restart is judged on the ppid-1 parent, never on an arbitrary worker" {
   # The watchdog respawns workers on its own, so a worker pid proves nothing.
   rm -f "$TARGET/osquery.conf"
@@ -705,3 +723,14 @@ refute_log_has() { # <fixed-substring> <file>
   [ -d "$LOG_DIR" ]
 }
 
+@test "creating the log directory does not bounce the root daemon" {
+  # Deliberately outside the restart decision: a directory that did not exist
+  # changes nothing a running daemon holds in memory, and it is unprivileged
+  # and ours. Folding it in would restart osqueryd over a mkdir, which is a far
+  # heavier act than the condition warrants.
+  rm -rf "$LOG_DIR"
+  run converge
+  [ "$status" -eq 0 ]
+  [ ! -s "$OSQUERYCTL_LOG" ]
+  [ "$(privileged_call_count)" -eq 0 ]
+}
