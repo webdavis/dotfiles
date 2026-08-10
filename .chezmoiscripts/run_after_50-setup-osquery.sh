@@ -24,9 +24,14 @@
 # The AFTER phase, keeping the target name's `50`. The tool and the desired
 # state are ordinary file targets, written while the target state is applied, so
 # a before-phase runner would read the PREVIOUS apply's staging and would find
-# neither of them at all on a fresh machine. Nothing in the osquery pipeline
-# orders against this script, and run_after_05 already creates /var/osquery
-# itself when it has to, so moving phases changes no ordering that exists.
+# neither of them at all on a fresh machine.
+#
+# ONE runner DOES order against this one: run_after_05, the known-good manifest
+# generator, which runs first and installs into /var/osquery. It compensates for
+# being early by creating that directory itself when it is missing, so the
+# ordering holds in both directions on a fresh host, and 05 has to stay first
+# because the alerter judges a file change exactly once. Moving either slot means
+# reading the other's docblock.
 #
 # OUTPUT. The tool prints one line per repaired path and nothing at all when
 # there is nothing to repair, so this script prints nothing of its own. It

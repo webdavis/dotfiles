@@ -417,16 +417,22 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.osquery-uptime-watchdog`             | watches for a machine that stopped reporting                |
 
 The root daemon's own side is CONVERGED, not written once. `~/.local/libexec/osquery/osquery-converge.sh`
-compares each of the five files we own in `/var/osquery` (plus the two directory modes) against the
+compares each of the six files we own in `/var/osquery` (plus the two directory modes) against the
 desired state deployed beside it under `osquery-converge/desired/`, installs whatever drifted with
-`sudo install -o root -g wheel -m 0644`, and restarts osqueryd only when something did, verifying the
-ppid-1 parent is still up after a settle window. No drift means no privileged call, no restart and no
-output. Two callers: `.chezmoiscripts/run_after_50-setup-osquery.sh` on every apply (a PLAIN script, so
-`--exclude=templates` still runs it) and the weekly Homebrew job right after its upgrade pass, because
-the osquery cask upgrade is what wipes those files and it runs unattended. The control catalog stays in
+`sudo /usr/bin/install -o root -g wheel -m 0644` out of a private 0700 copy of that staging tree, and
+restarts osqueryd only when something did, requiring the ppid-1 parent to be a DIFFERENT process from the
+one running before the stop and still up after a settle window. No drift means no privileged call, no
+restart and no output. Anything irregular (a symlink standing in for a target directory, the staging tree
+or the vendor plist) is refused rather than repaired, because `install -d` follows a link. Two callers:
+`.chezmoiscripts/run_after_50-setup-osquery.sh` on every apply (a PLAIN script, so `--exclude=templates`
+still runs it) and the weekly Homebrew job right after its upgrade pass, because the osquery cask upgrade
+is what wipes those files and it runs unattended; a converge tool that is not deployed FAILS that weekly
+step rather than passing quietly. The control catalog stays in
 `.chezmoidata/macos_posture_controls.yaml`. KNOWN LIMIT: `--exclude=templates` does not refresh the two
 templated desired-state files, so config CHANGES ship on a full apply; wipe repair needs only the staging
-already on disk.
+already on disk. Those same two files are carved out of the known-good manifest and of the alerter's
+tracked set (both sides, by hand), because a manifest built from intent would page a CRIT against their
+lagging deployed bytes every 15 minutes; `run_after_05` states the trade.
 
 ### SSH hardening
 
