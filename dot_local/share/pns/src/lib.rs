@@ -12,6 +12,7 @@
 
 pub mod render;
 pub mod routing;
+pub mod safety;
 
 /// A plain decimal count, or `None` when the text is not one.
 ///
