@@ -78,10 +78,10 @@ pub fn preview(message: &str) -> String {
             break;
         }
         // Punctuation ends a sentence only when a space follows, so a version
-        // number is not mistaken for a full stop. The end-of-text case cannot
-        // arise here: the text is longer than the cap, so no sentence end at
-        // its end fits inside the cap.
-        if characters[end] == ' ' {
+        // number is not mistaken for a full stop. A sentence end at the very
+        // end of the text would count too, but it cannot fit: the text is
+        // longer than the cap, so its end is past the cap.
+        if characters.get(end) == Some(&' ') {
             cut = end;
         }
     }
