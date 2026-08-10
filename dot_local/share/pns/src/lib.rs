@@ -38,10 +38,22 @@ pub mod safety;
 /// the row instead, which declines to vouch for a phone rather than inventing a
 /// signal. A bare `0` carries no ambiguity and stays a count.
 ///
-/// KNOWN LIMIT, still open: a numeral above `i64::MAX` but within `u64` reads
-/// here as itself while the shell's arithmetic wraps it negative, which lands
-/// in that same push-suppressing direction. Nothing above `u64::MAX` parses,
-/// so the gap is exactly that band.
+/// A COUNT PAST WHAT THE SHELL CAN HOLD IS UNKNOWN for the same reason, and it
+/// is why a u64 function carries an i64-shaped ceiling. The bound mirrors the
+/// SHELL'S arithmetic, not this crate's type: `(( ))` is signed 64-bit, so
+/// measured on this host it reads 9223372036854775808 as -9223372036854775808
+/// and 18446744073709551615 as -1. A negative threshold is below every idle
+/// reading, so the shell SENDS those cards while parsing the numeral as itself
+/// suppresses them. Refusing above `i64::MAX` puts both back on the push.
+///
+/// The ceiling is exactly one step past the largest value the shell counts up
+/// to, so nothing it can hold is shaved off. Above `u64::MAX` needs no rule of
+/// its own, because the parse already fails there and pushes. The two can still
+/// disagree in that band: those numerals wrap modulo 2^64 to anything at all,
+/// and a wrap landing on a large positive has the shell SUPPRESS where this
+/// pushes (measured: 2^64 reads as 0 and sends, 2^64 + 10^12 reads as a
+/// trillion and suppresses). That residue is left deliberately, because it runs
+/// the OTHER way: it costs a duplicate card, never a dropped one.
 pub fn parse_count(raw: &str) -> Option<u64> {
     if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
@@ -49,8 +61,13 @@ pub fn parse_count(raw: &str) -> Option<u64> {
     if raw.len() > 1 && raw.starts_with('0') {
         return None;
     }
-    raw.parse().ok()
+    let count: u64 = raw.parse().ok()?;
+    (count <= SHELL_ARITHMETIC_MAX).then_some(count)
 }
+
+/// The largest count the shell this ports can hold, which is `i64::MAX` in the
+/// u64 the parse returns. Above this its arithmetic wraps into the negatives.
+const SHELL_ARITHMETIC_MAX: u64 = i64::MAX as u64;
 
 #[cfg(test)]
 mod tests {
@@ -102,6 +119,38 @@ mod tests {
         assert_eq!(parse_count("007"), None);
         // A bare zero carries no ambiguity and stays a count.
         assert_eq!(parse_count("0"), Some(0));
+    }
+
+    #[test]
+    fn a_count_past_what_the_shell_can_hold_is_unknown_rather_than_read_as_positive() {
+        // The shell's arithmetic is signed 64-bit, measured on this host: it
+        // reads 9223372036854775808 as -9223372036854775808 and sends the phone
+        // card, where reading the numeral as itself suppresses one.
+        assert_eq!(parse_count("9223372036854775808"), None);
+        assert_eq!(parse_count("18446744073709551615"), None);
+    }
+
+    #[test]
+    fn the_ceiling_sits_exactly_where_the_shell_stops_counting_up() {
+        // One below the wrap is still a count in both, so the refusal starts a
+        // single step later rather than shaving off a value the shell can hold.
+        assert_eq!(
+            parse_count("9223372036854775807"),
+            Some(9_223_372_036_854_775_807)
+        );
+        assert_eq!(parse_count("9223372036854775808"), None);
+    }
+
+    #[test]
+    fn a_threshold_past_the_shell_ceiling_still_pushes_because_it_reads_as_unknown() {
+        // The end-to-end form: the shell sends this card, so the port must too.
+        assert!(crate::routing::wants_phone(
+            Some(500),
+            parse_count("9223372036854775808"),
+            false,
+            false,
+            false,
+        ));
     }
 
     #[test]
