@@ -430,9 +430,10 @@ is what wipes those files and it runs unattended; a converge tool that is not de
 step rather than passing quietly. The control catalog stays in
 `.chezmoidata/macos_posture_controls.yaml`. KNOWN LIMIT: `--exclude=templates` does not refresh the two
 templated desired-state files, so config CHANGES ship on a full apply; wipe repair needs only the staging
-already on disk. Those same two files are carved out of the known-good manifest and of the alerter's
-tracked set (both sides, by hand), because a manifest built from intent would page a CRIT against their
-lagging deployed bytes every 15 minutes; `run_after_05` states the trade.
+already on disk. Editing either of them also pages a CRIT until that full apply, because the known-good
+manifest records the new render while the deployed copy still holds the old one. That is a property of
+manifesting intent, not of the converge: ten templated targets sit in the pipeline manifest arm and all
+of them behave this way.
 
 ### SSH hardening
 

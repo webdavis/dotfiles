@@ -191,33 +191,6 @@ pipeline_paths=()
 managed_bin_paths=()
 while IFS= read -r target; do
   case "$target" in
-    # THE TWO TEMPLATED CONVERGE STAGING FILES, carved out of both manifests.
-    # Every hash here comes from chezmoi's INTENT, and the mandated agent apply
-    # (`chezmoi apply --exclude=templates`) does not write template-sourced
-    # targets at all, so for these two the manifest would record a render the
-    # deployed copy does not hold. The periodic audit re-reads every manifested
-    # path every 15 minutes, so that pair would page a CRIT continuously until
-    # someone ran a full apply: a monitor crying wolf about its own delivery
-    # mechanism, which is worse than no coverage because it trains the operator
-    # to ignore it.
-    #
-    # THE TRADE, stated plainly. These two files are installed root-owned into
-    # /var/osquery and read by a root daemon, so leaving them unmanifested means
-    # a tamper of the DEPLOYED staging copy is not caught here. What is not lost
-    # is any ground main held: before this slice their content lived in
-    # .chezmoitemplates/, which is chezmoi SOURCE and was never manifested
-    # either, and the docblock above already records that a compromised source is
-    # outside this boundary. The four STATIC staging files, which a plain apply
-    # really does deploy, keep full intent coverage.
-    #
-    # The alerter has a MATCHING carve-out in _pipeline_is_tracked
-    # (results-alerter/pipeline-verdict.sh). Both are needed: a file under the
-    # pipeline home that this manifest does not list pages forever through the
-    # event path, so excluding it here alone would trade a stale-manifest CRIT
-    # for a permanent one. Nothing enforces that the two agree; keep them
-    # together by hand.
-    "$home"/.local/libexec/osquery/osquery-converge/desired/osquery.conf | \
-      "$home"/.local/libexec/osquery/osquery-converge/desired/packs/agent-attack-surface.conf) : ;;
     "$home"/.local/libexec/osquery/*) pipeline_paths+=("$target") ;;
     "$home"/Library/LaunchAgents/com.webdavis.osquery-*.plist) pipeline_paths+=("$target") ;;
     # The page-launchd allowlist joins the PIPELINE arm, named as ONE EXACT FILE

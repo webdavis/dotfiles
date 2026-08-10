@@ -29,9 +29,22 @@
 # --exclude=templates` does not refresh the two templated ones
 # (desired/osquery.conf and desired/packs/agent-attack-surface.conf), so config
 # CHANGES ship on a full apply. The wipe-repair case needs only the staging that
-# is already there, which every apply flavor reads. That same limit is why those
-# two files are carved out of the known-good manifest; run_after_05 states the
-# trade.
+# is already there, which every apply flavor reads.
+#
+# A SECOND, ACCEPTED CONSEQUENCE of that same limit, recorded rather than fixed.
+# run_after_05 builds the known-good manifests from chezmoi's INTENT, and the
+# periodic audit re-reads every manifested path every 15 minutes. Between an edit
+# to either templated file and the next FULL apply, the manifest holds the new
+# render while the deployed copy holds the old one, so the pair pages a CRIT for
+# that window. This is a property of the manifest design, not of this tool:
+# EIGHT templated targets already sit in the pipeline manifest arm
+# (posture-controls.json and the seven osquery LaunchAgent plists), and these two
+# make ten. Fixing it means changing how run_after_05 derives hashes, or which
+# paths the alerter treats as pipeline infrastructure, both of which are older
+# than this tool. Do not "fix" it here by carving these two out of the manifest
+# alone: anything under the pipeline home that the manifest does not list pages
+# FOREVER through the event path instead, which is strictly worse than a window
+# that closes on the next full apply.
 #
 # WHAT IS NOT OURS. /var/osquery/io.osquery.agent.plist, the certs and the
 # lenses belong to the vendor package. They are never repaired here. The plist
@@ -424,8 +437,8 @@ remove_private_stage() {
 # bytes straight into a listed file, and they will be installed root-owned and run
 # by the root daemon. Nothing here validates CONTENT, and nothing can, since the
 # staging tree is the source of truth. That exposure is the known-good manifest's
-# job, which covers the four static staging files; see run_after_05 for the two it
-# deliberately does not.
+# job: run_after_05 signs all six of these files from chezmoi's intent, and the
+# periodic audit re-reads them.
 stage_desired_state() {
   local relative desired refused=0 listing entry listed candidate
 
