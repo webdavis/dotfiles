@@ -106,6 +106,8 @@ includes = [".chezmoiscripts/*.sh.tmpl", "dot_*.tmpl"]
 [formatter.osquery-config-render]
 command = "scripts/treefmt/osquery-config-render.sh"
 includes = [
-  ".chezmoitemplates/osquery/*.conf",
-  ".chezmoitemplates/osquery/**/*.conf",
+  "dot_local/libexec/osquery/osquery-converge/desired/*.conf",
+  "dot_local/libexec/osquery/osquery-converge/desired/*.conf.tmpl",
+  "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf",
+  "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf.tmpl",
 ]
