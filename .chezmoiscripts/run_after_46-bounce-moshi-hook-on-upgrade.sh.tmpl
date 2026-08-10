@@ -131,7 +131,12 @@ disk_inode="$(stat -f '%i' "$resolved" 2>/dev/null || true)"
 case $running_inode in '' | *[!0-9]*) exit 0 ;; esac
 case $disk_inode in '' | *[!0-9]*) exit 0 ;; esac
 
+# G2 section header for the bounce; the warnings above already name moshi-hook
+# inline, so this block is the only one that takes a header. The library is
+# inlined at render time, so no runtime sourcing.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 if [[ $running_inode != "$disk_inode" ]]; then
+  report_section "moshi-hook" "upgrade bounce"
   printf 'moshi-hook daemon is running a replaced binary (image %s, on disk %s); bouncing the LaunchAgent...\n' \
     "$running_inode" "$disk_inode"
   launchctl kickstart -k "gui/$(id -u)/$SERVICE_LABEL"
