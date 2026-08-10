@@ -141,6 +141,11 @@ register_plugin() {
 }
 
 # --- build phase ---
+# Both paths below print, and both print to stderr (cargo puts even its
+# do-nothing "Finished" line there), so one header on stderr owns the block.
+# Requires the caller to have included cli-print-style-lib.sh.tmpl first.
+report_section "herdr plugin" "$plugin_id" >&2
+
 # A MISSING toolchain is a retryable non-success, not a satisfied trigger: warn
 # loudly, leave the trigger retryable via the marker, and exit 0 so the rest of
 # the apply proceeds (this partial is includeTemplate'd into a run_onchange

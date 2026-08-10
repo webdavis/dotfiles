@@ -11,6 +11,9 @@ set -euo pipefail
 # this and re-syncs.
 exit 0
 {{ end -}}
+# G2 section headers for the loud stages below (operator ruling 2026-08-05); the
+# library is inlined at render time, so no runtime sourcing.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 # Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX) so every
 # brew/uv/fnm call goes through one place.
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
@@ -146,6 +149,7 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
+report_section "homebrew" "bundle sync"
 "$brew_bin" bundle --file="$brewfile"
 trust_checkpoint '20-after-brew-bundle'
 {{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
@@ -174,9 +178,19 @@ if [[ $multiplexer_present == false ]]; then
   # precondition and redoing the step it botched. This is deliberately not a
   # blanket `|| true`: the retry runs the same command against a restored trust
   # store, and a second failure is a real one that aborts the apply under set -e.
+  #
+  # Stdout is CAPTURED so the header can be withheld when the cleanup has
+  # nothing to say: with no removals and an empty `brew cleanup`,
+  # `brew bundle cleanup --force` prints nothing at all (Homebrew's
+  # bundle/subcommand/cleanup.rb only `puts` a non-empty result). The guard's own
+  # refusal warning is on stderr and still streams live.
   cleanup_rc=0
-  brew_bundle_cleanup_guarded "$brewfile" || cleanup_rc=$?
+  cleanup_output="$(brew_bundle_cleanup_guarded "$brewfile")" || cleanup_rc=$?
   trust_checkpoint '40-after-cleanup'
+  if [[ -n $cleanup_output ]]; then
+    report_section "homebrew" "bundle cleanup"
+    report_line "$cleanup_output"
+  fi
   if [[ $cleanup_rc -ne 0 ]]; then
     printf 'brew bundle cleanup exited %d. Restoring the trust store it destroys and retrying the cleanup once; a second failure aborts.\n' \
       "$cleanup_rc" >&2
@@ -200,6 +214,9 @@ export PATH="$brew_prefix/bin:$PATH"
 # skips cleanly instead of aborting under set -e when uv is genuinely absent.
 {{ if .packages.macos.uv -}}
 if command -v uv >/dev/null 2>&1; then
+  # uv narrates an already-installed tool on STDERR, so the header rides that
+  # stream rather than landing above a block it does not label.
+  report_section "uv" "tool installs" >&2
 {{- range .packages.macos.uv }}
   uv tool install {{ . | quote }}
 {{- end }}
@@ -225,6 +242,7 @@ if command -v fnm >/dev/null 2>&1; then
   PATH="$HOME/.local/share/fnm/aliases/default/bin:$PATH"
   npm_updates_broken=""
   npm_missing_failed=()
+  report_section "fnm" "node + npm CLI tools"
 {{- range .packages.macos.fnm }}
   fnm install {{ .node | quote }}
   fnm default {{ .node | quote }}
