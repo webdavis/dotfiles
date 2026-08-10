@@ -169,7 +169,7 @@ SHIM
   # has nothing to do with the behavior it is testing. WD_MANAGED_BIN_SCRIPT is the
   # stand-in unattended operator script; the shim beside it is in no manifest, the
   # way mise and herdr sit in the real directory.
-  mkdir -p "$WD_HOME/.local/bin"
+  mkdir -p "$WD_HOME/.local/bin" "$WD_HOME/.local/libexec/unattended-upgrades/agent-skills"
   export WD_MANAGED_BIN_SCRIPT="$WD_HOME/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh"
   printf 'echo update-skills\n' >"$WD_MANAGED_BIN_SCRIPT"
   chmod 755 "$WD_MANAGED_BIN_SCRIPT"
