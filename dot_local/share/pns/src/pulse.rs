@@ -4,8 +4,13 @@
 /// How long a session must run before a pulse is worth the room's attention.
 pub const DEFAULT_LONG_SESSION_SECS: u64 = 300;
 
-/// How long a restore transition takes. The pulse and the restore share it, so
-/// a light does not snap back.
+/// How long a RESTORE transition takes, and the restore alone. Both arms of the
+/// restore emit this same value, which is what one constant covers.
+///
+/// THE PULSE DOES NOT SHARE IT. The channel script ramps at 1200ms, paired with
+/// a sleep of its own length so one ramp finishes before the next begins, and
+/// that value lives there because the ramp loop does too. Nothing in this crate
+/// drives a pulse, so nothing here has a second transition to state.
 const RESTORE_TRANSITION_TIME: &str = "500ms";
 
 /// The colour a pulse runs at: a CIE xy gamut corner plus the peak brightness
