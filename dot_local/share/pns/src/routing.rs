@@ -209,17 +209,32 @@ mod tests {
     }
 
     #[test]
-    fn local_only_plans_the_banner_alone() {
+    fn local_only_plans_the_banner_alone_whatever_the_phone_verdict_was() {
+        // Both phone verdicts, because the flag is what decides this plan. Ask
+        // only with the phone wanted and a narrowing that quietly reads the
+        // phone verdict as well still answers correctly here.
         assert_eq!(
             channel_plan(true, false, true),
+            vec![leg(Channel::MacosBanner, Mode::Async)]
+        );
+        assert_eq!(
+            channel_plan(true, false, false),
             vec![leg(Channel::MacosBanner, Mode::Async)]
         );
     }
 
     #[test]
     fn remote_only_plans_the_log_alone_and_sync_which_keeps_a_lost_entry_visible() {
+        // The suppressed-phone form is the one that pins SYNC to the flag
+        // alone. Without it a narrowing that also consulted the phone verdict
+        // would drop this plan back to the ordinary async pair, and a log
+        // entry nobody waited for is the invisible loss sync exists to stop.
         assert_eq!(
             channel_plan(false, true, true),
+            vec![leg(Channel::Hermes, Mode::Sync)]
+        );
+        assert_eq!(
+            channel_plan(false, true, false),
             vec![leg(Channel::Hermes, Mode::Sync)]
         );
     }
