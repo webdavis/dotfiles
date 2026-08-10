@@ -6,7 +6,7 @@
   <string>com.webdavis.happy-daemon</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/happy</string>
+    <string>{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/happy</string>
     <string>daemon</string>
     <!-- start-sync runs the daemon in the FOREGROUND so launchd can supervise
          and KeepAlive it. `happy daemon start` detaches (forks, then returns),
@@ -27,8 +27,10 @@
   <dict>
     <key>HOME</key>
     <string>{{ .chezmoi.homeDir }}</string>
+    <!-- fnm's dir leads: happy is an env-node script, so its node comes from
+         this PATH, and it must be fnm's, not Homebrew's. -->
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 </dict>
 </plist>

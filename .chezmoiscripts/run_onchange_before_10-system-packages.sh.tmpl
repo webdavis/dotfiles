@@ -12,7 +12,7 @@ set -euo pipefail
 exit 0
 {{ end -}}
 # Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX) so every
-# brew/uv/volta call goes through one place.
+# brew/uv/fnm call goes through one place.
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
 brew_bin="$brew_prefix/bin/brew"
 
@@ -187,7 +187,7 @@ if [[ $multiplexer_present == false ]]; then
   fi
 fi
 
-# The ecosystem tools (uv, node/npm, volta) were just installed by the bundle at
+# The ecosystem tools (uv, fnm) were just installed by the bundle at
 # $brew_prefix/bin, which the apply shell's PATH may not yet include (a fresh
 # machine, or `bash -lc` reaching an unsourced shell). Prepend it once so the
 # `command -v` guards and the invocations below see the SAME binaries -- without
@@ -206,22 +206,29 @@ if command -v uv >/dev/null 2>&1; then
 fi
 {{ end -}}
 
-# Install npm global packages (runs after Homebrew so node is available). Same
-# command -v guard so a missing npm skips cleanly rather than aborting the apply.
+# Install the fnm-managed node and the npm CLI tools that run on it. fnm owns
+# the runtime: `fnm default` retargets the version-free aliases/default
+# symlink, and each node ships its own npm, which is what installs the
+# packages. fnm's bin dir is prepended for these calls because npm resolves
+# node through PATH (env-node shebang): without the prepend it runs on
+# whatever node PATH finds first and installs into THAT node's prefix.
 #
 # `npm install -g` is deliberately unconditional for INSTALLED packages too: it
 # is also the updater. The two cases fail differently, by ruling:
 #   missing package: MUST install. A failure fails this script, which aborts
 #     the apply: a declared tool that cannot land is not a passing apply.
 #   update pass: best effort. Each attempt gets a deadline so a wedged npm
-#     cannot hang the apply (node 26.7.0/npm 11.19.0 hangs on install even as
-#     a no-op); the first timeout skips the remaining updates with a warning,
-#     and installed versions simply stay put.
-{{ if .packages.macos.npm -}}
-if command -v npm >/dev/null 2>&1; then
+#     cannot hang the apply; the first timeout skips the remaining updates
+#     with a warning, and installed versions simply stay put.
+{{ if .packages.macos.fnm -}}
+if command -v fnm >/dev/null 2>&1; then
+  PATH="$HOME/.local/share/fnm/aliases/default/bin:$PATH"
   npm_updates_broken=""
   npm_missing_failed=()
-{{- range .packages.macos.npm }}
+{{- range .packages.macos.fnm }}
+  fnm install {{ .node | quote }}
+  fnm default {{ .node | quote }}
+{{- range .packages }}
   if ! npm ls -g {{ . | quote }} >/dev/null 2>&1; then
     gtimeout 180 npm install -g {{ . | quote }} || npm_missing_failed+=({{ . | quote }})
   elif [[ -z $npm_updates_broken ]]; then
@@ -231,24 +238,11 @@ if command -v npm >/dev/null 2>&1; then
     fi
   fi
 {{- end }}
+{{- end }}
   if [[ ${#npm_missing_failed[@]} -gt 0 ]]; then
     printf 'FAILED TO INSTALL (declared but absent): %s\n' "${npm_missing_failed[*]}" >&2
     exit 1
   fi
-fi
-{{ end -}}
-
-# Install Volta-pinned CLI tools. `volta install node@X` ensures the runtime is
-# present (and resets Volta's default to X, harmless because Homebrew's `node`
-# wins in PATH). `volta run --node X npm install -g <pkg>` pins the resulting
-# shim in ~/.volta/bin/<bin> to Node X so the tool keeps working when Homebrew
-# bumps node majors. Guarded on volta being on PATH so it skips cleanly if absent.
-{{ if .packages.macos.volta -}}
-if command -v volta >/dev/null 2>&1; then
-{{- range .packages.macos.volta }}
-  volta install {{ printf "node@%s" .node | quote }}
-  volta run --node {{ .node | quote }} npm install -g {{ .package | quote }}
-{{- end }}
 fi
 {{ end -}}
 

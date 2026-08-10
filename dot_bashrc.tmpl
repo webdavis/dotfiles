@@ -134,13 +134,11 @@ export PATH="$COMPOSIO_INSTALL_DIR:$PATH"
 # Direct PATH add instead of sourcing .cargo/env (avoids a file read every start).
 [[ -d "$HOME/.cargo/bin" ]] && path_prepend "$HOME/.cargo/bin"
 
-# Volta: https://volta.sh/
-# Append (not prepend) so Volta's node/npm shims do NOT win over Homebrew's
-# `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because nothing
-# earlier in PATH provides those binaries, and their shims dispatch to their
-# pinned Node version internally, independent of PATH order.
-export VOLTA_HOME="$HOME/.volta"
-[[ -d "$VOLTA_HOME/bin" ]] && PATH="$PATH:$VOLTA_HOME/bin"
+# fnm: https://github.com/Schniz/fnm
+# aliases/default is a version-free symlink (`fnm default` retargets it), so
+# node/npm/npx and the fnm-installed CLI tools resolve here in every shell,
+# non-interactive included, ahead of Homebrew.
+path_prepend "$HOME/.local/share/fnm/aliases/default/bin"
 
 # Nix: https://github.com/NixOS/nix-installer
 # Sets PATH/env for nix; needed by non-interactive shells too.
@@ -205,6 +203,10 @@ if [[ $- == *i* ]]; then
 
   # Direnv: https://github.com/direnv/direnv (PROMPT_COMMAND hook; before starship).
   eval "$(direnv hook bash)"
+
+  # fnm cd hook: a project with a .node-version/.nvmrc gets its pinned node on
+  # cd. Wraps `cd` (nothing else here does); writes no PROMPT_COMMAND.
+  command -v fnm &>/dev/null && eval "$(fnm env --use-on-cd --shell bash)"
 
   # Carapace: universal shell completion engine (v2 §16.3).
   # Ref: https://github.com/carapace-sh/carapace-bin
