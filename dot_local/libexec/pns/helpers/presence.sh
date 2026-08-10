@@ -141,6 +141,25 @@ pns_phone_attention() {
     0) return 1 ;;
   esac
   pns_phone_marker_fresh && return 0
+  pns_moshi_viewing
+}
+
+# pns_moshi_viewing
+# 0 when the phone is ACTIVELY VIEWING a Moshi session right now: the
+# one-second nettop sample, judged by pns_mosh_rate_active. Split out of
+# pns_phone_attention because the two answer different questions: attention
+# ("phone in hand", marker OR rate) routes cards TO the phone, viewing ("this
+# session on screen", rate ONLY) is what may suppress the one card about the
+# pane being watched. The marker deliberately does not reach this function.
+#
+# RELAY_MOSHI_VIEWING forces the verdict (1 yes, 0 no) for tests and manual
+# runs; the real probe samples live counters for a full second and must never
+# run in a test.
+pns_moshi_viewing() {
+  case "${RELAY_MOSHI_VIEWING:-}" in
+    1) return 0 ;;
+    0) return 1 ;;
+  esac
   command -v pgrep >/dev/null 2>&1 || return 1
   command -v nettop >/dev/null 2>&1 || return 1
   local pid
@@ -155,4 +174,20 @@ pns_phone_attention() {
   # field 5, which is the shape pns_mosh_rate_active parses.
   nettop -P -L 2 -x -n -J time,interface,state,bytes_in,bytes_out "${pid_args[@]}" 2>/dev/null |
     pns_mosh_rate_active
+}
+
+# pns_herdr_focused_pane
+# Prints the pane id herdr currently has focused, or nothing when that cannot
+# be read. Focus is mirrored across every attached client, so this is also
+# what a phone viewing the session through Moshi is looking at. The same query
+# the banner channel runs; RELAY_HERDR_FOCUSED_PANE overrides it for tests.
+pns_herdr_focused_pane() {
+  if [[ -n ${RELAY_HERDR_FOCUSED_PANE:-} ]]; then
+    printf '%s' "$RELAY_HERDR_FOCUSED_PANE"
+    return 0
+  fi
+  command -v herdr >/dev/null 2>&1 || return 0
+  herdr pane list 2>/dev/null |
+    jq -r '.result.panes[]? | select(.focused == true) | .pane_id' 2>/dev/null |
+    head -1 || true
 }

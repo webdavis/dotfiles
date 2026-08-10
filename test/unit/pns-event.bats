@@ -174,3 +174,29 @@ macos-banner async" ]
   RELAY_PHONE_ATTENTION=1 pns_phone_attention
   ! RELAY_PHONE_ATTENTION=0 pns_phone_attention
 }
+
+@test "a card about the watched pane is redundant when both ids agree" {
+  pns_viewed_pane_redundant "wW:p21" "wW:p21"
+}
+
+@test "a different focused pane is not redundant: that card must fire" {
+  ! pns_viewed_pane_redundant "wW:p21" "wW:p7"
+}
+
+@test "an event without a pane can never be redundant" {
+  ! pns_viewed_pane_redundant "" "wW:p21"
+}
+
+@test "unknown focus fails open: no focused pane means not redundant" {
+  ! pns_viewed_pane_redundant "wW:p21" ""
+}
+
+@test "RELAY_MOSHI_VIEWING forces the viewing verdict both ways" {
+  RELAY_MOSHI_VIEWING=1 pns_moshi_viewing
+  ! RELAY_MOSHI_VIEWING=0 pns_moshi_viewing
+}
+
+@test "a fresh Back Tap marker does not count as viewing" {
+  m="$BATS_TEST_TMPDIR/marker"; touch "$m"
+  ! PNS_PHONE_MARKER_FILE="$m" RELAY_MOSHI_VIEWING=0 pns_moshi_viewing
+}

@@ -111,6 +111,21 @@ if [[ -z $want_phone && -z $local_only && -z $remote_only && -z ${RELAY_SKIP_PHO
   want_phone=1
 fi
 
+# THE VIEWED-PANE CHECK. A card about the pane the operator is watching
+# through Moshi right now describes what is already on their screen, so that
+# one card is dropped; every other pane still cards. Decided fresh at send
+# time: whatever is true THIS second wins, however the backtap, the agent
+# start and the Moshi open interleaved. Ordered cheapest first, so the
+# one-second viewing probe runs only when the panes already match. The Back
+# Tap marker never suppresses (it says "phone in hand", not "pane on screen"),
+# which is why the last check is pns_moshi_viewing and not pns_phone_attention.
+# RELAY_FORCE_PHONE is caller intent, and caller intent is never overridden.
+if [[ -n $want_phone && -z ${RELAY_FORCE_PHONE:-} && -n $pane ]] &&
+  pns_viewed_pane_redundant "$pane" "$(pns_herdr_focused_pane)" &&
+  pns_moshi_viewing; then
+  want_phone=""
+fi
+
 # ---------------------------------------------------------------------------
 # Channel dispatch
 #
