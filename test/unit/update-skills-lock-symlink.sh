@@ -16,7 +16,7 @@ fail() {
 }
 
 # Resolve the generation-exchange tool the way the updater does at run time
-# (gmv on a Homebrew host, plain mv in the Nix devshell), never a hardcoded
+# (gmv on a Homebrew host, plain mv on a GNU userland), never a hardcoded
 # host path.
 # shellcheck source=test/fixtures/exchange-tool.lib.sh
 source "$REPO_ROOT/test/fixtures/exchange-tool.lib.sh"

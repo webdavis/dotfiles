@@ -15,8 +15,8 @@
 //!             after install works before any focus event has fired. Idempotent
 //!             (no-op when state already exists) and tolerant of a down herdr
 //!             server. Owning the seed here, instead of in the build script,
-//!             means it resolves the state file via the SAME `state_file()` the
-//!             reader uses, so seeder/reader path divergence is impossible.
+//!             means it is handed the SAME state path `main` resolves for the
+//!             reader, so seeder/reader path divergence is impossible.
 
 use std::env;
 use std::fs;
@@ -46,10 +46,19 @@ fn next_mru(current: &str, previous: &str, new_id: &str) -> Option<(String, Stri
     Some((new_id.to_string(), new_previous.to_string()))
 }
 
-fn state_file() -> PathBuf {
-    let dir = env::var("HERDR_PLUGIN_STATE_DIR").unwrap_or_else(|_| {
-        let home = env::var("HOME").unwrap_or_default();
-        format!("{home}/.local/state/herdr/plugins/herdr-last-workspace")
+/// Resolve the MRU state file from the two environment values, taken as
+/// parameters rather than read here. `main` reads them once and hands the
+/// resolved path down, so no code on a subcommand's path can resolve a second,
+/// different one, and a test pins this precedence by calling the function
+/// instead of mutating an environment that is process-wide (cargo runs test
+/// cases as threads in ONE process, so a `set_var` here would be visible to
+/// every other case that reads it).
+fn state_file(state_dir: Option<&str>, home: Option<&str>) -> PathBuf {
+    let dir = state_dir.map(str::to_string).unwrap_or_else(|| {
+        format!(
+            "{}/.local/state/herdr/plugins/herdr-last-workspace",
+            home.unwrap_or_default()
+        )
     });
     PathBuf::from(dir).join("mru")
 }
@@ -62,19 +71,11 @@ fn read_mru_at(path: &Path) -> (String, String) {
     (current, previous)
 }
 
-fn read_mru() -> (String, String) {
-    read_mru_at(&state_file())
-}
-
 fn write_mru_at(path: &Path, current: &str, previous: &str) {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
     let _ = fs::write(path, format!("{current}\n{previous}\n"));
-}
-
-fn write_mru(current: &str, previous: &str) {
-    write_mru_at(&state_file(), current, previous);
 }
 
 fn herdr_bin() -> String {
@@ -136,21 +137,21 @@ fn seed_at(path: &Path, focused: Option<&str>) -> bool {
 }
 
 /// On workspace.focused: shift the MRU if the focus actually moved.
-fn record() {
+fn record(state: &Path) {
     let event = env::var("HERDR_PLUGIN_EVENT_JSON").unwrap_or_default();
     let Some(new_id) = parse_focused_id(&event) else {
         return;
     };
-    let (current, previous) = read_mru();
+    let (current, previous) = read_mru_at(state);
     if let Some((c, p)) = next_mru(&current, &previous, &new_id) {
-        write_mru(&c, &p);
+        write_mru_at(state, &c, &p);
     }
 }
 
 /// Focus the recorded previous workspace. The resulting workspace.focused event
 /// re-enters record(), flipping current/previous, so the next invocation returns.
-fn bounce() {
-    let (current, previous) = read_mru();
+fn bounce(state: &Path) {
+    let (current, previous) = read_mru_at(state);
     if previous.is_empty() {
         return;
     }
@@ -158,7 +159,7 @@ fn bounce() {
     // list: if the target is gone, drop it instead of focusing nowhere.
     if let Some(list) = workspace_list_json() {
         if !workspace_exists(&list, &previous) {
-            write_mru(&current, "");
+            write_mru_at(state, &current, "");
             return;
         }
     }
@@ -173,16 +174,15 @@ fn bounce() {
 /// build script's old `[[ ! -s $state ]]` guard, without even querying herdr)
 /// and tolerant of a down herdr server (a failed query seeds nothing and exits
 /// 0, same as the reader treating a missing state as cold start).
-fn seed() {
-    let path = state_file();
-    let (current, _previous) = read_mru_at(&path);
+fn seed(state: &Path) {
+    let (current, _previous) = read_mru_at(state);
     if !current.is_empty() {
         return;
     }
     let focused = workspace_list_json()
         .as_ref()
         .and_then(parse_focused_from_list);
-    if !seed_at(&path, focused.as_deref()) {
+    if !seed_at(state, focused.as_deref()) {
         eprintln!(
             "last-workspace: could not seed MRU (herdr server down or no focused workspace); it self-seeds on the first workspace focus"
         );
@@ -190,10 +190,18 @@ fn seed() {
 }
 
 fn main() {
+    // The one place the state location is resolved, before any subcommand runs:
+    // record, bounce and seed are all handed the same path, so a seeder/reader
+    // divergence would need two different values here rather than a stale read
+    // anywhere below.
+    let state = state_file(
+        env::var("HERDR_PLUGIN_STATE_DIR").ok().as_deref(),
+        env::var("HOME").ok().as_deref(),
+    );
     match env::args().nth(1).as_deref() {
-        Some("record") => record(),
-        Some("bounce") => bounce(),
-        Some("seed") => seed(),
+        Some("record") => record(&state),
+        Some("bounce") => bounce(&state),
+        Some("seed") => seed(&state),
         other => {
             eprintln!(
                 "last-workspace: unknown subcommand {:?}; expected `record`, `bounce`, or `seed`",
@@ -304,16 +312,18 @@ mod tests {
     }
 
     #[test]
-    fn state_file_honors_plugin_state_dir_override() {
-        // The seed writes through this SAME state_file() the reader uses, so an
-        // override must be honored identically -- seeder/reader divergence is
-        // structurally impossible. (Sole test touching this env var, so the
-        // set/remove cannot race another case.)
-        env::set_var("HERDR_PLUGIN_STATE_DIR", "/tmp/lw-override-xyz");
+    fn state_file_prefers_the_override_over_the_home_default() {
+        // Every subcommand is handed what this returns, so the override is what
+        // decides where record writes and bounce reads, and the HOME default is
+        // the path the plugin actually runs on.
         assert_eq!(
-            state_file(),
+            state_file(Some("/tmp/lw-override-xyz"), Some("/home/ignored")),
             PathBuf::from("/tmp/lw-override-xyz").join("mru")
         );
-        env::remove_var("HERDR_PLUGIN_STATE_DIR");
+        assert_eq!(
+            state_file(None, Some("/home/someone")),
+            PathBuf::from("/home/someone/.local/state/herdr/plugins/herdr-last-workspace")
+                .join("mru")
+        );
     }
 }

@@ -111,7 +111,7 @@ check_placement() { # <root> <workdir>
 
 # BSD-first stat usage. The BSD form of stat (the `-f` variant) tried before
 # the GNU form does not fail on Linux (GNU coreutils), or on macOS whenever
-# the nix dev shell puts GNU coreutils first on PATH: there that flag means
+# a PATH fronts Homebrew's coreutils gnubin: there that flag means
 # "filesystem status", so it succeeds with the wrong output, the GNU form
 # never runs, and the caller silently reads garbage (this broke CI twice as a
 # `||` chain, then a third time as an `if`-gated probe the chain-only scan

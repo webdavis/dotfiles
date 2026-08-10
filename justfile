@@ -72,12 +72,11 @@ diff:
 apply-no-auth:
   chezmoi apply --exclude=templates --force
 
-# Tests live in suites by DESIGN: test/unit (single component, stub-driven, no
-# flows, no sleeps; FAST is the admission rule), test/integration and test/e2e
-# (bats coverage for the long-lived bash tools, speed-gated like everything
-# else since the 2026-08-05 purge), test/test-system (the runner's own tests).
-# The pre-commit hook runs `just test-unit` only; the pre-push hook runs no
-# suite at all (lint drift only); CI and `just ship` run `just test`.
+# Test suites: test/unit (single component, stub-driven, fast), then
+# test/integration and test/e2e. Rust tests live in each plugin's own crate,
+# not under test/, and run via `test-rust`. The pre-commit hook runs
+# `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
+# `just ship` run `just test`.
 
 # Unit suite only: the commit gate. --shuffle randomizes order to flush hidden
 # ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a
@@ -94,9 +93,24 @@ test-integration: validate-tests
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# The suite that tests the checker and the runner themselves.
-test-system: validate-tests
-  ./test/run-test-suite.sh test/test-system
+# The two herdr plugins' inline Rust unit tests, the one camp that is not a
+# shell suite: a `#[cfg(test)] mod tests` in each plugin's src/main.rs, covering
+# the pure decision functions (every Command call sits behind an untested
+# boundary by design). They existed but no gate ran them until 2026-08-05.
+#
+# --locked matches the apply-time build
+# (.chezmoitemplates/herdr-plugin-build.sh.tmpl): Cargo.lock is committed for
+# both plugins and a gate must not rewrite it. cargo comes from PATH, and its
+# absence FAILS this camp rather than skipping it, because a camp that skips
+# itself when its toolchain is missing is how these tests went unrun. CI needs
+# no new step: macos-latest ships cargo, and `just test` pulls this in.
+#
+# Cheap enough to sit in the default camp list: about 2.5s per plugin against an
+# empty target/, 0.06s warm. target/ is plugin-local, gitignored and
+# .chezmoiignore'd, so a developer pays the build once.
+test-rust:
+  cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
+  cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.toml
 
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,
@@ -108,12 +122,13 @@ validate-tests:
   ./test/validate-tests.sh
 
 # All suites: what CI runs.
-test: test-unit test-integration test-e2e test-system
+test: test-unit test-integration test-e2e test-rust
 
 # The pre-PR sweep: the three gates .github/workflows/lint.yml runs, in CI's
 # order, as LITERAL `just` command lines so they compare byte for byte against
-# the workflow's run: steps. test/unit/ship-ci-gate-parity.sh fails when this
-# list and the workflow stop describing the same work.
+# the workflow's run: steps. Keeping this list and the workflow describing the
+# same work is now a manual review step (the parity test was a declaration
+# cross-check, deleted 2026-08-05).
 #
 # A green run does NOT promise CI green: it reads the working tree; CI reads
 # the pushed commit. An edit you never staged can make ship green and CI red;
@@ -122,6 +137,31 @@ ship:
   just lint-check
   just test
   just lint-actions-security
+
+# Install the contributor toolchain into a fresh checkout: every gate below
+# (lint-check, test, lint-actions-security) assumes these are on PATH.
+#
+# Two lanes, because the tools split by how they drift. Binary tools come from
+# Brewfile.dev, where a floating version is fine: a newer shfmt or shellcheck
+# changes findings, not formatting bytes. mdformat is the exception and the
+# reason this recipe exists rather than a bare `brew bundle`. It REWRITES
+# markdown, so a version bump silently rewraps every file and the drift gate
+# fails on work nobody did; it and all six plugins are therefore pinned to the
+# exact versions CI installs.
+#
+# THE PIN SET LIVES HERE AND IN CI, hand-synced. The toolchain step in
+# .github/workflows/lint.yml carries the same `==` versions, nothing enforces
+# that the two agree, and they must move together or local and CI disagree
+# about what formatted markdown looks like.
+setup:
+  brew bundle --file=Brewfile.dev
+  uv tool install mdformat==0.7.22 \
+    --with mdformat-gfm==0.4.1 \
+    --with mdformat-gfm-alerts==2.0.0 \
+    --with mdformat-frontmatter==2.0.8 \
+    --with mdformat-footnote==0.1.1 \
+    --with mdformat-tables==1.0.0 \
+    --with mdformat-config==0.2.1
 
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
 # cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade

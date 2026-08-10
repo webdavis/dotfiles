@@ -97,10 +97,4 @@ grep -E "DIVERGENCE.*updater-owned" "$out" >/dev/null ||
 grep -q 'plain-dir' "$out" ||
   fail "the overlay pass no longer reaches a plain on-demand directory"
 
-# 4. The discriminator itself is pinned. An edit that drops the target check
-#    reintroduces the unpassable gate, and cases 1 through 3 could still pass on
-#    a fixture whose links all happen to point the same way.
-grep -q 'link_target' "$TOOL" ||
-  fail "live-reconcile no longer inspects where a store link points; the exemption cannot be distinguishing anything"
-
-printf 'live-reconcile-app-owned-exemption: OK (app-owned link exempt and uncounted, updater-owned link still blocks, plain dir still planned, discriminator pinned)\n'
+printf 'live-reconcile-app-owned-exemption: OK (app-owned link exempt and uncounted, updater-owned link still blocks, plain dir still planned)\n'

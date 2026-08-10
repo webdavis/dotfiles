@@ -494,7 +494,7 @@ refute_file_contains() {
 }
 
 # assert_mode <octal> <path> -- the path carries the expected permission bits.
-# GNU stat first (the nix shell), BSD stat as the fallback (the portable order).
+# GNU stat first (Linux, or a gnubin-fronted PATH), BSD stat second: the portable order.
 assert_mode() {
   local mode
   mode=$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)
