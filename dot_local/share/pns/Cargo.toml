@@ -1,0 +1,11 @@
+# The pns decision core. Library only: the engine binary and its IO arrive with
+# the probe and dispatch work.
+#
+# NO DEPENDENCIES, and that is a property of this layer rather than a policy:
+# nothing here parses JSON, reads a clock or touches a file, so nothing here has
+# anything to depend on.
+
+[package]
+name = "pns"
+version = "0.1.0"
+edition = "2024"
