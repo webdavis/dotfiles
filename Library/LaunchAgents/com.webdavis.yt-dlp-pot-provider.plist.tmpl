@@ -15,7 +15,7 @@
        `cd .../server && npm ci && npx tsc` to refresh build/main.js. -->
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/node</string>
+    <string>{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/node</string>
     <string>build/main.js</string>
   </array>
   <key>WorkingDirectory</key>
