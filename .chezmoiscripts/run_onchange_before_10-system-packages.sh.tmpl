@@ -208,11 +208,33 @@ fi
 
 # Install npm global packages (runs after Homebrew so node is available). Same
 # command -v guard so a missing npm skips cleanly rather than aborting the apply.
+#
+# `npm install -g` is deliberately unconditional for INSTALLED packages too: it
+# is also the updater. The two cases fail differently, by ruling:
+#   missing package: MUST install. A failure fails this script, which aborts
+#     the apply: a declared tool that cannot land is not a passing apply.
+#   update pass: best effort. Each attempt gets a deadline so a wedged npm
+#     cannot hang the apply (node 26.7.0/npm 11.19.0 hangs on install even as
+#     a no-op); the first timeout skips the remaining updates with a warning,
+#     and installed versions simply stay put.
 {{ if .packages.macos.npm -}}
 if command -v npm >/dev/null 2>&1; then
+  npm_updates_broken=""
+  npm_missing_failed=()
 {{- range .packages.macos.npm }}
-  npm install -g {{ . | quote }}
+  if ! npm ls -g {{ . | quote }} >/dev/null 2>&1; then
+    gtimeout 180 npm install -g {{ . | quote }} || npm_missing_failed+=({{ . | quote }})
+  elif [[ -z $npm_updates_broken ]]; then
+    if ! gtimeout 180 npm install -g {{ . | quote }}; then
+      npm_updates_broken=1
+      printf 'WARNING: npm update timed out or failed; skipping the remaining npm updates this apply. Installed versions stay as they are.\n' >&2
+    fi
+  fi
 {{- end }}
+  if [[ ${#npm_missing_failed[@]} -gt 0 ]]; then
+    printf 'FAILED TO INSTALL (declared but absent): %s\n' "${npm_missing_failed[*]}" >&2
+    exit 1
+  fi
 fi
 {{ end -}}
 
