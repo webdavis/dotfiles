@@ -96,6 +96,15 @@ report() {
 # harmful. OSQUERY_CONVERGE_LOG_DIR and the two restart bounds are deliberately
 # NOT here; they select an unprivileged mkdir under $HOME and a bounded wait, and
 # neither can redirect a privileged call.
+#
+# THIS IS NOT A TRUST BOUNDARY, and must not be mistaken for one. Whoever sets
+# the environment of this process can set OSQUERY_CONVERGE_TEST_SEAM in it too,
+# so against an attacker who controls the environment the gate costs one more
+# variable and nothing else. What it buys is that these overrides cannot be
+# reached by accident, cannot be adopted as production configuration, and cannot
+# be set by something that merely inherited a stray variable. A process that
+# really does choose this tool's environment already chooses its PATH and its
+# argv, and no check inside the process can outrank that.
 OSQUERY_CONVERGE_TEST_SEAMS=(
   OSQUERY_CONVERGE_DESIRED_DIR
   OSQUERY_CONVERGE_TARGET_DIR
@@ -124,10 +133,14 @@ OSQUERY_CONVERGE_LOG_DIR="${OSQUERY_CONVERGE_LOG_DIR:-$HOME/.local/log/osquery}"
 # loudly here rather than block a scheduled job forever. This host's operator has
 # passwordless sudo (recorded in run_after_05's docblock), so -n is free today.
 #
-# ABSOLUTE, both of them. /usr/bin/sudo and /usr/bin/install are root-owned
-# entries in a SIP-protected directory, and a literal path has no resolution for
-# an attacker to answer, which is why neither needs the trust check that the
-# resolved osqueryctl gets.
+# ABSOLUTE, both of them, and that is the whole of what makes them safe: a
+# literal path has no resolution for anything to answer, which is why neither
+# needs the trust check the resolved osqueryctl gets. /usr/bin is root:wheel
+# 0755, so no user-level process can replace what is there. NOT because of SIP:
+# it is disabled on this host (measured), and while both entries carry the
+# `restricted` flag, that flag is not enforced with SIP off. What holds is
+# ownership, and against an attacker who already has root nothing in this file
+# holds anyway.
 OSQUERY_CONVERGE_SUDO="${OSQUERY_CONVERGE_SUDO:-/usr/bin/sudo}"
 OSQUERY_CONVERGE_INSTALL='/usr/bin/install'
 # The uid a resolved privileged command's directory must belong to. NOT a seam:
@@ -202,6 +215,15 @@ run_privileged() {
 # would first have to decide whether to follow it, and GNU stat follows by
 # default where BSD lstats: the directory answer needs no such choice and is the
 # same on both.
+#
+# ITS LIMIT, recorded rather than papered over. This does NOT walk a symlink
+# chain, so a root-owned link in a root-owned directory pointing at a binary in a
+# directory anyone can write would pass. It does not today: every component of
+# the /opt/osquery chain behind /usr/local/bin/osqueryctl is root:wheel and
+# writable by nobody else (measured). Walking the chain would mean resolving it
+# in the shell, and the resolution itself is the thing under attack in that
+# scenario, so the honest answer is that this closes the PATH hole and not the
+# general problem of trusting a binary.
 privileged_command_is_trustworthy() {
   local command_path="$1" directory attributes mode uid
   if [[ $command_path != /* ]]; then
@@ -387,10 +409,18 @@ remove_private_stage() {
 # THE COPY IS THE POINT, not a convenience. `install` reads its source AS ROOT,
 # and the -L check on a deployed file and that read are far apart, so a process
 # that swaps the file for a symlink in between has root read whatever it points
-# at into a world-readable 0644 destination. Copying first closes that: `cp` runs
-# at the INVOKING user's privilege, so the worst a won race yields is bytes the
+# at into a world-readable 0644 destination. Copying first closes exactly that:
+# `cp` runs at the INVOKING user's privilege, so a won race yields only bytes the
 # user could already read, and the path root then reads sits in a 0700 directory
 # created by this run that no other process can substitute.
+#
+# WHAT IT DOES NOT CLOSE, stated so nobody reads more into it. A process that can
+# WRITE the staging tree does not need a race or a symlink at all: it can put its
+# bytes straight into a listed file, and they will be installed root-owned and run
+# by the root daemon. Nothing here validates CONTENT, and nothing can, since the
+# staging tree is the source of truth. That exposure is the known-good manifest's
+# job, which covers the four static staging files; see run_after_05 for the two it
+# deliberately does not.
 stage_desired_state() {
   local relative desired refused=0 listing entry listed candidate
 
