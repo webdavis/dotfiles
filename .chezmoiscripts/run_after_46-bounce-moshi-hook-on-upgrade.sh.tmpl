@@ -1,45 +1,48 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
-# When brew upgrades moshi-hook in place, the running daemon keeps executing
-# its old image. On Unix an open executable survives being unlinked, so the
-# daemon runs happily on a version that no longer exists on disk: nothing
-# crashes, KeepAlive sees a healthy process, and `moshi-hook --version` reports
-# the NEW version while the process bridging to the phone is the old one.
-# Observed 2026-07-27 going 0.2.37 -> 0.2.61: pid 3399 was still serving code
-# from a Cellar directory brew had already deleted in the same command.
+# Restart the moshi-hook daemon when brew has upgraded it underneath the
+# running process. A daemon keeps the binary it opened at startup, so after an
+# upgrade it quietly keeps serving the old version while disk has the new one.
 #
-# This is the atuin failure again (see run_after_45), and the weekly Homebrew
-# upgrade recipe reproduces it unattended, because nothing restarts moshi-hook
-# after an upgrade.
+# STALENESS IS DECIDED BY INODE, NOT BY A VERSION STRING.
 #
-# STALENESS IS DECIDED BY INODE, NOT BY A VERSION STRING. `moshi-hook probe`
-# prints a version, but whether that is the DAEMON's version or the CLI's own
-# was never established, and comparing the CLI against itself is a tautology
-# that always reports healthy. The inode of the executable the process actually
-# holds open is the artifact: if brew replaced the binary, it differs from the
-# inode on disk today. That is true whatever any version string says.
+# WRONG WAY (version string):
+#
+#   moshi-hook --version   # reads the binary on disk
+#   moshi-hook probe       # ALSO reads the binary on disk, not the daemon
+#
+# Both commands read the same file, so they always agree, even while the
+# daemon is stale. Tested 2026-08-09: the daemon was serving 0.2.73, disk had
+# 0.2.76, and probe said 0.2.76.
+#
+# RIGHT WAY (compare inodes):
+#
+#   lsof -p "$pid" | awk '$4 == "txt" { print $(NF-1) }'        # binary the daemon runs
+#   stat -f '%i' "$(readlink -f /opt/homebrew/bin/moshi-hook)"  # binary on disk
+#
+# Brew doesn't edit the binary in place. An upgrade writes a new file, and a
+# new file gets a new inode. The daemon keeps the file it opened at startup,
+# no matter what lands on disk later. So if the two inodes match, the daemon
+# is running today's binary. If they don't, brew swapped the file after the
+# daemon started, and the bounce below fixes that.
 set -euo pipefail
 
 readonly SERVICE_LABEL='homebrew.mxcl.moshi-hook'
-# Seam, so the test can point this at a fixture. Without it the test silently
-# depends on the HOST having moshi-hook installed: on a machine without it the
-# script exits at the check below, the bounce path is never reached, and the
-# suite passes locally while failing on a clean runner. That is the
-# skips-itself-when-absent class this repository has already filed twice.
+# Overridable so tests can point at a stub instead of the real binary.
 MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 
 [[ -x $MOSHI_HOOK_BIN ]] || exit 0
 
-# --- the two ways the interposition breaks SILENTLY --------------------------
+# pns inserts itself between the agent harnesses and moshi-hook. A moshi-hook
+# upgrade can silently undo that in two ways, checked below in order:
 #
-# pns registers itself as the harness hook and forwards to moshi-hook, so the
-# phone keeps its approve/deny round trip while pns keeps the presence gate.
-# Both halves of that arrangement can be undone without anything failing, which
-# is why they are re-asserted here rather than trusted: this script already runs
-# after every upgrade, which is when both happen.
+#   1. `moshi-hook install` rewrites its generated extension files, which
+#      removes the repoint at pns.
+#   2. a release could rename the hidden per-harness subcommands pns calls.
 #
-# Seams, so a test drives this without touching the operator's live files or
-# the real binary. Same names the hooks use.
+# Neither failure makes a sound on its own, so this script re-checks both
+# after every upgrade. The two variables are overridable so tests can run
+# against fixtures instead of live files.
 PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-$HOME/.local/libexec/pns/hooks/moshi-gate.sh}"
 MOSHI_EXTENSION_ROOT="${MOSHI_EXTENSION_ROOT:-$HOME}"
 

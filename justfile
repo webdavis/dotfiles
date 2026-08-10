@@ -72,15 +72,11 @@ diff:
 apply-no-auth:
   chezmoi apply --exclude=templates --force
 
-# Tests live in suites by DESIGN: test/unit (single component, stub-driven, no
-# flows, no sleeps; FAST is the admission rule), test/integration and test/e2e
-# (bats coverage for the long-lived bash tools, speed-gated like everything
-# else since the 2026-08-05 purge). A fourth camp does NOT live under test/,
-# because it is not shell: `test-rust`
-# runs the herdr plugins' inline Rust tests where cargo expects them, in each
-# plugin's own crate. The pre-commit hook runs `just test-unit` only; the
-# pre-push hook runs no suite at all (lint drift only); CI and `just ship` run
-# `just test`.
+# Test suites: test/unit (single component, stub-driven, fast), then
+# test/integration and test/e2e. Rust tests live in each plugin's own crate,
+# not under test/, and run via `test-rust`. The pre-commit hook runs
+# `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
+# `just ship` run `just test`.
 
 # Unit suite only: the commit gate. --shuffle randomizes order to flush hidden
 # ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a

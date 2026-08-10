@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# relay: fan a notification to moshi (phone) + Hermes (Discord paper trail) + a
-# clickable local macOS notification (focus the herdr pane on click). Each channel
-# is isolated (|| true, backgrounded); always exits 0. Secret never on argv.
+# relay: the pns engine. Renders one event and fans it out to the channel
+# plugins (phone, Discord, macOS banner). Always exits 0; a notification must
+# never fail the work it reports on.
 #
-# Two mirrored narrowing flags: --local-only keeps the banner and drops both
-# webhooks; --remote-only keeps only the hermes leg (no banner, no phone) and is
-# the LOG path the weekly unattended jobs use. --remote-only additionally posts
-# SYNCHRONOUSLY and prints the delivery outcome, because an undelivered log entry
-# is invisible in a way an undelivered alert is not. See the hermes block below.
+# Narrowing flags: --local-only keeps only the banner; --remote-only keeps
+# only the Discord leg, posts synchronously, and prints the outcome, because
+# an undelivered log entry is invisible in a way an undelivered alert is not.
 set -euo pipefail
 
 agent="" state="" project="" branch="" detail="" pane="" local_only="" remote_only=""
@@ -54,27 +52,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 pns_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The DECISION CORE. Every branch below that decides what happens (rather than
-# doing it) lives in helpers/event.sh as a pure function, which is what makes
-# those decisions testable one behavior at a time without spawning this script.
+# Decisions live in helpers/event.sh as pure functions, so tests call them
+# directly instead of spawning this script.
 # shellcheck source=dot_local/libexec/pns/helpers/event.sh
 source "${PNS_HELPERS_DIR:-$pns_dir/helpers}/event.sh"
-# The idle PROBE is impure, so it sits beside the core rather than in it, and
-# it is shared with hooks/moshi-gate.sh so the two cannot drift into
-# disagreeing about where the operator is.
+# The probes (idle, phone attention) are shared with hooks/moshi-gate.sh so
+# the two can never disagree about where the operator is.
 # shellcheck source=dot_local/libexec/pns/helpers/presence.sh
 source "${PNS_HELPERS_DIR:-$pns_dir/helpers}/presence.sh"
 
-# Endpoints and credentials belong to the channels now, each reading the same
-# env names (RELAY_AUTH_FILE, RELAY_MOSHI_URL, RELAY_HERMES_URL) with the same
-# defaults. The engine deliberately knows none of them: that is what makes it
-# destination-agnostic.
+# Endpoints and credentials belong to the channels; the engine knows none of
+# them.
 
 title="$(pns_title "$agent" "$state" "$project")"
 message="$(pns_message "$branch" "$detail" "$state")"
-# Phone push and macOS banner clip long summaries mid-sentence; pre-trim to the
-# last full sentence within ~260 chars so they end cleanly. Discord keeps the
-# full text. This stays here rather than in the core because it forks python.
+# Pre-trim the preview to the last full sentence within ~260 chars: the phone
+# and banner clip mid-sentence otherwise. Discord keeps the full text.
 preview="$(printf '%s' "$message" | python3 -c 'import re, sys
 s = sys.stdin.read()
 if len(s) <= 260:
@@ -86,52 +79,33 @@ else:
             cut = m.end()
     sys.stdout.write(s[:cut] if cut else s[:259].rstrip() + "…")' 2>/dev/null || printf '%s' "$message")"
 
-# Presence gating applies to the phone alone: at the desk the banner and the
-# Discord entry suffice, so the push is skipped; away, it is added. The
-# fail-open rules and the reasons behind them live with the verdict, in
-# helpers/event.sh. RELAY_IDLE_SECS overrides the probe (tests and manual
-# runs); RELAY_IOREG points it at a stub.
-# The idle PROBE is impure and lives here; the VERDICT is pns_wants_phone.
-#
-# The probe runs ONLY when a phone push could actually fire. Both narrowing
-# flags suppress the moshi leg outright, so under either one the answer is
-# unused, and it is an unbounded pipe to ioreg with no timeout. On the
-# --remote-only path that is not merely wasted work: the POST there is
-# SYNCHRONOUS, so a wedged ioreg holds the weekly job before the delivery it
-# exists to report, after the week's guard is spent and while the caller still
-# holds its serialize lock. RELAY_SKIP_PHONE joins that list for the same
-# reason and one sharper: it is set by the hook that is forwarding a BLOCKING
-# event to moshi, where the harness is stopped waiting on the answer.
+# Presence gating applies to the phone leg only: at the desk the banner is
+# enough, away adds the push. The idle probe runs only when its answer could
+# matter, because it is an unbounded pipe to ioreg and a wedged probe on a
+# path that cannot use the answer would stall the caller for nothing.
 idle_secs="${RELAY_IDLE_SECS:-}"
 if [[ -z $local_only && -z $remote_only && -z ${RELAY_SKIP_PHONE:-} &&
   -z ${RELAY_FORCE_PHONE:-} && -z $idle_secs ]]; then
   idle_secs="$(pns_idle_secs)"
 fi
-# RELAY_SKIP_PHONE drops the phone leg and NOTHING else: the caller has already
-# raised the card on the phone by another route (moshi-hook's own round trip),
-# so a push here is the same event a second time, while the banner and the
-# paper trail are still wanted. It beats RELAY_FORCE_PHONE, because a caller
-# saying "I already sent it" is more specific than a standing override.
+# RELAY_SKIP_PHONE means the caller already put this event on the phone by
+# another route, so only the phone leg is dropped, and it beats
+# RELAY_FORCE_PHONE: "I already sent it" is more specific than an override.
 want_phone=""
 if [[ -z ${RELAY_SKIP_PHONE:-} ]] && pns_wants_phone "$idle_secs" "${RELAY_DESK_IDLE_SECS:-120}" \
   "$local_only" "$remote_only" "${RELAY_FORCE_PHONE:-}"; then
   want_phone=1
 fi
 
-# THE ATTENTION OVERRIDE. Between the fresh-input floor and the desk threshold
-# the idle reading says "at the desk", but that is also the operator standing in
-# the hallway watching this run through Moshi on their phone, with every
-# notification landing on the screen they walked away from. A phone that is
-# demonstrably in hand (mosh bytes moving, or a deliberate Back Tap) flips that
-# verdict. The band is what confines the probes to the one place they can change
-# an answer, so the ordinary at-desk and away paths pay nothing for this.
+# THE ATTENTION OVERRIDE. In the band between "just typed" and "away", the
+# idle clock says desk, but the operator may be right next to it watching from
+# their phone. A phone demonstrably in hand (mosh bytes moving, or a Back Tap
+# marker) flips the verdict to away. The band check confines the probes to the
+# one case where they can change the answer.
 #
-# CALLER INTENT IS NEVER OVERRIDDEN. --local-only, --remote-only and
-# RELAY_SKIP_PHONE are a caller stating what it wants delivered, not a guess
-# about presence, so no probe may resurrect a leg they dropped. RELAY_SKIP_PHONE
-# is the sharpest of the three: the caller has ALREADY raised this card on the
-# phone through moshi-hook's own round trip, so an override here is the same
-# event arriving twice.
+# Caller intent is never overridden: the narrowing flags and RELAY_SKIP_PHONE
+# state what the caller wants delivered, so no probe may resurrect a leg they
+# dropped.
 if [[ -z $want_phone && -z $local_only && -z $remote_only && -z ${RELAY_SKIP_PHONE:-} ]] &&
   pns_attention_band "$idle_secs" "${RELAY_DESK_IDLE_SECS:-120}" && pns_phone_attention; then
   want_phone=1
