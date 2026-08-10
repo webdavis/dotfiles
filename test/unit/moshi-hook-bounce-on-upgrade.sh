@@ -26,8 +26,13 @@ sandbox="$(mktemp -d)"
 trap 'rm -rf "$sandbox"' EXIT
 
 rendered="$sandbox/bounce.sh"
-CI=1 chezmoi execute-template --no-tty <"$TEMPLATE" >"$rendered" 2>/dev/null ||
-  fail 'chezmoi could not render the template'
+# --source pins the render to THIS checkout: the template includeTemplate's the
+# print library, which has to resolve against this tree rather than against
+# whatever source dir an ambient chezmoi config happens to name.
+mkdir -p "$sandbox/render-home" # chezmoi's read-source-state pre hook chdirs into HOME
+HOME="$sandbox/render-home" CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
+  <"$TEMPLATE" >"$rendered" 2>"$sandbox/render.err" ||
+  fail "chezmoi could not render the template:"$'\n'"$(cat "$sandbox/render.err")"
 
 mkdir -p "$sandbox/bin"
 kickstart_log="$sandbox/kickstart.log"

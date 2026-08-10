@@ -11,6 +11,9 @@ set -euo pipefail
 # this and re-syncs.
 exit 0
 {{ end -}}
+# G2 section headers for the loud stages below (operator ruling 2026-08-05); the
+# library is inlined at render time, so no runtime sourcing.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 # Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX) so every
 # brew/uv/fnm call goes through one place.
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
@@ -80,7 +83,7 @@ assert_taps_trusted() {
   [[ ${#missing[@]} -eq 0 ]] && return 0
   printf 'brew tap trust did not persist for %d of %d declared tap(s): %s\n' \
     "${#missing[@]}" "${#trusted_taps[@]}" "${missing[*]}" >&2
-  printf 'Homebrew refuses to load casks from an untrusted tap, so the cleanup stage below would fail with an error that names the cask rather than the trust. Trust them by hand, then re-apply:\n' >&2
+  report_line 'Homebrew refuses to load casks from an untrusted tap, so the cleanup stage below would fail with an error that names the cask rather than the trust. Trust them by hand, then re-apply:' >&2
   printf '  brew trust --tap %s\n' "${missing[@]}" >&2
   return 1
 }
@@ -118,8 +121,8 @@ for multiplexer in tmux sesh; do
   fi
 done
 if [[ $multiplexer_present == true ]]; then
-  printf 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT cleanup so it is not removed before herdr is verified.\n' >&2
-  printf 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.\n' >&2
+  report_line 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT cleanup so it is not removed before herdr is verified.' >&2
+  report_line 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.' >&2
 fi
 
 # Install all taps, formulae, casks, and macOS App Store apps, then uninstall
@@ -146,6 +149,7 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
+report_section "homebrew" "bundle sync"
 "$brew_bin" bundle --file="$brewfile"
 trust_checkpoint '20-after-brew-bundle'
 {{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
@@ -174,9 +178,16 @@ if [[ $multiplexer_present == false ]]; then
   # precondition and redoing the step it botched. This is deliberately not a
   # blanket `|| true`: the retry runs the same command against a restored trust
   # store, and a second failure is a real one that aborts the apply under set -e.
+  #
+  # Stdout is CAPTURED because `brew bundle cleanup --force` prints nothing at
+  # all when it has nothing to remove, and a header must not stand over no body.
   cleanup_rc=0
-  brew_bundle_cleanup_guarded "$brewfile" || cleanup_rc=$?
+  cleanup_output="$(brew_bundle_cleanup_guarded "$brewfile")" || cleanup_rc=$?
   trust_checkpoint '40-after-cleanup'
+  if [[ -n $cleanup_output ]]; then
+    report_section "homebrew" "bundle cleanup"
+    report_line "$cleanup_output"
+  fi
   if [[ $cleanup_rc -ne 0 ]]; then
     printf 'brew bundle cleanup exited %d. Restoring the trust store it destroys and retrying the cleanup once; a second failure aborts.\n' \
       "$cleanup_rc" >&2
@@ -200,6 +211,9 @@ export PATH="$brew_prefix/bin:$PATH"
 # skips cleanly instead of aborting under set -e when uv is genuinely absent.
 {{ if .packages.macos.uv -}}
 if command -v uv >/dev/null 2>&1; then
+  # uv narrates an already-installed tool on STDERR, so the header rides that
+  # stream rather than landing above a block it does not label.
+  report_section "uv" "tool installs" >&2
 {{- range .packages.macos.uv }}
   uv tool install {{ . | quote }}
 {{- end }}
@@ -225,6 +239,7 @@ if command -v fnm >/dev/null 2>&1; then
   PATH="$HOME/.local/share/fnm/aliases/default/bin:$PATH"
   npm_updates_broken=""
   npm_missing_failed=()
+  report_section "fnm" "node + npm CLI tools"
 {{- range .packages.macos.fnm }}
   fnm install {{ .node | quote }}
   fnm default {{ .node | quote }}
@@ -234,7 +249,7 @@ if command -v fnm >/dev/null 2>&1; then
   elif [[ -z $npm_updates_broken ]]; then
     if ! gtimeout 180 npm install -g {{ . | quote }}; then
       npm_updates_broken=1
-      printf 'WARNING: npm update timed out or failed; skipping the remaining npm updates this apply. Installed versions stay as they are.\n' >&2
+      report_line 'WARNING: npm update timed out or failed; skipping the remaining npm updates this apply. Installed versions stay as they are.' >&2
     fi
   fi
 {{- end }}

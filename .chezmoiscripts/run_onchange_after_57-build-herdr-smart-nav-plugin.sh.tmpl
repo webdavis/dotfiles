@@ -7,6 +7,9 @@ set -euo pipefail
 # action). `herdr plugin link` does NOT run the manifest's [[build]] step, so the
 # binary is compiled here. Re-runs whenever the plugin source changes.
 #
+# G2 section headers; the build partial calls report_section, so the library has
+# to be inlined ahead of it or the call is command-not-found under set -e.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 {{ includeTemplate "herdr-plugin-build.sh.tmpl" (dict "id" "herdr-smart-nav") }}
 # Remove the retired standalone binary (superseded by the plugin action).
 rm -f "$HOME/.local/bin/herdr-smart-nav"
