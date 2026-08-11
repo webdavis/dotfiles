@@ -5,7 +5,7 @@
 //! enum's open/closed violation: adding a destination is a registration, not
 //! an edit here.
 
-use crate::registry::Registration;
+use crate::registry::Selection;
 
 /// Whether the engine waits for a channel to finish.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +71,7 @@ pub fn wants_phone(
 /// is dropped whenever the phone verdict is no, under every flag, so the gate
 /// means one thing everywhere.
 pub fn channel_plan(
-    enabled: &[Registration],
+    enabled: &Selection,
     local_only: bool,
     remote_only: bool,
     want_phone: bool,
@@ -110,42 +110,65 @@ pub fn viewed_pane_redundant(event_pane: &str, focused_pane: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{Leg, Mode, channel_plan, viewed_pane_redundant, wants_phone};
-    use crate::registry::{Registration, Routing};
+    use crate::config::parse_config;
+    use crate::registry::{Registry, Routing, Selection};
 
     fn leg(name: &'static str, mode: Mode) -> Leg {
         Leg { name, mode }
     }
 
+    /// Every selection comes out of a real registry and a real config, so
+    /// each plan test exercises register, enabled and channel_plan END TO
+    /// END: a registry that mislaid a routing declaration fails these, not
+    /// only its own unit tests.
+    fn select(registry: &Registry, config_text: &str) -> Selection {
+        registry
+            .enabled(&parse_config(config_text).unwrap())
+            .unwrap()
+    }
+
     /// The three real declarations, in the delivery order the bash engine
     /// uses: phone, log, banner. The plan tests run against these so every
     /// R1 behavior is preserved verbatim under the declaration API.
-    fn three_enabled() -> Vec<Registration> {
-        vec![
-            Registration {
-                name: "moshi",
-                routing: Routing {
+    fn three_registry() -> Registry {
+        let mut registry = Registry::new();
+        registry
+            .register(
+                "moshi",
+                Routing {
                     local: false,
                     presence_gated: true,
                     durable: false,
                 },
-            },
-            Registration {
-                name: "hermes",
-                routing: Routing {
+            )
+            .unwrap();
+        registry
+            .register(
+                "hermes",
+                Routing {
                     local: false,
                     presence_gated: false,
                     durable: true,
                 },
-            },
-            Registration {
-                name: "macos-banner",
-                routing: Routing {
+            )
+            .unwrap();
+        registry
+            .register(
+                "macos-banner",
+                Routing {
                     local: true,
                     presence_gated: false,
                     durable: false,
                 },
-            },
-        ]
+            )
+            .unwrap();
+        registry
+    }
+
+    const ALL_THREE_ON: &str = "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
+
+    fn three_enabled() -> Selection {
+        select(&three_registry(), ALL_THREE_ON)
     }
 
     // --- wants_phone -------------------------------------------------------
@@ -254,34 +277,58 @@ mod tests {
     fn no_enabled_plugins_plan_nothing_under_every_flag() {
         // An unconfigured machine has an empty plan, not a crash and not a
         // built-in fallback: the caller reports the empty verdict.
+        let none = select(&three_registry(), "");
         for (local, remote, phone) in [
             (false, false, true),
             (false, false, false),
             (true, false, true),
             (false, true, true),
         ] {
-            assert_eq!(channel_plan(&[], local, remote, phone), vec![]);
+            assert_eq!(channel_plan(&none, local, remote, phone), vec![]);
         }
     }
 
     #[test]
     fn the_presence_gate_means_one_thing_under_every_flag() {
-        // A hypothetical presence-gated LOCAL plugin (a wearable's buzz) is
-        // dropped by a no-phone verdict even on the local-only path: the gate
-        // composes with the flags rather than living inside one branch.
-        let gated_local = vec![Registration {
-            name: "buzz",
-            routing: Routing {
-                local: true,
-                presence_gated: true,
-                durable: false,
-            },
-        }];
+        // Two hypotheticals pin the gate as a COMPOSED filter rather than a
+        // branch: a presence-gated LOCAL plugin (a wearable's buzz) on the
+        // local-only path, and a presence-gated DURABLE plugin (a phone
+        // pager log) on the remote-only path. An implementation that skips
+        // the gate inside either flag's branch keeps one of them wrongly.
+        let mut registry = Registry::new();
+        registry
+            .register(
+                "buzz",
+                Routing {
+                    local: true,
+                    presence_gated: true,
+                    durable: false,
+                },
+            )
+            .unwrap();
+        registry
+            .register(
+                "pager",
+                Routing {
+                    local: false,
+                    presence_gated: true,
+                    durable: true,
+                },
+            )
+            .unwrap();
+        let both = "[plugins.buzz]\nenabled = true\n[plugins.pager]\nenabled = true\n";
+        let enabled = select(&registry, both);
+
         assert_eq!(
-            channel_plan(&gated_local, true, false, true),
+            channel_plan(&enabled, true, false, true),
             vec![leg("buzz", Mode::Async)]
         );
-        assert_eq!(channel_plan(&gated_local, true, false, false), vec![]);
+        assert_eq!(channel_plan(&enabled, true, false, false), vec![]);
+        assert_eq!(
+            channel_plan(&enabled, false, true, true),
+            vec![leg("pager", Mode::Sync)]
+        );
+        assert_eq!(channel_plan(&enabled, false, true, false), vec![]);
     }
 
     #[test]

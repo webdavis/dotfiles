@@ -42,8 +42,26 @@ pub struct Registration {
 pub enum RegistryError {
     /// Two plugins claimed the same name.
     Duplicate(String),
-    /// The config enabled a name nothing registered.
+    /// The config names a plugin nothing registered, enabled or not: the
+    /// typo is the defect either way.
     UnknownPlugin(String),
+}
+
+/// A vetted selection, and the only value a plan can be computed over. The
+/// inner list is private and no constructor is public, so a Selection can
+/// only come out of [`Registry::enabled`]: fabricated registrations cannot
+/// reach routing without passing the duplicate and unknown-name refusals.
+#[derive(Debug, PartialEq)]
+pub struct Selection(Vec<Registration>);
+
+impl Selection {
+    pub fn iter(&self) -> std::slice::Iter<'_, Registration> {
+        self.0.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 /// The ordered set of compiled-in plugins. Registration order is delivery
@@ -77,7 +95,7 @@ impl Registry {
     /// order the config listed them in. A config naming an unregistered
     /// plugin is refused; a registered plugin the config omits or disables
     /// is simply not selected.
-    pub fn enabled(&self, config: &Config) -> Result<Vec<Registration>, RegistryError> {
+    pub fn enabled(&self, config: &Config) -> Result<Selection, RegistryError> {
         // The CONFIG's names are walked first, and the enabled flag is not
         // consulted: an unregistered name is a typo whether or not it is
         // switched on, and the next edit turns it into a silent no-op.
@@ -86,23 +104,24 @@ impl Registry {
                 return Err(RegistryError::UnknownPlugin(name.clone()));
             }
         }
-        Ok(self
-            .registrations
-            .iter()
-            .filter(|entry| {
-                config
-                    .plugins
-                    .get(entry.name)
-                    .is_some_and(|selected| selected.enabled)
-            })
-            .copied()
-            .collect())
+        Ok(Selection(
+            self.registrations
+                .iter()
+                .filter(|entry| {
+                    config
+                        .plugins
+                        .get(entry.name)
+                        .is_some_and(|selected| selected.enabled)
+                })
+                .copied()
+                .collect(),
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Registration, Registry, RegistryError, Routing};
+    use super::{Registry, RegistryError, Routing};
     use crate::config::parse_config;
 
     const REMOTE_GATED: Routing = Routing {
@@ -199,7 +218,7 @@ mod tests {
     #[test]
     fn an_empty_config_selects_nothing_which_is_a_verdict_not_an_error() {
         let config = parse_config("").unwrap();
-        let enabled: Vec<Registration> = three_plugin_registry().enabled(&config).unwrap();
+        let enabled = three_plugin_registry().enabled(&config).unwrap();
         assert!(enabled.is_empty());
     }
 }
