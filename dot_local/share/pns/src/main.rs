@@ -13,6 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
+use pns::channels::hermes::{DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, remote_deadline};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
 use pns::config::{config_path, load_config};
@@ -185,16 +186,27 @@ fn main() {
         pane: pane.to_string(),
     };
 
+    let auth_path = resolve_path(
+        std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
+        &format!("{home}/.config/relay/auth.json"),
+    );
     let moshi = MoshiChannel {
         http: UreqPost::default(),
-        auth_path: resolve_path(
-            std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
-            &format!("{home}/.config/relay/auth.json"),
-        ),
+        auth_path: auth_path.clone(),
         url: std::env::var("RELAY_MOSHI_URL")
             .ok()
             .filter(|url| !url.is_empty())
             .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string()),
+    };
+
+    let hermes = HermesChannel {
+        post: UreqSignedPost,
+        auth_path,
+        url: std::env::var("RELAY_HERMES_URL")
+            .ok()
+            .filter(|url| !url.is_empty())
+            .unwrap_or_else(|| DEFAULT_HERMES_URL.to_string()),
+        sync_deadline: remote_deadline(std::env::var("RELAY_REMOTE_TIMEOUT").ok().as_deref()),
     };
 
     for leg in &decision.legs {
@@ -206,6 +218,10 @@ fn main() {
                 }
                 "moshi" => {
                     moshi.deliver(&native, leg.mode);
+                    continue;
+                }
+                "hermes" => {
+                    hermes.deliver(&native, leg.mode);
                     continue;
                 }
                 _ => {}
