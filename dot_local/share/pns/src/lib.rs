@@ -1,14 +1,16 @@
-//! pns decision core: the total functions the engine wraps with IO.
+//! pns: the decision core plus its thin edges.
 //!
-//! WHY THIS IS A LIBRARY OF ITS OWN. Everything here is a function of its
-//! arguments: no network, no files, no clock, no environment. That is what
-//! makes it testable one behavior at a time, in microseconds, without stubbing
-//! a subprocess. The binary keeps the impure half (reading the idle probe,
-//! spawning channels) and this keeps the decisions.
+//! THE SPLIT THAT MATTERS. The decision modules (`presence`, `routing`,
+//! `render`, `pulse`, `safety`) are total functions of their arguments: no
+//! network, no files, no clock, no environment. That is what makes them
+//! testable one behavior at a time, in microseconds, without stubbing a
+//! subprocess. The edges (`system` reads the machine, `config` reads the
+//! file) keep their IO one seam away from a pure parser, and the engine
+//! binary will own the wiring.
 //!
-//! Nothing here prints diagnostics or exits, and nothing here reads a variable
-//! out of the environment. A caller decides what to do with a verdict, and the
-//! composition root is where wiring lives.
+//! The decision modules never print, exit, or read the environment. A caller
+//! decides what to do with a verdict, and the composition root is where
+//! wiring lives.
 
 pub mod config;
 pub mod presence;
