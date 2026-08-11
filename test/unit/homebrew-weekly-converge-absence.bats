@@ -44,6 +44,14 @@ weekly() {
   [ "$status" -ne 0 ]
   [[ $output == *"osquery config converge"* ]]
   [[ $output == *FAILED* ]]
+  # The DIAGNOSTIC, not just the failure. Deleting the executability guard leaves
+  # the step failing anyway, because bash cannot exec a path that is not there, so
+  # a test that only asserts the failure passes with the guard gone and pins
+  # nothing. What the guard is for is the sentence: the record has to name the
+  # missing tool and what to do, not read "No such file or directory".
+  [[ $output == *"$SANDBOX/definitely-not-deployed.sh is not executable"* ]]
+  [[ $output == *"may be the vendor default"* ]]
+  [[ $output == *"run chezmoi apply"* ]]
 }
 
 @test "a converge tool that is not deployed does not advance the last-success marker" {
