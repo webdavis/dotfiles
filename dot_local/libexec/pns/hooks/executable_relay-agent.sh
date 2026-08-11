@@ -16,7 +16,9 @@ set -euo pipefail
 # shellcheck source=dot_local/libexec/pns/helpers/event.sh
 source "${PNS_HELPERS_DIR:-${BASH_SOURCE[0]%/*}/../helpers}/event.sh" || exit 0
 state="${1:-done}"
-relay="${RELAY_BIN:-$HOME/.local/libexec/pns/relay.sh}"
+# shellcheck source=dot_local/libexec/pns/helpers/engine-path.sh
+source "${PNS_HELPERS_DIR:-${BASH_SOURCE[0]%/*}/../helpers}/engine-path.sh" || exit 0
+relay="$(pns_engine_path "${RELAY_BIN:-}")"
 input="$(cat 2>/dev/null || true)"
 cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 transcript="$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)"

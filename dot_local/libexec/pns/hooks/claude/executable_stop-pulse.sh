@@ -35,6 +35,15 @@ rm -f "$start_file"
 [[ $started =~ ^[0-9]+$ ]] || exit 0
 elapsed=$(($(date +%s) - started))
 
-pns_session_was_long "$elapsed" "${PNS_PULSE_THRESHOLD_SECS:-300}" &&
-  exec "${PNS_CHANNELS_DIR:-$HOME/.local/libexec/pns/channels}/hue-pulse.sh" 0
-exit 0
+pns_session_was_long "$elapsed" "${PNS_PULSE_THRESHOLD_SECS:-300}" || exit 0
+
+# shellcheck source=dot_local/libexec/pns/helpers/engine-path.sh
+source "${PNS_HELPERS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/helpers}/engine-path.sh" || exit 0
+# An ARRAY: the binary form carries a subcommand, and a home directory with a
+# space would word-split a flat string into a command that does not exist.
+pulse=()
+while IFS= read -r argument; do
+  [[ -n $argument ]] && pulse+=("$argument")
+done < <(pns_pulse_command)
+[[ ${#pulse[@]} -gt 0 ]] || exit 0
+exec "${pulse[@]}" 0
