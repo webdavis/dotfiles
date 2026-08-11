@@ -157,6 +157,9 @@ fn main() {
             )
         },
         herdr_path: executable_in_path("herdr"),
+        // Red-state placeholders: the fix round wires these from overrides.
+        idle_override: None,
+        focused_override: None,
     };
     let native = pns::channels::Event {
         agent: event.agent.clone(),

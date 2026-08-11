@@ -106,6 +106,11 @@ pub struct BannerChannel<R: CommandRunner, P> {
     /// Absolute herdr path resolved at composition time, `None` when PATH
     /// has none.
     pub herdr_path: Option<String>,
+    /// `RELAY_IDLE_SECS`: a caller-supplied idle beats the probe, and the
+    /// probe is not read when it is present.
+    pub idle_override: Option<u64>,
+    /// `RELAY_HERDR_FOCUSED_PANE`: same, for the focused pane.
+    pub focused_override: Option<String>,
 }
 
 impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> Channel for BannerChannel<R, P> {
@@ -400,6 +405,8 @@ mod tests {
             terminal_id: "com.term".to_string(),
             desk_idle_secs: Some(120),
             herdr_path: Some("/x/herdr".to_string()),
+            idle_override: None,
+            focused_override: None,
         };
         channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
         let calls = channel.runner.calls.borrow();
@@ -423,6 +430,8 @@ mod tests {
             terminal_id: "com.term".to_string(),
             desk_idle_secs: Some(120),
             herdr_path: Some("/x/herdr".to_string()),
+            idle_override: None,
+            focused_override: None,
         };
         channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
         let calls = channel.runner.calls.borrow();
@@ -449,6 +458,8 @@ mod tests {
             terminal_id: String::new(),
             desk_idle_secs: Some(120),
             herdr_path: None,
+            idle_override: None,
+            focused_override: None,
         };
         channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
         let calls = channel.runner.calls.borrow();
@@ -457,6 +468,111 @@ mod tests {
             .find(|call| call.contains("terminal-notifier"))
             .expect("unknown terminal fires");
         assert!(notifier.contains(&format!("-activate {DEFAULT_TERMINAL_BUNDLE_ID}")));
+    }
+
+    #[test]
+    fn idle_exactly_at_the_threshold_is_already_away_so_the_banner_fires() {
+        // The same boundary the engine uses: at the threshold the operator
+        // counts as away, and the two verdicts must not disagree by one
+        // second.
+        assert!(!watching_case(
+            Some(120),
+            WATCHING.0,
+            Some(WATCHING.1),
+            Some("wW:p1"),
+            "wW:p1"
+        ));
+    }
+
+    #[test]
+    fn an_unquoted_identifier_key_reads_as_unknown_like_the_bash_sed() {
+        // The bash pattern requires the QUOTED key; a lookalike line must not
+        // produce a confident id that wrongly suppresses.
+        assert_eq!(
+            super::parse_front_bundle_id("CFBundleIdentifier=\"com.term\"\n"),
+            None
+        );
+    }
+
+    #[test]
+    fn a_caller_supplied_idle_beats_the_probe_and_spares_the_read() {
+        // RELAY_IDLE_SECS=900 with a live idle of 5: the bash fires because
+        // the override IS the reading; consulting the probe instead would
+        // suppress a banner the caller asked to judge as away.
+        let channel = BannerChannel {
+            runner: ScriptedRunner {
+                lsappinfo: Some("\"CFBundleIdentifier\"=\"com.term\"\n".to_string()),
+                calls: RefCell::new(Vec::new()),
+            },
+            probes: FixedProbes {
+                idle: Some(5),
+                focused: Some("wW:p1".to_string()),
+            },
+            terminal_id: "com.term".to_string(),
+            desk_idle_secs: Some(120),
+            herdr_path: None,
+            idle_override: Some(900),
+            focused_override: None,
+        };
+        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        let calls = channel.runner.calls.borrow();
+        assert!(
+            calls.iter().any(|call| call.contains("terminal-notifier")),
+            "the override says away, so the banner fires: {calls:?}"
+        );
+    }
+
+    #[test]
+    fn a_caller_supplied_focused_pane_beats_the_probe() {
+        // RELAY_HERDR_FOCUSED_PANE=wW:p2 with live focus on the event's own
+        // pane: the caller's reading wins, the panes differ, the banner fires.
+        let channel = BannerChannel {
+            runner: ScriptedRunner {
+                lsappinfo: Some("\"CFBundleIdentifier\"=\"com.term\"\n".to_string()),
+                calls: RefCell::new(Vec::new()),
+            },
+            probes: FixedProbes {
+                idle: Some(5),
+                focused: Some("wW:p1".to_string()),
+            },
+            terminal_id: "com.term".to_string(),
+            desk_idle_secs: Some(120),
+            herdr_path: None,
+            idle_override: None,
+            focused_override: Some("wW:p2".to_string()),
+        };
+        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        let calls = channel.runner.calls.borrow();
+        assert!(
+            calls.iter().any(|call| call.contains("terminal-notifier")),
+            "the caller's focus reading wins: {calls:?}"
+        );
+    }
+
+    #[test]
+    fn the_front_app_is_read_in_the_bash_two_step_and_nothing_else() {
+        // `lsappinfo front` for the ASN, then `info -only bundleid` ON that
+        // ASN: a collapsed call reads an ARBITRARY app and can wrongly
+        // suppress with the terminal buried.
+        let channel = BannerChannel {
+            runner: ScriptedRunner {
+                lsappinfo: Some("ASN-42".to_string()),
+                calls: RefCell::new(Vec::new()),
+            },
+            probes: FixedProbes {
+                idle: Some(5),
+                focused: Some("wW:p1".to_string()),
+            },
+            terminal_id: "com.term".to_string(),
+            desk_idle_secs: Some(120),
+            herdr_path: None,
+            idle_override: None,
+            focused_override: None,
+        };
+        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        let calls = channel.runner.calls.borrow();
+        assert_eq!(calls[0], "/usr/bin/lsappinfo front");
+        assert_eq!(calls[1], "/usr/bin/lsappinfo info -only bundleid ASN-42");
     }
 
     // --- dispatch precedence --------------------------------------------------
