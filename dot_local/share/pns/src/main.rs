@@ -78,7 +78,8 @@ fn main() {
     }
 
     let home = std::env::var("HOME").unwrap_or_default();
-    let (selection, warning) = select_plugins(&registry, load_config(&config_path(&home)));
+    let (selection, warning) =
+        select_plugins(&registry, load_config(&config_path(&home)), &["hue"]);
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }

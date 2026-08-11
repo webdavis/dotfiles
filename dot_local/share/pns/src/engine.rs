@@ -246,7 +246,13 @@ where
 pub fn select_plugins(
     registry: &crate::registry::Registry,
     loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
+    mode_plugins: &[&str],
 ) -> (Selection, Option<String>) {
+    // mode_plugins are names the composition root serves OUTSIDE the event
+    // plan (hue's pulse today): their config tables are legitimate, so they
+    // are stripped before the unknown-name refusal rather than read as
+    // typos that would discard the operator's whole selection.
+    let _ = mode_plugins;
     use crate::config::{ConfigError, LoadOutcome};
     use crate::registry::RegistryError;
 
@@ -728,7 +734,7 @@ mod tests {
     fn a_missing_config_selects_every_builtin_so_the_cutover_changes_nothing() {
         use crate::config::LoadOutcome;
         let (selection, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Missing));
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Missing), &[]);
         assert_eq!(
             selection_names(&selection),
             vec!["moshi", "hermes", "macos-banner"]
@@ -741,7 +747,7 @@ mod tests {
         use crate::config::LoadOutcome;
         let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
         let (selection, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)));
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &[]);
         assert_eq!(selection_names(&selection), vec!["hermes"]);
         assert_eq!(warning, None);
     }
@@ -754,6 +760,7 @@ mod tests {
             Err(ConfigError::Malformed(
                 "key with no value at line 1".to_string(),
             )),
+            &[],
         );
         assert_eq!(
             selection_names(&selection),
@@ -768,13 +775,41 @@ mod tests {
         use crate::config::LoadOutcome;
         let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
         let (selection, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)));
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &[]);
         assert_eq!(
             selection_names(&selection),
             vec!["moshi", "hermes", "macos-banner"]
         );
         let warning = warning.expect("the typo'd name must be said aloud");
         assert!(warning.contains("mosih"));
+    }
+
+    #[test]
+    fn a_mode_plugins_table_is_not_a_typo_and_the_selection_survives() {
+        // The pulse mode REQUIRES a plugins.hue table, so an operator who
+        // configures it must not lose their event selection to the
+        // unknown-name refusal on every notification.
+        use crate::config::LoadOutcome;
+        let config =
+            parse_config("[plugins.hermes]\nenabled = true\n[plugins.hue]\nenabled = true\n")
+                .unwrap();
+        let (selection, warning) =
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &["hue"]);
+        assert_eq!(selection_names(&selection), vec!["hermes"]);
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn a_true_typo_is_still_refused_even_with_mode_plugins_declared() {
+        use crate::config::LoadOutcome;
+        let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
+        let (_, warning) =
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &["hue"]);
+        assert!(
+            warning
+                .expect("the typo is still the defect")
+                .contains("mosih")
+        );
     }
 
     // --- overrides parsing --------------------------------------------------
