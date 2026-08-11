@@ -54,20 +54,60 @@ pub enum LoadOutcome {
 /// Where the config lives for a given home directory. Pure, so the path rule
 /// is testable without an environment.
 pub fn config_path(home: &str) -> PathBuf {
-    let _ = home;
-    todo!("R2b: home/.config/pns/config.toml")
+    Path::new(home).join(".config/pns/config.toml")
 }
 
 /// The pure half: text in, config or a named refusal out.
 pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
-    let _ = text;
-    todo!("R2b: parse the TOML, validate the schema, split enabled from settings")
+    let document: toml::Table = text
+        .parse()
+        .map_err(|error: toml::de::Error| ConfigError::Malformed(error.to_string()))?;
+
+    let mut config = Config::default();
+    for (key, value) in document {
+        if key != "plugins" {
+            return Err(ConfigError::Invalid(format!(
+                "unknown top-level key `{key}`"
+            )));
+        }
+        let plugins = value
+            .as_table()
+            .ok_or_else(|| ConfigError::Invalid("`plugins` is not a table".to_string()))?;
+
+        for (name, entry) in plugins {
+            // The copy is what `enabled` is removed FROM, so the flag reaches
+            // this layer and everything left over reaches the plugin untouched.
+            let mut settings = entry
+                .as_table()
+                .cloned()
+                .ok_or_else(|| ConfigError::Invalid(format!("plugin `{name}` is not a table")))?;
+            let enabled = match settings.remove("enabled") {
+                None => false,
+                Some(toml::Value::Boolean(flag)) => flag,
+                Some(_) => {
+                    return Err(ConfigError::Invalid(format!(
+                        "plugin `{name}` has a non-boolean `enabled`"
+                    )));
+                }
+            };
+            config
+                .plugins
+                .insert(name.clone(), PluginEntry { enabled, settings });
+        }
+    }
+    Ok(config)
 }
 
 /// The IO edge: read the file at `path` and hand its text to the parser.
 pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
-    let _ = path;
-    todo!("R2b: absent file is Missing; present file goes through parse_config")
+    match std::fs::read_to_string(path) {
+        Ok(text) => parse_config(&text).map(LoadOutcome::Loaded),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(LoadOutcome::Missing),
+        Err(error) => Err(ConfigError::Unreadable(format!(
+            "{}: {error}",
+            path.display()
+        ))),
+    }
 }
 
 #[cfg(test)]
@@ -178,6 +218,20 @@ mod tests {
         match outcome {
             Ok(LoadOutcome::Loaded(config)) => assert!(config.plugins["hue"].enabled),
             other => panic!("expected Loaded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_unreadable_path_is_an_error_never_a_silent_unconfigured() {
+        // A directory at the config path is the deterministic unreadable
+        // case: it exists, so reporting Missing here would make a broken
+        // path read as "unconfigured" and silently disable everything.
+        let outcome = load_config(std::env::temp_dir().as_path());
+        match outcome {
+            Err(ConfigError::Unreadable(message)) => {
+                assert!(!message.is_empty(), "the path and cause are named")
+            }
+            other => panic!("expected Unreadable, got {other:?}"),
         }
     }
 
