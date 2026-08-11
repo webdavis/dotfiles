@@ -10,7 +10,10 @@
 
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  RELAY="$REPO_ROOT/dot_local/libexec/pns/executable_relay.sh"
+  # PNS_RELAY_BIN points this suite at the Rust engine binary instead; the
+  # bash engine stays the default until R3d retires it. The same assertions
+  # against either engine is the R2d differential gate.
+  RELAY="${PNS_RELAY_BIN:-$REPO_ROOT/dot_local/libexec/pns/executable_relay.sh}"
   CHANNELS="$BATS_TEST_TMPDIR/channels"
   mkdir -p "$CHANNELS"
   # Stub channels record the event they were handed, then exit 0.

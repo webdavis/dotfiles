@@ -182,6 +182,24 @@ where
     }
 }
 
+/// Which plugins run, given what loading the config found. The composition
+/// policy in one place:
+///
+/// A LOADED config is authoritative. A MISSING config selects every built-in,
+/// so the cutover from the bash engine changes nothing until an operator
+/// opts in by writing one. A BROKEN config (unreadable, malformed, invalid,
+/// or naming an unknown plugin) is LOUD, the returned warning, but still
+/// selects every built-in: on an always-exit-0 notification path, a config
+/// error that silently turned every notification off would be the exact
+/// failure the config layer exists to refuse.
+pub fn select_plugins(
+    registry: &crate::registry::Registry,
+    loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
+) -> (Selection, Option<String>) {
+    let _ = (registry, loaded);
+    todo!("R2d: loaded is authoritative, missing is the roster, broken is loud plus the roster")
+}
+
 /// One leg's event, as the JSON object the channel contract specifies.
 /// The pane is the SANITIZED one: an unsafe id was already dropped.
 #[allow(clippy::too_many_arguments)]
@@ -573,6 +591,100 @@ mod tests {
         assert_eq!(parsed["pane"], "wW:p21");
         assert_eq!(parsed["mode"], "async");
         assert_eq!(parsed["title"], "claude done: dotfiles");
+    }
+
+    // --- plugin selection at the composition root ---------------------------
+
+    fn three_registry() -> Registry {
+        let mut registry = Registry::new();
+        registry
+            .register(
+                "moshi",
+                Routing {
+                    local: false,
+                    presence_gated: true,
+                    durable: false,
+                },
+            )
+            .unwrap();
+        registry
+            .register(
+                "hermes",
+                Routing {
+                    local: false,
+                    presence_gated: false,
+                    durable: true,
+                },
+            )
+            .unwrap();
+        registry
+            .register(
+                "macos-banner",
+                Routing {
+                    local: true,
+                    presence_gated: false,
+                    durable: false,
+                },
+            )
+            .unwrap();
+        registry
+    }
+
+    fn selection_names(selection: &Selection) -> Vec<&str> {
+        selection.iter().map(|r| r.name).collect()
+    }
+
+    #[test]
+    fn a_missing_config_selects_every_builtin_so_the_cutover_changes_nothing() {
+        use crate::config::LoadOutcome;
+        let (selection, warning) =
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Missing));
+        assert_eq!(
+            selection_names(&selection),
+            vec!["moshi", "hermes", "macos-banner"]
+        );
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn a_loaded_config_is_authoritative() {
+        use crate::config::LoadOutcome;
+        let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+        let (selection, warning) =
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)));
+        assert_eq!(selection_names(&selection), vec!["hermes"]);
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn a_broken_config_is_loud_but_never_turns_notifications_off() {
+        use crate::config::ConfigError;
+        let (selection, warning) = super::select_plugins(
+            &three_registry(),
+            Err(ConfigError::Malformed(
+                "key with no value at line 1".to_string(),
+            )),
+        );
+        assert_eq!(
+            selection_names(&selection),
+            vec!["moshi", "hermes", "macos-banner"]
+        );
+        let warning = warning.expect("a broken config must be said aloud");
+        assert!(warning.contains("key with no value"));
+    }
+
+    #[test]
+    fn a_config_naming_an_unknown_plugin_is_loud_and_falls_back_to_the_roster() {
+        use crate::config::LoadOutcome;
+        let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
+        let (selection, warning) =
+            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)));
+        assert_eq!(
+            selection_names(&selection),
+            vec!["moshi", "hermes", "macos-banner"]
+        );
+        let warning = warning.expect("the typo'd name must be said aloud");
+        assert!(warning.contains("mosih"));
     }
 
     // --- overrides parsing --------------------------------------------------

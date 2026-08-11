@@ -91,6 +91,14 @@ impl Registry {
         self.registrations.iter().map(|entry| entry.name).collect()
     }
 
+    /// Every registration, for the machine with NO config file: the built-in
+    /// roster is the default, so the cutover from the bash engine changes
+    /// nothing until an operator writes a config, and a config that EXISTS
+    /// is authoritative precisely because writing one is the opt-in.
+    pub fn all(&self) -> Selection {
+        todo!("R2d: the unconfigured-machine selection")
+    }
+
     /// The registrations the config enables, in REGISTRATION order whatever
     /// order the config listed them in. A config naming an unregistered
     /// plugin is refused; a registered plugin the config omits or disables
@@ -213,6 +221,13 @@ mod tests {
             three_plugin_registry().enabled(&config),
             Err(RegistryError::UnknownPlugin("mosih".to_string()))
         );
+    }
+
+    #[test]
+    fn all_selects_every_registration_for_the_unconfigured_machine() {
+        let selection = three_plugin_registry().all();
+        let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
+        assert_eq!(names, vec!["moshi", "hermes", "macos-banner"]);
     }
 
     #[test]
