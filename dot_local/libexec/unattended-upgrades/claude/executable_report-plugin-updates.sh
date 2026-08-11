@@ -65,11 +65,6 @@ SNAPSHOT_FILE="$STATE_DIR/installed-plugins.snapshot"
 LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
 LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
 
-# The relay script by ABSOLUTE path. A LaunchAgent's PATH carries no
-# ~/.local/bin, so a bare `relay.sh` would never be found under launchd and
-# every alert would vanish exactly when it mattered.
-RELAY="${REPORT_PLUGIN_UPDATES_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
-
 # jq by absolute path for the same reason, with the same env seam.
 JQ="${REPORT_PLUGIN_UPDATES_JQ:-/opt/homebrew/bin/jq}"
 [[ -x $JQ ]] || JQ="$(command -v jq 2>/dev/null || printf 'jq')"
@@ -116,6 +111,23 @@ else
     "$AGENT_NAME" "$UNATTENDED_LOG_LIB" >&2
 fi
 
+# The engine, resolved without depending on log-entries.sh: partial
+# deployment explicitly tolerates that helper being absent, and the engine
+# choice must survive it. The shared rule applies when the helper is there;
+# the bash engine is the terminal fallback either way.
+weekly_engine() {
+  if declare -F unattended_engine >/dev/null 2>&1; then
+    unattended_engine
+  else
+    printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
+  fi
+}
+
+# The engine by ABSOLUTE path, resolved AFTER the source above: a LaunchAgent's
+# PATH carries no ~/.local anything, and the resolution must not run before
+# the function it prefers can possibly exist.
+RELAY="${REPORT_PLUGIN_UPDATES_RELAY:-$(weekly_engine)}"
+
 # The entry's opening lines, from ONE clock reading captured at START-UP, before
 # this run can rewrite its own marker. Read later, the gap would be zero on every
 # successful run and the timestamp would sit hours from the gap printed under it.
@@ -155,7 +167,7 @@ mark_success_or_exit() {
 alert() {
   local state="$1" detail="$2"
   if [[ ! -x $RELAY ]]; then
-    printf '%s: relay.sh is not executable at %s; this alert was NOT delivered\n' \
+    printf '%s: no executable pns engine at %s; this alert was NOT delivered\n' \
       "$AGENT_NAME" "$RELAY" >&2
     return 0
   fi

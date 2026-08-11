@@ -100,7 +100,18 @@ read -r UPGRADE_RECORD_EPOCH UPGRADE_RECORD_ISO < <(date -u '+%s %Y-%m-%dT%H:%M:
 # /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin, with no
 # ~/.local/bin in it, so a bare `relay.sh` would never be found under launchd and
 # every alert would vanish exactly when it mattered.
-RELAY="${HOMEBREW_WEEKLY_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
+# The engine, resolved without depending on log-entries.sh: partial
+# deployment explicitly tolerates that helper being absent, and the engine
+# choice must survive it. The shared rule applies when the helper is there;
+# the bash engine is the terminal fallback either way.
+weekly_engine() {
+  if declare -F unattended_engine >/dev/null 2>&1; then
+    unattended_engine
+  else
+    printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
+  fi
+}
+RELAY="${HOMEBREW_WEEKLY_RELAY:-$(weekly_engine)}"
 
 # weekly_alert <state> <detail> -- the EXISTING relay route, so this lands in the
 # priority channel beside every other alert on this machine. Best effort: a
@@ -108,7 +119,7 @@ RELAY="${HOMEBREW_WEEKLY_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
 weekly_alert() {
   local state="$1" detail="$2"
   if [[ ! -x $RELAY ]]; then
-    printf 'homebrew-weekly-upgrade: relay.sh is not executable at %s; this alert was NOT delivered\n' "$RELAY" >&2
+    printf 'homebrew-weekly-upgrade: no executable pns engine at %s; this alert was NOT delivered\n' "$RELAY" >&2
     return 0
   fi
   "$RELAY" --agent homebrew-weekly-upgrade --state "$state" \

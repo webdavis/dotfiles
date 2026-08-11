@@ -463,11 +463,36 @@ unattended_log_change_section() {
 #
 # Never ABORTS the caller: a non-zero return is a fact to act on, and both
 # callers do, but neither treats it as fatal.
+# unattended_engine
+# WHICH ENGINE the weekly jobs post through. Every unattended job sources this
+# file, so the transitional preference lives here once rather than in each of
+# them: the Rust binary when an apply has installed it, the bash engine until
+# then. Degrades rather than aborting when the pns resolver is absent, because
+# a half-provisioned machine must still be able to post its record.
+#
+# When the retirement slice removes the bash engine this collapses to the
+# binary path and the resolver source goes with it.
+unattended_engine() {
+  local override="${UNATTENDED_LOG_RELAY:-}"
+  if [[ -n $override ]]; then
+    printf '%s' "$override"
+    return 0
+  fi
+  # shellcheck source=dot_local/libexec/pns/helpers/engine-path.sh
+  source "${PNS_HELPERS_DIR:-${HOME:-}/.local/libexec/pns/helpers}/engine-path.sh" 2>/dev/null || true
+  if declare -F pns_engine_path >/dev/null 2>&1; then
+    pns_engine_path
+    return 0
+  fi
+  printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
+}
+
 unattended_log_post() {
   local agent="$1" state="$2" project="$3" detail="$4" outcome
-  local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
+  local relay_script
+  relay_script="$(unattended_engine)"
   if [[ ! -x $relay_script ]]; then
-    printf 'unattended-log: relay.sh is not executable at %s; this entry was NOT delivered (run chezmoi apply)\n' "$relay_script"
+    printf 'unattended-log: no executable pns engine at %s; this entry was NOT delivered (run chezmoi apply)\n' "$relay_script"
     return 1
   fi
   # stdout captured (it is the outcome), stderr left alone so relay's own
@@ -504,9 +529,10 @@ unattended_log_post() {
 # observed -- so it covers exactly what is knowable, that an attempt was made.
 unattended_log_alert_delivery_failure() {
   local guard="$1" agent="$2"
-  local relay_script="${UNATTENDED_LOG_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
+  local relay_script
+  relay_script="$(unattended_engine)"
   if [[ ! -x $relay_script ]]; then
-    printf 'unattended-log: relay.sh is not executable at %s; the broken-record-channel alert was NOT delivered either, and this week stays unclaimed so a later run retries it\n' "$relay_script"
+    printf 'unattended-log: no executable pns engine at %s; the broken-record-channel alert was NOT delivered either, and this week stays unclaimed so a later run retries it\n' "$relay_script"
     return 0
   fi
   unattended_log_claim_week "$guard" delivery-alert || return 0
