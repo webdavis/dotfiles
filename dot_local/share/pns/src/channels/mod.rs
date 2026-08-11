@@ -36,6 +36,5 @@ pub trait Channel {
 /// True when native plugins take precedence for dispatch: only when the
 /// channels directory was NOT explicitly overridden.
 pub fn native_first(channels_dir_overridden: bool) -> bool {
-    let _ = channels_dir_overridden;
-    todo!("R2e: an explicit channels dir means executables win")
+    !channels_dir_overridden
 }

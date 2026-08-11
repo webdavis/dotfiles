@@ -23,7 +23,7 @@ use crate::routing::Leg;
 
 /// The idle threshold the bash defaults to when `RELAY_DESK_IDLE_SECS` says
 /// nothing: past this the operator counts as away from the desk.
-const DEFAULT_DESK_IDLE_SECS: u64 = 120;
+pub const DEFAULT_DESK_IDLE_SECS: u64 = 120;
 
 /// Everything the environment may override, parsed once at the edge.
 /// Garbage numeric values read as absent, never as zero.

@@ -18,6 +18,10 @@ use crate::system::CommandRunner;
 /// The bundle id the click activates when the pane's terminal is unknown.
 pub const DEFAULT_TERMINAL_BUNDLE_ID: &str = "com.mitchellh.ghostty";
 
+/// Absolute, like the other system readers: a channel must not resolve a
+/// system binary through a PATH it does not control.
+const LSAPPINFO_PATH: &str = "/usr/bin/lsappinfo";
+
 /// True when the operator is demonstrably watching this pane RIGHT NOW, the
 /// one case the banner may be dropped. Pure: every reading arrives as an
 /// argument, every unknown is an `Option::None` or empty string, and any
@@ -30,15 +34,16 @@ pub fn operator_is_watching(
     focused_pane: Option<&str>,
     pane: &str,
 ) -> bool {
-    let _ = (
-        idle_secs,
-        desk_idle_secs,
-        terminal_id,
-        front_bundle_id,
-        focused_pane,
-        pane,
-    );
-    todo!("R2e: all three must hold; any unknown fires the banner")
+    if pane.is_empty() {
+        return false;
+    }
+    let (Some(idle_secs), Some(desk_idle_secs)) = (idle_secs, desk_idle_secs) else {
+        return false;
+    };
+    idle_secs < desk_idle_secs
+        && !terminal_id.is_empty()
+        && front_bundle_id == Some(terminal_id)
+        && focused_pane == Some(pane)
 }
 
 /// The shell string the click runs: focus the pane's WORKSPACE (the pane id
@@ -46,23 +51,47 @@ pub fn operator_is_watching(
 /// herdr path because the click runs in a bare launchd context. No pane or
 /// no herdr leaves the no-op `:` so `-activate` still raises the terminal.
 pub fn click_command(herdr_path: Option<&str>, pane: &str) -> String {
-    let _ = (herdr_path, pane);
-    todo!("R2e: workspace focus then agent focus, or the no-op")
+    match herdr_path {
+        Some(herdr) if !pane.is_empty() => {
+            let workspace = pane.split(':').next().unwrap_or(pane);
+            format!("{herdr} workspace focus {workspace}; {herdr} agent focus {pane}")
+        }
+        _ => ":".to_string(),
+    }
 }
 
 /// The frontmost app's bundle id, parsed out of `lsappinfo info -only
 /// bundleid` output: the value of the quoted CFBundleIdentifier pair, from
 /// the first line carrying one. Anything else is unknown.
 pub fn parse_front_bundle_id(lsappinfo_output: &str) -> Option<String> {
-    let _ = lsappinfo_output;
-    todo!("R2e: the quoted CFBundleIdentifier value")
+    let line = lsappinfo_output
+        .lines()
+        .find(|line| line.contains("CFBundleIdentifier"))?;
+    // The pair AFTER the key, so a line carrying an earlier `=` cannot
+    // mislead the split, matching the sed this ports.
+    let value = line.split_once("CFBundleIdentifier")?.1.split_once('=')?.1;
+    let value = value.trim_start().strip_prefix('"')?;
+    Some(value[..value.find('"')?].to_string())
 }
 
 /// The exact terminal-notifier argv, order pinned: title, message, sound,
 /// activate, execute.
 pub fn notifier_args(title: &str, preview: &str, activate: &str, exec_cmd: &str) -> Vec<String> {
-    let _ = (title, preview, activate, exec_cmd);
-    todo!("R2e: the five flag pairs in the bash order")
+    [
+        "-title",
+        title,
+        "-message",
+        preview,
+        "-sound",
+        "default",
+        "-activate",
+        activate,
+        "-execute",
+        exec_cmd,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
 }
 
 /// The native banner plugin. The runner spawns `lsappinfo` and
@@ -80,9 +109,49 @@ pub struct BannerChannel<R: CommandRunner, P> {
 }
 
 impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> Channel for BannerChannel<R, P> {
-    fn deliver(&self, event: &Event, mode: Mode) {
-        let _ = (event, mode);
-        todo!("R2e: suppress only when watching, else spawn the notifier")
+    fn deliver(&self, event: &Event, _mode: Mode) {
+        // Two steps, as the bash runs them: the frontmost app's ASN, then its
+        // bundle id. Either step unreadable leaves the id unknown, which fires.
+        let front_bundle_id = self
+            .runner
+            .run(LSAPPINFO_PATH, &["front"])
+            .map(|asn| asn.trim().to_string())
+            .filter(|asn| !asn.is_empty())
+            .and_then(|asn| {
+                self.runner
+                    .run(LSAPPINFO_PATH, &["info", "-only", "bundleid", &asn])
+            })
+            .and_then(|output| parse_front_bundle_id(&output));
+        let focused_pane = self.probes.focused_pane();
+
+        if operator_is_watching(
+            self.probes.idle_secs(),
+            self.desk_idle_secs,
+            &self.terminal_id,
+            front_bundle_id.as_deref(),
+            focused_pane.as_deref(),
+            &event.pane,
+        ) {
+            return;
+        }
+
+        let activate = if self.terminal_id.is_empty() {
+            DEFAULT_TERMINAL_BUNDLE_ID
+        } else {
+            &self.terminal_id
+        };
+        let args = notifier_args(
+            &event.title,
+            &event.preview,
+            activate,
+            &click_command(self.herdr_path.as_deref(), &event.pane),
+        );
+        // By NAME, not an absolute path: parity with the bash's `command -v`
+        // guard, and a runner that cannot find it is silently fine.
+        self.runner.run(
+            "terminal-notifier",
+            &args.iter().map(String::as_str).collect::<Vec<_>>(),
+        );
     }
 }
 
