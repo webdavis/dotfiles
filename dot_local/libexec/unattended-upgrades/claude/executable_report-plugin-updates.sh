@@ -68,7 +68,7 @@ LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
 # The relay script by ABSOLUTE path. A LaunchAgent's PATH carries no
 # ~/.local/bin, so a bare `relay.sh` would never be found under launchd and
 # every alert would vanish exactly when it mattered.
-RELAY="${REPORT_PLUGIN_UPDATES_RELAY:-$HOME/.local/libexec/pns/relay.sh}"
+RELAY="${REPORT_PLUGIN_UPDATES_RELAY:-$(UNATTENDED_LOG_RELAY="" unattended_engine)}"
 
 # jq by absolute path for the same reason, with the same env seam.
 JQ="${REPORT_PLUGIN_UPDATES_JQ:-/opt/homebrew/bin/jq}"
@@ -155,7 +155,7 @@ mark_success_or_exit() {
 alert() {
   local state="$1" detail="$2"
   if [[ ! -x $RELAY ]]; then
-    printf '%s: relay.sh is not executable at %s; this alert was NOT delivered\n' \
+    printf '%s: no executable pns engine at %s; this alert was NOT delivered\n' \
       "$AGENT_NAME" "$RELAY" >&2
     return 0
   fi
