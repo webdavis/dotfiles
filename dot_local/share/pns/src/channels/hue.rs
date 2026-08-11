@@ -98,16 +98,22 @@ fn room_rids(rooms_json: &str, wanted: &[String], array_key: &str, rtype: &str) 
         .collect()
 }
 
-/// The grouped_light service ids of the wanted rooms, in wanted order; a
-/// configured room the bridge no longer knows is skipped, never fatal.
-pub fn grouped_light_ids(rooms_json: &str, wanted: &[String]) -> Vec<String> {
-    room_rids(rooms_json, wanted, "services", "grouped_light")
+/// One pulse-able room: its grouped_light and the snapshots of ITS lights,
+/// paired, because pulsing a room whose lights cannot be restored leaves
+/// them stuck in the transient color. A room missing either half is
+/// excluded whole.
+#[derive(Debug, PartialEq)]
+pub struct PulseRoom {
+    pub grouped_id: String,
+    pub lights: Vec<LightState>,
 }
 
-/// The device ids belonging to the wanted rooms: what maps a light back to
-/// its room, because lights name their owning device, not their room.
-pub fn room_device_ids(rooms_json: &str, wanted: &[String]) -> Vec<String> {
-    room_rids(rooms_json, wanted, "children", "device")
+/// The wanted rooms as pulse units, in wanted order: a renamed room, a room
+/// without a grouped_light, and a room contributing no restorable light are
+/// each skipped, never fatal and never pulsed.
+pub fn pulse_rooms(rooms_json: &str, lights_json: &str, wanted: &[String]) -> Vec<PulseRoom> {
+    let _ = (rooms_json, lights_json, wanted);
+    todo!("R2h fix round: pair each room's group with its own lights")
 }
 
 /// One light's snapshot, mirroring the bash TSV: mode is `ct` when the
@@ -208,6 +214,33 @@ pub fn restore_body(state: &LightState) -> String {
     body.to_string()
 }
 
+/// The restore ramp the R1 pulse module pinned for both restore arms, in
+/// milliseconds for the CLIP body.
+pub const RESTORE_TRANSITION_MS: u64 = 500;
+
+/// Whether one CLIP write actually applied: status success is not enough,
+/// because the bridge answers 200 with a NONEMPTY errors array for
+/// application failures, and the first-PUT bail must see those too.
+pub fn put_succeeded(status_ok: bool, body: &str) -> bool {
+    let _ = (status_ok, body);
+    todo!("R2h fix round: 2xx and an empty or absent errors array")
+}
+
+/// The hue settings table, only when the plugin is ENABLED: the file
+/// selects, and a disabled table must silence the pulse mode.
+pub fn hue_enabled(config: &crate::config::Config) -> Option<&toml::Table> {
+    let _ = config;
+    todo!("R2h fix round: the settings of an enabled hue table, else None")
+}
+
+/// The single-pulse lock, on the SAME path the bash channel locks so the
+/// two cannot interleave during the repoint window. None while another
+/// pulse holds it; the kernel releases it on any exit.
+pub fn acquire_pulse_lock(state_dir: &std::path::Path) -> Option<std::fs::File> {
+    let _ = state_dir;
+    todo!("R2h fix round: hue-pulse.lockf under the state dir, try_lock")
+}
+
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
 pub trait Bridge {
     fn get(&self, path: &str) -> Option<String>;
@@ -231,42 +264,47 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
         let Some(rooms_json) = self.bridge.get("room") else {
             return;
         };
-        let grouped = grouped_light_ids(&rooms_json, &self.rooms);
-        if grouped.is_empty() {
-            return;
-        }
         let Some(lights_json) = self.bridge.get("light") else {
             return;
         };
-        let snapshot = light_snapshot(&lights_json, &room_device_ids(&rooms_json, &self.rooms));
-        if snapshot.is_empty() {
+        let rooms = pulse_rooms(&rooms_json, &lights_json, &self.rooms);
+        if rooms.is_empty() {
             return;
         }
 
-        // Two heartbeat cycles ENDING LOW, so the restore is a gentle step up
-        // rather than a drop from peak.
         let color = crate::pulse::pulse_color(exit_code);
-        let peak = color.peak_brightness.to_string();
-        for (step, brightness) in [peak.as_str(), "20", peak.as_str(), "20"]
-            .into_iter()
-            .enumerate()
-        {
-            let body = pulse_body(color.x, color.y, brightness);
-            for (room, id) in grouped.iter().enumerate() {
-                let reached = self.bridge.put(&format!("grouped_light/{id}"), &body);
-                // The very first PUT gates everything: a bridge unreachable
-                // here leaves the lights untouched, so writing a restore over
-                // state we never actually changed would be the real damage.
-                if !reached && step == 0 && room == 0 {
+        let (x, y, peak) = (color.x, color.y, color.peak_brightness);
+        let steps = [
+            peak.to_string(),
+            "20".to_string(),
+            peak.to_string(),
+            "20".to_string(),
+        ];
+        let mut first = true;
+        for brightness in steps {
+            for room in &rooms {
+                let applied = self.bridge.put(
+                    &format!("grouped_light/{}", room.grouped_id),
+                    &pulse_body(x, y, &brightness),
+                );
+                // The FIRST write gates the whole pulse: an unreachable or
+                // refusing bridge must not leave restores written over state
+                // this run never successfully changed.
+                if first && !applied {
                     return;
                 }
+                first = false;
             }
             self.sleeper.sleep(PULSE_TRANSITION);
         }
 
-        for state in &snapshot {
-            self.bridge
-                .put(&format!("light/{}", state.id), &restore_body(state));
+        // Every light is restored independently: one failing write must not
+        // starve the lights behind it in the transient color.
+        for room in &rooms {
+            for light in &room.lights {
+                self.bridge
+                    .put(&format!("light/{}", light.id), &restore_body(light));
+            }
         }
     }
 }
@@ -274,8 +312,9 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, HuePulse, LightState, Sleeper, grouped_light_ids, hue_settings,
-        light_snapshot, pulse_body, restore_body, room_device_ids,
+        Bridge, DEFAULT_ROOMS, HuePulse, LightState, RESTORE_TRANSITION_MS, Sleeper,
+        acquire_pulse_lock, hue_enabled, hue_settings, light_snapshot, pulse_body, pulse_rooms,
+        put_succeeded, restore_body,
     };
     use std::cell::RefCell;
     use std::time::Duration;
@@ -361,24 +400,140 @@ mod tests {
     // --- the CLIP parsers ---------------------------------------------------
 
     #[test]
-    fn each_wanted_room_yields_its_grouped_light_and_a_renamed_room_is_skipped() {
-        assert_eq!(
-            grouped_light_ids(
-                ROOMS_JSON,
-                &wanted(&["3F - Studio", "Gone Room", "2F - Kitchen"])
-            ),
-            vec!["grp-1", "grp-2"]
+    fn each_wanted_room_pairs_its_group_with_its_own_lights_in_wanted_order() {
+        let rooms = pulse_rooms(
+            ROOMS_JSON,
+            LIGHTS_JSON,
+            &wanted(&["2F - Kitchen", "3F - Studio"]),
         );
-        assert!(grouped_light_ids(ROOMS_JSON, &wanted(&["Gone Room"])).is_empty());
-        assert!(grouped_light_ids("not json", &wanted(&["3F - Studio"])).is_empty());
+        assert_eq!(rooms.len(), 2);
+        assert_eq!(rooms[0].grouped_id, "grp-2");
+        assert_eq!(
+            rooms[0]
+                .lights
+                .iter()
+                .map(|l| l.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["light-off"]
+        );
+        assert_eq!(rooms[1].grouped_id, "grp-1");
+        assert_eq!(
+            rooms[1]
+                .lights
+                .iter()
+                .map(|l| l.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["light-ct", "light-xy"]
+        );
     }
 
     #[test]
-    fn the_wanted_rooms_devices_are_collected_for_the_light_mapping() {
+    fn a_room_whose_lights_cannot_be_restored_is_never_pulsed() {
+        // Pulsing a room whose lights are not in the snapshot would leave
+        // them stuck in the transient color forever.
+        const NO_LIGHTS: &str = r#"{"data":[
+          {"id":"room-1","type":"room","metadata":{"name":"Empty Room"},
+           "children":[],"services":[{"rid":"grp-1","rtype":"grouped_light"}]}
+        ]}"#;
+        assert!(pulse_rooms(NO_LIGHTS, LIGHTS_JSON, &wanted(&["Empty Room"])).is_empty());
+    }
+
+    #[test]
+    fn a_room_without_a_grouped_light_is_skipped_whole() {
+        const NO_GROUP: &str = r#"{"data":[
+          {"id":"room-1","type":"room","metadata":{"name":"Groupless"},
+           "children":[{"rid":"dev-a","rtype":"device"}],"services":[]}
+        ]}"#;
+        assert!(pulse_rooms(NO_GROUP, LIGHTS_JSON, &wanted(&["Groupless"])).is_empty());
+    }
+
+    #[test]
+    fn a_renamed_room_is_skipped_and_unparseable_json_is_empty() {
+        assert!(pulse_rooms(ROOMS_JSON, LIGHTS_JSON, &wanted(&["Gone Room"])).is_empty());
+        assert!(pulse_rooms("not json", LIGHTS_JSON, &wanted(&["3F - Studio"])).is_empty());
+    }
+
+    #[test]
+    fn a_light_missing_a_reading_the_restore_needs_is_skipped_never_invented() {
+        // Inventing off for a missing on, or zero for a missing coordinate,
+        // would corrupt a light this pulse never correctly touched.
+        const PARTIAL: &str = r#"{"data":[
+          {"id":"no-on","type":"light","owner":{"rid":"dev-a","rtype":"device"},
+           "dimming":{"brightness":50},"color_temperature":{"mirek":300,"mirek_valid":true}},
+          {"id":"no-xy","type":"light","owner":{"rid":"dev-a","rtype":"device"},
+           "on":{"on":true},"dimming":{"brightness":50},
+           "color_temperature":{"mirek_valid":false},"color":{}},
+          {"id":"no-mirek","type":"light","owner":{"rid":"dev-a","rtype":"device"},
+           "on":{"on":true},"dimming":{"brightness":50},
+           "color_temperature":{"mirek_valid":true}},
+          {"id":"whole","type":"light","owner":{"rid":"dev-a","rtype":"device"},
+           "on":{"on":true},"color_temperature":{"mirek":300,"mirek_valid":true},
+           "color":{"xy":{"x":0.3,"y":0.3}}}
+        ]}"#;
+        let snapshot = light_snapshot(PARTIAL, &wanted(&["dev-a"]));
         assert_eq!(
-            room_device_ids(ROOMS_JSON, &wanted(&["3F - Studio"])),
-            vec!["dev-a", "dev-b"]
+            snapshot.iter().map(|l| l.id.as_str()).collect::<Vec<_>>(),
+            vec!["whole"],
+            "only the light with every reading the restore needs"
         );
+        assert_eq!(
+            snapshot[0].brightness, 100.0,
+            "absent dimming keeps the bash default"
+        );
+    }
+
+    #[test]
+    fn a_two_hundred_carrying_errors_is_not_an_applied_write() {
+        // The bridge answers 200 with a nonempty errors array for
+        // application failures; the first-PUT bail must see those.
+        assert!(put_succeeded(true, r#"{"errors":[],"data":[{"rid":"x"}]}"#));
+        assert!(put_succeeded(true, r#"{"data":[]}"#));
+        assert!(!put_succeeded(
+            true,
+            r#"{"errors":[{"description":"device is not responding"}],"data":[]}"#
+        ));
+        assert!(!put_succeeded(false, r#"{"errors":[]}"#));
+    }
+
+    #[test]
+    fn a_disabled_hue_table_silences_the_pulse_and_an_enabled_one_yields_its_settings() {
+        use crate::config::parse_config;
+        let disabled = parse_config("[plugins.hue]\nenabled = false\nbridge = \"b\"\n").unwrap();
+        assert!(hue_enabled(&disabled).is_none());
+        assert!(hue_enabled(&parse_config("").unwrap()).is_none());
+        let enabled = parse_config("[plugins.hue]\nenabled = true\nbridge = \"b\"\n").unwrap();
+        assert_eq!(
+            hue_enabled(&enabled).and_then(|table| table.get("bridge")),
+            Some(&toml::Value::String("b".to_string()))
+        );
+    }
+
+    #[test]
+    fn a_second_pulse_is_skipped_while_the_first_holds_the_lock() {
+        let dir = std::env::temp_dir().join(format!("pns-hue-lock-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let held = acquire_pulse_lock(&dir).expect("the first pulse takes the lock");
+        assert!(
+            acquire_pulse_lock(&dir).is_none(),
+            "a concurrent pulse is skipped, never interleaved"
+        );
+        drop(held);
+        assert!(
+            acquire_pulse_lock(&dir).is_some(),
+            "the lock is released with the holder"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_lock_path_is_the_one_the_bash_channel_takes() {
+        // Different paths would let the native and bash pulses interleave
+        // during the repoint window.
+        let dir = std::env::temp_dir().join(format!("pns-hue-lockpath-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let _held = acquire_pulse_lock(&dir);
+        assert!(dir.join("hue-pulse.lockf").exists());
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -435,6 +590,34 @@ mod tests {
     }
 
     #[test]
+    fn every_restore_carries_the_ramp_the_pulse_module_pinned() {
+        for state in [
+            LightState {
+                id: "l".to_string(),
+                on: false,
+                brightness: 50.0,
+                mode: "ct".to_string(),
+                v1: "300".to_string(),
+                v2: String::new(),
+            },
+            LightState {
+                id: "l".to_string(),
+                on: true,
+                brightness: 50.0,
+                mode: "ct".to_string(),
+                v1: "300".to_string(),
+                v2: String::new(),
+            },
+        ] {
+            let parsed: serde_json::Value = serde_json::from_str(&restore_body(&state)).unwrap();
+            assert_eq!(
+                parsed["dynamics"]["duration"], RESTORE_TRANSITION_MS,
+                "both restore arms ramp, as the R1 decision spells"
+            );
+        }
+    }
+
+    #[test]
     fn a_ct_light_restores_its_mirek_and_an_xy_light_both_coordinates() {
         let ct: serde_json::Value = serde_json::from_str(&restore_body(&LightState {
             id: "l".to_string(),
@@ -467,6 +650,8 @@ mod tests {
         rooms: &'static str,
         lights: &'static str,
         first_put_fails: bool,
+        /// A path substring whose PUT fails, for the restore-independence pin.
+        fail_put_containing: Option<&'static str>,
         gets: RefCell<Vec<String>>,
         puts: RefCell<Vec<(String, String)>>,
     }
@@ -504,6 +689,7 @@ mod tests {
                 rooms: ROOMS_JSON,
                 lights: LIGHTS_JSON,
                 first_put_fails,
+                fail_put_containing: None,
                 gets: RefCell::new(Vec::new()),
                 puts: RefCell::new(Vec::new()),
             },
@@ -570,12 +756,45 @@ mod tests {
     }
 
     #[test]
+    fn one_failing_restore_never_starves_the_lights_behind_it() {
+        // A flaky write would otherwise leave every later light stuck in the
+        // transient pulse color at 20 percent.
+        let hue = HuePulse {
+            bridge: ScriptedBridge {
+                rooms: ROOMS_JSON,
+                lights: LIGHTS_JSON,
+                first_put_fails: false,
+                fail_put_containing: Some("light/light-ct"),
+                gets: RefCell::new(Vec::new()),
+                puts: RefCell::new(Vec::new()),
+            },
+            sleeper: CountingSleeper {
+                naps: RefCell::new(Vec::new()),
+            },
+            rooms: wanted(&["3F - Studio", "2F - Kitchen"]),
+        };
+        hue.run("0");
+        let puts = hue.bridge.puts.borrow();
+        let restored: Vec<&str> = puts
+            .iter()
+            .filter(|(path, _)| path.starts_with("light/"))
+            .map(|(path, _)| path.as_str())
+            .collect();
+        assert_eq!(
+            restored,
+            vec!["light/light-ct", "light/light-xy", "light/light-off"],
+            "every light is attempted, whatever one write did"
+        );
+    }
+
+    #[test]
     fn no_matching_rooms_or_no_lights_is_a_silent_no_op() {
         let hue = HuePulse {
             bridge: ScriptedBridge {
                 rooms: r#"{"data":[]}"#,
                 lights: r#"{"data":[]}"#,
                 first_put_fails: false,
+                fail_put_containing: None,
                 gets: RefCell::new(Vec::new()),
                 puts: RefCell::new(Vec::new()),
             },
