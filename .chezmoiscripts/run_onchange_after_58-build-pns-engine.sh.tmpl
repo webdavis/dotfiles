@@ -1,0 +1,88 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Builds the pns engine binary and installs it beside the channels it will
+# replace. The crate deploys as SOURCE under ~/.local/share/pns; nothing else
+# compiles it, so without this script every producer repointed at the binary
+# would find nothing there.
+#
+# Re-runs whenever any build input changes: every crate source file, the
+# manifest and the lock are hashed below, globbed rather than listed so a new
+# module cannot silently miss the trigger.
+{{ $crate := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
+{{ range (glob (joinPath $crate "**/*.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- range (glob (joinPath $crate "build.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+#   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
+#   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
+#
+# Retry state, the same mechanism the herdr plugin build uses: chezmoi records a
+# run_onchange script as done on ANY exit 0, so a skipped build (no toolchain)
+# must change this rendered script to re-fire on the next apply.
+#
+# The marker's MODIFICATION TIME is the trigger, never its contents: reading a
+# file at render time means an unreadable node aborts the apply and a FIFO at
+# that path hangs it forever, before any of this script's own recovery can
+# run. Each bump rewrites the marker, which moves the timestamp, which changes
+# this line.
+#   retry-marker: {{ $rm := printf "%s/.cache/pns-build/engine.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+crate_dir="$HOME/.local/share/pns"
+# Beside the channels, not in bin: the operator never types this, launchd and
+# the shell notifier do.
+install_dir="$HOME/.local/libexec/pns"
+retry_marker="$HOME/.cache/pns-build/engine.retry"
+
+# Deterministic path, never a PATH probe: a fresh machine provisions rustup
+# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
+cargo_bin="$HOME/.cargo/bin/cargo"
+
+bump_retry_marker() {
+  local count=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if [[ -f $retry_marker ]]; then
+    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+  fi
+  printf '%d\n' "$((count + 1))" >"$retry_marker"
+}
+
+if [[ ! -x $cargo_bin ]]; then
+  report_line 'pns: cargo not found at ~/.cargo/bin/cargo; engine build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+if [[ ! -f "$crate_dir/Cargo.toml" ]]; then
+  report_line 'pns: crate source is not deployed yet; engine build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+report_section 'pns engine'
+report_line 'building the release binary'
+# A build failure exits non-zero, which chezmoi does not record, so it retries
+# on its own without touching the marker.
+# --locked: build exactly the committed lock. Without it cargo may rewrite
+# the deployed lockfile and pull dependencies the lock never recorded.
+"$cargo_bin" build --release --locked --quiet --manifest-path "$crate_dir/Cargo.toml"
+
+mkdir -p "$install_dir"
+# install(1) replaces the target through a temporary file and a rename
+# ("Temporary files are no longer optional", install(1) under -S), so a
+# producer firing mid-apply runs either the old binary or the new one and
+# never a half-written file. cp would write in place. No test separates the
+# two: macOS permits overwriting a running binary, so the race is not
+# reproducible in a unit test, and the man page is the evidence.
+/usr/bin/install -m 755 "$crate_dir/target/release/pns" "$install_dir/pns"
+report_line "installed $install_dir/pns"
+
+rm -f "$retry_marker"
+{{ end -}}
