@@ -186,7 +186,7 @@ fn main() {
     };
 
     let moshi = MoshiChannel {
-        http: UreqPost,
+        http: UreqPost::default(),
         auth_path: resolve_path(
             std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
             &format!("{home}/.config/relay/auth.json"),

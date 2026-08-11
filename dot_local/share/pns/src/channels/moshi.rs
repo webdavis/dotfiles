@@ -68,7 +68,19 @@ impl<H: HttpPost> Channel for MoshiChannel<H> {
 /// The production POST: one agent, one deadline, no retry. Every failure is
 /// `false` and nothing is logged, because the only thing worth reporting
 /// would be the request that carries the token.
-pub struct UreqPost;
+pub struct UreqPost {
+    /// The whole-request deadline. Production uses the default; tests hand
+    /// in a short one to prove the deadline actually fires.
+    pub timeout: std::time::Duration,
+}
+
+impl Default for UreqPost {
+    fn default() -> Self {
+        Self {
+            timeout: std::time::Duration::from_secs(10),
+        }
+    }
+}
 
 impl HttpPost for UreqPost {
     fn post_json(&self, url: &str, body: &str) -> bool {
@@ -116,7 +128,7 @@ mod tests {
                     posts: RefCell::new(Vec::new()),
                 },
                 auth_path: path.clone(),
-                url: DEFAULT_MOSHI_URL.to_string(),
+                url: "https://example.invalid/hook".to_string(),
             },
             path,
         )
@@ -183,7 +195,10 @@ mod tests {
         std::fs::remove_file(&path).ok();
         let posts = channel.http.posts.borrow();
         assert_eq!(posts.len(), 1);
-        assert_eq!(posts[0].0, DEFAULT_MOSHI_URL);
+        assert_eq!(
+            posts[0].0, "https://example.invalid/hook",
+            "the configured url is the one posted to, never the constant"
+        );
         assert!(posts[0].1.contains("a preview"));
         assert!(
             !posts[0].1.contains("longer than the preview"),
@@ -202,5 +217,81 @@ mod tests {
         };
         channel.deliver(&event(), Mode::Async);
         assert!(channel.http.posts.borrow().is_empty());
+    }
+
+    // --- the production post, against real sockets ---------------------------
+
+    use super::UreqPost;
+    use std::time::Duration;
+
+    #[test]
+    fn the_deadline_fires_instead_of_parking_the_notification_path() {
+        // A bound socket that never accepts: the connection black-holes, and
+        // the deadline is what keeps the hermes and banner legs from queuing
+        // behind a dead network for minutes.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/hook", listener.local_addr().unwrap());
+        let post = UreqPost {
+            timeout: Duration::from_millis(100),
+        };
+        let started = std::time::Instant::now();
+        assert!(!post.post_json(&url, "{}"), "a dead endpoint is a false");
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "the deadline fired, not the OS timeout"
+        );
+    }
+
+    #[test]
+    fn a_closed_port_is_a_quiet_false_never_a_report() {
+        // The only thing worth reporting would be the request that carries
+        // the token, so failure returns false and says nothing. The stderr
+        // half is held by the integration gate, which runs this same path
+        // against a closed port and asserts empty output.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/hook", listener.local_addr().unwrap());
+        drop(listener);
+        assert!(!UreqPost::default().post_json(&url, "{}"));
+    }
+
+    #[test]
+    fn a_redirecting_endpoint_is_never_followed() {
+        // The bash curl carried no -L: a compromised endpoint must not turn
+        // the channel into a blind request against a target it names. The
+        // decoy listener proves no second request happens.
+        use std::io::{Read, Write};
+        let decoy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let decoy_addr = decoy.local_addr().unwrap();
+        let hit = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let decoy_hit = hit.clone();
+        decoy.set_nonblocking(true).unwrap();
+
+        let redirector = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/hook", redirector.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = redirector.accept() {
+                let mut request = [0u8; 1024];
+                let _ = stream.read(&mut request);
+                let _ = stream.write_all(
+                    format!(
+                        "HTTP/1.1 302 Found\r\nLocation: http://{decoy_addr}/\r\nContent-Length: 0\r\n\r\n"
+                    )
+                    .as_bytes(),
+                );
+            }
+        });
+        let post = UreqPost {
+            timeout: Duration::from_secs(2),
+        };
+        post.post_json(&url, "{}");
+        server.join().unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        if decoy.accept().is_ok() {
+            decoy_hit.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        assert!(
+            !hit.load(std::sync::atomic::Ordering::SeqCst),
+            "the redirect target must never be contacted"
+        );
     }
 }

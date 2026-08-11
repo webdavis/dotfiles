@@ -1,9 +1,9 @@
 # pns: the decision core, its edges, and the engine binary.
 #
-# TWO DEPENDENCIES, each taken where a format demands it: the config edge
-# parses TOML and the event contract is JSON. The decision core and the
-# probe edge run on std alone, and that split is the property to keep: a
-# new dependency needs a layer whose format genuinely requires one.
+# Every dependency is taken where a format demands it and nowhere else:
+# TOML for the config edge, JSON for the event contract, TLS for the phone
+# webhook. The decision core and the probe edge run on std alone, and that
+# split is the property to keep.
 
 [package]
 name = "pns"
@@ -20,4 +20,4 @@ toml = { version = "1.1.4", default-features = false, features = [
   "serde",
   "std",
 ] }
-ureq = "3.4.0"
+ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
