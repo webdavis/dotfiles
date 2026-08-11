@@ -326,10 +326,8 @@ if [[ $- == *i* ]]; then
 
   {{ if eq .chezmoi.os "darwin" -}}
   # Brew shellenv cache self-heal. THIS IS THE ONLY AUTOMATIC WRITER of the cache
-  # sourced above: `chezmoi apply --exclude=templates` (what `just a` runs, and
-  # what CLAUDE.md requires of automation) does not run templated scripts, so the
-  # apply-time regen script only ever fired on a rare full interactive apply and
-  # was deleted. Two named predicates below answer the two separate questions:
+  # sourced above: the apply-time regen script fired only on a full interactive
+  # apply and was deleted, so nothing else writes the cache. Two named predicates below answer the two separate questions:
   # does anything need repairing, and are we allowed to try again yet.
   #
   # WHAT COUNTS AS NEEDING REPAIR (__brew_shellenv_cache_needs_repair):
