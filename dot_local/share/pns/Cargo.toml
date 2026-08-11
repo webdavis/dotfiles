@@ -1,10 +1,9 @@
-# The pns decision core plus its probe edge. Library only: the engine binary
-# and dispatch arrive with later slices.
+# pns: the decision core, its edges, and the engine binary.
 #
-# ONE DEPENDENCY, taken where the format demands it: the config edge parses
-# TOML through the standard crate. The decision core and the probe edge run
-# on std alone, and that split is a property to keep: a new dependency needs
-# a layer whose format genuinely requires one.
+# TWO DEPENDENCIES, each taken where a format demands it: the config edge
+# parses TOML and the event contract is JSON. The decision core and the
+# probe edge run on std alone, and that split is the property to keep: a
+# new dependency needs a layer whose format genuinely requires one.
 
 [package]
 name = "pns"

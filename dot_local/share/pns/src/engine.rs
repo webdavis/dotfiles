@@ -225,6 +225,15 @@ fn roster_warning(detail: &str) -> String {
     format!("pns: config error ({detail}); running every built-in plugin")
 }
 
+/// A path from the environment, defaulting like bash's `${VAR:-default}`:
+/// EMPTY means the default as much as unset does, because joining a filename
+/// to an empty path resolves into the current directory and quietly delivers
+/// nothing.
+pub fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
+    let _ = (candidate, default);
+    todo!("R2d fix round: empty and unset both mean the default")
+}
+
 /// One leg's event, as the JSON object the channel contract specifies.
 /// The pane is the SANITIZED one: an unsafe id was already dropped.
 #[allow(clippy::too_many_arguments)]
@@ -443,6 +452,8 @@ mod tests {
             Some(1_000_000),
         );
         assert_eq!(names(&decision), vec!["moshi", "hermes", "macos-banner"]);
+        // The marker alone decided; the one-second sample must not also run.
+        assert_eq!(probes.sample_reads.get(), 0);
     }
 
     #[test]
@@ -715,16 +726,109 @@ mod tests {
     // --- overrides parsing --------------------------------------------------
 
     #[test]
-    fn a_garbage_numeric_override_reads_as_absent_never_zero() {
-        // Zero idle reads as "actively typing" and suppresses the push; a
-        // garbled value must instead leave the probe to answer.
+    fn a_garbage_idle_override_is_unknown_without_a_probe_read() {
+        // Bash keeps a non-empty override and never runs the probe; the
+        // garbled value then fails open in wants_phone. Falling back to the
+        // probe would both pay the read and let a live reading suppress the
+        // push the unknown should have sent.
+        let vars = BTreeMap::from([("RELAY_IDLE_SECS".to_string(), "not-a-number".to_string())]);
+        let overrides = Overrides::from_env(&vars);
+        let probes = CountingProbes {
+            idle: Some(5),
+            ..CountingProbes::default()
+        };
+        let decision = decide(
+            &probes,
+            &three_selection(),
+            &overrides,
+            false,
+            false,
+            "",
+            Some(1_000_000),
+        );
+        assert_eq!(probes.idle_reads.get(), 0);
+        assert!(names(&decision).contains(&"moshi"), "unknown fails open");
+    }
+
+    #[test]
+    fn a_garbage_desk_threshold_fails_open_never_into_the_default() {
+        // Bash rejects the garbled threshold and sends the push; substituting
+        // the 120 default would instead read idle 60 as "at the desk" and
+        // suppress it.
         let vars = BTreeMap::from([
-            ("RELAY_IDLE_SECS".to_string(), "not-a-number".to_string()),
-            ("RELAY_DESK_IDLE_SECS".to_string(), "120".to_string()),
+            ("RELAY_IDLE_SECS".to_string(), "60".to_string()),
+            ("RELAY_DESK_IDLE_SECS".to_string(), "garbage".to_string()),
         ]);
         let overrides = Overrides::from_env(&vars);
-        assert_eq!(overrides.idle_secs, None);
-        assert_eq!(overrides.desk_idle_secs, Some(120));
+        let probes = CountingProbes::default();
+        let decision = decide(
+            &probes,
+            &three_selection(),
+            &overrides,
+            false,
+            false,
+            "",
+            Some(1_000_000),
+        );
+        assert!(names(&decision).contains(&"moshi"), "unknown fails open");
+    }
+
+    #[test]
+    fn a_selection_with_no_gated_leg_pays_for_no_presence_reading_at_all() {
+        // A hermes-only config makes the phone verdict unable to change the
+        // plan, so no probe may run: the one-second sample on every log-only
+        // event would be the exact cost the laziness header forbids.
+        let mut registry = Registry::new();
+        registry
+            .register(
+                "hermes",
+                Routing {
+                    local: false,
+                    presence_gated: false,
+                    durable: true,
+                },
+            )
+            .unwrap();
+        let selection = registry
+            .enabled(&parse_config("[plugins.hermes]\nenabled = true\n").unwrap())
+            .unwrap();
+        let probes = CountingProbes {
+            idle: Some(60),
+            marker_mtime: Some(999_990),
+            ..CountingProbes::default()
+        };
+        let decision = decide(
+            &probes,
+            &selection,
+            &Overrides::default(),
+            false,
+            false,
+            "wW:p21",
+            Some(1_000_000),
+        );
+        assert_eq!(names(&decision), vec!["hermes"]);
+        assert_eq!(probes.idle_reads.get(), 0);
+        assert_eq!(probes.marker_reads.get(), 0);
+        assert_eq!(probes.sample_reads.get(), 0);
+        assert_eq!(probes.focused_reads.get(), 0);
+    }
+
+    #[test]
+    fn an_empty_channels_dir_variable_means_the_default_not_the_current_dir() {
+        // Bash's ${VAR:-default} defaults on EMPTY as well as unset; joining
+        // a filename to an empty path would quietly deliver nothing.
+        assert_eq!(
+            super::resolve_path(Some(""), "/fallback/channels"),
+            std::path::PathBuf::from("/fallback/channels")
+        );
+        assert_eq!(
+            super::resolve_path(None, "/fallback/channels"),
+            std::path::PathBuf::from("/fallback/channels")
+        );
+        assert_eq!(
+            super::resolve_path(Some("/set/dir"), "/fallback/channels"),
+            std::path::PathBuf::from("/set/dir")
+        );
     }
 
     #[test]
