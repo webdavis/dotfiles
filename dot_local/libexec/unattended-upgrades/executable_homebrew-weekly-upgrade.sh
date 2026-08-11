@@ -100,7 +100,18 @@ read -r UPGRADE_RECORD_EPOCH UPGRADE_RECORD_ISO < <(date -u '+%s %Y-%m-%dT%H:%M:
 # /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin, with no
 # ~/.local/bin in it, so a bare `relay.sh` would never be found under launchd and
 # every alert would vanish exactly when it mattered.
-RELAY="${HOMEBREW_WEEKLY_RELAY:-$(UNATTENDED_LOG_RELAY="" unattended_engine)}"
+# The engine, resolved without depending on log-entries.sh: partial
+# deployment explicitly tolerates that helper being absent, and the engine
+# choice must survive it. The shared rule applies when the helper is there;
+# the bash engine is the terminal fallback either way.
+weekly_engine() {
+  if declare -F unattended_engine >/dev/null 2>&1; then
+    unattended_engine
+  else
+    printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
+  fi
+}
+RELAY="${HOMEBREW_WEEKLY_RELAY:-$(weekly_engine)}"
 
 # weekly_alert <state> <detail> -- the EXISTING relay route, so this lands in the
 # priority channel beside every other alert on this machine. Best effort: a

@@ -223,6 +223,19 @@ else
     "$UNATTENDED_LOG_LIB" >&2
 fi
 
+# The engine, resolved without depending on log-entries.sh: partial
+# deployment explicitly tolerates that helper being absent, and the engine
+# choice must survive it. The shared rule applies when the helper is there;
+# the bash engine is the terminal fallback either way.
+weekly_engine() {
+  if declare -F unattended_engine >/dev/null 2>&1; then
+    unattended_engine
+  else
+    printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
+  fi
+}
+
+
 # The entry's opening lines (this run's timestamp and the gap to the previous
 # success), captured ONCE at start-up from ONE clock reading. Start-up because
 # the gap must be read BEFORE this run can overwrite the marker, or every
@@ -441,7 +454,7 @@ __update_skills_alert() {
     alerter --timeout 30 --title "update-skills" --message "$detail" --sound default >/dev/null 2>&1 || true
   fi
   local relay_script
-  relay_script="$(unattended_engine)"
+  relay_script="$(weekly_engine)"
   if [[ -x $relay_script ]]; then
     # 9>&- for the same reason relay_fork_advisory carries it: relay DETACHES
     # channels that outlive this run, a kernel flock on fd 9 is held until the
@@ -1980,7 +1993,7 @@ __gen_reset_failure_streaks() {
 # and leaves the live generation untouched; the next slot retries.
 __gen_weekly_attempt() {
   local relay_script
-  relay_script="$(unattended_engine)"
+  relay_script="$(weekly_engine)"
   local id candidate_home candidate_agents id_dir
   if [[ -n $GEN_REUSE_CANDIDATE ]] && __gen_validate_candidate "$GEN_REUSE_CANDIDATE"; then
     candidate_agents="$GEN_REUSE_CANDIDATE"
@@ -2631,7 +2644,7 @@ converge_hermes_skills() {
 assert_superpowers_routing() {
   local routing_script="$HOME/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh"
   local relay_script
-  relay_script="$(unattended_engine)"
+  relay_script="$(weekly_engine)"
   local routing_output
   if [[ ! -x $routing_script ]]; then
     # A non-empty superpowersRouting table with no routing script is a REQUIRED
@@ -2685,7 +2698,7 @@ assert_superpowers_routing() {
 update_hermes_registry_skills() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   local relay_script
-  relay_script="$(unattended_engine)"
+  relay_script="$(weekly_engine)"
   if ! command -v hermes >/dev/null 2>&1; then
     # A non-empty hermesRegistry table with no hermes binary is a REQUIRED
     # failure: the hub-owned skills would silently go un-refreshed (item 4). An
@@ -3078,7 +3091,7 @@ GIT_CONFIG_PARAMETERS_NONE=""
 relay_fork_advisory() {
   local state="$1" fork="$2" detail="$3"
   local relay_script
-  relay_script="$(unattended_engine)"
+  relay_script="$(weekly_engine)"
   if [[ $DRYRUN == "--dry-run" ]]; then
     return 0
   fi
