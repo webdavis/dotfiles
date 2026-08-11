@@ -52,7 +52,11 @@ grep -q -- '-title' "$scratch/notifier.args" || {
 # carry that token and the title: the moshi leg went native, with the secret
 # in the body and never on argv.
 printf '{"moshi_secret":"tok-integration"}\n' >"$scratch/auth.json"
-python3 - "$scratch/port" "$scratch/capture" <<'PYEOF' &
+command -v python3 >/dev/null 2>&1 || {
+  echo "python3 is required for the capture phase" >&2
+  exit 1
+}
+python3 - "$scratch/port" "$scratch/capture" <<'PYEOF' 2>"$scratch/server.err" &
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -82,12 +86,15 @@ with open(sys.argv[1], 'w') as port_file:
 server.handle_request()
 PYEOF
 server_pid=$!
-for _ in $(seq 1 50); do
+# A cold CI runner can take several seconds to start python; the wait is
+# generous because it only costs time when something is already slow.
+for _ in $(seq 1 60); do
   [[ -s "$scratch/port" ]] && break
-  sleep 0.1
+  sleep 0.5
 done
 [[ -s "$scratch/port" ]] || {
-  echo "capture server never bound" >&2
+  echo "capture server never bound; its stderr:" >&2
+  cat "$scratch/server.err" >&2 || true
   exit 1
 }
 
