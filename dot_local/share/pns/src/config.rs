@@ -192,6 +192,39 @@ mod tests {
     }
 
     #[test]
+    fn a_non_table_plugins_value_is_refused_naming_the_key() {
+        // `plugins = 5` at the one key the whole file hangs off must refuse,
+        // never parse to an empty config with everything silently disabled.
+        let err = parse_config("plugins = 5\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => {
+                assert!(
+                    message.contains("plugins"),
+                    "the offender is named: {message}"
+                )
+            }
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_malformed_line_is_reported_without_echoing_its_value() {
+        // The config carries plugin secrets, and error strings travel to
+        // logs: the refusal names where and why, never the line's contents.
+        let err = parse_config("[plugins.moshi]\ntoken = \"SUPERSECRET\" trailing\n").unwrap_err();
+        match err {
+            ConfigError::Malformed(message) => {
+                assert!(!message.is_empty(), "the cause is still named");
+                assert!(
+                    !message.contains("SUPERSECRET"),
+                    "the offending line's value must not be echoed: {message}"
+                );
+            }
+            other => panic!("expected Malformed, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn malformed_toml_is_a_loud_error_never_a_silent_empty_config() {
         // A config that fails to parse and quietly becomes "nothing enabled"
         // would turn every notification off with no trace.
@@ -218,6 +251,25 @@ mod tests {
         match outcome {
             Ok(LoadOutcome::Loaded(config)) => assert!(config.plugins["hue"].enabled),
             other => panic!("expected Loaded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_dangling_config_symlink_is_an_error_never_missing() {
+        // chezmoi deploys configs as symlinks: a broken link is a PRESENT
+        // entry whose target is wrong, and reading it as "unconfigured"
+        // would silently disable everything. Only a truly absent entry is
+        // Missing.
+        let link = std::env::temp_dir().join(format!("pns-config-dangling-{}", std::process::id()));
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink("pns-absent-target", &link).unwrap();
+        let outcome = load_config(&link);
+        std::fs::remove_file(&link).ok();
+        match outcome {
+            Err(ConfigError::Unreadable(message)) => {
+                assert!(!message.is_empty(), "the path and cause are named")
+            }
+            other => panic!("expected Unreadable, got {other:?}"),
         }
     }
 
