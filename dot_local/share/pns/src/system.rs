@@ -102,25 +102,57 @@ impl<R: CommandRunner> SystemProbes<R> {
 
 impl<R: CommandRunner> crate::probes::IdleProbe for SystemProbes<R> {
     fn idle_secs(&self) -> Option<u64> {
-        todo!("R2a: read ioreg, parse the count, hand it to presence::idle_secs_from_ns")
+        let ioreg_output = self.runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
+        crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
     }
 }
 
 impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
     fn marker_mtime_secs(&self) -> Option<u64> {
-        todo!("R2a: read the marker's fs metadata, mtime as whole seconds since the epoch")
+        let modified = std::fs::metadata(&self.marker_path).ok()?.modified().ok()?;
+        Some(
+            modified
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()?
+                .as_secs(),
+        )
     }
 }
 
 impl<R: CommandRunner> crate::probes::MoshRateProbe for SystemProbes<R> {
     fn sample_csv(&self) -> Option<String> {
-        todo!("R2a: pgrep for sessions, then sample those pids with nettop")
+        let pids = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
+        if pids.is_empty() {
+            return None;
+        }
+        // -P collapses to one row per process, -x prints raw byte counts rather
+        // than MiB, -n skips address resolution, and -L 2 is what makes this two
+        // samples a second apart in CSV. The -J column list puts bytes_in in
+        // field 5, which is the shape the rate judge parses.
+        let mut args = vec![
+            "-P",
+            "-L",
+            "2",
+            "-x",
+            "-n",
+            "-J",
+            "time,interface,state,bytes_in,bytes_out",
+        ];
+        for pid in &pids {
+            args.push("-p");
+            args.push(pid);
+        }
+        self.runner.run(NETTOP_PATH, &args)
     }
 }
 
 impl<R: CommandRunner> crate::probes::FocusedPaneProbe for SystemProbes<R> {
     fn focused_pane(&self) -> Option<String> {
-        todo!("R2a: ask the multiplexer for its pane list, parse the focused one")
+        // Resolved through PATH, unlike the system binaries above: the
+        // multiplexer is not at a fixed location, and a context whose PATH does
+        // not carry it reads as unknown, which fails OPEN into a card.
+        let pane_list = self.runner.run("herdr", &["pane", "list"])?;
+        parse_focused_pane(&pane_list)
     }
 }
 
