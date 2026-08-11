@@ -4,3 +4,7 @@
 # configured (CI, other machines), git falls back to a normal merge conflict,
 # resolvable by regenerating the map (`graphify update .`).
 graphify-out/graph.json merge=graphify-union
+
+# The map is generated: a rebuild rewrites nearly every line, so a textual diff of it
+# is noise in `git diff`, `git log -p` and any prompt that summarizes the worktree.
+graphify-out/graph.json -diff
