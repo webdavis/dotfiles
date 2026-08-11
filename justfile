@@ -13,7 +13,7 @@ alias j := lint-json
 alias y := lint-yaml
 alias T := test
 alias d := diff
-alias a := apply-no-auth
+alias a := apply
 alias c := lint-check
 alias D := defaults-drift
 
@@ -66,11 +66,16 @@ lint-actions-syntax:
 lint-actions-security:
   zizmor --offline .github/workflows
 
+# Both reach templates, so both need KeePassXC unlocked and an interactive
+# terminal. That is deliberate: excluding templates left the deployed copy of a
+# templated target behind its source, which the osquery known-good manifest
+# reads as tampering. The operator runs these until the vault is replaced by
+# something an agent can unlock.
 diff:
-  chezmoi diff --exclude=templates
+  chezmoi diff
 
-apply-no-auth:
-  chezmoi apply --exclude=templates --force
+apply:
+  chezmoi apply
 
 # Test suites: test/unit (single component, stub-driven, fast), then
 # test/integration and test/e2e. Rust tests live in each plugin's own crate,

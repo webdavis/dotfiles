@@ -49,11 +49,9 @@
 # bin arm starts, so a failure in the bin arm cannot leave the pipeline manifest
 # stale. errexit then aborts the runner, which fails the apply loudly.
 #
-# NOT a template, deliberately. The mandated agent apply is
-# `chezmoi apply --exclude=templates`, which skips template scripts but still
-# applies the pipeline's plain executable_*.sh files. As a .tmpl this runner would
-# never refresh the manifests on that path, so every agent apply would leave each
-# updated file paging a false CRIT until someone ran a full interactive apply.
+# NOT a template. This runner refreshes the manifests, so it must run on every
+# apply that can change a manifested file. Keeping it plain removes any dependence
+# on which entry types a given apply processes.
 # Darwin is therefore gated at runtime, not with a Go-template guard.
 #
 # Runs in the EARLIEST after-phase slot (05): all target files are written before
@@ -368,10 +366,9 @@ refresh_manifest() {
     return 0
   fi
 
-  # Fresh host: /var/osquery is created by the osquery setup script, which is a
-  # TEMPLATE and so is skipped by `chezmoi apply --exclude=templates` - the very
-  # command this runner is plain in order to run under. Create the manifest's parent
-  # ourselves rather than fail the apply and leave the host with no manifest at all.
+  # Fresh host: /var/osquery is created by the osquery setup script, which may not
+  # have run yet on the first apply. Create the manifest's parent ourselves rather
+  # than fail the apply and leave the host with no manifest at all.
   # Only when it is actually missing, so a normal apply performs no extra privileged
   # call, and idempotent either way.
   refresh_manifest_dir="$(dirname "$refresh_manifest_dest")"

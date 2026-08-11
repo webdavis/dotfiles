@@ -5,8 +5,8 @@ chezmoi convention) that selectively enforces a fixed set of stable fields in `~
 On every `chezmoi apply`, the script reads the current target file, overlays the stable fields below via
 `setValueAtPath`, and writes the merged result back.
 
-`--exclude=templates` does not skip a modify-template (measured 2026-08-02), so this path runs on every
-`just a`, not only on a full apply.
+The retired `--exclude=templates` did not skip a modify-template (measured 2026-08-02), so this path runs
+on every `just a`, not only on a full apply.
 
 Fields fall into **three** categories, not two.
 

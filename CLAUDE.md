@@ -120,19 +120,25 @@ picked up automatically.
 ### Chezmoi operations
 
 ```bash
-just d                                      # chezmoi diff --exclude=templates
-just a                                      # chezmoi apply --exclude=templates --force
+just d                                      # chezmoi diff
+just a                                      # chezmoi apply
 chezmoi status                              # show pending changes
-chezmoi diff                                # diff all (including templates)
 chezmoi edit <file>                         # edit a template (prefer over direct edit of .tmpl)
 ```
 
-**`--exclude=templates` does not make an apply vault-free.** It skips `.tmpl` entries, but it does NOT
-skip a `modify_` template (measured 2026-08-02), and two modify-templates call `keepassxc`:
-`modify_private_dot_claude.json` (target `~/.claude.json`) and
-`Library/Application Support/Claude/modify_private_claude_desktop_config.json`. So `just a` and `just d`
-still reach the vault: run them from an interactive terminal with KeePassXC unlocked. To stay off the
-vault entirely, apply specific files by name:
+**THE OPERATOR RUNS APPLIES. Agents do not.** Both recipes above reach templates, so both need KeePassXC
+unlocked and an interactive terminal. An agent proposes changes and lets the operator apply them. This
+holds until the vault is replaced with a password manager an agent can unlock.
+
+**Why `--exclude=templates` was retired** (it was the mandated agent apply until 2026-08-10). It left the
+deployed copy of a templated target behind its source, while the osquery known-good manifest derives its
+hashes from the SOURCE. The two then disagree, and the pipeline audit reads that as tampering: a FALSE
+CRIT page on every tick until a full apply catches up, across ten manifested templated targets (seven
+osquery LaunchAgent plists, `posture-controls.json`, and the two osquery staging files). It also never
+delivered what it was for: it does NOT skip a `modify_` template (measured 2026-08-02), and two of those
+call `keepassxc`, so the excluded apply reached the vault anyway.
+
+To stay off the vault entirely, apply specific files by name:
 
 ```bash
 chezmoi apply ~/.fzf_bindings               # specific non-template, non-modify file

@@ -52,7 +52,7 @@ Require per-invocation confirmation. Blanket "yes" doesn't carry over.
   `git clean -fd`, `git branch -D`, `git checkout .`
 - Dropping DB tables/schemas; `killall`; `shutdown`; `dd`
 - Bypassing checks: `--no-verify`, `--no-gpg-sign`, `--no-hooks`, `--skip-checks`
-- `chezmoi apply` from automation on template files (agents use `--exclude=templates`)
+- `chezmoi apply` in any form: the operator runs applies, agents propose changes
 
 ## Code discipline
 

@@ -3,7 +3,7 @@
 # The brew-shellenv cache self-heal in the rendered ~/.bashrc.
 #
 # This block is the ONLY automatic writer of the cache that ~/.bashrc sources for
-# Homebrew's PATH. `chezmoi apply --exclude=templates` (what `just a` runs, and
+# Homebrew's PATH. The retired excluded apply (`just a` until 2026-08-10, which
 # what CLAUDE.md requires of automation) does not run templated scripts, so the
 # old apply-time regen script only fired on a rare full interactive apply and was
 # removed. Deleting or weakening this block therefore has no backstop.

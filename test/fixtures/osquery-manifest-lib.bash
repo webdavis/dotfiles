@@ -94,14 +94,11 @@ manifest_fixture_chezmoi() {
     --source "$MF_SRC" --destination "$MF_HOME" "$@"
 }
 
-# manifest_fixture_apply: deploy the fixture source, mirroring the mandated agent
-# apply path (templates excluded).
+# manifest_fixture_apply: deploy the fixture source the way the operator applies,
+# which is every entry type. The mode split this replaced existed only to pass an
+# entry-type exclusion, and nothing excludes entry types any more.
 manifest_fixture_apply() {
-  manifest_fixture_apply_mode --exclude=templates
-}
-
-manifest_fixture_apply_mode() {
-  manifest_fixture_chezmoi apply "$@" --force >/dev/null 2>&1
+  manifest_fixture_chezmoi apply --force >/dev/null 2>&1
 }
 
 # manifest_fixture_run_runner: run the manifest runner exactly as chezmoi would

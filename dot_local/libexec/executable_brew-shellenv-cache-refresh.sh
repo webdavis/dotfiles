@@ -6,7 +6,7 @@
 #
 #   - ~/.bashrc's self-heal guard, detached, whenever the cache is unusable or
 #     stale. That guard is the only AUTOMATIC writer, because
-#     `chezmoi apply --exclude=templates` (what `just a` and every agent runs)
+#     the retired excluded apply (`just a` and every agent, until 2026-08-10)
 #     skips templated scripts, so an apply-time regen script could not be relied
 #     on and was removed.
 #   - `just brew-cache-refresh`, on demand. That is also the supported way to
