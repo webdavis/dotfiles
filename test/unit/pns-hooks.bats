@@ -151,4 +151,5 @@ refute() { if "$@"; then return 1; fi; }
   printf '%s' "$(($(date +%s) - 400))" >"$(marker none2)"
   run "$STOP" <<<"$(payload none2)"
   [ "$status" -eq 0 ]
+  refute pulsed
 }

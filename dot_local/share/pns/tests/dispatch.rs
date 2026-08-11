@@ -45,7 +45,14 @@ fn a_channel_is_handed_the_rendered_event_not_the_raw_arguments() {
     let event = sandbox.event("moshi");
     assert_eq!(event["agent"], "claude");
     for rendered in ["title", "message", "preview"] {
-        assert_ne!(event[rendered], "", "{rendered} must be rendered: {event}");
+        // A MISSING key indexes to Null, and Null is != "", so the absence
+        // has to be refused by type rather than by inequality.
+        assert!(
+            event[rendered]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()),
+            "{rendered} must be a non-empty rendered string: {event}"
+        );
     }
 }
 
@@ -92,7 +99,9 @@ fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
         .relay()
         .args(["--agent", "x", "--state", "done", "--detail", "y"])
         .args(["--local-only", "--remote-only"]));
+    assert!(!sandbox.fired("moshi"));
     assert!(!sandbox.fired("hermes"));
+    assert!(!sandbox.fired("macos-banner"));
     assert!(stdout(&output).contains("SKIPPED"), "{output:?}");
 }
 

@@ -147,10 +147,10 @@ the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts unde
 deployed state and the manifests derived from the same source state. The by-name form existed to dodge
 the vault, which is no longer a goal now that the operator applies with it unlocked.
 
-Twelve targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Thirteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
-`~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`, `~/.config/relay/auth.json`,
-`~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
+`~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`, `~/.config/pns/config.toml`,
+`~/.config/relay/auth.json`, `~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
 `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
@@ -388,14 +388,13 @@ Names are verb-first where a bare noun would not say what happens (`compress-and
 `control-hue-lights.sh`). A stutter is accepted when removing it would leave a meaningless basename:
 `macos-defaults/macos-defaults-apply.sh` stays, because `apply.sh` in a log line says nothing.
 
-**`pns/` has one extra rule, because it is heading somewhere.** Its subdirectories separate the two
-halves of a notification: `channels/` holds DESTINATIONS (a delivery target the operator can add or
-remove, `hue-pulse.sh` being the one already extracted), while `claude-hooks/` and `codex-hooks/` hold
-EVENT SOURCES (harness hooks that feed events in). Conflating the two is the easy mistake, and it is the
-distinction SP3 formalizes: pns becomes a destination-agnostic escalation engine whose channels are
-executables taking a JSON event on stdin, so today's inline phone, Discord and banner legs join
-`channels/` as the port extracts them. `channels/` is deliberately a marker ahead of that work, not a
-loader: nothing discovers it yet, and `relay.sh` still calls each leg by name.
+**`pns/` IS THE RUST ENGINE NOW, and the directory says so.** `pns` is the compiled binary, built at
+apply time from the crate at `~/.local/share/pns` and installed here because launchd and the hooks are
+what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
+`~/.config/pns/config.toml` file selects by name, so adding one is a registration rather than a file
+dropped in a directory. Only `hooks/` remains bash: those are EVENT SOURCES that feed the engine, kept
+separate from destinations because conflating the two is the easy mistake, and `helpers/` survives for
+exactly as long as they do (`moshi-gate.sh` runs the presence probes to decide an approval round trip).
 
 **Moving a script is never just a move.** Its path is referenced by LaunchAgent plists, `.chezmoiscripts`
 runners, Claude Code hook declarations in `modify_settings.json`, aerospace and herdr keybindings, the
@@ -515,16 +514,18 @@ and direnv and before starship.
 ### Long-running command notifier
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
-framework). The shell is a relay producer like the Claude and Codex hooks and the weekly jobs, so both
-tiers call `~/.local/libexec/pns/relay.sh` rather than raising their own banner: the state is `done` or
-`failed` off the exit code, the detail is the command name and how long it ran, and the pane is
-`HERDR_PANE_ID`, which is what makes relay's banner focus that pane on click. Commands at 30s or longer
-go through relay's normal presence gate (banner and Discord always, phone when away; operator ruling
-2026-08-06: away means mobile, and mobile means glancing, so 30s is enough to earn the phone); at 5
-minutes or longer they also pulse Hue lights via `~/.local/libexec/pns/channels/hue-pulse.sh`, which is
-handed the exit code and pulses green on success, red otherwise. Interactive TUIs are skipped by a prefix
-match on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`,
-`hermes`, `codex`, `fzf`. The agent CLIs are on that list because they fire their own relay hooks.
+framework), inside a darwin gate, because the engine is macOS-only. The shell is an engine producer like
+the Claude and Codex hooks and the weekly jobs, so both tiers call `~/.local/libexec/pns/pns` rather than
+raising their own banner: the state is `done` or `failed` off the exit code, the detail is the command
+name and how long it ran, and the pane is `HERDR_PANE_ID`, which is what makes the banner focus that pane
+on click. Commands at 30s or longer go through the engine's normal presence gate (banner and Discord
+always, phone when away; operator ruling 2026-08-06: away means mobile, and mobile means glancing, so 30s
+is enough to earn the phone); at 5 minutes or longer they also pulse Hue lights through the engine's own
+`pns pulse` subcommand, which is handed the exit code and pulses green on success, red otherwise. The
+pulse fires only when `~/.config/pns/config.toml` exists, because the engine's pulse mode needs an
+enabled `[plugins.hue]` table carrying the bridge and key. Interactive TUIs are skipped by a prefix match
+on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`,
+`codex`, `fzf`. The agent CLIs are on that list because they fire their own relay hooks.
 
 ## Code Style
 

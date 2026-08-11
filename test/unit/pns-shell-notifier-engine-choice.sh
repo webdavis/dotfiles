@@ -27,32 +27,36 @@ home="$scratch/home dir"
 mkdir -p "$home/.local/libexec/pns"
 {
   printf '#!/usr/bin/env bash\n'
-  printf 'printf "%%s\\n" "$@" >>"%s/calls"\n' "$scratch"
+  # shellcheck disable=SC2016  # CALLS_FILE must expand when the STUB runs
+  printf 'printf "%%s\\n" "$@" >>"${CALLS_FILE:-%s/calls}"\n' "$scratch"
 } >"$home/.local/libexec/pns/pns"
 chmod +x "$home/.local/libexec/pns/pns"
 
-fire() {
-  : >"$scratch/calls"
-  HOME="$home" SECONDS="$1" HERDR_PANE_ID=wW:p7 bash --noprofile --norc -c "
+# All six scenarios run inside ONE bash process, each writing its own calls
+# file, with a single settle at the end: six spawns each with their own
+# settle loop put the file over the repo's one-second rule.
+run_scenarios() {
+  HOME="$home" HERDR_PANE_ID=wW:p7 bash --noprofile --norc -c "
     source '$scratch/notifier.sh'
-    __cmd_notify_start=0
-    __cmd_notify_name='sleep 999'
-    (exit 0)
-    __cmd_notify_precmd
+    fire() { # <elapsed> <calls-file>
+      export CALLS_FILE=\"\$2\"
+      SECONDS=\$1
+      __cmd_notify_start=0
+      __cmd_notify_name='sleep 999'
+      (exit 0)
+      __cmd_notify_precmd
+    }
+    fire 400 '$scratch/calls-noconfig'
+    mkdir -p '$home/.config/pns'
+    printf '[plugins.hue]\nenabled = true\n' >'$home/.config/pns/config.toml'
+    fire 400 '$scratch/calls-config'
+    fire 300 '$scratch/calls-300'
+    fire 299 '$scratch/calls-299'
+    fire 30 '$scratch/calls-30'
+    fire 29 '$scratch/calls-29'
   " >/dev/null 2>&1 || true
-  local previous="" current="" stable=0
-  for _ in $(seq 1 40); do
-    sleep 0.05
-    current="$(cat "$scratch/calls" 2>/dev/null || true)"
-    if [[ $current == "$previous" ]]; then
-      stable=$((stable + 1))
-      [[ $stable -ge 4 ]] && break
-    else
-      stable=0
-    fi
-    previous="$current"
-  done
-  printf '%s' "$current"
+  # One settle for every detached write the six scenarios spawned.
+  sleep 0.15
 }
 
 fail() {
@@ -60,8 +64,10 @@ fail() {
   exit 1
 }
 
+run_scenarios
+
 # --- no config: the notification fires, the pulse does not -----------------
-calls="$(fire 400)"
+calls="$(cat "$scratch/calls-noconfig" 2>/dev/null || true)"
 grep -qxF -- '--agent' <<<"$calls" || fail "the long tier must notify; got: $calls"
 grep -qxF -- '--pane' <<<"$calls" || fail "the pane must ride along; got: $calls"
 grep -qxF -- 'wW:p7' <<<"$calls" || fail "the pane id must ride along; got: $calls"
@@ -69,20 +75,18 @@ grep -qxF -- 'pulse' <<<"$calls" && fail "no config means no pulse; got: $calls"
 grep -qxF -- '--local-only' <<<"$calls" && fail "no narrowing flag may appear; got: $calls"
 
 # --- with the config, the pulse runs as the engine's subcommand ------------
-mkdir -p "$home/.config/pns"
-printf '[plugins.hue]\nenabled = true\n' >"$home/.config/pns/config.toml"
-calls="$(fire 400)"
+calls="$(cat "$scratch/calls-config" 2>/dev/null || true)"
 grep -qxF -- 'pulse' <<<"$calls" || fail "the config turns the pulse on; got: $calls"
 
 # --- the tier boundaries, exactly ------------------------------------------
-calls="$(fire 300)"
+calls="$(cat "$scratch/calls-300" 2>/dev/null || true)"
 grep -qxF -- 'pulse' <<<"$calls" || fail "300s is the pulse tier; got: $calls"
-calls="$(fire 299)"
+calls="$(cat "$scratch/calls-299" 2>/dev/null || true)"
 grep -qxF -- 'pulse' <<<"$calls" && fail "299s must not pulse; got: $calls"
 grep -qxF -- '--agent' <<<"$calls" || fail "299s still notifies; got: $calls"
-calls="$(fire 30)"
+calls="$(cat "$scratch/calls-30" 2>/dev/null || true)"
 grep -qxF -- '--agent' <<<"$calls" || fail "30s notifies; got: $calls"
-calls="$(fire 29)"
+calls="$(cat "$scratch/calls-29" 2>/dev/null || true)"
 [[ -z $calls ]] || fail "nothing may fire below 30s; got: $calls"
 
 exit 0

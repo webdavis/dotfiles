@@ -434,9 +434,12 @@ if [[ $- == *i* ]]; then
   unset -f __brew_shellenv_cache_needs_repair __brew_shellenv_repair_is_due
   {{- end }}
 
+  {{- if eq .chezmoi.os "darwin" }}
   # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
   # ┃  Long-running command notifier (v2 §7.1)      ┃
   # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  # macOS only, with the rest of the pns stack: Linux gets no engine binary,
+  # so shipping the callers there would point at nothing forever.
   # Uses bash-preexec (sourced above) instead of a naked DEBUG trap, which
   # would clobber atuin's recording.
   #
@@ -501,6 +504,7 @@ if [[ $- == *i* ]]; then
   preexec_functions+=(__cmd_notify_preexec)
   # shellcheck disable=SC2034
   precmd_functions+=(__cmd_notify_precmd)
+  {{- end }}
 fi
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓

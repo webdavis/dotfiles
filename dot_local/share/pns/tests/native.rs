@@ -54,6 +54,11 @@ impl Capture {
     }
 
     /// The raw request, once the server has answered and exited.
+    ///
+    /// The join is bounded by the CHILD, not by a deadline here: http-capture
+    /// exits 1 if no connection arrives within thirty seconds, and every read
+    /// after accept runs under a ten second socket timeout whose expiry ends
+    /// its loop. There is no path on which it waits forever.
     fn finish(mut self) -> String {
         let _ = self.server.wait();
         std::fs::read_to_string(&self.captured).unwrap_or_default()

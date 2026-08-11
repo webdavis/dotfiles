@@ -104,6 +104,24 @@ resolver_err="$(unattended_engine 2>&1 >/dev/null)"
 [[ -z $resolver_err ]] ||
   fail "resolution must not leak shell noise into the record, got: $resolver_err"
 
+# --- each job's terminal fallback is the binary, run, not read --------------
+# The fallback fires only when log-entries.sh is absent (partial deployment);
+# reverting it to the retired bash engine would leave exactly that machine
+# resolving a deleted file. The function is extracted from each job and RUN
+# with the shared rule undefined.
+for job in \
+  "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh" \
+  "dot_local/libexec/unattended-upgrades/claude/executable_report-plugin-updates.sh" \
+  "dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"; do
+  fallback="$(bash --noprofile --norc -c "
+    HOME='$HOME'
+    $(sed -n '/^weekly_engine() {$/,/^}$/p' "$REPO_ROOT/$job")
+    weekly_engine
+  ")"
+  [[ $fallback == "$HOME/.local/libexec/pns/pns" ]] ||
+    fail "$job's terminal fallback must be the binary, got: $fallback"
+done
+
 # --- the resolution runs where its function exists --------------------------
 # The regression this pins: RELAY= called unattended_engine forty lines above
 # the source that defines it, so every scheduled run died 127 at load. The
