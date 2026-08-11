@@ -13,13 +13,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use pns::args::parse_args;
 use pns::config::{config_path, load_config};
-use pns::engine::{Overrides, decide, event_json, select_plugins};
+use pns::engine::{Overrides, decide, event_json, resolve_path, select_plugins};
 use pns::registry::{Registry, Routing};
 use pns::render;
 use pns::system::{SystemCommandRunner, SystemProbes};
 
 fn main() {
-    let (event, warnings) = parse_args(std::env::args().skip(1));
+    // Lossy rather than validating: a stray byte in argv degrades into an
+    // unknown token, which the lenient contract already skips, instead of
+    // aborting an always-exit-0 notification.
+    let (event, warnings) = parse_args(
+        std::env::args_os()
+            .skip(1)
+            .map(|argument| argument.to_string_lossy().into_owned()),
+    );
     for warning in &warnings {
         eprintln!("relay: {warning}");
     }
@@ -64,15 +71,28 @@ fn main() {
         eprintln!("{warning}");
     }
 
-    let overrides = Overrides::from_env(&std::env::vars().collect::<BTreeMap<_, _>>());
+    let overrides = Overrides::from_env(
+        &std::env::vars_os()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>(),
+    );
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()
         .map(|since_epoch| since_epoch.as_secs());
     let probes = SystemProbes::new(
         SystemCommandRunner,
-        std::env::var("PNS_PHONE_MARKER_FILE")
-            .unwrap_or_else(|_| format!("{home}/.local/state/pns/phone-attention.marker")),
+        resolve_path(
+            std::env::var("PNS_PHONE_MARKER_FILE").ok().as_deref(),
+            &format!("{home}/.local/state/pns/phone-attention.marker"),
+        )
+        .to_string_lossy()
+        .into_owned(),
     );
 
     let decision = decide(
@@ -85,17 +105,6 @@ fn main() {
         now_secs,
     );
 
-    // Sanitized ONCE here rather than per channel: a channel may be written in
-    // any language and cannot be expected to share the guard.
-    let pane = if decision.pane_dropped {
-        eprintln!(
-            "relay: dropped a pane id with shell metacharacters; no channel will focus a pane"
-        );
-        ""
-    } else {
-        event.pane.as_str()
-    };
-
     if decision.legs.is_empty() {
         // A verdict that must be SAID, but only for the contradiction the
         // caller asked for: a silent exit is indistinguishable from delivery.
@@ -107,15 +116,29 @@ fn main() {
         return;
     }
 
+    // Sanitized ONCE here rather than per channel: a channel may be written in
+    // any language and cannot be expected to share the guard. Warned about
+    // only now, because a scrub nobody was going to receive is not news.
+    let pane = if decision.pane_dropped {
+        eprintln!(
+            "relay: dropped a pane id with shell metacharacters; no channel will focus a pane"
+        );
+        ""
+    } else {
+        event.pane.as_str()
+    };
+
     let title = render::title(&event.agent, &event.state, &event.project);
     let message = render::message(&event.branch, &event.detail, &event.state);
     let preview = render::preview(&message);
-    let channels_dir = std::env::var("PNS_CHANNELS_DIR")
-        .unwrap_or_else(|_| format!("{home}/.local/libexec/pns/channels"));
+    let channels_dir = resolve_path(
+        std::env::var("PNS_CHANNELS_DIR").ok().as_deref(),
+        &format!("{home}/.local/libexec/pns/channels"),
+    );
 
     for leg in &decision.legs {
         deliver(
-            &Path::new(&channels_dir).join(format!("{}.sh", leg.name)),
+            &channels_dir.join(format!("{}.sh", leg.name)),
             &event_json(
                 &event.agent,
                 &event.state,
@@ -140,7 +163,10 @@ fn deliver(channel: &Path, event: &str) {
         return;
     };
     if let Some(mut stdin) = child.stdin.take() {
+        // Newline-terminated, as the bash's `jq -cn` emitted it: a channel
+        // reading one line with `read -r` gets nothing without it.
         let _ = stdin.write_all(event.as_bytes());
+        let _ = stdin.write_all(b"\n");
     }
     let _ = child.wait();
 }

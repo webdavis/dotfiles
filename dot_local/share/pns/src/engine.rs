@@ -39,21 +39,43 @@ pub struct Overrides {
     pub marker_ttl_secs: Option<u64>,
     pub attention_floor_bytes: Option<u64>,
     pub physical_fresh_secs: Option<u64>,
+    /// Set when the variable was PRESENT and non-empty but not a count. The
+    /// bash validators reject such a value outright rather than falling back,
+    /// and the fallback is what would turn an unknown into a confident
+    /// number: a probe reading where the caller overrode it, or a default
+    /// threshold where the caller's was garbled.
+    pub idle_invalid: bool,
+    pub desk_invalid: bool,
+    pub ttl_invalid: bool,
+    pub fresh_invalid: bool,
 }
 
 impl Overrides {
     /// Parse the RELAY_* and PNS_* variables out of an environment map.
     pub fn from_env(vars: &BTreeMap<String, String>) -> Self {
-        let count = |key: &str| vars.get(key).and_then(|raw| crate::parse_count(raw));
+        // A present-but-garbled value is reported alongside the None, so the
+        // caller can refuse it rather than fall back to a default.
+        let read = |key: &str| match vars.get(key).filter(|raw| !raw.is_empty()) {
+            None => (None, false),
+            Some(raw) => {
+                let parsed = crate::parse_count(raw);
+                (parsed, parsed.is_none())
+            }
+        };
+        let count = |key: &str| read(key).0;
         let set = |key: &str| vars.get(key).is_some_and(|raw| !raw.is_empty());
         let forced = |key: &str| match vars.get(key).map(String::as_str) {
             Some("1") => Some(true),
             Some("0") => Some(false),
             _ => None,
         };
+        let (idle_secs, idle_invalid) = read("RELAY_IDLE_SECS");
+        let (desk_idle_secs, desk_invalid) = read("RELAY_DESK_IDLE_SECS");
+        let (marker_ttl_secs, ttl_invalid) = read("PNS_PHONE_MARKER_TTL");
+        let (physical_fresh_secs, fresh_invalid) = read("PNS_PHYSICAL_FRESH_SECS");
         Self {
-            idle_secs: count("RELAY_IDLE_SECS"),
-            desk_idle_secs: count("RELAY_DESK_IDLE_SECS"),
+            idle_secs,
+            desk_idle_secs,
             skip_phone: set("RELAY_SKIP_PHONE"),
             force_phone: set("RELAY_FORCE_PHONE"),
             phone_attention: forced("RELAY_PHONE_ATTENTION"),
@@ -62,9 +84,15 @@ impl Overrides {
                 .get("RELAY_HERDR_FOCUSED_PANE")
                 .filter(|pane| !pane.is_empty())
                 .cloned(),
-            marker_ttl_secs: count("PNS_PHONE_MARKER_TTL"),
+            marker_ttl_secs,
+            // The floor alone keeps the plain fallback: bash reads it with
+            // the same `${VAR:-100}` and never validates it separately.
             attention_floor_bytes: count("PNS_ATTENTION_FLOOR_BYTES"),
-            physical_fresh_secs: count("PNS_PHYSICAL_FRESH_SECS"),
+            physical_fresh_secs,
+            idle_invalid,
+            desk_invalid,
+            ttl_invalid,
+            fresh_invalid,
         }
     }
 }
@@ -99,80 +127,103 @@ where
         attention_band, marker_fresh, mosh_rate_active, moshi_viewing, phone_attention,
     };
 
-    let desk_idle_secs = Some(overrides.desk_idle_secs.unwrap_or(DEFAULT_DESK_IDLE_SECS));
-    let decided_without_a_reading =
-        local_only || remote_only || overrides.skip_phone || overrides.force_phone;
-    let idle_secs = match overrides.idle_secs {
-        Some(secs) => Some(secs),
-        None if decided_without_a_reading => None,
-        None => probes.idle_secs(),
+    // A garbled threshold is UNKNOWN, never the default: substituting 120
+    // would read an at-desk idle as suppressing a push the bash sends.
+    let desk_idle_secs = if overrides.desk_invalid {
+        None
+    } else {
+        Some(overrides.desk_idle_secs.unwrap_or(DEFAULT_DESK_IDLE_SECS))
     };
 
-    // Skip beats force, so it gates the whole verdict rather than riding in
-    // as another argument.
-    let mut want_phone = !overrides.skip_phone
-        && crate::routing::wants_phone(
-            idle_secs,
-            desk_idle_secs,
-            local_only,
-            remote_only,
-            overrides.force_phone,
-        );
-
-    // Each reading is guarded by the verdict that would discard it, so a
-    // forced answer never pays for the probe underneath it.
-    let viewing_now = || {
-        let rate_active = overrides.moshi_viewing.is_none()
-            && probes.sample_csv().is_some_and(|csv| {
-                mosh_rate_active(
-                    &csv,
-                    overrides
-                        .attention_floor_bytes
-                        .unwrap_or(DEFAULT_ATTENTION_FLOOR_BYTES),
-                )
-            });
-        moshi_viewing(overrides.moshi_viewing, rate_active)
-    };
-
-    if !want_phone
-        && !local_only
-        && !remote_only
-        && !overrides.skip_phone
-        && attention_band(
-            idle_secs,
-            desk_idle_secs,
-            Some(
-                overrides
-                    .physical_fresh_secs
-                    .unwrap_or(DEFAULT_PHYSICAL_FRESH_SECS),
-            ),
-        )
-    {
-        let marker_is_fresh = overrides.phone_attention.is_none()
-            && marker_fresh(
-                probes.marker_mtime_secs(),
-                now_secs,
-                Some(
-                    overrides
-                        .marker_ttl_secs
-                        .unwrap_or(DEFAULT_PHONE_MARKER_TTL_SECS),
-                ),
-            );
-        // The marker is a stat of one file; the sample is a full second of
-        // live counters, so it runs only once the marker has said nothing.
-        let viewing = overrides.phone_attention.is_none() && !marker_is_fresh && viewing_now();
-        want_phone = phone_attention(overrides.phone_attention, marker_is_fresh, viewing);
-    }
-
-    if want_phone && !overrides.force_phone && !pane.is_empty() {
-        let focused = match &overrides.focused_pane {
-            Some(pane) => Some(pane.clone()),
-            None => probes.focused_pane(),
+    // No selected leg is presence-gated, so the phone verdict cannot change
+    // the plan and no presence reading may be paid for.
+    let mut want_phone = false;
+    if selection.iter().any(|entry| entry.routing.presence_gated) {
+        let decided_without_a_reading = local_only
+            || remote_only
+            || overrides.skip_phone
+            || overrides.force_phone
+            || overrides.idle_invalid;
+        let idle_secs = match overrides.idle_secs {
+            Some(secs) => Some(secs),
+            None if decided_without_a_reading => None,
+            None => probes.idle_secs(),
         };
-        if crate::routing::viewed_pane_redundant(pane, &focused.unwrap_or_default())
-            && viewing_now()
+
+        // Skip beats force, so it gates the whole verdict rather than riding
+        // in as another argument.
+        want_phone = !overrides.skip_phone
+            && crate::routing::wants_phone(
+                idle_secs,
+                desk_idle_secs,
+                local_only,
+                remote_only,
+                overrides.force_phone,
+            );
+
+        // Each reading is guarded by the verdict that would discard it, so a
+        // forced answer never pays for the probe underneath it.
+        let viewing_now = || {
+            let rate_active = overrides.moshi_viewing.is_none()
+                && probes.sample_csv().is_some_and(|csv| {
+                    mosh_rate_active(
+                        &csv,
+                        overrides
+                            .attention_floor_bytes
+                            .unwrap_or(DEFAULT_ATTENTION_FLOOR_BYTES),
+                    )
+                });
+            moshi_viewing(overrides.moshi_viewing, rate_active)
+        };
+
+        if !want_phone
+            && !local_only
+            && !remote_only
+            && !overrides.skip_phone
+            && attention_band(
+                idle_secs,
+                desk_idle_secs,
+                if overrides.fresh_invalid {
+                    None
+                } else {
+                    Some(
+                        overrides
+                            .physical_fresh_secs
+                            .unwrap_or(DEFAULT_PHYSICAL_FRESH_SECS),
+                    )
+                },
+            )
         {
-            want_phone = false;
+            let marker_is_fresh = overrides.phone_attention.is_none()
+                && marker_fresh(
+                    probes.marker_mtime_secs(),
+                    now_secs,
+                    if overrides.ttl_invalid {
+                        None
+                    } else {
+                        Some(
+                            overrides
+                                .marker_ttl_secs
+                                .unwrap_or(DEFAULT_PHONE_MARKER_TTL_SECS),
+                        )
+                    },
+                );
+            // The marker is a stat of one file; the sample is a full second
+            // of live counters, so it runs only once the marker said nothing.
+            let viewing = overrides.phone_attention.is_none() && !marker_is_fresh && viewing_now();
+            want_phone = phone_attention(overrides.phone_attention, marker_is_fresh, viewing);
+        }
+
+        if want_phone && !overrides.force_phone && !pane.is_empty() {
+            let focused = match &overrides.focused_pane {
+                Some(pane) => Some(pane.clone()),
+                None => probes.focused_pane(),
+            };
+            if crate::routing::viewed_pane_redundant(pane, &focused.unwrap_or_default())
+                && viewing_now()
+            {
+                want_phone = false;
+            }
         }
     }
 
@@ -230,8 +281,11 @@ fn roster_warning(detail: &str) -> String {
 /// to an empty path resolves into the current directory and quietly delivers
 /// nothing.
 pub fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
-    let _ = (candidate, default);
-    todo!("R2d fix round: empty and unset both mean the default")
+    std::path::PathBuf::from(
+        candidate
+            .filter(|value| !value.is_empty())
+            .unwrap_or(default),
+    )
 }
 
 /// One leg's event, as the JSON object the channel contract specifies.
