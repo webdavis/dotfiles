@@ -48,7 +48,7 @@ set -euo pipefail
 UPDATER="$HOME/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh"
 MARKER_DIR="$HOME/.local/state/skills"
 MARKER="$MARKER_DIR/first-install-pending"
-RELAY="$HOME/.local/libexec/pns/relay.sh"
+RELAY="$HOME/.local/libexec/pns/pns"
 
 # Soft-gate on the deployed updater existing: a half-provisioned machine (updater
 # not yet applied) skips silently, exactly like the other loader chezmoiscripts.

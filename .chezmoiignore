@@ -60,4 +60,10 @@ Library
 # Rotation is driven by a launchd agent and reads sizes with BSD `stat -f`.
 .local/libexec/compress-and-truncate-local-logs.sh
 .local/libexec/brew-shellenv-cache-refresh.sh
+# The pns notification stack is macOS-only: the builder is darwin-gated, the
+# banner needs macOS, and shipping binary callers with no binary would leave
+# a Linux machine permanently engine-less.
+.local/libexec/pns
+.local/share/pns
+.config/pns
 {{- end }}

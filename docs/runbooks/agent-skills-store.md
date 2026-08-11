@@ -218,8 +218,8 @@ into the vendored copy by hand. A `note` on a `forks` entry records anything a f
 otherwise have to re-derive (why `elevenlabs` is vendored without being a content fork; why `herdr`'s
 recorded hash deliberately lags its `skillPath`); the entries carry no line-by-line divergence log. The
 weekly run drift-checks the `forks` upstreams and, when one changed, alerts in the run log
-(`~/.local/log/skills/`) and via `relay.sh` when that exists. After the hand comparison, bump that fork's
-`lastComparedTreeHash` to the new upstream hash.
+(`~/.local/log/skills/`) and via the pns engine when it is installed. After the hand comparison, bump
+that fork's `lastComparedTreeHash` to the new upstream hash.
 
 Each outcome gets its own relay state, because the remedies differ:
 

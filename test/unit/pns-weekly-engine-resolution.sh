@@ -12,12 +12,9 @@ trap 'rm -rf "$scratch"' EXIT
 # A home with a space, because these paths are interpolated in several places.
 HOME="$scratch/home dir"
 export HOME
-mkdir -p "$HOME/.local/libexec/pns/helpers"
-cp "$REPO_ROOT/dot_local/libexec/pns/helpers/engine-path.sh" \
-  "$HOME/.local/libexec/pns/helpers/"
+mkdir -p "$HOME/.local/libexec/pns"
 
 binary="$HOME/.local/libexec/pns/pns"
-relay="$HOME/.local/libexec/pns/relay.sh"
 
 fail() {
   echo "$1" >&2
@@ -28,27 +25,13 @@ fail() {
 source "$REPO_ROOT/dot_local/libexec/unattended-upgrades/helpers/log-entries.sh"
 
 # --- the rule --------------------------------------------------------------
-printf '#!/usr/bin/env bash\n' >"$relay"
-chmod +x "$relay"
-[[ "$(unattended_engine)" == "$relay" ]] ||
-  fail "before the binary exists the weekly jobs keep the bash engine, got: $(unattended_engine)"
-
 printf '#!/usr/bin/env bash\n' >"$binary"
 chmod +x "$binary"
 [[ "$(unattended_engine)" == "$binary" ]] ||
-  fail "once installed the binary carries the weekly records, got: $(unattended_engine)"
+  fail "the binary is the engine, got: $(unattended_engine)"
 
 [[ "$(UNATTENDED_LOG_RELAY=/custom/engine unattended_engine)" == /custom/engine ]] ||
   fail "an explicit override must win outright"
-
-# A machine without the pns tree at all: the jobs still resolve something and
-# report it, rather than aborting mid-record.
-(
-  PNS_HELPERS_DIR="$scratch/absent"
-  export PNS_HELPERS_DIR
-  [[ "$(unattended_engine)" == "$relay" ]] ||
-    fail "a missing resolver degrades to the bash engine, got: $(unattended_engine)"
-)
 
 # --- the record actually goes to the resolved engine -----------------------
 # unattended_log_post is what every weekly job calls; it must hand the record
@@ -85,10 +68,8 @@ done
 # --- a present-but-not-executable engine is refused with the stated lines --
 # An interrupted install leaves exactly this; the refusal and its wording are
 # the operator's only clue in a launchd log.
-# BOTH candidates dead, because a non-executable binary alone correctly
-# falls back to the bash engine: the refusal is for the machine where the
-# terminal resolution itself cannot run.
-chmod -x "$binary" "$relay"
+# A dead binary: the refusal is for the machine where the engine cannot run.
+chmod -x "$binary"
 set +e
 post_out="$(UNATTENDED_LOG_STATE_DIR="$scratch/state" unattended_log_post \
   weekly-test 'done' project 'a detail' 2>&1)"
@@ -102,7 +83,7 @@ alert_out="$(unattended_log_alert_delivery_failure "$scratch/guard" weekly-test 
   fail "the alert path never fails its caller"
 grep -q 'stays unclaimed so a later run retries it' <<<"$alert_out" ||
   fail "the alert refusal must speak the stated line, got: $alert_out"
-chmod +x "$binary" "$relay"
+chmod +x "$binary"
 
 # --- the week claim releases for retry -------------------------------------
 # A claim without a delivery must not burn the week: the first failing slot
@@ -119,9 +100,27 @@ unattended_log_claim_week "$guard_dir" completed ||
 # --- a missing resolver degrades in silence --------------------------------
 # The quiet-degrade promise: no raw shell errors in a launchd record on a
 # machine without the pns tree.
-resolver_err="$(PNS_HELPERS_DIR="$scratch/absent" unattended_engine 2>&1 >/dev/null)"
+resolver_err="$(unattended_engine 2>&1 >/dev/null)"
 [[ -z $resolver_err ]] ||
   fail "resolution must not leak shell noise into the record, got: $resolver_err"
+
+# --- each job's terminal fallback is the binary, run, not read --------------
+# The fallback fires only when log-entries.sh is absent (partial deployment);
+# reverting it to the retired bash engine would leave exactly that machine
+# resolving a deleted file. The function is extracted from each job and RUN
+# with the shared rule undefined.
+for job in \
+  "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh" \
+  "dot_local/libexec/unattended-upgrades/claude/executable_report-plugin-updates.sh" \
+  "dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"; do
+  fallback="$(bash --noprofile --norc -c "
+    HOME='$HOME'
+    $(sed -n '/^weekly_engine() {$/,/^}$/p' "$REPO_ROOT/$job")
+    weekly_engine
+  ")"
+  [[ $fallback == "$HOME/.local/libexec/pns/pns" ]] ||
+    fail "$job's terminal fallback must be the binary, got: $fallback"
+done
 
 # --- the resolution runs where its function exists --------------------------
 # The regression this pins: RELAY= called unattended_engine forty lines above

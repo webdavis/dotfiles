@@ -1,0 +1,20 @@
+# The pns engine's plugin selection. THE FILE SELECTS: a plugin runs only
+# when its table here says enabled = true, and this file existing is what
+# moves the light pulse from the retired bash channel to `pns pulse`.
+{{- if eq .chezmoi.os "darwin" }}
+
+[plugins.moshi]
+enabled = true
+
+[plugins.hermes]
+enabled = true
+
+[plugins.macos-banner]
+enabled = true
+
+[plugins.hue]
+enabled = true
+bridge = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName }}"
+key = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password }}"
+rooms = ["3F - Studio", "2F - Kitchen"]
+{{- end }}

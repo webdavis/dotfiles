@@ -11,10 +11,10 @@
 # That is what lets bats pin the interesting half with fixture bytes instead of
 # stubbing a second of live network sampling.
 #
-# ONE DEFINITION, TWO CALLERS: relay.sh, deciding which channels fire, and
-# hooks/moshi-gate.sh, deciding whether a phone round trip fires at all. A
-# second copy of these probes is how the two would drift into disagreeing about
-# where the operator is sitting.
+# ONE CALLER SINCE THE RETIREMENT: hooks/moshi-gate.sh, deciding whether a
+# phone round trip fires at all. The engine's own copy of these decisions
+# lives in the Rust crate; this file survives because the HOOKS stay bash,
+# and it goes when they do.
 
 # pns_idle_secs
 # Seconds since the last human input, or the EMPTY STRING when that cannot be

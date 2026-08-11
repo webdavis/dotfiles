@@ -1003,7 +1003,7 @@ require_apply_converged() {
 # The live smoke set: notifications, the hermes gateway, the osquery pipeline,
 # and source-to-target convergence. Gate 4 re-runs it at the end of the soak.
 run_smoke_checks() {
-  local note="$1" relay="$HOME/.local/libexec/pns/relay.sh"
+  local note="$1" relay="$HOME/.local/libexec/pns/pns"
   local heartbeat="$HOME/.local/libexec/osquery/heartbeat.sh"
   local freshness="$HOME/.local/libexec/osquery/canary-freshness.sh"
   local now canary age max_age

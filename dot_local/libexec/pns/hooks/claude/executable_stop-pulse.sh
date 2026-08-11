@@ -37,13 +37,10 @@ elapsed=$(($(date +%s) - started))
 
 pns_session_was_long "$elapsed" "${PNS_PULSE_THRESHOLD_SECS:-300}" || exit 0
 
-# shellcheck source=dot_local/libexec/pns/helpers/engine-path.sh
-source "${PNS_HELPERS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/helpers}/engine-path.sh" || exit 0
-# An ARRAY: the binary form carries a subcommand, and a home directory with a
-# space would word-split a flat string into a command that does not exist.
-pulse=()
-while IFS= read -r -d '' argument; do
-  pulse+=("$argument")
-done < <(pns_pulse_command)
-[[ ${#pulse[@]} -gt 0 ]] || exit 0
-exec "${pulse[@]}" 0
+# The engine's pulse mode, behind the CONFIG: without an enabled hue table it
+# would return silently, so no config means no pulse, said by doing nothing.
+# PNS_ENGINE_BIN and PNS_CONFIG_FILE are the test seams.
+engine="${PNS_ENGINE_BIN:-$HOME/.local/libexec/pns/pns}"
+config="${PNS_CONFIG_FILE:-$HOME/.config/pns/config.toml}"
+[[ -f $engine && -x $engine && -f $config ]] || exit 0
+exec "$engine" pulse 0

@@ -8,12 +8,14 @@ setup() {
   PNS="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)/dot_local/libexec/pns"
   export PNS_STATE_DIR="$BATS_TEST_TMPDIR/state"
   export PNS_HELPERS_DIR="$PNS/helpers"
-  # A stub channels dir, so a pulse records itself instead of touching lights.
-  export PNS_CHANNELS_DIR="$BATS_TEST_TMPDIR/channels"
-  mkdir -p "$PNS_CHANNELS_DIR"
-  printf '#!/usr/bin/env bash\nprintf "%%s" "$1" >"%s/pulsed"\n' "$BATS_TEST_TMPDIR" \
-    >"$PNS_CHANNELS_DIR/hue-pulse.sh"
-  chmod +x "$PNS_CHANNELS_DIR/hue-pulse.sh"
+  # A stub engine and a config, so a pulse records itself instead of touching
+  # lights: the pulse is the engine's own subcommand behind the config gate.
+  export PNS_ENGINE_BIN="$BATS_TEST_TMPDIR/pns"
+  export PNS_CONFIG_FILE="$BATS_TEST_TMPDIR/config.toml"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >"%s/pulsed"\n' "$BATS_TEST_TMPDIR" \
+    >"$PNS_ENGINE_BIN"
+  chmod +x "$PNS_ENGINE_BIN"
+  printf '[plugins.hue]\nenabled = true\n' >"$PNS_CONFIG_FILE"
   START="$PNS/hooks/claude/executable_user-prompt-start.sh"
   STOP="$PNS/hooks/claude/executable_stop-pulse.sh"
 }
@@ -70,7 +72,9 @@ refute() { if "$@"; then return 1; fi; }
   printf '%s' "$(($(date +%s) - 600))" >"$(marker abc123)"
   payload abc123 | "$STOP"
   pulsed
-  [ "$(cat "$BATS_TEST_TMPDIR/pulsed")" = 0 ]
+  # The engine's own subcommand, exit code included.
+  [ "$(cat "$BATS_TEST_TMPDIR/pulsed")" = "pulse
+0" ]
 }
 
 @test "stopping after a SHORT session does not pulse" {
@@ -118,39 +122,20 @@ refute() { if "$@"; then return 1; fi; }
 # The bash channel above is a ONE-element pulse, so it cannot see the binary
 # form's subcommand at all. These pin the branch the repoint exists to add.
 
-binary_pulse_setup() { # the binary and a config exist, so the binary wins
-  export PNS_ENGINE_BIN="$BATS_TEST_TMPDIR/pns"
-  export PNS_CONFIG_FILE="$BATS_TEST_TMPDIR/config.toml"
-  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >"%s/binary-argv"\n' "$BATS_TEST_TMPDIR" \
-    >"$PNS_ENGINE_BIN"
-  chmod +x "$PNS_ENGINE_BIN"
-  printf '[plugins.hue]\nenabled = true\n' >"$PNS_CONFIG_FILE"
-}
-
 @test "a long session pulses through the binary's own subcommand, exit code included" {
-  binary_pulse_setup
   payload bin1 | "$START"
   printf '%s' "$(($(date +%s) - 400))" >"$(marker bin1)"
   payload bin1 | "$STOP"
   # Three arguments, in order: dropping the subcommand would run the ENGINE
   # with a bare "0" instead of pulsing anything.
-  run cat "$BATS_TEST_TMPDIR/binary-argv"
+  run cat "$BATS_TEST_TMPDIR/pulsed"
   [ "$output" = "pulse
 0" ]
 }
 
-@test "the binary form never falls back to the bash channel" {
-  binary_pulse_setup
-  payload bin2 | "$START"
-  printf '%s' "$(($(date +%s) - 400))" >"$(marker bin2)"
-  payload bin2 | "$STOP"
-  refute pulsed
-}
-
-@test "with no pulse available at all the hook is still a silent exit 0" {
-  # The mid-cutover state: no binary, and the bash channel not installed
-  # either. A hook that exits non-zero here is the one thing it must never do.
-  rm -f "$PNS_CHANNELS_DIR/hue-pulse.sh"
+@test "with no engine installed the hook is still a silent exit 0" {
+  # A hook that exits non-zero here is the one thing it must never do.
+  rm -f "$PNS_ENGINE_BIN"
   payload none1 | "$START"
   printf '%s' "$(($(date +%s) - 400))" >"$(marker none1)"
   run "$STOP" <<<"$(payload none1)"
@@ -158,16 +143,13 @@ binary_pulse_setup() { # the binary and a config exist, so the binary wins
   [ -z "$output" ]
 }
 
-@test "an unreadable engine-path helper still exits 0" {
-  # The resolution the repoint ADDED must not be able to make the hook noisy:
-  # a helpers dir that carries the decision core but not the engine resolver
-  # is a silent no-pulse. (The decision core's own source predates this and
-  # is not what this pins.)
-  mkdir -p "$PNS_STATE_DIR" "$BATS_TEST_TMPDIR/partial-helpers"
-  cp "$PNS/helpers/event.sh" "$BATS_TEST_TMPDIR/partial-helpers/event.sh"
+@test "a missing config is a silent no-pulse, exit 0" {
+  # The config gate: without it the engine's pulse mode would silently do
+  # nothing anyway, so the hook says the same by doing nothing.
+  rm -f "$PNS_CONFIG_FILE"
+  mkdir -p "$PNS_STATE_DIR"
   printf '%s' "$(($(date +%s) - 400))" >"$(marker none2)"
-  # Only the STOP hook sees the broken helpers dir; the marker is written
-  # directly so the start hook is not the thing under test here.
-  run env PNS_HELPERS_DIR="$BATS_TEST_TMPDIR/partial-helpers" "$STOP" <<<"$(payload none2)"
+  run "$STOP" <<<"$(payload none2)"
   [ "$status" -eq 0 ]
+  refute pulsed
 }

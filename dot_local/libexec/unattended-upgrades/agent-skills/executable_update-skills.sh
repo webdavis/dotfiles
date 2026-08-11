@@ -226,12 +226,12 @@ fi
 # The engine, resolved without depending on log-entries.sh: partial
 # deployment explicitly tolerates that helper being absent, and the engine
 # choice must survive it. The shared rule applies when the helper is there;
-# the bash engine is the terminal fallback either way.
+# the binary is the terminal fallback either way.
 weekly_engine() {
   if declare -F unattended_engine >/dev/null 2>&1; then
     unattended_engine
   else
-    printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
+    printf '%s' "${HOME:-}/.local/libexec/pns/pns"
   fi
 }
 
