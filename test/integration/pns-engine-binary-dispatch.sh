@@ -47,47 +47,15 @@ grep -q -- '-title' "$scratch/notifier.args" || {
   exit 1
 }
 
-# Phase 3: native moshi. RELAY_MOSHI_URL points at a one-shot local capture
-# server, the isolated HOME carries an auth token, and the delivered body must
-# carry that token and the title: the moshi leg went native, with the secret
-# in the body and never on argv.
+# Phase 3: native moshi. RELAY_MOSHI_URL points at the crate's own one-shot
+# capture binary (std only, built by the same cargo build), and the captured
+# raw request must carry the JSON content type, a valid JSON body, the token
+# and the title: the moshi leg went native, with the secret in the body and
+# never on argv. No interpreter, so there is no cold start to diagnose.
 printf '{"moshi_secret":"tok-integration"}\n' >"$scratch/auth.json"
-command -v python3 >/dev/null 2>&1 || {
-  echo "python3 is required for the capture phase" >&2
-  exit 1
-}
-python3 - "$scratch/port" "$scratch/capture" <<'PYEOF' 2>"$scratch/server.err" &
-import json
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-class Handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
-        if self.headers.get('Content-Type') != 'application/json':
-            body = b'WRONG-CONTENT-TYPE'
-        else:
-            try:
-                json.loads(body)
-            except ValueError:
-                body = b'NOT-JSON'
-        with open(sys.argv[2], 'wb') as capture:
-            capture.write(body)
-        self.send_response(200)
-        self.end_headers()
-
-    def log_message(self, *args):
-        pass
-
-server = HTTPServer(('127.0.0.1', 0), Handler)
-server.timeout = 10
-with open(sys.argv[1], 'w') as port_file:
-    port_file.write(str(server.server_address[1]))
-server.handle_request()
-PYEOF
+"$REPO_ROOT/dot_local/share/pns/target/debug/http-capture" \
+  "$scratch/port" "$scratch/capture" 2>"$scratch/server.err" &
 server_pid=$!
-# A cold CI runner can take several seconds to start python; the wait is
-# generous because it only costs time when something is already slow.
 for _ in $(seq 1 60); do
   [[ -s "$scratch/port" ]] && break
   sleep 0.5
@@ -113,6 +81,14 @@ env -u PNS_CHANNELS_DIR -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROX
   >"$scratch/pns.out" 2>"$scratch/pns.err"
 
 wait "$server_pid" 2>/dev/null || true
+grep -qi 'Content-Type: application/json' "$scratch/capture" 2>/dev/null || {
+  echo "the request carried no JSON content type" >&2
+  exit 1
+}
+tr -d '\r' <"$scratch/capture" | sed -n '/^$/,$p' | sed '1d' | jq -e . >/dev/null || {
+  echo "the posted body is not JSON" >&2
+  exit 1
+}
 grep -qf "$scratch/token.pattern" "$scratch/capture" 2>/dev/null || {
   echo "native moshi did not post the token" >&2
   exit 1
