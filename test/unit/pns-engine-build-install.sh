@@ -76,7 +76,7 @@ run_script || {
   echo "nothing may be installed without the crate source" >&2
   exit 1
 }
-[[ "$(cat "$marker")" -gt "$first_attempt" ]] || {
+[[ "$(cat "$marker")" -gt $first_attempt ]] || {
   echo "each deferral must change the trigger, or it stops re-firing" >&2
   exit 1
 }
