@@ -186,3 +186,24 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
   [ "$(pns_flatten_reply 'short enough' 8000)" = "short enough" ]
   [ "$(pns_flatten_reply 'abcdefghij' 4)" = ghij ]
 }
+
+@test "an installed engine binary is what the hook calls, with no override set" {
+  # Both the harness suites above set RELAY_BIN, which the resolver honors as
+  # an explicit override, so nothing there can tell the repoint from the old
+  # hardcoded bash path. This is the slice's whole point: after the binary is
+  # installed the hook must stop calling the bash engine, or the retirement
+  # turns every agent notification into a missing-file no-op.
+  local sandbox="$BATS_TEST_TMPDIR/repoint"
+  mkdir -p "$sandbox/.local/libexec/pns"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >"%s/binary-argv"\n' "$sandbox" \
+    >"$sandbox/.local/libexec/pns/pns"
+  printf '#!/usr/bin/env bash\nprintf bash-engine >"%s/bash-ran"\n' "$sandbox" \
+    >"$sandbox/.local/libexec/pns/relay.sh"
+  chmod +x "$sandbox/.local/libexec/pns/pns" "$sandbox/.local/libexec/pns/relay.sh"
+
+  run env -u RELAY_BIN HOME="$sandbox" RELAY_SUMMARIZING=1 \
+    "$HOOK" done <<<'{"cwd":"/tmp/project","message":"a detail"}'
+  [ "$status" -eq 0 ]
+  [ ! -f "$sandbox/bash-ran" ]
+  grep -qx -- '--agent' "$sandbox/binary-argv"
+}
