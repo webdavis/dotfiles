@@ -28,7 +28,11 @@ impl CommandRunner for SystemCommandRunner {
         if !output.status.success() {
             return None;
         }
-        String::from_utf8(output.stdout).ok()
+        // Lossy, because the rate CSV is judged row by row downstream: one
+        // invalid byte must cost its own row, never the whole sample. The
+        // replacement character it leaves behind is what the idle parser
+        // refuses, so a corrupted count still reads as unknown.
+        Some(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 }
 
@@ -46,7 +50,16 @@ pub const NETTOP_PATH: &str = "/usr/bin/nettop";
 /// The registry prints one key per line as `"Key" = value`; the count is the
 /// last whitespace-separated field. A line without one, or no line at all,
 /// yields None, which every consumer already reads as "unknown".
+///
+/// Contaminated output is refused WHOLESALE rather than searched, matching the
+/// bash reference's grep, which treats NUL-bearing input as binary. A
+/// replacement character means the runner already substituted an invalid byte,
+/// the same corruption. Trusting either can coerce to 0, which reads as
+/// "actively typing" and silently drops the push.
 pub fn parse_idle_nanoseconds(ioreg_output: &str) -> Option<&str> {
+    if ioreg_output.contains(['\0', '\u{FFFD}']) {
+        return None;
+    }
     ioreg_output
         .lines()
         .find(|line| line.contains(IOREG_IDLE_KEY))
@@ -55,10 +68,14 @@ pub fn parse_idle_nanoseconds(ioreg_output: &str) -> Option<&str> {
 
 /// The process ids `pgrep` printed, one per line, discarding anything that is
 /// not a plain decimal id.
+///
+/// The RAW line is validated, never a trimmed copy of it, because the bash
+/// reference matches its regex against the raw line too: padding is output this
+/// module did not expect, and trimming it away would promote garbled output
+/// into a trusted process id.
 pub fn parse_pids(pgrep_output: &str) -> Vec<String> {
     pgrep_output
         .lines()
-        .map(str::trim)
         .filter(|line| !line.is_empty() && line.chars().all(|c| c.is_ascii_digit()))
         .map(str::to_string)
         .collect()
@@ -68,12 +85,16 @@ pub fn parse_pids(pgrep_output: &str) -> Vec<String> {
 ///
 /// Parsed WITHOUT a JSON dependency: the listing is one object per pane on a
 /// single line, so the pane carrying `"focused":true` is found by locating that
-/// marker and reading the `pane_id` value nearest to it. A shape this module
-/// does not recognise yields None, which fails OPEN (the card still fires).
+/// marker and reading the `pane_id` value out of THAT object only. The search
+/// stops at the object's closing brace (pane objects are flat, so the first one
+/// closes it), because reading on would return the NEXT pane's id and suppress
+/// a card about a pane nobody is watching. A shape this module does not
+/// recognise yields None, which fails OPEN (the card still fires).
 pub fn parse_focused_pane(pane_list_json: &str) -> Option<String> {
     let focused_at = pane_list_json.find("\"focused\":true")?;
     let object_start = pane_list_json[..focused_at].rfind('{')?;
     let object = &pane_list_json[object_start..];
+    let object = &object[..object.find('}')?];
     let key = "\"pane_id\":\"";
     let value_start = object.find(key)? + key.len();
     let value_end = object[value_start..].find('"')?;
@@ -110,7 +131,13 @@ impl<R: CommandRunner> crate::probes::IdleProbe for SystemProbes<R> {
 
 impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
     fn marker_mtime_secs(&self) -> Option<u64> {
-        let modified = std::fs::metadata(&self.marker_path).ok()?.modified().ok()?;
+        // The LINK itself, never its target, matching BSD `stat -f %m`: the
+        // Back Tap touch lands on this path, so a dangling link still carries
+        // the reading and following it would erase one.
+        let modified = std::fs::symlink_metadata(&self.marker_path)
+            .ok()?
+            .modified()
+            .ok()?;
         Some(
             modified
                 .duration_since(std::time::UNIX_EPOCH)
