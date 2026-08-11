@@ -13,6 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
+use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
 use pns::config::{config_path, load_config};
 use pns::engine::{Overrides, decide, event_json, resolve_path, select_plugins};
@@ -184,10 +185,31 @@ fn main() {
         pane: pane.to_string(),
     };
 
+    let moshi = MoshiChannel {
+        http: UreqPost,
+        auth_path: resolve_path(
+            std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
+            &format!("{home}/.config/relay/auth.json"),
+        ),
+        url: std::env::var("RELAY_MOSHI_URL")
+            .ok()
+            .filter(|url| !url.is_empty())
+            .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string()),
+    };
+
     for leg in &decision.legs {
-        if native_first(channels_dir_override.is_some()) && leg.name == "macos-banner" {
-            banner.deliver(&native, leg.mode);
-            continue;
+        if native_first(channels_dir_override.is_some()) {
+            match leg.name {
+                "macos-banner" => {
+                    banner.deliver(&native, leg.mode);
+                    continue;
+                }
+                "moshi" => {
+                    moshi.deliver(&native, leg.mode);
+                    continue;
+                }
+                _ => {}
+            }
         }
         deliver(
             &channels_dir.join(format!("{}.sh", leg.name)),

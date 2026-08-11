@@ -25,21 +25,23 @@ pub trait HttpPost {
 /// one: absent, unreadable, not JSON, no key, or an empty value. All of
 /// them mean "not set up", never an error.
 pub fn moshi_secret(auth_json: &str) -> Option<String> {
-    let _ = auth_json;
-    todo!("R2f: .moshi_secret, non-empty, else None")
+    let token = serde_json::from_str::<serde_json::Value>(auth_json)
+        .ok()?
+        .get("moshi_secret")?
+        .as_str()?
+        .to_string();
+    (!token.is_empty()).then_some(token)
 }
 
 /// The webhook body: token, title, and the PREVIEW as the message, because
 /// the phone card has a length ceiling the full message ignores.
 pub fn webhook_body(token: &str, title: &str, preview: &str) -> String {
-    let _ = (token, title, preview);
-    todo!("R2f: the three-field JSON object")
+    serde_json::json!({ "token": token, "title": title, "message": preview }).to_string()
 }
 
 /// Read the auth file quietly: any failure is None, the not-set-up case.
 pub fn read_auth(path: &Path) -> Option<String> {
-    let _ = path;
-    todo!("R2f: read to string, silently None on any failure")
+    std::fs::read_to_string(path).ok()
 }
 
 /// The native moshi plugin.
@@ -52,9 +54,32 @@ pub struct MoshiChannel<H: HttpPost> {
 }
 
 impl<H: HttpPost> Channel for MoshiChannel<H> {
-    fn deliver(&self, event: &Event, mode: Mode) {
-        let _ = (event, mode);
-        todo!("R2f: no secret means no post; one post otherwise, failure ignored")
+    fn deliver(&self, event: &Event, _mode: Mode) {
+        let Some(token) = read_auth(&self.auth_path).as_deref().and_then(moshi_secret) else {
+            return;
+        };
+        self.http.post_json(
+            &self.url,
+            &webhook_body(&token, &event.title, &event.preview),
+        );
+    }
+}
+
+/// The production POST: one agent, one deadline, no retry. Every failure is
+/// `false` and nothing is logged, because the only thing worth reporting
+/// would be the request that carries the token.
+pub struct UreqPost;
+
+impl HttpPost for UreqPost {
+    fn post_json(&self, url: &str, body: &str) -> bool {
+        ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(10)))
+            .build()
+            .new_agent()
+            .post(url)
+            .content_type("application/json")
+            .send(body)
+            .is_ok()
     }
 }
 
