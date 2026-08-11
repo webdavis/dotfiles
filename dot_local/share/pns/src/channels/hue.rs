@@ -29,22 +29,85 @@ pub struct HueSettings {
 }
 
 pub fn hue_settings(settings: &toml::Table, rooms_env: Option<&str>) -> Option<HueSettings> {
-    let _ = (settings, rooms_env);
-    todo!("R2h: bridge and key required, rooms env over settings over defaults")
+    let text = |key: &str| -> Option<String> {
+        settings
+            .get(key)?
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .map(String::from)
+    };
+    let from_env: Vec<String> = rooms_env
+        .unwrap_or_default()
+        .lines()
+        .filter(|room| !room.is_empty())
+        .map(String::from)
+        .collect();
+    Some(HueSettings {
+        bridge: text("bridge")?,
+        key: text("key")?,
+        rooms: if from_env.is_empty() {
+            settings
+                .get("rooms")
+                .and_then(|rooms| rooms.as_array())
+                .map(|rooms| {
+                    rooms
+                        .iter()
+                        .filter_map(|room| room.as_str())
+                        .map(String::from)
+                        .collect::<Vec<_>>()
+                })
+                .filter(|rooms| !rooms.is_empty())
+                .unwrap_or_else(|| DEFAULT_ROOMS.iter().map(|room| room.to_string()).collect())
+        } else {
+            from_env
+        },
+    })
+}
+
+/// The `.data[]` array of a CLIP response, empty for anything unrecognized:
+/// a bridge that answers with something this does not know is a no-op, never
+/// a panic on a notification path.
+fn data_entries(clip_json: &str) -> Vec<serde_json::Value> {
+    serde_json::from_str::<serde_json::Value>(clip_json)
+        .ok()
+        .and_then(|body| Some(body.get("data")?.as_array()?.clone()))
+        .unwrap_or_default()
+}
+
+/// The `rid`s of one rtype, out of one array key, for each wanted room in
+/// WANTED order. Shared by the two room walks, which differ only in which
+/// key and rtype they are after.
+fn room_rids(rooms_json: &str, wanted: &[String], array_key: &str, rtype: &str) -> Vec<String> {
+    let rooms = data_entries(rooms_json);
+    wanted
+        .iter()
+        .flat_map(|name| {
+            rooms
+                .iter()
+                .filter(|room| {
+                    room.pointer("/metadata/name")
+                        .and_then(|found| found.as_str())
+                        == Some(name.as_str())
+                })
+                .filter_map(|room| room.get(array_key)?.as_array())
+                .flatten()
+                .filter(|entry| entry.get("rtype").and_then(|kind| kind.as_str()) == Some(rtype))
+                .filter_map(|entry| entry.get("rid")?.as_str().map(String::from))
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 /// The grouped_light service ids of the wanted rooms, in wanted order; a
 /// configured room the bridge no longer knows is skipped, never fatal.
 pub fn grouped_light_ids(rooms_json: &str, wanted: &[String]) -> Vec<String> {
-    let _ = (rooms_json, wanted);
-    todo!("R2h: the grouped_light rid of each wanted room")
+    room_rids(rooms_json, wanted, "services", "grouped_light")
 }
 
 /// The device ids belonging to the wanted rooms: what maps a light back to
 /// its room, because lights name their owning device, not their room.
 pub fn room_device_ids(rooms_json: &str, wanted: &[String]) -> Vec<String> {
-    let _ = (rooms_json, wanted);
-    todo!("R2h: the child device rids of the wanted rooms")
+    room_rids(rooms_json, wanted, "children", "device")
 }
 
 /// One light's snapshot, mirroring the bash TSV: mode is `ct` when the
@@ -60,22 +123,89 @@ pub struct LightState {
 }
 
 pub fn light_snapshot(lights_json: &str, device_ids: &[String]) -> Vec<LightState> {
-    let _ = (lights_json, device_ids);
-    todo!("R2h: the lights owned by the wanted devices, as restore tuples")
+    data_entries(lights_json)
+        .iter()
+        .filter(|light| {
+            light
+                .pointer("/owner/rid")
+                .and_then(|owner| owner.as_str())
+                .is_some_and(|owner| device_ids.iter().any(|device| device == owner))
+        })
+        .filter_map(|light| {
+            let rendered = |path: &str| {
+                light
+                    .pointer(path)
+                    .map(|value| value.to_string())
+                    .unwrap_or_default()
+            };
+            let ct = light.pointer("/color_temperature/mirek_valid")
+                == Some(&serde_json::Value::Bool(true));
+            Some(LightState {
+                id: light.get("id")?.as_str()?.to_string(),
+                on: light
+                    .pointer("/on/on")
+                    .and_then(|on| on.as_bool())
+                    .unwrap_or(false),
+                // The bash jq defaulted an absent dimming to 100 rather than
+                // restoring a light to darkness.
+                brightness: light
+                    .pointer("/dimming/brightness")
+                    .and_then(|brightness| brightness.as_f64())
+                    .unwrap_or(100.0),
+                mode: if ct { "ct" } else { "xy" }.to_string(),
+                v1: if ct {
+                    rendered("/color_temperature/mirek")
+                } else {
+                    rendered("/color/xy/x")
+                },
+                v2: if ct {
+                    String::new()
+                } else {
+                    rendered("/color/xy/y")
+                },
+            })
+        })
+        .collect()
+}
+
+/// A CLIP numeric field out of one of our own rendered strings.
+fn number(raw: &str) -> f64 {
+    raw.parse().unwrap_or_default()
 }
 
 /// The grouped_light PUT body for one pulse step: on, the color, the
 /// brightness, and the 1200ms ramp.
 pub fn pulse_body(x: &str, y: &str, brightness: &str) -> String {
-    let _ = (x, y, brightness);
-    todo!("R2h: on, color xy, dimming, dynamics duration 1200")
+    serde_json::json!({
+        "on": {"on": true},
+        "color": {"xy": {"x": number(x), "y": number(y)}},
+        "dimming": {"brightness": number(brightness)},
+        "dynamics": {"duration": PULSE_TRANSITION.as_millis() as u64},
+    })
+    .to_string()
 }
+
+/// Each ramp finishes before the next step starts, so the sleep and the
+/// transition are the same number by construction.
+const PULSE_TRANSITION: Duration = Duration::from_millis(1200);
 
 /// The light PUT body that puts one snapshot back: an off light is only
 /// turned off, a ct light restores its mirek, an xy light both coordinates.
 pub fn restore_body(state: &LightState) -> String {
-    let _ = state;
-    todo!("R2h: the CLIP body the R1 restore decisions imply")
+    if !state.on {
+        return serde_json::json!({"on": {"on": false}}).to_string();
+    }
+    let mut body = serde_json::json!({
+        "on": {"on": true},
+        "dimming": {"brightness": state.brightness},
+    });
+    if state.mode == "ct" {
+        body["color_temperature"] =
+            serde_json::json!({"mirek": state.v1.parse::<u64>().unwrap_or_default()});
+    } else {
+        body["color"] = serde_json::json!({"xy": {"x": number(&state.v1), "y": number(&state.v2)}});
+    }
+    body.to_string()
 }
 
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
@@ -98,16 +228,54 @@ pub struct HuePulse<B: Bridge, S: Sleeper> {
 
 impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
     pub fn run(&self, exit_code: &str) {
-        let _ = exit_code;
-        todo!("R2h: gate on the first put, pulse peak-low-peak-low, restore each light")
+        let Some(rooms_json) = self.bridge.get("room") else {
+            return;
+        };
+        let grouped = grouped_light_ids(&rooms_json, &self.rooms);
+        if grouped.is_empty() {
+            return;
+        }
+        let Some(lights_json) = self.bridge.get("light") else {
+            return;
+        };
+        let snapshot = light_snapshot(&lights_json, &room_device_ids(&rooms_json, &self.rooms));
+        if snapshot.is_empty() {
+            return;
+        }
+
+        // Two heartbeat cycles ENDING LOW, so the restore is a gentle step up
+        // rather than a drop from peak.
+        let color = crate::pulse::pulse_color(exit_code);
+        let peak = color.peak_brightness.to_string();
+        for (step, brightness) in [peak.as_str(), "20", peak.as_str(), "20"]
+            .into_iter()
+            .enumerate()
+        {
+            let body = pulse_body(color.x, color.y, brightness);
+            for (room, id) in grouped.iter().enumerate() {
+                let reached = self.bridge.put(&format!("grouped_light/{id}"), &body);
+                // The very first PUT gates everything: a bridge unreachable
+                // here leaves the lights untouched, so writing a restore over
+                // state we never actually changed would be the real damage.
+                if !reached && step == 0 && room == 0 {
+                    return;
+                }
+            }
+            self.sleeper.sleep(PULSE_TRANSITION);
+        }
+
+        for state in &snapshot {
+            self.bridge
+                .put(&format!("light/{}", state.id), &restore_body(state));
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, HuePulse, HueSettings, LightState, Sleeper, grouped_light_ids,
-        hue_settings, light_snapshot, pulse_body, restore_body, room_device_ids,
+        Bridge, DEFAULT_ROOMS, HuePulse, LightState, Sleeper, grouped_light_ids, hue_settings,
+        light_snapshot, pulse_body, restore_body, room_device_ids,
     };
     use std::cell::RefCell;
     use std::time::Duration;
