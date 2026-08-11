@@ -442,14 +442,45 @@ mod tests {
         let url = format!("http://{}/hook", redirector.local_addr().unwrap());
         let server = std::thread::spawn(move || {
             if let Ok((mut stream, _)) = redirector.accept() {
-                let mut request = [0u8; 2048];
-                let _ = stream.read(&mut request);
+                // Consume the WHOLE request (headers plus Content-Length body)
+                // before answering: responding after one read can reset the
+                // socket under a client still writing, which turns the
+                // outcome into NoResponse on a slow runner.
+                let mut raw = Vec::new();
+                let mut chunk = [0u8; 2048];
+                let header_end = loop {
+                    let read = stream.read(&mut chunk).unwrap_or(0);
+                    if read == 0 {
+                        break raw.len();
+                    }
+                    raw.extend_from_slice(&chunk[..read]);
+                    if let Some(position) = raw.windows(4).position(|window| window == b"\r\n\r\n")
+                    {
+                        break position + 4;
+                    }
+                };
+                let content_length = String::from_utf8_lossy(&raw[..header_end])
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().ok())?
+                    })
+                    .unwrap_or(0);
+                while raw.len() < header_end + content_length {
+                    let read = stream.read(&mut chunk).unwrap_or(0);
+                    if read == 0 {
+                        break;
+                    }
+                    raw.extend_from_slice(&chunk[..read]);
+                }
                 let _ = stream.write_all(
                     format!(
                         "HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{decoy_addr}/\r\nContent-Length: 0\r\n\r\n"
                     )
                     .as_bytes(),
                 );
+                let _ = stream.flush();
             }
         });
         let outcome = UreqSignedPost.post(
