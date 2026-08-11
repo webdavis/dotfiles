@@ -14,7 +14,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, remote_deadline};
-use pns::channels::hue::{Bridge, HuePulse, Sleeper, hue_settings};
+use pns::channels::hue::{
+    Bridge, HuePulse, Sleeper, acquire_pulse_lock, hue_enabled, hue_settings, put_succeeded,
+};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
@@ -291,33 +293,19 @@ fn pulse_mode() {
     let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
         return;
     };
-    let Some(hue) = config
-        .plugins
-        .get("hue")
-        .filter(|table| table.enabled)
-        .and_then(|table| {
-            hue_settings(
-                &table.settings,
-                std::env::var("HUE_PULSE_ROOMS").ok().as_deref(),
-            )
-        })
-    else {
+    let Some(hue) = hue_enabled(&config).and_then(|settings| {
+        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
+    }) else {
         return;
     };
 
-    // Two pulses at once would interleave their writes and restore each
-    // other's transient state. The kernel drops this lock on any exit, so it
-    // cannot go stale; a concurrent pulse is skipped, never queued.
-    let lock_path = resolve_path(None, &format!("{home}/.local/state/pns/hue-pulse.lock"));
-    if let Some(parent) = lock_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let Ok(lock) = std::fs::File::create(&lock_path) else {
+    // The SAME path the bash channel locks, so the two cannot interleave
+    // during the repoint window. The kernel drops it on any exit, and the
+    // binding lives to the end of the pulse.
+    let Some(_lock) = acquire_pulse_lock(std::path::Path::new(&format!("{home}/.local/state")))
+    else {
         return;
     };
-    if lock.try_lock().is_err() {
-        return;
-    }
 
     HuePulse {
         bridge: UreqBridge {
@@ -372,12 +360,21 @@ impl Bridge for UreqBridge {
     }
 
     fn put(&self, path: &str, body: &str) -> bool {
-        self.agent()
+        // A 2xx is not an applied write: the bridge reports application
+        // failures in an errors array alongside it.
+        let Ok(mut response) = self
+            .agent()
             .put(format!("{}/{path}", self.base))
             .header("hue-application-key", &self.key)
             .content_type("application/json")
             .send(body)
-            .is_ok()
+        else {
+            return false;
+        };
+        put_succeeded(
+            true,
+            &response.body_mut().read_to_string().unwrap_or_default(),
+        )
     }
 }
 

@@ -257,9 +257,12 @@ pub fn select_plugins(
 
     match loaded {
         Ok(LoadOutcome::Loaded(mut config)) => {
-            config
-                .plugins
-                .retain(|name, _| !mode_plugins.contains(&name.as_str()));
+            // A REGISTERED name is never stripped: stripping one the roster
+            // owns would silently empty the operator's selection instead of
+            // honoring it.
+            config.plugins.retain(|name, _| {
+                !mode_plugins.contains(&name.as_str()) || registry.names().contains(&name.as_str())
+            });
             match registry.enabled(&config) {
                 Ok(selection) => (selection, None),
                 Err(error) => {

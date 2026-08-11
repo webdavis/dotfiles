@@ -112,8 +112,22 @@ pub struct PulseRoom {
 /// without a grouped_light, and a room contributing no restorable light are
 /// each skipped, never fatal and never pulsed.
 pub fn pulse_rooms(rooms_json: &str, lights_json: &str, wanted: &[String]) -> Vec<PulseRoom> {
-    let _ = (rooms_json, lights_json, wanted);
-    todo!("R2h fix round: pair each room's group with its own lights")
+    wanted
+        .iter()
+        .filter_map(|name| {
+            let one = std::slice::from_ref(name);
+            Some(PulseRoom {
+                grouped_id: room_rids(rooms_json, one, "services", "grouped_light")
+                    .into_iter()
+                    .next()?,
+                lights: light_snapshot(
+                    lights_json,
+                    &room_rids(rooms_json, one, "children", "device"),
+                ),
+            })
+            .filter(|room| !room.lights.is_empty())
+        })
+        .collect()
 }
 
 /// One light's snapshot, mirroring the bash TSV: mode is `ct` when the
@@ -138,37 +152,34 @@ pub fn light_snapshot(lights_json: &str, device_ids: &[String]) -> Vec<LightStat
                 .is_some_and(|owner| device_ids.iter().any(|device| device == owner))
         })
         .filter_map(|light| {
+            // A reading the restore needs is REQUIRED, never defaulted:
+            // inventing off for a missing on, or zero for a missing
+            // coordinate, corrupts a light this pulse never read correctly.
             let rendered = |path: &str| {
                 light
                     .pointer(path)
+                    .filter(|value| !value.is_null())
                     .map(|value| value.to_string())
-                    .unwrap_or_default()
             };
             let ct = light.pointer("/color_temperature/mirek_valid")
                 == Some(&serde_json::Value::Bool(true));
+            let (v1, v2) = if ct {
+                (rendered("/color_temperature/mirek")?, String::new())
+            } else {
+                (rendered("/color/xy/x")?, rendered("/color/xy/y")?)
+            };
             Some(LightState {
                 id: light.get("id")?.as_str()?.to_string(),
-                on: light
-                    .pointer("/on/on")
-                    .and_then(|on| on.as_bool())
-                    .unwrap_or(false),
-                // The bash jq defaulted an absent dimming to 100 rather than
-                // restoring a light to darkness.
+                on: light.pointer("/on/on")?.as_bool()?,
+                // Brightness alone keeps the bash jq default: an absent
+                // dimming meant 100, not a light restored to darkness.
                 brightness: light
                     .pointer("/dimming/brightness")
                     .and_then(|brightness| brightness.as_f64())
                     .unwrap_or(100.0),
                 mode: if ct { "ct" } else { "xy" }.to_string(),
-                v1: if ct {
-                    rendered("/color_temperature/mirek")
-                } else {
-                    rendered("/color/xy/x")
-                },
-                v2: if ct {
-                    String::new()
-                } else {
-                    rendered("/color/xy/y")
-                },
+                v1,
+                v2,
             })
         })
         .collect()
@@ -199,11 +210,16 @@ const PULSE_TRANSITION: Duration = Duration::from_millis(1200);
 /// turned off, a ct light restores its mirek, an xy light both coordinates.
 pub fn restore_body(state: &LightState) -> String {
     if !state.on {
-        return serde_json::json!({"on": {"on": false}}).to_string();
+        return serde_json::json!({
+            "on": {"on": false},
+            "dynamics": {"duration": RESTORE_TRANSITION_MS},
+        })
+        .to_string();
     }
     let mut body = serde_json::json!({
         "on": {"on": true},
         "dimming": {"brightness": state.brightness},
+        "dynamics": {"duration": RESTORE_TRANSITION_MS},
     });
     if state.mode == "ct" {
         body["color_temperature"] =
@@ -222,23 +238,35 @@ pub const RESTORE_TRANSITION_MS: u64 = 500;
 /// because the bridge answers 200 with a NONEMPTY errors array for
 /// application failures, and the first-PUT bail must see those too.
 pub fn put_succeeded(status_ok: bool, body: &str) -> bool {
-    let _ = (status_ok, body);
-    todo!("R2h fix round: 2xx and an empty or absent errors array")
+    status_ok
+        && !serde_json::from_str::<serde_json::Value>(body)
+            .ok()
+            .and_then(|body| Some(!body.get("errors")?.as_array()?.is_empty()))
+            .unwrap_or(false)
 }
 
 /// The hue settings table, only when the plugin is ENABLED: the file
 /// selects, and a disabled table must silence the pulse mode.
 pub fn hue_enabled(config: &crate::config::Config) -> Option<&toml::Table> {
-    let _ = config;
-    todo!("R2h fix round: the settings of an enabled hue table, else None")
+    config
+        .plugins
+        .get("hue")
+        .filter(|hue| hue.enabled)
+        .map(|hue| &hue.settings)
 }
 
 /// The single-pulse lock, on the SAME path the bash channel locks so the
 /// two cannot interleave during the repoint window. None while another
 /// pulse holds it; the kernel releases it on any exit.
 pub fn acquire_pulse_lock(state_dir: &std::path::Path) -> Option<std::fs::File> {
-    let _ = state_dir;
-    todo!("R2h fix round: hue-pulse.lockf under the state dir, try_lock")
+    std::fs::create_dir_all(state_dir).ok()?;
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(state_dir.join("hue-pulse.lockf"))
+        .ok()?;
+    lock.try_lock().ok()?;
+    Some(lock)
 }
 
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
@@ -571,7 +599,7 @@ mod tests {
     }
 
     #[test]
-    fn an_off_light_is_restored_off_and_nothing_else() {
+    fn an_off_light_is_restored_off_and_carries_no_brightness_or_color() {
         let body = restore_body(&LightState {
             id: "light-off".to_string(),
             on: false,
@@ -582,10 +610,13 @@ mod tests {
         });
         let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(parsed["on"]["on"], false);
-        assert_eq!(
-            parsed.as_object().unwrap().len(),
-            1,
-            "off is the whole restore"
+        assert!(
+            parsed.get("dimming").is_none(),
+            "an off light restores no brightness"
+        );
+        assert!(
+            parsed.get("color").is_none() && parsed.get("color_temperature").is_none(),
+            "an off light restores no color"
         );
     }
 
@@ -670,6 +701,12 @@ mod tests {
             self.puts
                 .borrow_mut()
                 .push((path.to_string(), body.to_string()));
+            if self
+                .fail_put_containing
+                .is_some_and(|needle| path.contains(needle))
+            {
+                return false;
+            }
             !(first && self.first_put_fails)
         }
     }
