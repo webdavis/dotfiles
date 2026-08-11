@@ -106,8 +106,11 @@ chmod +x "$channel"
 # --- a stripped environment with explicit overrides still resolves ---------
 # Hooks run with HOME sometimes absent; the overrides are what such a caller
 # has, and expanding an unset HOME under set -u would abort the hook.
-( set -u; unset HOME
-  PNS_CHANNELS_DIR="$(dirname "$channel")" pns_pulse_command >/dev/null ) ||
+(
+  set -u
+  unset HOME
+  PNS_CHANNELS_DIR="$(dirname "$channel")" pns_pulse_command >/dev/null
+) ||
   fail "an unset HOME with an explicit channels dir must still resolve"
 
 exit 0
