@@ -58,7 +58,13 @@ while [[ \$# -gt 0 ]]; do
 done
 crate="\$(dirname "\$manifest")"
 mkdir -p "\$crate/target/release"
-printf '#!/usr/bin/env bash\nprintf pns-engine\n' >"\$crate/target/release/pns"
+if [[ -f "\$HOME/.stub-build-sleeper" ]]; then
+  # A real Mach-O, so running it holds the text lock that makes an in-place
+  # overwrite fail.
+  cp /bin/sleep "\$crate/target/release/pns"
+else
+  printf '#!/usr/bin/env bash\nprintf pns-engine\n' >"\$crate/target/release/pns"
+fi
 chmod +x "\$crate/target/release/pns"
 STUB
 chmod +x "$home/.cargo/bin/cargo"
@@ -94,5 +100,23 @@ run_script || {
   echo "a successful build must settle the trigger" >&2
   exit 1
 }
+
+# --- a rebuild while the old binary is RUNNING still replaces it -----------
+# The real mid-apply hazard: a producer (an agent hook, a long command, a
+# LaunchAgent) is executing the installed engine when the next apply lands.
+# Replacing the file in place fails with ETXTBSY; unlinking and creating
+# anew does not.
+touch "$home/.stub-build-sleeper"
+run_script
+"$installed" 5 >/dev/null 2>&1 &
+running=$!
+sleep 0.3
+run_script || {
+  kill "$running" 2>/dev/null || true
+  echo "a rebuild must replace the binary even while it is running" >&2
+  exit 1
+}
+kill "$running" 2>/dev/null || true
+wait "$running" 2>/dev/null || true
 
 exit 0

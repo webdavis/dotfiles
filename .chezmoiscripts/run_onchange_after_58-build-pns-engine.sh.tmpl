@@ -72,8 +72,12 @@ report_line 'building the release binary'
 "$cargo_bin" build --release --quiet --manifest-path "$crate_dir/Cargo.toml"
 
 mkdir -p "$install_dir"
-# install(1) replaces the target atomically, so a producer firing mid-apply
-# either runs the old binary or the new one, never a half-written file.
+# install(1) replaces the target through a temporary file and a rename
+# ("Temporary files are no longer optional", install(1) under -S), so a
+# producer firing mid-apply runs either the old binary or the new one and
+# never a half-written file. cp would write in place. No test separates the
+# two: macOS permits overwriting a running binary, so the race is not
+# reproducible in a unit test, and the man page is the evidence.
 /usr/bin/install -m 755 "$crate_dir/target/release/pns" "$install_dir/pns"
 report_line "installed $install_dir/pns"
 
