@@ -96,7 +96,7 @@ impl Registry {
     /// nothing until an operator writes a config, and a config that EXISTS
     /// is authoritative precisely because writing one is the opt-in.
     pub fn all(&self) -> Selection {
-        todo!("R2d: the unconfigured-machine selection")
+        Selection(self.registrations.clone())
     }
 
     /// The registrations the config enables, in REGISTRATION order whatever

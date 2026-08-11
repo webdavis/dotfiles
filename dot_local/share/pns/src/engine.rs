@@ -196,8 +196,33 @@ pub fn select_plugins(
     registry: &crate::registry::Registry,
     loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
 ) -> (Selection, Option<String>) {
-    let _ = (registry, loaded);
-    todo!("R2d: loaded is authoritative, missing is the roster, broken is loud plus the roster")
+    use crate::config::{ConfigError, LoadOutcome};
+    use crate::registry::RegistryError;
+
+    match loaded {
+        Ok(LoadOutcome::Loaded(config)) => match registry.enabled(&config) {
+            Ok(selection) => (selection, None),
+            Err(error) => {
+                let detail = match error {
+                    RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
+                    RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
+                };
+                (registry.all(), Some(roster_warning(&detail)))
+            }
+        },
+        Ok(LoadOutcome::Missing) => (registry.all(), None),
+        Err(
+            ConfigError::Malformed(detail)
+            | ConfigError::Invalid(detail)
+            | ConfigError::Unreadable(detail),
+        ) => (registry.all(), Some(roster_warning(&detail))),
+    }
+}
+
+/// The one line a broken config prints: what was wrong, and that nothing was
+/// turned off because of it.
+fn roster_warning(detail: &str) -> String {
+    format!("pns: config error ({detail}); running every built-in plugin")
 }
 
 /// One leg's event, as the JSON object the channel contract specifies.
