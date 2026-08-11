@@ -85,7 +85,11 @@ impl Default for UreqPost {
 impl HttpPost for UreqPost {
     fn post_json(&self, url: &str, body: &str) -> bool {
         ureq::Agent::config_builder()
-            .timeout_global(Some(std::time::Duration::from_secs(10)))
+            .timeout_global(Some(self.timeout))
+            // The bash curl carried no -L, and following one would send the
+            // token to whatever host the endpoint names. Zero returns the 3xx
+            // as the response rather than an error, so the post simply ends.
+            .max_redirects(0)
             .build()
             .new_agent()
             .post(url)
