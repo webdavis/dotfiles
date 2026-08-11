@@ -366,11 +366,13 @@ refresh_manifest() {
     return 0
   fi
 
-  # Fresh host: /var/osquery is created by the osquery setup script, which may not
-  # have run yet on the first apply. Create the manifest's parent ourselves rather
-  # than fail the apply and leave the host with no manifest at all.
-  # Only when it is actually missing, so a normal apply performs no extra privileged
-  # call, and idempotent either way.
+  # Fresh host: /var/osquery is created by the osquery converge tool, which
+  # run_after_50 calls - AFTER this runner, by design, since the alerter judges a
+  # file change exactly once and the manifests have to be current before it looks.
+  # So on a first apply this arrives before the directory exists. Create the
+  # manifest's parent ourselves rather than fail the apply and leave the host with
+  # no manifest at all. Only when it is actually missing, so a normal apply
+  # performs no extra privileged call, and idempotent either way.
   refresh_manifest_dir="$(dirname "$refresh_manifest_dest")"
   if [[ ! -d $refresh_manifest_dir ]]; then
     sudo install -d -o root -g wheel -m 0755 "$refresh_manifest_dir"

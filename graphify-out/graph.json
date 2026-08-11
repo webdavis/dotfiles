@@ -35,7 +35,7 @@
       "label": "intended_perm",
       "file_type": "code",
       "source_file": ".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh",
-      "source_location": "L282",
+      "source_location": "L280",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -49,7 +49,7 @@
       "label": "refresh_manifest()",
       "file_type": "code",
       "source_file": ".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh",
-      "source_location": "L317",
+      "source_location": "L315",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -58,6 +58,34 @@
       "id": "chezmoiscripts_run_after_05_osquery_known_good_manifests_refresh_manifest",
       "community": 381,
       "norm_label": "refresh_manifest()"
+    },
+    {
+      "label": "run_after_50-setup-osquery.sh",
+      "file_type": "code",
+      "source_file": ".chezmoiscripts/run_after_50-setup-osquery.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "chezmoiscripts_run_after_50_setup_osquery",
+      "community": 229,
+      "norm_label": "run_after_50-setup-osquery.sh"
+    },
+    {
+      "label": "run_after_50-setup-osquery.sh script",
+      "file_type": "code",
+      "source_file": ".chezmoiscripts/run_after_50-setup-osquery.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "chezmoiscripts_run_after_50_setup_osquery_sh__entry",
+      "community": 229,
+      "norm_label": "run_after_50-setup-osquery.sh script"
     },
     {
       "label": "run_before_12-quarantine-unparseable-claude-settings.sh",
@@ -4592,6 +4620,356 @@
       "norm_label": "main()"
     },
     {
+      "label": "executable_osquery-converge.sh",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge",
+      "community": 26,
+      "norm_label": "executable_osquery-converge.sh"
+    },
+    {
+      "label": "executable_osquery-converge.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_sh__entry",
+      "community": 26,
+      "norm_label": "executable_osquery-converge.sh script"
+    },
+    {
+      "label": "usage()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L85",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_usage",
+      "community": 26,
+      "norm_label": "usage()"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L89",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "community": 26,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "report()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L93",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_report",
+      "community": 26,
+      "norm_label": "report()"
+    },
+    {
+      "label": "run_privileged()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L240",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
+      "community": 26,
+      "norm_label": "run_privileged()"
+    },
+    {
+      "label": "privileged_command_is_trustworthy()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L264",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_privileged_command_is_trustworthy",
+      "community": 26,
+      "norm_label": "privileged_command_is_trustworthy()"
+    },
+    {
+      "label": "resolve_osqueryctl()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L299",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_resolve_osqueryctl",
+      "community": 26,
+      "norm_label": "resolve_osqueryctl()"
+    },
+    {
+      "label": "probe_kind()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L321",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_probe_kind",
+      "community": 26,
+      "norm_label": "probe_kind()"
+    },
+    {
+      "label": "probe_attributes()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L344",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_probe_attributes",
+      "community": 26,
+      "norm_label": "probe_attributes()"
+    },
+    {
+      "label": "probe_content_equality()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L358",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_probe_content_equality",
+      "community": 26,
+      "norm_label": "probe_content_equality()"
+    },
+    {
+      "label": "drift_label()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L371",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_drift_label",
+      "community": 26,
+      "norm_label": "drift_label()"
+    },
+    {
+      "label": "assert_no_symlink_component()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L398",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_assert_no_symlink_component",
+      "community": 26,
+      "norm_label": "assert_no_symlink_component()"
+    },
+    {
+      "label": "create_private_stage()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L419",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_create_private_stage",
+      "community": 26,
+      "norm_label": "create_private_stage()"
+    },
+    {
+      "label": "remove_private_stage()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L437",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_remove_private_stage",
+      "community": 26,
+      "norm_label": "remove_private_stage()"
+    },
+    {
+      "label": "stage_desired_state()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L466",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_stage_desired_state",
+      "community": 26,
+      "norm_label": "stage_desired_state()"
+    },
+    {
+      "label": "directory_verdict_for()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L542",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_directory_verdict_for",
+      "community": 26,
+      "norm_label": "directory_verdict_for()"
+    },
+    {
+      "label": "file_verdict_for()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L552",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_file_verdict_for",
+      "community": 26,
+      "norm_label": "file_verdict_for()"
+    },
+    {
+      "label": "repair_directory()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L569",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
+      "community": 26,
+      "norm_label": "repair_directory()"
+    },
+    {
+      "label": "repair_file()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L580",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
+      "community": 26,
+      "norm_label": "repair_file()"
+    },
+    {
+      "label": "daemon_parent_pid()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L593",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_pid",
+      "community": 26,
+      "norm_label": "daemon_parent_pid()"
+    },
+    {
+      "label": "wait_for_new_daemon_parent()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L615",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_wait_for_new_daemon_parent",
+      "community": 26,
+      "norm_label": "wait_for_new_daemon_parent()"
+    },
+    {
+      "label": "daemon_parent_stays_up()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L636",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_stays_up",
+      "community": 26,
+      "norm_label": "daemon_parent_stays_up()"
+    },
+    {
+      "label": "restart_daemon()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L650",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "community": 26,
+      "norm_label": "restart_daemon()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L718",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "community": 26,
+      "norm_label": "main()"
+    },
+    {
       "label": "executable_pipeline-audit.sh",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_pipeline-audit.sh",
@@ -4926,6 +5304,90 @@
       "id": "dot_local_libexec_osquery_executable_uptime_watchdog_field_raw",
       "community": 322,
       "norm_label": "field_raw()"
+    },
+    {
+      "label": "drift-verdict.sh",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_osquery_converge_drift_verdict",
+      "community": 228,
+      "norm_label": "drift-verdict.sh"
+    },
+    {
+      "label": "drift-verdict.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_osquery_converge_drift_verdict_sh__entry",
+      "community": 228,
+      "norm_label": "drift-verdict.sh script"
+    },
+    {
+      "label": "_osquery_converge_attribute_verdict()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L41",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_attribute_verdict",
+      "community": 228,
+      "norm_label": "_osquery_converge_attribute_verdict()"
+    },
+    {
+      "label": "osquery_converge_file_verdict()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L86",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_file_verdict",
+      "community": 228,
+      "norm_label": "osquery_converge_file_verdict()"
+    },
+    {
+      "label": "osquery_converge_directory_verdict()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L123",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_directory_verdict",
+      "community": 228,
+      "norm_label": "osquery_converge_directory_verdict()"
+    },
+    {
+      "label": "osquery_converge_restart_verdict()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L150",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_restart_verdict",
+      "community": 228,
+      "norm_label": "osquery_converge_restart_verdict()"
     },
     {
       "label": "allowlist-verdict.sh",
@@ -8655,7 +9117,7 @@
       "label": "weekly_alert()",
       "file_type": "code",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L103",
+      "source_location": "L108",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -8669,7 +9131,7 @@
       "label": "weekly_record()",
       "file_type": "code",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L117",
+      "source_location": "L122",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -8683,7 +9145,7 @@
       "label": "__homebrew_package_snapshot()",
       "file_type": "code",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L153",
+      "source_location": "L158",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -8697,7 +9159,7 @@
       "label": "write_upgrade_record()",
       "file_type": "code",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L225",
+      "source_location": "L230",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -8711,7 +9173,7 @@
       "label": "acquire_lock()",
       "file_type": "code",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L272",
+      "source_location": "L277",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -8725,7 +9187,7 @@
       "label": "run()",
       "file_type": "code",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L288",
+      "source_location": "L293",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -8739,7 +9201,7 @@
       "label": "refresh_tailscaled()",
       "file_type": "code",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L310",
+      "source_location": "L315",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -8748,6 +9210,20 @@
       "id": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_refresh_tailscaled",
       "community": 103,
       "norm_label": "refresh_tailscaled()"
+    },
+    {
+      "label": "converge_osquery()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L343",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_converge_osquery",
+      "community": 103,
+      "norm_label": "converge_osquery()"
     },
     {
       "label": "log-entries.sh",
@@ -12883,7 +13359,7 @@
       "label": "manifest_fixture_apply()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L99",
+      "source_location": "L100",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12894,24 +13370,10 @@
       "norm_label": "manifest_fixture_apply()"
     },
     {
-      "label": "manifest_fixture_apply_mode()",
-      "file_type": "code",
-      "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L103",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "id": "test_fixtures_osquery_manifest_lib_manifest_fixture_apply_mode",
-      "community": 187,
-      "norm_label": "manifest_fixture_apply_mode()"
-    },
-    {
       "label": "manifest_fixture_run_runner()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L111",
+      "source_location": "L108",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12925,7 +13387,7 @@
       "label": "manifest_fixture_installed()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L126",
+      "source_location": "L123",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12939,7 +13401,7 @@
       "label": "manifest_hash_of()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L134",
+      "source_location": "L131",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12953,7 +13415,7 @@
       "label": "manifest_mode_of()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L139",
+      "source_location": "L136",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12967,7 +13429,7 @@
       "label": "manifest_uid_of()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L144",
+      "source_location": "L141",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12981,7 +13443,7 @@
       "label": "bin_manifest_hash_of()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L152",
+      "source_location": "L149",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12995,7 +13457,7 @@
       "label": "bin_manifest_mode_of()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L158",
+      "source_location": "L155",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -13009,7 +13471,7 @@
       "label": "bin_manifest_uid_of()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L161",
+      "source_location": "L158",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -13023,7 +13485,7 @@
       "label": "verdict_says_page()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L170",
+      "source_location": "L167",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -17013,7 +17475,7 @@
       "label": "run_case()",
       "file_type": "code",
       "source_file": "test/unit/moshi-hook-bounce-on-upgrade.sh",
-      "source_location": "L38",
+      "source_location": "L43",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -17027,7 +17489,7 @@
       "label": "kickstarted()",
       "file_type": "code",
       "source_file": "test/unit/moshi-hook-bounce-on-upgrade.sh",
-      "source_location": "L82",
+      "source_location": "L87",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -18228,343 +18690,343 @@
       "norm_label": "agents"
     },
     {
-      "label": "AGENTS.md",
+      "label": "CLAUDE.md",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "agents",
-      "community": 26,
-      "norm_label": "agents.md"
+      "id": "claude",
+      "community": 441,
+      "norm_label": "claude.md"
     },
     {
       "label": "CLAUDE.md",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L7",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "community": 26,
+      "id": "claude_claude_md",
+      "community": 441,
       "norm_label": "claude.md"
     },
     {
       "label": "What This Is",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L11",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_what_this_is",
-      "community": 26,
+      "id": "claude_what_this_is",
+      "community": 441,
       "norm_label": "what this is"
     },
     {
       "label": "Runbooks",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L24",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_runbooks",
-      "community": 26,
+      "id": "claude_runbooks",
+      "community": 441,
       "norm_label": "runbooks"
     },
     {
       "label": "Key Commands",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L38",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_key_commands",
-      "community": 26,
+      "id": "claude_key_commands",
+      "community": 441,
       "norm_label": "key commands"
     },
     {
       "label": "Linting and formatting",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L40",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_linting_and_formatting",
-      "community": 26,
+      "id": "claude_linting_and_formatting",
+      "community": 441,
       "norm_label": "linting and formatting"
     },
     {
       "label": "Testing",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L65",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_testing",
-      "community": 26,
+      "id": "claude_testing",
+      "community": 441,
       "norm_label": "testing"
     },
     {
       "label": "Chezmoi operations",
       "file_type": "document",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L120",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_chezmoi_operations",
-      "community": 26,
+      "id": "claude_chezmoi_operations",
+      "community": 441,
       "norm_label": "chezmoi operations"
     },
     {
       "label": "Cutover tooling",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L149",
+      "source_file": "CLAUDE.md",
+      "source_location": "L158",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_cutover_tooling",
-      "community": 26,
+      "id": "claude_cutover_tooling",
+      "community": 441,
       "norm_label": "cutover tooling"
     },
     {
       "label": "Architecture",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L160",
+      "source_file": "CLAUDE.md",
+      "source_location": "L169",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "community": 26,
+      "id": "claude_architecture",
+      "community": 441,
       "norm_label": "architecture"
     },
     {
       "label": "Source-only files and OS targeting",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L162",
+      "source_file": "CLAUDE.md",
+      "source_location": "L171",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_source_only_files_and_os_targeting",
-      "community": 26,
+      "id": "claude_source_only_files_and_os_targeting",
+      "community": 441,
       "norm_label": "source-only files and os targeting"
     },
     {
       "label": "Minimum chezmoi version",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L172",
+      "source_file": "CLAUDE.md",
+      "source_location": "L181",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_minimum_chezmoi_version",
-      "community": 26,
+      "id": "claude_minimum_chezmoi_version",
+      "community": 441,
       "norm_label": "minimum chezmoi version"
     },
     {
       "label": "Secrets management",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L176",
+      "source_file": "CLAUDE.md",
+      "source_location": "L185",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_secrets_management",
-      "community": 26,
+      "id": "claude_secrets_management",
+      "community": 441,
       "norm_label": "secrets management"
     },
     {
       "label": "System package management",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L188",
+      "source_file": "CLAUDE.md",
+      "source_location": "L197",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_system_package_management",
-      "community": 26,
+      "id": "claude_system_package_management",
+      "community": 441,
       "norm_label": "system package management"
     },
     {
       "label": "macOS defaults management",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L221",
+      "source_file": "CLAUDE.md",
+      "source_location": "L230",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_macos_defaults_management",
-      "community": 26,
+      "id": "claude_macos_defaults_management",
+      "community": 441,
       "norm_label": "macos defaults management"
     },
     {
       "label": "Claude Code settings",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L233",
+      "source_file": "CLAUDE.md",
+      "source_location": "L242",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_code_settings",
-      "community": 26,
+      "id": "claude_claude_code_settings",
+      "community": 441,
       "norm_label": "claude code settings"
     },
     {
       "label": "Agent skills (cross-harness store)",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L243",
+      "source_file": "CLAUDE.md",
+      "source_location": "L252",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_agent_skills_cross_harness_store",
-      "community": 26,
+      "id": "claude_agent_skills_cross_harness_store",
+      "community": 441,
       "norm_label": "agent skills (cross-harness store)"
     },
     {
       "label": "Global instruction files",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L259",
+      "source_file": "CLAUDE.md",
+      "source_location": "L268",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_global_instruction_files",
-      "community": 26,
+      "id": "claude_global_instruction_files",
+      "community": 441,
       "norm_label": "global instruction files"
     },
     {
       "label": "Git hooks",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L268",
+      "source_file": "CLAUDE.md",
+      "source_location": "L277",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_git_hooks",
-      "community": 26,
+      "id": "claude_git_hooks",
+      "community": 441,
       "norm_label": "git hooks"
     },
     {
       "label": "Template files",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L282",
+      "source_file": "CLAUDE.md",
+      "source_location": "L291",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_template_files",
-      "community": 26,
+      "id": "claude_template_files",
+      "community": 441,
       "norm_label": "template files"
     },
     {
       "label": "Template shellcheck workaround",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L289",
+      "source_file": "CLAUDE.md",
+      "source_location": "L298",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_template_shellcheck_workaround",
-      "community": 26,
+      "id": "claude_template_shellcheck_workaround",
+      "community": 441,
       "norm_label": "template shellcheck workaround"
     },
     {
       "label": "Dev environment (no nix)",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L315",
+      "source_file": "CLAUDE.md",
+      "source_location": "L326",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_dev_environment_no_nix",
-      "community": 26,
+      "id": "claude_dev_environment_no_nix",
+      "community": 441,
       "norm_label": "dev environment (no nix)"
     },
     {
       "label": "CI",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
+      "source_file": "CLAUDE.md",
+      "source_location": "L343",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_ci",
-      "community": 26,
+      "id": "claude_ci",
+      "community": 441,
       "norm_label": "ci"
     },
     {
       "label": "Where deployed scripts live",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L344",
+      "source_file": "CLAUDE.md",
+      "source_location": "L355",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_where_deployed_scripts_live",
-      "community": 26,
+      "id": "claude_where_deployed_scripts_live",
+      "community": 441,
       "norm_label": "where deployed scripts live"
     },
     {
       "label": "Background jobs and LaunchAgents",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L391",
+      "source_file": "CLAUDE.md",
+      "source_location": "L406",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_background_jobs_and_launchagents",
-      "community": 26,
+      "id": "claude_background_jobs_and_launchagents",
+      "community": 441,
       "norm_label": "background jobs and launchagents"
     },
     {
       "label": "SSH hardening",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L417",
+      "source_file": "CLAUDE.md",
+      "source_location": "L447",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_ssh_hardening",
-      "community": 26,
+      "id": "claude_ssh_hardening",
+      "community": 441,
       "norm_label": "ssh hardening"
     },
     {
       "label": "Herdr workspace management",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L434",
+      "source_file": "CLAUDE.md",
+      "source_location": "L464",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_herdr_workspace_management",
-      "community": 26,
+      "id": "claude_herdr_workspace_management",
+      "community": 441,
       "norm_label": "herdr workspace management"
     },
     {
       "label": "Herdr native status",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L453",
+      "source_file": "CLAUDE.md",
+      "source_location": "L483",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_herdr_native_status",
-      "community": 26,
+      "id": "claude_herdr_native_status",
+      "community": 441,
       "norm_label": "herdr native status"
     },
     {
       "label": "Git worktrees (worktrunk)",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L459",
+      "source_file": "CLAUDE.md",
+      "source_location": "L489",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_git_worktrees_worktrunk",
-      "community": 26,
+      "id": "claude_git_worktrees_worktrunk",
+      "community": 441,
       "norm_label": "git worktrees (worktrunk)"
     },
     {
       "label": "Bashrc init ordering",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L471",
+      "source_file": "CLAUDE.md",
+      "source_location": "L501",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_bashrc_init_ordering",
-      "community": 26,
+      "id": "claude_bashrc_init_ordering",
+      "community": 441,
       "norm_label": "bashrc init ordering"
     },
     {
       "label": "Long-running command notifier",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L485",
+      "source_file": "CLAUDE.md",
+      "source_location": "L515",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_long_running_command_notifier",
-      "community": 26,
+      "id": "claude_long_running_command_notifier",
+      "community": 441,
       "norm_label": "long-running command notifier"
     },
     {
       "label": "Code Style",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L499",
+      "source_file": "CLAUDE.md",
+      "source_location": "L529",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_code_style",
-      "community": 26,
+      "id": "claude_code_style",
+      "community": 441,
       "norm_label": "code style"
     },
     {
       "label": "Git Commits",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L527",
+      "source_file": "CLAUDE.md",
+      "source_location": "L557",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_git_commits",
-      "community": 26,
+      "id": "claude_git_commits",
+      "community": 441,
       "norm_label": "git commits"
     },
     {
       "label": "Security",
       "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L534",
+      "source_file": "CLAUDE.md",
+      "source_location": "L564",
       "_origin": "ast",
-      "id": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_security",
-      "community": 26,
+      "id": "claude_security",
+      "community": 441,
       "norm_label": "security"
     },
     {
@@ -37721,7 +38183,7 @@
       "label": "Process",
       "file_type": "document",
       "source_file": "private_dot_claude/agents/chezmoi-apply.md",
-      "source_location": "L10",
+      "source_location": "L14",
       "_origin": "ast",
       "id": "private_dot_claude_agents_chezmoi_apply_process",
       "community": 225,
@@ -37731,7 +38193,7 @@
       "label": "Output format",
       "file_type": "document",
       "source_file": "private_dot_claude/agents/chezmoi-apply.md",
-      "source_location": "L21",
+      "source_location": "L23",
       "_origin": "ast",
       "id": "private_dot_claude_agents_chezmoi_apply_output_format",
       "community": 225,
@@ -37741,7 +38203,7 @@
       "label": "Error handling",
       "file_type": "document",
       "source_file": "private_dot_claude/agents/chezmoi-apply.md",
-      "source_location": "L41",
+      "source_location": "L36",
       "_origin": "ast",
       "id": "private_dot_claude_agents_chezmoi_apply_error_handling",
       "community": 225,
@@ -38143,7 +38605,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": ".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh",
-      "source_location": "L282",
+      "source_location": "L280",
       "weight": 1.0,
       "source": "chezmoiscripts_run_after_05_osquery_known_good_manifests",
       "target": "chezmoiscripts_run_after_05_osquery_known_good_manifests_intended_perm",
@@ -38153,7 +38615,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": ".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh",
-      "source_location": "L317",
+      "source_location": "L315",
       "weight": 1.0,
       "source": "chezmoiscripts_run_after_05_osquery_known_good_manifests",
       "target": "chezmoiscripts_run_after_05_osquery_known_good_manifests_refresh_manifest",
@@ -38173,11 +38635,21 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": ".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh",
-      "source_location": "L385",
+      "source_location": "L384",
       "weight": 1.0,
       "context": "call",
       "source": "chezmoiscripts_run_after_05_osquery_known_good_manifests_sh__entry",
       "target": "chezmoiscripts_run_after_05_osquery_known_good_manifests_refresh_manifest",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": ".chezmoiscripts/run_after_50-setup-osquery.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "chezmoiscripts_run_after_50_setup_osquery",
+      "target": "chezmoiscripts_run_after_50_setup_osquery_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -44357,6 +44829,521 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L398",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_assert_no_symlink_component",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L419",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_create_private_stage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L593",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_pid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L636",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_stays_up",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L542",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_directory_verdict_for",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L371",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_drift_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L89",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L552",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_file_verdict_for",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L718",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L264",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_privileged_command_is_trustworthy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L344",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_probe_attributes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L358",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_probe_content_equality",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L321",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_probe_kind",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L437",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_remove_private_stage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L569",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L580",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L93",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L299",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_resolve_osqueryctl",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L650",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L240",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L466",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_stage_desired_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L85",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_usage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L615",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_executable_osquery_converge",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_wait_for_new_daemon_parent",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L131",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_sh__entry",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L781",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_sh__entry",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L235",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_sh__entry",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_usage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L402",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_assert_no_symlink_component",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L421",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_create_private_stage",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L750",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L267",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_privileged_command_is_trustworthy",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L666",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L471",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_stage_desired_state",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L773",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L571",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L583",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L714",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L570",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L582",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L678",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_run_privileged",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L307",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_resolve_osqueryctl",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_privileged_command_is_trustworthy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L723",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_resolve_osqueryctl",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L469",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_stage_desired_state",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_assert_no_symlink_component",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L729",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_create_private_stage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L730",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_stage_desired_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L759",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_directory",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L764",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_repair_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L710",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_daemon_parent_stays_up",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/executable_osquery-converge.sh",
+      "source_location": "L777",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_executable_osquery_converge_main",
+      "target": "dot_local_libexec_osquery_executable_osquery_converge_restart_daemon",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/executable_pipeline-audit.sh",
       "source_location": "L98",
       "weight": 1.0,
@@ -44684,6 +45671,56 @@
       "context": "call",
       "source": "dot_local_libexec_osquery_executable_uptime_watchdog_sh__entry",
       "target": "dot_local_libexec_osquery_executable_uptime_watchdog_write_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_osquery_converge_drift_verdict",
+      "target": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_attribute_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L123",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_osquery_converge_drift_verdict",
+      "target": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_directory_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L86",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_osquery_converge_drift_verdict",
+      "target": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_file_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L150",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_osquery_converge_drift_verdict",
+      "target": "dot_local_libexec_osquery_osquery_converge_drift_verdict_osquery_converge_restart_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/osquery-converge/drift-verdict.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_osquery_converge_drift_verdict",
+      "target": "dot_local_libexec_osquery_osquery_converge_drift_verdict_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -49818,7 +50855,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L272",
+      "source_location": "L277",
       "weight": 1.0,
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
       "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_acquire_lock",
@@ -49828,7 +50865,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L153",
+      "source_location": "L343",
+      "weight": 1.0,
+      "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_converge_osquery",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L158",
       "weight": 1.0,
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
       "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_homebrew_package_snapshot",
@@ -49838,7 +50885,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L310",
+      "source_location": "L315",
       "weight": 1.0,
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
       "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_refresh_tailscaled",
@@ -49848,7 +50895,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L288",
+      "source_location": "L293",
       "weight": 1.0,
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
       "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_run",
@@ -49868,7 +50915,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L103",
+      "source_location": "L108",
       "weight": 1.0,
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
       "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_weekly_alert",
@@ -49878,7 +50925,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L117",
+      "source_location": "L122",
       "weight": 1.0,
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
       "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_weekly_record",
@@ -49888,7 +50935,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L225",
+      "source_location": "L230",
       "weight": 1.0,
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade",
       "target": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_write_upgrade_record",
@@ -49898,7 +50945,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L323",
+      "source_location": "L359",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_sh__entry",
@@ -49909,7 +50956,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L373",
+      "source_location": "L409",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_sh__entry",
@@ -49920,7 +50967,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L388",
+      "source_location": "L424",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_sh__entry",
@@ -49931,7 +50978,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L334",
+      "source_location": "L370",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_sh__entry",
@@ -49942,7 +50989,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L329",
+      "source_location": "L365",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_sh__entry",
@@ -49953,7 +51000,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh",
-      "source_location": "L377",
+      "source_location": "L413",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_unattended_upgrades_executable_homebrew_weekly_upgrade_sh__entry",
@@ -56019,7 +57066,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L152",
+      "source_location": "L149",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_bin_manifest_hash_of",
@@ -56029,7 +57076,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L158",
+      "source_location": "L155",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_bin_manifest_mode_of",
@@ -56039,7 +57086,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L161",
+      "source_location": "L158",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_bin_manifest_uid_of",
@@ -56089,20 +57136,10 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L99",
+      "source_location": "L100",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_manifest_fixture_apply",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L103",
-      "weight": 1.0,
-      "source": "test_fixtures_osquery_manifest_lib",
-      "target": "test_fixtures_osquery_manifest_lib_manifest_fixture_apply_mode",
       "confidence_score": 1.0
     },
     {
@@ -56119,7 +57156,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L126",
+      "source_location": "L123",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_manifest_fixture_installed",
@@ -56129,7 +57166,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L111",
+      "source_location": "L108",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_manifest_fixture_run_runner",
@@ -56159,7 +57196,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L134",
+      "source_location": "L131",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_manifest_hash_of",
@@ -56169,7 +57206,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L139",
+      "source_location": "L136",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_manifest_mode_of",
@@ -56179,7 +57216,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L144",
+      "source_location": "L141",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_manifest_uid_of",
@@ -56189,7 +57226,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L170",
+      "source_location": "L167",
       "weight": 1.0,
       "source": "test_fixtures_osquery_manifest_lib",
       "target": "test_fixtures_osquery_manifest_lib_verdict_says_page",
@@ -56199,22 +57236,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L104",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_fixtures_osquery_manifest_lib_manifest_fixture_apply_mode",
-      "target": "test_fixtures_osquery_manifest_lib_manifest_fixture_chezmoi",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/fixtures/osquery-manifest-lib.bash",
-      "source_location": "L100",
+      "source_location": "L101",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_manifest_lib_manifest_fixture_apply",
-      "target": "test_fixtures_osquery_manifest_lib_manifest_fixture_apply_mode",
+      "target": "test_fixtures_osquery_manifest_lib_manifest_fixture_chezmoi",
       "confidence_score": 1.0
     },
     {
@@ -60143,7 +61169,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/moshi-hook-bounce-on-upgrade.sh",
-      "source_location": "L82",
+      "source_location": "L87",
       "weight": 1.0,
       "source": "test_unit_moshi_hook_bounce_on_upgrade",
       "target": "test_unit_moshi_hook_bounce_on_upgrade_kickstarted",
@@ -60153,7 +61179,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/moshi-hook-bounce-on-upgrade.sh",
-      "source_location": "L38",
+      "source_location": "L43",
       "weight": 1.0,
       "source": "test_unit_moshi_hook_bounce_on_upgrade",
       "target": "test_unit_moshi_hook_bounce_on_upgrade_run_case",
@@ -60184,7 +61210,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/moshi-hook-bounce-on-upgrade.sh",
-      "source_location": "L87",
+      "source_location": "L92",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_moshi_hook_bounce_on_upgrade_sh__entry",
@@ -60195,7 +61221,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/moshi-hook-bounce-on-upgrade.sh",
-      "source_location": "L86",
+      "source_location": "L91",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_moshi_hook_bounce_on_upgrade_sh__entry",
@@ -61439,331 +62465,331 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L7",
       "weight": 1.0,
-      "source": "agents",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
+      "source": "claude",
+      "target": "claude_claude_md",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L160",
+      "source_file": "CLAUDE.md",
+      "source_location": "L169",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
+      "source": "claude_claude_md",
+      "target": "claude_architecture",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L499",
+      "source_file": "CLAUDE.md",
+      "source_location": "L529",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_code_style",
+      "source": "claude_claude_md",
+      "target": "claude_code_style",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L527",
+      "source_file": "CLAUDE.md",
+      "source_location": "L557",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_git_commits",
+      "source": "claude_claude_md",
+      "target": "claude_git_commits",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L38",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_key_commands",
+      "source": "claude_claude_md",
+      "target": "claude_key_commands",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L24",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_runbooks",
+      "source": "claude_claude_md",
+      "target": "claude_runbooks",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L534",
+      "source_file": "CLAUDE.md",
+      "source_location": "L564",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_security",
+      "source": "claude_claude_md",
+      "target": "claude_security",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L11",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_md",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_what_this_is",
+      "source": "claude_claude_md",
+      "target": "claude_what_this_is",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L120",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_key_commands",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_chezmoi_operations",
+      "source": "claude_key_commands",
+      "target": "claude_chezmoi_operations",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L149",
+      "source_file": "CLAUDE.md",
+      "source_location": "L158",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_key_commands",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_cutover_tooling",
+      "source": "claude_key_commands",
+      "target": "claude_cutover_tooling",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L40",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_key_commands",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_linting_and_formatting",
+      "source": "claude_key_commands",
+      "target": "claude_linting_and_formatting",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
       "source_location": "L65",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_key_commands",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_testing",
+      "source": "claude_key_commands",
+      "target": "claude_testing",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L243",
+      "source_file": "CLAUDE.md",
+      "source_location": "L252",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_agent_skills_cross_harness_store",
+      "source": "claude_architecture",
+      "target": "claude_agent_skills_cross_harness_store",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L391",
+      "source_file": "CLAUDE.md",
+      "source_location": "L406",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_background_jobs_and_launchagents",
+      "source": "claude_architecture",
+      "target": "claude_background_jobs_and_launchagents",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L471",
+      "source_file": "CLAUDE.md",
+      "source_location": "L501",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_bashrc_init_ordering",
+      "source": "claude_architecture",
+      "target": "claude_bashrc_init_ordering",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
+      "source_file": "CLAUDE.md",
+      "source_location": "L343",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_ci",
+      "source": "claude_architecture",
+      "target": "claude_ci",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L233",
+      "source_file": "CLAUDE.md",
+      "source_location": "L242",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_claude_code_settings",
+      "source": "claude_architecture",
+      "target": "claude_claude_code_settings",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L315",
+      "source_file": "CLAUDE.md",
+      "source_location": "L326",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_dev_environment_no_nix",
+      "source": "claude_architecture",
+      "target": "claude_dev_environment_no_nix",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
+      "source_file": "CLAUDE.md",
+      "source_location": "L277",
+      "weight": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_git_hooks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L489",
+      "weight": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_git_worktrees_worktrunk",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
       "source_location": "L268",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_git_hooks",
+      "source": "claude_architecture",
+      "target": "claude_global_instruction_files",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L459",
+      "source_file": "CLAUDE.md",
+      "source_location": "L483",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_git_worktrees_worktrunk",
+      "source": "claude_architecture",
+      "target": "claude_herdr_native_status",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L259",
+      "source_file": "CLAUDE.md",
+      "source_location": "L464",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_global_instruction_files",
+      "source": "claude_architecture",
+      "target": "claude_herdr_workspace_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L453",
+      "source_file": "CLAUDE.md",
+      "source_location": "L515",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_herdr_native_status",
+      "source": "claude_architecture",
+      "target": "claude_long_running_command_notifier",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L434",
+      "source_file": "CLAUDE.md",
+      "source_location": "L230",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_herdr_workspace_management",
+      "source": "claude_architecture",
+      "target": "claude_macos_defaults_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L485",
+      "source_file": "CLAUDE.md",
+      "source_location": "L181",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_long_running_command_notifier",
+      "source": "claude_architecture",
+      "target": "claude_minimum_chezmoi_version",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L221",
+      "source_file": "CLAUDE.md",
+      "source_location": "L185",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_macos_defaults_management",
+      "source": "claude_architecture",
+      "target": "claude_secrets_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L172",
+      "source_file": "CLAUDE.md",
+      "source_location": "L171",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_minimum_chezmoi_version",
+      "source": "claude_architecture",
+      "target": "claude_source_only_files_and_os_targeting",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L176",
+      "source_file": "CLAUDE.md",
+      "source_location": "L447",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_secrets_management",
+      "source": "claude_architecture",
+      "target": "claude_ssh_hardening",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L162",
+      "source_file": "CLAUDE.md",
+      "source_location": "L197",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_source_only_files_and_os_targeting",
+      "source": "claude_architecture",
+      "target": "claude_system_package_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L417",
+      "source_file": "CLAUDE.md",
+      "source_location": "L291",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_ssh_hardening",
+      "source": "claude_architecture",
+      "target": "claude_template_files",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L188",
+      "source_file": "CLAUDE.md",
+      "source_location": "L298",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_system_package_management",
+      "source": "claude_architecture",
+      "target": "claude_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L282",
+      "source_file": "CLAUDE.md",
+      "source_location": "L355",
       "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_template_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L289",
-      "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_template_shellcheck_workaround",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L344",
-      "weight": 1.0,
-      "source": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_architecture",
-      "target": "users_stephen_herdr_worktrees_dotfiles_agent_a49c1841b7a63d1fe_agents_where_deployed_scripts_live",
+      "source": "claude_architecture",
+      "target": "claude_where_deployed_scripts_live",
       "confidence_score": 1.0
     },
     {
@@ -80210,7 +81236,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "private_dot_claude/agents/chezmoi-apply.md",
-      "source_location": "L41",
+      "source_location": "L36",
       "weight": 1.0,
       "source": "private_dot_claude_agents_chezmoi_apply",
       "target": "private_dot_claude_agents_chezmoi_apply_error_handling",
@@ -80220,7 +81246,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "private_dot_claude/agents/chezmoi-apply.md",
-      "source_location": "L21",
+      "source_location": "L23",
       "weight": 1.0,
       "source": "private_dot_claude_agents_chezmoi_apply",
       "target": "private_dot_claude_agents_chezmoi_apply_output_format",
@@ -80230,7 +81256,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "private_dot_claude/agents/chezmoi-apply.md",
-      "source_location": "L10",
+      "source_location": "L14",
       "weight": 1.0,
       "source": "private_dot_claude_agents_chezmoi_apply",
       "target": "private_dot_claude_agents_chezmoi_apply_process",
@@ -80538,5 +81564,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "96d2bd4e485f3d58881dd159fea91d560d1ec1fd"
+  "built_at_commit": "469676d3a6495c27c5a3f3074e483f6f2d238952"
 }

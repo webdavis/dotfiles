@@ -318,8 +318,10 @@ but it is load-bearing for the sibling `espanso-match-render` formatter, whose v
 `{{ if (env "CI") }}`.
 
 Two more sibling formatters render before validating: `osquery-config-render` renders the JSON-bodied
-`.chezmoitemplates/osquery/**/*.conf` templates via `includeTemplate` and checks them with jq, and
-`espanso-match-render` renders the espanso `*.yml.tmpl` match files and checks them with yq.
+`.conf` files under `dot_local/libexec/osquery/osquery-converge/desired/` (two of the six are templates;
+`execute-template` on a file holding no template action renders it to itself, so one code path covers
+both kinds) and checks them with jq, and `espanso-match-render` renders the espanso `*.yml.tmpl` match
+files and checks them with yq.
 
 ### Dev environment (no nix)
 
@@ -370,9 +372,13 @@ Four rules decide the shape below `libexec`, in this order:
    whose own name cannot carry its domain: `tailscale/reconcile-hosts-pin.sh` keeps its directory because
    the filename says nothing about Tailscale and it is the only root-executed script in the tree.
 1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
-   tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`). Never
-   `main.sh`: the basename is what shows up in `ps`, in launchd output and in every log line, so five
-   directories of `main.sh` would be five indistinguishable processes.
+   tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`, and
+   `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is
+   what shows up in `ps`, in launchd output and in every log line, so five directories of `main.sh` would
+   be five indistinguishable processes. That directory holds a tool's private DATA as well as its private
+   code (`osquery-converge/desired/` is the state the tool installs; `osquery/posture-controls.json` is
+   the flat-file version of the same idea), because the alternative is data under `share/` that none of
+   the integrity coverage anchored on this tree reaches.
 1. **`helpers/` holds code shared ACROSS a group**; a helper used by exactly one tool lives in that
    tool's own directory. `unattended-upgrades/helpers/log-entries.sh` is shared by all three weekly jobs,
    while `agent-skills/assert-hermes-superpowers-routing.sh` sits with the updater that is its only
@@ -419,9 +425,24 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.osquery-tailscale-monitor`           | watches tailscaled posture                                  |
 | `com.webdavis.osquery-uptime-watchdog`             | watches for a machine that stopped reporting                |
 
-The osquery side is configured by `run_onchange_before_50-setup-osquery.sh.tmpl` from the JSON-bodied
-templates under `.chezmoitemplates/osquery/`, with its control catalog in
-`.chezmoidata/macos_posture_controls.yaml`.
+The root daemon's own side is CONVERGED, not written once. `~/.local/libexec/osquery/osquery-converge.sh`
+compares each of the six files we own in `/var/osquery` (plus the two directory modes) against the
+desired state deployed beside it under `osquery-converge/desired/`, installs whatever drifted with
+`sudo /usr/bin/install -o root -g wheel -m 0644` out of a private 0700 copy of that staging tree, and
+restarts osqueryd only when something did, requiring the ppid-1 parent to be a DIFFERENT process from the
+one running before the stop and still up after a settle window. No drift means no privileged call, no
+restart and no output. Anything irregular (a symlink standing in for a target directory, the staging tree
+or the vendor plist) is refused rather than repaired, because `install -d` follows a link. Two callers:
+`.chezmoiscripts/run_after_50-setup-osquery.sh` on every apply (a PLAIN script, so `--exclude=templates`
+still runs it) and the weekly Homebrew job right after its upgrade pass, because the osquery cask upgrade
+is what wipes those files and it runs unattended; a converge tool that is not deployed FAILS that weekly
+step rather than passing quietly. The control catalog stays in
+`.chezmoidata/macos_posture_controls.yaml`. KNOWN LIMIT: `--exclude=templates` does not refresh the two
+templated desired-state files, so config CHANGES ship on a full apply; wipe repair needs only the staging
+already on disk. Editing either of them also pages a CRIT until that full apply, because the known-good
+manifest records the new render while the deployed copy still holds the old one. That is a property of
+manifesting intent, not of the converge: ten templated targets sit in the pipeline manifest arm and all
+of them behave this way.
 
 ### SSH hardening
 
