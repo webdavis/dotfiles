@@ -13,7 +13,7 @@ alias j := lint-json
 alias y := lint-yaml
 alias T := test
 alias d := diff
-alias a := apply-no-auth
+alias a := apply
 alias c := lint-check
 alias D := defaults-drift
 
@@ -66,11 +66,16 @@ lint-actions-syntax:
 lint-actions-security:
   zizmor --offline .github/workflows
 
+# Both reach templates, so both need KeePassXC unlocked and an interactive
+# terminal. That is deliberate: excluding templates left the deployed copy of a
+# templated target behind its source, which the osquery known-good manifest
+# reads as tampering. The operator runs these until the vault is replaced by
+# something an agent can unlock.
 diff:
-  chezmoi diff --exclude=templates
+  chezmoi diff
 
-apply-no-auth:
-  chezmoi apply --exclude=templates --force
+apply:
+  chezmoi apply
 
 # Test suites: test/unit (single component, stub-driven, fast), then
 # test/integration and test/e2e. Rust tests live in each plugin's own crate,
@@ -93,24 +98,35 @@ test-integration: validate-tests
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# The two herdr plugins' inline Rust unit tests, the one camp that is not a
-# shell suite: a `#[cfg(test)] mod tests` in each plugin's src/main.rs, covering
-# the pure decision functions (every Command call sits behind an untested
-# boundary by design). They existed but no gate ran them until 2026-08-05.
+# The three Rust crates' inline unit tests, the one camp that is not a shell
+# suite: a `#[cfg(test)] mod tests` beside the code in each. The two herdr
+# plugins cover the pure decision functions in their src/main.rs (every Command
+# call sits behind an untested boundary by design); the pns crate is a library
+# whose whole content is the pure decision core.
 #
 # --locked matches the apply-time build
 # (.chezmoitemplates/herdr-plugin-build.sh.tmpl): Cargo.lock is committed for
-# both plugins and a gate must not rewrite it. cargo comes from PATH, and its
+# every crate and a gate must not rewrite it. cargo comes from PATH, and its
 # absence FAILS this camp rather than skipping it, because a camp that skips
 # itself when its toolchain is missing is how these tests went unrun. CI needs
-# no new step: macos-latest ships cargo, and `just test` pulls this in.
+# no new step: macos-latest ships cargo, clippy and rustfmt, and `just test`
+# pulls this in.
 #
-# Cheap enough to sit in the default camp list: about 2.5s per plugin against an
-# empty target/, 0.06s warm. target/ is plugin-local, gitignored and
-# .chezmoiignore'd, so a developer pays the build once.
+# fmt and clippy run for pns ONLY. Nothing linted Rust anywhere before it, and
+# adopting the two for the herdr plugins is a separate decision with its own
+# diff; a gate that fails on code this slice did not touch would just be turned
+# off. --all-targets so the test modules are linted too, since that is where
+# most of this crate's code lives.
+#
+# Cheap enough to sit in the default camp list: about 2.5s per crate against an
+# empty target/, well under a second warm. target/ is crate-local, gitignored
+# and .chezmoiignore'd, so a developer pays the build once.
 test-rust:
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.toml
+  cargo test --locked --manifest-path dot_local/share/pns/Cargo.toml
+  cargo fmt --check --manifest-path dot_local/share/pns/Cargo.toml
+  cargo clippy --locked --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
 
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,

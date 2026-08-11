@@ -35,6 +35,10 @@ graphify-out/*
 # Rust build artifacts for vendored herdr projects (plugins + binaries, built in-place, never committed).
 dot_local/share/herdr/**/target/
 
+# Same, for the pns crate: the first `cargo test` writes this tree, and it is
+# rebuilt in place rather than committed.
+dot_local/share/pns/target/
+
 # Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
 *config.yaml.bak*
 *config.yaml.corrupt*

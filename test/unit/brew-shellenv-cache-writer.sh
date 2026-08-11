@@ -5,7 +5,7 @@
 #
 # This script is the ONE implementation of the cache write. Both callers use it:
 # ~/.bashrc's self-heal guard (the only automatic writer, since
-# `chezmoi apply --exclude=templates` skips every templated script) and
+# skipped every templated script) and
 # `just brew-cache-refresh`. Everything ~/.bashrc sources at startup comes out of
 # here, so its failure modes are pinned individually:
 #

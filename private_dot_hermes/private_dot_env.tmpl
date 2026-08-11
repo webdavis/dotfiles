@@ -8,7 +8,9 @@
   APPLY CAUTION: this OVERWRITES the entire live ~/.hermes/.env. Every KeePassXC entry below must exist and be
   populated before `chezmoi apply ~/.hermes/.env`, or the rendered file drops that secret and breaks Hermes
   (an empty DISCORD_BOT_TOKEN takes the Discord platform down). Because it calls keepassxc it is a TTY-only
-  template -- `chezmoi apply --exclude=templates` skips it, so apply it interactively with KeePassXC unlocked.
+  template, so apply it interactively with KeePassXC unlocked. A by-name apply is safe HERE only because this
+  target is not in a known-good manifest; a by-name apply of a manifested file skips the manifest refresh and
+  pages a false tamper CRIT (see CLAUDE.md).
   .env values are bare (no quoting).
 */ -}}
 # --- Webhook gateway activation (the platform switch) ---

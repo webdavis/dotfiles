@@ -68,7 +68,7 @@ files.
 just test-unit          # Unit suite only (the fast commit gate)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
-just test-rust          # cargo test for the two herdr plugins
+just test-rust          # cargo test for the two herdr plugins and the pns crate (+ fmt/clippy for pns)
 just test               # The three shell suites plus the Rust tests (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
@@ -120,23 +120,32 @@ picked up automatically.
 ### Chezmoi operations
 
 ```bash
-just d                                      # chezmoi diff --exclude=templates
-just a                                      # chezmoi apply --exclude=templates --force
+just d                                      # chezmoi diff
+just a                                      # chezmoi apply
 chezmoi status                              # show pending changes
-chezmoi diff                                # diff all (including templates)
 chezmoi edit <file>                         # edit a template (prefer over direct edit of .tmpl)
 ```
 
-**`--exclude=templates` does not make an apply vault-free.** It skips `.tmpl` entries, but it does NOT
-skip a `modify_` template (measured 2026-08-02), and two modify-templates call `keepassxc`:
-`modify_private_dot_claude.json` (target `~/.claude.json`) and
-`Library/Application Support/Claude/modify_private_claude_desktop_config.json`. So `just a` and `just d`
-still reach the vault: run them from an interactive terminal with KeePassXC unlocked. To stay off the
-vault entirely, apply specific files by name:
+**THE OPERATOR RUNS APPLIES. Agents do not.** Both recipes above reach templates, so both need KeePassXC
+unlocked and an interactive terminal. An agent proposes changes and lets the operator apply them. This
+holds until the vault is replaced with a password manager an agent can unlock.
 
-```bash
-chezmoi apply ~/.fzf_bindings               # specific non-template, non-modify file
-```
+**Why `--exclude=templates` was retired** (it was the mandated agent apply until 2026-08-10). It left the
+deployed copy of a templated target behind its source, while the osquery known-good manifest derives its
+hashes from the SOURCE. The two then disagree, and the pipeline audit reads that as tampering: a FALSE
+CRIT page on every tick until a full apply catches up, across ten manifested templated targets (seven
+osquery LaunchAgent plists, `posture-controls.json`, and the two osquery staging files). It also never
+delivered what it was for: it does NOT skip a `modify_` template (measured 2026-08-02), and two of those
+call `keepassxc`, so the excluded apply reached the vault anyway.
+
+**A by-name apply is NOT a supported shortcut.** `chezmoi apply <path>` deploys that path without running
+the `run_` scripts, so `run_after_05-osquery-known-good-manifests.sh` never refreshes the known-good
+manifests. Deploy a MANIFESTED file that way and its hash no longer matches the manifest, which the
+pipeline audit reads as tampering and pages CRIT on every tick until a full apply. The manifested set is
+the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts under `~/.local/bin` and
+`~/.local/libexec`, and the osquery LaunchAgents. Use a full `chezmoi apply`; it is what keeps the
+deployed state and the manifests derived from the same source state. The by-name form existed to dodge
+the vault, which is no longer a goal now that the operator applies with it unlocked.
 
 Twelve targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,

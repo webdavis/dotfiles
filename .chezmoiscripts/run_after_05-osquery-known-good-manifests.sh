@@ -49,11 +49,9 @@
 # bin arm starts, so a failure in the bin arm cannot leave the pipeline manifest
 # stale. errexit then aborts the runner, which fails the apply loudly.
 #
-# NOT a template, deliberately. The mandated agent apply is
-# `chezmoi apply --exclude=templates`, which skips template scripts but still
-# applies the pipeline's plain executable_*.sh files. As a .tmpl this runner would
-# never refresh the manifests on that path, so every agent apply would leave each
-# updated file paging a false CRIT until someone ran a full interactive apply.
+# NOT a template. This runner refreshes the manifests, so it must run on every
+# apply that can change a manifested file. Keeping it plain removes any dependence
+# on which entry types a given apply processes.
 # Darwin is therefore gated at runtime, not with a Go-template guard.
 #
 # Runs in the EARLIEST after-phase slot (05): all target files are written before
