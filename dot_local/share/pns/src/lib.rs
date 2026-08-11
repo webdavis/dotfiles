@@ -16,6 +16,7 @@ pub mod config;
 pub mod presence;
 pub mod probes;
 pub mod pulse;
+pub mod registry;
 pub mod render;
 pub mod routing;
 pub mod safety;
