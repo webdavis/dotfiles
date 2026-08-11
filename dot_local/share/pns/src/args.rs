@@ -29,8 +29,46 @@ pub fn parse_args<I>(argv: I) -> (EventArgs, Vec<String>)
 where
     I: IntoIterator<Item = String>,
 {
-    let _ = argv.into_iter();
-    todo!("R2d: the lenient relay contract")
+    const VALUE_FLAGS: [&str; 6] = [
+        "--agent",
+        "--state",
+        "--project",
+        "--branch",
+        "--detail",
+        "--pane",
+    ];
+    let recognized = |token: &str| {
+        VALUE_FLAGS.contains(&token) || token == "--local-only" || token == "--remote-only"
+    };
+
+    let mut parsed = EventArgs::default();
+    let mut warnings = Vec::new();
+    let mut tokens = argv.into_iter().peekable();
+    while let Some(token) = tokens.next() {
+        match token.as_str() {
+            "--local-only" => parsed.local_only = true,
+            "--remote-only" => parsed.remote_only = true,
+            flag if VALUE_FLAGS.contains(&flag) => {
+                // Missing, or a recognized flag standing where the value
+                // should be: warn and leave the token for its own arm.
+                if tokens.peek().is_none_or(|next| recognized(next)) {
+                    warnings.push(format!("{flag} given without a value; ignoring"));
+                    continue;
+                }
+                let Some(value) = tokens.next() else { continue };
+                match flag {
+                    "--agent" => parsed.agent = value,
+                    "--state" => parsed.state = value,
+                    "--project" => parsed.project = value,
+                    "--branch" => parsed.branch = value,
+                    "--detail" => parsed.detail = value,
+                    _ => parsed.pane = value,
+                }
+            }
+            _ => {}
+        }
+    }
+    (parsed, warnings)
 }
 
 #[cfg(test)]

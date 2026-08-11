@@ -21,6 +21,10 @@ use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe
 use crate::registry::Selection;
 use crate::routing::Leg;
 
+/// The idle threshold the bash defaults to when `RELAY_DESK_IDLE_SECS` says
+/// nothing: past this the operator counts as away from the desk.
+const DEFAULT_DESK_IDLE_SECS: u64 = 120;
+
 /// Everything the environment may override, parsed once at the edge.
 /// Garbage numeric values read as absent, never as zero.
 #[derive(Debug, Default, PartialEq)]
@@ -40,8 +44,28 @@ pub struct Overrides {
 impl Overrides {
     /// Parse the RELAY_* and PNS_* variables out of an environment map.
     pub fn from_env(vars: &BTreeMap<String, String>) -> Self {
-        let _ = vars;
-        todo!("R2d: parse overrides; a garbage number is absent, never zero")
+        let count = |key: &str| vars.get(key).and_then(|raw| crate::parse_count(raw));
+        let set = |key: &str| vars.get(key).is_some_and(|raw| !raw.is_empty());
+        let forced = |key: &str| match vars.get(key).map(String::as_str) {
+            Some("1") => Some(true),
+            Some("0") => Some(false),
+            _ => None,
+        };
+        Self {
+            idle_secs: count("RELAY_IDLE_SECS"),
+            desk_idle_secs: count("RELAY_DESK_IDLE_SECS"),
+            skip_phone: set("RELAY_SKIP_PHONE"),
+            force_phone: set("RELAY_FORCE_PHONE"),
+            phone_attention: forced("RELAY_PHONE_ATTENTION"),
+            moshi_viewing: forced("RELAY_MOSHI_VIEWING"),
+            focused_pane: vars
+                .get("RELAY_HERDR_FOCUSED_PANE")
+                .filter(|pane| !pane.is_empty())
+                .cloned(),
+            marker_ttl_secs: count("PNS_PHONE_MARKER_TTL"),
+            attention_floor_bytes: count("PNS_ATTENTION_FLOOR_BYTES"),
+            physical_fresh_secs: count("PNS_PHYSICAL_FRESH_SECS"),
+        }
     }
 }
 
@@ -70,16 +94,92 @@ pub fn decide<P>(
 where
     P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + FocusedPaneProbe,
 {
-    let _ = (
-        probes,
-        selection,
-        overrides,
-        local_only,
-        remote_only,
-        pane,
-        now_secs,
-    );
-    todo!("R2d: compose the decision core over the probe seams")
+    use crate::presence::{
+        DEFAULT_ATTENTION_FLOOR_BYTES, DEFAULT_PHONE_MARKER_TTL_SECS, DEFAULT_PHYSICAL_FRESH_SECS,
+        attention_band, marker_fresh, mosh_rate_active, moshi_viewing, phone_attention,
+    };
+
+    let desk_idle_secs = Some(overrides.desk_idle_secs.unwrap_or(DEFAULT_DESK_IDLE_SECS));
+    let decided_without_a_reading =
+        local_only || remote_only || overrides.skip_phone || overrides.force_phone;
+    let idle_secs = match overrides.idle_secs {
+        Some(secs) => Some(secs),
+        None if decided_without_a_reading => None,
+        None => probes.idle_secs(),
+    };
+
+    // Skip beats force, so it gates the whole verdict rather than riding in
+    // as another argument.
+    let mut want_phone = !overrides.skip_phone
+        && crate::routing::wants_phone(
+            idle_secs,
+            desk_idle_secs,
+            local_only,
+            remote_only,
+            overrides.force_phone,
+        );
+
+    // Each reading is guarded by the verdict that would discard it, so a
+    // forced answer never pays for the probe underneath it.
+    let viewing_now = || {
+        let rate_active = overrides.moshi_viewing.is_none()
+            && probes.sample_csv().is_some_and(|csv| {
+                mosh_rate_active(
+                    &csv,
+                    overrides
+                        .attention_floor_bytes
+                        .unwrap_or(DEFAULT_ATTENTION_FLOOR_BYTES),
+                )
+            });
+        moshi_viewing(overrides.moshi_viewing, rate_active)
+    };
+
+    if !want_phone
+        && !local_only
+        && !remote_only
+        && !overrides.skip_phone
+        && attention_band(
+            idle_secs,
+            desk_idle_secs,
+            Some(
+                overrides
+                    .physical_fresh_secs
+                    .unwrap_or(DEFAULT_PHYSICAL_FRESH_SECS),
+            ),
+        )
+    {
+        let marker_is_fresh = overrides.phone_attention.is_none()
+            && marker_fresh(
+                probes.marker_mtime_secs(),
+                now_secs,
+                Some(
+                    overrides
+                        .marker_ttl_secs
+                        .unwrap_or(DEFAULT_PHONE_MARKER_TTL_SECS),
+                ),
+            );
+        // The marker is a stat of one file; the sample is a full second of
+        // live counters, so it runs only once the marker has said nothing.
+        let viewing = overrides.phone_attention.is_none() && !marker_is_fresh && viewing_now();
+        want_phone = phone_attention(overrides.phone_attention, marker_is_fresh, viewing);
+    }
+
+    if want_phone && !overrides.force_phone && !pane.is_empty() {
+        let focused = match &overrides.focused_pane {
+            Some(pane) => Some(pane.clone()),
+            None => probes.focused_pane(),
+        };
+        if crate::routing::viewed_pane_redundant(pane, &focused.unwrap_or_default())
+            && viewing_now()
+        {
+            want_phone = false;
+        }
+    }
+
+    Decision {
+        legs: crate::routing::channel_plan(selection, local_only, remote_only, want_phone),
+        pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
+    }
 }
 
 /// One leg's event, as the JSON object the channel contract specifies.
@@ -97,10 +197,19 @@ pub fn event_json(
     pane: &str,
     mode: &str,
 ) -> String {
-    let _ = (
-        agent, state, project, branch, detail, title, message, preview, pane, mode,
-    );
-    todo!("R2d: the channel contract's JSON object")
+    serde_json::json!({
+        "agent": agent,
+        "state": state,
+        "project": project,
+        "branch": branch,
+        "detail": detail,
+        "title": title,
+        "message": message,
+        "preview": preview,
+        "pane": pane,
+        "mode": mode,
+    })
+    .to_string()
 }
 
 #[cfg(test)]
