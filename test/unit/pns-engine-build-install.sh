@@ -52,10 +52,19 @@ cat >"$home/.cargo/bin/cargo" <<STUB
 # Stand-in for the real build: honor --manifest-path and produce the binary
 # the script installs.
 manifest=""
+locked=0
 while [[ \$# -gt 0 ]]; do
   [[ \$1 == --manifest-path ]] && manifest="\$2"
+  [[ \$1 == --locked ]] && locked=1
   shift
 done
+# The committed lock is the build: without --locked cargo may rewrite the
+# deployed lockfile and pull dependencies the lock never recorded.
+if [[ \$locked -ne 1 ]]; then
+  echo "cargo was invoked without --locked" >&2
+  exit 1
+fi
+
 crate="\$(dirname "\$manifest")"
 mkdir -p "\$crate/target/release"
 if [[ -f "\$HOME/.stub-build-sleeper" ]]; then
