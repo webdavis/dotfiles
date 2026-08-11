@@ -14,9 +14,9 @@ pub mod presence;
 pub mod probes;
 pub mod pulse;
 pub mod render;
-pub mod system;
 pub mod routing;
 pub mod safety;
+pub mod system;
 
 /// A plain decimal count, or `None` when the text is not one.
 ///

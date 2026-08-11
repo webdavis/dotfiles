@@ -38,7 +38,6 @@ const IOREG_IDLE_KEY: &str = "HIDIdleTime";
 /// Absolute, because a probe must not resolve a system binary through a PATH
 /// it does not control.
 pub const IOREG_PATH: &str = "/usr/sbin/ioreg";
-pub const STAT_PATH: &str = "/usr/bin/stat";
 pub const PGREP_PATH: &str = "/usr/bin/pgrep";
 pub const NETTOP_PATH: &str = "/usr/bin/nettop";
 
@@ -52,16 +51,6 @@ pub fn parse_idle_nanoseconds(ioreg_output: &str) -> Option<&str> {
         .lines()
         .find(|line| line.contains(IOREG_IDLE_KEY))
         .and_then(|line| line.split_whitespace().last())
-}
-
-/// The marker's modification time in whole seconds, as `stat -f %m` prints it:
-/// one line, one number.
-pub fn parse_marker_mtime(stat_output: &str) -> Option<&str> {
-    let trimmed = stat_output.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    Some(trimmed)
 }
 
 /// The process ids `pgrep` printed, one per line, discarding anything that is
@@ -91,8 +80,8 @@ pub fn parse_focused_pane(pane_list_json: &str) -> Option<String> {
     Some(object[value_start..value_start + value_end].to_string())
 }
 
-
-/// The four probes, each reading the machine through one command.
+/// The four probes: three read the machine through one command each, and the
+/// marker reads the filesystem directly, because an mtime needs no subprocess.
 ///
 /// One struct rather than four, because they share the runner and a caller
 /// composes the traits it needs. SOLID: it depends on the runner abstraction,
@@ -119,7 +108,7 @@ impl<R: CommandRunner> crate::probes::IdleProbe for SystemProbes<R> {
 
 impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
     fn marker_mtime_secs(&self) -> Option<u64> {
-        todo!("R2a: stat the marker, parse the mtime")
+        todo!("R2a: read the marker's fs metadata, mtime as whole seconds since the epoch")
     }
 }
 
@@ -137,9 +126,7 @@ impl<R: CommandRunner> crate::probes::FocusedPaneProbe for SystemProbes<R> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CommandRunner, parse_focused_pane, parse_idle_nanoseconds, parse_marker_mtime, parse_pids,
-    };
+    use super::{CommandRunner, parse_focused_pane, parse_idle_nanoseconds, parse_pids};
     use std::cell::RefCell;
 
     /// Records what it was asked to run and answers from a script, so a test
@@ -194,19 +181,6 @@ mod tests {
         assert_eq!(parse_idle_nanoseconds(""), None);
     }
 
-    // --- parse_marker_mtime -------------------------------------------------
-
-    #[test]
-    fn the_marker_time_is_the_single_number_the_stat_prints() {
-        assert_eq!(parse_marker_mtime("1786400000\n"), Some("1786400000"));
-    }
-
-    #[test]
-    fn an_empty_stat_reads_as_unknown_which_the_marker_rule_fails_closed_on() {
-        assert_eq!(parse_marker_mtime(""), None);
-        assert_eq!(parse_marker_mtime("   \n"), None);
-    }
-
     // --- parse_pids ---------------------------------------------------------
 
     #[test]
@@ -216,7 +190,10 @@ mod tests {
 
     #[test]
     fn a_line_that_is_not_a_plain_id_is_discarded_rather_than_passed_to_the_sampler() {
-        assert_eq!(parse_pids("101\nnot-a-pid\n-5\n\n2002\n"), vec!["101", "2002"]);
+        assert_eq!(
+            parse_pids("101\nnot-a-pid\n-5\n\n2002\n"),
+            vec!["101", "2002"]
+        );
     }
 
     #[test]
@@ -261,8 +238,8 @@ mod tests {
 
     // --- the four probe implementations, the behavior R2a owes -------------
 
-    use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
     use super::SystemProbes;
+    use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
 
     fn probes_answering(answer: &str) -> SystemProbes<FakeRunner> {
         SystemProbes::new(FakeRunner::answering(answer), "/marker".to_string())
@@ -291,14 +268,30 @@ mod tests {
     }
 
     #[test]
-    fn the_marker_probe_reports_the_modification_time_it_was_given() {
-        let probes = probes_answering("1786400000\n");
-        assert_eq!(probes.marker_mtime_secs(), Some(1_786_400_000));
+    fn the_marker_probe_reports_the_files_modification_time_in_whole_seconds() {
+        // The marker is read straight off the filesystem, no subprocess: a
+        // freshly written file's mtime must land within seconds of now, and
+        // the bound is two-sided so a future mtime cannot read as fresh.
+        let path = std::env::temp_dir().join(format!("pns-marker-test-{}", std::process::id()));
+        std::fs::write(&path, b"").unwrap();
+        let probes = SystemProbes::new(FakeRunner::failing(), path.to_string_lossy().into_owned());
+        let reading = probes.marker_mtime_secs();
+        std::fs::remove_file(&path).ok();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mtime = reading.expect("a marker that exists must yield a reading");
+        assert!(now.abs_diff(mtime) <= 5);
     }
 
     #[test]
     fn an_absent_marker_reports_unknown_which_the_marker_rule_fails_closed_on() {
-        assert_eq!(probes_failing().marker_mtime_secs(), None);
+        let probes = SystemProbes::new(
+            FakeRunner::failing(),
+            "/nonexistent/pns-marker-test".to_string(),
+        );
+        assert_eq!(probes.marker_mtime_secs(), None);
     }
 
     #[test]
