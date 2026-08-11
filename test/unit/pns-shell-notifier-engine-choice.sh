@@ -37,7 +37,7 @@ stub "$home/.local/libexec/pns/channels/hue-pulse.sh" BASH-PULSE
 # calls the stubs recorded.
 fire() {
   : >"$scratch/calls"
-  HOME="$home" SECONDS="$1" bash --noprofile --norc -c "
+  HOME="$home" SECONDS="$1" HERDR_PANE_ID=wW:p7 bash --noprofile --norc -c "
     source '$scratch/notifier.sh'
     __cmd_notify_start=0
     __cmd_notify_name='sleep 999'
@@ -67,8 +67,14 @@ grep -q '^BASH-PULSE 0' <<<"$calls" || {
 # --- the binary is installed: it wins, and the pulse is its subcommand -----
 stub "$home/.local/libexec/pns/pns" BINARY
 calls="$(fire 400)"
-grep -q '^BINARY --agent shell' <<<"$calls" || {
-  echo "the installed binary must carry the notification; got: $calls" >&2
+# The WHOLE argv, not a prefix: a dropped --pane leaves the banner unclickable
+# and viewed-pane suppression unable to fire, and a narrowing flag appended
+# here would silently drop every long-command phone push.
+expected="BINARY --agent shell --state done --project ${PWD##*/} --detail sleep (400s) --pane wW:p7"
+grep -qxF "$expected" <<<"$calls" || {
+  echo "the binary must carry exactly the expected argv" >&2
+  echo "expected: $expected" >&2
+  echo "got:      $calls" >&2
   exit 1
 }
 grep -q '^BINARY pulse 0' <<<"$calls" || {
@@ -82,8 +88,8 @@ grep -q '^BASH' <<<"$calls" && {
 
 # --- the 30s tier notifies without pulsing ---------------------------------
 calls="$(fire 60)"
-grep -q '^BINARY --agent shell' <<<"$calls" || {
-  echo "the 30s tier must notify; got: $calls" >&2
+grep -qxF "BINARY --agent shell --state done --project ${PWD##*/} --detail sleep (60s) --pane wW:p7" <<<"$calls" || {
+  echo "the 30s tier must notify with the same full argv; got: $calls" >&2
   exit 1
 }
 grep -q 'pulse' <<<"$calls" && {
