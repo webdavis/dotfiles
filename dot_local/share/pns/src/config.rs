@@ -59,9 +59,18 @@ pub fn config_path(home: &str) -> PathBuf {
 
 /// The pure half: text in, config or a named refusal out.
 pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
-    let document: toml::Table = text
-        .parse()
-        .map_err(|error: toml::de::Error| ConfigError::Malformed(error.to_string()))?;
+    // The parser's Display echoes the offending source line, and this file
+    // carries plugin secrets into log lines, so the refusal is rebuilt from
+    // the cause and the location alone.
+    let document: toml::Table = text.parse().map_err(|error: toml::de::Error| {
+        let line = error
+            .span()
+            .map(|span| text[..span.start].matches('\n').count() + 1);
+        ConfigError::Malformed(match line {
+            Some(line) => format!("{} at line {line}", error.message()),
+            None => error.message().to_string(),
+        })
+    })?;
 
     let mut config = Config::default();
     for (key, value) in document {
@@ -70,17 +79,18 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 "unknown top-level key `{key}`"
             )));
         }
-        let plugins = value
-            .as_table()
-            .ok_or_else(|| ConfigError::Invalid("`plugins` is not a table".to_string()))?;
+        let toml::Value::Table(plugins) = value else {
+            return Err(ConfigError::Invalid("`plugins` is not a table".to_string()));
+        };
 
         for (name, entry) in plugins {
-            // The copy is what `enabled` is removed FROM, so the flag reaches
-            // this layer and everything left over reaches the plugin untouched.
-            let mut settings = entry
-                .as_table()
-                .cloned()
-                .ok_or_else(|| ConfigError::Invalid(format!("plugin `{name}` is not a table")))?;
+            let toml::Value::Table(mut settings) = entry else {
+                return Err(ConfigError::Invalid(format!(
+                    "plugin `{name}` is not a table"
+                )));
+            };
+            // `enabled` is removed rather than read, so the flag reaches this
+            // layer and everything left over reaches the plugin untouched.
             let enabled = match settings.remove("enabled") {
                 None => false,
                 Some(toml::Value::Boolean(flag)) => flag,
@@ -92,7 +102,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             };
             config
                 .plugins
-                .insert(name.clone(), PluginEntry { enabled, settings });
+                .insert(name, PluginEntry { enabled, settings });
         }
     }
     Ok(config)
@@ -102,7 +112,15 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
 pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
     match std::fs::read_to_string(path) {
         Ok(text) => parse_config(&text).map(LoadOutcome::Loaded),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(LoadOutcome::Missing),
+        // A dangling symlink also reads NotFound, and chezmoi deploys configs
+        // as symlinks: the entry is PRESENT with a wrong target, so only an
+        // absent entry is Missing and the broken link is an error.
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                && std::fs::symlink_metadata(path).is_err() =>
+        {
+            Ok(LoadOutcome::Missing)
+        }
         Err(error) => Err(ConfigError::Unreadable(format!(
             "{}: {error}",
             path.display()
