@@ -92,7 +92,9 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
             format!("relay: posted HTTP {code}")
         }
         PostOutcome::Status(code) => format!("relay: post FAILED HTTP {code}"),
-        PostOutcome::NoStatus => todo!("R2g fix round: the empty-status wording"),
+        PostOutcome::NoStatus => {
+            "relay: post FAILED (curl reported no HTTP status at all)".to_string()
+        }
         PostOutcome::NoResponse => {
             "relay: post FAILED HTTP 000 (no response; is the hermes gateway up?)".to_string()
         }
@@ -110,7 +112,11 @@ pub fn skipped_line(auth_path: &std::path::Path) -> String {
 /// The sync deadline: `RELAY_REMOTE_TIMEOUT` validated as a count, else 5
 /// seconds, because a garbled deadline must not become zero or forever.
 pub fn remote_deadline(env_value: Option<&str>) -> Option<Duration> {
-    Some({ Duration::from_secs(env_value.and_then(crate::parse_count).unwrap_or(5)) })
+    let seconds = env_value.and_then(crate::parse_count).unwrap_or(5);
+    // Zero is curl's `-m 0`: no deadline at all, and caller intent rather
+    // than a default. The clamp keeps an absurd value out of ureq's deadline
+    // arithmetic; a day is already longer than any notification can matter.
+    (seconds != 0).then(|| Duration::from_secs(seconds.min(86_400)))
 }
 
 /// The native hermes plugin.
@@ -167,11 +173,10 @@ impl SignedPost for UreqSignedPost {
         signature_hex: &str,
         deadline: Option<Duration>,
     ) -> PostOutcome {
-        // Red-state shim: the fix round teaches this the None (no deadline)
-        // and clamp semantics.
-        let deadline = deadline.unwrap_or(Duration::from_secs(10));
         let sent = ureq::Agent::config_builder()
-            .timeout_global(Some(deadline))
+            // None is no deadline at all, so the option passes straight
+            // through rather than being defaulted back into one.
+            .timeout_global(deadline)
             .max_redirects(0)
             .build()
             .new_agent()
@@ -182,6 +187,11 @@ impl SignedPost for UreqSignedPost {
         match sent {
             Ok(response) => PostOutcome::Status(response.status().as_u16()),
             Err(ureq::Error::StatusCode(code)) => PostOutcome::Status(code),
+            // The request was never put on the wire: a URI ureq refuses, or a
+            // header the http crate refuses to build. Curl prints no status
+            // at all for these, which is a different report from a silent
+            // gateway.
+            Err(ureq::Error::BadUri(_) | ureq::Error::Http(_)) => PostOutcome::NoStatus,
             Err(_) => PostOutcome::NoResponse,
         }
     }
@@ -198,9 +208,12 @@ mod tests {
     use std::cell::RefCell;
     use std::time::Duration;
 
+    /// url, body, signature, deadline: one recorded post.
+    type RecordedPost = (String, String, String, Option<Duration>);
+
     struct RecordingPost {
         outcome: PostOutcome,
-        posts: RefCell<Vec<(String, String, String, Option<Duration>)>>,
+        posts: RefCell<Vec<RecordedPost>>,
     }
 
     impl SignedPost for RecordingPost {
