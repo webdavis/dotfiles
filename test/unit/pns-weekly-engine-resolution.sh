@@ -123,7 +123,6 @@ resolver_err="$(PNS_HELPERS_DIR="$scratch/absent" unattended_engine 2>&1 >/dev/n
 [[ -z $resolver_err ]] ||
   fail "resolution must not leak shell noise into the record, got: $resolver_err"
 
-
 # --- the resolution runs where its function exists --------------------------
 # The regression this pins: RELAY= called unattended_engine forty lines above
 # the source that defines it, so every scheduled run died 127 at load. The

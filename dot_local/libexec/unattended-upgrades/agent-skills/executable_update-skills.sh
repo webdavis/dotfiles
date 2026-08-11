@@ -235,7 +235,6 @@ weekly_engine() {
   fi
 }
 
-
 # The entry's opening lines (this run's timestamp and the gap to the previous
 # success), captured ONCE at start-up from ONE clock reading. Start-up because
 # the gap must be read BEFORE this run can overwrite the marker, or every
