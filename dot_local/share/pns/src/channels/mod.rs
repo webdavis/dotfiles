@@ -10,6 +10,7 @@
 
 pub mod banner;
 pub mod hermes;
+pub mod hue;
 pub mod moshi;
 
 use crate::routing::Mode;
