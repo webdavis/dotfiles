@@ -12,24 +12,25 @@ set -euo pipefail
 # manifest and the lock are hashed below, globbed rather than listed so a new
 # module cannot silently miss the trigger.
 {{ $crate := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
-{{ range (glob (joinPath $crate "src/*.rs")) }}
-#   {{ base . }} {{ include . | sha256sum }}
+{{ range (glob (joinPath $crate "**/*.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
 {{- end }}
-{{- range (glob (joinPath $crate "src/channels/*.rs")) }}
-#   channels/{{ base . }} {{ include . | sha256sum }}
-{{- end }}
-{{- range (glob (joinPath $crate "src/bin/*.rs")) }}
-#   bin/{{ base . }} {{ include . | sha256sum }}
+{{- range (glob (joinPath $crate "build.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
 {{- end }}
 #   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
 #   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
 #
 # Retry state, the same mechanism the herdr plugin build uses: chezmoi records a
 # run_onchange script as done on ANY exit 0, so a skipped build (no toolchain)
-# must bump this marker to change the rendered script and re-fire next apply.
-# Sanitized to the leading digit run, because splicing raw file bytes into a
-# rendered script would be a live-shell-injection channel.
-#   retry-attempts: {{ $rm := printf "%s/.cache/pns-build/engine.retry" (env "HOME") }}{{ if stat $rm }}{{ (output "cat" $rm) | regexFind "^[0-9]+" }}{{ else }}0{{ end }}
+# must change this rendered script to re-fire on the next apply.
+#
+# The marker's MODIFICATION TIME is the trigger, never its contents: reading a
+# file at render time means an unreadable node aborts the apply and a FIFO at
+# that path hangs it forever, before any of this script's own recovery can
+# run. Each bump rewrites the marker, which moves the timestamp, which changes
+# this line.
+#   retry-marker: {{ $rm := printf "%s/.cache/pns-build/engine.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
@@ -69,7 +70,9 @@ report_section 'pns engine'
 report_line 'building the release binary'
 # A build failure exits non-zero, which chezmoi does not record, so it retries
 # on its own without touching the marker.
-"$cargo_bin" build --release --quiet --manifest-path "$crate_dir/Cargo.toml"
+# --locked: build exactly the committed lock. Without it cargo may rewrite
+# the deployed lockfile and pull dependencies the lock never recorded.
+"$cargo_bin" build --release --locked --quiet --manifest-path "$crate_dir/Cargo.toml"
 
 mkdir -p "$install_dir"
 # install(1) replaces the target through a temporary file and a rename

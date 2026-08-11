@@ -2,7 +2,8 @@
 # The shell notifier must reach the RUST engine once the binary is installed
 # and the BASH engine until then: an apply installs the binary under a shell
 # that is already running, and that shell must not lose its notifications to
-# a path that does not exist yet. The pulse follows the same rule.
+# a path that does not exist yet. The pulse is separate, because the engine's
+# pulse mode needs a pns config the machine may not have yet.
 #
 # The function is extracted from the RENDERED bashrc rather than a copy, so a
 # repoint that edits one and not the other fails here.
@@ -23,18 +24,28 @@ sed -n '/^  __cmd_notify_precmd() {$/,/^  }$/p' "$scratch/bashrc" |
   exit 1
 }
 
+# A HOME with a space, because a flat command string would word-split here and
+# silently drop the call.
+home="$scratch/home dir"
+
 stub() { # <path> <label>
   mkdir -p "$(dirname "$1")"
-  printf '#!/usr/bin/env bash\nprintf "%%s %%s\\n" "%s" "$*" >>"%s/calls"\n' "$2" "$scratch" >"$1"
+  # One line per ARGUMENT, so a broken argument boundary cannot read the same
+  # as separate arguments.
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "%s <<%%s>>\\n" "$@" >>"%s/calls"\n' "$2" "$scratch"
+  } >"$1"
   chmod +x "$1"
 }
 
-home="$scratch/home"
 stub "$home/.local/libexec/pns/relay.sh" BASH-RELAY
 stub "$home/.local/libexec/pns/channels/hue-pulse.sh" BASH-PULSE
 
-# fire <elapsed>: run one notification with that duration and collect the
-# calls the stubs recorded.
+# fire <elapsed>: run one notification and collect what the stubs recorded.
+# The calls are DETACHED subshells the shell cannot wait for, so this settles
+# on a quiet period rather than stopping at the first write: stopping early
+# would let a later unwanted call escape the negative assertions.
 fire() {
   : >"$scratch/calls"
   HOME="$home" SECONDS="$1" HERDR_PANE_ID=wW:p7 bash --noprofile --norc -c "
@@ -43,57 +54,83 @@ fire() {
     __cmd_notify_name='sleep 999'
     (exit 0)
     __cmd_notify_precmd
-    wait
   " >/dev/null 2>&1 || true
-  # The calls are backgrounded subshells; give them a moment to land.
-  for _ in 1 2 3 4 5 6 7 8 9 10; do
-    [[ -s $scratch/calls ]] && break
-    sleep 0.1
+  local previous="" current="" stable=0
+  for _ in $(seq 1 40); do
+    sleep 0.05
+    current="$(cat "$scratch/calls" 2>/dev/null || true)"
+    if [[ $current == "$previous" ]]; then
+      stable=$((stable + 1))
+      [[ $stable -ge 4 ]] && break
+    else
+      stable=0
+    fi
+    previous="$current"
   done
-  sort "$scratch/calls" 2>/dev/null || true
+  printf '%s' "$current"
+}
+
+expect_call() { # <label> <calls> <arg>...
+  local label="$1" calls="$2"
+  shift 2
+  local argument
+  for argument in "$@"; do
+    grep -qxF "$label <<$argument>>" <<<"$calls" || {
+      echo "expected $label to be handed <<$argument>>" >&2
+      echo "got:" >&2
+      printf '%s\n' "$calls" >&2
+      exit 1
+    }
+  done
+}
+
+refute_label() { # <label> <calls>
+  if grep -q "^$1 " <<<"$2"; then
+    echo "$1 must not have run" >&2
+    printf '%s\n' "$2" >&2
+    exit 1
+  fi
 }
 
 # --- the binary is not installed yet: the bash engine still carries it -----
 calls="$(fire 400)"
-grep -q '^BASH-RELAY --agent shell' <<<"$calls" || {
-  echo "without the binary the bash engine must still be called; got: $calls" >&2
-  exit 1
-}
-grep -q '^BASH-PULSE 0' <<<"$calls" || {
-  echo "without the binary the bash pulse must still fire; got: $calls" >&2
-  exit 1
-}
+expect_call BASH-RELAY "$calls" --agent shell --state 'done' --pane wW:p7
+expect_call BASH-PULSE "$calls" 0
 
-# --- the binary is installed: it wins, and the pulse is its subcommand -----
+# --- the binary is installed: it carries the notification ------------------
+# The pulse stays with the bash channel, because no pns config exists here.
 stub "$home/.local/libexec/pns/pns" BINARY
 calls="$(fire 400)"
-# The WHOLE argv, not a prefix: a dropped --pane leaves the banner unclickable
-# and viewed-pane suppression unable to fire, and a narrowing flag appended
-# here would silently drop every long-command phone push.
-expected="BINARY --agent shell --state done --project ${PWD##*/} --detail sleep (400s) --pane wW:p7"
-grep -qxF "$expected" <<<"$calls" || {
-  echo "the binary must carry exactly the expected argv" >&2
-  echo "expected: $expected" >&2
-  echo "got:      $calls" >&2
+expect_call BINARY "$calls" --agent shell --state 'done' --project "${PWD##*/}" \
+  --detail "sleep (400s)" --pane wW:p7
+refute_label BASH-RELAY "$calls"
+if grep -qxF 'BINARY <<--local-only>>' <<<"$calls"; then
+  echo "a narrowing flag would silently drop every long-command phone push" >&2
   exit 1
-}
-grep -q '^BINARY pulse 0' <<<"$calls" || {
-  echo "the pulse must be the binary's own subcommand; got: $calls" >&2
-  exit 1
-}
-grep -q '^BASH' <<<"$calls" && {
-  echo "no bash script may run once the binary is installed; got: $calls" >&2
-  exit 1
-}
+fi
+expect_call BASH-PULSE "$calls" 0
 
-# --- the 30s tier notifies without pulsing ---------------------------------
-calls="$(fire 60)"
-grep -qxF "BINARY --agent shell --state done --project ${PWD##*/} --detail sleep (60s) --pane wW:p7" <<<"$calls" || {
-  echo "the 30s tier must notify with the same full argv; got: $calls" >&2
-  exit 1
-}
-grep -q 'pulse' <<<"$calls" && {
-  echo "the 30s tier must not pulse the lights; got: $calls" >&2
+# --- with a pns config, the pulse becomes the binary's own subcommand ------
+mkdir -p "$home/.config/pns"
+printf '[plugins.hue]\nenabled = true\n' >"$home/.config/pns/config.toml"
+calls="$(fire 400)"
+expect_call BINARY "$calls" pulse 0
+refute_label BASH-PULSE "$calls"
+rm -r "$home/.config/pns"
+
+# --- the tier boundaries, exactly ------------------------------------------
+calls="$(fire 300)"
+expect_call BASH-PULSE "$calls" 0
+calls="$(fire 299)"
+refute_label BASH-PULSE "$calls"
+expect_call BINARY "$calls" --agent shell
+calls="$(fire 30)"
+expect_call BINARY "$calls" --agent shell
+refute_label BASH-PULSE "$calls"
+calls="$(fire 29)"
+[[ -z $calls ]] || {
+  echo "nothing may fire below the 30 second tier" >&2
+  printf '%s\n' "$calls" >&2
   exit 1
 }
 
