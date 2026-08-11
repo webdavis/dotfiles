@@ -12,7 +12,9 @@
 //! decides what to do with a verdict, and the composition root is where
 //! wiring lives.
 
+pub mod args;
 pub mod config;
+pub mod engine;
 pub mod presence;
 pub mod probes;
 pub mod pulse;
