@@ -14,9 +14,14 @@ use std::time::{Duration, Instant};
 fn main() {
     let mut arguments = std::env::args().skip(1);
     let (Some(port_path), Some(capture_path)) = (arguments.next(), arguments.next()) else {
-        eprintln!("usage: http-capture <port-file> <capture-file>");
+        eprintln!("usage: http-capture <port-file> <capture-file> [status]");
         std::process::exit(2);
     };
+    // An optional status lets the gate play an unhappy gateway.
+    let status: u16 = arguments
+        .next()
+        .and_then(|raw| raw.parse().ok())
+        .unwrap_or(200);
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("loopback bind");
     let port = listener.local_addr().expect("local addr").port();
@@ -77,5 +82,6 @@ fn main() {
     }
 
     std::fs::write(&capture_path, &raw).expect("write capture");
-    let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    let _ =
+        stream.write_all(format!("HTTP/1.1 {status} X\r\nContent-Length: 0\r\n\r\n").as_bytes());
 }

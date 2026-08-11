@@ -101,6 +101,10 @@ if grep -qf "$scratch/token.pattern" "$scratch/pns.out" "$scratch/pns.err" 2>/de
   echo "the token leaked into the engine's own output" >&2
   exit 1
 fi
+[[ ! -s "$scratch/pns.out" ]] || {
+  echo "the alert path printed to stdout; async legs must be silent" >&2
+  exit 1
+}
 
 # The same path against a dead endpoint: exit 0 and SILENCE, because the only
 # thing worth reporting would carry the token.
@@ -147,8 +151,9 @@ env -u PNS_CHANNELS_DIR -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROX
   >"$scratch/hermes.out" 2>"$scratch/hermes.err"
 
 wait "$server_pid" 2>/dev/null || true
-grep -q 'relay: posted HTTP 200' "$scratch/hermes.out" || {
-  echo "sync hermes did not report its posted status" >&2
+[[ "$(cat "$scratch/hermes.out")" == "relay: posted HTTP 200" ]] || {
+  echo "sync hermes stdout is not exactly the posted line:" >&2
+  cat "$scratch/hermes.out" >&2
   exit 1
 }
 body="$(tr -d '\r' <"$scratch/hermes.capture" | sed -n '/^$/,$p' | sed '1d')"
@@ -159,5 +164,35 @@ expected_signature="$(printf '%s' "$body" |
 [[ -n $sent_signature && $sent_signature == "$expected_signature" ]] || {
   echo "the signature does not match openssl's HMAC of the captured body" >&2
   echo "sent: $sent_signature expected: $expected_signature" >&2
+  exit 1
+}
+
+# Phase 4b: the gateway answers 401 (a rotated signing key). Sync must name
+# the status, because "no response" would send the operator to restart a
+# healthy gateway instead of fixing the key.
+: >"$scratch/port"
+"$REPO_ROOT/dot_local/share/pns/target/debug/http-capture" \
+  "$scratch/port" "$scratch/hermes-401.capture" 401 2>"$scratch/server.err" &
+server_pid=$!
+for _ in $(seq 1 60); do
+  [[ -s "$scratch/port" ]] && break
+  sleep 0.5
+done
+[[ -s "$scratch/port" ]] || {
+  echo "the 401 capture server never bound" >&2
+  exit 1
+}
+env -u PNS_CHANNELS_DIR -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+  -u ALL_PROXY -u NO_PROXY \
+  HOME="$scratch" PATH="$stub_bin:$PATH" \
+  RELAY_AUTH_FILE="$scratch/auth.json" \
+  RELAY_HERMES_URL="http://127.0.0.1:$(cat "$scratch/port")" \
+  "$REPO_ROOT/dot_local/share/pns/target/debug/pns" \
+  --agent weekly --state 'done' --detail ran --remote-only \
+  >"$scratch/hermes-401.out" 2>/dev/null
+wait "$server_pid" 2>/dev/null || true
+[[ "$(cat "$scratch/hermes-401.out")" == "relay: post FAILED HTTP 401" ]] || {
+  echo "a 401 must read as HTTP 401, not as a downed gateway:" >&2
+  cat "$scratch/hermes-401.out" >&2
   exit 1
 }
