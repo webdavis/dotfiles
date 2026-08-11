@@ -116,3 +116,48 @@ env -u PNS_CHANNELS_DIR -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROX
   echo "a failed post said something; the failure path must be silent" >&2
   exit 1
 }
+
+# Phase 4: native hermes. The capture binary again, this time on the log
+# path: --remote-only makes hermes the whole plan, sync, so the engine must
+# print the posted line, and the captured X-Webhook-Signature must equal
+# openssl's own HMAC of the captured body, proving the signature covers the
+# exact bytes that were sent.
+printf '{"hermes_secret":"gate-signing-key"}\n' >"$scratch/auth.json"
+: >"$scratch/port"
+"$REPO_ROOT/dot_local/share/pns/target/debug/http-capture" \
+  "$scratch/port" "$scratch/hermes.capture" 2>"$scratch/server.err" &
+server_pid=$!
+for _ in $(seq 1 60); do
+  [[ -s "$scratch/port" ]] && break
+  sleep 0.5
+done
+[[ -s "$scratch/port" ]] || {
+  echo "hermes capture server never bound; its stderr:" >&2
+  cat "$scratch/server.err" >&2 || true
+  exit 1
+}
+
+env -u PNS_CHANNELS_DIR -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+  -u ALL_PROXY -u NO_PROXY \
+  HOME="$scratch" PATH="$stub_bin:$PATH" \
+  RELAY_AUTH_FILE="$scratch/auth.json" \
+  RELAY_HERMES_URL="http://127.0.0.1:$(cat "$scratch/port")" \
+  "$REPO_ROOT/dot_local/share/pns/target/debug/pns" \
+  --agent weekly --state 'done' --detail ran --remote-only \
+  >"$scratch/hermes.out" 2>"$scratch/hermes.err"
+
+wait "$server_pid" 2>/dev/null || true
+grep -q 'relay: posted HTTP 200' "$scratch/hermes.out" || {
+  echo "sync hermes did not report its posted status" >&2
+  exit 1
+}
+body="$(tr -d '\r' <"$scratch/hermes.capture" | sed -n '/^$/,$p' | sed '1d')"
+sent_signature="$(tr -d '\r' <"$scratch/hermes.capture" |
+  sed -n 's/^[Xx]-[Ww]ebhook-[Ss]ignature: //p' | head -1)"
+expected_signature="$(printf '%s' "$body" |
+  openssl dgst -sha256 -hmac 'gate-signing-key' | sed 's/^.*= //')"
+[[ -n $sent_signature && $sent_signature == "$expected_signature" ]] || {
+  echo "the signature does not match openssl's HMAC of the captured body" >&2
+  echo "sent: $sent_signature expected: $expected_signature" >&2
+  exit 1
+}
