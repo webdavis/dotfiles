@@ -16,6 +16,7 @@ pub mod pulse;
 pub mod render;
 pub mod routing;
 pub mod safety;
+pub mod system;
 
 /// A plain decimal count, or `None` when the text is not one.
 ///

@@ -1,9 +1,9 @@
-# The pns decision core. Library only: the engine binary and its IO arrive with
-# the probe and dispatch work.
+# The pns decision core plus its probe edge. Library only: the engine binary
+# and dispatch arrive with later slices.
 #
 # NO DEPENDENCIES, and that is a property of this layer rather than a policy:
-# nothing here parses JSON, reads a clock or touches a file, so nothing here has
-# anything to depend on.
+# the decisions are pure, and the probe edge needs only std (spawning the
+# system readers, one fs mtime), so nothing here has anything to depend on.
 
 [package]
 name = "pns"
