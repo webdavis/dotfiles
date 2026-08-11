@@ -23,3 +23,11 @@ toml = { version = "1.1.4", default-features = false, features = [
   "std",
 ] }
 ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
+
+# The integration tests drive the BINARY, so they reach the crate only through
+# its public API and need their own copies of these. hmac and sha2 are here to
+# recompute a signature INDEPENDENTLY of the signer under test.
+[dev-dependencies]
+hmac = "0.13.0"
+serde_json = "1.0.151"
+sha2 = "0.11.0"
