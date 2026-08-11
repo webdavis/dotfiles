@@ -21,6 +21,9 @@ setup() {
 payload() { jq -cn --arg s "$1" '{session_id: $s}'; }
 marker() { printf '%s/session-%s.start' "$PNS_STATE_DIR" "$1"; }
 pulsed() { [[ -f "$BATS_TEST_TMPDIR/pulsed" ]]; }
+# A plain refute, because a bare `! cmd` only fails the test when it happens
+# to be the body's LAST command.
+refute() { if "$@"; then return 1; fi; }
 
 @test "the first prompt writes a session marker" {
   payload abc123 | "$START"
@@ -109,4 +112,62 @@ pulsed() { [[ -f "$BATS_TEST_TMPDIR/pulsed" ]]; }
   printf 'not-a-timestamp' >"$(marker abc123)"
   run bash -c "printf '%s' '$(payload abc123)' | $(printf '%q' "$STOP")"
   [ ! -f "$(marker abc123)" ]
+}
+
+# --- the engine binary form -------------------------------------------------
+# The bash channel above is a ONE-element pulse, so it cannot see the binary
+# form's subcommand at all. These pin the branch the repoint exists to add.
+
+binary_pulse_setup() { # the binary and a config exist, so the binary wins
+  export PNS_ENGINE_BIN="$BATS_TEST_TMPDIR/pns"
+  export PNS_CONFIG_FILE="$BATS_TEST_TMPDIR/config.toml"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >"%s/binary-argv"\n' "$BATS_TEST_TMPDIR" \
+    >"$PNS_ENGINE_BIN"
+  chmod +x "$PNS_ENGINE_BIN"
+  printf '[plugins.hue]\nenabled = true\n' >"$PNS_CONFIG_FILE"
+}
+
+@test "a long session pulses through the binary's own subcommand, exit code included" {
+  binary_pulse_setup
+  payload bin1 | "$START"
+  printf '%s' "$(($(date +%s) - 400))" >"$(marker bin1)"
+  payload bin1 | "$STOP"
+  # Three arguments, in order: dropping the subcommand would run the ENGINE
+  # with a bare "0" instead of pulsing anything.
+  run cat "$BATS_TEST_TMPDIR/binary-argv"
+  [ "$output" = "pulse
+0" ]
+}
+
+@test "the binary form never falls back to the bash channel" {
+  binary_pulse_setup
+  payload bin2 | "$START"
+  printf '%s' "$(($(date +%s) - 400))" >"$(marker bin2)"
+  payload bin2 | "$STOP"
+  refute pulsed
+}
+
+@test "with no pulse available at all the hook is still a silent exit 0" {
+  # The mid-cutover state: no binary, and the bash channel not installed
+  # either. A hook that exits non-zero here is the one thing it must never do.
+  rm -f "$PNS_CHANNELS_DIR/hue-pulse.sh"
+  payload none1 | "$START"
+  printf '%s' "$(($(date +%s) - 400))" >"$(marker none1)"
+  run "$STOP" <<<"$(payload none1)"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "an unreadable engine-path helper still exits 0" {
+  # The resolution the repoint ADDED must not be able to make the hook noisy:
+  # a helpers dir that carries the decision core but not the engine resolver
+  # is a silent no-pulse. (The decision core's own source predates this and
+  # is not what this pins.)
+  mkdir -p "$PNS_STATE_DIR" "$BATS_TEST_TMPDIR/partial-helpers"
+  cp "$PNS/helpers/event.sh" "$BATS_TEST_TMPDIR/partial-helpers/event.sh"
+  printf '%s' "$(($(date +%s) - 400))" >"$(marker none2)"
+  # Only the STOP hook sees the broken helpers dir; the marker is written
+  # directly so the start hook is not the thing under test here.
+  run env PNS_HELPERS_DIR="$BATS_TEST_TMPDIR/partial-helpers" "$STOP" <<<"$(payload none2)"
+  [ "$status" -eq 0 ]
 }

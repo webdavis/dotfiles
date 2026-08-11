@@ -186,3 +186,46 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
   [ "$(pns_flatten_reply 'short enough' 8000)" = "short enough" ]
   [ "$(pns_flatten_reply 'abcdefghij' 4)" = ghij ]
 }
+
+@test "an installed engine binary is what the hook calls, with no override set" {
+  # Both the harness suites above set RELAY_BIN, which the resolver honors as
+  # an explicit override, so nothing there can tell the repoint from the old
+  # hardcoded bash path. This is the slice's whole point: after the binary is
+  # installed the hook must stop calling the bash engine, or the retirement
+  # turns every agent notification into a missing-file no-op.
+  local sandbox="$BATS_TEST_TMPDIR/repoint"
+  mkdir -p "$sandbox/.local/libexec/pns"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >"%s/binary-argv"\n' "$sandbox" \
+    >"$sandbox/.local/libexec/pns/pns"
+  printf '#!/usr/bin/env bash\nprintf bash-engine >"%s/bash-ran"\n' "$sandbox" \
+    >"$sandbox/.local/libexec/pns/relay.sh"
+  chmod +x "$sandbox/.local/libexec/pns/pns" "$sandbox/.local/libexec/pns/relay.sh"
+
+  run env -u RELAY_BIN HOME="$sandbox" RELAY_SUMMARIZING=1 \
+    "$HOOK" done <<<'{"cwd":"/tmp/project","message":"a detail"}'
+  [ "$status" -eq 0 ]
+  [ ! -f "$sandbox/bash-ran" ]
+  grep -qx -- '--agent' "$sandbox/binary-argv"
+}
+
+@test "a missing engine resolver never answers the approval prompt for the operator" {
+  # Everything above the handoff is a notification, and a notification that
+  # cannot be delivered must not fail the turn. The BLOCKED path is the one
+  # exception: its exit code IS the operator's decision, so a helper that
+  # cannot be sourced must degrade to the bash engine rather than short
+  # circuit the hook and report success in their place.
+  local sandbox="$BATS_TEST_TMPDIR/no-resolver"
+  mkdir -p "$sandbox/helpers" "$sandbox/bin"
+  # The decision core is present; the engine resolver deliberately is not.
+  cp "$BATS_TEST_DIRNAME/../../dot_local/libexec/pns/helpers/event.sh" "$sandbox/helpers/"
+  printf '#!/usr/bin/env bash\nexit 7\n' >"$sandbox/bin/gate.sh"
+  printf '#!/usr/bin/env bash\nexit 7\n' >"$sandbox/bin/moshi-hook"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$sandbox/bin/relay.sh"
+  chmod +x "$sandbox/bin/gate.sh" "$sandbox/bin/moshi-hook" "$sandbox/bin/relay.sh"
+
+  run env PNS_HELPERS_DIR="$sandbox/helpers" PNS_MOSHI_GATE="$sandbox/bin/gate.sh" \
+    MOSHI_HOOK_BIN="$sandbox/bin/moshi-hook" RELAY_BIN="$sandbox/bin/relay.sh" \
+    RELAY_SUMMARIZING=1 RELAY_IDLE_SECS=99999 \
+    "$HOOK" blocked <<<'{"cwd":"/tmp/p","message":"needs approval"}'
+  [ "$status" -eq 7 ]
+}
