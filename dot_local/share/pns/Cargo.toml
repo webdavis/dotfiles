@@ -12,6 +12,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+serde_json = "1.0.151"
 # Parse only: the default `display` feature pulls toml_writer, and nothing here
 # ever writes TOML back out. `serde` stays because `toml::Table` and
 # `toml::Value` are gated behind it.
