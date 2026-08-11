@@ -9,20 +9,30 @@ use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, remote_deadline};
+use pns::channels::hue::{
+    Bridge, HuePulse, Sleeper, acquire_pulse_lock, hue_enabled, hue_settings, put_succeeded,
+};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
-use pns::config::{config_path, load_config};
+use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide, event_json, resolve_path, select_plugins};
 use pns::registry::{Registry, Routing};
 use pns::render;
 use pns::system::{SystemCommandRunner, SystemProbes};
 
 fn main() {
+    // The pulse is a MODE, not a leg: it fires on a long command's exit code
+    // rather than on an event, so it leaves before any of the event wiring.
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("pulse")) {
+        pulse_mode();
+        return;
+    }
+
     // Lossy rather than validating: a stray byte in argv degrades into an
     // unknown token, which the lenient contract already skips, instead of
     // aborting an always-exit-0 notification.
@@ -70,7 +80,8 @@ fn main() {
     }
 
     let home = std::env::var("HOME").unwrap_or_default();
-    let (selection, warning) = select_plugins(&registry, load_config(&config_path(&home)));
+    let (selection, warning) =
+        select_plugins(&registry, load_config(&config_path(&home)), &["hue"]);
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
@@ -273,4 +284,104 @@ fn deliver(channel: &Path, event: &str) {
         let _ = stdin.write_all(b"\n");
     }
     let _ = child.wait();
+}
+
+/// The `pulse` mode: read the hue table, take the single-pulse lock, and run
+/// the sequence against the bridge. Every absence is a silent exit 0.
+fn pulse_mode() {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
+        return;
+    };
+    let Some(hue) = hue_enabled(&config).and_then(|settings| {
+        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
+    }) else {
+        return;
+    };
+
+    // The SAME path the bash channel locks, so the two cannot interleave
+    // during the repoint window. The kernel drops it on any exit, and the
+    // binding lives to the end of the pulse.
+    let Some(_lock) = acquire_pulse_lock(std::path::Path::new(&format!("{home}/.local/state")))
+    else {
+        return;
+    };
+
+    HuePulse {
+        bridge: UreqBridge {
+            base: format!("https://{}/clip/v2/resource", hue.bridge),
+            key: hue.key,
+        },
+        sleeper: RealSleeper,
+        rooms: hue.rooms,
+    }
+    .run(
+        &std::env::args_os()
+            .nth(2)
+            .map(|code| code.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "0".to_string()),
+    );
+}
+
+/// The CLIP v2 bridge over ureq.
+struct UreqBridge {
+    base: String,
+    key: String,
+}
+
+impl UreqBridge {
+    fn agent(&self) -> ureq::Agent {
+        ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(10)))
+            .max_redirects(0)
+            // The bridge serves a self-signed certificate for its own LAN
+            // address, so verification is disabled here exactly as openhue
+            // does it; there is no CA that could vouch for a Hue bridge.
+            .tls_config(
+                ureq::tls::TlsConfig::builder()
+                    .disable_verification(true)
+                    .build(),
+            )
+            .build()
+            .new_agent()
+    }
+}
+
+impl Bridge for UreqBridge {
+    fn get(&self, path: &str) -> Option<String> {
+        self.agent()
+            .get(format!("{}/{path}", self.base))
+            .header("hue-application-key", &self.key)
+            .call()
+            .ok()?
+            .body_mut()
+            .read_to_string()
+            .ok()
+    }
+
+    fn put(&self, path: &str, body: &str) -> bool {
+        // A 2xx is not an applied write: the bridge reports application
+        // failures in an errors array alongside it.
+        let Ok(mut response) = self
+            .agent()
+            .put(format!("{}/{path}", self.base))
+            .header("hue-application-key", &self.key)
+            .content_type("application/json")
+            .send(body)
+        else {
+            return false;
+        };
+        put_succeeded(
+            true,
+            &response.body_mut().read_to_string().unwrap_or_default(),
+        )
+    }
+}
+
+struct RealSleeper;
+
+impl Sleeper for RealSleeper {
+    fn sleep(&self, duration: Duration) {
+        std::thread::sleep(duration);
+    }
 }
