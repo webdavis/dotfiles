@@ -120,10 +120,14 @@ mod tests {
     }
 
     fn channel_with_auth(auth: &str) -> (MoshiChannel<RecordingHttp>, std::path::PathBuf) {
+        // A process-wide counter, because two tests handing in the SAME auth
+        // string must never share a path: parallel runs would race on the
+        // cleanup and one test would read the other's deleted file.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let path = std::env::temp_dir().join(format!(
             "pns-moshi-auth-{}-{}",
             std::process::id(),
-            auth.len()
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         std::fs::write(&path, auth).unwrap();
         (

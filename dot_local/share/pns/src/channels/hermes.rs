@@ -35,41 +35,69 @@ pub trait SignedPost {
 /// The gateway body: agent, state, project, and the FULL message as the
 /// detail, because Discord has no length ceiling for the preview to serve.
 pub fn hermes_body(event: &Event) -> String {
-    let _ = event;
-    todo!("R2g: the four-field body, detail carrying the full message")
+    serde_json::json!({
+        "agent": event.agent,
+        "state": event.state,
+        "project": event.project,
+        "detail": event.message,
+    })
+    .to_string()
 }
 
 /// The lowercase hex HMAC-SHA256 of the body under the signing key, or None
 /// when the key is empty, which is the not-set-up case.
 pub fn sign(secret: &str, body: &str) -> Option<String> {
-    let _ = (secret, body);
-    todo!("R2g: hmac-sha256 through the RustCrypto crates, never hand-rolled")
+    use hmac::{Hmac, KeyInit, Mac};
+    if secret.is_empty() {
+        return None;
+    }
+    let mut mac = Hmac::<sha2::Sha256>::new_from_slice(secret.as_bytes()).ok()?;
+    mac.update(body.as_bytes());
+    Some(
+        mac.finalize()
+            .into_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+    )
 }
 
 /// The hermes signing key out of the auth JSON: `.hermes_secret`, non-empty,
 /// else None. Silent, like every not-set-up reading.
 pub fn hermes_secret(auth_json: &str) -> Option<String> {
-    let _ = auth_json;
-    todo!("R2g: the non-empty hermes key")
+    let key = serde_json::from_str::<serde_json::Value>(auth_json)
+        .ok()?
+        .get("hermes_secret")?
+        .as_str()?
+        .to_string();
+    (!key.is_empty()).then_some(key)
 }
 
 /// The line sync mode prints for one outcome, exactly as the bash spells it.
 pub fn outcome_line(outcome: PostOutcome) -> String {
-    let _ = outcome;
-    todo!("R2g: posted for 2xx, FAILED HTTP for the rest, the 000 wording for no response")
+    match outcome {
+        PostOutcome::Status(code) if (200..300).contains(&code) => {
+            format!("relay: posted HTTP {code}")
+        }
+        PostOutcome::Status(code) => format!("relay: post FAILED HTTP {code}"),
+        PostOutcome::NoResponse => {
+            "relay: post FAILED HTTP 000 (no response; is the hermes gateway up?)".to_string()
+        }
+    }
 }
 
 /// The line sync mode prints when there is no signing key.
 pub fn skipped_line(auth_path: &std::path::Path) -> String {
-    let _ = auth_path;
-    todo!("R2g: the SKIPPED line naming the auth file")
+    format!(
+        "relay: post SKIPPED -- no hermes signing key in {}; nothing was sent",
+        auth_path.display()
+    )
 }
 
 /// The sync deadline: `RELAY_REMOTE_TIMEOUT` validated as a count, else 5
 /// seconds, because a garbled deadline must not become zero or forever.
 pub fn remote_deadline(env_value: Option<&str>) -> Duration {
-    let _ = env_value;
-    todo!("R2g: validated seconds, defaulting to five")
+    Duration::from_secs(env_value.and_then(crate::parse_count).unwrap_or(5))
 }
 
 /// The native hermes plugin.
@@ -85,8 +113,54 @@ pub struct HermesChannel<P: SignedPost> {
 
 impl<P: SignedPost> Channel for HermesChannel<P> {
     fn deliver(&self, event: &Event, mode: Mode) {
-        let _ = (event, mode);
-        todo!("R2g: sign and post; sync says what happened, async stays silent")
+        let body = hermes_body(event);
+        let signature = std::fs::read_to_string(&self.auth_path)
+            .ok()
+            .as_deref()
+            .and_then(hermes_secret)
+            .and_then(|key| sign(&key, &body));
+        let Some(signature) = signature else {
+            // No key is unavailable, not a failure. Sync callers are told,
+            // because an empty Discord channel looks like the jobs stopped.
+            if mode == Mode::Sync {
+                println!("{}", skipped_line(&self.auth_path));
+            }
+            return;
+        };
+
+        let deadline = match mode {
+            Mode::Sync => self.sync_deadline,
+            Mode::Async => Duration::from_secs(10),
+        };
+        let outcome = self.post.post(&self.url, &body, &signature, deadline);
+        if mode == Mode::Sync {
+            println!("{}", outcome_line(outcome));
+        }
+    }
+}
+
+/// The production POST: one agent, no redirects (following one would send the
+/// signed body to whatever host the gateway names), the deadline per call.
+/// An HTTP error status IS the answer sync mode prints, so a status-carrying
+/// error is unwrapped rather than collapsed, matching the bash's missing -f.
+pub struct UreqSignedPost;
+
+impl SignedPost for UreqSignedPost {
+    fn post(&self, url: &str, body: &str, signature_hex: &str, deadline: Duration) -> PostOutcome {
+        let sent = ureq::Agent::config_builder()
+            .timeout_global(Some(deadline))
+            .max_redirects(0)
+            .build()
+            .new_agent()
+            .post(url)
+            .content_type("application/json")
+            .header("X-Webhook-Signature", signature_hex)
+            .send(body);
+        match sent {
+            Ok(response) => PostOutcome::Status(response.status().as_u16()),
+            Err(ureq::Error::StatusCode(code)) => PostOutcome::Status(code),
+            Err(_) => PostOutcome::NoResponse,
+        }
     }
 }
 
@@ -139,10 +213,14 @@ mod tests {
         auth: &str,
         outcome: PostOutcome,
     ) -> (HermesChannel<RecordingPost>, std::path::PathBuf) {
+        // A process-wide counter, because two tests handing in the SAME auth
+        // string must never share a path: parallel runs would race on the
+        // cleanup and one test would read the other's deleted file.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let path = std::env::temp_dir().join(format!(
             "pns-hermes-auth-{}-{}",
             std::process::id(),
-            auth.len()
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         std::fs::write(&path, auth).unwrap();
         (
