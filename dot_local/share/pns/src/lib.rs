@@ -13,6 +13,7 @@
 //! wiring lives.
 
 pub mod args;
+pub mod channels;
 pub mod config;
 pub mod engine;
 pub mod presence;

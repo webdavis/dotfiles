@@ -12,6 +12,8 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use pns::args::parse_args;
+use pns::channels::banner::BannerChannel;
+use pns::channels::{Channel, native_first};
 use pns::config::{config_path, load_config};
 use pns::engine::{Overrides, decide, event_json, resolve_path, select_plugins};
 use pns::registry::{Registry, Routing};
@@ -131,12 +133,62 @@ fn main() {
     let title = render::title(&event.agent, &event.state, &event.project);
     let message = render::message(&event.branch, &event.detail, &event.state);
     let preview = render::preview(&message);
+    let channels_dir_override = std::env::var("PNS_CHANNELS_DIR")
+        .ok()
+        .filter(|dir| !dir.is_empty());
     let channels_dir = resolve_path(
-        std::env::var("PNS_CHANNELS_DIR").ok().as_deref(),
+        channels_dir_override.as_deref(),
         &format!("{home}/.local/libexec/pns/channels"),
     );
 
+    let banner = BannerChannel {
+        runner: SystemCommandRunner,
+        probes: SystemProbes::new(SystemCommandRunner, String::new()),
+        // An EMPTY override falls through, so an exported-but-blank variable
+        // cannot shadow the inherited bundle id.
+        terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
+            .ok()
+            .filter(|id| !id.is_empty())
+            .or_else(|| {
+                std::env::var("__CFBundleIdentifier")
+                    .ok()
+                    .filter(|id| !id.is_empty())
+            })
+            .unwrap_or_default(),
+        // A garbled idle override leaves the THRESHOLD unknown, which is what
+        // makes the banner unsuppressable without a third override state: the
+        // bash keeps the garbled string, fails its numeric test and fires, so
+        // consulting the live probe here could drop a banner instead.
+        desk_idle_secs: if overrides.desk_invalid || overrides.idle_invalid {
+            None
+        } else {
+            Some(
+                overrides
+                    .desk_idle_secs
+                    .unwrap_or(pns::engine::DEFAULT_DESK_IDLE_SECS),
+            )
+        },
+        herdr_path: executable_in_path("herdr"),
+        idle_override: overrides.idle_secs,
+        focused_override: overrides.focused_pane.clone(),
+    };
+    let native = pns::channels::Event {
+        agent: event.agent.clone(),
+        state: event.state.clone(),
+        project: event.project.clone(),
+        branch: event.branch.clone(),
+        detail: event.detail.clone(),
+        title: title.clone(),
+        message: message.clone(),
+        preview: preview.clone(),
+        pane: pane.to_string(),
+    };
+
     for leg in &decision.legs {
+        if native_first(channels_dir_override.is_some()) && leg.name == "macos-banner" {
+            banner.deliver(&native, leg.mode);
+            continue;
+        }
         deliver(
             &channels_dir.join(format!("{}.sh", leg.name)),
             &event_json(
@@ -153,6 +205,20 @@ fn main() {
             ),
         );
     }
+}
+
+/// The first executable of that name on PATH, absolute, or None. The click
+/// string bakes it in because the click runs in a bare launchd context whose
+/// PATH cannot find `~/.local/bin`.
+fn executable_in_path(name: &str) -> Option<String> {
+    use std::os::unix::fs::PermissionsExt;
+    std::env::split_paths(&std::env::var_os("PATH")?)
+        .map(|directory| directory.join(name))
+        .find(|candidate| {
+            std::fs::metadata(candidate)
+                .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+        })
+        .map(|path| path.to_string_lossy().into_owned())
 }
 
 /// Hand one channel its event on stdin. A channel that is missing, is not
