@@ -252,21 +252,25 @@ pub fn select_plugins(
     // plan (hue's pulse today): their config tables are legitimate, so they
     // are stripped before the unknown-name refusal rather than read as
     // typos that would discard the operator's whole selection.
-    let _ = mode_plugins;
     use crate::config::{ConfigError, LoadOutcome};
     use crate::registry::RegistryError;
 
     match loaded {
-        Ok(LoadOutcome::Loaded(config)) => match registry.enabled(&config) {
-            Ok(selection) => (selection, None),
-            Err(error) => {
-                let detail = match error {
-                    RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
-                    RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
-                };
-                (registry.all(), Some(roster_warning(&detail)))
+        Ok(LoadOutcome::Loaded(mut config)) => {
+            config
+                .plugins
+                .retain(|name, _| !mode_plugins.contains(&name.as_str()));
+            match registry.enabled(&config) {
+                Ok(selection) => (selection, None),
+                Err(error) => {
+                    let detail = match error {
+                        RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
+                        RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
+                    };
+                    (registry.all(), Some(roster_warning(&detail)))
+                }
             }
-        },
+        }
         Ok(LoadOutcome::Missing) => (registry.all(), None),
         Err(
             ConfigError::Malformed(detail)
