@@ -464,27 +464,16 @@ unattended_log_change_section() {
 # Never ABORTS the caller: a non-zero return is a fact to act on, and both
 # callers do, but neither treats it as fatal.
 # unattended_engine
-# WHICH ENGINE the weekly jobs post through. Every unattended job sources this
-# file, so the transitional preference lives here once rather than in each of
-# them: the Rust binary when an apply has installed it, the bash engine until
-# then. Degrades rather than aborting when the pns resolver is absent, because
-# a half-provisioned machine must still be able to post its record.
-#
-# When the retirement slice removes the bash engine this collapses to the
-# binary path and the resolver source goes with it.
+# The engine the weekly jobs post through: an explicit override wins (the
+# test seam), else the binary by absolute path. The callers' -x guards are
+# what refuse a half-provisioned machine, loudly.
 unattended_engine() {
   local override="${UNATTENDED_LOG_RELAY:-}"
   if [[ -n $override ]]; then
     printf '%s' "$override"
     return 0
   fi
-  # shellcheck source=dot_local/libexec/pns/helpers/engine-path.sh
-  source "${PNS_HELPERS_DIR:-${HOME:-}/.local/libexec/pns/helpers}/engine-path.sh" 2>/dev/null || true
-  if declare -F pns_engine_path >/dev/null 2>&1; then
-    pns_engine_path
-    return 0
-  fi
-  printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
+  printf '%s' "${HOME:-}/.local/libexec/pns/pns"
 }
 
 unattended_log_post() {

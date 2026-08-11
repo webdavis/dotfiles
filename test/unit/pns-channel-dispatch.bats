@@ -1,6 +1,8 @@
 #!/usr/bin/env bats
-# relay.sh is the pns ENGINE: it renders the event, decides which channels fire,
-# and hands each one a JSON object on stdin. This pins that routing.
+# The pns engine renders the event, decides which channels fire, and hands
+# each one a JSON object on stdin. This pins that routing against the engine
+# binary; PNS_CHANNELS_DIR makes stub executables win, which is the test seam
+# the dispatch precedence exists for.
 #
 # WHY THIS EXISTS. relay.sh runs on every agent notification and had NO
 # behavioral test when the channel extraction landed: test/e2e/relay.sh,
@@ -8,12 +10,16 @@
 # the 2026-08-05 purge for being slow. Stub channels make the same assertions
 # fast, because nothing here needs a network, a key, or a sleep.
 
+setup_file() {
+  # The engine binary is the only engine since the retirement; build it once
+  # per file (cached after the first run, and the integration gate reuses it).
+  cargo build --quiet --manifest-path \
+    "$BATS_TEST_DIRNAME/../../dot_local/share/pns/Cargo.toml"
+}
+
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  # PNS_RELAY_BIN points this suite at the Rust engine binary instead; the
-  # bash engine stays the default until R3d retires it. The same assertions
-  # against either engine is the R2d differential gate.
-  RELAY="${PNS_RELAY_BIN:-$REPO_ROOT/dot_local/libexec/pns/executable_relay.sh}"
+  RELAY="${PNS_RELAY_BIN:-$REPO_ROOT/dot_local/share/pns/target/debug/pns}"
   CHANNELS="$BATS_TEST_TMPDIR/channels"
   mkdir -p "$CHANNELS"
   # Stub channels record the event they were handed, then exit 0.

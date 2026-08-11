@@ -480,29 +480,15 @@ if [[ $- == *i* ]]; then
     # makes the banner clickable, which is what carries the pane. Both tiers
     # go through relay's presence gate; the 300s tier only adds the lights.
     # No test pins these thresholds: only a real long command exercises them.
-    # The Rust engine when it is built, the bash engine until then: the
-    # binary arrives with an apply, and a shell already running when that
-    # apply lands must not lose its notifications to a path that does not
-    # exist yet. The pulse follows the same rule.
-    local pns_engine="$HOME/.local/libexec/pns/relay.sh"
-    # An ARRAY, not a string: the pulse carries a subcommand, and a $HOME with
-    # a space would word-split a flat string into a command that does not exist.
-    local -a pns_pulse=()
-    if [[ -x "$HOME/.local/libexec/pns/pns" ]]; then
-      pns_engine="$HOME/.local/libexec/pns/pns"
-    fi
-    # The pulse follows the CONFIG, not the binary: the engine's pulse mode
-    # needs an enabled [plugins.hue] with a bridge and key, and until that
-    # file exists it would return silently and the lights would simply stop.
-    # The bash channel keeps its own openhue configuration, so it stays the
-    # pulse until the operator writes the pns config.
-    if [[ -x "$HOME/.local/libexec/pns/pns" && -f "$HOME/.config/pns/config.toml" ]]; then
-      pns_pulse=("$HOME/.local/libexec/pns/pns" pulse)
-    elif [[ -x "$HOME/.local/libexec/pns/channels/hue-pulse.sh" ]]; then
-      pns_pulse=("$HOME/.local/libexec/pns/channels/hue-pulse.sh")
-    fi
+    # The engine binary, by absolute path: an apply installs it before this
+    # file changes, so there is nothing to fall back to any more. The pulse
+    # follows the CONFIG: `pns pulse` runs only when ~/.config/pns/config.toml
+    # exists, because without an enabled hue table it would silently do
+    # nothing and the lights would just stop.
+    local pns_engine="$HOME/.local/libexec/pns/pns"
     if ((elapsed >= 300)); then
-      [[ ${#pns_pulse[@]} -gt 0 ]] && ("${pns_pulse[@]}" "$exit_code" >/dev/null 2>&1 &)
+      [[ -f "$HOME/.config/pns/config.toml" ]] &&
+        ("$pns_engine" pulse "$exit_code" >/dev/null 2>&1 &)
       ("$pns_engine" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     elif ((elapsed >= 30)); then
       # Not --local-only: a 30s command must reach the phone when the gate
