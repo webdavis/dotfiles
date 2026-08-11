@@ -196,3 +196,20 @@ wait "$server_pid" 2>/dev/null || true
   cat "$scratch/hermes-401.out" >&2
   exit 1
 }
+
+# Phase 4c: async hermes with a real key must be SILENT even when the post
+# fails. The alert-path silence check in phase 3 cannot see this: its auth
+# carries no hermes key, so that run returns before any outcome exists.
+env -u PNS_CHANNELS_DIR -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+  -u ALL_PROXY -u NO_PROXY \
+  HOME="$scratch" PATH="$stub_bin:$PATH" \
+  RELAY_IDLE_SECS=99999 RELAY_AUTH_FILE="$scratch/auth.json" \
+  RELAY_HERMES_URL="http://127.0.0.1:1" RELAY_MOSHI_URL="http://127.0.0.1:1" \
+  "$REPO_ROOT/dot_local/share/pns/target/debug/pns" \
+  --agent claude --state 'done' --detail x \
+  >"$scratch/async-keyed.out" 2>/dev/null
+[[ ! -s "$scratch/async-keyed.out" ]] || {
+  echo "an async delivery printed an outcome; async legs must be silent:" >&2
+  cat "$scratch/async-keyed.out" >&2
+  exit 1
+}
