@@ -16,11 +16,8 @@ vendor/**
 *.rayconfig
 *extension-diagnostics*
 
-# Claude Code session data, except the tracked project settings: a directory
-# excluded by NAME is never descended into, so the content pattern is what
-# lets the negation work.
-.claude/*
-!.claude/settings.json
+# Claude Code session data.
+.claude/
 
 # Git worktrees (isolated implementation workspaces).
 .worktrees/
