@@ -84,8 +84,9 @@ pub fn parse_focused_pane(pane_list_json: &str) -> Option<String> {
 /// marker reads the filesystem directly, because an mtime needs no subprocess.
 ///
 /// One struct rather than four, because they share the runner and a caller
-/// composes the traits it needs. SOLID: it depends on the runner abstraction,
-/// never on `Command` directly, so the whole edge is substitutable.
+/// composes the traits it needs. SOLID: the command probes depend on the
+/// runner abstraction, never on `Command` directly, so that edge substitutes
+/// in tests; the marker's substitution point is the path it is handed.
 pub struct SystemProbes<R: CommandRunner> {
     runner: R,
     marker_path: String,
@@ -164,21 +165,35 @@ mod tests {
     /// Records what it was asked to run and answers from a script, so a test
     /// pins both the parsing and the exact argv a probe uses.
     struct FakeRunner {
-        answer: Option<String>,
+        answers: Vec<(String, Option<String>)>,
         calls: RefCell<Vec<String>>,
     }
 
     impl FakeRunner {
         fn answering(answer: &str) -> Self {
+            // The empty key matches every program, so one answer serves any
+            // single-command probe.
             Self {
-                answer: Some(answer.to_string()),
+                answers: vec![(String::new(), Some(answer.to_string()))],
                 calls: RefCell::new(Vec::new()),
             }
         }
 
         fn failing() -> Self {
             Self {
-                answer: None,
+                answers: Vec::new(),
+                calls: RefCell::new(Vec::new()),
+            }
+        }
+
+        /// One answer per program, keyed by a substring of its path, for the
+        /// probe that chains two commands.
+        fn scripted(scripts: &[(&str, &str)]) -> Self {
+            Self {
+                answers: scripts
+                    .iter()
+                    .map(|(program, out)| ((*program).to_string(), Some((*out).to_string())))
+                    .collect(),
                 calls: RefCell::new(Vec::new()),
             }
         }
@@ -189,7 +204,10 @@ mod tests {
             self.calls
                 .borrow_mut()
                 .push(format!("{program} {}", args.join(" ")));
-            self.answer.clone()
+            self.answers
+                .iter()
+                .find(|(key, _)| program.contains(key.as_str()))
+                .and_then(|(_, answer)| answer.clone())
         }
     }
 
@@ -213,6 +231,19 @@ mod tests {
         assert_eq!(parse_idle_nanoseconds(""), None);
     }
 
+    #[test]
+    fn contaminated_idle_output_reads_as_unknown_rather_than_a_reading() {
+        // The bash reference (grep, in binary mode) refuses NUL-bearing output
+        // outright. Trusting a corrupted stream can coerce to 0, which reads
+        // as "actively typing" and silently suppresses the push; U+FFFD is
+        // where the runner replaced invalid bytes, the same corruption.
+        assert_eq!(parse_idle_nanoseconds("\0\"HIDIdleTime\" = 0\n"), None);
+        assert_eq!(
+            parse_idle_nanoseconds("\u{FFFD}\"HIDIdleTime\" = 5000000000\n"),
+            None
+        );
+    }
+
     // --- parse_pids ---------------------------------------------------------
 
     #[test]
@@ -231,6 +262,13 @@ mod tests {
     #[test]
     fn no_sessions_at_all_is_an_empty_list_and_never_an_error() {
         assert!(parse_pids("").is_empty());
+    }
+
+    #[test]
+    fn a_padded_pid_line_is_rejected_like_any_other_malformed_line() {
+        // The bash reference validates the raw line; trimming first would
+        // promote garbled output into a trusted process id.
+        assert_eq!(parse_pids(" 101 \n2002\n"), vec!["2002"]);
     }
 
     // --- parse_focused_pane -------------------------------------------------
@@ -253,19 +291,49 @@ mod tests {
         assert_eq!(parse_focused_pane(""), None);
     }
 
-    // --- the runner seam ----------------------------------------------------
+    #[test]
+    fn a_focused_object_without_a_pane_id_is_unknown_never_a_neighbours_id() {
+        // Reading past the focused object would return the NEXT pane's id and
+        // suppress a card about a pane the operator is not watching.
+        let json = r#"{"result":{"panes":[{"focused":true},{"pane_id":"wW:p7","focused":false}]}}"#;
+        assert_eq!(parse_focused_pane(json), None);
+    }
+
+    // --- the production runner, against real processes ----------------------
+
+    use super::SystemCommandRunner;
 
     #[test]
-    fn a_runner_that_cannot_run_the_command_yields_no_reading() {
-        let runner = FakeRunner::failing();
-        assert_eq!(runner.run("/usr/sbin/ioreg", &["-c", "IOHIDSystem"]), None);
+    fn the_production_runner_captures_stdout_on_success() {
+        assert_eq!(
+            SystemCommandRunner.run("/bin/echo", &["ok"]),
+            Some("ok\n".to_string())
+        );
     }
 
     #[test]
-    fn a_probe_passes_its_arguments_through_verbatim_so_argv_is_pinned() {
-        let runner = FakeRunner::answering("out");
-        runner.run("/usr/sbin/ioreg", &["-c", "IOHIDSystem"]);
-        assert_eq!(runner.calls.borrow()[0], "/usr/sbin/ioreg -c IOHIDSystem");
+    fn the_production_runner_yields_no_reading_from_a_failing_command() {
+        // Partial output from a failed command must never be parsed as a live
+        // reading; None is the unknown every consumer fails safe on.
+        assert_eq!(SystemCommandRunner.run("/usr/bin/false", &[]), None);
+    }
+
+    #[test]
+    fn the_production_runner_yields_no_reading_for_a_missing_binary() {
+        assert_eq!(
+            SystemCommandRunner.run("/nonexistent/pns-no-such-binary", &[]),
+            None
+        );
+    }
+
+    #[test]
+    fn the_production_runner_keeps_a_sample_with_stray_invalid_bytes() {
+        // The rate CSV is judged row by row downstream, matching the bash awk
+        // parser's tolerance: one bad byte must not discard a whole sample.
+        let out = SystemCommandRunner
+            .run("/bin/sh", &["-c", "printf 'a\\377b'"])
+            .expect("stray bytes must not discard the reading");
+        assert!(out.starts_with('a') && out.ends_with('b'));
     }
 
     // --- the four probe implementations, the behavior R2a owes -------------
@@ -327,11 +395,73 @@ mod tests {
     }
 
     #[test]
-    fn no_sessions_means_no_sample_rather_than_an_empty_one() {
+    fn the_marker_probe_reads_the_link_itself_never_its_target() {
+        // BSD stat -f %m reads the link, and the Back Tap touch lands on the
+        // path itself: a dangling link still has its own mtime, so following
+        // it to a missing target must not erase the reading.
+        let link = std::env::temp_dir().join(format!("pns-marker-link-{}", std::process::id()));
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink("pns-nonexistent-target", &link).unwrap();
+        let probes = SystemProbes::new(FakeRunner::failing(), link.to_string_lossy().into_owned());
+        let reading = probes.marker_mtime_secs();
+        std::fs::remove_file(&link).ok();
+        assert!(
+            reading.is_some(),
+            "the dangling link's own mtime is the reading"
+        );
+    }
+
+    #[test]
+    fn no_sessions_means_no_sample_and_the_sampler_never_runs() {
         // An empty CSV would be judged INACTIVE either way, but skipping the
-        // sampler is what keeps a full second of live counters off this path.
+        // sampler is what keeps a full second of live counters off this path;
+        // the call recording is the proof it was skipped.
         let probes = probes_answering("");
         assert_eq!(probes.sample_csv(), None);
+        let calls = probes.runner.calls.borrow();
+        assert_eq!(calls.len(), 1, "only pgrep may run, got {calls:?}");
+        assert_eq!(calls[0], "/usr/bin/pgrep -x mosh-server");
+    }
+
+    #[test]
+    fn a_pgrep_with_no_matches_is_no_sample_which_reads_inactive() {
+        // Real pgrep exits non-zero on no matches, which the runner reports
+        // as None: the shape the production path actually produces.
+        assert_eq!(probes_failing().sample_csv(), None);
+    }
+
+    #[test]
+    fn the_sampler_argv_matches_the_bash_original_byte_for_byte() {
+        // The -J column order puts bytes_in in field 5, the exact shape the
+        // rate judge parses; a reordering here ships a dead probe silently.
+        let probes = SystemProbes::new(
+            FakeRunner::scripted(&[("pgrep", "101\n2002\n"), ("nettop", "csv\n")]),
+            "/marker".to_string(),
+        );
+        assert_eq!(probes.sample_csv(), Some("csv\n".to_string()));
+        let calls = probes.runner.calls.borrow();
+        assert_eq!(calls[0], "/usr/bin/pgrep -x mosh-server");
+        assert_eq!(
+            calls[1],
+            "/usr/bin/nettop -P -L 2 -x -n -J time,interface,state,bytes_in,bytes_out -p 101 -p 2002"
+        );
+    }
+
+    #[test]
+    fn the_idle_probe_argv_matches_the_bash_original() {
+        let probes = probes_answering("\"HIDIdleTime\" = 5000000000\n");
+        probes.idle_secs();
+        assert_eq!(
+            probes.runner.calls.borrow()[0],
+            "/usr/sbin/ioreg -c IOHIDSystem"
+        );
+    }
+
+    #[test]
+    fn the_pane_probe_asks_the_multiplexer_by_name_through_the_callers_path() {
+        let probes = probes_answering("{}");
+        probes.focused_pane();
+        assert_eq!(probes.runner.calls.borrow()[0], "herdr pane list");
     }
 
     #[test]
