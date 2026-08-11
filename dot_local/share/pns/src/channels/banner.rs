@@ -64,13 +64,12 @@ pub fn click_command(herdr_path: Option<&str>, pane: &str) -> String {
 /// bundleid` output: the value of the quoted CFBundleIdentifier pair, from
 /// the first line carrying one. Anything else is unknown.
 pub fn parse_front_bundle_id(lsappinfo_output: &str) -> Option<String> {
-    let line = lsappinfo_output
-        .lines()
-        .find(|line| line.contains("CFBundleIdentifier"))?;
-    // The pair AFTER the key, so a line carrying an earlier `=` cannot
-    // mislead the split, matching the sed this ports.
-    let value = line.split_once("CFBundleIdentifier")?.1.split_once('=')?.1;
-    let value = value.trim_start().strip_prefix('"')?;
+    // The QUOTED key exactly, as the bash sed requires: an unquoted lookalike
+    // must not produce a confident id that wrongly suppresses.
+    let value = lsappinfo_output
+        .split_once("\"CFBundleIdentifier\"=")?
+        .1
+        .strip_prefix('"')?;
     Some(value[..value.find('"')?].to_string())
 }
 
@@ -127,10 +126,19 @@ impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> Channel for BannerChanne
                     .run(LSAPPINFO_PATH, &["info", "-only", "bundleid", &asn])
             })
             .and_then(|output| parse_front_bundle_id(&output));
-        let focused_pane = self.probes.focused_pane();
+        // A caller-supplied reading IS the reading, so the probe under it is
+        // never consulted.
+        let idle_secs = match self.idle_override {
+            Some(secs) => Some(secs),
+            None => self.probes.idle_secs(),
+        };
+        let focused_pane = match &self.focused_override {
+            Some(pane) => Some(pane.clone()),
+            None => self.probes.focused_pane(),
+        };
 
         if operator_is_watching(
-            self.probes.idle_secs(),
+            idle_secs,
             self.desk_idle_secs,
             &self.terminal_id,
             front_bundle_id.as_deref(),

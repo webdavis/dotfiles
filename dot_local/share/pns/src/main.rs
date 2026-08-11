@@ -144,10 +144,22 @@ fn main() {
     let banner = BannerChannel {
         runner: SystemCommandRunner,
         probes: SystemProbes::new(SystemCommandRunner, String::new()),
+        // An EMPTY override falls through, so an exported-but-blank variable
+        // cannot shadow the inherited bundle id.
         terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
-            .or_else(|_| std::env::var("__CFBundleIdentifier"))
+            .ok()
+            .filter(|id| !id.is_empty())
+            .or_else(|| {
+                std::env::var("__CFBundleIdentifier")
+                    .ok()
+                    .filter(|id| !id.is_empty())
+            })
             .unwrap_or_default(),
-        desk_idle_secs: if overrides.desk_invalid {
+        // A garbled idle override leaves the THRESHOLD unknown, which is what
+        // makes the banner unsuppressable without a third override state: the
+        // bash keeps the garbled string, fails its numeric test and fires, so
+        // consulting the live probe here could drop a banner instead.
+        desk_idle_secs: if overrides.desk_invalid || overrides.idle_invalid {
             None
         } else {
             Some(
@@ -157,9 +169,8 @@ fn main() {
             )
         },
         herdr_path: executable_in_path("herdr"),
-        // Red-state placeholders: the fix round wires these from overrides.
-        idle_override: None,
-        focused_override: None,
+        idle_override: overrides.idle_secs,
+        focused_override: overrides.focused_pane.clone(),
     };
     let native = pns::channels::Event {
         agent: event.agent.clone(),
