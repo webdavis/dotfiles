@@ -395,9 +395,37 @@ refute_log_has() { # <fixed-substring> <file>
   # Pointing the desired state at another tree is root installing THAT tree's
   # bytes into the root daemon's configuration directory, so the override has to
   # be unavailable to anything but a test that says so.
-  run env PATH="$BIN:$PATH" OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" "$TOOL"
+  #
+  # `env -u` SCRUBS the seam rather than trusting it to be absent. This case names
+  # one override and no target directory and no sudo, which is the whole point of
+  # it; inherit OSQUERY_CONVERGE_TEST_SEAM=1 from the surrounding environment and
+  # those two fall back to /var/osquery and /usr/bin/sudo, and the case that
+  # asserts a refusal converges the REAL machine instead. That is not theoretical:
+  # it happened, and it is why the tool now also refuses a seam engaged without
+  # them (pinned below).
+  run env -u OSQUERY_CONVERGE_TEST_SEAM PATH="$BIN:$PATH" OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" "$TOOL"
   [ "$status" -ne 0 ]
   [[ $output == *OSQUERY_CONVERGE_DESIRED_DIR* ]]
+  [ "$(privileged_call_count)" -eq 0 ]
+}
+
+@test "the test seam without a target directory is refused, never defaulted to /var/osquery" {
+  # The seam engaged with only SOME overrides is the shape that converged the live
+  # machine out of a bats sandbox: every value is individually legal, and the two
+  # that were omitted default to production.
+  run env PATH="$BIN:$PATH" OSQUERY_CONVERGE_TEST_SEAM=1 \
+    OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" "$TOOL"
+  [ "$status" -ne 0 ]
+  [[ $output == *OSQUERY_CONVERGE_TARGET_DIR* ]]
+  refute_log_has '/var/osquery' "$SUDO_LOG"
+  [ "$(privileged_call_count)" -eq 0 ]
+}
+
+@test "the test seam without a sudo is refused too, so root is never the real one" {
+  run env PATH="$BIN:$PATH" OSQUERY_CONVERGE_TEST_SEAM=1 \
+    OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" OSQUERY_CONVERGE_TARGET_DIR="$TARGET" "$TOOL"
+  [ "$status" -ne 0 ]
+  [[ $output == *OSQUERY_CONVERGE_SUDO* ]]
   [ "$(privileged_call_count)" -eq 0 ]
 }
 

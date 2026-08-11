@@ -134,6 +134,30 @@ if [[ ${OSQUERY_CONVERGE_TEST_SEAM:-} != 1 ]]; then
   [[ $osquery_converge_seam_refused -eq 0 ]] || exit 2
 fi
 
+# THE OTHER HALF OF THE GATE: with the seam engaged, the two seams whose DEFAULTS
+# ARE PRODUCTION must be given explicitly. `${VAR:-default}` cannot tell a caller
+# who omitted a seam from one who meant the default, so a harness that sets the
+# seam and only SOME of the overrides silently gets /var/osquery and /usr/bin/sudo
+# and converges the live machine out of a sandbox.
+#
+# MEASURED, not hypothetical: a bats case that passes OSQUERY_CONVERGE_DESIRED_DIR
+# alone in order to assert the refusal above becomes a full production converge the
+# moment OSQUERY_CONVERGE_TEST_SEAM is present in the inherited environment, and
+# this host's passwordless sudo makes every install and the daemon restart succeed.
+# The failure is silent because each individual value is legal.
+#
+# Only these two are required. OSQUERY_CONVERGE_DESIRED_DIR defaults to the staging
+# beside this script and OSQUERY_CONVERGE_OSQUERYCTL to a PATH lookup that
+# privileged_command_is_trustworthy then judges; neither defaults to something that
+# writes. These two do, so under the seam they are declared or the run is refused.
+if [[ ${OSQUERY_CONVERGE_TEST_SEAM:-} == 1 ]]; then
+  for osquery_converge_seam in OSQUERY_CONVERGE_TARGET_DIR OSQUERY_CONVERGE_SUDO; do
+    [[ -z ${!osquery_converge_seam:-} ]] || continue
+    fail "OSQUERY_CONVERGE_TEST_SEAM=1 is set but $osquery_converge_seam is not, so it would fall back to its PRODUCTION default and this run would converge the live machine out of a test tree; refusing. A harness that engages the seam names its sandbox target directory AND its sudo."
+    exit 2
+  done
+fi
+
 # The desired state, beside this script in both the source tree and the deployed
 # one, so a sandbox copy resolves the same way the deployment does.
 OSQUERY_CONVERGE_DESIRED_DIR="${OSQUERY_CONVERGE_DESIRED_DIR:-$(dirname "${BASH_SOURCE[0]}")/osquery-converge/desired}"
