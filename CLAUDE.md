@@ -138,11 +138,14 @@ osquery LaunchAgent plists, `posture-controls.json`, and the two osquery staging
 delivered what it was for: it does NOT skip a `modify_` template (measured 2026-08-02), and two of those
 call `keepassxc`, so the excluded apply reached the vault anyway.
 
-To stay off the vault entirely, apply specific files by name:
-
-```bash
-chezmoi apply ~/.fzf_bindings               # specific non-template, non-modify file
-```
+**A by-name apply is NOT a supported shortcut.** `chezmoi apply <path>` deploys that path without running
+the `run_` scripts, so `run_after_05-osquery-known-good-manifests.sh` never refreshes the known-good
+manifests. Deploy a MANIFESTED file that way and its hash no longer matches the manifest, which the
+pipeline audit reads as tampering and pages CRIT on every tick until a full apply. The manifested set is
+the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts under `~/.local/bin` and
+`~/.local/libexec`, and the osquery LaunchAgents. Use a full `chezmoi apply`; it is what keeps the
+deployed state and the manifests derived from the same source state. The by-name form existed to dodge
+the vault, which is no longer a goal now that the operator applies with it unlocked.
 
 Twelve targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
