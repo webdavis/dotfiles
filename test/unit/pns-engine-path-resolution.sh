@@ -33,7 +33,7 @@ fail() {
   exit 1
 }
 
-pulse_line() { pns_pulse_command | tr '\n' '|'; }
+pulse_line() { pns_pulse_command | tr '\0' '|'; }
 
 # --- the engine ------------------------------------------------------------
 printf '#!/usr/bin/env bash\n' >"$relay"
@@ -71,12 +71,43 @@ printf '[plugins.hue]\nenabled = true\n' >"$config"
 
 # The subcommand must survive a home with a space: reading the command back
 # as separate lines is what makes that possible.
-mapfile -t parts < <(pns_pulse_command)
+mapfile -t -d '' parts < <(pns_pulse_command)
 [[ ${#parts[@]} -eq 2 && ${parts[0]} == "$binary" && ${parts[1]} == pulse ]] ||
   fail "the pulse command must be two arguments, got: ${parts[*]}"
 
 rm "$config"
 [[ "$(pulse_line)" == "$channel|" ]] ||
   fail "removing the config returns the lights to the bash channel"
+
+# --- neither candidate may be a directory or a non-executable file ---------
+# -x alone accepts a searchable DIRECTORY, which would suppress every
+# fallback and leave the caller trying to execute it.
+printf '[plugins.hue]\nenabled = true\n' >"$config"
+chmod -x "$binary"
+[[ "$(pulse_line)" == "$channel|" ]] ||
+  fail "a non-executable binary must not claim the pulse, got: $(pulse_line)"
+chmod +x "$binary"
+
+mv "$binary" "$binary.real"
+mkdir -p "$binary"
+[[ "$(pulse_line)" == "$channel|" ]] ||
+  fail "a DIRECTORY at the binary path must not claim the pulse, got: $(pulse_line)"
+[[ "$(pns_engine_path)" == "$relay" ]] ||
+  fail "a DIRECTORY at the binary path must not claim the engine either"
+rmdir "$binary"
+mv "$binary.real" "$binary"
+rm "$config"
+
+chmod -x "$channel"
+[[ "$(pulse_line)" == "" ]] ||
+  fail "a non-executable channel is no pulse at all, got: $(pulse_line)"
+chmod +x "$channel"
+
+# --- a stripped environment with explicit overrides still resolves ---------
+# Hooks run with HOME sometimes absent; the overrides are what such a caller
+# has, and expanding an unset HOME under set -u would abort the hook.
+( set -u; unset HOME
+  PNS_CHANNELS_DIR="$(dirname "$channel")" pns_pulse_command >/dev/null ) ||
+  fail "an unset HOME with an explicit channels dir must still resolve"
 
 exit 0

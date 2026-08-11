@@ -20,27 +20,30 @@ pns_engine_path() {
     printf '%s' "$override"
     return 0
   fi
-  local binary="${PNS_ENGINE_BIN:-$HOME/.local/libexec/pns/pns}"
-  if [[ -x $binary ]]; then
+  # A regular file, not merely something with the execute bit: a DIRECTORY at
+  # that path satisfies -x and would suppress the fallback entirely.
+  local binary="${PNS_ENGINE_BIN:-${HOME:-}/.local/libexec/pns/pns}"
+  if [[ -f $binary && -x $binary ]]; then
     printf '%s' "$binary"
     return 0
   fi
-  printf '%s' "$HOME/.local/libexec/pns/relay.sh"
+  printf '%s' "${HOME:-}/.local/libexec/pns/relay.sh"
 }
 
 # pns_pulse_command
-# The command that pulses the lights, as ARGUMENTS on stdout, one per line:
-# the binary carries a subcommand, and a flat string would word-split on a
-# home directory with a space. Prints nothing when neither form is available,
-# which the caller reads as "no lights on this machine".
+# The command that pulses the lights, as NUL-separated ARGUMENTS on stdout:
+# the binary carries a subcommand, a flat string would word-split on a home
+# directory with a space, and a newline separator would split a path that
+# contains one. Prints nothing when neither form is available, which the
+# caller reads as "no lights on this machine".
 pns_pulse_command() {
-  local binary="${PNS_ENGINE_BIN:-$HOME/.local/libexec/pns/pns}"
-  local config="${PNS_CONFIG_FILE:-$HOME/.config/pns/config.toml}"
-  if [[ -x $binary && -f $config ]]; then
-    printf '%s\n' "$binary" pulse
+  local binary="${PNS_ENGINE_BIN:-${HOME:-}/.local/libexec/pns/pns}"
+  local config="${PNS_CONFIG_FILE:-${HOME:-}/.config/pns/config.toml}"
+  if [[ -f $binary && -x $binary && -f $config ]]; then
+    printf '%s\0' "$binary" pulse
     return 0
   fi
-  local channel="${PNS_CHANNELS_DIR:-$HOME/.local/libexec/pns/channels}/hue-pulse.sh"
-  [[ -x $channel ]] && printf '%s\n' "$channel"
+  local channel="${PNS_CHANNELS_DIR:-${HOME:-}/.local/libexec/pns/channels}/hue-pulse.sh"
+  [[ -f $channel && -x $channel ]] && printf '%s\0' "$channel"
   return 0
 }

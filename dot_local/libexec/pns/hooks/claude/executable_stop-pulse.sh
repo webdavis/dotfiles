@@ -42,8 +42,8 @@ source "${PNS_HELPERS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/h
 # An ARRAY: the binary form carries a subcommand, and a home directory with a
 # space would word-split a flat string into a command that does not exist.
 pulse=()
-while IFS= read -r argument; do
-  [[ -n $argument ]] && pulse+=("$argument")
+while IFS= read -r -d '' argument; do
+  pulse+=("$argument")
 done < <(pns_pulse_command)
 [[ ${#pulse[@]} -gt 0 ]] || exit 0
 exec "${pulse[@]}" 0
