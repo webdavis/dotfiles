@@ -107,6 +107,8 @@
 {{- $merged = setValueAtPath "cleanupPeriodDays" 365 $merged -}}
 {{- $merged = setValueAtPath "autoUpdatesChannel" "stable" $merged -}}
 {{- $merged = setValueAtPath "remoteControlAtStartup" true $merged -}}
+{{- /* Spinner tips off everywhere (operator, 2026-08-11). */ -}}
+{{- $merged = setValueAtPath "spinnerTipsEnabled" false $merged -}}
 {{- /* xhigh is the maximum effortLevel enum value (low/medium/high/xhigh) */ -}}
 {{- $merged = setValueAtPath "effortLevel" "xhigh" $merged -}}
 {{- /* Stable env passthroughs (operator, 2026-08-05). Per-key on purpose so any
