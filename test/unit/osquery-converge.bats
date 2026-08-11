@@ -174,10 +174,20 @@ fi
 printf '%s %s %s\n' "$mode" "$uid" "$gid"
 STUB
 
+  # cmp: record the argv, then answer with the real cmp. The tool compares the
+  # desired bytes against the live ones exactly here, so the recorded FIRST path
+  # is the only evidence of WHICH desired copy decided the verdict. Delegating
+  # rather than emulating keeps every content verdict a real byte comparison.
+  cat >"$BIN/cmp" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$CMP_LOG"
+exec /usr/bin/cmp "$@"
+STUB
+
   # An instant sleep: the restart poll waits in quarter seconds and nothing here
   # asserts on the waiting.
   ln -sf /usr/bin/true "$BIN/sleep"
-  chmod +x "$BIN/sudo" "$BIN/osqueryctl" "$BIN/pgrep" "$BIN/stat"
+  chmod +x "$BIN/sudo" "$BIN/osqueryctl" "$BIN/pgrep" "$BIN/stat" "$BIN/cmp"
 
   export TOOL BIN PROTOTYPE
 }
@@ -197,12 +207,14 @@ setup() {
   DAEMON_PID_FILE="$ROOT/daemon.pid"
   DAEMON_LIVES="$ROOT/daemon.lives"
   PGREP_ARGV="$ROOT/pgrep.argv"
+  CMP_LOG="$ROOT/cmp.log"
 
   cp -R "$PROTOTYPE/." "$ROOT/"
   : >"$SUDO_LOG"
   : >"$OSQUERYCTL_LOG"
   : >"$INSTALL_SOURCE_LOG"
   : >"$PGREP_ARGV"
+  : >"$CMP_LOG"
   printf '4242\n' >"$DAEMON_PID_FILE"
 
   # The default subtree the stat stub substitutes an owner for: the live tree,
@@ -211,6 +223,7 @@ setup() {
   FAKE_STAT_UID_SCOPE="$TARGET"
 
   export SUDO_LOG OSQUERYCTL_LOG INSTALL_SOURCE_LOG DAEMON_PID_FILE DAEMON_LIVES PGREP_ARGV
+  export CMP_LOG
   export FAKE_STAT_UID_SCOPE
 }
 
@@ -444,6 +457,23 @@ refute_log_has() { # <fixed-substring> <file>
   # The mode of the directory root read from, recorded by the sudo stub at the
   # moment of the call.
   grep -qE -- "^$source 700$" "$INSTALL_SOURCE_LOG"
+}
+
+@test "the content comparison reads the private copy, not the deployed staging tree" {
+  # The install side of this is pinned above; this is the VERDICT side. A
+  # comparison against the deployed tree while the install reads the private copy
+  # lets the two disagree: the bytes that decided "converged" are then not the
+  # bytes that would have been written, so a staging file swapped after the copy
+  # is taken produces a verdict for content that never gets installed.
+  printf 'drifted\n' >"$TARGET/osquery.conf"
+  run converge
+  [ "$status" -eq 0 ]
+  # Something really was compared, or the two assertions below are vacuous.
+  [ -s "$CMP_LOG" ]
+  # Every comparison names the private stage as its desired side, and none of
+  # them names the deployed staging tree.
+  refute_log_has "$DESIRED/" "$CMP_LOG"
+  grep -q '/osquery-converge\.' "$CMP_LOG"
 }
 
 @test "only the drifted file is reinstalled, so a repair is not a rewrite of everything" {
