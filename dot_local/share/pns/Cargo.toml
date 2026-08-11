@@ -1,9 +1,10 @@
 # The pns decision core plus its probe edge. Library only: the engine binary
 # and dispatch arrive with later slices.
 #
-# NO DEPENDENCIES, and that is a property of this layer rather than a policy:
-# the decisions are pure, and the probe edge needs only std (spawning the
-# system readers, one fs mtime), so nothing here has anything to depend on.
+# ONE DEPENDENCY, taken where the format demands it: the config edge parses
+# TOML through the standard crate. The decision core and the probe edge run
+# on std alone, and that split is a property to keep: a new dependency needs
+# a layer whose format genuinely requires one.
 
 [package]
 name = "pns"
