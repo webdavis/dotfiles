@@ -68,8 +68,9 @@ for job in \
   "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh" \
   "dot_local/libexec/unattended-upgrades/claude/executable_report-plugin-updates.sh" \
   "dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"; do
-  if grep -n 'relay\.sh"$' "$REPO_ROOT/$job" | grep -qv '^\s*#'; then
-    fail "$job still defaults to the bash engine directly instead of the shared rule"
+  # Any non-comment mention of the bash engine path is a default of its own.
+  if grep -v '^[[:space:]]*#' "$REPO_ROOT/$job" | grep -q 'libexec/pns/relay\.sh'; then
+    fail "$job still names the bash engine directly instead of the shared rule"
   fi
 done
 
