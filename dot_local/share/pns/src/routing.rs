@@ -76,8 +76,23 @@ pub fn channel_plan(
     remote_only: bool,
     want_phone: bool,
 ) -> Vec<Leg> {
-    let _ = (enabled, local_only, remote_only, want_phone);
-    todo!("R2c: compose the plan from routing declarations")
+    if local_only && remote_only {
+        return Vec::new();
+    }
+    let mode = if remote_only { Mode::Sync } else { Mode::Async };
+    enabled
+        .iter()
+        .filter(|entry| match (local_only, remote_only) {
+            (true, _) => entry.routing.local,
+            (_, true) => entry.routing.durable,
+            _ => true,
+        })
+        .filter(|entry| want_phone || !entry.routing.presence_gated)
+        .map(|entry| Leg {
+            name: entry.name,
+            mode,
+        })
+        .collect()
 }
 
 /// True when a phone card would describe the very pane the operator is

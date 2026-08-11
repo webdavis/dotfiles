@@ -61,13 +61,16 @@ impl Registry {
 
     /// Add a plugin. A name already taken is refused.
     pub fn register(&mut self, name: &'static str, routing: Routing) -> Result<(), RegistryError> {
-        let _ = (name, routing);
-        todo!("R2c: refuse duplicates, keep registration order")
+        if self.registrations.iter().any(|entry| entry.name == name) {
+            return Err(RegistryError::Duplicate(name.to_string()));
+        }
+        self.registrations.push(Registration { name, routing });
+        Ok(())
     }
 
     /// Every registered name, in registration order.
     pub fn names(&self) -> Vec<&'static str> {
-        todo!("R2c: the names in registration order")
+        self.registrations.iter().map(|entry| entry.name).collect()
     }
 
     /// The registrations the config enables, in REGISTRATION order whatever
@@ -75,8 +78,25 @@ impl Registry {
     /// plugin is refused; a registered plugin the config omits or disables
     /// is simply not selected.
     pub fn enabled(&self, config: &Config) -> Result<Vec<Registration>, RegistryError> {
-        let _ = config;
-        todo!("R2c: select by config, refuse unknown names, keep registration order")
+        // The CONFIG's names are walked first, and the enabled flag is not
+        // consulted: an unregistered name is a typo whether or not it is
+        // switched on, and the next edit turns it into a silent no-op.
+        for name in config.plugins.keys() {
+            if !self.registrations.iter().any(|entry| entry.name == name) {
+                return Err(RegistryError::UnknownPlugin(name.clone()));
+            }
+        }
+        Ok(self
+            .registrations
+            .iter()
+            .filter(|entry| {
+                config
+                    .plugins
+                    .get(entry.name)
+                    .is_some_and(|selected| selected.enabled)
+            })
+            .copied()
+            .collect())
     }
 }
 
