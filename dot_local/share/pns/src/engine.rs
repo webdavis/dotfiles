@@ -807,6 +807,21 @@ mod tests {
     }
 
     #[test]
+    fn a_registered_name_is_never_stripped_even_when_declared_a_mode() {
+        // A name that IS an event leg must keep its table: stripping it would
+        // silently empty the operator's selection with no warning at all.
+        use crate::config::LoadOutcome;
+        let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+        let (selection, warning) = super::select_plugins(
+            &three_registry(),
+            Ok(LoadOutcome::Loaded(config)),
+            &["hermes"],
+        );
+        assert_eq!(selection_names(&selection), vec!["hermes"]);
+        assert_eq!(warning, None);
+    }
+
+    #[test]
     fn a_true_typo_is_still_refused_even_with_mode_plugins_declared() {
         use crate::config::LoadOutcome;
         let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
