@@ -210,6 +210,11 @@ const PULSE_TRANSITION: Duration = Duration::from_millis(1200);
 /// finding 2026-08-11: the restore fired the instant the fourth ramp's sleep
 /// returned and overrode the final dim before the bridge rendered it, so the
 /// pulse read as three phases, not four.
+///
+/// The VALUE is empirical padding for bridge-side render latency, chosen as
+/// half a `PULSE_TRANSITION` and nothing more principled than that: the ramp
+/// it follows had already been given its full transition time, so the gap it
+/// covers is unexplained and unmeasured. Retune after the first live pulse.
 const FINAL_DIM_HOLD: Duration = Duration::from_millis(600);
 
 /// The light PUT body that puts one snapshot back: an off light is only
@@ -347,9 +352,9 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, FINAL_DIM_HOLD, HuePulse, LightState, RESTORE_TRANSITION_MS,
-        Sleeper, acquire_pulse_lock, hue_enabled, hue_settings, light_snapshot, pulse_body,
-        pulse_rooms, put_succeeded, restore_body,
+        Bridge, DEFAULT_ROOMS, HuePulse, LightState, RESTORE_TRANSITION_MS, Sleeper,
+        acquire_pulse_lock, hue_enabled, hue_settings, light_snapshot, pulse_body, pulse_rooms,
+        put_succeeded, restore_body,
     };
     use std::cell::RefCell;
     use std::time::Duration;
@@ -762,7 +767,10 @@ mod tests {
                 Duration::from_millis(1200),
                 Duration::from_millis(1200),
                 Duration::from_millis(1200),
-                FINAL_DIM_HOLD,
+                // The literal, not the constant: comparing the hold against
+                // itself would pass for any value, including one too short
+                // for the bridge to render.
+                Duration::from_millis(600),
             ],
             "four ramps, then the hold that lets the last dim render"
         );
