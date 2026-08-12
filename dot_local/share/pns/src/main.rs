@@ -5,6 +5,7 @@
 //! is delegated to the library. It exits 0 on every path, because a
 //! notification must never fail the work it reports on.
 
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
@@ -111,22 +112,21 @@ fn event_mode() {
         channels_dir_override.as_deref(),
         &format!("{home}/.local/libexec/pns/channels"),
     );
-    let auth_path = resolve_path(
-        std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
-        &format!("{home}/.config/relay/auth.json"),
-    );
-    let auth = read_auth(&auth_path);
+    let auth = AuthFile {
+        path: resolve_path(
+            std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
+            &format!("{home}/.config/relay/auth.json"),
+        ),
+        contents: OnceCell::new(),
+    };
     let banner = banner_channel(&probes, &overrides);
-    let moshi = moshi_channel(auth.as_deref());
-    let hermes = hermes_channel(auth.as_deref(), auth_path);
 
     for leg in &decision.legs {
         let delivered = deliver_leg(
             leg,
             &rendered,
             &banner,
-            &moshi,
-            &hermes,
+            &auth,
             native_first(channels_dir_override.is_some()),
             &channels_dir,
         );
@@ -212,6 +212,25 @@ fn banner_channel<'a>(
     }
 }
 
+/// The auth file, read AT MOST ONCE and only if a leg asks for it.
+///
+/// Eager reading made every notification wait on a file no plan might need:
+/// point RELAY_AUTH_FILE at a FIFO nobody writes and an executable-only
+/// delivery blocks forever. One read is still the rule, so two native legs
+/// cannot sign against two different versions of the file.
+struct AuthFile {
+    path: std::path::PathBuf,
+    contents: OnceCell<Option<String>>,
+}
+
+impl AuthFile {
+    fn contents(&self) -> Option<&str> {
+        self.contents
+            .get_or_init(|| read_auth(&self.path))
+            .as_deref()
+    }
+}
+
 /// The moshi push, with the token this event already read.
 fn moshi_channel(auth: Option<&str>) -> MoshiChannel<UreqPost> {
     MoshiChannel {
@@ -251,16 +270,20 @@ fn deliver_leg(
     leg: &pns::routing::Leg,
     rendered: &pns::channels::Event,
     banner: &BannerChannel<SystemCommandRunner, &SystemProbes<SystemCommandRunner>>,
-    moshi: &MoshiChannel<UreqPost>,
-    hermes: &HermesChannel<UreqSignedPost>,
+    auth: &AuthFile,
     native_wins: bool,
     channels_dir: &Path,
 ) -> Delivery {
     if native_wins {
+        // The two network channels are built HERE rather than up front,
+        // because building one is what reads the auth file.
         match leg.name {
             "macos-banner" => return banner.deliver(rendered, leg.mode),
-            "moshi" => return moshi.deliver(rendered, leg.mode),
-            "hermes" => return hermes.deliver(rendered, leg.mode),
+            "moshi" => return moshi_channel(auth.contents()).deliver(rendered, leg.mode),
+            "hermes" => {
+                return hermes_channel(auth.contents(), auth.path.clone())
+                    .deliver(rendered, leg.mode);
+            }
             _ => {}
         }
     }
@@ -335,30 +358,34 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// the sequence against the bridge. Every absence is a silent exit 0.
 fn pulse_mode() {
     let home = std::env::var("HOME").unwrap_or_default();
-    let loaded = load_config(&config_path(&home));
-    // The settings come off the config, the ENABLED verdict comes off the
-    // same selection an event uses: hue is a registered plugin that happens
-    // not to be an event leg, not a special case wired past the registry.
-    let settings = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => {
-            config.plugins.get("hue").map(|hue| hue.settings.clone())
+    // FAIL CLOSED, unlike an event. The roster fallback that keeps every
+    // notification working through a broken config is an EVENT-mode rule:
+    // applying it here would let an unrelated typo switch a deliberately
+    // disabled pulse back on. The pulse runs only when its own table says
+    // enabled, explicitly.
+    let config = match load_config(&config_path(&home)) {
+        Ok(LoadOutcome::Loaded(config)) => config,
+        // Absent is not a mistake; never opting in earns no warning.
+        Ok(LoadOutcome::Missing) => return,
+        Err(error) => {
+            // The sanitized detail event mode prints, with the outcome THIS
+            // mode had: there is no recoverable setting to fall back to, so
+            // nothing pulses.
+            eprintln!("pns: config error ({}); no pulse", error.detail());
+            return;
         }
-        _ => None,
     };
-    let (selection, warning) = select_plugins(&roster(), loaded);
-    // The SAME sanitized warning event mode prints. A config that is merely
-    // absent stays silent, because never opting in is not a mistake; one that
-    // could not be read is the operator's to know about, whichever mode found
-    // it.
-    if let Some(warning) = warning {
-        eprintln!("{warning}");
-    }
-    if !selection.iter().any(|entry| entry.name == "hue") {
-        return;
-    }
-    let Some(hue) = settings.and_then(|settings| {
-        hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
-    }) else {
+    let Some(hue) = config
+        .plugins
+        .get("hue")
+        .filter(|hue| hue.enabled)
+        .and_then(|hue| {
+            hue_settings(
+                &hue.settings,
+                std::env::var("HUE_PULSE_ROOMS").ok().as_deref(),
+            )
+        })
+    else {
         return;
     };
 

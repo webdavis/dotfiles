@@ -385,3 +385,109 @@ fn an_absent_config_stays_silent_in_pulse_mode() {
     assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(output.status.success());
 }
+
+/// Wait for a child with a deadline, killing it if it outlives one. The suite
+/// must not be able to hang on a test whose whole point is a blocking read.
+fn wait_bounded(mut child: std::process::Child, limit: std::time::Duration) -> Option<i32> {
+    let deadline = std::time::Instant::now() + limit;
+    loop {
+        if let Some(status) = child.try_wait().expect("wait") {
+            return status.code();
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_plan_with_no_native_leg_never_opens_the_auth_file() {
+    // A FIFO nobody writes to blocks forever on open. Reading auth before
+    // knowing whether any leg wants it turns an unrelated stall into a hung
+    // notification, so the read has to wait until a channel actually asks.
+    let sandbox = support::Sandbox::new("auth-never-read");
+    let fifo = sandbox.path("auth.fifo");
+    assert!(
+        std::process::Command::new("/usr/bin/mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo runs")
+            .success()
+    );
+    let child = sandbox
+        .relay()
+        .env("RELAY_AUTH_FILE", &fifo)
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .spawn()
+        .expect("the engine starts");
+    assert_eq!(
+        wait_bounded(child, std::time::Duration::from_millis(500)),
+        Some(0),
+        "executable channels need no secret, so nothing may block on the auth file"
+    );
+}
+
+#[test]
+fn an_unknown_plugin_never_resurrects_a_disabled_pulse() {
+    // The full-roster fallback is an EVENT-mode rule: it keeps notifications
+    // working when a config is wrong. Applying it to the pulse turns a
+    // deliberate `enabled = false` back on over an unrelated typo elsewhere.
+    //
+    // A pulse is silent either way, so the bridge address IS the observation:
+    // a listener nobody should ever reach.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
+    let port = listener.local_addr().expect("addr").port();
+    listener.set_nonblocking(true).expect("nonblocking");
+
+    let sandbox = support::Sandbox::new("pulse-disabled-plus-typo");
+    std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
+    std::fs::write(
+        sandbox.path(".config/pns/config.toml"),
+        format!(
+            "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+             [plugins.typo]\nenabled = true\n"
+        ),
+    )
+    .expect("config");
+    let child = sandbox
+        .bare()
+        .args(["pulse", "1"])
+        .spawn()
+        .expect("the engine starts");
+    assert_eq!(
+        wait_bounded(child, std::time::Duration::from_secs(2)),
+        Some(0),
+        "a disabled pulse exits at once rather than talking to a bridge"
+    );
+    assert!(
+        matches!(listener.accept(), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock),
+        "a disabled pulse must not reach the bridge, whatever else the config got wrong"
+    );
+}
+
+#[test]
+fn the_pulse_config_warning_says_what_pulse_mode_actually_did() {
+    // The full line, not its prefix: the old suffix promised every built-in
+    // plugin would run, which is an event-mode sentence and false here.
+    let sandbox = support::Sandbox::new("pulse-warning-wording");
+    std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
+    std::fs::write(
+        sandbox.path(".config/pns/config.toml"),
+        "this is not toml\n",
+    )
+    .expect("config");
+    let output = sandbox
+        .bare()
+        .args(["pulse", "1"])
+        .output()
+        .expect("the engine runs");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr).trim_end(),
+        "pns: config error (key with no value, expected `=` at line 1); no pulse",
+        "the pulse warning names the pulse outcome"
+    );
+    assert!(output.status.success());
+}

@@ -203,7 +203,7 @@ pub fn select_plugins(
     registry: &Registry,
     loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
 ) -> (Selection, Option<String>) {
-    use crate::config::{ConfigError, LoadOutcome};
+    use crate::config::LoadOutcome;
     use RegistryError;
 
     match loaded {
@@ -218,11 +218,7 @@ pub fn select_plugins(
             }
         },
         Ok(LoadOutcome::Missing) => (registry.all(), None),
-        Err(
-            ConfigError::Malformed(detail)
-            | ConfigError::Invalid(detail)
-            | ConfigError::Unreadable(detail),
-        ) => (registry.all(), Some(roster_warning(&detail))),
+        Err(error) => (registry.all(), Some(roster_warning(error.detail()))),
     }
 }
 

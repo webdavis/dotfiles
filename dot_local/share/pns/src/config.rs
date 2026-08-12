@@ -43,6 +43,18 @@ pub enum ConfigError {
     Unreadable(String),
 }
 
+impl ConfigError {
+    /// What went wrong, already sanitized for printing. Each mode wraps it in
+    /// the sentence describing what IT did about it.
+    pub fn detail(&self) -> &str {
+        match self {
+            ConfigError::Malformed(detail)
+            | ConfigError::Invalid(detail)
+            | ConfigError::Unreadable(detail) => detail,
+        }
+    }
+}
+
 /// What loading found at the path. `Missing` is deliberately not an error:
 /// an unconfigured machine is a state to report, not a fault to diagnose.
 #[derive(Debug, PartialEq)]
