@@ -119,16 +119,6 @@ pub fn signal_body(color: crate::pulse::PulseColor) -> String {
     .to_string()
 }
 
-/// The hue settings table, only when the plugin is ENABLED: the file
-/// selects, and a disabled table must silence the pulse mode.
-pub fn hue_enabled(config: &crate::config::Config) -> Option<&toml::Table> {
-    config
-        .plugins
-        .get("hue")
-        .filter(|hue| hue.enabled)
-        .map(|hue| &hue.settings)
-}
-
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
 pub trait Bridge {
     fn get(&self, path: &str) -> Option<String>;
@@ -163,9 +153,7 @@ impl<B: Bridge> HuePulse<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Bridge, DEFAULT_ROOMS, HuePulse, grouped_light_ids_for_rooms, hue_enabled, hue_settings,
-    };
+    use super::{Bridge, DEFAULT_ROOMS, HuePulse, grouped_light_ids_for_rooms, hue_settings};
     use std::cell::RefCell;
 
     const ROOMS_JSON: &str = r#"{"data":[
@@ -242,19 +230,6 @@ mod tests {
     fn a_renamed_room_is_skipped_and_unparseable_json_is_empty() {
         assert!(grouped_light_ids_for_rooms(ROOMS_JSON, &wanted(&["Gone Room"])).is_empty());
         assert!(grouped_light_ids_for_rooms("not json", &wanted(&["3F - Studio"])).is_empty());
-    }
-
-    #[test]
-    fn a_disabled_hue_table_silences_the_pulse_and_an_enabled_one_yields_its_settings() {
-        use crate::config::parse_config;
-        let disabled = parse_config("[plugins.hue]\nenabled = false\nbridge = \"b\"\n").unwrap();
-        assert!(hue_enabled(&disabled).is_none());
-        assert!(hue_enabled(&parse_config("").unwrap()).is_none());
-        let enabled = parse_config("[plugins.hue]\nenabled = true\nbridge = \"b\"\n").unwrap();
-        assert_eq!(
-            hue_enabled(&enabled).and_then(|table| table.get("bridge")),
-            Some(&toml::Value::String("b".to_string()))
-        );
     }
 
     // --- the sequence -------------------------------------------------------
