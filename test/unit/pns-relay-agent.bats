@@ -133,6 +133,30 @@ TRANSCRIPT
   ) &
   capture payload_beats_transcript 'done' \
     "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl" '' 'From the payload, not the file.')" &
+
+  # The two summarizer runs, the only ones in this file with RELAY_SUMMARIZING
+  # unset. The stub IS the codex binary, so the step stays offline, and
+  # RELAY_CODEX_HOME keeps the run out of the real one.
+  printf '#!/usr/bin/env bash\nprintf "done|\\n"\n' >"$BATS_FILE_TMPDIR/codex-empty.sh"
+  printf '#!/usr/bin/env bash\nprintf "done|   \\n"\n' >"$BATS_FILE_TMPDIR/codex-blank.sh"
+  printf '#!/usr/bin/env bash\nprintf "asking|A real summary\\n"\n' >"$BATS_FILE_TMPDIR/codex-real.sh"
+  chmod +x "$BATS_FILE_TMPDIR/codex-empty.sh" "$BATS_FILE_TMPDIR/codex-blank.sh" \
+    "$BATS_FILE_TMPDIR/codex-real.sh"
+  (
+    unset RELAY_SUMMARIZING
+    export CODEX_BIN="$BATS_FILE_TMPDIR/codex-empty.sh" RELAY_CODEX_HOME="$BATS_FILE_TMPDIR/home-empty"
+    capture codex_empty_summary 'done' "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl")"
+  ) &
+  (
+    unset RELAY_SUMMARIZING
+    export CODEX_BIN="$BATS_FILE_TMPDIR/codex-blank.sh" RELAY_CODEX_HOME="$BATS_FILE_TMPDIR/home-blank"
+    capture codex_blank_summary 'done' "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl")"
+  ) &
+  (
+    unset RELAY_SUMMARIZING
+    export CODEX_BIN="$BATS_FILE_TMPDIR/codex-real.sh" RELAY_CODEX_HOME="$BATS_FILE_TMPDIR/home-real"
+    capture codex_real_summary 'done' "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl")"
+  ) &
   capture done_turn 'done' "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl")" &
   capture blocked_state 'blocked' "$(payload_with '' 'permission to run brew')" &
   capture asked_state 'asked' "$(payload_with '' 'which of the two?')" &
@@ -226,6 +250,22 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
   # only have come from the payload.
   [ "$(flag payload_primary --detail)" = "The payload carried it." ]
   [ ! -e "$BATS_FILE_TMPDIR/payload.marker" ]
+}
+
+@test "a condenser line with an empty summary falls back to the trimmed reply" {
+  # Live 2026-08-12: the condenser answered "done|" with nothing after the pipe,
+  # which matched the state pattern, so the fallback trim was skipped and the
+  # notification went out title-only over a turn that HAD text. A matched state
+  # is not a usable summary.
+  [ "$(flag codex_empty_summary --detail)" = "Ran the suite and it passed. The lint gate is green too." ]
+  [ "$(flag codex_empty_summary --state)" = done ]
+  # A summary of spaces is the same notification, so it takes the same route.
+  [ "$(flag codex_blank_summary --detail)" = "Ran the suite and it passed. The lint gate is green too." ]
+}
+
+@test "a condenser line with a real summary is still used, state and all" {
+  [ "$(flag codex_real_summary --detail)" = "A real summary" ]
+  [ "$(flag codex_real_summary --state)" = asking ]
 }
 
 @test "the payload's text beats a transcript that carries its own" {

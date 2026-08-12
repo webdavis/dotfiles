@@ -117,7 +117,14 @@ $reply"
     cmd+=("$codex_bin" exec --ephemeral --skip-git-repo-check -C "$codex_home" -s read-only -)
     out="$(RELAY_SUMMARIZING=1 CODEX_HOME="$codex_home" "${cmd[@]}" <<<"$prompt" 2>/dev/null || true)"
     line="$(printf '%s\n' "$out" | grep -E '^(done|asking|blocked)\|' | tail -1 || true)"
-    if [[ -n $line ]]; then
+    # The SUMMARY half is what makes the line usable, not the state half. A
+    # matched state with nothing after the pipe used to count as a hit, which
+    # skipped the trim below and shipped a title-only notification over a turn
+    # that had text (live 2026-08-12). It must carry at least one non-blank
+    # character: a summary of spaces renders just as blank as no summary, the
+    # same equivalence the reply path already draws. Anything less falls
+    # through exactly as if the condenser had failed, empty $line included.
+    if [[ ${line#*|} =~ [^[:space:]] ]]; then
       state="${line%%|*}"
       detail="${line#*|}"
       used_codex=1
