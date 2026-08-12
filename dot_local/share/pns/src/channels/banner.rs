@@ -73,25 +73,44 @@ pub fn parse_front_bundle_id(lsappinfo_output: &str) -> Option<String> {
     Some(value[..value.find('"')?].to_string())
 }
 
-/// The exact terminal-notifier argv, order pinned: title, message, sound,
-/// activate, execute.
+/// Intended text in, an argv value terminal-notifier renders VERBATIM out.
+/// This one function is the whole of what we know about how that dependency
+/// ingests an option value, so a change in the rule is a change to this file
+/// and nothing else.
 ///
-/// The title and the message are ARMORED with a leading backslash. Each option
-/// value is read as an NSUserDefaults plist literal, which strips one leading
-/// backslash, and a value whose real first character is "(", "[", "{" or "-"
-/// is otherwise swallowed and the banner renders title-only (probes P3-P8,
-/// 2026-08-12). Armoring unconditionally rather than by character set leaves no
-/// list to maintain against whatever else that parser eats, and it costs a
-/// value that already starts with a backslash nothing: it arrives with exactly
-/// one (P8-H).
+/// The contract, in two halves, both measured live on 2026-08-12 (probes
+/// P4-P8, matrix in the session ledger; the drill re-measures it):
+///
+/// 1. terminal-notifier reads its options off NSUserDefaults' ARGUMENT DOMAIN,
+///    so the value goes through the old-style property list parser before any
+///    of its own code runs. A value whose FIRST character is "(", "[", "{",
+///    "-", "<", a double quote or a zero-width space yields no string at all
+///    there, and the banner then renders title-only.
+/// 2. What survives has ONE leading backslash stripped. Upstream documents the
+///    escape in `terminal-notifier -help` (2.0.0): "the first character of a
+///    message has to be escaped in order to be recognized ... like so: '\\['".
+///
+/// So one unconditional leading backslash is exactly the encoding: it puts a
+/// character the parser accepts in position one, and half 2 takes it back off.
+/// Unconditional rather than applied to a character SET, because a set is a
+/// list to keep in step with whatever else that parser eats, and the prefix
+/// costs a value that already begins with a backslash nothing: it arrives
+/// carrying exactly one.
+pub fn verbatim_argument(text: &str) -> String {
+    format!("\\{text}")
+}
+
+/// The exact terminal-notifier argv, order pinned: title, message, sound,
+/// activate, execute. The title and the message are both operator-facing text,
+/// so both go out through [`verbatim_argument`].
 pub fn notifier_args(title: &str, preview: &str, activate: &str, exec_cmd: &str) -> Vec<String> {
-    let armored_title = format!("\\{title}");
-    let armored_preview = format!("\\{preview}");
+    let encoded_title = verbatim_argument(title);
+    let encoded_preview = verbatim_argument(preview);
     [
         "-title",
-        armored_title.as_str(),
+        encoded_title.as_str(),
         "-message",
-        armored_preview.as_str(),
+        encoded_preview.as_str(),
         "-sound",
         "default",
         "-activate",
@@ -183,7 +202,7 @@ impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> Channel for BannerChanne
 mod tests {
     use super::{
         BannerChannel, DEFAULT_TERMINAL_BUNDLE_ID, click_command, notifier_args,
-        operator_is_watching, parse_front_bundle_id,
+        operator_is_watching, parse_front_bundle_id, verbatim_argument,
     };
     use crate::channels::{Channel, Event};
     use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
@@ -356,25 +375,89 @@ mod tests {
         );
     }
 
+    // --- the encoding itself --------------------------------------------------
+
+    /// The cases, defined ONCE and driven by both tests below: a label, the
+    /// intended text, and the exact argv value it must encode to. The
+    /// expectations are written out byte for byte rather than derived from the
+    /// implementation, so they cannot drift with it, and every assertion
+    /// carries the label so a failure names its case rather than an index.
+    ///
+    /// The inputs are the shapes the live probes fired: the six characters the
+    /// parser eats, the two near misses that fooled the earlier reading (a
+    /// leading space, a zero-width space), the two controls that never needed
+    /// encoding (a digit, a letter), a value that already starts with a
+    /// backslash, and the empty string.
+    const ENCODING_MATRIX: [(&str, &str, &str); 12] = [
+        ("leading paren", "(leading paren", "\\(leading paren"),
+        ("leading bracket", "[leading bracket", "\\[leading bracket"),
+        ("leading brace", "{leading brace", "\\{leading brace"),
+        ("leading dash", "-leading dash", "\\-leading dash"),
+        ("leading angle", "<leading angle", "\\<leading angle"),
+        ("leading quote", "\"leading quote", "\\\"leading quote"),
+        ("leading space", " leading space", "\\ leading space"),
+        ("leading digit", "9 leading digit", "\\9 leading digit"),
+        ("leading letter", "a leading letter", "\\a leading letter"),
+        (
+            "leading backslash",
+            "\\a leading backslash",
+            "\\\\a leading backslash",
+        ),
+        (
+            "leading zero-width space",
+            "\u{200b}zero width space",
+            "\\\u{200b}zero width space",
+        ),
+        ("empty string", "", "\\"),
+    ];
+
+    /// The first characters measured to yield no string at all from the
+    /// argument-domain parsing (probes P4-P8, 2026-08-12).
+    const EATEN_FIRST_CHARACTERS: [char; 7] = ['(', '[', '{', '-', '<', '"', '\u{200b}'];
+
     #[test]
-    fn every_value_is_armored_so_whatever_it_starts_with_still_renders() {
-        // terminal-notifier reads an option value as an NSUserDefaults plist
-        // literal, which strips ONE leading backslash. Without that armor a
-        // value beginning "(", "[", "{" or "-" is swallowed whole and the
-        // banner renders title-only (probes P3-P8, 2026-08-12). The prefix is
-        // unconditional rather than applied to a character set, so there is no
-        // list to keep in step with whatever else the parser eats; P8's 11-case
-        // matrix rendered every input this way, including a value that already
-        // starts with a backslash (P8-H), which arrives carrying exactly one.
-        let title_of = |value: &str| notifier_args(value, "x", "com.term", ": ")[1].clone();
-        assert_eq!(title_of("(paren"), "\\(paren");
-        assert_eq!(title_of("plain"), "\\plain");
-        assert_eq!(title_of("\\already"), "\\\\already");
-        assert_eq!(
-            notifier_args("x", "[bracket", "com.term", ": ")[3],
-            "\\[bracket",
-            "the message is armored too, not just the title"
-        );
+    fn every_case_in_the_matrix_encodes_to_its_exact_argv_value() {
+        for (case, intended, expected) in ENCODING_MATRIX {
+            assert_eq!(
+                verbatim_argument(intended),
+                expected,
+                "case {case}: intended text {intended:?} encoded wrong"
+            );
+        }
+    }
+
+    #[test]
+    fn no_case_in_the_matrix_can_encode_to_a_value_the_parser_eats() {
+        // The inversion of what the probe measured: instead of asserting what
+        // Apple's parser does with each shape, assert that our encoding never
+        // hands it one of the shapes it cannot read. The first character is
+        // always the backslash, whatever the text was, so the eaten set below
+        // is unreachable by construction and stays unreachable if that set
+        // ever grows.
+        for (case, intended, _) in ENCODING_MATRIX {
+            let encoded = verbatim_argument(intended);
+            let first = encoded.chars().next().unwrap_or_else(|| {
+                panic!("case {case}: an encoded value is never empty, the prefix alone is one character")
+            });
+            assert_eq!(
+                first, '\\',
+                "case {case}: intended text {intended:?} encoded to {encoded:?}, which does not lead with the escape"
+            );
+            assert!(
+                !EATEN_FIRST_CHARACTERS.contains(&first),
+                "case {case}: intended text {intended:?} encoded to {encoded:?}, which leads with a character the parser eats"
+            );
+        }
+    }
+
+    #[test]
+    fn the_message_is_encoded_on_the_same_terms_as_the_title() {
+        // Both are operator-facing text read through the identical parsing, so
+        // a message beginning with a killer character needs the encoding just
+        // as much as a title does.
+        let args = notifier_args("(a title", "[a preview", "com.term", ": ");
+        assert_eq!(args[1], "\\(a title");
+        assert_eq!(args[3], "\\[a preview");
     }
 
     // --- the plugin end to end, through fakes ---------------------------------
