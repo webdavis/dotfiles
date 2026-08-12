@@ -13,10 +13,12 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
-use pns::channels::hermes::{DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, remote_deadline};
+use pns::channels::hermes::{
+    DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, hermes_secret, remote_deadline,
+};
 use pns::channels::hue::{Bridge, HuePulse, hue_enabled, hue_settings};
-use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
-use pns::channels::{Channel, native_first};
+use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret, read_auth};
+use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
 use pns::registry::{Registry, Routing, select_plugins};
@@ -201,9 +203,14 @@ fn main() {
         std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
         &format!("{home}/.config/relay/auth.json"),
     );
+    // ONE READ of the auth file for the whole event: two channels wanting two
+    // secrets out of one file is not two reasons to open it, and a file that
+    // changed between them would sign one leg with a key the other did not
+    // have.
+    let auth = read_auth(&auth_path);
     let moshi = MoshiChannel {
         http: UreqPost::default(),
-        auth_path: auth_path.clone(),
+        token: auth.as_deref().and_then(moshi_secret),
         url: std::env::var("RELAY_MOSHI_URL")
             .ok()
             .filter(|url| !url.is_empty())
@@ -212,6 +219,7 @@ fn main() {
 
     let hermes = HermesChannel {
         post: UreqSignedPost,
+        key: auth.as_deref().and_then(hermes_secret),
         auth_path,
         url: std::env::var("RELAY_HERMES_URL")
             .ok()
@@ -221,27 +229,28 @@ fn main() {
     };
 
     for leg in &decision.legs {
-        if native_first(channels_dir_override.is_some()) {
+        let delivered = if native_first(channels_dir_override.is_some()) {
             match leg.name {
-                "macos-banner" => {
-                    banner.deliver(&native, leg.mode);
-                    continue;
-                }
-                "moshi" => {
-                    moshi.deliver(&native, leg.mode);
-                    continue;
-                }
-                "hermes" => {
-                    hermes.deliver(&native, leg.mode);
-                    continue;
-                }
-                _ => {}
+                "macos-banner" => Some(banner.deliver(&native, leg.mode)),
+                "moshi" => Some(moshi.deliver(&native, leg.mode)),
+                "hermes" => Some(hermes.deliver(&native, leg.mode)),
+                _ => None,
             }
+        } else {
+            None
         }
-        deliver(
-            &channels_dir.join(format!("{}.sh", leg.name)),
-            &native.to_json(leg.mode),
-        );
+        .unwrap_or_else(|| {
+            deliver(
+                &channels_dir.join(format!("{}.sh", leg.name)),
+                &native.to_json(leg.mode),
+            )
+        });
+        // THE ONE PLACE a delivery reaches the operator. A channel says what
+        // happened; whether anyone hears it is the leg's reporting mode, and
+        // that rule lives here rather than in three channels.
+        if let Some(line) = delivered.line_for(leg.mode) {
+            println!("{line}");
+        }
     }
 }
 
@@ -274,9 +283,14 @@ fn executable_in_path(name: &str) -> Option<String> {
 /// Hand one channel its event on stdin. A channel that is missing, is not
 /// executable, or fails is not an error: it is simply not installed, or it
 /// declined, and neither may take down the siblings or the caller.
-fn deliver(channel: &Path, event: &str) {
+///
+/// SILENT BY DESIGN, and deliberately so now that it says so in the type: the
+/// common failure here is a channel nobody installed, and reporting that on
+/// every event would be noise. The status is still dropped; what changed is
+/// that it is dropped in one visible place instead of implicitly.
+fn deliver(channel: &Path, event: &str) -> Delivery {
     let Ok(mut child) = Command::new(channel).stdin(Stdio::piped()).spawn() else {
-        return;
+        return Delivery::Silent;
     };
     if let Some(mut stdin) = child.stdin.take() {
         // Newline-terminated, as the bash's `jq -cn` emitted it: a channel
@@ -285,6 +299,7 @@ fn deliver(channel: &Path, event: &str) {
         let _ = stdin.write_all(b"\n");
     }
     let _ = child.wait();
+    Delivery::Silent
 }
 
 /// The `pulse` mode: read the hue table, take the single-pulse lock, and run

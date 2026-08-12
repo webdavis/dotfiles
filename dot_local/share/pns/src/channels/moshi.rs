@@ -8,7 +8,7 @@
 //! silent-unavailable case: the channel is simply not set up, which is not
 //! an error and must not say anything.
 
-use super::{Channel, Event};
+use super::{Delivery, Event};
 use crate::routing::Mode;
 use std::path::Path;
 
@@ -47,23 +47,30 @@ pub fn read_auth(path: &Path) -> Option<String> {
 /// The native moshi plugin.
 pub struct MoshiChannel<H: HttpPost> {
     pub http: H,
-    /// `RELAY_AUTH_FILE` override, else `~/.config/relay/auth.json`.
-    pub auth_path: std::path::PathBuf,
+    /// The token, read from the auth file ONCE at the composition root. None
+    /// is the not-set-up case, which delivers nothing.
+    pub token: Option<String>,
     /// `RELAY_MOSHI_URL` override, else the default.
     pub url: String,
 }
 
-impl<H: HttpPost> Channel for MoshiChannel<H> {
-    fn deliver(&self, event: &Event, _mode: Mode) {
-        let Some(token) = read_auth(&self.auth_path).as_deref().and_then(moshi_secret) else {
-            return;
-        };
-        self.http.post_json(
-            &self.url,
-            &webhook_body(&token, &event.title, &event.preview),
-        );
+impl<H: HttpPost> MoshiChannel<H> {
+    /// Always silent: the only thing worth reporting would be the request
+    /// that carries the token.
+    pub fn deliver(&self, event: &Event, _mode: Mode) -> Delivery {
+        if let Some(token) = &self.token {
+            self.http.post_json(
+                &self.url,
+                &webhook_body(token, &event.title, &event.preview),
+            );
+        }
+        Delivery::Silent
     }
 }
+
+/// The deadline one moshi post runs under. Nobody waits on the answer and
+/// nothing is retried, so this only bounds how long the process lingers.
+pub const POST_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// The production POST: one agent, one deadline, no retry. Every failure is
 /// `false` and nothing is logged, because the only thing worth reporting
@@ -77,7 +84,7 @@ pub struct UreqPost {
 impl Default for UreqPost {
     fn default() -> Self {
         Self {
-            timeout: std::time::Duration::from_secs(10),
+            timeout: POST_DEADLINE,
         }
     }
 }
@@ -102,7 +109,7 @@ impl HttpPost for UreqPost {
 #[cfg(test)]
 mod tests {
     use super::{DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, moshi_secret, webhook_body};
-    use crate::channels::{Channel, Event};
+    use crate::channels::{Delivery, Event};
     use crate::routing::Mode;
     use std::cell::RefCell;
 
@@ -119,27 +126,16 @@ mod tests {
         }
     }
 
-    fn channel_with_auth(auth: &str) -> (MoshiChannel<RecordingHttp>, std::path::PathBuf) {
-        // A process-wide counter, because two tests handing in the SAME auth
-        // string must never share a path: parallel runs would race on the
-        // cleanup and one test would read the other's deleted file.
-        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "pns-moshi-auth-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        ));
-        std::fs::write(&path, auth).unwrap();
-        (
-            MoshiChannel {
-                http: RecordingHttp {
-                    posts: RefCell::new(Vec::new()),
-                },
-                auth_path: path.clone(),
-                url: "https://example.invalid/hook".to_string(),
+    /// The channel as the composition root builds it: the secret already
+    /// extracted, no file anywhere near it.
+    fn channel_with_auth(auth: &str) -> MoshiChannel<RecordingHttp> {
+        MoshiChannel {
+            http: RecordingHttp {
+                posts: RefCell::new(Vec::new()),
             },
-            path,
-        )
+            token: moshi_secret(auth),
+            url: "https://example.invalid/hook".to_string(),
+        }
     }
 
     fn event() -> Event {
@@ -190,17 +186,15 @@ mod tests {
 
     #[test]
     fn no_token_means_no_post_and_no_sound() {
-        let (channel, path) = channel_with_auth(r#"{"other":"x"}"#);
-        channel.deliver(&event(), Mode::Async);
-        std::fs::remove_file(&path).ok();
+        let channel = channel_with_auth(r#"{"other":"x"}"#);
+        assert_eq!(channel.deliver(&event(), Mode::Async), Delivery::Silent);
         assert!(channel.http.posts.borrow().is_empty());
     }
 
     #[test]
     fn a_token_posts_once_to_the_url_with_the_preview_never_the_message() {
-        let (channel, path) = channel_with_auth(r#"{"moshi_secret":"tok-1"}"#);
+        let channel = channel_with_auth(r#"{"moshi_secret":"tok-1"}"#);
         channel.deliver(&event(), Mode::Async);
-        std::fs::remove_file(&path).ok();
         let posts = channel.http.posts.borrow();
         assert_eq!(posts.len(), 1);
         assert_eq!(
@@ -215,15 +209,15 @@ mod tests {
     }
 
     #[test]
-    fn an_absent_auth_file_is_silently_not_set_up() {
+    fn no_token_at_all_is_silently_not_set_up() {
         let channel = MoshiChannel {
             http: RecordingHttp {
                 posts: RefCell::new(Vec::new()),
             },
-            auth_path: std::path::PathBuf::from("/nonexistent/pns-moshi-auth"),
+            token: None,
             url: DEFAULT_MOSHI_URL.to_string(),
         };
-        channel.deliver(&event(), Mode::Async);
+        assert_eq!(channel.deliver(&event(), Mode::Async), Delivery::Silent);
         assert!(channel.http.posts.borrow().is_empty());
     }
 

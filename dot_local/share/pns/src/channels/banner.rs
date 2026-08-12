@@ -10,7 +10,7 @@
 //! unreadable or unknown FIRES the banner: a spare banner is spam, a dropped
 //! one is a lost notification.
 
-use super::{Channel, Event};
+use super::{Delivery, Event};
 use crate::probes::{FocusedPaneProbe, IdleProbe};
 use crate::routing::Mode;
 use crate::system::CommandRunner;
@@ -142,8 +142,10 @@ pub struct BannerChannel<R: CommandRunner, P> {
     pub focused_override: Option<String>,
 }
 
-impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> Channel for BannerChannel<R, P> {
-    fn deliver(&self, event: &Event, _mode: Mode) {
+impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> BannerChannel<R, P> {
+    /// Always silent: a banner that did not post has no second surface to
+    /// report itself on.
+    pub fn deliver(&self, event: &Event, _mode: Mode) -> Delivery {
         // Two steps, as the bash runs them: the frontmost app's ASN, then its
         // bundle id. Either step unreadable leaves the id unknown, which fires.
         let front_bundle_id = self
@@ -175,7 +177,7 @@ impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> Channel for BannerChanne
             focused_pane.as_deref(),
             &event.pane,
         ) {
-            return;
+            return Delivery::Silent;
         }
 
         let activate = if self.terminal_id.is_empty() {
@@ -195,6 +197,7 @@ impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> Channel for BannerChanne
             "terminal-notifier",
             &args.iter().map(String::as_str).collect::<Vec<_>>(),
         );
+        Delivery::Silent
     }
 }
 
@@ -204,7 +207,7 @@ mod tests {
         BannerChannel, DEFAULT_TERMINAL_BUNDLE_ID, click_command, notifier_args,
         operator_is_watching, parse_front_bundle_id, verbatim_argument,
     };
-    use crate::channels::{Channel, Event};
+    use crate::channels::Event;
     use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
     use crate::routing::Mode;
     use crate::system::CommandRunner;
