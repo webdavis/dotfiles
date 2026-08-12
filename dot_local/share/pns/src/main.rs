@@ -32,7 +32,11 @@ fn main() {
         pulse_mode();
         return;
     }
+    event_mode();
+}
 
+/// One notification, end to end: read the edge, decide, render, dispatch.
+fn event_mode() {
     // Lossy rather than validating: a stray byte in argv degrades into an
     // unknown token, which the lenient contract already skips, instead of
     // aborting an always-exit-0 notification.
@@ -45,28 +49,13 @@ fn main() {
         eprintln!("relay: {warning}");
     }
 
-    let registry = roster();
-
     let home = std::env::var("HOME").unwrap_or_default();
-    let (selection, warning) = select_plugins(&registry, load_config(&config_path(&home)));
+    let (selection, warning) = select_plugins(&roster(), load_config(&config_path(&home)));
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
 
-    let overrides = Overrides::from_env(
-        &std::env::vars_os()
-            .map(|(name, value)| {
-                (
-                    name.to_string_lossy().into_owned(),
-                    value.to_string_lossy().into_owned(),
-                )
-            })
-            .collect::<BTreeMap<_, _>>(),
-    );
-    let now_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|since_epoch| since_epoch.as_secs());
+    let overrides = overrides_from_env();
     let probes = SystemProbes::new(
         SystemCommandRunner,
         resolve_path(
@@ -76,6 +65,10 @@ fn main() {
         .to_string_lossy()
         .into_owned(),
     );
+    let now_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|since_epoch| since_epoch.as_secs());
 
     let decision = decide(
         &probes,
@@ -109,8 +102,8 @@ fn main() {
     } else {
         event.pane.as_str()
     };
+    let rendered = rendered_event(&event, pane);
 
-    let message = render::message(&event.branch, &event.detail, &event.state);
     let channels_dir_override = std::env::var("PNS_CHANNELS_DIR")
         .ok()
         .filter(|dir| !dir.is_empty());
@@ -118,14 +111,77 @@ fn main() {
         channels_dir_override.as_deref(),
         &format!("{home}/.local/libexec/pns/channels"),
     );
+    let auth_path = resolve_path(
+        std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
+        &format!("{home}/.config/relay/auth.json"),
+    );
+    let auth = read_auth(&auth_path);
+    let banner = banner_channel(&probes, &overrides);
+    let moshi = moshi_channel(auth.as_deref());
+    let hermes = hermes_channel(auth.as_deref(), auth_path);
 
-    let banner = BannerChannel {
+    for leg in &decision.legs {
+        let delivered = deliver_leg(
+            leg,
+            &rendered,
+            &banner,
+            &moshi,
+            &hermes,
+            native_first(channels_dir_override.is_some()),
+            &channels_dir,
+        );
+        // THE ONE PLACE a delivery reaches the operator. A channel says what
+        // happened; whether anyone hears it is the leg's reporting mode, and
+        // that rule lives here rather than in three channels.
+        if let Some(line) = delivered.line_for(leg.mode) {
+            println!("{line}");
+        }
+    }
+}
+
+/// Every override the engine reads, out of the process environment.
+fn overrides_from_env() -> Overrides {
+    Overrides::from_env(
+        &std::env::vars_os()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>(),
+    )
+}
+
+/// The parsed arguments plus the sanitized pane, rendered into the one event
+/// every channel is handed.
+fn rendered_event(event: &pns::args::EventArgs, pane: &str) -> pns::channels::Event {
+    let message = render::message(&event.branch, &event.detail, &event.state);
+    pns::channels::Event {
+        agent: event.agent.clone(),
+        state: event.state.clone(),
+        project: event.project.clone(),
+        branch: event.branch.clone(),
+        detail: event.detail.clone(),
+        title: render::title(&event.agent, &event.state, &event.project),
+        preview: render::preview(&message),
+        message,
+        pane: pane.to_string(),
+    }
+}
+
+/// The banner, wired to the readings this event already took.
+fn banner_channel<'a>(
+    probes: &'a SystemProbes<SystemCommandRunner>,
+    overrides: &Overrides,
+) -> BannerChannel<SystemCommandRunner, &'a SystemProbes<SystemCommandRunner>> {
+    BannerChannel {
         runner: SystemCommandRunner,
         // THE SAME probe set the engine read, by reference: a second one
         // would take its own idle and focus readings a few milliseconds
         // later, so the suppression could disagree with the routing that
         // just ran on the same event.
-        probes: &probes,
+        probes,
         // An EMPTY override falls through, so an exported-but-blank variable
         // cannot shadow the inherited bundle id.
         terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
@@ -153,79 +209,72 @@ fn main() {
         herdr_path: executable_in_path("herdr"),
         idle_override: overrides.idle_secs,
         focused_override: overrides.focused_pane.clone(),
-    };
-    let native = pns::channels::Event {
-        agent: event.agent.clone(),
-        state: event.state.clone(),
-        project: event.project.clone(),
-        branch: event.branch.clone(),
-        detail: event.detail.clone(),
-        title: render::title(&event.agent, &event.state, &event.project),
-        preview: render::preview(&message),
-        message,
-        pane: pane.to_string(),
-    };
+    }
+}
 
-    let auth_path = resolve_path(
-        std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
-        &format!("{home}/.config/relay/auth.json"),
-    );
-    // ONE READ of the auth file for the whole event: two channels wanting two
-    // secrets out of one file is not two reasons to open it, and a file that
-    // changed between them would sign one leg with a key the other did not
-    // have.
-    let auth = read_auth(&auth_path);
-    let moshi = MoshiChannel {
+/// The moshi push, with the token this event already read.
+fn moshi_channel(auth: Option<&str>) -> MoshiChannel<UreqPost> {
+    MoshiChannel {
         http: UreqPost::default(),
-        token: auth.as_deref().and_then(moshi_secret),
-        url: std::env::var("RELAY_MOSHI_URL")
-            .ok()
-            .filter(|url| !url.is_empty())
-            .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string()),
-    };
+        token: auth.and_then(moshi_secret),
+        url: url_from_env("RELAY_MOSHI_URL", DEFAULT_MOSHI_URL),
+    }
+}
 
-    let hermes = HermesChannel {
+/// The hermes post, with the key this event already read. The path comes with
+/// it only so the not-set-up line can name the file that had no key in it.
+fn hermes_channel(
+    auth: Option<&str>,
+    auth_path: std::path::PathBuf,
+) -> HermesChannel<UreqSignedPost> {
+    HermesChannel {
         post: UreqSignedPost,
-        key: auth.as_deref().and_then(hermes_secret),
+        key: auth.and_then(hermes_secret),
         auth_path,
-        url: std::env::var("RELAY_HERMES_URL")
-            .ok()
-            .filter(|url| !url.is_empty())
-            .unwrap_or_else(|| DEFAULT_HERMES_URL.to_string()),
+        url: url_from_env("RELAY_HERMES_URL", DEFAULT_HERMES_URL),
         sync_deadline: remote_deadline(std::env::var("RELAY_REMOTE_TIMEOUT").ok().as_deref()),
-    };
+    }
+}
 
-    for leg in &decision.legs {
-        let delivered = if native_first(channels_dir_override.is_some()) {
-            match leg.name {
-                "macos-banner" => Some(banner.deliver(&native, leg.mode)),
-                "moshi" => Some(moshi.deliver(&native, leg.mode)),
-                "hermes" => Some(hermes.deliver(&native, leg.mode)),
-                _ => None,
-            }
-        } else {
-            None
-        }
-        .unwrap_or_else(|| {
-            deliver(
-                &channels_dir.join(format!("{}.sh", leg.name)),
-                &native.to_json(leg.mode),
-            )
-        });
-        // THE ONE PLACE a delivery reaches the operator. A channel says what
-        // happened; whether anyone hears it is the leg's reporting mode, and
-        // that rule lives here rather than in three channels.
-        if let Some(line) = delivered.line_for(leg.mode) {
-            println!("{line}");
+/// An endpoint override, where EMPTY means the default like every other path
+/// and URL this binary reads.
+fn url_from_env(variable: &str, default: &str) -> String {
+    std::env::var(variable)
+        .ok()
+        .filter(|url| !url.is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
+/// One leg to its destination: the native plugin when it wins, else the
+/// executable channel of that name.
+fn deliver_leg(
+    leg: &pns::routing::Leg,
+    rendered: &pns::channels::Event,
+    banner: &BannerChannel<SystemCommandRunner, &SystemProbes<SystemCommandRunner>>,
+    moshi: &MoshiChannel<UreqPost>,
+    hermes: &HermesChannel<UreqSignedPost>,
+    native_wins: bool,
+    channels_dir: &Path,
+) -> Delivery {
+    if native_wins {
+        match leg.name {
+            "macos-banner" => return banner.deliver(rendered, leg.mode),
+            "moshi" => return moshi.deliver(rendered, leg.mode),
+            "hermes" => return hermes.deliver(rendered, leg.mode),
+            _ => {}
         }
     }
+    deliver(
+        &channels_dir.join(format!("{}.sh", leg.name)),
+        &rendered.to_json(leg.mode),
+    )
 }
 
 /// A path from the environment, defaulting like bash's `${VAR:-default}`:
 /// EMPTY means the default as much as unset does, because joining a filename
 /// to an empty path resolves into the current directory and quietly delivers
 /// nothing.
-pub fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
+fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
     std::path::PathBuf::from(
         candidate
             .filter(|value| !value.is_empty())
