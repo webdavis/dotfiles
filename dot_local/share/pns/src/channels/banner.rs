@@ -454,6 +454,19 @@ mod tests {
     }
 
     #[test]
+    fn a_branchless_message_starting_with_a_killer_character_is_still_encoded() {
+        // The case render.rs used to assert it prevented, in the one place
+        // that actually prevents it: with no branch to prefix it, the detail
+        // IS the message and can lead with anything the operator typed.
+        let composed = crate::render::message("", "(a parenthesised detail", "done");
+        assert_eq!(composed, "(a parenthesised detail");
+        assert_eq!(
+            notifier_args("t", &composed, "com.term", ": ")[3],
+            "\\(a parenthesised detail"
+        );
+    }
+
+    #[test]
     fn the_message_is_encoded_on_the_same_terms_as_the_title() {
         // Both are operator-facing text read through the identical parsing, so
         // a message beginning with a killer character needs the encoding just

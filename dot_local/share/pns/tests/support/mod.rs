@@ -64,37 +64,22 @@ impl Sandbox {
     }
 
     /// The engine with NOTHING pointing it at stubs, which is the only way to
-    /// reach the native plugins. Every inherited override and proxy is
-    /// cleared, so a developer's environment cannot decide a verdict.
+    /// reach the native plugins.
+    ///
+    /// EVERYTHING is cleared and only what the binary genuinely needs is put
+    /// back, so a developer's environment cannot decide a verdict. The old
+    /// blocklist named the variables to remove, which meant every new
+    /// override had to be added here too or it would leak in silently; this
+    /// states what a test keeps instead, and a new override is excluded by
+    /// default.
     pub fn bare(&self) -> Command {
         let mut command = Command::new(ENGINE);
+        command.env_clear();
         command.env("HOME", &self.root);
-        for inherited in [
-            "PNS_CHANNELS_DIR",
-            "PNS_TERMINAL_BUNDLE_ID",
-            "PNS_PHONE_MARKER_FILE",
-            "RELAY_IDLE_SECS",
-            "RELAY_DESK_IDLE_SECS",
-            "RELAY_SKIP_PHONE",
-            "RELAY_FORCE_PHONE",
-            "RELAY_PHONE_ATTENTION",
-            "RELAY_MOSHI_VIEWING",
-            "RELAY_HERDR_FOCUSED_PANE",
-            "RELAY_REMOTE_TIMEOUT",
-            "PNS_PHYSICAL_FRESH_SECS",
-            "PNS_PHONE_MARKER_TTL",
-            "PNS_ATTENTION_FLOOR_BYTES",
-            "RELAY_AUTH_FILE",
-            "RELAY_MOSHI_URL",
-            "RELAY_HERMES_URL",
-            "http_proxy",
-            "https_proxy",
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-            "NO_PROXY",
-        ] {
-            command.env_remove(inherited);
+        // PATH survives because the binary resolves herdr and terminal-notifier
+        // through it, and a test that stubs either one prepends to this.
+        if let Some(path) = std::env::var_os("PATH") {
+            command.env("PATH", path);
         }
         command
     }

@@ -26,7 +26,11 @@ fn the_alert_path_reaches_every_channel() {
 }
 
 #[test]
-fn hermes_is_async_on_the_alert_path_so_delivery_stays_off_the_callers_critical_path() {
+fn the_alert_path_labels_the_hermes_leg_silent_on_the_wire() {
+    // The NAME is the whole claim. This used to say delivery stayed off the
+    // caller's critical path, which it never checked and which is not true
+    // anyway: the dispatch waits for the channel either way. What the label
+    // selects is whether the leg reports its outcome.
     let sandbox = Sandbox::new("hermes-async");
     run(sandbox
         .relay()

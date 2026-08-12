@@ -151,25 +151,15 @@ mod tests {
     }
 
     #[test]
-    fn message_never_begins_with_a_character_the_banner_eats() {
-        // Live probes P3-P7, 2026-08-12: macOS argument parsing drops a
-        // terminal-notifier -message whose FIRST character is "(", "[", "-"
-        // (taken for an option) or presumably "{", so the banner rendered
-        // title-only for every branch-carrying event while Discord showed the
-        // same text fine. Neither a leading space nor a zero-width space
-        // escapes it (P4-P6). The rule is position one only: P7 confirmed
-        // mid-text parens and a leading digit both render. So the composition
-        // leads with the branch NAME, "somebranch: the text" being the format
-        // verified to survive.
-        let composed = message("main", "ran the suite", "done");
-        assert!(
-            !composed.starts_with(['(', '[', '{', '-', ' ', '\u{200b}']),
-            "banner-eaten leading character: {composed:?}"
-        );
+    fn mid_text_punctuation_survives_composition_untouched() {
+        // What this module can actually promise. Whether a leading character
+        // survives is the BANNER's encoding to guarantee, not this one's: the
+        // old assertion here only ever exercised a branch-prefixed message,
+        // which cannot start with one of those characters, while a branchless
+        // detail can and is covered where the encoding lives.
         assert!(
             message("main", "text with (parens) in the middle", "done")
-                .contains("(parens) in the middle"),
-            "mid-text punctuation is safe and must not be mangled"
+                .contains("(parens) in the middle")
         );
     }
 
