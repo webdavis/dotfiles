@@ -33,6 +33,35 @@ pub trait FocusedPaneProbe {
     fn focused_pane(&self) -> Option<String>;
 }
 
+// A SHARED reading is one reading. The composition root builds one probe set
+// per event and hands the same one to the engine and to every channel that
+// needs a reading, so two consumers can never take the same measurement twice
+// and disagree. These make `&Probes` satisfy the traits its owner does, which
+// is what lets them share without moving ownership.
+impl<T: IdleProbe> IdleProbe for &T {
+    fn idle_secs(&self) -> Option<u64> {
+        (*self).idle_secs()
+    }
+}
+
+impl<T: PhoneMarkerProbe> PhoneMarkerProbe for &T {
+    fn marker_mtime_secs(&self) -> Option<u64> {
+        (*self).marker_mtime_secs()
+    }
+}
+
+impl<T: MoshRateProbe> MoshRateProbe for &T {
+    fn sample_csv(&self) -> Option<String> {
+        (*self).sample_csv()
+    }
+}
+
+impl<T: FocusedPaneProbe> FocusedPaneProbe for &T {
+    fn focused_pane(&self) -> Option<String> {
+        (*self).focused_pane()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};

@@ -18,8 +18,8 @@ use pns::channels::hue::{Bridge, HuePulse, hue_enabled, hue_settings};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
-use pns::engine::{Overrides, decide, resolve_path, select_plugins};
-use pns::registry::{Registry, Routing};
+use pns::engine::{Overrides, decide};
+use pns::registry::{Registry, Routing, select_plugins};
 use pns::render;
 use pns::system::{SystemCommandRunner, SystemProbes};
 
@@ -152,7 +152,11 @@ fn main() {
 
     let banner = BannerChannel {
         runner: SystemCommandRunner,
-        probes: SystemProbes::new(SystemCommandRunner, String::new()),
+        // THE SAME probe set the engine read, by reference: a second one
+        // would take its own idle and focus readings a few milliseconds
+        // later, so the suppression could disagree with the routing that
+        // just ran on the same event.
+        probes: &probes,
         // An EMPTY override falls through, so an exported-but-blank variable
         // cannot shadow the inherited bundle id.
         terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
@@ -239,6 +243,18 @@ fn main() {
             &native.to_json(leg.mode),
         );
     }
+}
+
+/// A path from the environment, defaulting like bash's `${VAR:-default}`:
+/// EMPTY means the default as much as unset does, because joining a filename
+/// to an empty path resolves into the current directory and quietly delivers
+/// nothing.
+pub fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(
+        candidate
+            .filter(|value| !value.is_empty())
+            .unwrap_or(default),
+    )
 }
 
 /// The first executable of that name on PATH, absolute, or None. The click
@@ -344,5 +360,28 @@ impl Bridge for UreqBridge {
             .header("hue-application-key", &self.key)
             .content_type("application/json")
             .send(body);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_path;
+
+    #[test]
+    fn an_empty_channels_dir_variable_means_the_default_not_the_current_dir() {
+        // Bash's ${VAR:-default} defaults on EMPTY as well as unset; joining
+        // a filename to an empty path would quietly deliver nothing.
+        assert_eq!(
+            resolve_path(Some(""), "/fallback/channels"),
+            std::path::PathBuf::from("/fallback/channels")
+        );
+        assert_eq!(
+            resolve_path(None, "/fallback/channels"),
+            std::path::PathBuf::from("/fallback/channels")
+        );
+        assert_eq!(
+            resolve_path(Some("/set/dir"), "/fallback/channels"),
+            std::path::PathBuf::from("/set/dir")
+        );
     }
 }

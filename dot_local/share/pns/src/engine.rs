@@ -110,6 +110,9 @@ pub struct Decision {
 /// Decide the plan for one event. `now_secs` is the wall clock, taken once
 /// at the edge; `None` reads as an unreadable clock and fails the marker
 /// check closed.
+///
+/// ASSEMBLY ONLY: the phone verdict is [`wants_the_phone`], and this decides
+/// the route and the pane result around it.
 pub fn decide<P>(
     probes: &P,
     selection: &Selection,
@@ -119,6 +122,35 @@ pub fn decide<P>(
     pane: &str,
     now_secs: Option<u64>,
 ) -> Decision
+where
+    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + FocusedPaneProbe,
+{
+    // No selected leg is presence-gated, so the phone verdict cannot change
+    // the plan and no presence reading may be paid for.
+    let want_phone = selection.iter().any(|entry| entry.routing.presence_gated)
+        && wants_the_phone(probes, overrides, local_only, remote_only, pane, now_secs);
+
+    Decision {
+        legs: crate::routing::channel_plan(selection, local_only, remote_only, want_phone),
+        pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
+    }
+}
+
+/// Whether the phone leg earns this event: presence arbitration, and nothing
+/// else. Reached only when a presence-gated leg is actually selected.
+///
+/// EVERY READING IS GUARDED by the verdict that would discard it, so a
+/// decision that an override already settled never pays for the probe
+/// underneath it. That is why the readings are taken here, one at a time,
+/// rather than gathered up front.
+fn wants_the_phone<P>(
+    probes: &P,
+    overrides: &Overrides,
+    local_only: bool,
+    remote_only: bool,
+    pane: &str,
+    now_secs: Option<u64>,
+) -> bool
 where
     P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + FocusedPaneProbe,
 {
@@ -135,170 +167,92 @@ where
         Some(overrides.desk_idle_secs.unwrap_or(DEFAULT_DESK_IDLE_SECS))
     };
 
-    // No selected leg is presence-gated, so the phone verdict cannot change
-    // the plan and no presence reading may be paid for.
-    let mut want_phone = false;
-    if selection.iter().any(|entry| entry.routing.presence_gated) {
-        let decided_without_a_reading = local_only
-            || remote_only
-            || overrides.skip_phone
-            || overrides.force_phone
-            || overrides.idle_invalid;
-        let idle_secs = match overrides.idle_secs {
-            Some(secs) => Some(secs),
-            None if decided_without_a_reading => None,
-            None => probes.idle_secs(),
-        };
+    let decided_without_a_reading = local_only
+        || remote_only
+        || overrides.skip_phone
+        || overrides.force_phone
+        || overrides.idle_invalid;
+    let idle_secs = match overrides.idle_secs {
+        Some(secs) => Some(secs),
+        None if decided_without_a_reading => None,
+        None => probes.idle_secs(),
+    };
 
-        // Skip beats force, so it gates the whole verdict rather than riding
-        // in as another argument.
-        want_phone = !overrides.skip_phone
-            && crate::routing::wants_phone(
-                idle_secs,
-                desk_idle_secs,
-                local_only,
-                remote_only,
-                overrides.force_phone,
-            );
+    // Skip beats force, so it gates the whole verdict rather than riding
+    // in as another argument.
+    let mut want_phone = !overrides.skip_phone
+        && crate::routing::wants_phone(
+            idle_secs,
+            desk_idle_secs,
+            local_only,
+            remote_only,
+            overrides.force_phone,
+        );
 
-        // Each reading is guarded by the verdict that would discard it, so a
-        // forced answer never pays for the probe underneath it.
-        let viewing_now = || {
-            let rate_active = overrides.moshi_viewing.is_none()
-                && probes.sample_csv().is_some_and(|csv| {
-                    mosh_rate_active(
-                        &csv,
-                        overrides
-                            .attention_floor_bytes
-                            .unwrap_or(DEFAULT_ATTENTION_FLOOR_BYTES),
-                    )
-                });
-            moshi_viewing(overrides.moshi_viewing, rate_active)
-        };
+    let viewing_now = || {
+        let rate_active = overrides.moshi_viewing.is_none()
+            && probes.sample_csv().is_some_and(|csv| {
+                mosh_rate_active(
+                    &csv,
+                    overrides
+                        .attention_floor_bytes
+                        .unwrap_or(DEFAULT_ATTENTION_FLOOR_BYTES),
+                )
+            });
+        moshi_viewing(overrides.moshi_viewing, rate_active)
+    };
 
-        if !want_phone
-            && !local_only
-            && !remote_only
-            && !overrides.skip_phone
-            && attention_band(
-                idle_secs,
-                desk_idle_secs,
-                if overrides.fresh_invalid {
+    if !want_phone
+        && !local_only
+        && !remote_only
+        && !overrides.skip_phone
+        && attention_band(
+            idle_secs,
+            desk_idle_secs,
+            if overrides.fresh_invalid {
+                None
+            } else {
+                Some(
+                    overrides
+                        .physical_fresh_secs
+                        .unwrap_or(DEFAULT_PHYSICAL_FRESH_SECS),
+                )
+            },
+        )
+    {
+        let marker_is_fresh = overrides.phone_attention.is_none()
+            && marker_fresh(
+                probes.marker_mtime_secs(),
+                now_secs,
+                if overrides.ttl_invalid {
                     None
                 } else {
                     Some(
                         overrides
-                            .physical_fresh_secs
-                            .unwrap_or(DEFAULT_PHYSICAL_FRESH_SECS),
+                            .marker_ttl_secs
+                            .unwrap_or(DEFAULT_PHONE_MARKER_TTL_SECS),
                     )
                 },
-            )
+            );
+        // The marker is a stat of one file; the sample is a full second
+        // of live counters, so it runs only once the marker said nothing.
+        let viewing = overrides.phone_attention.is_none() && !marker_is_fresh && viewing_now();
+        want_phone = phone_attention(overrides.phone_attention, marker_is_fresh, viewing);
+    }
+
+    if want_phone && !overrides.force_phone && !pane.is_empty() {
+        let focused = match &overrides.focused_pane {
+            Some(pane) => Some(pane.clone()),
+            None => probes.focused_pane(),
+        };
+        if crate::routing::viewed_pane_redundant(pane, &focused.unwrap_or_default())
+            && viewing_now()
         {
-            let marker_is_fresh = overrides.phone_attention.is_none()
-                && marker_fresh(
-                    probes.marker_mtime_secs(),
-                    now_secs,
-                    if overrides.ttl_invalid {
-                        None
-                    } else {
-                        Some(
-                            overrides
-                                .marker_ttl_secs
-                                .unwrap_or(DEFAULT_PHONE_MARKER_TTL_SECS),
-                        )
-                    },
-                );
-            // The marker is a stat of one file; the sample is a full second
-            // of live counters, so it runs only once the marker said nothing.
-            let viewing = overrides.phone_attention.is_none() && !marker_is_fresh && viewing_now();
-            want_phone = phone_attention(overrides.phone_attention, marker_is_fresh, viewing);
-        }
-
-        if want_phone && !overrides.force_phone && !pane.is_empty() {
-            let focused = match &overrides.focused_pane {
-                Some(pane) => Some(pane.clone()),
-                None => probes.focused_pane(),
-            };
-            if crate::routing::viewed_pane_redundant(pane, &focused.unwrap_or_default())
-                && viewing_now()
-            {
-                want_phone = false;
-            }
+            want_phone = false;
         }
     }
 
-    Decision {
-        legs: crate::routing::channel_plan(selection, local_only, remote_only, want_phone),
-        pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
-    }
-}
-
-/// Which plugins run, given what loading the config found. The composition
-/// policy in one place:
-///
-/// A LOADED config is authoritative. A MISSING config selects every built-in,
-/// so the cutover from the bash engine changes nothing until an operator
-/// opts in by writing one. A BROKEN config (unreadable, malformed, invalid,
-/// or naming an unknown plugin) is LOUD, the returned warning, but still
-/// selects every built-in: on an always-exit-0 notification path, a config
-/// error that silently turned every notification off would be the exact
-/// failure the config layer exists to refuse.
-pub fn select_plugins(
-    registry: &crate::registry::Registry,
-    loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
-    mode_plugins: &[&str],
-) -> (Selection, Option<String>) {
-    // mode_plugins are names the composition root serves OUTSIDE the event
-    // plan (hue's pulse today): their config tables are legitimate, so they
-    // are stripped before the unknown-name refusal rather than read as
-    // typos that would discard the operator's whole selection.
-    use crate::config::{ConfigError, LoadOutcome};
-    use crate::registry::RegistryError;
-
-    match loaded {
-        Ok(LoadOutcome::Loaded(mut config)) => {
-            // A REGISTERED name is never stripped: stripping one the roster
-            // owns would silently empty the operator's selection instead of
-            // honoring it.
-            config.plugins.retain(|name, _| {
-                !mode_plugins.contains(&name.as_str()) || registry.names().contains(&name.as_str())
-            });
-            match registry.enabled(&config) {
-                Ok(selection) => (selection, None),
-                Err(error) => {
-                    let detail = match error {
-                        RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
-                        RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
-                    };
-                    (registry.all(), Some(roster_warning(&detail)))
-                }
-            }
-        }
-        Ok(LoadOutcome::Missing) => (registry.all(), None),
-        Err(
-            ConfigError::Malformed(detail)
-            | ConfigError::Invalid(detail)
-            | ConfigError::Unreadable(detail),
-        ) => (registry.all(), Some(roster_warning(&detail))),
-    }
-}
-
-/// The one line a broken config prints: what was wrong, and that nothing was
-/// turned off because of it.
-fn roster_warning(detail: &str) -> String {
-    format!("pns: config error ({detail}); running every built-in plugin")
-}
-
-/// A path from the environment, defaulting like bash's `${VAR:-default}`:
-/// EMPTY means the default as much as unset does, because joining a filename
-/// to an empty path resolves into the current directory and quietly delivers
-/// nothing.
-pub fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
-    std::path::PathBuf::from(
-        candidate
-            .filter(|value| !value.is_empty())
-            .unwrap_or(default),
-    )
+    want_phone
 }
 
 #[cfg(test)]
@@ -644,144 +598,6 @@ mod tests {
         assert!(!decision.pane_dropped);
     }
 
-    // --- plugin selection at the composition root ---------------------------
-
-    fn three_registry() -> Registry {
-        let mut registry = Registry::new();
-        registry
-            .register(
-                "moshi",
-                Routing {
-                    local: false,
-                    presence_gated: true,
-                    durable: false,
-                },
-            )
-            .unwrap();
-        registry
-            .register(
-                "hermes",
-                Routing {
-                    local: false,
-                    presence_gated: false,
-                    durable: true,
-                },
-            )
-            .unwrap();
-        registry
-            .register(
-                "macos-banner",
-                Routing {
-                    local: true,
-                    presence_gated: false,
-                    durable: false,
-                },
-            )
-            .unwrap();
-        registry
-    }
-
-    fn selection_names(selection: &Selection) -> Vec<&str> {
-        selection.iter().map(|r| r.name).collect()
-    }
-
-    #[test]
-    fn a_missing_config_selects_every_builtin_so_the_cutover_changes_nothing() {
-        use crate::config::LoadOutcome;
-        let (selection, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Missing), &[]);
-        assert_eq!(
-            selection_names(&selection),
-            vec!["moshi", "hermes", "macos-banner"]
-        );
-        assert_eq!(warning, None);
-    }
-
-    #[test]
-    fn a_loaded_config_is_authoritative() {
-        use crate::config::LoadOutcome;
-        let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
-        let (selection, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &[]);
-        assert_eq!(selection_names(&selection), vec!["hermes"]);
-        assert_eq!(warning, None);
-    }
-
-    #[test]
-    fn a_broken_config_is_loud_but_never_turns_notifications_off() {
-        use crate::config::ConfigError;
-        let (selection, warning) = super::select_plugins(
-            &three_registry(),
-            Err(ConfigError::Malformed(
-                "key with no value at line 1".to_string(),
-            )),
-            &[],
-        );
-        assert_eq!(
-            selection_names(&selection),
-            vec!["moshi", "hermes", "macos-banner"]
-        );
-        let warning = warning.expect("a broken config must be said aloud");
-        assert!(warning.contains("key with no value"));
-    }
-
-    #[test]
-    fn a_config_naming_an_unknown_plugin_is_loud_and_falls_back_to_the_roster() {
-        use crate::config::LoadOutcome;
-        let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
-        let (selection, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &[]);
-        assert_eq!(
-            selection_names(&selection),
-            vec!["moshi", "hermes", "macos-banner"]
-        );
-        let warning = warning.expect("the typo'd name must be said aloud");
-        assert!(warning.contains("mosih"));
-    }
-
-    #[test]
-    fn a_mode_plugins_table_is_not_a_typo_and_the_selection_survives() {
-        // The pulse mode REQUIRES a plugins.hue table, so an operator who
-        // configures it must not lose their event selection to the
-        // unknown-name refusal on every notification.
-        use crate::config::LoadOutcome;
-        let config =
-            parse_config("[plugins.hermes]\nenabled = true\n[plugins.hue]\nenabled = true\n")
-                .unwrap();
-        let (selection, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &["hue"]);
-        assert_eq!(selection_names(&selection), vec!["hermes"]);
-        assert_eq!(warning, None);
-    }
-
-    #[test]
-    fn a_registered_name_is_never_stripped_even_when_declared_a_mode() {
-        // A name that IS an event leg must keep its table: stripping it would
-        // silently empty the operator's selection with no warning at all.
-        use crate::config::LoadOutcome;
-        let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
-        let (selection, warning) = super::select_plugins(
-            &three_registry(),
-            Ok(LoadOutcome::Loaded(config)),
-            &["hermes"],
-        );
-        assert_eq!(selection_names(&selection), vec!["hermes"]);
-        assert_eq!(warning, None);
-    }
-
-    #[test]
-    fn a_true_typo_is_still_refused_even_with_mode_plugins_declared() {
-        use crate::config::LoadOutcome;
-        let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
-        let (_, warning) =
-            super::select_plugins(&three_registry(), Ok(LoadOutcome::Loaded(config)), &["hue"]);
-        assert!(
-            warning
-                .expect("the typo is still the defect")
-                .contains("mosih")
-        );
-    }
-
     // --- overrides parsing --------------------------------------------------
 
     #[test]
@@ -870,24 +686,6 @@ mod tests {
         assert_eq!(probes.marker_reads.get(), 0);
         assert_eq!(probes.sample_reads.get(), 0);
         assert_eq!(probes.focused_reads.get(), 0);
-    }
-
-    #[test]
-    fn an_empty_channels_dir_variable_means_the_default_not_the_current_dir() {
-        // Bash's ${VAR:-default} defaults on EMPTY as well as unset; joining
-        // a filename to an empty path would quietly deliver nothing.
-        assert_eq!(
-            super::resolve_path(Some(""), "/fallback/channels"),
-            std::path::PathBuf::from("/fallback/channels")
-        );
-        assert_eq!(
-            super::resolve_path(None, "/fallback/channels"),
-            std::path::PathBuf::from("/fallback/channels")
-        );
-        assert_eq!(
-            super::resolve_path(Some("/set/dir"), "/fallback/channels"),
-            std::path::PathBuf::from("/set/dir")
-        );
     }
 
     #[test]
