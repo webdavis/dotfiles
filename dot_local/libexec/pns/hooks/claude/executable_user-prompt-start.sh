@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Claude Code UserPromptSubmit hook: record session start time on first prompt.
+# Claude Code UserPromptSubmit hook: record the TURN start time. The marker is
+# keyed by session but written only when none is there and removed by the Stop
+# hook, so what it times is the turn just submitted, not the whole session.
 #
 # Hook input: JSON on stdin with { session_id, transcript_path, cwd,
 # permission_mode, hook_event_name, prompt }.
