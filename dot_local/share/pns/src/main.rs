@@ -16,12 +16,12 @@ use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, hermes_secret, remote_deadline,
 };
-use pns::channels::hue::{Bridge, HuePulse, hue_enabled, hue_settings};
+use pns::channels::hue::{Bridge, HuePulse, hue_settings};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret, read_auth};
 use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
-use pns::registry::{Registry, Routing, select_plugins};
+use pns::registry::{Registry, select_plugins};
 use pns::render;
 use pns::system::{SystemCommandRunner, SystemProbes};
 
@@ -45,43 +45,10 @@ fn main() {
         eprintln!("relay: {warning}");
     }
 
-    // THE ROSTER, and the only statement of delivery order. A destination is
-    // added here, never in policy.
-    let mut registry = Registry::new();
-    for (name, routing) in [
-        (
-            "moshi",
-            Routing {
-                local: false,
-                presence_gated: true,
-                durable: false,
-            },
-        ),
-        (
-            "hermes",
-            Routing {
-                local: false,
-                presence_gated: false,
-                durable: true,
-            },
-        ),
-        (
-            "macos-banner",
-            Routing {
-                local: true,
-                presence_gated: false,
-                durable: false,
-            },
-        ),
-    ] {
-        if let Err(error) = registry.register(name, routing) {
-            eprintln!("pns: {error:?}");
-        }
-    }
+    let registry = roster();
 
     let home = std::env::var("HOME").unwrap_or_default();
-    let (selection, warning) =
-        select_plugins(&registry, load_config(&config_path(&home)), &["hue"]);
+    let (selection, warning) = select_plugins(&registry, load_config(&config_path(&home)));
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
@@ -266,6 +233,19 @@ pub fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBu
     )
 }
 
+/// THE ROSTER, and the only statement of delivery order. A destination is
+/// added to `registry::ROSTER`, never to policy; this turns those
+/// declarations into the registry both modes select from.
+fn roster() -> Registry {
+    let mut registry = Registry::new();
+    for (name, routing) in pns::registry::ROSTER {
+        if let Err(error) = registry.register(name, routing) {
+            eprintln!("pns: {error:?}");
+        }
+    }
+    registry
+}
+
 /// The first executable of that name on PATH, absolute, or None. The click
 /// string bakes it in because the click runs in a bare launchd context whose
 /// PATH cannot find `~/.local/bin`.
@@ -306,11 +286,29 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// the sequence against the bridge. Every absence is a silent exit 0.
 fn pulse_mode() {
     let home = std::env::var("HOME").unwrap_or_default();
-    let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
-        return;
+    let loaded = load_config(&config_path(&home));
+    // The settings come off the config, the ENABLED verdict comes off the
+    // same selection an event uses: hue is a registered plugin that happens
+    // not to be an event leg, not a special case wired past the registry.
+    let settings = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => {
+            config.plugins.get("hue").map(|hue| hue.settings.clone())
+        }
+        _ => None,
     };
-    let Some(hue) = hue_enabled(&config).and_then(|settings| {
-        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
+    let (selection, warning) = select_plugins(&roster(), loaded);
+    // The SAME sanitized warning event mode prints. A config that is merely
+    // absent stays silent, because never opting in is not a mistake; one that
+    // could not be read is the operator's to know about, whichever mode found
+    // it.
+    if let Some(warning) = warning {
+        eprintln!("{warning}");
+    }
+    if !selection.iter().any(|entry| entry.name == "hue") {
+        return;
+    }
+    let Some(hue) = settings.and_then(|settings| {
+        hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
     }) else {
         return;
     };

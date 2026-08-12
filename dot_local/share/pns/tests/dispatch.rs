@@ -340,3 +340,44 @@ fn the_delivered_event_is_newline_terminated_for_line_oriented_channels() {
     let parsed: serde_json::Value = serde_json::from_str(&line).expect("a whole JSON line");
     assert_eq!(parsed["agent"], "claude");
 }
+
+#[test]
+fn a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly() {
+    // Event mode has always printed the sanitized warning for a config it
+    // could not read. Pulse mode collapsed unreadable and malformed together
+    // with absent into one silent no-op, so the operator's only signal that a
+    // config was broken was lights that stopped working.
+    let sandbox = support::Sandbox::new("pulse-broken-config");
+    std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
+    std::fs::write(
+        sandbox.path(".config/pns/config.toml"),
+        "this is not toml\n",
+    )
+    .expect("config");
+    let output = sandbox
+        .bare()
+        .args(["pulse", "1"])
+        .output()
+        .expect("the engine runs");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("pns: config error"),
+        "a broken config is loud in pulse mode: {stderr}"
+    );
+    assert!(output.status.success(), "and still exits zero");
+}
+
+#[test]
+fn an_absent_config_stays_silent_in_pulse_mode() {
+    // The other half of the rule: absent is not broken. A machine that never
+    // opted into a config must not be nagged on every long command.
+    let sandbox = support::Sandbox::new("pulse-absent-config");
+    let output = sandbox
+        .bare()
+        .args(["pulse", "0"])
+        .output()
+        .expect("the engine runs");
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
+    assert!(output.status.success());
+}

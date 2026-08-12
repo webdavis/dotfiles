@@ -304,38 +304,7 @@ mod tests {
     }
 
     fn three_selection() -> Selection {
-        let mut registry = Registry::new();
-        registry
-            .register(
-                "moshi",
-                Routing {
-                    local: false,
-                    presence_gated: true,
-                    durable: false,
-                },
-            )
-            .unwrap();
-        registry
-            .register(
-                "hermes",
-                Routing {
-                    local: false,
-                    presence_gated: false,
-                    durable: true,
-                },
-            )
-            .unwrap();
-        registry
-            .register(
-                "macos-banner",
-                Routing {
-                    local: true,
-                    presence_gated: false,
-                    durable: false,
-                },
-            )
-            .unwrap();
-        registry
+        crate::registry::test_roster()
             .enabled(
                 &parse_config(
                     "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
@@ -661,6 +630,7 @@ mod tests {
                     local: false,
                     presence_gated: false,
                     durable: true,
+                    event_dispatched: true,
                 },
             )
             .unwrap();

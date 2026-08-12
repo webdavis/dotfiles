@@ -82,6 +82,9 @@ pub fn channel_plan(
     let mode = if remote_only { Mode::Sync } else { Mode::Async };
     enabled
         .iter()
+        // A plugin the binary serves in its own mode is not a destination an
+        // event can reach, whatever the config selected it for.
+        .filter(|entry| entry.routing.event_dispatched)
         .filter(|entry| match (local_only, remote_only) {
             (true, _) => entry.routing.local,
             (_, true) => entry.routing.durable,
@@ -127,48 +130,10 @@ mod tests {
             .unwrap()
     }
 
-    /// The three real declarations, in the delivery order the bash engine
-    /// uses: phone, log, banner. The plan tests run against these so every
-    /// R1 behavior is preserved verbatim under the declaration API.
-    fn three_registry() -> Registry {
-        let mut registry = Registry::new();
-        registry
-            .register(
-                "moshi",
-                Routing {
-                    local: false,
-                    presence_gated: true,
-                    durable: false,
-                },
-            )
-            .unwrap();
-        registry
-            .register(
-                "hermes",
-                Routing {
-                    local: false,
-                    presence_gated: false,
-                    durable: true,
-                },
-            )
-            .unwrap();
-        registry
-            .register(
-                "macos-banner",
-                Routing {
-                    local: true,
-                    presence_gated: false,
-                    durable: false,
-                },
-            )
-            .unwrap();
-        registry
-    }
-
     const ALL_THREE_ON: &str = "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
 
     fn three_enabled() -> Selection {
-        select(&three_registry(), ALL_THREE_ON)
+        select(&crate::registry::test_roster(), ALL_THREE_ON)
     }
 
     // --- wants_phone -------------------------------------------------------
@@ -277,7 +242,7 @@ mod tests {
     fn no_enabled_plugins_plan_nothing_under_every_flag() {
         // An unconfigured machine has an empty plan, not a crash and not a
         // built-in fallback: the caller reports the empty verdict.
-        let none = select(&three_registry(), "");
+        let none = select(&crate::registry::test_roster(), "");
         for (local, remote, phone) in [
             (false, false, true),
             (false, false, false),
@@ -286,6 +251,26 @@ mod tests {
         ] {
             assert_eq!(channel_plan(&none, local, remote, phone), vec![]);
         }
+    }
+
+    #[test]
+    fn a_plugin_that_is_not_event_dispatched_is_never_a_leg_however_it_is_selected() {
+        // hue is registered and selectable, and the pulse mode runs it, but no
+        // notification may route to it. Without this the roster's fourth entry
+        // would start appearing as a channel on every event.
+        let enabled = select(
+            &crate::registry::test_roster(),
+            "[plugins.hue]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
+        );
+        assert_eq!(
+            channel_plan(&enabled, false, false, true),
+            vec![leg("hermes", Mode::Async)]
+        );
+        assert_eq!(
+            channel_plan(&enabled, true, false, true),
+            Vec::new(),
+            "not even the local-only path, which hue would otherwise match"
+        );
     }
 
     #[test]
@@ -303,6 +288,7 @@ mod tests {
                     local: true,
                     presence_gated: true,
                     durable: false,
+                    event_dispatched: true,
                 },
             )
             .unwrap();
@@ -313,6 +299,7 @@ mod tests {
                     local: false,
                     presence_gated: true,
                     durable: true,
+                    event_dispatched: true,
                 },
             )
             .unwrap();
