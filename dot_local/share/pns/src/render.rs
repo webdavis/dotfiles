@@ -25,6 +25,20 @@ pub fn title(agent: &str, state: &str, project: &str) -> String {
 /// The body: the summary itself, branch-prefixed. Deliberately NOT a repeat of
 /// the state and project the title already carries, so a channel with a short
 /// preview spends it on content rather than boilerplate.
+///
+/// The prefix is `branch: body`, never `(branch) body`: macOS argument parsing
+/// eats a terminal-notifier `-message` whose FIRST CHARACTER is "(", "[", "-"
+/// (read as an option) or presumably "{", and the banner then renders
+/// title-only. Only position one matters: mid-text punctuation and a leading
+/// digit both render fine, and neither a leading space nor a zero-width space
+/// escapes the rule (live probes P3-P7, 2026-08-12). One format across every
+/// channel, so Discord reads the same way rather than the banner getting a
+/// special case.
+///
+/// KNOWN LIMIT, not fixed here: a branchless event whose DETAIL itself begins
+/// with one of those characters is still eaten. It needs the same treatment at
+/// whatever point the detail is composed, and no probe has measured how often
+/// it happens.
 pub fn message(branch: &str, detail: &str, state: &str) -> String {
     let body = match (detail.is_empty(), state.is_empty()) {
         (false, _) => detail,
@@ -34,7 +48,7 @@ pub fn message(branch: &str, detail: &str, state: &str) -> String {
     if branch.is_empty() {
         body.to_string()
     } else {
-        format!("({branch}) {body}")
+        format!("{branch}: {body}")
     }
 }
 
@@ -132,7 +146,30 @@ mod tests {
     fn message_prefixes_the_branch_when_there_is_one() {
         assert_eq!(
             message("main", "ran the suite", "done"),
-            "(main) ran the suite"
+            "main: ran the suite"
+        );
+    }
+
+    #[test]
+    fn message_never_begins_with_a_character_the_banner_eats() {
+        // Live probes P3-P7, 2026-08-12: macOS argument parsing drops a
+        // terminal-notifier -message whose FIRST character is "(", "[", "-"
+        // (taken for an option) or presumably "{", so the banner rendered
+        // title-only for every branch-carrying event while Discord showed the
+        // same text fine. Neither a leading space nor a zero-width space
+        // escapes it (P4-P6). The rule is position one only: P7 confirmed
+        // mid-text parens and a leading digit both render. So the composition
+        // leads with the branch NAME, "somebranch: the text" being the format
+        // verified to survive.
+        let composed = message("main", "ran the suite", "done");
+        assert!(
+            !composed.starts_with(['(', '[', '{', '-', ' ', '\u{200b}']),
+            "banner-eaten leading character: {composed:?}"
+        );
+        assert!(
+            message("main", "text with (parens) in the middle", "done")
+                .contains("(parens) in the middle"),
+            "mid-text punctuation is safe and must not be mangled"
         );
     }
 
