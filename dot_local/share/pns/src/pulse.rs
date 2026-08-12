@@ -4,14 +4,15 @@
 /// How long a session must run before a pulse is worth the room's attention.
 pub const DEFAULT_LONG_SESSION_SECS: u64 = 300;
 
-/// How long a RESTORE transition takes, and the restore alone. Both arms of the
-/// restore emit this same value, which is what one constant covers.
+/// How long a RESTORE transition takes, in milliseconds: the ONE source both
+/// restore arms read. `channels::hue::restore_body` puts it in the CLIP body;
+/// `restore_args` below renders it as the `<ms>ms` its flag wants.
 ///
-/// THE PULSE DOES NOT SHARE IT. The channel script ramps at 1200ms, paired with
-/// a sleep of its own length so one ramp finishes before the next begins, and
-/// that value lives there because the ramp loop does too. Nothing in this crate
-/// drives a pulse, so nothing here has a second transition to state.
-const RESTORE_TRANSITION_TIME: &str = "500ms";
+/// DELIBERATELY SLOWER THAN A PULSE RAMP. The ramps are the alert and want to
+/// snap; this is the EXIT from the alert, and the room coming back should be
+/// watched rather than cut to. D2 2026-08-12: at 500ms the rise off the
+/// near-black final dim was over before it registered.
+pub const RESTORE_TRANSITION_MS: u64 = 1200;
 
 /// The colour a pulse runs at: a CIE xy gamut corner plus the peak brightness
 /// that colour is pulsed at.
@@ -86,9 +87,11 @@ pub fn restore_args(
     second_value: &str,
 ) -> Vec<String> {
     if on_state != "true" {
-        return ["--off", "--transition-time", RESTORE_TRANSITION_TIME]
-            .map(String::from)
-            .to_vec();
+        return vec![
+            "--off".to_string(),
+            "--transition-time".to_string(),
+            format!("{RESTORE_TRANSITION_MS}ms"),
+        ];
     }
     let mut args = vec![
         "--on".to_string(),
@@ -107,7 +110,7 @@ pub fn restore_args(
     }
     args.extend([
         "--transition-time".to_string(),
-        RESTORE_TRANSITION_TIME.to_string(),
+        format!("{RESTORE_TRANSITION_MS}ms"),
     ]);
     args
 }
@@ -218,7 +221,7 @@ mod tests {
                 "-t",
                 "366",
                 "--transition-time",
-                "500ms"
+                "1200ms"
             ]
         );
     }
@@ -236,7 +239,7 @@ mod tests {
                 "-y",
                 "0.31",
                 "--transition-time",
-                "500ms"
+                "1200ms"
             ]
         );
     }
@@ -248,7 +251,7 @@ mod tests {
         // lit.
         assert_eq!(
             restore_args("false", "42", "xy", "0.55", "0.31"),
-            ["--off", "--transition-time", "500ms"]
+            ["--off", "--transition-time", "1200ms"]
         );
     }
 
@@ -260,7 +263,7 @@ mod tests {
         for garbled in ["TRUE", "True", "1", "", "yes", "true\n", "truex"] {
             assert_eq!(
                 restore_args(garbled, "42", "xy", "0.55", "0.31"),
-                ["--off", "--transition-time", "500ms"],
+                ["--off", "--transition-time", "1200ms"],
                 "{garbled} must not be read as on"
             );
         }
@@ -282,7 +285,7 @@ mod tests {
                     "-y",
                     "0.31",
                     "--transition-time",
-                    "500ms"
+                    "1200ms"
                 ],
                 "{not_ct} must not be read as colour temperature"
             );

@@ -266,9 +266,9 @@ pub fn restore_body(state: &LightState) -> String {
     body.to_string()
 }
 
-/// The restore ramp the R1 pulse module pinned for both restore arms, in
-/// milliseconds for the CLIP body.
-pub const RESTORE_TRANSITION_MS: u64 = 500;
+/// The restore ramp, owned by the pulse module because BOTH restore arms read
+/// it and neither may drift from the other.
+use crate::pulse::RESTORE_TRANSITION_MS;
 
 /// Whether one CLIP write actually applied: status success is not enough,
 /// because the bridge answers 200 with a NONEMPTY errors array for
@@ -377,9 +377,8 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, HuePulse, LightState, RESTORE_TRANSITION_MS, Sleeper,
-        acquire_pulse_lock, hue_enabled, hue_settings, light_snapshot, pulse_body, pulse_rooms,
-        put_succeeded, restore_body,
+        Bridge, DEFAULT_ROOMS, HuePulse, LightState, Sleeper, acquire_pulse_lock, hue_enabled,
+        hue_settings, light_snapshot, pulse_body, pulse_rooms, put_succeeded, restore_body,
     };
     use std::cell::RefCell;
     use std::time::Duration;
@@ -679,7 +678,7 @@ mod tests {
         ] {
             let parsed: serde_json::Value = serde_json::from_str(&restore_body(&state)).unwrap();
             assert_eq!(
-                parsed["dynamics"]["duration"], RESTORE_TRANSITION_MS,
+                parsed["dynamics"]["duration"], 1200,
                 "both restore arms ramp, as the R1 decision spells"
             );
         }
