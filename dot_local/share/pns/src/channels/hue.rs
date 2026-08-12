@@ -1,16 +1,16 @@
-//! The hue channel, native: pulse the configured rooms green or red for a
-//! long command's exit code, then restore every light exactly.
+//! The hue channel, native: flash the configured rooms green or red for a
+//! long command's exit code.
 //!
 //! Hue is config-SELECTED but not event-dispatched: the pulse fires on an
 //! exit code from the long-command notifier, not on a notification, so this
 //! channel is the binary's `pulse` mode reading the same `[plugins.hue]`
 //! table (bridge, key, rooms) rather than a leg of the event plan.
 //!
-//! The bridge speaks CLIP v2 directly, replacing the openhue CLI: rooms name
-//! their grouped_light service and their member devices, lights name their
-//! owning device, and the snapshot mirrors the bash TSV so the restore logic
-//! stays the decision the R1 pulse module already pinned. Every absence is a
-//! silent no-op, and a failed pulse must never fail the caller.
+//! ONE PUT PER ROOM, and the bridge does the rest. It speaks CLIP v2 directly,
+//! and the `on_off_color` signal it takes flashes a grouped light for a
+//! duration and then restores the room itself, so nothing here snapshots a
+//! light, sequences a ramp or writes a restore. Every absence is a silent
+//! no-op, and a failed pulse must never fail the caller.
 
 /// The rooms the bash pulsed when `HUE_PULSE_ROOMS` said nothing.
 pub const DEFAULT_ROOMS: &[&str] = &["3F - Studio", "2F - Kitchen"];
@@ -72,14 +72,15 @@ fn data_entries(clip_json: &str) -> Vec<serde_json::Value> {
         .unwrap_or_default()
 }
 
-/// The `rid`s of one rtype, out of one array key, for each wanted room in
-/// WANTED order. Shared by the two room walks, which differ only in which
-/// key and rtype they are after.
-fn room_rids(rooms_json: &str, wanted: &[String], array_key: &str, rtype: &str) -> Vec<String> {
+/// The grouped_light ids of the wanted rooms, in WANTED order. A renamed room,
+/// a room without a grouped_light, and unparseable JSON each drop out silently.
+/// A room needs nothing else: the signal is one write to its group, and the
+/// bridge restores it.
+pub fn grouped_light_ids_for_rooms(rooms_json: &str, wanted: &[String]) -> Vec<String> {
     let rooms = data_entries(rooms_json);
     wanted
         .iter()
-        .flat_map(|name| {
+        .filter_map(|name| {
             rooms
                 .iter()
                 .filter(|room| {
@@ -87,31 +88,12 @@ fn room_rids(rooms_json: &str, wanted: &[String], array_key: &str, rtype: &str) 
                         .and_then(|found| found.as_str())
                         == Some(name.as_str())
                 })
-                .filter_map(|room| room.get(array_key)?.as_array())
+                .filter_map(|room| room.get("services")?.as_array())
                 .flatten()
-                .filter(|entry| entry.get("rtype").and_then(|kind| kind.as_str()) == Some(rtype))
-                .filter_map(|entry| entry.get("rid")?.as_str().map(String::from))
-                .collect::<Vec<_>>()
-        })
-        .collect()
-}
-
-/// The grouped_light ids of the wanted rooms, in WANTED order. A renamed room,
-/// a room without a grouped_light, and unparseable JSON each drop out silently.
-/// A room needs nothing else now: the signal is one write to its group, and the
-/// bridge restores it.
-pub fn pulse_rooms(rooms_json: &str, wanted: &[String]) -> Vec<String> {
-    wanted
-        .iter()
-        .filter_map(|name| {
-            room_rids(
-                rooms_json,
-                std::slice::from_ref(name),
-                "services",
-                "grouped_light",
-            )
-            .into_iter()
-            .next()
+                .filter(|service| {
+                    service.get("rtype").and_then(|kind| kind.as_str()) == Some("grouped_light")
+                })
+                .find_map(|service| service.get("rid")?.as_str().map(String::from))
         })
         .collect()
 }
@@ -137,18 +119,6 @@ pub fn signal_body(color: crate::pulse::PulseColor) -> String {
     .to_string()
 }
 
-/// Whether one CLIP write actually applied: status success is not enough,
-/// because the bridge answers 200 with a NONEMPTY errors array for
-/// application failures. Nothing branches on it inside this channel any more;
-/// the real bridge uses it to answer `put` honestly.
-pub fn put_succeeded(status_ok: bool, body: &str) -> bool {
-    status_ok
-        && !serde_json::from_str::<serde_json::Value>(body)
-            .ok()
-            .and_then(|body| Some(!body.get("errors")?.as_array()?.is_empty()))
-            .unwrap_or(false)
-}
-
 /// The hue settings table, only when the plugin is ENABLED: the file
 /// selects, and a disabled table must silence the pulse mode.
 pub fn hue_enabled(config: &crate::config::Config) -> Option<&toml::Table> {
@@ -162,7 +132,10 @@ pub fn hue_enabled(config: &crate::config::Config) -> Option<&toml::Table> {
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
 pub trait Bridge {
     fn get(&self, path: &str) -> Option<String>;
-    fn put(&self, path: &str, body: &str) -> bool;
+    /// Fire and forget: `run` discards every outcome, so a bridge that
+    /// refuses tells no one. Returning a result would be a seam with no
+    /// consumer.
+    fn put(&self, path: &str, body: &str);
 }
 
 /// The signal: one PUT per wanted room, and the bridge does the rest.
@@ -181,7 +154,7 @@ impl<B: Bridge> HuePulse<B> {
         // choreography left for a refused write to corrupt, so one room's
         // failure must not cost another its signal, and a failed pulse still
         // never fails the caller.
-        for grouped_id in pulse_rooms(&rooms_json, &self.rooms) {
+        for grouped_id in grouped_light_ids_for_rooms(&rooms_json, &self.rooms) {
             self.bridge
                 .put(&format!("grouped_light/{grouped_id}"), &body);
         }
@@ -191,7 +164,7 @@ impl<B: Bridge> HuePulse<B> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, HuePulse, hue_enabled, hue_settings, pulse_rooms, put_succeeded,
+        Bridge, DEFAULT_ROOMS, HuePulse, grouped_light_ids_for_rooms, hue_enabled, hue_settings,
     };
     use std::cell::RefCell;
 
@@ -262,26 +235,13 @@ mod tests {
           {"id":"room-1","type":"room","metadata":{"name":"Groupless"},
            "children":[{"rid":"dev-a","rtype":"device"}],"services":[]}
         ]}"#;
-        assert!(pulse_rooms(NO_GROUP, &wanted(&["Groupless"])).is_empty());
+        assert!(grouped_light_ids_for_rooms(NO_GROUP, &wanted(&["Groupless"])).is_empty());
     }
 
     #[test]
     fn a_renamed_room_is_skipped_and_unparseable_json_is_empty() {
-        assert!(pulse_rooms(ROOMS_JSON, &wanted(&["Gone Room"])).is_empty());
-        assert!(pulse_rooms("not json", &wanted(&["3F - Studio"])).is_empty());
-    }
-
-    #[test]
-    fn a_two_hundred_carrying_errors_is_not_an_applied_write() {
-        // The bridge answers 200 with a nonempty errors array for
-        // application failures, so a 2xx alone is not an applied write.
-        assert!(put_succeeded(true, r#"{"errors":[],"data":[{"rid":"x"}]}"#));
-        assert!(put_succeeded(true, r#"{"data":[]}"#));
-        assert!(!put_succeeded(
-            true,
-            r#"{"errors":[{"description":"device is not responding"}],"data":[]}"#
-        ));
-        assert!(!put_succeeded(false, r#"{"errors":[]}"#));
+        assert!(grouped_light_ids_for_rooms(ROOMS_JSON, &wanted(&["Gone Room"])).is_empty());
+        assert!(grouped_light_ids_for_rooms("not json", &wanted(&["3F - Studio"])).is_empty());
     }
 
     #[test]
@@ -301,8 +261,6 @@ mod tests {
 
     struct ScriptedBridge {
         rooms: &'static str,
-        /// A path substring whose PUT is refused, for the independence pin.
-        refuse_put_containing: Option<&'static str>,
         gets: RefCell<Vec<String>>,
         puts: RefCell<Vec<(String, String)>>,
     }
@@ -312,20 +270,16 @@ mod tests {
             self.gets.borrow_mut().push(path.to_string());
             Some(self.rooms.to_string())
         }
-        fn put(&self, path: &str, body: &str) -> bool {
+        fn put(&self, path: &str, body: &str) {
             self.puts
                 .borrow_mut()
                 .push((path.to_string(), body.to_string()));
-            !self
-                .refuse_put_containing
-                .is_some_and(|needle| path.contains(needle))
         }
     }
 
-    fn bridge(refuse_put_containing: Option<&'static str>) -> ScriptedBridge {
+    fn bridge() -> ScriptedBridge {
         ScriptedBridge {
             rooms: ROOMS_JSON,
-            refuse_put_containing,
             gets: RefCell::new(Vec::new()),
             puts: RefCell::new(Vec::new()),
         }
@@ -333,7 +287,7 @@ mod tests {
 
     fn pulse() -> HuePulse<ScriptedBridge> {
         HuePulse {
-            bridge: bridge(None),
+            bridge: bridge(),
             rooms: wanted(&["3F - Studio", "2F - Kitchen"]),
         }
     }
@@ -353,7 +307,9 @@ mod tests {
                 ("grouped_light/grp-1".to_string(), RED_SIGNAL.to_string()),
                 ("grouped_light/grp-2".to_string(), RED_SIGNAL.to_string()),
             ],
-            "one signal per wanted room, and no restore writes: the bridge owns the restore"
+            "one signal per wanted room, and no restore writes: the bridge owns the restore. \
+             Independence is structural now: put reports nothing, so no outcome can \
+             short-circuit the room behind it"
         );
         assert_eq!(
             hue.bridge.gets.borrow().as_slice(),
@@ -375,7 +331,7 @@ mod tests {
     #[test]
     fn a_room_the_bridge_does_not_have_is_skipped_in_silence() {
         let hue = HuePulse {
-            bridge: bridge(None),
+            bridge: bridge(),
             rooms: wanted(&["3F - Studio", "1F - Renamed Away"]),
         };
         hue.run("1");
@@ -389,29 +345,10 @@ mod tests {
     }
 
     #[test]
-    fn one_groups_refused_write_leaves_the_other_groups_signal_standing() {
-        // Each group is independent now: there is no shared choreography left
-        // for a failure to corrupt, so a refusal must not cost the other room
-        // its signal.
-        let hue = HuePulse {
-            bridge: bridge(Some("grp-1")),
-            rooms: wanted(&["3F - Studio", "2F - Kitchen"]),
-        };
-        hue.run("1");
-        let puts = hue.bridge.puts.borrow();
-        assert_eq!(
-            puts.iter().map(|put| put.0.as_str()).collect::<Vec<_>>(),
-            vec!["grouped_light/grp-1", "grouped_light/grp-2"],
-            "the refused group must not stop the one behind it"
-        );
-    }
-
-    #[test]
     fn no_matching_rooms_or_no_lights_is_a_silent_no_op() {
         let hue = HuePulse {
             bridge: ScriptedBridge {
                 rooms: r#"{"data":[]}"#,
-                refuse_put_containing: None,
                 gets: RefCell::new(Vec::new()),
                 puts: RefCell::new(Vec::new()),
             },

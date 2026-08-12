@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, remote_deadline};
-use pns::channels::hue::{Bridge, HuePulse, hue_enabled, hue_settings, put_succeeded};
+use pns::channels::hue::{Bridge, HuePulse, hue_enabled, hue_settings};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
@@ -348,21 +348,14 @@ impl Bridge for UreqBridge {
             .ok()
     }
 
-    fn put(&self, path: &str, body: &str) -> bool {
-        // A 2xx is not an applied write: the bridge reports application
-        // failures in an errors array alongside it.
-        let Ok(mut response) = self
+    fn put(&self, path: &str, body: &str) {
+        // Nothing reads the outcome: a pulse that did not land is not worth
+        // failing, reporting or retrying on a notification path.
+        let _ = self
             .agent()
             .put(format!("{}/{path}", self.base))
             .header("hue-application-key", &self.key)
             .content_type("application/json")
-            .send(body)
-        else {
-            return false;
-        };
-        put_succeeded(
-            true,
-            &response.body_mut().read_to_string().unwrap_or_default(),
-        )
+            .send(body);
     }
 }
