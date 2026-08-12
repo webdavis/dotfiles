@@ -118,6 +118,21 @@ TRANSCRIPT
     capture whitespace_first 'done' "$(payload_with "$BATS_FILE_TMPDIR/whitespace-first.jsonl")"
   ) &
   capture cut_first_line 'done' "$(payload_with "$BATS_FILE_TMPDIR/cut-first-line.jsonl")" &
+
+  # The harness's own copy of the final text. Claude Code 2.1.226 builds the
+  # Stop payload with `last_assistant_message`, the last assistant message
+  # joined and trimmed, and omits it when there is none. Its transcript here
+  # NEVER flushes an assistant turn, so anything the hook delivers had to come
+  # from the payload, and the sleep marker stays absent only if no re-read
+  # window was paid at all.
+  printf '{"type":"user","message":{"content":"q"}}\n' >"$BATS_FILE_TMPDIR/payload-primary.jsonl"
+  (
+    export RELAY_SLEEP_MARKER="$BATS_FILE_TMPDIR/payload.marker"
+    capture payload_primary 'done' \
+      "$(payload_with "$BATS_FILE_TMPDIR/payload-primary.jsonl" '' 'The payload carried it.')"
+  ) &
+  capture payload_beats_transcript 'done' \
+    "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl" '' 'From the payload, not the file.')" &
   capture done_turn 'done' "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl")" &
   capture blocked_state 'blocked' "$(payload_with '' 'permission to run brew')" &
   capture asked_state 'asked' "$(payload_with '' 'which of the two?')" &
@@ -140,12 +155,15 @@ setup() {
   source "$BATS_TEST_DIRNAME/../../dot_local/libexec/pns/helpers/event.sh"
 }
 
-# payload_with <transcript_path> [message]: one harness hook payload.
+# payload_with <transcript_path> [message] [last_assistant_message]: one
+# harness hook payload. Each field is omitted when empty, because absent and
+# present-but-empty are different inputs to the hook.
 payload_with() {
-  jq -cn --arg t "${1:-}" --arg m "${2:-}" \
+  jq -cn --arg t "${1:-}" --arg m "${2:-}" --arg a "${3:-}" \
     '{cwd: "/nowhere/webdavis/dotfiles"}
      + (if $t == "" then {} else {transcript_path: $t} end)
-     + (if $m == "" then {} else {message: $m} end)'
+     + (if $m == "" then {} else {message: $m} end)
+     + (if $a == "" then {} else {last_assistant_message: $a} end)'
 }
 
 # capture <name> <state> <payload>: run the hook once, keep its argv and status.
@@ -199,6 +217,19 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
 
 @test "a transcript still flushing at hook time is re-read until the reply lands" {
   [ "$(flag lagging_transcript --detail)" = "The late-flushed reply." ]
+}
+
+@test "the payload's own final text is used, and the transcript is never waited on" {
+  # The docs are explicit that a Stop hook can fire before the transcript write
+  # completes, so the file is the FALLBACK and the payload is the primary. The
+  # transcript behind this run never got its assistant turn, so the text can
+  # only have come from the payload.
+  [ "$(flag payload_primary --detail)" = "The payload carried it." ]
+  [ ! -e "$BATS_FILE_TMPDIR/payload.marker" ]
+}
+
+@test "the payload's text beats a transcript that carries its own" {
+  [ "$(flag payload_beats_transcript --detail)" = "From the payload, not the file." ]
 }
 
 @test "a reply that is only whitespace is waited out like an absent one" {

@@ -60,19 +60,29 @@ reply_from_transcript() {
 reply_reread_attempts=4
 [[ ${PNS_REPLY_REREAD_ATTEMPTS:-} =~ ^[0-9]+$ ]] && reply_reread_attempts="$PNS_REPLY_REREAD_ATTEMPTS"
 reply_reread_interval="${PNS_REPLY_REREAD_INTERVAL:-0.15}"
+# The harness's OWN copy of the final text, which is why the transcript read
+# above is the fallback rather than the source. Claude Code documents that a
+# Stop hook can fire before the transcript write completes, and recommends this
+# field instead; version 2.1.226 builds the Stop payload with it, carrying the
+# last assistant message joined and trimmed, and omits it when there is none.
+# Absent, or present and empty, falls through to the file.
+payload_reply="$(printf '%s' "$input" | jq -r '.last_assistant_message // empty' 2>/dev/null || true)"
 detail=""
-if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
+if [[ $state == "done" ]] && [[ -n $payload_reply || (-n $transcript && -f $transcript) ]]; then
   # one line, trimmed, last 8000 chars at most
-  reply="$(pns_flatten_reply "$(reply_from_transcript "$transcript")")"
-  attempt=0
-  while [[ -z $reply && $attempt -lt $reply_reread_attempts ]]; do
-    # A sleep that FAILS must not fail the hook: bare, `set -e` turns a killed
-    # or refused sleep into a non-zero exit on the one path whose whole
-    # contract is exiting 0.
-    sleep "$reply_reread_interval" || break
+  reply="$(pns_flatten_reply "$payload_reply")"
+  if [[ -z $reply && -n $transcript && -f $transcript ]]; then
     reply="$(pns_flatten_reply "$(reply_from_transcript "$transcript")")"
-    attempt=$((attempt + 1))
-  done
+    attempt=0
+    while [[ -z $reply && $attempt -lt $reply_reread_attempts ]]; do
+      # A sleep that FAILS must not fail the hook: bare, `set -e` turns a
+      # killed or refused sleep into a non-zero exit on the one path whose
+      # whole contract is exiting 0.
+      sleep "$reply_reread_interval" || break
+      reply="$(pns_flatten_reply "$(reply_from_transcript "$transcript")")"
+      attempt=$((attempt + 1))
+    done
+  fi
   used_codex=""
   # Codex-primary: one cheap `codex exec` summarizes the whole turn + classifies it as "STATE|SUMMARY";
   # STATE may override 'done' (e.g. asking). It runs in a stripped, dedicated CODEX_HOME (minimal config:
