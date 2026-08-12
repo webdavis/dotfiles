@@ -202,20 +202,37 @@ pub fn pulse_body(x: &str, y: &str, brightness: &str) -> String {
     .to_string()
 }
 
-/// Each ramp finishes before the next step starts, so the sleep and the
-/// transition are the same number by construction.
+/// How long ONE ramp takes, the value the bridge is handed in `dynamics`. The
+/// pace between steps is [`STEP_SETTLE`], which is deliberately longer.
 const PULSE_TRANSITION: Duration = Duration::from_millis(1200);
+
+/// How long we wait after a step's write before making the next one: the ramp
+/// plus 250ms of bridge breathing room.
+///
+/// The gap is NOT the ramp finishing, which `PULSE_TRANSITION` already covers.
+/// Drill D2 2026-08-12: with the steps paced at exactly the ramp length the
+/// fourth write never rendered, and the pulse read peak, dim, peak, restore.
+/// The SUSPICION, unproven, is bridge-side rate limiting on grouped_light PUTs
+/// landing on exact 1200ms boundaries; the bash channel's per-step process
+/// spawns would have given it ragged slack for free, which would explain why
+/// it never showed this, though that channel is gone and the comparison was
+/// never measured. Either way a dropped write is SILENT here, because only the
+/// FIRST write's refusal stops the pulse. Empirical, like the hold below: the
+/// 250ms buys slack, it does not explain the bridge.
+const STEP_SETTLE: Duration = Duration::from_millis(1450);
 
 /// The last dim is HELD before the restore ramps the lights back up. Live
 /// finding 2026-08-11: the restore fired the instant the fourth ramp's sleep
 /// returned and overrode the final dim before the bridge rendered it, so the
 /// pulse read as three phases, not four.
 ///
-/// The VALUE is empirical padding for bridge-side render latency, chosen as
-/// half a `PULSE_TRANSITION` and nothing more principled than that: the ramp
-/// it follows had already been given its full transition time, so the gap it
-/// covers is unexplained and unmeasured. Retune after the first live pulse.
-const FINAL_DIM_HOLD: Duration = Duration::from_millis(600);
+/// The VALUE is empirical padding for bridge-side render latency and nothing
+/// more principled than that: the ramp it follows had already been given its
+/// full transition time, so the gap it covers is unexplained and unmeasured.
+/// Drill D2 2026-08-12 retuned it from half a `PULSE_TRANSITION` to a full
+/// one, because at 600ms the last dim still never rendered. Retune again if a
+/// drill still shows three phases.
+const FINAL_DIM_HOLD: Duration = Duration::from_millis(1200);
 
 /// The light PUT body that puts one snapshot back: an off light is only
 /// turned off, a ct light restores its mirek, an xy light both coordinates.
@@ -334,7 +351,7 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
                 }
                 first = false;
             }
-            self.sleeper.sleep(PULSE_TRANSITION);
+            self.sleeper.sleep(STEP_SETTLE);
         }
         self.sleeper.sleep(FINAL_DIM_HOLD);
 
@@ -763,16 +780,16 @@ mod tests {
         assert_eq!(
             naps.as_slice(),
             &[
-                Duration::from_millis(1200),
-                Duration::from_millis(1200),
-                Duration::from_millis(1200),
-                Duration::from_millis(1200),
-                // The literal, not the constant: comparing the hold against
+                Duration::from_millis(1450),
+                Duration::from_millis(1450),
+                Duration::from_millis(1450),
+                Duration::from_millis(1450),
+                // The literals, not the constants: comparing a pace against
                 // itself would pass for any value, including one too short
-                // for the bridge to render.
-                Duration::from_millis(600),
+                // for the bridge to render or accept.
+                Duration::from_millis(1200),
             ],
-            "four ramps, then the hold that lets the last dim render"
+            "four settles longer than the ramp, then the hold that lets the last dim render"
         );
     }
 
@@ -845,7 +862,10 @@ mod tests {
             .unwrap()
             .parse::<u64>()
             .unwrap();
-        assert!(hold > 0, "a zero-length hold is the live bug itself");
+        assert_eq!(
+            hold, 1200,
+            "the hold is the full ramp length: D2 showed 600ms still lost the last dim"
+        );
     }
 
     #[test]
