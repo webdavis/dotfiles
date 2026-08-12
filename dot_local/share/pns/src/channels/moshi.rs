@@ -9,7 +9,7 @@
 //! an error and must not say anything.
 
 use super::{Delivery, Event};
-use crate::routing::Mode;
+use crate::routing::ReportMode;
 use std::path::Path;
 
 /// Where the push goes when `RELAY_MOSHI_URL` says nothing.
@@ -57,7 +57,7 @@ pub struct MoshiChannel<H: HttpPost> {
 impl<H: HttpPost> MoshiChannel<H> {
     /// Always silent: the only thing worth reporting would be the request
     /// that carries the token.
-    pub fn deliver(&self, event: &Event, _mode: Mode) -> Delivery {
+    pub fn deliver(&self, event: &Event, _mode: ReportMode) -> Delivery {
         if let Some(token) = &self.token {
             self.http.post_json(
                 &self.url,
@@ -110,7 +110,7 @@ impl HttpPost for UreqPost {
 mod tests {
     use super::{DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, moshi_secret, webhook_body};
     use crate::channels::{Delivery, Event};
-    use crate::routing::Mode;
+    use crate::routing::ReportMode;
     use std::cell::RefCell;
 
     struct RecordingHttp {
@@ -187,14 +187,17 @@ mod tests {
     #[test]
     fn no_token_means_no_post_and_no_sound() {
         let channel = channel_with_auth(r#"{"other":"x"}"#);
-        assert_eq!(channel.deliver(&event(), Mode::Async), Delivery::Silent);
+        assert_eq!(
+            channel.deliver(&event(), ReportMode::Silent),
+            Delivery::Silent
+        );
         assert!(channel.http.posts.borrow().is_empty());
     }
 
     #[test]
     fn a_token_posts_once_to_the_url_with_the_preview_never_the_message() {
         let channel = channel_with_auth(r#"{"moshi_secret":"tok-1"}"#);
-        channel.deliver(&event(), Mode::Async);
+        channel.deliver(&event(), ReportMode::Silent);
         let posts = channel.http.posts.borrow();
         assert_eq!(posts.len(), 1);
         assert_eq!(
@@ -217,7 +220,10 @@ mod tests {
             token: None,
             url: DEFAULT_MOSHI_URL.to_string(),
         };
-        assert_eq!(channel.deliver(&event(), Mode::Async), Delivery::Silent);
+        assert_eq!(
+            channel.deliver(&event(), ReportMode::Silent),
+            Delivery::Silent
+        );
         assert!(channel.http.posts.borrow().is_empty());
     }
 

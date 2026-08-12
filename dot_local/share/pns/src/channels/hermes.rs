@@ -10,7 +10,7 @@
 //! in-process over the exact body bytes.
 
 use super::{Delivery, Event};
-use crate::routing::Mode;
+use crate::routing::ReportMode;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -149,7 +149,7 @@ pub struct HermesChannel<P: SignedPost> {
 }
 
 impl<P: SignedPost> HermesChannel<P> {
-    pub fn deliver(&self, event: &Event, mode: Mode) -> Delivery {
+    pub fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery {
         let body = hermes_body(event);
         let Some(signature) = self.key.as_deref().and_then(|key| sign(key, &body)) else {
             // No key is unavailable, not a failure. Reported because an
@@ -158,8 +158,8 @@ impl<P: SignedPost> HermesChannel<P> {
         };
 
         let deadline = match mode {
-            Mode::Sync => self.sync_deadline,
-            Mode::Async => Some(ASYNC_DEADLINE),
+            ReportMode::ReportOutcome => self.sync_deadline,
+            ReportMode::Silent => Some(ASYNC_DEADLINE),
         };
         Delivery::Reported(outcome_line(
             self.post.post(&self.url, &body, &signature, deadline),
@@ -212,7 +212,7 @@ mod tests {
         outcome_line, remote_deadline, sign, skipped_line,
     };
     use crate::channels::{Delivery, Event};
-    use crate::routing::Mode;
+    use crate::routing::ReportMode;
     use std::cell::RefCell;
     use std::time::Duration;
 
@@ -397,7 +397,7 @@ mod tests {
             r#"{"hermes_secret":"sekrit-key-9"}"#,
             PostOutcome::Status(200),
         );
-        channel.deliver(&event(), Mode::Async);
+        channel.deliver(&event(), ReportMode::Silent);
         let posts = channel.post.posts.borrow();
         assert!(!posts[0].0.contains("sekrit-key-9"));
         assert!(!posts[0].1.contains("sekrit-key-9"));
@@ -496,7 +496,7 @@ mod tests {
     fn a_key_posts_once_with_the_signature_of_the_exact_body_bytes() {
         let channel = channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
         assert_eq!(
-            channel.deliver(&event(), Mode::Async),
+            channel.deliver(&event(), ReportMode::Silent),
             Delivery::Reported("relay: posted HTTP 200".to_string()),
             "the channel reports what happened; the leg's mode decides who hears it"
         );
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn sync_carries_the_validated_sync_deadline() {
         let channel = channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
-        channel.deliver(&event(), Mode::Sync);
+        channel.deliver(&event(), ReportMode::ReportOutcome);
         assert_eq!(
             channel.post.posts.borrow()[0].3,
             Some(Duration::from_secs(5))
@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn no_key_means_no_post_in_either_mode() {
-        for mode in [Mode::Async, Mode::Sync] {
+        for mode in [ReportMode::Silent, ReportMode::ReportOutcome] {
             let channel = channel_with_auth(r#"{}"#, PostOutcome::Status(200));
             assert_eq!(
                 channel.deliver(&event(), mode),

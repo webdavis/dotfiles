@@ -83,22 +83,24 @@ pub fn parse_pids(pgrep_output: &str) -> Vec<String> {
 
 /// The focused pane id, from the multiplexer's JSON pane listing.
 ///
-/// Parsed WITHOUT a JSON dependency: the listing is one object per pane on a
-/// single line, so the pane carrying `"focused":true` is found by locating that
-/// marker and reading the `pane_id` value out of THAT object only. The search
-/// stops at the object's closing brace (pane objects are flat, so the first one
-/// closes it), because reading on would return the NEXT pane's id and suppress
-/// a card about a pane nobody is watching. A shape this module does not
-/// recognise yields None, which fails OPEN (the card still fires).
+/// The id comes from the object that carries `"focused": true` and from no
+/// other, because returning a NEIGHBOUR's id would suppress a card about a
+/// pane nobody is watching. Anything else, a shape without that marker or
+/// without an id, yields None, which fails OPEN: the card still fires.
+///
+/// Parsed with serde_json rather than by hand. The hand-rolled version
+/// depended on the listing staying flat and on one line, which is a promise
+/// the multiplexer never made.
 pub fn parse_focused_pane(pane_list_json: &str) -> Option<String> {
-    let focused_at = pane_list_json.find("\"focused\":true")?;
-    let object_start = pane_list_json[..focused_at].rfind('{')?;
-    let object = &pane_list_json[object_start..];
-    let object = &object[..object.find('}')?];
-    let key = "\"pane_id\":\"";
-    let value_start = object.find(key)? + key.len();
-    let value_end = object[value_start..].find('"')?;
-    Some(object[value_start..value_start + value_end].to_string())
+    serde_json::from_str::<serde_json::Value>(pane_list_json)
+        .ok()?
+        .pointer("/result/panes")?
+        .as_array()?
+        .iter()
+        .find(|pane| pane.get("focused").and_then(serde_json::Value::as_bool) == Some(true))?
+        .get("pane_id")?
+        .as_str()
+        .map(String::from)
 }
 
 /// The four probes: three read the machine through one command each, and the

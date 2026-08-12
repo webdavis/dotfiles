@@ -13,7 +13,7 @@ pub mod hermes;
 pub mod hue;
 pub mod moshi;
 
-use crate::routing::Mode;
+use crate::routing::ReportMode;
 
 /// One rendered event, the structured form of the channel contract's JSON
 /// object. The pane is the SANITIZED one.
@@ -35,7 +35,7 @@ impl Event {
     /// executable channel reading one line on stdin. The delivery mode is the
     /// one field that is per-LEG rather than per-event, so it arrives as an
     /// argument instead of living on the struct.
-    pub fn to_json(&self, mode: Mode) -> String {
+    pub fn to_json(&self, mode: ReportMode) -> String {
         serde_json::json!({
             "agent": self.agent,
             "state": self.state,
@@ -70,9 +70,9 @@ pub enum Delivery {
 impl Delivery {
     /// The line to print for this leg, or None. REPORT MODE IS THE CALLER'S
     /// to know: a channel says what happened, never whether anyone hears it.
-    pub fn line_for(self, mode: Mode) -> Option<String> {
+    pub fn line_for(self, mode: ReportMode) -> Option<String> {
         match self {
-            Delivery::Reported(line) if mode == Mode::Sync => Some(line),
+            Delivery::Reported(line) if mode == ReportMode::ReportOutcome => Some(line),
             _ => None,
         }
     }
@@ -87,7 +87,7 @@ pub fn native_first(channels_dir_overridden: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{Delivery, Event};
-    use crate::routing::Mode;
+    use crate::routing::ReportMode;
 
     #[test]
     fn the_event_is_the_channel_contracts_json_object() {
@@ -102,7 +102,8 @@ mod tests {
             preview: "a preview".to_string(),
             pane: "wW:p21".to_string(),
         };
-        let parsed: serde_json::Value = serde_json::from_str(&event.to_json(Mode::Async)).unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&event.to_json(ReportMode::Silent)).unwrap();
         assert_eq!(parsed["agent"], "claude");
         assert_eq!(parsed["detail"], "a \"quoted\" detail");
         assert_eq!(parsed["pane"], "wW:p21");
@@ -116,15 +117,16 @@ mod tests {
         // much the channel had to say, and a silent channel says nothing
         // however the leg reports.
         assert_eq!(
-            Delivery::Reported("relay: posted HTTP 200".to_string()).line_for(Mode::Sync),
+            Delivery::Reported("relay: posted HTTP 200".to_string())
+                .line_for(ReportMode::ReportOutcome),
             Some("relay: posted HTTP 200".to_string())
         );
         assert_eq!(
-            Delivery::Reported("relay: posted HTTP 200".to_string()).line_for(Mode::Async),
+            Delivery::Reported("relay: posted HTTP 200".to_string()).line_for(ReportMode::Silent),
             None
         );
-        assert_eq!(Delivery::Silent.line_for(Mode::Sync), None);
-        assert_eq!(Delivery::Silent.line_for(Mode::Async), None);
+        assert_eq!(Delivery::Silent.line_for(ReportMode::ReportOutcome), None);
+        assert_eq!(Delivery::Silent.line_for(ReportMode::Silent), None);
     }
 
     #[test]
@@ -133,10 +135,11 @@ mod tests {
             title: "t".to_string(),
             ..Event::default()
         };
-        let sync: serde_json::Value = serde_json::from_str(&event.to_json(Mode::Sync)).unwrap();
+        let sync: serde_json::Value =
+            serde_json::from_str(&event.to_json(ReportMode::ReportOutcome)).unwrap();
         assert_eq!(sync["mode"], "sync");
         let asynchronous: serde_json::Value =
-            serde_json::from_str(&event.to_json(Mode::Async)).unwrap();
+            serde_json::from_str(&event.to_json(ReportMode::Silent)).unwrap();
         assert_eq!(asynchronous["mode"], "async");
     }
 }

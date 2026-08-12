@@ -12,7 +12,7 @@
 
 use super::{Delivery, Event};
 use crate::probes::{FocusedPaneProbe, IdleProbe};
-use crate::routing::Mode;
+use crate::routing::ReportMode;
 use crate::system::CommandRunner;
 
 /// The bundle id the click activates when the pane's terminal is unknown.
@@ -145,7 +145,7 @@ pub struct BannerChannel<R: CommandRunner, P> {
 impl<R: CommandRunner, P: IdleProbe + FocusedPaneProbe> BannerChannel<R, P> {
     /// Always silent: a banner that did not post has no second surface to
     /// report itself on.
-    pub fn deliver(&self, event: &Event, _mode: Mode) -> Delivery {
+    pub fn deliver(&self, event: &Event, _mode: ReportMode) -> Delivery {
         // Two steps, as the bash runs them: the frontmost app's ASN, then its
         // bundle id. Either step unreadable leaves the id unknown, which fires.
         let front_bundle_id = self
@@ -209,7 +209,7 @@ mod tests {
     };
     use crate::channels::Event;
     use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
-    use crate::routing::Mode;
+    use crate::routing::ReportMode;
     use crate::system::CommandRunner;
     use std::cell::RefCell;
 
@@ -534,7 +534,7 @@ mod tests {
             idle_override: None,
             focused_override: None,
         };
-        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        channel.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
         let calls = channel.runner.calls.borrow();
         assert!(
             !calls.iter().any(|call| call.contains("terminal-notifier")),
@@ -559,7 +559,7 @@ mod tests {
             idle_override: None,
             focused_override: None,
         };
-        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        channel.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
         let calls = channel.runner.calls.borrow();
         let notifier = calls
             .iter()
@@ -589,7 +589,7 @@ mod tests {
             idle_override: None,
             focused_override: None,
         };
-        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        channel.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
         let calls = channel.runner.calls.borrow();
         let notifier = calls
             .iter()
@@ -642,7 +642,7 @@ mod tests {
             idle_override: Some(900),
             focused_override: None,
         };
-        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        channel.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
         let calls = channel.runner.calls.borrow();
         assert!(
             calls.iter().any(|call| call.contains("terminal-notifier")),
@@ -669,7 +669,7 @@ mod tests {
             idle_override: None,
             focused_override: Some("wW:p2".to_string()),
         };
-        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        channel.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
         let calls = channel.runner.calls.borrow();
         assert!(
             calls.iter().any(|call| call.contains("terminal-notifier")),
@@ -697,7 +697,7 @@ mod tests {
             idle_override: None,
             focused_override: None,
         };
-        channel.deliver(&event_with_pane("wW:p1"), Mode::Async);
+        channel.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
         let calls = channel.runner.calls.borrow();
         assert_eq!(calls[0], "/usr/bin/lsappinfo front");
         assert_eq!(calls[1], "/usr/bin/lsappinfo info -only bundleid ASN-42");

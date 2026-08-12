@@ -7,19 +7,31 @@
 
 use crate::registry::Selection;
 
-/// Whether the engine waits for a channel to finish.
+/// Whether a leg's outcome is reported to the operator.
+///
+/// It used to be Async and Sync, which claimed a waiting semantic nothing has:
+/// shell dispatch always waits for the channel to exit, and the native HTTP
+/// calls block too. What actually differs is whether the leg says how it went,
+/// and, for hermes alone, which deadline it posts under.
+///
+/// THE WIRE WORDS DO NOT CHANGE. `as_str` still emits `async` and `sync`,
+/// because that is what the channel contract has always carried and what the
+/// executable channels read; renaming it there would be a behavior change to
+/// every channel this binary does not own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
-    Async,
-    Sync,
+pub enum ReportMode {
+    /// Deliver and say nothing.
+    Silent,
+    /// Deliver and report what happened.
+    ReportOutcome,
 }
 
-impl Mode {
+impl ReportMode {
     /// The mode as the channel contract spells it in the event.
     pub fn as_str(self) -> &'static str {
         match self {
-            Mode::Async => "async",
-            Mode::Sync => "sync",
+            ReportMode::Silent => "async",
+            ReportMode::ReportOutcome => "sync",
         }
     }
 }
@@ -29,7 +41,7 @@ impl Mode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Leg {
     pub name: &'static str,
-    pub mode: Mode,
+    pub mode: ReportMode,
 }
 
 /// True when the phone push should fire.
@@ -79,7 +91,11 @@ pub fn channel_plan(
     if local_only && remote_only {
         return Vec::new();
     }
-    let mode = if remote_only { Mode::Sync } else { Mode::Async };
+    let mode = if remote_only {
+        ReportMode::ReportOutcome
+    } else {
+        ReportMode::Silent
+    };
     enabled
         .iter()
         // A plugin the binary serves in its own mode is not a destination an
@@ -112,11 +128,11 @@ pub fn viewed_pane_redundant(event_pane: &str, focused_pane: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Leg, Mode, channel_plan, viewed_pane_redundant, wants_phone};
+    use super::{Leg, ReportMode, channel_plan, viewed_pane_redundant, wants_phone};
     use crate::config::parse_config;
     use crate::registry::{Registry, Routing, Selection};
 
-    fn leg(name: &'static str, mode: Mode) -> Leg {
+    fn leg(name: &'static str, mode: ReportMode) -> Leg {
         Leg { name, mode }
     }
 
@@ -186,9 +202,9 @@ mod tests {
         assert_eq!(
             channel_plan(&three_enabled(), false, false, true),
             vec![
-                leg("moshi", Mode::Async),
-                leg("hermes", Mode::Async),
-                leg("macos-banner", Mode::Async),
+                leg("moshi", ReportMode::Silent),
+                leg("hermes", ReportMode::Silent),
+                leg("macos-banner", ReportMode::Silent),
             ]
         );
     }
@@ -197,7 +213,10 @@ mod tests {
     fn a_suppressed_phone_drops_only_the_presence_gated_leg() {
         assert_eq!(
             channel_plan(&three_enabled(), false, false, false),
-            vec![leg("hermes", Mode::Async), leg("macos-banner", Mode::Async)]
+            vec![
+                leg("hermes", ReportMode::Silent),
+                leg("macos-banner", ReportMode::Silent)
+            ]
         );
     }
 
@@ -208,11 +227,11 @@ mod tests {
         // phone verdict as well still answers correctly here.
         assert_eq!(
             channel_plan(&three_enabled(), true, false, true),
-            vec![leg("macos-banner", Mode::Async)]
+            vec![leg("macos-banner", ReportMode::Silent)]
         );
         assert_eq!(
             channel_plan(&three_enabled(), true, false, false),
-            vec![leg("macos-banner", Mode::Async)]
+            vec![leg("macos-banner", ReportMode::Silent)]
         );
     }
 
@@ -224,11 +243,11 @@ mod tests {
         // entry nobody waited for is the invisible loss sync exists to stop.
         assert_eq!(
             channel_plan(&three_enabled(), false, true, true),
-            vec![leg("hermes", Mode::Sync)]
+            vec![leg("hermes", ReportMode::ReportOutcome)]
         );
         assert_eq!(
             channel_plan(&three_enabled(), false, true, false),
-            vec![leg("hermes", Mode::Sync)]
+            vec![leg("hermes", ReportMode::ReportOutcome)]
         );
     }
 
@@ -264,7 +283,7 @@ mod tests {
         );
         assert_eq!(
             channel_plan(&enabled, false, false, true),
-            vec![leg("hermes", Mode::Async)]
+            vec![leg("hermes", ReportMode::Silent)]
         );
         assert_eq!(
             channel_plan(&enabled, true, false, true),
@@ -308,20 +327,20 @@ mod tests {
 
         assert_eq!(
             channel_plan(&enabled, true, false, true),
-            vec![leg("buzz", Mode::Async)]
+            vec![leg("buzz", ReportMode::Silent)]
         );
         assert_eq!(channel_plan(&enabled, true, false, false), vec![]);
         assert_eq!(
             channel_plan(&enabled, false, true, true),
-            vec![leg("pager", Mode::Sync)]
+            vec![leg("pager", ReportMode::ReportOutcome)]
         );
         assert_eq!(channel_plan(&enabled, false, true, false), vec![]);
     }
 
     #[test]
     fn a_mode_names_what_the_channel_contract_spells_in_the_event() {
-        assert_eq!(Mode::Async.as_str(), "async");
-        assert_eq!(Mode::Sync.as_str(), "sync");
+        assert_eq!(ReportMode::Silent.as_str(), "async");
+        assert_eq!(ReportMode::ReportOutcome.as_str(), "sync");
     }
 
     // --- viewed_pane_redundant ---------------------------------------------
