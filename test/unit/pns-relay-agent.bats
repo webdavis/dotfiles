@@ -5,17 +5,43 @@
 # harness payload into the argument list relay.sh takes.
 #
 # WHAT THIS COSTS AND WHY IT IS SHAPED THIS WAY. Every behavior about ARGUMENT
-# ASSEMBLY needs the real process, and one run costs 35-60ms depending on
-# whether there is a transcript to parse, which is more than a unit test may
-# spend. So the runs happen ONCE in setup_file, CONCURRENTLY (they share
-# nothing but a tmpdir, and each writes its own files), and a test reads a
-# recording instead of spawning anything. The reply-shaping behaviors need no
-# process at all: pns_flatten_reply lives in the decision core, so those tests
-# source it, exactly as pns-event.bats does for relay.sh's decisions.
+# ASSEMBLY needs the real process. A run with a reply already in the transcript
+# costs 35-60ms, but a `done` run that finds NO reply pays the hook's re-read
+# window on top, ~600ms of it, and the three no-reply fixtures below are exactly
+# that case. Either way it is more than a unit test may spend. So the runs
+# happen ONCE in setup_file, CONCURRENTLY (they share nothing but a tmpdir, and
+# each writes its own files, so the window is paid once wall-clock rather than
+# per fixture), and a test reads a recording instead of spawning anything. The
+# reply-shaping behaviors need no process at all: pns_flatten_reply lives in the
+# decision core, so those tests source it, exactly as pns-event.bats does for
+# relay.sh's decisions.
 #
 # RELAY_SUMMARIZING is set for every run. It is the hook's own re-entry guard,
 # and it keeps the optional `codex exec` summarizer out of a unit test, which
 # would otherwise be a network round trip on any machine that has codex.
+
+# The sync seam, in two halves. The hook side is a `sleep` the hook inherits as
+# an exported function: it announces the wait by dropping RELAY_SLEEP_MARKER,
+# then does the real wait. Only the two race captures set that variable, so
+# every other run delegates and behaves exactly as before.
+sleep() {
+  [[ -n ${RELAY_SLEEP_MARKER:-} ]] && : >"$RELAY_SLEEP_MARKER"
+  command sleep "$@"
+}
+export -f sleep
+
+# flush_when_hook_waits <marker> <transcript> <line>: the fixture side. Append
+# <line> as soon as the hook is inside its re-read window, or after a 0.5s
+# fallback if the hook never waits at all, which is what makes a no-retry
+# regression fail rather than pass late.
+flush_when_hook_waits() {
+  local marker="$1" transcript="$2" line="$3" waited=0
+  while [[ ! -e $marker && $waited -lt 50 ]]; do
+    command sleep 0.01
+    waited=$((waited + 1))
+  done
+  printf '%s\n' "$line" >>"$transcript"
+}
 
 setup_file() {
   export HOOK="$BATS_TEST_DIRNAME/../../dot_local/libexec/pns/hooks/executable_relay-agent.sh"
@@ -34,12 +60,23 @@ setup_file() {
   printf '#!/usr/bin/env bash\nexit 9\n' >"$BATS_FILE_TMPDIR/failing-relay.sh"
   chmod +x "$BATS_FILE_TMPDIR/failing-relay.sh"
 
-  # Two turns, so "the LAST turn" is a claim the fixture can falsify.
+  # Two turns, so "the LAST turn" is a claim the fixture can falsify, and the
+  # last turn speaks in TWO text blocks, so the blank line the extraction joins
+  # them with is a claim too: a run of whitespace is what the flatten collapses
+  # back to one space, and a join that dropped it would read as one word.
   cat >"$BATS_FILE_TMPDIR/two-turns.jsonl" <<'TRANSCRIPT'
 {"type":"user","message":{"content":"the first question"}}
 {"type":"assistant","message":{"content":[{"type":"text","text":"STALE, from the previous turn."}]}}
 {"type":"user","message":{"content":"the second question"}}
-{"type":"assistant","message":{"content":[{"type":"text","text":"Ran the suite and it passed."}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Ran the suite and it passed."},{"type":"text","text":"The lint gate is green too."}]}}
+TRANSCRIPT
+  # A tail cut mid-line is the NORMAL shape of a long transcript: the hook reads
+  # the last 4MB, so the first line it sees is usually a fragment. The reply
+  # must survive it rather than the whole parse dying on one broken line.
+  cat >"$BATS_FILE_TMPDIR/cut-first-line.jsonl" <<'TRANSCRIPT'
+{"type":"assistant","message":{"content":[{"type":"text","tex
+{"type":"user","message":{"content":"q"}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Survived the cut."}]}}
 TRANSCRIPT
   printf 'this is not json\nand neither is this\n' >"$BATS_FILE_TMPDIR/not-json.jsonl"
   : >"$BATS_FILE_TMPDIR/empty.jsonl"
@@ -47,23 +84,40 @@ TRANSCRIPT
   chmod 000 "$BATS_FILE_TMPDIR/unreadable.jsonl"
 
   # The live 2026-08-12 capture: at Stop-hook time the harness had not yet
-  # flushed the assistant's final text, so a single read found no reply and
-  # the notification went out with no summary at all. The fixture reproduces
-  # the race: only the user turn exists when the hook starts, and the
-  # assistant entry lands ~150ms later. The hook must re-read within a
-  # BOUNDED window (total well under the one-second rule, and the wait may
-  # run only on the done-with-a-transcript path, so the static fixtures
-  # below stay fast).
+  # flushed the assistant's final text, so a single read found no reply and the
+  # notification went out with no summary at all. Two fixtures reproduce it,
+  # one per door into the same symptom: nothing there yet, and an assistant
+  # block carrying only whitespace, which is non-empty until it is flattened.
+  #
+  # Both are SYNCHRONIZED rather than timed. A fixture that just slept 150ms
+  # before appending could let a descheduled hook read the finished file on its
+  # FIRST try, and then the unfixed code passes: a false negative, in the one
+  # direction a race fixture must never fail. So `sleep` is exported as a shell
+  # function into the hook's environment, where it drops a marker the instant
+  # the hook first waits, and the appender holds its write until that marker
+  # appears. The late text therefore lands inside the re-read window on any
+  # machine, however loaded. A hook that never re-reads never drops a marker,
+  # so the 0.5s fallback flushes far too late for it, and the unfixed code
+  # fails every run instead of most runs.
   printf '{"type":"user","message":{"content":"q"}}\n' >"$BATS_FILE_TMPDIR/lagging.jsonl"
-  (
-    sleep 0.15
-    printf '{"type":"assistant","message":{"content":[{"type":"text","text":"The late-flushed reply."}]}}\n' \
-      >>"$BATS_FILE_TMPDIR/lagging.jsonl"
-  ) &
+  flush_when_hook_waits "$BATS_FILE_TMPDIR/lagging.marker" "$BATS_FILE_TMPDIR/lagging.jsonl" \
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"The late-flushed reply."}]}}' &
+  printf '{"type":"user","message":{"content":"q"}}\n{"type":"assistant","message":{"content":[{"type":"text","text":"   "}]}}\n' \
+    >"$BATS_FILE_TMPDIR/whitespace-first.jsonl"
+  flush_when_hook_waits "$BATS_FILE_TMPDIR/whitespace.marker" "$BATS_FILE_TMPDIR/whitespace-first.jsonl" \
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"The real text, late."}]}}' &
 
   # cwd is a path that does NOT exist on purpose: the project name is derived
   # from the string, and a real directory would fork git for a branch as well.
-  capture lagging_transcript 'done' "$(payload_with "$BATS_FILE_TMPDIR/lagging.jsonl")" &
+  (
+    export RELAY_SLEEP_MARKER="$BATS_FILE_TMPDIR/lagging.marker"
+    capture lagging_transcript 'done' "$(payload_with "$BATS_FILE_TMPDIR/lagging.jsonl")"
+  ) &
+  (
+    export RELAY_SLEEP_MARKER="$BATS_FILE_TMPDIR/whitespace.marker"
+    capture whitespace_first 'done' "$(payload_with "$BATS_FILE_TMPDIR/whitespace-first.jsonl")"
+  ) &
+  capture cut_first_line 'done' "$(payload_with "$BATS_FILE_TMPDIR/cut-first-line.jsonl")" &
   capture done_turn 'done' "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl")" &
   capture blocked_state 'blocked' "$(payload_with '' 'permission to run brew')" &
   capture asked_state 'asked' "$(payload_with '' 'which of the two?')" &
@@ -147,8 +201,24 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
   [ "$(flag lagging_transcript --detail)" = "The late-flushed reply." ]
 }
 
+@test "a reply that is only whitespace is waited out like an absent one" {
+  # The same missing-summary symptom through another door: whitespace text is
+  # non-empty as extracted and empty once flattened, so a window measured on
+  # the RAW read would stop early and ship the notification with no summary.
+  [ "$(flag whitespace_first --detail)" = "The real text, late." ]
+}
+
 @test "the summary is the assistant text of the transcript's LAST turn" {
-  [ "$(flag done_turn --detail)" = "Ran the suite and it passed." ]
+  # Both text blocks of that turn, in order: the extraction joins them on a
+  # blank line, which the flatten then collapses to the single space asserted
+  # here. A join that dropped the separator would run the two into one word.
+  [ "$(flag done_turn --detail)" = "Ran the suite and it passed. The lint gate is green too." ]
+}
+
+@test "a transcript whose first line was cut mid-JSON still yields its reply" {
+  # The hook reads a 4MB tail, so the first line it sees is routinely a
+  # fragment. Only that line may be dropped; the turn behind it must survive.
+  [ "$(flag cut_first_line --detail)" = "Survived the cut." ]
 }
 
 @test "the project name is the last segment of the payload's cwd" {
@@ -185,6 +255,13 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
   # notification is not worth a red turn in the harness that asked for it.
   [ "$(exit_status relay_failed)" = 0 ]
   [ "$(exit_status no_core)" = 0 ]
+  # And the third end: a re-read window that EXPIRES. These three fixtures are
+  # the only runs that reach the end of the retry loop empty-handed, so without
+  # them the contract is unguarded on the path the retry added.
+  local name
+  for name in not_json empty_transcript unreadable; do
+    [ "$(exit_status "$name")" = 0 ]
+  done
 }
 
 # --- pns_flatten_reply, the reply shaping, called directly -------------------
@@ -205,6 +282,18 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
 @test "only an over-long reply is cut, and it is cut to its TAIL" {
   [ "$(pns_flatten_reply 'short enough' 8000)" = "short enough" ]
   [ "$(pns_flatten_reply 'abcdefghij' 4)" = ghij ]
+}
+
+@test "a garbage re-read knob still notifies and still exits 0" {
+  # Both knobs are set to something unusable at once. The attempt count is the
+  # dangerous one: bash evaluates a bare word in [[ -lt ]] as a variable name in
+  # arithmetic context, so under `set -u` an unvalidated value exits the hook 1
+  # (measured) and the harness turn goes red over a notification setting.
+  run env PNS_REPLY_REREAD_ATTEMPTS=abc PNS_REPLY_REREAD_INTERVAL=abc \
+    RELAY_ARGV_OUT="$BATS_TEST_TMPDIR/knobs.argv" \
+    "$HOOK" done <<<"$(payload_with "$BATS_FILE_TMPDIR/empty.jsonl")"
+  [ "$status" -eq 0 ]
+  tr '\0' '\n' <"$BATS_TEST_TMPDIR/knobs.argv" | grep -qx -- '--state'
 }
 
 @test "an installed engine binary is what the hook calls, with no override set" {

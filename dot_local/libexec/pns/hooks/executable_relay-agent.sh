@@ -41,21 +41,38 @@ reply_from_transcript() {
 # The harness has not always flushed the assistant's final text by the time the
 # Stop hook runs. Live capture 2026-08-12: the single read came back empty, the
 # summarizer was skipped, and the notification shipped with no --detail at all.
-# So an empty read is RE-READ inside a bounded window, and only a window that
-# expires means the turn really said nothing. The bound is what keeps a
-# transcript that is legitimately empty from delaying every notification.
+# So an empty result is RE-READ inside a bounded window. What an expired window
+# proves is only that nothing readable arrived in time: a turn that really said
+# nothing, a transcript that could not be read, and one that would not parse all
+# leave the same empty string, and all three are reported the same way. The
+# bound is what keeps those cases from delaying every notification.
+#
+# The window is measured on the FLATTENED reply, not the raw extraction: an
+# assistant block carrying only whitespace is non-empty raw and empty once
+# flattened, which is the same missing-summary symptom through another door.
+#
+# The attempt count is VALIDATED before it is believed, and falls back to the
+# default rather than to no retries. Measured 2026-08-12: `[[ $attempt -lt abc ]]`
+# evaluates `abc` as a variable name in arithmetic context, which under `set -u`
+# is an unbound-variable error and exits the hook 1, on the one path whose whole
+# contract is exiting 0. The INTERVAL needs no such guard: a value sleep refuses
+# fails the sleep, and the guarded sleep below breaks the loop and carries on.
 reply_reread_attempts=4
-reply_reread_interval=0.15
+[[ ${PNS_REPLY_REREAD_ATTEMPTS:-} =~ ^[0-9]+$ ]] && reply_reread_attempts="$PNS_REPLY_REREAD_ATTEMPTS"
+reply_reread_interval="${PNS_REPLY_REREAD_INTERVAL:-0.15}"
 detail=""
 if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
-  reply="$(reply_from_transcript "$transcript")"
+  # one line, trimmed, last 8000 chars at most
+  reply="$(pns_flatten_reply "$(reply_from_transcript "$transcript")")"
   attempt=0
   while [[ -z $reply && $attempt -lt $reply_reread_attempts ]]; do
-    sleep "$reply_reread_interval"
-    reply="$(reply_from_transcript "$transcript")"
+    # A sleep that FAILS must not fail the hook: bare, `set -e` turns a killed
+    # or refused sleep into a non-zero exit on the one path whose whole
+    # contract is exiting 0.
+    sleep "$reply_reread_interval" || break
+    reply="$(pns_flatten_reply "$(reply_from_transcript "$transcript")")"
     attempt=$((attempt + 1))
   done
-  reply="$(pns_flatten_reply "$reply")" # one line, trimmed, last 8000 chars at most
   used_codex=""
   # Codex-primary: one cheap `codex exec` summarizes the whole turn + classifies it as "STATE|SUMMARY";
   # STATE may override 'done' (e.g. asking). It runs in a stripped, dedicated CODEX_HOME (minimal config:
