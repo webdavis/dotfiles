@@ -26,17 +26,35 @@ codex_bin="${CODEX_BIN:-codex}"
 project="${cwd##*/}"
 branch=""
 [[ -n $cwd && -d $cwd ]] && branch="$(git -C "$cwd" branch --show-current 2>/dev/null || true)"
+# The assistant text of the transcript's last turn, or empty for anything this
+# cannot read. Only the TAIL is read: the extraction needs the last user turn
+# and what follows, never the whole file, and a long session grows the
+# transcript past 200MB. Measured 2026-08-05: each slurp of the full file held
+# ~33MB resident and minutes of CPU, and a stop-hook loop piled up 33
+# concurrent jq processes. 4MB of tail parses in well under a second (a cut
+# first line is dropped by fromjson? by design).
+reply_from_transcript() {
+  tail -c 4000000 "$1" | jq -rs -R '[ split("\n")[] | select(length > 0) | fromjson? | select(type=="object") ] as $a
+    | ([ $a | to_entries[] | select(.value.type=="user" and ((.value.message.content|type)=="string" or ((.value.message.content[0]?.type)=="text"))) | .key ] | last // -1) as $s
+    | [ $a[$s+1:][] | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text ] | join("\n\n")' 2>/dev/null || true
+}
+# The harness has not always flushed the assistant's final text by the time the
+# Stop hook runs. Live capture 2026-08-12: the single read came back empty, the
+# summarizer was skipped, and the notification shipped with no --detail at all.
+# So an empty read is RE-READ inside a bounded window, and only a window that
+# expires means the turn really said nothing. The bound is what keeps a
+# transcript that is legitimately empty from delaying every notification.
+reply_reread_attempts=4
+reply_reread_interval=0.15
 detail=""
 if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
-  # Read only the transcript TAIL. The reply extraction needs the last user turn
-  # and what follows, never the whole file, and a long session grows the
-  # transcript past 200MB. Measured 2026-08-05: each slurp of the full file held
-  # ~33MB resident and minutes of CPU, and a stop-hook loop piled up 33
-  # concurrent jq processes. 4MB of tail parses in well under a second (a cut
-  # first line is dropped by fromjson? by design).
-  reply="$(tail -c 4000000 "$transcript" | jq -rs -R '[ split("\n")[] | select(length > 0) | fromjson? | select(type=="object") ] as $a
-    | ([ $a | to_entries[] | select(.value.type=="user" and ((.value.message.content|type)=="string" or ((.value.message.content[0]?.type)=="text"))) | .key ] | last // -1) as $s
-    | [ $a[$s+1:][] | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text ] | join("\n\n")' 2>/dev/null || true)"
+  reply="$(reply_from_transcript "$transcript")"
+  attempt=0
+  while [[ -z $reply && $attempt -lt $reply_reread_attempts ]]; do
+    sleep "$reply_reread_interval"
+    reply="$(reply_from_transcript "$transcript")"
+    attempt=$((attempt + 1))
+  done
   reply="$(pns_flatten_reply "$reply")" # one line, trimmed, last 8000 chars at most
   used_codex=""
   # Codex-primary: one cheap `codex exec` summarizes the whole turn + classifies it as "STATE|SUMMARY";

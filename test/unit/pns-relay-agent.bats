@@ -46,8 +46,24 @@ TRANSCRIPT
   printf '{"type":"user","message":{"content":"q"}}\n' >"$BATS_FILE_TMPDIR/unreadable.jsonl"
   chmod 000 "$BATS_FILE_TMPDIR/unreadable.jsonl"
 
+  # The live 2026-08-12 capture: at Stop-hook time the harness had not yet
+  # flushed the assistant's final text, so a single read found no reply and
+  # the notification went out with no summary at all. The fixture reproduces
+  # the race: only the user turn exists when the hook starts, and the
+  # assistant entry lands ~150ms later. The hook must re-read within a
+  # BOUNDED window (total well under the one-second rule, and the wait may
+  # run only on the done-with-a-transcript path, so the static fixtures
+  # below stay fast).
+  printf '{"type":"user","message":{"content":"q"}}\n' >"$BATS_FILE_TMPDIR/lagging.jsonl"
+  (
+    sleep 0.15
+    printf '{"type":"assistant","message":{"content":[{"type":"text","text":"The late-flushed reply."}]}}\n' \
+      >>"$BATS_FILE_TMPDIR/lagging.jsonl"
+  ) &
+
   # cwd is a path that does NOT exist on purpose: the project name is derived
   # from the string, and a real directory would fork git for a branch as well.
+  capture lagging_transcript 'done' "$(payload_with "$BATS_FILE_TMPDIR/lagging.jsonl")" &
   capture done_turn 'done' "$(payload_with "$BATS_FILE_TMPDIR/two-turns.jsonl")" &
   capture blocked_state 'blocked' "$(payload_with '' 'permission to run brew')" &
   capture asked_state 'asked' "$(payload_with '' 'which of the two?')" &
@@ -126,6 +142,10 @@ exit_status() { cat "$BATS_FILE_TMPDIR/$1.status"; }
 }
 
 # --- what the notification says ---------------------------------------------
+
+@test "a transcript still flushing at hook time is re-read until the reply lands" {
+  [ "$(flag lagging_transcript --detail)" = "The late-flushed reply." ]
+}
 
 @test "the summary is the assistant text of the transcript's LAST turn" {
   [ "$(flag done_turn --detail)" = "Ran the suite and it passed." ]
