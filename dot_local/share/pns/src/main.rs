@@ -18,7 +18,7 @@ use pns::channels::hue::{Bridge, HuePulse, hue_enabled, hue_settings};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
-use pns::engine::{Overrides, decide, event_json, resolve_path, select_plugins};
+use pns::engine::{Overrides, decide, resolve_path, select_plugins};
 use pns::registry::{Registry, Routing};
 use pns::render;
 use pns::system::{SystemCommandRunner, SystemProbes};
@@ -141,9 +141,7 @@ fn main() {
         event.pane.as_str()
     };
 
-    let title = render::title(&event.agent, &event.state, &event.project);
     let message = render::message(&event.branch, &event.detail, &event.state);
-    let preview = render::preview(&message);
     let channels_dir_override = std::env::var("PNS_CHANNELS_DIR")
         .ok()
         .filter(|dir| !dir.is_empty());
@@ -189,9 +187,9 @@ fn main() {
         project: event.project.clone(),
         branch: event.branch.clone(),
         detail: event.detail.clone(),
-        title: title.clone(),
-        message: message.clone(),
-        preview: preview.clone(),
+        title: render::title(&event.agent, &event.state, &event.project),
+        preview: render::preview(&message),
+        message,
         pane: pane.to_string(),
     };
 
@@ -238,18 +236,7 @@ fn main() {
         }
         deliver(
             &channels_dir.join(format!("{}.sh", leg.name)),
-            &event_json(
-                &event.agent,
-                &event.state,
-                &event.project,
-                &event.branch,
-                &event.detail,
-                &title,
-                &message,
-                &preview,
-                pane,
-                leg.mode.as_str(),
-            ),
+            &native.to_json(leg.mode),
         );
     }
 }

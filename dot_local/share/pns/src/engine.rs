@@ -301,39 +301,9 @@ pub fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBu
     )
 }
 
-/// One leg's event, as the JSON object the channel contract specifies.
-/// The pane is the SANITIZED one: an unsafe id was already dropped.
-#[allow(clippy::too_many_arguments)]
-pub fn event_json(
-    agent: &str,
-    state: &str,
-    project: &str,
-    branch: &str,
-    detail: &str,
-    title: &str,
-    message: &str,
-    preview: &str,
-    pane: &str,
-    mode: &str,
-) -> String {
-    serde_json::json!({
-        "agent": agent,
-        "state": state,
-        "project": project,
-        "branch": branch,
-        "detail": detail,
-        "title": title,
-        "message": message,
-        "preview": preview,
-        "pane": pane,
-        "mode": mode,
-    })
-    .to_string()
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Decision, Overrides, decide, event_json};
+    use super::{Decision, Overrides, decide};
     use crate::config::parse_config;
     use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
     use crate::registry::{Registry, Routing, Selection};
@@ -672,28 +642,6 @@ mod tests {
             Some(1_000_000),
         );
         assert!(!decision.pane_dropped);
-    }
-
-    #[test]
-    fn the_event_is_the_channel_contracts_json_object() {
-        let event = event_json(
-            "claude",
-            "done",
-            "dotfiles",
-            "main",
-            "a \"quoted\" detail",
-            "claude done: dotfiles",
-            "main: a detail",
-            "a preview",
-            "wW:p21",
-            "async",
-        );
-        let parsed: serde_json::Value = serde_json::from_str(&event).unwrap();
-        assert_eq!(parsed["agent"], "claude");
-        assert_eq!(parsed["detail"], "a \"quoted\" detail");
-        assert_eq!(parsed["pane"], "wW:p21");
-        assert_eq!(parsed["mode"], "async");
-        assert_eq!(parsed["title"], "claude done: dotfiles");
     }
 
     // --- plugin selection at the composition root ---------------------------
