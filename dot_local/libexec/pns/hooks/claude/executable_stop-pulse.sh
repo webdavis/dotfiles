@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Claude Code Stop hook: pulse Hue green if the session lasted > 5 min.
+# Claude Code Stop hook: pulse Hue green when a TURN of 5+ minutes ends. Per
+# turn, not per session: the marker is written at the prompt and removed here,
+# so the elapsed time below measures the turn that just finished.
 #
 # Hook input: JSON on stdin with { session_id, transcript_path, cwd,
 # permission_mode, hook_event_name }. Env vars do NOT carry the session ID.
 #
-# Paired with claude-user-prompt-start.sh which writes the session start marker.
+# Paired with claude-user-prompt-start.sh which writes the turn start marker.
 
 set -euo pipefail
 # shellcheck source=dot_local/libexec/pns/helpers/event.sh
