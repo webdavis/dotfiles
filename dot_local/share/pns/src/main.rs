@@ -14,9 +14,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, remote_deadline};
-use pns::channels::hue::{
-    Bridge, HuePulse, Sleeper, acquire_pulse_lock, hue_enabled, hue_settings, put_succeeded,
-};
+use pns::channels::hue::{Bridge, HuePulse, hue_enabled, hue_settings, put_succeeded};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
 use pns::channels::{Channel, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
@@ -299,20 +297,11 @@ fn pulse_mode() {
         return;
     };
 
-    // The SAME path the bash channel locks, so the two cannot interleave
-    // during the repoint window. The kernel drops it on any exit, and the
-    // binding lives to the end of the pulse.
-    let Some(_lock) = acquire_pulse_lock(std::path::Path::new(&format!("{home}/.local/state")))
-    else {
-        return;
-    };
-
     HuePulse {
         bridge: UreqBridge {
             base: format!("https://{}/clip/v2/resource", hue.bridge),
             key: hue.key,
         },
-        sleeper: RealSleeper,
         rooms: hue.rooms,
     }
     .run(
@@ -375,13 +364,5 @@ impl Bridge for UreqBridge {
             true,
             &response.body_mut().read_to_string().unwrap_or_default(),
         )
-    }
-}
-
-struct RealSleeper;
-
-impl Sleeper for RealSleeper {
-    fn sleep(&self, duration: Duration) {
-        std::thread::sleep(duration);
     }
 }
