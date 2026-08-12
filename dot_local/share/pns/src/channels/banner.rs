@@ -75,12 +75,23 @@ pub fn parse_front_bundle_id(lsappinfo_output: &str) -> Option<String> {
 
 /// The exact terminal-notifier argv, order pinned: title, message, sound,
 /// activate, execute.
+///
+/// The title and the message are ARMORED with a leading backslash. Each option
+/// value is read as an NSUserDefaults plist literal, which strips one leading
+/// backslash, and a value whose real first character is "(", "[", "{" or "-"
+/// is otherwise swallowed and the banner renders title-only (probes P3-P8,
+/// 2026-08-12). Armoring unconditionally rather than by character set leaves no
+/// list to maintain against whatever else that parser eats, and it costs a
+/// value that already starts with a backslash nothing: it arrives with exactly
+/// one (P8-H).
 pub fn notifier_args(title: &str, preview: &str, activate: &str, exec_cmd: &str) -> Vec<String> {
+    let armored_title = format!("\\{title}");
+    let armored_preview = format!("\\{preview}");
     [
         "-title",
-        title,
+        armored_title.as_str(),
         "-message",
-        preview,
+        armored_preview.as_str(),
         "-sound",
         "default",
         "-activate",
@@ -332,9 +343,9 @@ mod tests {
             notifier_args("a title", "a preview", "com.term", ": "),
             vec![
                 "-title",
-                "a title",
+                "\\a title",
                 "-message",
-                "a preview",
+                "\\a preview",
                 "-sound",
                 "default",
                 "-activate",
@@ -342,6 +353,27 @@ mod tests {
                 "-execute",
                 ": ",
             ]
+        );
+    }
+
+    #[test]
+    fn every_value_is_armored_so_whatever_it_starts_with_still_renders() {
+        // terminal-notifier reads an option value as an NSUserDefaults plist
+        // literal, which strips ONE leading backslash. Without that armor a
+        // value beginning "(", "[", "{" or "-" is swallowed whole and the
+        // banner renders title-only (probes P3-P8, 2026-08-12). The prefix is
+        // unconditional rather than applied to a character set, so there is no
+        // list to keep in step with whatever else the parser eats; P8's 11-case
+        // matrix rendered every input this way, including a value that already
+        // starts with a backslash (P8-H), which arrives carrying exactly one.
+        let title_of = |value: &str| notifier_args(value, "x", "com.term", ": ")[1].clone();
+        assert_eq!(title_of("(paren"), "\\(paren");
+        assert_eq!(title_of("plain"), "\\plain");
+        assert_eq!(title_of("\\already"), "\\\\already");
+        assert_eq!(
+            notifier_args("x", "[bracket", "com.term", ": ")[3],
+            "\\[bracket",
+            "the message is armored too, not just the title"
         );
     }
 
@@ -447,7 +479,9 @@ mod tests {
             .iter()
             .find(|call| call.contains("terminal-notifier"))
             .expect("an unwatched pane must fire the banner");
-        assert!(notifier.contains("-title claude done: dotfiles"));
+        // Armored, as it reaches the real spawn: the backslash is stripped by
+        // terminal-notifier's own plist-literal parsing.
+        assert!(notifier.contains("-title \\claude done: dotfiles"));
         assert!(notifier.contains("-activate com.term"));
         assert!(notifier.contains("/x/herdr workspace focus wW; /x/herdr agent focus wW:p1"));
     }

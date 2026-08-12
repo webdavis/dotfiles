@@ -35,10 +35,10 @@ pub fn title(agent: &str, state: &str, project: &str) -> String {
 /// channel, so Discord reads the same way rather than the banner getting a
 /// special case.
 ///
-/// KNOWN LIMIT, not fixed here: a branchless event whose DETAIL itself begins
-/// with one of those characters is still eaten. It needs the same treatment at
-/// whatever point the detail is composed, and no probe has measured how often
-/// it happens.
+/// A detail that begins with one of those characters is no longer a limit: the
+/// banner spawn armors the first character of every value it passes (see
+/// `channels::banner::notifier_args`), so composition here is free to produce
+/// anything.
 pub fn message(branch: &str, detail: &str, state: &str) -> String {
     let body = match (detail.is_empty(), state.is_empty()) {
         (false, _) => detail,
