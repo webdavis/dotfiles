@@ -206,6 +206,12 @@ pub fn pulse_body(x: &str, y: &str, brightness: &str) -> String {
 /// transition are the same number by construction.
 const PULSE_TRANSITION: Duration = Duration::from_millis(1200);
 
+/// The last dim is HELD before the restore ramps the lights back up. Live
+/// finding 2026-08-11: the restore fired the instant the fourth ramp's sleep
+/// returned and overrode the final dim before the bridge rendered it, so the
+/// pulse read as three phases, not four.
+const FINAL_DIM_HOLD: Duration = Duration::from_millis(600);
+
 /// The light PUT body that puts one snapshot back: an off light is only
 /// turned off, a ct light restores its mirek, an xy light both coordinates.
 pub fn restore_body(state: &LightState) -> String {
@@ -325,6 +331,7 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
             }
             self.sleeper.sleep(PULSE_TRANSITION);
         }
+        self.sleeper.sleep(FINAL_DIM_HOLD);
 
         // Every light is restored independently: one failing write must not
         // starve the lights behind it in the transient color.
@@ -340,9 +347,9 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, HuePulse, LightState, RESTORE_TRANSITION_MS, Sleeper,
-        acquire_pulse_lock, hue_enabled, hue_settings, light_snapshot, pulse_body, pulse_rooms,
-        put_succeeded, restore_body,
+        Bridge, DEFAULT_ROOMS, FINAL_DIM_HOLD, HuePulse, LightState, RESTORE_TRANSITION_MS,
+        Sleeper, acquire_pulse_lock, hue_enabled, hue_settings, light_snapshot, pulse_body,
+        pulse_rooms, put_succeeded, restore_body,
     };
     use std::cell::RefCell;
     use std::time::Duration;
@@ -748,7 +755,89 @@ mod tests {
         assert!(puts[1].0.contains("grouped_light/grp-2"));
         assert!(puts[8].0.contains("light/light-ct"));
         let naps = hue.sleeper.naps.borrow();
-        assert_eq!(naps.as_slice(), &[Duration::from_millis(1200); 4]);
+        assert_eq!(
+            naps.as_slice(),
+            &[
+                Duration::from_millis(1200),
+                Duration::from_millis(1200),
+                Duration::from_millis(1200),
+                Duration::from_millis(1200),
+                FINAL_DIM_HOLD,
+            ],
+            "four ramps, then the hold that lets the last dim render"
+        );
+    }
+
+    /// One shared, ordered log across bridge and sleeper: the hold's PLACE
+    /// in the sequence is the behavior under test, and the two separate
+    /// recorders above cannot see cross-seam order.
+    struct SequencedBridge {
+        log: std::rc::Rc<RefCell<Vec<String>>>,
+    }
+    impl Bridge for SequencedBridge {
+        fn get(&self, path: &str) -> Option<String> {
+            Some(match path {
+                "room" => ROOMS_JSON.to_string(),
+                _ => LIGHTS_JSON.to_string(),
+            })
+        }
+        fn put(&self, path: &str, _body: &str) -> bool {
+            self.log.borrow_mut().push(format!("put {path}"));
+            true
+        }
+    }
+    struct SequencedSleeper {
+        log: std::rc::Rc<RefCell<Vec<String>>>,
+    }
+    impl Sleeper for SequencedSleeper {
+        fn sleep(&self, duration: Duration) {
+            self.log
+                .borrow_mut()
+                .push(format!("nap {}", duration.as_millis()));
+        }
+    }
+
+    #[test]
+    fn the_final_dim_is_held_before_any_restore_write_so_it_renders() {
+        // Live finding 2026-08-11: the restore fired the instant the fourth
+        // ramp's sleep returned, and the physical bridge never rendered the
+        // second dim. The contract is peak, dim, peak, dim, EACH phase
+        // visible, then restore: five naps, and the fifth sits between the
+        // last grouped-light write and the first light restore.
+        let log = std::rc::Rc::new(RefCell::new(Vec::new()));
+        let hue = HuePulse {
+            bridge: SequencedBridge {
+                log: std::rc::Rc::clone(&log),
+            },
+            sleeper: SequencedSleeper {
+                log: std::rc::Rc::clone(&log),
+            },
+            rooms: wanted(&["3F - Studio", "2F - Kitchen"]),
+        };
+        hue.run("1");
+        let log = log.borrow();
+        let naps: Vec<usize> = (0..log.len())
+            .filter(|index| log[*index].starts_with("nap"))
+            .collect();
+        assert_eq!(
+            naps.len(),
+            5,
+            "four ramps plus the final hold, got: {log:?}"
+        );
+        let first_restore = log
+            .iter()
+            .position(|entry| entry.starts_with("put light/"))
+            .expect("the restores must still run");
+        assert!(
+            naps[4] < first_restore,
+            "the hold must precede every restore write: {log:?}"
+        );
+        let hold = log[naps[4]]
+            .strip_prefix("nap ")
+            .unwrap()
+            .parse::<u64>()
+            .unwrap();
+        assert!(hold > 0, "a zero-length hold is the live bug itself");
     }
 
     #[test]
