@@ -210,22 +210,28 @@ pub fn pulse_body(x: &str, y: &str, brightness: &str) -> String {
 const PULSE_TRANSITION: Duration = Duration::from_millis(400);
 
 /// How long we wait after a step's write before making the next one: the ramp
-/// plus 250ms of bridge breathing room.
+/// plus 100ms of bridge breathing room.
 ///
-/// THE PRESERVED QUANTITY IS THE 250ms MARGIN, not this total. Retune the ramp
-/// and this moves with it, staying `PULSE_TRANSITION` + 250ms.
+/// THE PRESERVED QUANTITY IS THE MARGIN, not this total. Retune the ramp and
+/// this moves with it, staying `PULSE_TRANSITION` + 100ms.
 ///
 /// The gap is NOT the ramp finishing, which `PULSE_TRANSITION` already covers.
 /// Drill D2 2026-08-12: with the steps paced at exactly the ramp length the
 /// fourth write never rendered, and the pulse read peak, dim, peak, restore.
 /// The SUSPICION, unproven, is bridge-side rate limiting on grouped_light PUTs
-/// landing on exact 1200ms boundaries; the bash channel's per-step process
-/// spawns would have given it ragged slack for free, which would explain why
-/// it never showed this, though that channel is gone and the comparison was
-/// never measured. Either way a dropped write is SILENT here, because only the
-/// FIRST write's refusal stops the pulse. Empirical, like the hold below: the
-/// 250ms buys slack, it does not explain the bridge.
-const STEP_SETTLE: Duration = Duration::from_millis(650);
+/// landing on exact ramp boundaries; the bash channel's per-step process spawns
+/// would have given it ragged slack for free, which would explain why it never
+/// showed this, though that channel is gone and the comparison was never
+/// measured. Either way a dropped write is SILENT here, because only the FIRST
+/// write's refusal stops the pulse.
+///
+/// THE MARGIN WAS 250ms AND LOST TO CHOPPINESS: a quarter second of sitting
+/// still between 400ms ramps read as a stutter rather than a pulse, and looking
+/// right beat the rate-limit caution. 100ms keeps the boundary from being exact
+/// while staying under the eye. THE SIGNATURE TO REVERSE THIS is a phase going
+/// missing again at this pacing: that is the dropped write, not the hold, and
+/// the margin goes back up.
+const STEP_SETTLE: Duration = Duration::from_millis(500);
 
 /// The last dim is HELD before the restore ramps the lights back up. Live
 /// finding 2026-08-11: the restore fired the instant the fourth ramp's sleep
@@ -235,12 +241,12 @@ const STEP_SETTLE: Duration = Duration::from_millis(650);
 /// The VALUE is empirical padding for bridge-side render latency and nothing
 /// more principled than that: the ramp it follows had already been given its
 /// full transition time, so the gap it covers is unexplained and unmeasured.
-/// Drill D2 2026-08-12 retuned it up from 600ms, at which the last dim never
-/// rendered, and the pulse then read correctly. It stays well above the ramp
-/// rather than tracking it: the hold exists to let a rendered frame be SEEN,
-/// which is a property of eyes, not of how fast the lamp got there. Retune
-/// again if a drill still shows three phases.
-const FINAL_DIM_HOLD: Duration = Duration::from_millis(800);
+/// Drill D2 2026-08-12 walked it up twice, 600 to 800 to here: at 800ms the
+/// last dim rendered but was gone too fast to read as a phase. It does NOT
+/// track the ramp, and is now nearly four times it: the hold exists to let a
+/// rendered frame be SEEN, which is a property of eyes, not of how fast the
+/// lamp got there. Retune again if a drill still shows three phases.
+const FINAL_DIM_HOLD: Duration = Duration::from_millis(1500);
 
 /// The light PUT body that puts one snapshot back: an off light is only
 /// turned off, a ct light restores its mirek, an xy light both coordinates.
@@ -787,14 +793,14 @@ mod tests {
         assert_eq!(
             naps.as_slice(),
             &[
-                Duration::from_millis(650),
-                Duration::from_millis(650),
-                Duration::from_millis(650),
-                Duration::from_millis(650),
+                Duration::from_millis(500),
+                Duration::from_millis(500),
+                Duration::from_millis(500),
+                Duration::from_millis(500),
                 // The literals, not the constants: comparing a pace against
                 // itself would pass for any value, including one too short
                 // for the bridge to render or accept.
-                Duration::from_millis(800),
+                Duration::from_millis(1500),
             ],
             "four settles longer than the ramp, then the hold that lets the last dim render"
         );
@@ -870,7 +876,7 @@ mod tests {
             .parse::<u64>()
             .unwrap();
         assert_eq!(
-            hold, 800,
+            hold, 1500,
             "the hold outlasts the ramp by design: D2 showed a hold at or below it loses the last dim"
         );
     }
