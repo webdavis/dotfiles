@@ -191,7 +191,7 @@ fn number(raw: &str) -> f64 {
 }
 
 /// The grouped_light PUT body for one pulse step: on, the color, the
-/// brightness, and the 1200ms ramp.
+/// brightness, and the [`PULSE_TRANSITION`] ramp.
 pub fn pulse_body(x: &str, y: &str, brightness: &str) -> String {
     serde_json::json!({
         "on": {"on": true},
@@ -204,10 +204,16 @@ pub fn pulse_body(x: &str, y: &str, brightness: &str) -> String {
 
 /// How long ONE ramp takes, the value the bridge is handed in `dynamics`. The
 /// pace between steps is [`STEP_SETTLE`], which is deliberately longer.
-const PULSE_TRANSITION: Duration = Duration::from_millis(1200);
+///
+/// Short on purpose: D2 2026-08-12 rendered correctly at 1200ms but read as a
+/// slow fade, and the pulse is meant to catch the eye from across the room.
+const PULSE_TRANSITION: Duration = Duration::from_millis(400);
 
 /// How long we wait after a step's write before making the next one: the ramp
 /// plus 250ms of bridge breathing room.
+///
+/// THE PRESERVED QUANTITY IS THE 250ms MARGIN, not this total. Retune the ramp
+/// and this moves with it, staying `PULSE_TRANSITION` + 250ms.
 ///
 /// The gap is NOT the ramp finishing, which `PULSE_TRANSITION` already covers.
 /// Drill D2 2026-08-12: with the steps paced at exactly the ramp length the
@@ -219,7 +225,7 @@ const PULSE_TRANSITION: Duration = Duration::from_millis(1200);
 /// never measured. Either way a dropped write is SILENT here, because only the
 /// FIRST write's refusal stops the pulse. Empirical, like the hold below: the
 /// 250ms buys slack, it does not explain the bridge.
-const STEP_SETTLE: Duration = Duration::from_millis(1450);
+const STEP_SETTLE: Duration = Duration::from_millis(650);
 
 /// The last dim is HELD before the restore ramps the lights back up. Live
 /// finding 2026-08-11: the restore fired the instant the fourth ramp's sleep
@@ -229,10 +235,12 @@ const STEP_SETTLE: Duration = Duration::from_millis(1450);
 /// The VALUE is empirical padding for bridge-side render latency and nothing
 /// more principled than that: the ramp it follows had already been given its
 /// full transition time, so the gap it covers is unexplained and unmeasured.
-/// Drill D2 2026-08-12 retuned it from half a `PULSE_TRANSITION` to a full
-/// one, because at 600ms the last dim still never rendered. Retune again if a
-/// drill still shows three phases.
-const FINAL_DIM_HOLD: Duration = Duration::from_millis(1200);
+/// Drill D2 2026-08-12 retuned it up from 600ms, at which the last dim never
+/// rendered, and the pulse then read correctly. It stays well above the ramp
+/// rather than tracking it: the hold exists to let a rendered frame be SEEN,
+/// which is a property of eyes, not of how fast the lamp got there. Retune
+/// again if a drill still shows three phases.
+const FINAL_DIM_HOLD: Duration = Duration::from_millis(800);
 
 /// The light PUT body that puts one snapshot back: an off light is only
 /// turned off, a ct light restores its mirek, an xy light both coordinates.
@@ -332,9 +340,9 @@ impl<B: Bridge, S: Sleeper> HuePulse<B, S> {
         let (x, y, peak) = (color.x, color.y, color.peak_brightness);
         let steps = [
             peak.to_string(),
-            "20".to_string(),
+            "1".to_string(),
             peak.to_string(),
-            "20".to_string(),
+            "1".to_string(),
         ];
         let mut first = true;
         for brightness in steps {
@@ -617,14 +625,14 @@ mod tests {
     // --- the bodies ---------------------------------------------------------
 
     #[test]
-    fn a_pulse_step_turns_on_colors_dims_and_ramps_over_1200ms() {
+    fn a_pulse_step_turns_on_colors_dims_and_ramps_over_400ms() {
         let parsed: serde_json::Value =
             serde_json::from_str(&pulse_body("0.2731", "0.6549", "70")).unwrap();
         assert_eq!(parsed["on"]["on"], true);
         assert_eq!(parsed["color"]["xy"]["x"], 0.2731);
         assert_eq!(parsed["color"]["xy"]["y"], 0.6549);
         assert_eq!(parsed["dimming"]["brightness"], 70.0);
-        assert_eq!(parsed["dynamics"]["duration"], 1200);
+        assert_eq!(parsed["dynamics"]["duration"], 400);
     }
 
     #[test]
@@ -780,14 +788,14 @@ mod tests {
         assert_eq!(
             naps.as_slice(),
             &[
-                Duration::from_millis(1450),
-                Duration::from_millis(1450),
-                Duration::from_millis(1450),
-                Duration::from_millis(1450),
+                Duration::from_millis(650),
+                Duration::from_millis(650),
+                Duration::from_millis(650),
+                Duration::from_millis(650),
                 // The literals, not the constants: comparing a pace against
                 // itself would pass for any value, including one too short
                 // for the bridge to render or accept.
-                Duration::from_millis(1200),
+                Duration::from_millis(800),
             ],
             "four settles longer than the ramp, then the hold that lets the last dim render"
         );
@@ -863,8 +871,8 @@ mod tests {
             .parse::<u64>()
             .unwrap();
         assert_eq!(
-            hold, 1200,
-            "the hold is the full ramp length: D2 showed 600ms still lost the last dim"
+            hold, 800,
+            "the hold outlasts the ramp by design: D2 showed a hold at or below it loses the last dim"
         );
     }
 
@@ -878,10 +886,10 @@ mod tests {
             parsed["dimming"]["brightness"].as_f64().unwrap()
         };
         let peak = step(0);
-        assert!(peak > 20.0);
-        assert_eq!(step(2), 20.0);
+        assert!(peak > 1.0);
+        assert_eq!(step(2), 1.0, "the dim floor is near-black, not merely dim");
         assert_eq!(step(4), peak);
-        assert_eq!(step(6), 20.0);
+        assert_eq!(step(6), 1.0);
     }
 
     #[test]
