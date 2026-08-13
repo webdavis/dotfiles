@@ -51,7 +51,14 @@ fn event_mode() {
     }
 
     let home = std::env::var("HOME").unwrap_or_default();
-    let (selection, warning) = select_plugins(&roster(), load_config(&config_path(&home)));
+    let loaded = load_config(&config_path(&home));
+    // Read off the config before selection consumes it: the pulse needs hue's
+    // settings and the plan needs moshi's card toggle.
+    let (hue_table, watch_card) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (enabled_hue_table(config), mobile_watch_card(config)),
+        _ => (None, false),
+    };
+    let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
@@ -79,7 +86,18 @@ fn event_mode() {
         event.remote_only,
         &event.pane,
         now_secs,
+        event.long_running,
+        watch_card,
     );
+
+    // The pulse is part of the PLAN now, not a second invocation: the shell
+    // used to call `pns pulse` alongside the notification, which meant the
+    // tier was decided twice and could disagree with itself.
+    if decision.pulse {
+        // The state IS the exit code here: the shell notifier derives
+        // --state from `$?`, and an agent turn that did not fail succeeded.
+        fire_pulse(hue_table, if event.state == "failed" { "1" } else { "0" });
+    }
 
     if decision.legs.is_empty() {
         // A verdict that must be SAID, but only for the contradiction the
@@ -119,7 +137,7 @@ fn event_mode() {
         ),
         contents: OnceCell::new(),
     };
-    let banner = banner_channel(&probes, &overrides);
+    let banner = banner_channel();
 
     for leg in &decision.legs {
         let delivered = deliver_leg(
@@ -170,46 +188,42 @@ fn rendered_event(event: &pns::args::EventArgs, pane: &str) -> pns::channels::Ev
     }
 }
 
-/// The banner, wired to the readings this event already took.
-fn banner_channel<'a>(
-    probes: &'a SystemProbes<SystemCommandRunner>,
-    overrides: &Overrides,
-) -> BannerChannel<SystemCommandRunner, &'a SystemProbes<SystemCommandRunner>> {
-    BannerChannel {
-        runner: SystemCommandRunner,
-        // THE SAME probe set the engine read, by reference: a second one
-        // would take its own idle and focus readings a few milliseconds
-        // later, so the suppression could disagree with the routing that
-        // just ran on the same event.
-        probes,
-        // An EMPTY override falls through, so an exported-but-blank variable
-        // cannot shadow the inherited bundle id.
-        terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
-            .ok()
-            .filter(|id| !id.is_empty())
-            .or_else(|| {
-                std::env::var("__CFBundleIdentifier")
-                    .ok()
-                    .filter(|id| !id.is_empty())
-            })
-            .unwrap_or_default(),
-        // A garbled idle override leaves the THRESHOLD unknown, which is what
-        // makes the banner unsuppressable without a third override state: the
-        // bash keeps the garbled string, fails its numeric test and fires, so
-        // consulting the live probe here could drop a banner instead.
-        desk_idle_secs: if overrides.desk_invalid || overrides.idle_invalid {
-            None
-        } else {
-            Some(
-                overrides
-                    .desk_idle_secs
-                    .unwrap_or(pns::engine::DEFAULT_DESK_IDLE_SECS),
-            )
+/// Hue's settings, only when the operator enabled it explicitly.
+fn enabled_hue_table(config: &pns::config::Config) -> Option<toml::Table> {
+    config
+        .plugins
+        .get("hue")
+        .filter(|hue| hue.enabled)
+        .map(|hue| hue.settings.clone())
+}
+
+/// Whether a card fires while the operator is watching the pane on mobile.
+///
+/// DEFAULT OFF (operator ruling 2026-08-12): a card about the pane already on
+/// screen is noise, and the pulse alone marks the long command finishing.
+fn mobile_watch_card(config: &pns::config::Config) -> bool {
+    config
+        .plugins
+        .get("moshi")
+        .and_then(|moshi| moshi.settings.get("mobile_watch_card")?.as_bool())
+        .unwrap_or(false)
+}
+
+/// The lights signal, from whichever mode asked for it.
+fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
+    let Some(hue) = hue_table.and_then(|settings| {
+        hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
+    }) else {
+        return;
+    };
+    HuePulse {
+        bridge: UreqBridge {
+            base: format!("https://{}/clip/v2/resource", hue.bridge),
+            key: hue.key,
         },
-        herdr_path: executable_in_path("herdr"),
-        idle_override: overrides.idle_secs,
-        focused_override: overrides.focused_pane.clone(),
+        rooms: hue.rooms,
     }
+    .run(exit_code);
 }
 
 /// The auth file, read AT MOST ONCE and only if a leg asks for it.
@@ -228,6 +242,25 @@ impl AuthFile {
         self.contents
             .get_or_init(|| read_auth(&self.path))
             .as_deref()
+    }
+}
+
+/// The banner, which now only needs to know where to send the click.
+fn banner_channel() -> BannerChannel<SystemCommandRunner> {
+    BannerChannel {
+        runner: SystemCommandRunner,
+        // An EMPTY override falls through, so an exported-but-blank variable
+        // cannot shadow the inherited bundle id.
+        terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
+            .ok()
+            .filter(|id| !id.is_empty())
+            .or_else(|| {
+                std::env::var("__CFBundleIdentifier")
+                    .ok()
+                    .filter(|id| !id.is_empty())
+            })
+            .unwrap_or_default(),
+        herdr_path: executable_in_path("herdr"),
     }
 }
 
@@ -269,7 +302,7 @@ fn url_from_env(variable: &str, default: &str) -> String {
 fn deliver_leg(
     leg: &pns::routing::Leg,
     rendered: &pns::channels::Event,
-    banner: &BannerChannel<SystemCommandRunner, &SystemProbes<SystemCommandRunner>>,
+    banner: &BannerChannel<SystemCommandRunner>,
     auth: &AuthFile,
     native_wins: bool,
     channels_dir: &Path,
@@ -375,28 +408,8 @@ fn pulse_mode() {
             return;
         }
     };
-    let Some(hue) = config
-        .plugins
-        .get("hue")
-        .filter(|hue| hue.enabled)
-        .and_then(|hue| {
-            hue_settings(
-                &hue.settings,
-                std::env::var("HUE_PULSE_ROOMS").ok().as_deref(),
-            )
-        })
-    else {
-        return;
-    };
-
-    HuePulse {
-        bridge: UreqBridge {
-            base: format!("https://{}/clip/v2/resource", hue.bridge),
-            key: hue.key,
-        },
-        rooms: hue.rooms,
-    }
-    .run(
+    fire_pulse(
+        enabled_hue_table(&config),
         &std::env::args_os()
             .nth(2)
             .map(|code| code.to_string_lossy().into_owned())
@@ -413,7 +426,7 @@ struct UreqBridge {
 impl UreqBridge {
     fn agent(&self) -> ureq::Agent {
         ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(10)))
+            .timeout_global(Some(BRIDGE_DEADLINE))
             .max_redirects(0)
             // The bridge serves a self-signed certificate for its own LAN
             // address, so verification is disabled here exactly as openhue
@@ -427,6 +440,10 @@ impl UreqBridge {
             .new_agent()
     }
 }
+
+/// How long one bridge call may take. The pulse is decoration on a
+/// notification, so it must never be what makes one slow.
+const BRIDGE_DEADLINE: Duration = Duration::from_secs(10);
 
 impl Bridge for UreqBridge {
     fn get(&self, path: &str) -> Option<String> {

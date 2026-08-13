@@ -104,7 +104,9 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
     );
 
     let mut command = sandbox.bare();
-    command.env("RELAY_IDLE_SECS", "99999");
+    // At the desk, because the banner is a desk surface now: an idle of
+    // 99999 is the operator being away, and away raises no banner at all.
+    command.env("RELAY_IDLE_SECS", "0");
     sandbox.stub_notifier(&mut command);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])

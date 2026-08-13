@@ -86,7 +86,7 @@ pub fn channel_plan(
     enabled: &Selection,
     local_only: bool,
     remote_only: bool,
-    want_phone: bool,
+    delivery: crate::surface::DeliveryPlan,
 ) -> Vec<Leg> {
     if local_only && remote_only {
         return Vec::new();
@@ -106,7 +106,19 @@ pub fn channel_plan(
             (_, true) => entry.routing.durable,
             _ => true,
         })
-        .filter(|entry| want_phone || !entry.routing.presence_gated)
+        // THE PLAN decides which surfaces an event reaches; the declarations
+        // decide which plugin is which surface. A presence-gated plugin is the
+        // phone, a local one is this machine's own screen, and anything else
+        // is the durable log, which every event reaches.
+        .filter(|entry| {
+            if entry.routing.presence_gated {
+                delivery.phone_card
+            } else if entry.routing.local {
+                delivery.banner
+            } else {
+                true
+            }
+        })
         .map(|entry| Leg {
             name: entry.name,
             mode,
@@ -134,6 +146,16 @@ mod tests {
 
     fn leg(name: &'static str, mode: ReportMode) -> Leg {
         Leg { name, mode }
+    }
+
+    /// A plan that reaches every surface, so a narrowing test varies one
+    /// thing: the flags. `card` is the phone, `banner` this machine's screen.
+    fn reaching(banner: bool, card: bool) -> crate::surface::DeliveryPlan {
+        crate::surface::DeliveryPlan {
+            banner,
+            phone_card: card,
+            pulse: false,
+        }
     }
 
     /// Every selection comes out of a real registry and a real config, so
@@ -200,7 +222,7 @@ mod tests {
     #[test]
     fn the_alert_path_plans_phone_then_log_then_banner() {
         assert_eq!(
-            channel_plan(&three_enabled(), false, false, true),
+            channel_plan(&three_enabled(), false, false, reaching(true, true)),
             vec![
                 leg("moshi", ReportMode::Silent),
                 leg("hermes", ReportMode::Silent),
@@ -212,7 +234,7 @@ mod tests {
     #[test]
     fn a_suppressed_phone_drops_only_the_presence_gated_leg() {
         assert_eq!(
-            channel_plan(&three_enabled(), false, false, false),
+            channel_plan(&three_enabled(), false, false, reaching(true, false)),
             vec![
                 leg("hermes", ReportMode::Silent),
                 leg("macos-banner", ReportMode::Silent)
@@ -226,11 +248,11 @@ mod tests {
         // only with the phone wanted and a narrowing that quietly reads the
         // phone verdict as well still answers correctly here.
         assert_eq!(
-            channel_plan(&three_enabled(), true, false, true),
+            channel_plan(&three_enabled(), true, false, reaching(true, true)),
             vec![leg("macos-banner", ReportMode::Silent)]
         );
         assert_eq!(
-            channel_plan(&three_enabled(), true, false, false),
+            channel_plan(&three_enabled(), true, false, reaching(true, false)),
             vec![leg("macos-banner", ReportMode::Silent)]
         );
     }
@@ -242,19 +264,25 @@ mod tests {
         // would drop this plan back to the ordinary async pair, and a log
         // entry nobody waited for is the invisible loss sync exists to stop.
         assert_eq!(
-            channel_plan(&three_enabled(), false, true, true),
+            channel_plan(&three_enabled(), false, true, reaching(true, true)),
             vec![leg("hermes", ReportMode::ReportOutcome)]
         );
         assert_eq!(
-            channel_plan(&three_enabled(), false, true, false),
+            channel_plan(&three_enabled(), false, true, reaching(true, false)),
             vec![leg("hermes", ReportMode::ReportOutcome)]
         );
     }
 
     #[test]
     fn both_narrowing_flags_plan_nothing_at_all() {
-        assert_eq!(channel_plan(&three_enabled(), true, true, true), vec![]);
-        assert_eq!(channel_plan(&three_enabled(), true, true, false), vec![]);
+        assert_eq!(
+            channel_plan(&three_enabled(), true, true, reaching(true, true)),
+            vec![]
+        );
+        assert_eq!(
+            channel_plan(&three_enabled(), true, true, reaching(true, false)),
+            vec![]
+        );
     }
 
     #[test]
@@ -268,7 +296,10 @@ mod tests {
             (true, false, true),
             (false, true, true),
         ] {
-            assert_eq!(channel_plan(&none, local, remote, phone), vec![]);
+            assert_eq!(
+                channel_plan(&none, local, remote, reaching(true, phone)),
+                vec![]
+            );
         }
     }
 
@@ -282,11 +313,11 @@ mod tests {
             "[plugins.hue]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
         );
         assert_eq!(
-            channel_plan(&enabled, false, false, true),
+            channel_plan(&enabled, false, false, reaching(true, true)),
             vec![leg("hermes", ReportMode::Silent)]
         );
         assert_eq!(
-            channel_plan(&enabled, true, false, true),
+            channel_plan(&enabled, true, false, reaching(true, true)),
             Vec::new(),
             "not even the local-only path, which hue would otherwise match"
         );
@@ -326,15 +357,21 @@ mod tests {
         let enabled = select(&registry, both);
 
         assert_eq!(
-            channel_plan(&enabled, true, false, true),
+            channel_plan(&enabled, true, false, reaching(true, true)),
             vec![leg("buzz", ReportMode::Silent)]
         );
-        assert_eq!(channel_plan(&enabled, true, false, false), vec![]);
         assert_eq!(
-            channel_plan(&enabled, false, true, true),
+            channel_plan(&enabled, true, false, reaching(true, false)),
+            vec![]
+        );
+        assert_eq!(
+            channel_plan(&enabled, false, true, reaching(true, true)),
             vec![leg("pager", ReportMode::ReportOutcome)]
         );
-        assert_eq!(channel_plan(&enabled, false, true, false), vec![]);
+        assert_eq!(
+            channel_plan(&enabled, false, true, reaching(true, false)),
+            vec![]
+        );
     }
 
     #[test]

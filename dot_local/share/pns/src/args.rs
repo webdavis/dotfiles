@@ -21,6 +21,9 @@ pub struct EventArgs {
     pub pane: String,
     pub local_only: bool,
     pub remote_only: bool,
+    /// The >=300s tier: the lights signal rides on top of whatever else the
+    /// plan decides.
+    pub long_running: bool,
 }
 
 /// Parse argv (without the program name). Returns the arguments plus the
@@ -46,6 +49,7 @@ where
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
+            "--long-running" => parsed.long_running = true,
             "--local-only" => parsed.local_only = true,
             "--remote-only" => parsed.remote_only = true,
             flag if VALUE_FLAGS.contains(&flag) => {

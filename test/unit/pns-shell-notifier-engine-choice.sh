@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# The shell notifier calls the engine binary, and the pulse follows the
-# CONFIG: `pns pulse` runs only when ~/.config/pns/config.toml exists,
-# because without an enabled hue table it would silently do nothing and the
-# lights would just stop.
+# The shell notifier calls the engine binary, and the >=300s tier says so with
+# --long-running: the lights are part of the engine's plan now, not a second
+# `pns pulse` call the shell decides on its own from the config file.
 #
 # The function is extracted from the RENDERED bashrc rather than a copy, so a
 # repoint that edits one and not the other fails here.
@@ -71,18 +70,20 @@ calls="$(cat "$scratch/calls-noconfig" 2>/dev/null || true)"
 grep -qxF -- '--agent' <<<"$calls" || fail "the long tier must notify; got: $calls"
 grep -qxF -- '--pane' <<<"$calls" || fail "the pane must ride along; got: $calls"
 grep -qxF -- 'wW:p7' <<<"$calls" || fail "the pane id must ride along; got: $calls"
-grep -qxF -- 'pulse' <<<"$calls" && fail "no config means no pulse; got: $calls"
+grep -qxF -- 'pulse' <<<"$calls" && fail "the pulse is no longer a separate call; got: $calls"
+grep -qxF -- '--long-running' <<<"$calls" || fail "the long tier says so; got: $calls"
 grep -qxF -- '--local-only' <<<"$calls" && fail "no narrowing flag may appear; got: $calls"
 
-# --- with the config, the pulse runs as the engine's subcommand ------------
+# --- the config no longer gates the tier: the engine reads it itself -------
 calls="$(cat "$scratch/calls-config" 2>/dev/null || true)"
-grep -qxF -- 'pulse' <<<"$calls" || fail "the config turns the pulse on; got: $calls"
+grep -qxF -- '--long-running' <<<"$calls" || fail "the long tier says so; got: $calls"
+grep -qxF -- 'pulse' <<<"$calls" && fail "still one call, not two; got: $calls"
 
 # --- the tier boundaries, exactly ------------------------------------------
 calls="$(cat "$scratch/calls-300" 2>/dev/null || true)"
-grep -qxF -- 'pulse' <<<"$calls" || fail "300s is the pulse tier; got: $calls"
+grep -qxF -- '--long-running' <<<"$calls" || fail "300s is the long tier; got: $calls"
 calls="$(cat "$scratch/calls-299" 2>/dev/null || true)"
-grep -qxF -- 'pulse' <<<"$calls" && fail "299s must not pulse; got: $calls"
+grep -qxF -- '--long-running' <<<"$calls" && fail "299s is not the long tier; got: $calls"
 grep -qxF -- '--agent' <<<"$calls" || fail "299s still notifies; got: $calls"
 calls="$(cat "$scratch/calls-30" 2>/dev/null || true)"
 grep -qxF -- '--agent' <<<"$calls" || fail "30s notifies; got: $calls"

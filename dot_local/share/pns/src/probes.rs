@@ -26,11 +26,13 @@ pub trait MoshRateProbe {
     fn sample_csv(&self) -> Option<String>;
 }
 
-/// The pane the multiplexer currently has focused. Focus is mirrored across
-/// every attached client, so this is also what a phone viewing the session is
-/// looking at.
-pub trait FocusedPaneProbe {
-    fn focused_pane(&self) -> Option<String>;
+/// The session's display state, as the multiplexer sees it. One reading for
+/// the whole event: herdr is the server and every client shows the same panes,
+/// so what is on screen is a session-level fact and not a per-client one.
+pub trait SessionViewProbe {
+    /// `None` when any part of the view could not be read, which the model
+    /// turns into Unknown, which never suppresses.
+    fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView>;
 }
 
 // A SHARED reading is one reading. The composition root builds one probe set
@@ -56,8 +58,8 @@ impl<T: MoshRateProbe> MoshRateProbe for &T {
     }
 }
 
-impl<T: FocusedPaneProbe> FocusedPaneProbe for &T {
-    fn focused_pane(&self) -> Option<String> {
-        (*self).focused_pane()
+impl<T: SessionViewProbe> SessionViewProbe for &T {
+    fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
+        (*self).session_view(origin_pane)
     }
 }

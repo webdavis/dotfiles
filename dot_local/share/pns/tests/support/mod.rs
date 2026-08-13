@@ -95,22 +95,54 @@ impl Sandbox {
         serde_json::from_str(&raw).unwrap_or_else(|error| panic!("{channel}: {error}: {raw}"))
     }
 
+    /// A stub `herdr` first on PATH, answering the three calls the session
+    /// view makes. `origin_visible` decides whether the event's pane is on
+    /// the tab being looked at or on another one, which is the whole input
+    /// the visibility model takes.
+    pub fn stub_herdr(&self, command: &mut Command, origin_visible: bool) {
+        let origin_tab = if origin_visible { "t1" } else { "t9" };
+        self.stub_on_path(
+            command,
+            "herdr",
+            &format!(
+                r#"case "$2" in
+  current) printf '%s' '{{"result":{{"pane":{{"pane_id":"t1:p1","tab_id":"t1"}}}}}}' ;;
+  layout)  printf '%s' '{{"result":{{"layout":{{"focused_pane_id":"t1:p1","panes":[{{"pane_id":"t1:p1"}},{{"pane_id":"t1:p2"}}],"zoomed":false}}}}}}' ;;
+  *)       printf '%s' '{{"result":{{"pane":{{"pane_id":"t1:p2","tab_id":"{origin_tab}"}}}}}}' ;;
+esac"#
+            ),
+        );
+    }
+
+    /// A stub binary of that name, first on PATH.
+    fn stub_on_path(&self, command: &mut Command, name: &str, body: &str) {
+        let stub_bin = self.path("bin");
+        std::fs::create_dir_all(&stub_bin).expect("stub bin");
+        write_script(&stub_bin.join(name), body);
+        let mut path = OsString::from(&stub_bin);
+        path.push(":");
+        path.push(
+            command
+                .get_envs()
+                .find(|(key, _)| *key == "PATH")
+                .and_then(|(_, value)| value)
+                .map(OsString::from)
+                .unwrap_or_else(|| std::env::var_os("PATH").unwrap_or_default()),
+        );
+        command.env("PATH", path);
+    }
+
     /// A stub `terminal-notifier` first on PATH, so the native banner's spawn
     /// is recorded instead of posting a real notification.
     pub fn stub_notifier(&self, command: &mut Command) {
-        let stub_bin = self.path("bin");
-        std::fs::create_dir_all(&stub_bin).expect("stub bin");
-        write_script(
-            &stub_bin.join("terminal-notifier"),
+        self.stub_on_path(
+            command,
+            "terminal-notifier",
             &format!(
                 "printf '%s\\n' \"$*\" >\"{}/notifier.args\"",
                 self.display()
             ),
         );
-        let mut path = OsString::from(stub_bin);
-        path.push(":");
-        path.push(std::env::var_os("PATH").unwrap_or_default());
-        command.env("PATH", path);
     }
 
     pub fn write_auth(&self, contents: &str) -> PathBuf {
