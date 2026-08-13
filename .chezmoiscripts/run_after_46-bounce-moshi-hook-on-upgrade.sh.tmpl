@@ -43,11 +43,13 @@ MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 # Neither failure makes a sound on its own, so this script re-checks both
 # after every upgrade. The two variables are overridable so tests can run
 # against fixtures instead of live files.
-PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-$HOME/.local/libexec/pns/pns gate}"
+PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-$HOME/.local/libexec/pns/pns}"
 MOSHI_EXTENSION_ROOT="${MOSHI_EXTENSION_ROOT:-$HOME}"
 
 # 1. THE REPOINT. pi and omp are driven by a TypeScript extension moshi
 # GENERATES, hard-coding `const helperBinary = "/opt/homebrew/bin/moshi-hook"`.
+# The field holds ONE pathname and no arguments, which is why the engine
+# answers a bare `<harness>-hook` first argument as the gate itself.
 # `moshi-hook install` and every upgrade rewrite that file, reverting the one
 # line pns owns. Nothing fails when it does; the symptom is unfiltered phone
 # pushes while the operator sits at the keyboard, which reads as moshi being

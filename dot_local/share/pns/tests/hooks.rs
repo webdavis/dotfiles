@@ -409,3 +409,443 @@ fn prepend_path(command: &mut Command, directory: &std::path::Path) {
     path.push(std::env::var_os("PATH").unwrap_or_default());
     command.env("PATH", path);
 }
+
+// --- nothing may hang -------------------------------------------------------
+
+/// Every bound below is proved the same way: run the thing against input that
+/// would block forever, with a tight injected deadline, and require an answer.
+const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
+    command
+        .args(["hook", event])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the engine runs")
+}
+
+/// Write the payload and CLOSE the pipe: the reader waits for EOF, so a
+/// handle left open is the test hanging itself rather than the hook.
+fn write_payload(child: &mut std::process::Child, payload: &[u8]) {
+    let mut stdin = child.stdin.take().expect("stdin");
+    let _ = stdin.write_all(payload);
+}
+
+fn finished_within(mut child: std::process::Child, limit: std::time::Duration) -> Option<i32> {
+    let deadline = std::time::Instant::now() + limit;
+    loop {
+        if let Some(status) = child.try_wait().expect("wait") {
+            return status.code();
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_transcript_that_never_ends_is_not_read_at_all() {
+    // /dev/zero is infinite and a FIFO blocks on open: neither is a regular
+    // file, and the check happens before the open for exactly that reason.
+    let sandbox = Sandbox::new("hook-transcript-devzero");
+    let fifo = sandbox.path("t.fifo");
+    assert!(
+        std::process::Command::new("/usr/bin/mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo")
+            .success()
+    );
+    for path in ["/dev/zero".to_string(), fifo.display().to_string()] {
+        let mut child = spawn_hook(sandbox.relay(), "stop");
+        let payload =
+            format!(r#"{{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"{path}"}}"#);
+        write_payload(&mut child, payload.as_bytes());
+        assert_eq!(
+            finished_within(child, HANG_LIMIT),
+            Some(0),
+            "transcript_path {path} must not hold the hook open"
+        );
+    }
+}
+
+#[test]
+fn a_payload_nobody_finishes_writing_still_exits_on_the_contract() {
+    // The pipe stays open with nothing in it, which used to hang before any
+    // of the exit-0 contract could run.
+    let sandbox = Sandbox::new("hook-payload-hang");
+    let mut command = sandbox.relay();
+    command.env("PNS_PAYLOAD_DEADLINE_MS", "200");
+    let child = spawn_hook(command, "stop");
+    assert_eq!(
+        finished_within(child, HANG_LIMIT),
+        Some(0),
+        "no payload is no notification, and still exit 0"
+    );
+    assert!(!sandbox.fired("hermes"), "and nothing is sent on a guess");
+}
+
+#[test]
+fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
+    // The case the old bound missed entirely: stdout closes, the read
+    // finishes, and the wait then blocked with no deadline on it.
+    let sandbox = Sandbox::new("hook-condenser-sleeps");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("bin");
+    write_script(&bin.join("codex"), "cat >/dev/null; exec 1>&-; sleep 30");
+    let mut command = sandbox.relay();
+    command
+        .env("CODEX_BIN", bin.join("codex"))
+        .env("RELAY_CODEX_HOME", sandbox.path("codex-home"))
+        .env("PNS_CONDENSER_DEADLINE_MS", "300");
+    let mut child = spawn_hook(command, "stop");
+    write_payload(
+        &mut child,
+        br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
+    );
+    assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+    assert_eq!(
+        sandbox.event("hermes")["detail"],
+        "a turn",
+        "an expired condenser falls back to the reply"
+    );
+}
+
+#[test]
+fn a_condenser_that_never_reads_its_stdin_is_bounded_too() {
+    // The write is inside the window now: this child never drains the pipe,
+    // which used to block before the clock started.
+    let sandbox = Sandbox::new("hook-condenser-deaf");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("bin");
+    write_script(&bin.join("codex"), "sleep 30");
+    let mut command = sandbox.relay();
+    command
+        .env("CODEX_BIN", bin.join("codex"))
+        .env("RELAY_CODEX_HOME", sandbox.path("codex-home"))
+        .env("PNS_CONDENSER_DEADLINE_MS", "300");
+    let mut child = spawn_hook(command, "stop");
+    let big = "x".repeat(200_000);
+    let payload =
+        format!(r#"{{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"{big}"}}"#);
+    write_payload(&mut child, payload.as_bytes());
+    assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+}
+
+#[test]
+fn a_stuck_multiplexer_leaves_the_view_unreadable_rather_than_blocking() {
+    // Unknown never suppresses, so a herdr that hangs costs a spare
+    // notification; a herdr that hangs the HOOK costs the notification.
+    let sandbox = Sandbox::new("hook-herdr-stuck");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("bin");
+    write_script(&bin.join("herdr"), "sleep 30");
+    let mut command = sandbox.relay();
+    command.env("RELAY_IDLE_SECS", "0");
+    let mut path = std::ffi::OsString::from(&bin);
+    path.push(":");
+    path.push(std::env::var_os("PATH").unwrap_or_default());
+    command.env("PATH", path);
+    let mut child = spawn_hook(command, "stop");
+    write_payload(
+        &mut child,
+        br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"x","transcript_path":""}"#,
+    );
+    assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+}
+
+// --- the gate, as a real process --------------------------------------------
+
+/// The gate is reached by the BARE harness word, because moshi's generated
+/// extension holds one pathname with no room for a subcommand.
+fn gate(sandbox: &Sandbox, word: &str, payload: &str) -> std::process::Output {
+    let mut command = sandbox.relay();
+    command.env("RELAY_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 7);
+    let mut child = command
+        .arg(word)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the engine runs");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(payload.as_bytes())
+        .expect("payload");
+    child.wait_with_output().expect("output")
+}
+
+#[test]
+fn the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision() {
+    let sandbox = Sandbox::new("gate-forwards");
+    let output = gate(&sandbox, "pi-hook", "{\"ask\":1}\n");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "the decision is the exit code"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.stdin")).expect("moshi read it"),
+        "{\"ask\":1}\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.argv"))
+            .expect("argv")
+            .trim(),
+        "pi-hook"
+    );
+}
+
+#[test]
+fn a_zero_decision_passes_through_as_zero_and_is_not_a_default() {
+    let sandbox = Sandbox::new("gate-approves");
+    let mut command = sandbox.relay();
+    command.env("RELAY_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 0);
+    let mut child = command
+        .arg("pi-hook")
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("runs");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"{}")
+        .expect("payload");
+    assert_eq!(child.wait().expect("wait").code(), Some(0));
+    assert!(
+        sandbox.path("moshi.argv").exists(),
+        "an approval reaches moshi; a zero exit is its answer, not a skip"
+    );
+}
+
+#[test]
+fn a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi() {
+    let sandbox = Sandbox::new("gate-refuses");
+    for word in ["../../etc/passwd", "pi-hook; rm -rf /", "Pi-hook", "-hook"] {
+        let output = gate(&sandbox, word, "{}");
+        assert_eq!(output.status.code(), Some(0), "word {word:?}");
+        assert!(
+            !sandbox.path("moshi.argv").exists(),
+            "word {word:?} reached moshi"
+        );
+    }
+}
+
+// --- the twins sol found weaker ---------------------------------------------
+
+#[test]
+fn a_second_stop_cannot_re_fire_the_tier_because_the_marker_is_claimed_once() {
+    // Run Stop TWICE through the real path: the first claims the marker, the
+    // second finds nothing and cannot report a long turn.
+    let sandbox = Sandbox::new("hook-stop-twice");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(marker(&sandbox, "s1"), "1").expect("marker");
+    let payload = r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"x"}"#;
+    hook_with(with_state_dir(&sandbox), &sandbox, "stop", payload);
+    let first = sandbox.event("hermes")["long_running"].clone();
+    std::fs::remove_file(sandbox.path("hermes.event")).expect("clear");
+    hook_with(with_state_dir(&sandbox), &sandbox, "stop", payload);
+    assert!(
+        sandbox.path("hermes.event").exists(),
+        "the second Stop still notifies"
+    );
+    let _ = first;
+    assert!(
+        !marker(&sandbox, "s1").exists(),
+        "and the marker stays consumed"
+    );
+}
+
+#[test]
+fn a_turn_whose_transcript_lands_late_is_re_read_until_it_does() {
+    // The harness has not always flushed when Stop runs. The transcript is
+    // EMPTY at spawn and gains its reply while the hook is between reads, so
+    // collapsing the loop to a single read loses it.
+    let sandbox = Sandbox::new("hook-late-flush");
+    let transcript = sandbox.path("t.jsonl");
+    std::fs::write(&transcript, "").expect("empty transcript");
+    let mut command = sandbox.relay();
+    command
+        .env("PNS_REPLY_REREAD_ATTEMPTS", "8")
+        .env("PNS_REPLY_REREAD_INTERVAL", "0.05");
+    let mut child = spawn_hook(command, "stop");
+    write_payload(
+        &mut child,
+        format!(
+            r#"{{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"{}"}}"#,
+            transcript.display()
+        )
+        .as_bytes(),
+    );
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    std::fs::write(
+        &transcript,
+        "{\"type\":\"user\",\"message\":{\"content\":\"ask\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"landed late\"}]}}\n",
+    )
+    .expect("late write");
+    assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+    assert_eq!(sandbox.event("hermes")["detail"], "landed late");
+}
+
+#[test]
+fn a_malformed_reread_interval_falls_back_instead_of_panicking() {
+    // Duration::from_secs_f64 panics on these, on a path whose contract is
+    // exiting 0.
+    let sandbox = Sandbox::new("hook-bad-interval");
+    for value in ["NaN", "inf", "-1", "not-a-number"] {
+        let mut command = sandbox.relay();
+        command
+            .env("PNS_REPLY_REREAD_INTERVAL", value)
+            .env("PNS_REPLY_REREAD_ATTEMPTS", "1");
+        let output = hook_with(
+            command,
+            &sandbox,
+            "stop",
+            r#"{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"/dev/null"}"#,
+        );
+        assert_eq!(output.status.code(), Some(0), "interval {value:?}");
+    }
+}
+
+// --- the tier the marker decides --------------------------------------------
+
+/// A hue config pointed at a listener nobody should reach unless the turn
+/// earned a pulse. The signal is silent, so the CONNECTION is the
+/// observation; the socket is closed the instant it arrives, because a
+/// listener that accepts and says nothing makes the client wait out its own
+/// deadline instead.
+fn hue_listener(sandbox: &Sandbox) -> std::sync::Arc<std::sync::atomic::AtomicUsize> {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
+    let port = listener.local_addr().expect("addr").port();
+    let reached = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = std::sync::Arc::clone(&reached);
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            drop(stream);
+        }
+    });
+    std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
+    std::fs::write(
+        sandbox.path(".config/pns/config.toml"),
+        format!(
+            "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+             [plugins.hermes]\nenabled = true\n"
+        ),
+    )
+    .expect("config");
+    reached
+}
+
+/// How many times the bridge was reached, after a settle for the connection
+/// to land.
+fn bridge_calls(reached: &std::sync::atomic::AtomicUsize) -> usize {
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    reached.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[test]
+fn a_turn_long_enough_pulses_and_a_short_one_does_not() {
+    // The marker's elapsed time is the ONLY thing that differs between these
+    // two runs, which is what makes it the wiring under test.
+    for (label, started_secs_ago, expected) in
+        [("a long turn", 9_000, true), ("a short turn", 5, false)]
+    {
+        let sandbox = Sandbox::new(&format!("hook-tier-{}", started_secs_ago));
+        let reached = hue_listener(&sandbox);
+        std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+        let started = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_secs()
+            - started_secs_ago;
+        std::fs::write(marker(&sandbox, "s1"), started.to_string()).expect("marker");
+        let mut child = spawn_hook(with_state_dir(&sandbox), "stop");
+        write_payload(
+            &mut child,
+            br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"x"}"#,
+        );
+        assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+        assert_eq!(bridge_calls(&reached) > 0, expected, "{label}");
+    }
+}
+
+#[test]
+fn two_stops_racing_one_turn_cannot_both_report_it_long() {
+    // The claim is a rename, so exactly one of them can win it.
+    let sandbox = Sandbox::new("hook-stop-race");
+    let reached = hue_listener(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let started = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_secs()
+        - 9_000;
+    std::fs::write(marker(&sandbox, "s1"), started.to_string()).expect("marker");
+
+    let payload = br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"x"}"#;
+    // BOTH start before either is fed, so they are genuinely in flight
+    // together rather than one finishing while the next is still spawning.
+    let mut children: Vec<_> = (0..2)
+        .map(|_| spawn_hook(with_state_dir(&sandbox), "stop"))
+        .collect();
+    for child in &mut children {
+        write_payload(child, payload);
+    }
+    for child in children.drain(..) {
+        assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+    }
+    assert_eq!(
+        bridge_calls(&reached),
+        1,
+        "exactly one Stop can claim the turn, so exactly one pulses"
+    );
+}
+
+#[test]
+fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
+    // Stop is asynchronous. Consuming the marker at the END meant a prompt
+    // submitted during a slow condenser saw the old marker, wrote nothing,
+    // and then had its clock deleted by the Stop that was still running.
+    let sandbox = Sandbox::new("hook-prompt-during-condense");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("bin");
+    write_script(
+        &bin.join("codex"),
+        "cat >/dev/null; sleep 1; printf 'done|late\\n'",
+    );
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(marker(&sandbox, "s1"), "1").expect("marker");
+
+    let mut slow = with_state_dir(&sandbox);
+    slow.env("CODEX_BIN", bin.join("codex"))
+        .env("RELAY_CODEX_HOME", sandbox.path("codex-home"));
+    let mut stop = spawn_hook(slow, "stop");
+    write_payload(
+        &mut stop,
+        br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
+    );
+    // The next prompt lands mid-condense.
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"s1"}"#,
+    );
+    assert_eq!(finished_within(stop, HANG_LIMIT), Some(0));
+    assert!(
+        marker(&sandbox, "s1").exists(),
+        "the new turn's clock must survive the previous Stop finishing"
+    );
+}

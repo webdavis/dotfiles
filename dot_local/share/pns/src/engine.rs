@@ -4,12 +4,12 @@
 //! owns no policy of its own. Two properties are load-bearing and pinned by
 //! recording probes rather than by outcomes alone:
 //!
-//! PROBES RUN ONLY WHEN THEIR ANSWER COULD MATTER. The idle probe is an
-//! unbounded pipe on a path that must never stall; a caller that already
-//! decided the phone leg (narrowing flags, skip, force, an idle override)
-//! must not pay for a reading it cannot use. The attention probes are
-//! confined to the one band where they can change the verdict, and the
-//! one-second viewing sample runs only when the panes already match.
+//! PROBES RUN ONLY WHEN THEIR ANSWER COULD MATTER. Every reading is a spawn
+//! on a path that must never stall, so a caller who already stated an answer
+//! never pays for the probe underneath it: an idle override skips the idle
+//! read, and a stated streaming verdict skips the one-second rate sample.
+//! The surface arbitration decides which readings it needs in order, cheapest
+//! first.
 //!
 //! CALLER INTENT IS NEVER OVERRIDDEN. Skip beats force ("I already sent it"
 //! is more specific than an override), the narrowing flags beat both, and
@@ -256,7 +256,6 @@ mod tests {
             origin_tab: "t1".to_string(),
             focused_tab: "t1".to_string(),
             focused_pane: origin.to_string(),
-            panes_in_focused_tab: vec![origin.to_string()],
             zoomed: false,
         }
     }
@@ -267,7 +266,6 @@ mod tests {
             origin_tab: "t1".to_string(),
             focused_tab: "t2".to_string(),
             focused_pane: "t2:p9".to_string(),
-            panes_in_focused_tab: vec!["t2:p9".to_string()],
             zoomed: false,
         }
     }

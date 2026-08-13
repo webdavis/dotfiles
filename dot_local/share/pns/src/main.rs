@@ -28,7 +28,7 @@ use pns::hooks::{
 };
 use pns::registry::{Registry, select_plugins};
 use pns::render;
-use pns::system::{SystemCommandRunner, SystemProbes};
+use pns::system::{SystemCommandRunner, SystemProbes, run_bounded};
 
 fn main() {
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
@@ -38,15 +38,12 @@ fn main() {
         pulse_mode();
         return;
     }
-    // The gate moshi's OWN extension calls: pi and omp spawn
-    // `helperBinary pi-hook`, which never passes through a pns hook.
-    if first == *"gate" {
-        std::process::exit(gate_mode(
-            &std::env::args_os()
-                .nth(2)
-                .unwrap_or_default()
-                .to_string_lossy(),
-        ));
+    // The gate moshi's OWN extension calls. pi and omp spawn
+    // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
+    // for a subcommand, so the binary answers the bare harness word itself.
+    let first = first.to_string_lossy().into_owned();
+    if pns::hooks::is_harness_subcommand(&first) {
+        std::process::exit(gate_mode(&first));
     }
     if first == *"hook" {
         std::process::exit(hook_mode(
@@ -70,8 +67,9 @@ fn gate_mode(subcommand: &str) -> i32 {
     if !pns::hooks::is_harness_subcommand(subcommand) || !forward_to_moshi() {
         return 0;
     }
-    let mut payload = String::new();
-    let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut payload);
+    let Some(payload) = read_payload() else {
+        return 0;
+    };
     forward_to_moshi_hook(subcommand, &payload)
 }
 
@@ -83,8 +81,11 @@ fn gate_mode(subcommand: &str) -> i32 {
 /// exception: there the exit code is the OPERATOR'S DECISION, and answering it
 /// here would answer the permission prompt for them.
 fn hook_mode(event: &str) -> i32 {
-    let mut payload_json = String::new();
-    let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut payload_json);
+    let Some(payload_json) = read_payload() else {
+        // A harness that opened the pipe and never wrote must not hold a hook
+        // open forever; no payload is no notification, and still exit 0.
+        return 0;
+    };
     let payload = parse_payload(&payload_json);
     let agent = std::env::var("RELAY_AGENT").unwrap_or_else(|_| "claude".to_string());
 
@@ -138,26 +139,42 @@ fn turn_marker(session_id: &str) -> Option<std::path::PathBuf> {
     Some(state_dir.join(format!("session-{session_id}.start")))
 }
 
-/// How long the finished turn ran, consuming the marker. The marker is
-/// VALIDATED before it reaches arithmetic: a truncated write or a hand edit
-/// must be a decision, not a crash.
+/// How long the finished turn ran, CLAIMING the marker first.
+///
+/// The claim is a rename, which is atomic: two Stops racing the same turn
+/// cannot both read it and both pulse, because only one rename can succeed.
+/// Reading first and unlinking after left that window open, and an unlink
+/// that failed left the marker wedged for every later turn.
+///
+/// It runs BEFORE the reply and the condenser for the same reason. Stop is
+/// asynchronous, so the next prompt can arrive while this one is still
+/// condensing: with the marker still on disk that prompt writes nothing, and
+/// this Stop then deletes the marker its successor was relying on. Claiming
+/// up front also keeps the condenser's own latency out of the elapsed time it
+/// is measuring.
+///
+/// The value is VALIDATED before it reaches arithmetic: a truncated write or
+/// a hand edit must be a decision, not a crash.
 fn consume_turn_marker(session_id: &str) -> Option<u64> {
     let marker = turn_marker(session_id)?;
-    let started = std::fs::read_to_string(&marker).ok()?;
-    let _ = std::fs::remove_file(&marker);
-    let started: u64 = started.trim().parse().ok()?;
+    let claim = marker.with_extension(format!("claim.{}", std::process::id()));
+    std::fs::rename(&marker, &claim).ok()?;
+    let started = std::fs::read_to_string(&claim);
+    let _ = std::fs::remove_file(&claim);
+    let started: u64 = started.ok()?.trim().parse().ok()?;
     Some(now_secs()?.saturating_sub(started))
 }
 
 /// The Stop hook: what the turn said, and whether it ran long enough to earn
 /// the lights.
 fn end_of_turn(payload: &HookPayload, agent: &str) {
+    // FIRST, before anything slow: see consume_turn_marker.
+    let elapsed = consume_turn_marker(&payload.session_id);
     let reply = turn_reply(payload);
     let (state, detail) = match reply.is_empty() {
         true => ("done".to_string(), String::new()),
         false => condense(&reply),
     };
-    let elapsed = consume_turn_marker(&payload.session_id);
     run_event(&pns::args::EventArgs {
         agent: agent.to_string(),
         state,
@@ -208,15 +225,25 @@ fn turn_reply(payload: &HookPayload) -> String {
 /// 2026-08-05: slurping the whole file held ~33MB resident and minutes of CPU.
 fn transcript_tail(path: &str) -> String {
     use std::io::{Read, Seek, SeekFrom};
+    // CHECKED BEFORE OPENING, and on the link itself. Opening a FIFO blocks
+    // until a writer appears and /dev/zero never ends; both hang a hook whose
+    // whole contract is answering promptly. A transcript is a regular file.
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return String::new();
+    };
+    if !metadata.is_file() {
+        return String::new();
+    }
     let Ok(mut file) = std::fs::File::open(path) else {
         return String::new();
     };
-    let length = file.metadata().map(|meta| meta.len()).unwrap_or_default();
     let _ = file.seek(SeekFrom::Start(
-        length.saturating_sub(TRANSCRIPT_TAIL_BYTES),
+        metadata.len().saturating_sub(TRANSCRIPT_TAIL_BYTES),
     ));
     let mut tail = Vec::new();
-    let _ = file.read_to_end(&mut tail);
+    // Capped as well as sought: the file can grow between the two calls, and
+    // a seek that failed would otherwise read all of it.
+    let _ = file.take(TRANSCRIPT_TAIL_BYTES).read_to_end(&mut tail);
     String::from_utf8_lossy(&tail).into_owned()
 }
 
@@ -241,7 +268,8 @@ fn condense(reply: &str) -> (String, String) {
         .args(["-s", "read-only", "-"])
         .env("RELAY_SUMMARIZING", "1")
         .env("CODEX_HOME", &home);
-    match run_bounded(command, Some(&condenser_prompt(reply)), CONDENSER_DEADLINE)
+    let deadline = env_deadline("PNS_CONDENSER_DEADLINE_MS").unwrap_or(CONDENSER_DEADLINE);
+    match run_bounded(command, Some(&condenser_prompt(reply)), deadline)
         .as_deref()
         .and_then(condenser_verdict)
     {
@@ -370,48 +398,24 @@ fn forward_to_moshi_hook(subcommand: &str, payload_json: &str) -> i32 {
         .unwrap_or(0)
 }
 
-/// Run a command with a deadline, returning its stdout on success.
+/// The harness payload from stdin, bounded in SIZE and in TIME.
 ///
-/// There is no wait-with-timeout in the standard library and macOS ships no
-/// `timeout(1)`, so the wait happens on a thread and the child is killed when
-/// the window closes. Every spawn on a notification path is bounded: the
-/// notification is worth less than the turn it reports on.
-fn run_bounded(
-    mut command: Command,
-    stdin_text: Option<&str>,
-    deadline: Duration,
-) -> Option<String> {
-    let mut child = command
-        .stdin(if stdin_text.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
-    if let (Some(text), Some(mut stdin)) = (stdin_text, child.stdin.take()) {
-        let _ = stdin.write_all(text.as_bytes());
-    }
-    let mut stdout = child.stdout.take()?;
+/// Neither bound is theoretical: a pipe nobody closes hangs the hook before
+/// the exit contract can run, and a payload nobody caps can exhaust memory
+/// long before the reply's own character cap applies.
+fn read_payload() -> Option<String> {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let mut output = String::new();
-        let _ = std::io::Read::read_to_string(&mut stdout, &mut output);
-        let _ = sender.send(output);
+        let mut payload = String::new();
+        let read = std::io::Read::read_to_string(
+            &mut std::io::Read::take(std::io::stdin(), MAX_PAYLOAD_BYTES),
+            &mut payload,
+        );
+        let _ = sender.send(read.ok().map(|_| payload));
     });
-    match receiver.recv_timeout(deadline) {
-        Ok(output) => {
-            let _ = child.wait();
-            Some(output)
-        }
-        Err(_) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            None
-        }
-    }
+    // The reader thread outlives a refusal, which is fine: the process is
+    // about to exit, and it holds nothing but its own buffer.
+    receiver.recv_timeout(payload_deadline()).ok().flatten()
 }
 
 /// The project an event belongs to: the last segment of the working directory.
@@ -440,9 +444,13 @@ fn reread_attempts() -> u32 {
 }
 
 fn reread_interval() -> Duration {
+    // from_secs_f64 PANICS on NaN, infinity and negatives, and this runs on a
+    // path whose contract is exiting 0. A value that is not a finite,
+    // non-negative number is not an interval, so the default stands.
     std::env::var("PNS_REPLY_REREAD_INTERVAL")
         .ok()
-        .and_then(|raw| raw.parse().ok())
+        .and_then(|raw| raw.parse::<f64>().ok())
+        .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
         .map(Duration::from_secs_f64)
         .unwrap_or(DEFAULT_REREAD_INTERVAL)
 }
@@ -453,6 +461,25 @@ fn pulse_threshold_secs() -> u64 {
         .ok()
         .and_then(|raw| raw.parse().ok())
         .unwrap_or(pns::pulse::DEFAULT_LONG_SESSION_SECS)
+}
+
+/// A harness payload is a small JSON object; anything larger is not one.
+const MAX_PAYLOAD_BYTES: u64 = 1_000_000;
+
+/// How long the payload may take to arrive. Generous, because a harness
+/// writing a large transcript path is normal and a hang is not.
+fn payload_deadline() -> Duration {
+    env_deadline("PNS_PAYLOAD_DEADLINE_MS").unwrap_or(Duration::from_secs(5))
+}
+
+/// A deadline override in milliseconds, for tests that must prove expiry
+/// without waiting out the production window.
+fn env_deadline(variable: &str) -> Option<Duration> {
+    std::env::var(variable)
+        .ok()?
+        .parse()
+        .ok()
+        .map(Duration::from_millis)
 }
 
 /// At most this much of a turn reaches the condenser or the notification.

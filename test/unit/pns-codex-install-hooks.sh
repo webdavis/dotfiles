@@ -117,4 +117,34 @@ grep -qi "/hooks" <<<"$warn_noop" && {
   echo "relay-codex-hooks: FAIL -- the trust advisory repeated on an idempotent no-change re-run" >&2
   exit 1
 }
+
+# The LIVE shape at conversion time: the file still names the retired script.
+# Appending beside those entries left Codex running two handlers per event, a
+# stale one that fails and ours.
+h8="$home/f8stale"
+mkdir -p "$h8/.codex" "$h8/.local/libexec/pns"
+printf '#!/usr/bin/env bash\n' >"$h8/.local/libexec/pns/pns"
+chmod +x "$h8/.local/libexec/pns/pns"
+cat >"$h8/.codex/hooks.json" <<'JSON'
+{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}],"Stop":[{"hooks":[{"type":"command","command":"RELAY_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh done"}]}],"PermissionRequest":[{"hooks":[{"type":"command","command":"RELAY_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh blocked"}]}]}}
+JSON
+HOME="$h8" bash "$script" >/dev/null 2>&1
+got8="$(cat "$h8/.codex/hooks.json")"
+jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("relay-agent")) | not' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- a stale relay-agent Stop entry survived the merge" >&2
+  exit 1
+}
+jq -e '[.hooks.PermissionRequest[]?.hooks[]?.command] | any(test("relay-agent")) | not' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- a stale relay-agent PermissionRequest entry survived" >&2
+  exit 1
+}
+jq -e '[.hooks.Stop[]?.hooks[]?.command] | length == 1' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- Stop must carry exactly one handler after pruning" >&2
+  exit 1
+}
+jq -e '.hooks.SessionStart[0].hooks[0].command | test("herdr-agent-state")' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- pruning removed herdr's own entry" >&2
+  exit 1
+}
+
 echo "relay-codex-hooks: OK"

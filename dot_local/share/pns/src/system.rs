@@ -12,6 +12,7 @@
 //! a suite that ran it would be both slow and nondeterministic.
 
 use std::process::Command;
+use std::time::Duration;
 
 /// Runs a command and returns its stdout, or `None` when it cannot be run or
 /// exits non-zero. The seam every probe reads the world through.
@@ -19,22 +20,111 @@ pub trait CommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Option<String>;
 }
 
-/// The production runner: spawns the command and keeps stdout on success only.
+/// The production runner: spawns the command under a deadline and keeps its
+/// stdout.
+///
+/// EVERY PROBE IS BOUNDED. A wedged herdr, ioreg or nettop would otherwise
+/// hold a notification open indefinitely, and the readings all have a
+/// fail-direction already: no answer reads as unknown, which never suppresses.
 pub struct SystemCommandRunner;
+
+/// One window for every probe. The rate sample is the slow one at roughly a
+/// second by construction (`nettop -L 2`); the rest answer in milliseconds, so
+/// this is generous for them and still far short of a hang.
+const PROBE_DEADLINE: Duration = Duration::from_secs(5);
 
 impl CommandRunner for SystemCommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Option<String> {
-        let output = Command::new(program).args(args).output().ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        // Lossy, because the rate CSV is judged row by row downstream: one
-        // invalid byte must cost its own row, never the whole sample. The
-        // replacement character it leaves behind is what the idle parser
-        // refuses, so a corrupted count still reads as unknown.
-        Some(String::from_utf8_lossy(&output.stdout).into_owned())
+        let mut command = Command::new(program);
+        command.args(args);
+        run_bounded(command, None, PROBE_DEADLINE)
     }
 }
+
+/// Run a command with a deadline, returning its stdout on success.
+///
+/// There is no wait-with-timeout in the standard library and macOS ships no
+/// `timeout(1)`, so the wait happens on a thread and the child is killed when
+/// the window closes. Every spawn on a notification path is bounded: the
+/// notification is worth less than the turn it reports on.
+pub fn run_bounded(
+    mut command: Command,
+    stdin_text: Option<&str>,
+    deadline: Duration,
+) -> Option<String> {
+    let expires_at = std::time::Instant::now() + deadline;
+    let mut child = command
+        .stdin(if stdin_text.is_some() {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::null()
+        })
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    // The WRITE is inside the window too: a child that never reads its stdin
+    // blocks the writer, and doing it before the clock started meant the
+    // deadline never covered the case.
+    let stdin_text = stdin_text.map(String::from);
+    let mut stdin = child.stdin.take();
+    let mut stdout = child.stdout.take()?;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        if let (Some(text), Some(mut pipe)) = (stdin_text, stdin.take()) {
+            let _ = std::io::Write::write_all(&mut pipe, text.as_bytes());
+        }
+        // Dropping stdin closes it, which is what tells the child to stop
+        // reading; without it a child waiting on EOF never exits.
+        drop(stdin);
+        // Bytes, then LOSSY: the rate CSV is judged row by row downstream, so
+        // one invalid byte must cost its own row rather than the whole
+        // sample, and read_to_string would refuse the lot.
+        let mut output = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut stdout, &mut output);
+        let _ = sender.send(String::from_utf8_lossy(&output).into_owned());
+    });
+
+    let output = receiver.recv_timeout(deadline).ok();
+    // Closed stdout is not an exited process: a child can close it and sleep,
+    // so the wait is polled against the SAME deadline rather than blocking.
+    let status = match output.is_some() {
+        true => wait_until(&mut child, expires_at),
+        false => None,
+    };
+    let Some(status) = status else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    };
+    // A command that failed has no reading to give: every caller here treats
+    // no answer as unknown, which is the honest report.
+    status.success().then_some(output).flatten()
+}
+
+/// Poll a child to exit, up to a deadline. There is no wait-with-timeout in
+/// the standard library and macOS ships no `timeout(1)`.
+fn wait_until(
+    child: &mut std::process::Child,
+    expires_at: std::time::Instant,
+) -> Option<std::process::ExitStatus> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status),
+            Err(_) => return None,
+            Ok(None) => {}
+        }
+        if std::time::Instant::now() >= expires_at {
+            return None;
+        }
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// How often a bounded wait checks. Short enough not to add latency anyone
+/// notices, long enough not to spin a core.
+const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// The idle counter's own units, as the registry reports them.
 const IOREG_IDLE_KEY: &str = "HIDIdleTime";
@@ -94,23 +184,17 @@ pub fn parse_pane(pane_json: &str) -> Option<(String, String)> {
     ))
 }
 
-/// The panes of one tab and whether that tab is zoomed, from `pane layout`.
+/// Whether the tab on screen is zoomed, from `pane layout`.
 ///
 /// ZOOM IS TAB-LEVEL: one pane fills the window and every sibling is off
 /// screen, which is the whole reason the layout has to be read for the tab
-/// being LOOKED AT rather than the tab the event came from.
-pub fn parse_layout(layout_json: &str) -> Option<(Vec<String>, bool)> {
-    let layout = serde_json::from_str::<serde_json::Value>(layout_json)
+/// being LOOKED AT rather than the tab the event came from. The pane list is
+/// not read: visibility turns on the focused pane and this flag alone.
+pub fn parse_layout(layout_json: &str) -> Option<bool> {
+    serde_json::from_str::<serde_json::Value>(layout_json)
         .ok()?
-        .pointer("/result/layout")?
-        .clone();
-    let panes = layout
-        .get("panes")?
-        .as_array()?
-        .iter()
-        .filter_map(|pane| Some(pane.get("pane_id")?.as_str()?.to_string()))
-        .collect();
-    Some((panes, layout.get("zoomed")?.as_bool()?))
+        .pointer("/result/layout/zoomed")?
+        .as_bool()
 }
 
 /// The four probes: three read the machine through one command each, and the
@@ -193,14 +277,12 @@ impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
     /// Unknown rather than as "not visible".
     fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
         let (focused_pane, focused_tab) = parse_pane(&self.herdr("pane", &["current"])?)?;
-        let (panes_in_focused_tab, zoomed) =
-            parse_layout(&self.herdr("pane", &["layout", "--pane", &focused_pane])?)?;
+        let zoomed = parse_layout(&self.herdr("pane", &["layout", "--pane", &focused_pane])?)?;
         let (_, origin_tab) = parse_pane(&self.herdr("pane", &["get", origin_pane])?)?;
         Some(crate::surface::SessionView {
             origin_tab,
             focused_tab,
             focused_pane,
-            panes_in_focused_tab,
             zoomed,
         })
     }
@@ -553,7 +635,6 @@ mod tests {
         assert_eq!(view.focused_tab, "wW:t9");
         assert_eq!(view.focused_pane, "wW:p3K");
         assert_eq!(view.origin_tab, "wW:t9");
-        assert_eq!(view.panes_in_focused_tab, vec!["wW:p3K", "wW:p3R"]);
         assert!(!view.zoomed);
         // The layout must be read for the pane being LOOKED AT, not the one
         // the event came from: zoom is a property of the tab on screen.

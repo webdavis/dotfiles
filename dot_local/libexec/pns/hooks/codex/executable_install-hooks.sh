@@ -30,13 +30,22 @@ if [[ -f $hooks ]]; then
   fi
 fi
 
+# PRUNE, then ensure. The hooks these replaced named a script that no longer
+# exists, and appending beside them left Codex running two handlers for one
+# event: a stale one that fails and ours. An entry is ours to remove when its
+# command mentions the retired script; herdr's own entries never do.
 merged="$(printf '%s' "$base" | jq \
   --arg d "$done_cmd" --arg b "$blocked_cmd" '
+  def prune($event):
+    .hooks[$event] = ((.hooks[$event] // [])
+      | map(.hooks |= map(select((.command // "") | test("relay-agent\\.sh") | not)))
+      | map(select((.hooks | length) > 0)));
   def ensure($event; $cmd):
     .hooks[$event] = ((.hooks[$event] // [])
       | if any(.[]?.hooks[]?; .command == $cmd) then .
         else . + [{hooks: [{type: "command", command: $cmd}]}] end);
-  ensure("Stop"; $d) | ensure("PermissionRequest"; $b)
+  prune("Stop") | prune("PermissionRequest")
+  | ensure("Stop"; $d) | ensure("PermissionRequest"; $b)
 ')" || exit 0
 
 # Validate the merged candidate before writing: it must still be an object with an object "hooks".

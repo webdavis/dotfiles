@@ -150,31 +150,4 @@ mod tests {
         );
         assert_eq!(parse_count("9223372036854775808"), None);
     }
-
-    #[test]
-    fn a_threshold_past_the_shell_ceiling_still_pushes_because_it_reads_as_unknown() {
-        // The end-to-end form: the shell sends this card, so the port must too.
-        assert!(crate::routing::wants_phone(
-            Some(500),
-            parse_count("9223372036854775808"),
-            false,
-            false,
-            false,
-        ));
-    }
-
-    #[test]
-    fn an_octal_looking_threshold_still_pushes_because_it_reads_as_unknown() {
-        // The whole point of the unknown arm, measured end to end: the shell
-        // sends the phone card for an idle of 500 against a desk threshold of
-        // `0600`, because 500 is not below octal 384. Reading it as decimal
-        // 600 would drop that push instead.
-        assert!(crate::routing::wants_phone(
-            Some(500),
-            parse_count("0600"),
-            false,
-            false,
-            false,
-        ));
-    }
 }

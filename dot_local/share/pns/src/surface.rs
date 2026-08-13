@@ -39,8 +39,6 @@ pub struct SessionView {
     pub focused_tab: String,
     /// The focused pane inside the focused tab.
     pub focused_pane: String,
-    /// Every pane in the focused tab.
-    pub panes_in_focused_tab: Vec<String>,
     /// Tab-level zoom: true means the focused pane fills the window and
     /// every sibling is hidden (operator-confirmed herdr semantics).
     pub zoomed: bool,
@@ -148,18 +146,11 @@ mod tests {
     // Visibility: one session-level fact, computed from herdr's own view.
     // ------------------------------------------------------------------
 
-    fn view(
-        origin_tab: &str,
-        focused_tab: &str,
-        focused_pane: &str,
-        panes: &[&str],
-        zoomed: bool,
-    ) -> SessionView {
+    fn view(origin_tab: &str, focused_tab: &str, focused_pane: &str, zoomed: bool) -> SessionView {
         SessionView {
             origin_tab: origin_tab.to_string(),
             focused_tab: focused_tab.to_string(),
             focused_pane: focused_pane.to_string(),
-            panes_in_focused_tab: panes.iter().map(|p| p.to_string()).collect(),
             zoomed,
         }
     }
@@ -171,37 +162,37 @@ mod tests {
             (
                 "origin is the focused pane",
                 "t1:p1",
-                view("t1", "t1", "t1:p1", &["t1:p1", "t1:p2"], false),
+                view("t1", "t1", "t1:p1", false),
                 Visibility::Visible,
             ),
             (
                 "origin is the focused pane and zoomed",
                 "t1:p1",
-                view("t1", "t1", "t1:p1", &["t1:p1", "t1:p2"], true),
+                view("t1", "t1", "t1:p1", true),
                 Visibility::Visible,
             ),
             (
                 "unzoomed sibling in the focused tab",
                 "t1:p1",
-                view("t1", "t1", "t1:p2", &["t1:p1", "t1:p2"], false),
+                view("t1", "t1", "t1:p2", false),
                 Visibility::Visible,
             ),
             (
                 "sibling hidden behind another pane's zoom",
                 "t1:p1",
-                view("t1", "t1", "t1:p2", &["t1:p1", "t1:p2"], true),
+                view("t1", "t1", "t1:p2", true),
                 Visibility::Hidden,
             ),
             (
                 "different tab entirely",
                 "t1:p1",
-                view("t1", "t2", "t2:p9", &["t2:p9"], false),
+                view("t1", "t2", "t2:p9", false),
                 Visibility::Hidden,
             ),
             (
                 "different tab, zoom irrelevant",
                 "t1:p1",
-                view("t1", "t2", "t2:p9", &["t2:p9"], true),
+                view("t1", "t2", "t2:p9", true),
                 Visibility::Hidden,
             ),
         ];
@@ -216,7 +207,7 @@ mod tests {
         // notification: Unknown routes like Hidden at plan time, but is its
         // own reading so the arbitration cannot mistake it for a positive.
         assert_eq!(
-            visibility("t1:p1", &view("", "", "", &[], false)),
+            visibility("t1:p1", &view("", "", "", false)),
             Visibility::Unknown
         );
     }
@@ -225,7 +216,7 @@ mod tests {
     fn an_empty_origin_pane_reads_unknown() {
         // Events with no --pane carry no origin; nothing can be "watched".
         assert_eq!(
-            visibility("", &view("t1", "t1", "t1:p1", &["t1:p1"], false)),
+            visibility("", &view("t1", "t1", "t1:p1", false)),
             Visibility::Unknown
         );
     }
