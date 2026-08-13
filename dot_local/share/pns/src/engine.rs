@@ -116,9 +116,10 @@ pub fn decide<P>(
 where
     P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + SessionViewProbe,
 {
+    let world = read_world(probes, overrides, pane, now_secs);
     let delivery = crate::surface::plan(
-        operator_surface(probes, overrides, now_secs),
-        operator_visibility(probes, pane),
+        world.surface,
+        world.visibility,
         long_running,
         mobile_watch_card,
     );
@@ -133,6 +134,41 @@ where
         legs: crate::routing::channel_plan(selection, local_only, remote_only, delivery),
         pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
         pulse: delivery.pulse,
+    }
+}
+
+/// Everything the delivery decision rests on, read ONCE and passed down.
+///
+/// THE TIMING CONTRACT, operator ruling 2026-08-13: the decision evaluates
+/// the world at the LAST MOMENT BEFORE DELIVERY, and never earlier than the
+/// return of the work being reported on. What that means in use: watching the
+/// referenced pane when the banner would fire suppresses it, even if the
+/// operator was away when the turn actually ended, and a fast shell command
+/// decides effectively at its return because nothing delays it. This is the
+/// clarified form of the D1-era at-send-time wording.
+///
+/// So the reading is taken here, at dispatch, and NOTHING BELOW THIS POINT
+/// touches a probe: one decision cannot be split across two readings that
+/// disagree about where the operator is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WorldSnapshot {
+    surface: Surface,
+    visibility: Visibility,
+}
+
+/// Take the snapshot. The only probe access on the delivery path.
+fn read_world<P>(
+    probes: &P,
+    overrides: &Overrides,
+    pane: &str,
+    now_secs: Option<u64>,
+) -> WorldSnapshot
+where
+    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + SessionViewProbe,
+{
+    WorldSnapshot {
+        surface: operator_surface(probes, overrides, now_secs),
+        visibility: operator_visibility(probes, pane),
     }
 }
 
@@ -446,6 +482,32 @@ mod tests {
             ..Overrides::default()
         };
         assert!(!names(&decide_with(&probes, &overrides, "")).contains(&"moshi"));
+    }
+
+    #[test]
+    fn one_decision_reads_each_probe_at_most_once_and_never_twice() {
+        // State at the last moment before delivery, taken ONCE (operator
+        // ruling 2026-08-13). A probe consulted a second time could answer
+        // differently, and one decision would then be split between two
+        // readings of where the operator is.
+        let probes = CountingProbes {
+            idle: Some(1),
+            marker_mtime: Some(999_000),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        decide_with(&probes, &Overrides::default(), "wW:p1");
+        for (reads, probe) in [
+            (probes.idle_reads.get(), "idle"),
+            (probes.marker_reads.get(), "marker"),
+            (probes.sample_reads.get(), "rate sample"),
+            (probes.view_reads.get(), "session view"),
+        ] {
+            assert!(reads <= 1, "the {probe} probe was read {reads} times");
+        }
+        // And the view really was consulted, so the bound above is a bound
+        // rather than a probe that never ran.
+        assert_eq!(probes.view_reads.get(), 1);
     }
 
     #[test]
