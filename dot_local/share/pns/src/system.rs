@@ -171,30 +171,53 @@ pub fn parse_pids(pgrep_output: &str) -> Vec<String> {
         .collect()
 }
 
-/// The tab a `pane get` or `pane current` answer belongs to, with the pane id
-/// beside it. Anything unrecognised is None, which becomes an unreadable view.
-pub fn parse_pane(pane_json: &str) -> Option<(String, String)> {
-    let pane = serde_json::from_str::<serde_json::Value>(pane_json)
+/// The tab the SESSION is showing, from `workspace list`: the active tab of
+/// the one workspace flagged focused.
+///
+/// This is the only session-global answer herdr gives. No workspace flagged
+/// focused is None, which becomes an unreadable view rather than a guess.
+pub fn parse_focused_tab(workspace_list_json: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(workspace_list_json)
         .ok()?
-        .pointer("/result/pane")?
-        .clone();
-    Some((
-        pane.get("pane_id")?.as_str()?.to_string(),
-        pane.get("tab_id")?.as_str()?.to_string(),
-    ))
+        .pointer("/result/workspaces")?
+        .as_array()?
+        .iter()
+        .find(|workspace| workspace.get("focused").and_then(|f| f.as_bool()) == Some(true))?
+        .get("active_tab_id")?
+        .as_str()
+        .map(str::to_string)
 }
 
-/// Whether the tab on screen is zoomed, from `pane layout`.
+/// One tab's arrangement, from `pane layout`.
+#[derive(Debug, PartialEq)]
+pub struct TabLayout {
+    /// The tab this layout describes, which is the tab holding whichever pane
+    /// the call addressed.
+    pub tab_id: String,
+    /// The focused pane WITHIN this tab. Tab-level truth, not the caller's
+    /// pane: every pane in a tab is answered the same focused pane id.
+    pub focused_pane: String,
+    /// ZOOM IS TAB-LEVEL: one pane fills the window and every sibling is off
+    /// screen.
+    pub zoomed: bool,
+}
+
+/// A tab's arrangement, addressed by any pane inside it. The pane list is not
+/// read: visibility turns on the focused pane and the zoom flag alone.
 ///
-/// ZOOM IS TAB-LEVEL: one pane fills the window and every sibling is off
-/// screen, which is the whole reason the layout has to be read for the tab
-/// being LOOKED AT rather than the tab the event came from. The pane list is
-/// not read: visibility turns on the focused pane and this flag alone.
-pub fn parse_layout(layout_json: &str) -> Option<bool> {
-    serde_json::from_str::<serde_json::Value>(layout_json)
+/// A missing field is a shape we do not know, and the whole reading is
+/// refused rather than half-trusted: assuming a tab is unzoomed suppresses a
+/// notification the operator cannot see.
+pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
+    let layout = serde_json::from_str::<serde_json::Value>(layout_json)
         .ok()?
-        .pointer("/result/layout/zoomed")?
-        .as_bool()
+        .pointer("/result/layout")?
+        .clone();
+    Some(TabLayout {
+        tab_id: layout.get("tab_id")?.as_str()?.to_string(),
+        focused_pane: layout.get("focused_pane_id")?.as_str()?.to_string(),
+        zoomed: layout.get("zoomed")?.as_bool()?,
+    })
 }
 
 /// The four probes: three read the machine through one command each, and the
@@ -271,19 +294,29 @@ impl<R: CommandRunner> crate::probes::MoshRateProbe for SystemProbes<R> {
 }
 
 impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
-    /// Three reads, because three facts live in three places: what is focused
-    /// right now, what that tab contains, and which tab the event came from.
-    /// Any one of them failing yields None, and the model reads that as
-    /// Unknown rather than as "not visible".
+    /// Two reads, and NEITHER may be caller-relative.
+    ///
+    /// `herdr pane current` is the trap this builder exists to avoid: it
+    /// resolves "current" from the CALLER'S `HERDR_PANE_ID`, and the caller
+    /// is always the pane the event fired from, so a view built on it makes
+    /// the origin its own focused pane and every desk event self-suppresses.
+    /// Measured live on 2026-08-13 (drill D4): with the session zoomed onto
+    /// wW:p3R, a hook in wW:p3K was answered wW:p3K.
+    ///
+    /// So what is on screen comes from `workspace list`, the one session-
+    /// global answer herdr gives, and the arrangement comes from the ORIGIN
+    /// tab's own layout, addressed by the pane id the event carried. That
+    /// layout names the origin's tab as well, so the third call is gone.
+    /// Either call failing yields None, which the model reads as Unknown
+    /// rather than as "not visible".
     fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
-        let (focused_pane, focused_tab) = parse_pane(&self.herdr("pane", &["current"])?)?;
-        let zoomed = parse_layout(&self.herdr("pane", &["layout", "--pane", &focused_pane])?)?;
-        let (_, origin_tab) = parse_pane(&self.herdr("pane", &["get", origin_pane])?)?;
+        let focused_tab = parse_focused_tab(&self.herdr("workspace", &["list"])?)?;
+        let layout = parse_layout(&self.herdr("pane", &["layout", "--pane", origin_pane])?)?;
         Some(crate::surface::SessionView {
-            origin_tab,
+            origin_tab: layout.tab_id,
             focused_tab,
-            focused_pane,
-            zoomed,
+            focused_pane: layout.focused_pane,
+            zoomed: layout.zoomed,
         })
     }
 }
@@ -301,7 +334,9 @@ impl<R: CommandRunner> SystemProbes<R> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CommandRunner, parse_idle_nanoseconds, parse_layout, parse_pane, parse_pids};
+    use super::{
+        CommandRunner, parse_focused_tab, parse_idle_nanoseconds, parse_layout, parse_pids,
+    };
     use std::cell::RefCell;
 
     /// Records what it was asked to run and answers from a script, so a test
@@ -576,137 +611,205 @@ mod tests {
 
     // --- the session view, against herdr's real answers ---------------------
 
-    /// Recorded from a live herdr on 2026-08-12, trimmed to the fields the
+    /// Recorded from a live herdr on 2026-08-13, trimmed to the fields the
     /// view needs. A shape change upstream fails these rather than silently
     /// reading Unknown forever.
-    const PANE_CURRENT: &str = r#"{"id":"cli:pane:current","result":{"pane":{"focused":true,"pane_id":"wW:p3K","tab_id":"wW:t9","workspace_id":"wW"},"type":"pane_current"}}"#;
-    const PANE_GET_SAME_TAB: &str = r#"{"id":"cli:pane:get","result":{"pane":{"focused":false,"pane_id":"wW:p3R","tab_id":"wW:t9","workspace_id":"wW"},"type":"pane_info"}}"#;
-    const PANE_GET_OTHER_TAB: &str = r#"{"id":"cli:pane:get","result":{"pane":{"focused":false,"pane_id":"wW:p7","tab_id":"wW:t4","workspace_id":"wW"},"type":"pane_info"}}"#;
-    const LAYOUT_ZOOMED: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":true},"type":"pane_layout"}}"#;
-    const LAYOUT_UNZOOMED: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":false},"type":"pane_layout"}}"#;
+    ///
+    /// A workspace's `focused` flag and the `active_tab_id` beside it are the
+    /// only SESSION-GLOBAL statement of what is on screen. Every `pane`
+    /// answer is relative to the process that asked.
+    const WORKSPACE_LIST: &str = r#"{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"wW:t9","focused":true,"label":"dotfiles modernization","workspace_id":"wW"}]}}"#;
+    /// The same recorded shape with a second workspace ahead of the focused
+    /// one, which is where the operator is looking.
+    const WORKSPACE_LIST_SECOND_FOCUSED: &str = r#"{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"wV:t1","focused":false,"label":"other","workspace_id":"wV"},{"active_tab_id":"wW:t9","focused":true,"label":"dotfiles modernization","workspace_id":"wW"}]}}"#;
+    const WORKSPACE_LIST_NONE_FOCUSED: &str = r#"{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"wW:t9","focused":false,"label":"dotfiles modernization","workspace_id":"wW"}]}}"#;
 
-    /// A runner answering each herdr subcommand, and recording what it was
-    /// asked. `None` for a subcommand is that call failing.
+    /// The D4 live capture: tab wW:t9 zoomed onto wW:p3R, taken while the
+    /// operator held that zoom and the hook fired from wW:p3K.
+    const LAYOUT_ZOOMED_ON_SIBLING: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3R","panes":[{"focused":false,"pane_id":"wW:p3K"},{"focused":true,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":true},"type":"pane_layout"}}"#;
+    /// The same tab zoomed onto wW:p3K instead.
+    const LAYOUT_ZOOMED_ON_ORIGIN: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":true},"type":"pane_layout"}}"#;
+    const LAYOUT_UNZOOMED: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":false},"type":"pane_layout"}}"#;
+    /// A pane sitting in one of the workspace's other tabs.
+    const LAYOUT_OTHER_TAB: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p10","panes":[{"focused":true,"pane_id":"wW:p10"}],"tab_id":"wW:tF","zoomed":false},"type":"pane_layout"}}"#;
+    /// A pane in the OTHER workspace's active tab.
+    const LAYOUT_OTHER_WORKSPACE: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wV:p1","panes":[{"focused":true,"pane_id":"wV:p1"}],"tab_id":"wV:t1","zoomed":false},"type":"pane_layout"}}"#;
+
+    /// WHAT `herdr pane current` ACTUALLY ANSWERS A HOOK, recorded live on
+    /// 2026-08-13. It resolves "current" from the CALLER'S `HERDR_PANE_ID`,
+    /// so a hook running inside wW:p3K is told wW:p3K, `focused` flag and
+    /// all, while the session was really zoomed onto wW:p3R.
+    const PANE_CURRENT_CALLER_RELATIVE: &str = r#"{"id":"cli:pane:current","result":{"pane":{"focused":false,"pane_id":"wW:p3K","tab_id":"wW:t9","workspace_id":"wW"},"type":"pane_current"}}"#;
+
+    /// Answers exact argv and records every call, so an unscripted call reads
+    /// as that herdr subcommand failing rather than as a silent default.
     struct HerdrRunner {
-        current: Option<&'static str>,
-        layout: Option<&'static str>,
-        get: Option<&'static str>,
+        answers: Vec<(String, String)>,
         calls: RefCell<Vec<String>>,
     }
 
     impl CommandRunner for HerdrRunner {
         fn run(&self, program: &str, args: &[&str]) -> Option<String> {
-            self.calls
-                .borrow_mut()
-                .push(format!("{program} {}", args.join(" ")));
-            // argv is ["pane", <verb>, ...]: the verb is what differs.
-            match args.get(1) {
-                Some(&"current") => self.current.map(String::from),
-                Some(&"layout") => self.layout.map(String::from),
-                _ => self.get.map(String::from),
-            }
+            let call = format!("{program} {}", args.join(" "));
+            self.calls.borrow_mut().push(call.clone());
+            self.answers
+                .iter()
+                .find(|(scripted, _)| *scripted == call)
+                .map(|(_, answer)| answer.clone())
         }
     }
 
-    fn viewer(
-        current: Option<&'static str>,
-        layout: Option<&'static str>,
-        get: Option<&'static str>,
-    ) -> SystemProbes<HerdrRunner> {
+    fn viewer(answers: Vec<(String, String)>) -> SystemProbes<HerdrRunner> {
         SystemProbes::new(
             HerdrRunner {
-                current,
-                layout,
-                get,
+                answers,
                 calls: RefCell::new(Vec::new()),
             },
             String::new(),
         )
     }
 
+    /// Every answer a view of `origin` could want, INCLUDING the two
+    /// caller-relative ones: a test that tells the two readings apart has to
+    /// let the wrong reading succeed rather than fail for want of an answer.
+    fn answers(workspace_list: &str, origin: &str, layout: &str) -> Vec<(String, String)> {
+        vec![
+            (
+                "herdr workspace list".to_string(),
+                workspace_list.to_string(),
+            ),
+            (
+                format!("herdr pane layout --pane {origin}"),
+                layout.to_string(),
+            ),
+            (
+                "herdr pane current".to_string(),
+                PANE_CURRENT_CALLER_RELATIVE.to_string(),
+            ),
+            (
+                format!("herdr pane get {origin}"),
+                PANE_CURRENT_CALLER_RELATIVE.to_string(),
+            ),
+        ]
+    }
+
     #[test]
-    fn the_view_reads_the_focused_tab_and_the_origins_tab_from_herdrs_own_answers() {
-        let probes = viewer(
-            Some(PANE_CURRENT),
-            Some(LAYOUT_UNZOOMED),
-            Some(PANE_GET_SAME_TAB),
-        );
-        let view = probes.session_view("wW:p3R").expect("a readable view");
-        assert_eq!(view.focused_tab, "wW:t9");
-        assert_eq!(view.focused_pane, "wW:p3K");
-        assert_eq!(view.origin_tab, "wW:t9");
-        assert!(!view.zoomed);
-        // The layout must be read for the pane being LOOKED AT, not the one
-        // the event came from: zoom is a property of the tab on screen.
+    fn a_zoom_onto_a_sibling_hides_the_origin_that_pane_current_would_call_focused() {
+        // THE D4 LIVE FAILURE. `herdr pane current` is CALLER-RELATIVE: the
+        // hook runs inside the origin pane, so it is told the origin pane is
+        // the current one, the origin therefore equals the focused pane, and
+        // every desk event self-suppresses. The session was zoomed onto
+        // wW:p3R the whole time.
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_ZOOMED_ON_SIBLING))
+            .session_view("wW:p3K")
+            .expect("a readable view");
+        assert_eq!(view.focused_pane, "wW:p3R");
+        assert_eq!(visibility("wW:p3K", &view), Visibility::Hidden);
+    }
+
+    #[test]
+    fn the_view_asks_the_session_what_is_focused_and_never_asks_for_the_current_pane() {
+        // The two calls that carry no caller context: the focused workspace's
+        // active tab, and the ORIGIN tab's own layout, addressed by the pane
+        // id the event itself carried.
+        let probes = viewer(answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_ZOOMED_ON_SIBLING));
+        probes.session_view("wW:p3K").expect("a readable view");
         assert_eq!(
             probes.runner.calls.borrow().as_slice(),
             &[
-                "herdr pane current".to_string(),
+                "herdr workspace list".to_string(),
                 "herdr pane layout --pane wW:p3K".to_string(),
-                "herdr pane get wW:p3R".to_string(),
             ]
         );
     }
 
     #[test]
-    fn a_zoomed_sibling_reads_hidden_and_an_unzoomed_one_reads_visible() {
-        // The two readings that differ only by the tab's zoom flag, carried
-        // all the way through the model the way the engine will.
-        let zoomed = viewer(
-            Some(PANE_CURRENT),
-            Some(LAYOUT_ZOOMED),
-            Some(PANE_GET_SAME_TAB),
-        )
-        .session_view("wW:p3R")
-        .expect("a readable view");
-        assert_eq!(visibility("wW:p3R", &zoomed), Visibility::Hidden);
-
-        let unzoomed = viewer(
-            Some(PANE_CURRENT),
-            Some(LAYOUT_UNZOOMED),
-            Some(PANE_GET_SAME_TAB),
-        )
-        .session_view("wW:p3R")
-        .expect("a readable view");
-        assert_eq!(visibility("wW:p3R", &unzoomed), Visibility::Visible);
+    fn the_zoomed_pane_itself_stays_visible() {
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_ZOOMED_ON_ORIGIN))
+            .session_view("wW:p3K")
+            .expect("a readable view");
+        assert_eq!(visibility("wW:p3K", &view), Visibility::Visible);
     }
 
     #[test]
-    fn a_pane_on_another_tab_reads_hidden_however_the_focused_tab_is_arranged() {
-        let view = viewer(
-            Some(PANE_CURRENT),
-            Some(LAYOUT_UNZOOMED),
-            Some(PANE_GET_OTHER_TAB),
-        )
-        .session_view("wW:p7")
+    fn an_unzoomed_sibling_is_visible_beside_the_focused_pane() {
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p3R", LAYOUT_UNZOOMED))
+            .session_view("wW:p3R")
+            .expect("a readable view");
+        assert_eq!(visibility("wW:p3R", &view), Visibility::Visible);
+    }
+
+    #[test]
+    fn a_pane_on_another_tab_is_hidden_however_that_tab_is_arranged() {
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p10", LAYOUT_OTHER_TAB))
+            .session_view("wW:p10")
+            .expect("a readable view");
+        assert_eq!(view.origin_tab, "wW:tF");
+        assert_eq!(visibility("wW:p10", &view), Visibility::Hidden);
+    }
+
+    #[test]
+    fn the_focused_workspace_decides_the_tab_not_the_first_one_listed() {
+        // wV is listed first and its active tab holds the origin, but the
+        // operator is looking at wW. Reading the first workspace instead of
+        // the focused one would call this Visible.
+        let view = viewer(answers(
+            WORKSPACE_LIST_SECOND_FOCUSED,
+            "wV:p1",
+            LAYOUT_OTHER_WORKSPACE,
+        ))
+        .session_view("wV:p1")
         .expect("a readable view");
-        assert_eq!(visibility("wW:p7", &view), Visibility::Hidden);
+        assert_eq!(view.focused_tab, "wW:t9");
+        assert_eq!(visibility("wV:p1", &view), Visibility::Hidden);
+    }
+
+    #[test]
+    fn a_session_with_no_focused_workspace_is_unreadable_rather_than_a_guess() {
+        assert!(
+            viewer(answers(
+                WORKSPACE_LIST_NONE_FOCUSED,
+                "wW:p3K",
+                LAYOUT_UNZOOMED
+            ))
+            .session_view("wW:p3K")
+            .is_none()
+        );
     }
 
     #[test]
     fn any_herdr_call_failing_leaves_the_view_unreadable_rather_than_guessing() {
         // Unknown never suppresses, so a multiplexer that cannot answer costs
         // a spare notification rather than a lost one.
-        for (current, layout, get) in [
-            (None, Some(LAYOUT_UNZOOMED), Some(PANE_GET_SAME_TAB)),
-            (Some(PANE_CURRENT), None, Some(PANE_GET_SAME_TAB)),
-            (Some(PANE_CURRENT), Some(LAYOUT_UNZOOMED), None),
-        ] {
+        for dropped in ["herdr workspace list", "herdr pane layout --pane wW:p3K"] {
+            let scripted = answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_UNZOOMED)
+                .into_iter()
+                .filter(|(call, _)| call != dropped)
+                .collect();
             assert!(
-                viewer(current, layout, get)
-                    .session_view("wW:p3R")
-                    .is_none()
+                viewer(scripted).session_view("wW:p3K").is_none(),
+                "case: {dropped} unanswered"
             );
         }
     }
 
     #[test]
     fn an_answer_this_parser_does_not_recognise_is_unreadable_too() {
-        assert_eq!(parse_pane("not json"), None);
-        assert_eq!(parse_pane(r#"{"result":{}}"#), None);
-        assert_eq!(parse_layout("not json"), None);
-        // A layout with no zoom flag is a shape we do not know: refusing it
-        // beats assuming a tab is unzoomed and suppressing a notification.
-        assert_eq!(parse_layout(r#"{"result":{"layout":{"panes":[]}}}"#), None);
+        assert_eq!(parse_focused_tab("not json"), None);
+        assert_eq!(parse_focused_tab(r#"{"result":{"workspaces":[]}}"#), None);
+        // A focused workspace with no active tab names no tab, and inventing
+        // one would suppress against a tab that is not on screen.
+        assert_eq!(
+            parse_focused_tab(r#"{"result":{"workspaces":[{"focused":true}]}}"#),
+            None
+        );
+        assert!(parse_layout("not json").is_none());
+        // A layout missing the zoom flag or either id is a shape we do not
+        // know: refusing beats assuming a tab is unzoomed and suppressing.
+        assert!(
+            parse_layout(r#"{"result":{"layout":{"focused_pane_id":"wW:p3K","tab_id":"wW:t9"}}}"#)
+                .is_none()
+        );
+        assert!(parse_layout(r#"{"result":{"layout":{"zoomed":false}}}"#).is_none());
     }
 }

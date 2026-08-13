@@ -29,15 +29,27 @@ pub enum Visibility {
 }
 
 /// One reading of the session's display state, from herdr's own CLI:
-/// `pane get` for the origin pane's tab, `pane layout` for the focused pane
-/// and the tab-level zoom, `workspace list` for which workspace is showing.
+/// `workspace list` for the focused workspace's active tab, and `pane layout`
+/// on the origin pane for that tab's id, focused pane and zoom.
+///
+/// EVERY FIELD HERE IS SESSION-GLOBAL, and building one from a caller-relative
+/// answer is the bug class this type keeps inviting. `herdr pane current`
+/// resolves against the CALLER'S `HERDR_PANE_ID`, and the caller is always the
+/// pane the event fired from, so it reports the origin as focused no matter
+/// what is on screen: the view then says Visible for the very pane that fired,
+/// and every desk notification suppresses itself. Drill D4 found exactly that
+/// on 2026-08-13. Anything addressed by an explicit pane id is safe; anything
+/// meaning "mine" is not.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionView {
     /// The tab the ORIGIN pane belongs to.
     pub origin_tab: String,
-    /// The tab the session is currently showing.
+    /// The tab the session is currently showing: the focused workspace's
+    /// active tab.
     pub focused_tab: String,
-    /// The focused pane inside the focused tab.
+    /// The focused pane inside the ORIGIN's tab, which is the pane on screen
+    /// exactly when that tab is also the focused one, and that is the only
+    /// case visibility consults it.
     pub focused_pane: String,
     /// Tab-level zoom: true means the focused pane fills the window and
     /// every sibling is hidden (operator-confirmed herdr semantics).

@@ -102,20 +102,26 @@ impl Sandbox {
         serde_json::from_str(&raw).unwrap_or_else(|error| panic!("{channel}: {error}: {raw}"))
     }
 
-    /// A stub `herdr` first on PATH, answering the three calls the session
-    /// view makes. `origin_visible` decides whether the event's pane is on
-    /// the tab being looked at or on another one, which is the whole input
-    /// the visibility model takes.
+    /// A stub `herdr` first on PATH, answering the two calls the session view
+    /// makes. `origin_visible` decides whether the event's pane sits on the
+    /// tab being looked at or on another one, which is the whole input the
+    /// visibility model takes.
+    ///
+    /// Nothing caller-relative is answered: `pane current`, and a `pane
+    /// layout` that names no pane, both resolve against whoever asked, and
+    /// the view must never use either. Both exit non-zero here, so a build
+    /// that regresses to one reads the session as unreadable instead of
+    /// passing on a stub that could not tell the difference.
     pub fn stub_herdr(&self, command: &mut Command, origin_visible: bool) {
         let origin_tab = if origin_visible { "t1" } else { "t9" };
         self.stub_on_path(
             command,
             "herdr",
             &format!(
-                r#"case "$2" in
-  current) printf '%s' '{{"result":{{"pane":{{"pane_id":"t1:p1","tab_id":"t1"}}}}}}' ;;
-  layout)  printf '%s' '{{"result":{{"layout":{{"focused_pane_id":"t1:p1","panes":[{{"pane_id":"t1:p1"}},{{"pane_id":"t1:p2"}}],"zoomed":false}}}}}}' ;;
-  *)       printf '%s' '{{"result":{{"pane":{{"pane_id":"t1:p2","tab_id":"{origin_tab}"}}}}}}' ;;
+                r#"case "$1 $2 $3" in
+  "workspace list ")      printf '%s' '{{"result":{{"workspaces":[{{"active_tab_id":"t1","focused":true,"workspace_id":"w1"}}]}}}}' ;;
+  "pane layout --pane")   printf '%s' '{{"result":{{"layout":{{"focused_pane_id":"t1:p1","tab_id":"{origin_tab}","zoomed":false}}}}}}' ;;
+  *)                      exit 1 ;;
 esac"#
             ),
         );
