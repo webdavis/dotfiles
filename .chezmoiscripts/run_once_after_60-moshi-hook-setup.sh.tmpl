@@ -20,7 +20,7 @@
 # `moshi-hook install --help`), and patching the third-party binary is not
 # permitted. So Claude Code's hooks are owned solely by chezmoi's modify-template
 # (private_dot_claude/modify_settings.json), which already wires the relay
-# notifier (relay-agent.sh, on Stop and on the notification events). Excluding
+# notifier (`pns hook`, on Stop and on the notification events). Excluding
 # claude here keeps moshi-hook off Claude Code entirely, so only the states relay
 # reports fire -- never a push on prompt submission. moshi-hook still manages
 # every other CLI natively.

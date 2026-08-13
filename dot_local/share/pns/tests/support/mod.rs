@@ -59,7 +59,14 @@ impl Sandbox {
         let mut command = self.bare();
         command
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
-            .env("RELAY_IDLE_SECS", "99999");
+            .env("RELAY_IDLE_SECS", "99999")
+            // The rate sample is a full second of LIVE counters. The suite
+            // states the streaming verdict instead; a test about streaming
+            // overrides this with its own value.
+            .env("RELAY_MOSHI_VIEWING", "0")
+            // No live condenser: a Stop hook spawns one for real, and the
+            // suite must never reach the operator's own Codex.
+            .env("CODEX_BIN", "/nonexistent/codex");
         command
     }
 

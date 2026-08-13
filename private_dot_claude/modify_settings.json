@@ -178,9 +178,9 @@
      Notification/permission_prompt, and it is deliberately NOT async. Both
      halves are load bearing. PermissionRequest runs BEFORE the prompt is
      shown and its exit code decides the request, so it is the only seam
-     through which relay-agent can hand the payload to moshi-hook and return
+     through which the hook can hand the payload to moshi-hook and return
      the operator's phone answer; an async hook has its exit code discarded by
-     construction, which is the whole feature gone. And running relay-agent on
+     construction, which is the whole feature gone. And running the hook on
      BOTH events would notify twice for one prompt (PermissionRequest fires,
      then the prompt appears and Notification fires), so this is one seam per
      harness, matching Codex's PermissionRequest entry in
@@ -191,16 +191,15 @@
     "UserPromptSubmit" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s/.local/libexec/pns/hooks/claude/user-prompt-start.sh" $home)))))
+        "command" (printf "%s/.local/libexec/pns/pns hook prompt" $home)))))
+    {{- /* ONE Stop entry: the engine measures the turn and reports it in the
+           same pass, where a separate pulse hook used to decide the tier
+           again on its own. */ -}}
     "Stop" (list (dict
-      "hooks" (list
-        (dict
-          "type" "command"
-          "command" (printf "%s/.local/libexec/pns/hooks/claude/stop-pulse.sh" $home))
-        (dict
-          "type" "command"
-          "async" true
-          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh done" $home)))))
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook stop" $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
       "hooks" (list (dict
@@ -209,20 +208,20 @@
     "PermissionRequest" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh blocked" $home)))))
+        "command" (printf "%s/.local/libexec/pns/pns hook blocked" $home)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh asked" $home))))
+          "command" (printf "%s/.local/libexec/pns/pns hook asked" $home))))
       (dict
         "matcher" "ExitPlanMode"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/hooks/relay-agent.sh plan-ready" $home))))) -}}
+          "command" (printf "%s/.local/libexec/pns/pns hook plan-ready" $home))))) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
 {{- /* --- stable: statusLine (path uses $home) --- */ -}}

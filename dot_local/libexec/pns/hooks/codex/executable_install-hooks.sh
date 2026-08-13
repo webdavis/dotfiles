@@ -6,11 +6,11 @@
 set -euo pipefail
 
 hooks="$HOME/.codex/hooks.json"
-agent="$HOME/.local/libexec/pns/hooks/relay-agent.sh"
-[[ -x $agent ]] || exit 0 # relay-agent not deployed yet; nothing to wire
+agent="$HOME/.local/libexec/pns/pns"
+[[ -x $agent ]] || exit 0 # the engine is not deployed yet; nothing to wire
 
-done_cmd="RELAY_AGENT=codex $agent done"
-blocked_cmd="RELAY_AGENT=codex $agent blocked"
+done_cmd="RELAY_AGENT=codex $agent hook stop"
+blocked_cmd="RELAY_AGENT=codex $agent hook blocked"
 
 # Read the existing config. Require EXACTLY one object root whose "hooks" is an object; heal an
 # empty/whitespace/absent file from the {"hooks":{}} default; on any OTHER malformed input (multiple

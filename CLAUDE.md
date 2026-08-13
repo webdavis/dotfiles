@@ -392,9 +392,10 @@ Names are verb-first where a bare noun would not say what happens (`compress-and
 apply time from the crate at `~/.local/share/pns` and installed here because launchd and the hooks are
 what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
 `~/.config/pns/config.toml` file selects by name, so adding one is a registration rather than a file
-dropped in a directory. Only `hooks/` remains bash: those are EVENT SOURCES that feed the engine, kept
-separate from destinations because conflating the two is the easy mistake, and `helpers/` survives for
-exactly as long as they do (`moshi-gate.sh` runs the presence probes to decide an approval round trip).
+dropped in a directory. The HOOKS are the engine too: `pns hook prompt|stop|blocked|asked|plan-ready`
+reads the harness payload on stdin and runs the one event path, and `pns gate <harness>-hook` is the
+presence-gated pass-through moshi's own pi and omp extensions call. `hooks/codex/install-hooks.sh` is the
+last bash left under `pns/`, because writing another tool's config file is what it does.
 
 **Moving a script is never just a move.** Its path is referenced by LaunchAgent plists, `.chezmoiscripts`
 runners, Claude Code hook declarations in `modify_settings.json`, aerospace and herdr keybindings, the

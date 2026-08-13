@@ -1,5 +1,14 @@
 # pns: the decision core, its edges, and the engine binary.
 #
+# WHAT THIS BINARY IS ALLOWED TO SPAWN, and nothing else (operator-approved,
+# extended 2026-08-13 as the hooks converted): `terminal-notifier` (a banner
+# needs a signed app bundle), `moshi-hook` (third-party, owns the approval
+# socket), `herdr` (its CLI is the supported interface), `nettop`, `ioreg` and
+# `pgrep` (no public API for those readings), plus `codex` (the reply
+# condenser) and `git` (the branch lookup), which arrived with the hooks. No
+# `gtimeout`: every deadline is a named constant in Rust, because macOS ships
+# no timeout(1) and shelling out for one was a spawn to bound a spawn.
+#
 # Every dependency is taken where a format demands it and nowhere else:
 # TOML for the config edge, JSON for the event contract, TLS for the phone
 # webhook. The decision core and the probe edge run on std alone, and that

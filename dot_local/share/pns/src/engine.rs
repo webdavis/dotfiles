@@ -138,10 +138,13 @@ where
 
 /// Where the operator is, from the three readings the arbitration needs.
 ///
+/// Public because the blocking hook asks the same question for a different
+/// reason: whether the operator can answer from the phone at all.
+///
 /// EVERY READING IS GUARDED by the verdict that would discard it: a caller who
 /// already stated the answer never pays for the probe underneath it, and the
 /// rate sample costs a full second of live counters.
-fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> Surface
+pub fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> Surface
 where
     P: IdleProbe + PhoneMarkerProbe + MoshRateProbe,
 {
