@@ -304,6 +304,23 @@ fn at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual(
 }
 
 #[test]
+fn a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it() {
+    // THE GATE READS THE SAME ARBITRATION as the delivery plan, so the
+    // phone-input amendment reaches it with no wiring of its own: the desk
+    // was touched 90s ago and is still inside the freshness window, but the
+    // phone was touched 5s ago and that is where the operator can answer.
+    let sandbox = Sandbox::new("hook-blocked-phone-fresher");
+    let mut command = sandbox.relay();
+    command
+        .env("RELAY_IDLE_SECS", "90")
+        .env("RELAY_PHONE_INPUT_AGE", "5");
+    sandbox.stub_moshi(&mut command, 42);
+    let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    assert!(sandbox.path("moshi.argv").exists());
+}
+
+#[test]
 fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
     let sandbox = Sandbox::new("hook-blocked-no-moshi");
     let mut command = sandbox.relay();

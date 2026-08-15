@@ -293,12 +293,12 @@ fn skip_phone_still_beats_a_fresh_tap() {
 // --- the pane the operator is looking at ------------------------------------
 
 #[test]
-fn a_streaming_phone_watching_the_pane_gets_nothing_but_the_log() {
+fn a_phone_in_hand_watching_the_pane_gets_nothing_but_the_log() {
     // Matrix row "mobile watching: suppressed". The card would describe the
     // pane already filling the phone's screen.
     let sandbox = Sandbox::new("watched-pane");
     let mut command = sandbox.relay();
-    command.env("RELAY_MOSHI_VIEWING", "1");
+    command.env("RELAY_PHONE_INPUT_AGE", "0");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -309,11 +309,11 @@ fn a_streaming_phone_watching_the_pane_gets_nothing_but_the_log() {
 }
 
 #[test]
-fn a_streaming_phone_showing_another_tab_still_cards() {
+fn a_phone_in_hand_showing_another_tab_still_cards() {
     // Matrix row "mobile, origin hidden: card only".
     let sandbox = Sandbox::new("other-pane");
     let mut command = sandbox.relay();
-    command.env("RELAY_MOSHI_VIEWING", "1");
+    command.env("RELAY_PHONE_INPUT_AGE", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -480,9 +480,9 @@ fn a_plan_with_no_native_leg_never_opens_the_auth_file() {
     );
     let child = sandbox
         .relay()
-        // The streaming verdict is stated so this test measures the auth
-        // read alone, not the live rate sample underneath it.
-        .env("RELAY_MOSHI_VIEWING", "0")
+        // The phone's age is stated so this test measures the auth read
+        // alone, not the live process walk underneath it.
+        .env("RELAY_PHONE_INPUT_AGE", "99999")
         .env("RELAY_AUTH_FILE", &fifo)
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .spawn()

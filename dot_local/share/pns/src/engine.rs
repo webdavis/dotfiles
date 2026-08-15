@@ -7,9 +7,7 @@
 //! PROBES RUN ONLY WHEN THEIR ANSWER COULD MATTER. Every reading is a spawn
 //! on a path that must never stall, so a caller who already stated an answer
 //! never pays for the probe underneath it: an idle override skips the idle
-//! read, and a stated streaming verdict skips the one-second rate sample.
-//! The surface arbitration decides which readings it needs in order, cheapest
-//! first.
+//! read, and a stated phone-input age skips the process walk behind it.
 //!
 //! CALLER INTENT IS NEVER OVERRIDDEN. Skip beats force ("I already sent it"
 //! is more specific than an override), the narrowing flags beat both, and
@@ -17,7 +15,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::probes::{IdleProbe, MoshRateProbe, PhoneMarkerProbe, SessionViewProbe};
+use crate::probes::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
 use crate::registry::Selection;
 use crate::routing::Leg;
 use crate::surface::{Surface, Visibility};
@@ -34,8 +32,10 @@ pub struct Overrides {
     pub desk_idle_secs: Option<u64>,
     pub skip_phone: bool,
     pub force_phone: bool,
-    pub moshi_viewing: Option<bool>,
-    pub attention_floor_bytes: Option<u64>,
+    /// A stated age for the phone's input clock, in seconds. The discovery
+    /// chain behind that reading walks live processes, so a caller who
+    /// already knows the answer states it and the walk never runs.
+    pub phone_input_age: Option<u64>,
     /// Set when the variable was PRESENT and non-empty but not a count. The
     /// bash validators reject such a value outright rather than falling back,
     /// and the fallback is what would turn an unknown into a confident
@@ -43,6 +43,7 @@ pub struct Overrides {
     /// threshold where the caller's was garbled.
     pub idle_invalid: bool,
     pub desk_invalid: bool,
+    pub phone_invalid: bool,
 }
 
 impl Overrides {
@@ -57,26 +58,19 @@ impl Overrides {
                 (parsed, parsed.is_none())
             }
         };
-        let count = |key: &str| read(key).0;
         let set = |key: &str| vars.get(key).is_some_and(|raw| !raw.is_empty());
-        let forced = |key: &str| match vars.get(key).map(String::as_str) {
-            Some("1") => Some(true),
-            Some("0") => Some(false),
-            _ => None,
-        };
         let (idle_secs, idle_invalid) = read("RELAY_IDLE_SECS");
         let (desk_idle_secs, desk_invalid) = read("RELAY_DESK_IDLE_SECS");
+        let (phone_input_age, phone_invalid) = read("RELAY_PHONE_INPUT_AGE");
         Self {
             idle_secs,
             desk_idle_secs,
             skip_phone: set("RELAY_SKIP_PHONE"),
             force_phone: set("RELAY_FORCE_PHONE"),
-            moshi_viewing: forced("RELAY_MOSHI_VIEWING"),
-            // The floor alone keeps the plain fallback: bash reads it with
-            // the same `${VAR:-100}` and never validates it separately.
-            attention_floor_bytes: count("PNS_ATTENTION_FLOOR_BYTES"),
+            phone_input_age,
             idle_invalid,
             desk_invalid,
+            phone_invalid,
         }
     }
 }
@@ -114,7 +108,7 @@ pub fn decide<P>(
     mobile_watch_card: bool,
 ) -> Decision
 where
-    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + SessionViewProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + SessionViewProbe,
 {
     let world = read_world(probes, overrides, pane, now_secs);
     let delivery = crate::surface::plan(
@@ -164,7 +158,7 @@ fn read_world<P>(
     now_secs: Option<u64>,
 ) -> WorldSnapshot
 where
-    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe + SessionViewProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + SessionViewProbe,
 {
     WorldSnapshot {
         surface: operator_surface(probes, overrides, now_secs),
@@ -178,11 +172,10 @@ where
 /// reason: whether the operator can answer from the phone at all.
 ///
 /// EVERY READING IS GUARDED by the verdict that would discard it: a caller who
-/// already stated the answer never pays for the probe underneath it, and the
-/// rate sample costs a full second of live counters.
+/// already stated the answer never pays for the probe underneath it.
 pub fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> Surface
 where
-    P: IdleProbe + PhoneMarkerProbe + MoshRateProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe,
 {
     // A garbled threshold is UNKNOWN, never the default: substituting 120
     // would read a stale desk as fresh and hold the operator at their desk.
@@ -195,21 +188,6 @@ where
         return Surface::Away;
     };
 
-    let streaming = match overrides.moshi_viewing {
-        Some(forced) => forced,
-        None => probes.sample_csv().is_some_and(|csv| {
-            crate::presence::mosh_rate_active(
-                &csv,
-                overrides
-                    .attention_floor_bytes
-                    .unwrap_or(crate::presence::DEFAULT_ATTENTION_FLOOR_BYTES),
-            )
-        }),
-    };
-    if streaming {
-        return Surface::Mobile;
-    }
-
     let desk_input_age = if overrides.idle_invalid {
         None
     } else {
@@ -218,11 +196,21 @@ where
             None => probes.idle_secs(),
         }
     };
-    // The marker's AGE, not its timestamp: an unreadable clock ages nothing,
-    // which drops the tap out of the arbitration rather than making it
-    // infinitely fresh.
-    let marker_age = now_secs.and_then(|now| Some(now.saturating_sub(probes.marker_mtime_secs()?)));
-    crate::surface::surface(desk_input_age, marker_age, false, desk_fresh_secs)
+    // AGES, never timestamps, and both aged against the SAME clock read: an
+    // unreadable clock ages nothing, which drops a phone signal out of the
+    // arbitration rather than making it infinitely fresh.
+    let age_of =
+        |taken_at: Option<u64>| now_secs.and_then(|now| Some(now.saturating_sub(taken_at?)));
+    let phone_input_age = if overrides.phone_invalid {
+        None
+    } else {
+        match overrides.phone_input_age {
+            Some(secs) => Some(secs),
+            None => age_of(probes.phone_input_atime_secs()),
+        }
+    };
+    let marker_age = age_of(probes.marker_mtime_secs());
+    crate::surface::surface(desk_input_age, phone_input_age, marker_age, desk_fresh_secs)
 }
 
 /// Whether the origin pane is on screen. An unreadable view is Unknown, which
@@ -241,7 +229,7 @@ fn operator_visibility<P: SessionViewProbe>(probes: &P, pane: &str) -> Visibilit
 mod tests {
     use super::{Decision, Overrides, decide};
     use crate::config::parse_config;
-    use crate::probes::{IdleProbe, MoshRateProbe, PhoneMarkerProbe, SessionViewProbe};
+    use crate::probes::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
     use crate::registry::Selection;
     use crate::surface::SessionView;
     use std::cell::Cell;
@@ -253,11 +241,11 @@ mod tests {
     struct CountingProbes {
         idle: Option<u64>,
         marker_mtime: Option<u64>,
-        sample: Option<String>,
+        phone_atime: Option<u64>,
         view: Option<SessionView>,
         idle_reads: Cell<u32>,
         marker_reads: Cell<u32>,
-        sample_reads: Cell<u32>,
+        phone_reads: Cell<u32>,
         view_reads: Cell<u32>,
     }
 
@@ -273,10 +261,10 @@ mod tests {
             self.marker_mtime
         }
     }
-    impl MoshRateProbe for CountingProbes {
-        fn sample_csv(&self) -> Option<String> {
-            self.sample_reads.set(self.sample_reads.get() + 1);
-            self.sample.clone()
+    impl PhoneInputProbe for CountingProbes {
+        fn phone_input_atime_secs(&self) -> Option<u64> {
+            self.phone_reads.set(self.phone_reads.get() + 1);
+            self.phone_atime
         }
     }
     impl SessionViewProbe for CountingProbes {
@@ -399,14 +387,13 @@ mod tests {
     }
 
     #[test]
-    fn a_streaming_phone_never_gets_a_banner_however_fresh_the_desk_looks() {
+    fn a_phone_used_more_recently_than_the_desk_never_gets_a_banner() {
         // The property the matrix rests on: terminal-notifier is a desk
-        // surface, and mobile is not the desk.
+        // surface, and mobile is not the desk. The desk was touched 90s ago
+        // and the phone 5s ago, which is drill D5's own scenario.
         let probes = CountingProbes {
-            idle: Some(1),
-            sample: Some(
-                "01:00:00,mosh-server.1,,,1000,0\n01:00:01,mosh-server.1,,,9000,0\n".to_string(),
-            ),
+            idle: Some(90),
+            phone_atime: Some(999_995),
             view: Some(elsewhere("wW:p1")),
             ..CountingProbes::default()
         };
@@ -444,16 +431,14 @@ mod tests {
 
     #[test]
     fn the_mobile_watch_card_toggle_adds_the_card_only_when_it_is_on() {
-        let streaming = || CountingProbes {
+        let on_the_phone = || CountingProbes {
             idle: Some(9_000),
-            sample: Some(
-                "01:00:00,mosh-server.1,,,1000,0\n01:00:01,mosh-server.1,,,9000,0\n".to_string(),
-            ),
+            phone_atime: Some(999_990),
             view: Some(watching("wW:p1")),
             ..CountingProbes::default()
         };
         let with_toggle = |on: bool| {
-            let probes = streaming();
+            let probes = on_the_phone();
             let decision: Decision = decide(
                 &probes,
                 &three_selection(),
@@ -493,6 +478,7 @@ mod tests {
         let probes = CountingProbes {
             idle: Some(1),
             marker_mtime: Some(999_000),
+            phone_atime: Some(999_900),
             view: Some(watching("wW:p1")),
             ..CountingProbes::default()
         };
@@ -500,7 +486,7 @@ mod tests {
         for (reads, probe) in [
             (probes.idle_reads.get(), "idle"),
             (probes.marker_reads.get(), "marker"),
-            (probes.sample_reads.get(), "rate sample"),
+            (probes.phone_reads.get(), "phone input"),
             (probes.view_reads.get(), "session view"),
         ] {
             assert!(reads <= 1, "the {probe} probe was read {reads} times");
@@ -527,19 +513,43 @@ mod tests {
     }
 
     #[test]
-    fn a_forced_streaming_verdict_spares_the_one_second_sample() {
-        // The rate sample costs a full second of live counters, so a caller
-        // who already stated the answer must never pay for it.
+    fn a_stated_phone_input_age_spares_the_process_walk_behind_it() {
+        // The reading costs three spawns and a walk over live processes, so
+        // a caller who already stated the answer must never pay for it.
         let probes = CountingProbes {
             idle: Some(9_000),
+            phone_atime: Some(999_999),
             ..CountingProbes::default()
         };
         let overrides = Overrides {
-            moshi_viewing: Some(true),
+            phone_input_age: Some(0),
             ..Overrides::default()
         };
         decide_with(&probes, &overrides, "wW:p1");
-        assert_eq!(probes.sample_reads.get(), 0);
+        assert_eq!(probes.phone_reads.get(), 0);
+    }
+
+    #[test]
+    fn a_garbage_phone_override_is_unknown_without_a_probe_read() {
+        // Same rule as the idle override beside it: a present-but-garbled
+        // value is refused rather than falling back to the live reading,
+        // which would let a probe answer a question the caller overrode.
+        let vars = BTreeMap::from([(
+            "RELAY_PHONE_INPUT_AGE".to_string(),
+            "not-a-number".to_string(),
+        )]);
+        let overrides = Overrides::from_env(&vars);
+        let probes = CountingProbes {
+            idle: Some(9_000),
+            phone_atime: Some(999_999),
+            ..CountingProbes::default()
+        };
+        let decision = decide_with(&probes, &overrides, "");
+        assert_eq!(probes.phone_reads.get(), 0);
+        assert!(
+            names(&decision).contains(&"moshi"),
+            "an unknown phone reading falls toward away, which cards"
+        );
     }
 
     #[test]
@@ -554,6 +564,52 @@ mod tests {
         };
         decide_with(&probes, &overrides, "");
         assert_eq!(probes.idle_reads.get(), 0);
+    }
+
+    #[test]
+    fn a_phone_probe_that_read_nothing_leaves_the_operator_at_their_desk() {
+        // The discovery chain walks live processes and any step can come back
+        // empty. Reading that as "just used" would put the operator on a
+        // phone that is not in their hand and silence the banner in front of
+        // them, so no reading has to mean no phone.
+        let probes = CountingProbes {
+            idle: Some(2),
+            phone_atime: None,
+            view: Some(elsewhere("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
+        let legs = names(&decision);
+        assert!(legs.contains(&"macos-banner"), "got {legs:?}");
+        assert!(!legs.contains(&"moshi"), "got {legs:?}");
+    }
+
+    #[test]
+    fn an_unreadable_clock_ages_no_phone_signal_rather_than_treating_it_as_fresh() {
+        // Without a clock neither the pty nor the tap has an age, so both
+        // drop out of the arbitration instead of counting as the newest
+        // signal forever.
+        let probes = CountingProbes {
+            idle: Some(9_000),
+            marker_mtime: Some(999_990),
+            phone_atime: Some(999_990),
+            ..CountingProbes::default()
+        };
+        let decision = decide(
+            &probes,
+            &three_selection(),
+            &Overrides::default(),
+            false,
+            false,
+            "",
+            None,
+            false,
+            false,
+        );
+        assert!(
+            names(&decision).contains(&"moshi"),
+            "away still cards; neither phone signal decided it"
+        );
     }
 
     #[test]

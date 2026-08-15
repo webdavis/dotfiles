@@ -3,8 +3,8 @@
 //! Each trait is deliberately NARROW, one reading per trait, so a test
 //! substitutes exactly the reading it is about and the core never grows a path
 //! that touches the outside world. The concrete implementations (the idle
-//! counter, the marker's timestamp, the sampler, the multiplexer query) belong
-//! to the binary's composition root.
+//! counter, the marker's timestamp, the phone's pty clock, the multiplexer
+//! query) belong to the binary's composition root.
 //!
 //! Every reading is optional, because every one of them can fail to be taken.
 //! `None` is "could not read", never a value, and each decision states its own
@@ -21,9 +21,14 @@ pub trait PhoneMarkerProbe {
     fn marker_mtime_secs(&self) -> Option<u64>;
 }
 
-/// A two-sample CSV reading of per-session byte counters.
-pub trait MoshRateProbe {
-    fn sample_csv(&self) -> Option<String>;
+/// When the phone last put INPUT into the session, as the access time of the
+/// mosh client's pty.
+///
+/// A timestamp rather than an age, exactly like the marker beside it: the
+/// clock is read once at the edge and every reading is aged against that one
+/// value, so two signals cannot be compared across two different "now"s.
+pub trait PhoneInputProbe {
+    fn phone_input_atime_secs(&self) -> Option<u64>;
 }
 
 /// The session's display state, as the multiplexer sees it. One reading for
@@ -52,9 +57,9 @@ impl<T: PhoneMarkerProbe> PhoneMarkerProbe for &T {
     }
 }
 
-impl<T: MoshRateProbe> MoshRateProbe for &T {
-    fn sample_csv(&self) -> Option<String> {
-        (*self).sample_csv()
+impl<T: PhoneInputProbe> PhoneInputProbe for &T {
+    fn phone_input_atime_secs(&self) -> Option<u64> {
+        (*self).phone_input_atime_secs()
     }
 }
 

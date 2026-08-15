@@ -7,9 +7,9 @@
 //! thresholds or judges.
 //!
 //! The runner seam exists for the same reason: a test substitutes the command
-//! output, so the suite never samples the live machine. That matters more than
-//! usual here, because the rate sample takes a full second of live counters and
-//! a suite that ran it would be both slow and nondeterministic.
+//! output, so the suite never reads the live machine. That matters more than
+//! usual here, because these readings are of the developer's own desk and
+//! phone, and a suite that took them would answer differently every run.
 
 use std::process::Command;
 use std::time::Duration;
@@ -23,14 +23,13 @@ pub trait CommandRunner {
 /// The production runner: spawns the command under a deadline and keeps its
 /// stdout.
 ///
-/// EVERY PROBE IS BOUNDED. A wedged herdr, ioreg or nettop would otherwise
+/// EVERY PROBE IS BOUNDED. A wedged herdr, ioreg, pgrep or ps would otherwise
 /// hold a notification open indefinitely, and the readings all have a
 /// fail-direction already: no answer reads as unknown, which never suppresses.
 pub struct SystemCommandRunner;
 
-/// One window for every probe. The rate sample is the slow one at roughly a
-/// second by construction (`nettop -L 2`); the rest answer in milliseconds, so
-/// this is generous for them and still far short of a hang.
+/// One window for every probe. All of them answer in milliseconds, so this is
+/// generous and still far short of a hang.
 const PROBE_DEADLINE: Duration = Duration::from_secs(5);
 
 impl CommandRunner for SystemCommandRunner {
@@ -78,9 +77,9 @@ pub fn run_bounded(
         // Dropping stdin closes it, which is what tells the child to stop
         // reading; without it a child waiting on EOF never exits.
         drop(stdin);
-        // Bytes, then LOSSY: the rate CSV is judged row by row downstream, so
-        // one invalid byte must cost its own row rather than the whole
-        // sample, and read_to_string would refuse the lot.
+        // Bytes, then LOSSY: every reading here is judged line by line
+        // downstream, so one invalid byte must cost its own line rather than
+        // the whole answer, and read_to_string would refuse the lot.
         let mut output = Vec::new();
         let _ = std::io::Read::read_to_end(&mut stdout, &mut output);
         let _ = sender.send(String::from_utf8_lossy(&output).into_owned());
@@ -133,7 +132,11 @@ const IOREG_IDLE_KEY: &str = "HIDIdleTime";
 /// it does not control.
 pub const IOREG_PATH: &str = "/usr/sbin/ioreg";
 pub const PGREP_PATH: &str = "/usr/bin/pgrep";
-pub const NETTOP_PATH: &str = "/usr/bin/nettop";
+pub const PS_PATH: &str = "/bin/ps";
+
+/// Where a terminal name from `ps` resolves to. The name is validated before
+/// it is joined, because this is the one place a reading becomes a PATH.
+const TTY_DIR: &str = "/dev";
 
 /// The idle nanosecond count, taken from the FIRST line that carries the key.
 ///
@@ -168,6 +171,25 @@ pub fn parse_pids(pgrep_output: &str) -> Vec<String> {
         .lines()
         .filter(|line| !line.is_empty() && line.chars().all(|c| c.is_ascii_digit()))
         .map(str::to_string)
+        .collect()
+}
+
+/// The terminal names `ps` printed, one per line, discarding every line that
+/// is not one.
+///
+/// THIS IS A TRUST BOUNDARY, because the name is about to become a path under
+/// `/dev`. A process with no controlling terminal prints `??`, and that is
+/// only the benign case: anything not plain alphanumeric is refused outright,
+/// so no reading can carry a slash or a `..` into the join below.
+///
+/// The name is trimmed first, unlike a process id: `ps -o tty=` pads its
+/// column to a fixed width, so the padding is the format rather than the
+/// garbled output that padding around a pid would be.
+pub fn parse_tty_names(ps_output: &str) -> Vec<&str> {
+    ps_output
+        .lines()
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric()))
         .collect()
 }
 
@@ -220,8 +242,8 @@ pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
     })
 }
 
-/// The four probes: three read the machine through one command each, and the
-/// marker reads the filesystem directly, because an mtime needs no subprocess.
+/// The four probes: three read the machine through commands, and the marker
+/// reads the filesystem directly, because an mtime needs no subprocess.
 ///
 /// One struct rather than four, because they share the runner and a caller
 /// composes the traits it needs. SOLID: the command probes depend on the
@@ -266,31 +288,66 @@ impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
     }
 }
 
-impl<R: CommandRunner> crate::probes::MoshRateProbe for SystemProbes<R> {
-    fn sample_csv(&self) -> Option<String> {
-        let pids = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
-        if pids.is_empty() {
+impl<R: CommandRunner> crate::probes::PhoneInputProbe for SystemProbes<R> {
+    /// WHEN THE PHONE LAST TYPED, SCROLLED OR TAPPED INTO THE SESSION, as the
+    /// access time of the pty its mosh client is attached to.
+    ///
+    /// THE READING IS ATIME, AND THAT IS THE WHOLE TRICK. On macOS a tty's
+    /// atime moves when something is written INTO it and its mtime moves when
+    /// something is read OUT of it, so atime is input and mtime is the agent
+    /// talking back. Proven live on 2026-08-15 in both directions: a scroll on
+    /// the phone moved the mosh pty's atime while typing at the desk left it
+    /// untouched. That is what makes this comparable with the desk's own idle
+    /// clock instead of the byte sample it replaces, which passive viewing
+    /// could not move at all.
+    ///
+    /// THREE BOUNDED SPAWNS, never one per process: `mosh-server` runs
+    /// detached with no controlling terminal of its own, so the terminal
+    /// belongs to the client it forked, and both `pgrep -P` and `ps -p` take
+    /// the whole list of ids at once.
+    ///
+    /// FRESHEST WINS across every session found, and any step coming back
+    /// empty leaves None. None is never fresh, which drops the phone out of
+    /// the arbitration rather than parking the operator on it: a phone that
+    /// cannot be read must not silence the banner.
+    fn phone_input_atime_secs(&self) -> Option<u64> {
+        let servers = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
+        let clients = parse_pids(&self.pgrep_children(&servers)?);
+        if clients.is_empty() {
             return None;
         }
-        // -P collapses to one row per process, -x prints raw byte counts rather
-        // than MiB, -n skips address resolution, and -L 2 is what makes this two
-        // samples a second apart in CSV. The -J column list puts bytes_in in
-        // field 5, which is the shape the rate judge parses.
-        let mut args = vec![
-            "-P",
-            "-L",
-            "2",
-            "-x",
-            "-n",
-            "-J",
-            "time,interface,state,bytes_in,bytes_out",
-        ];
-        for pid in &pids {
-            args.push("-p");
-            args.push(pid);
-        }
-        self.runner.run(NETTOP_PATH, &args)
+        let terminals = self
+            .runner
+            .run(PS_PATH, &["-o", "tty=", "-p", &clients.join(",")])?;
+        newest_terminal_atime(TTY_DIR, &terminals)
     }
+}
+
+/// The most recent access time among the terminals `ps` named, or None when
+/// not one of them could be read.
+///
+/// The directory is a parameter so the lookup can be pointed at fixtures; in
+/// production it is always `/dev`.
+pub fn newest_terminal_atime(tty_dir: &str, ps_output: &str) -> Option<u64> {
+    parse_tty_names(ps_output)
+        .into_iter()
+        .filter_map(|name| atime_secs(&format!("{tty_dir}/{name}")))
+        .max()
+}
+
+/// A file's access time in whole seconds since the epoch, or None when it
+/// cannot be read. A plain `stat`, which does not itself count as an access,
+/// so taking the reading never disturbs it.
+fn atime_secs(path: &str) -> Option<u64> {
+    Some(
+        std::fs::metadata(path)
+            .ok()?
+            .accessed()
+            .ok()?
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()?
+            .as_secs(),
+    )
 }
 
 impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
@@ -322,6 +379,16 @@ impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
 }
 
 impl<R: CommandRunner> SystemProbes<R> {
+    /// Every child of the given parents, in one call. No parents means no
+    /// call: `pgrep -P` with an empty list is a usage error, not a query
+    /// answering "none".
+    fn pgrep_children(&self, parents: &[String]) -> Option<String> {
+        if parents.is_empty() {
+            return None;
+        }
+        self.runner.run(PGREP_PATH, &["-P", &parents.join(",")])
+    }
+
     /// Resolved through PATH, unlike the system binaries above: the
     /// multiplexer is not at a fixed location, and a context whose PATH does
     /// not carry it reads as unknown, which fails OPEN into a notification.
@@ -335,7 +402,8 @@ impl<R: CommandRunner> SystemProbes<R> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CommandRunner, parse_focused_tab, parse_idle_nanoseconds, parse_layout, parse_pids,
+        CommandRunner, newest_terminal_atime, parse_focused_tab, parse_idle_nanoseconds,
+        parse_layout, parse_pids, parse_tty_names,
     };
     use std::cell::RefCell;
 
@@ -359,18 +427,6 @@ mod tests {
         fn failing() -> Self {
             Self {
                 answers: Vec::new(),
-                calls: RefCell::new(Vec::new()),
-            }
-        }
-
-        /// One answer per program, keyed by a substring of its path, for the
-        /// probe that chains two commands.
-        fn scripted(scripts: &[(&str, &str)]) -> Self {
-            Self {
-                answers: scripts
-                    .iter()
-                    .map(|(program, out)| ((*program).to_string(), Some((*out).to_string())))
-                    .collect(),
                 calls: RefCell::new(Vec::new()),
             }
         }
@@ -478,9 +534,9 @@ mod tests {
     }
 
     #[test]
-    fn the_production_runner_keeps_a_sample_with_stray_invalid_bytes() {
-        // The rate CSV is judged row by row downstream, matching the bash awk
-        // parser's tolerance: one bad byte must not discard a whole sample.
+    fn the_production_runner_keeps_a_reading_with_stray_invalid_bytes() {
+        // Every reading is judged line by line downstream, so one bad byte
+        // must cost its own line rather than the whole answer.
         let out = SystemCommandRunner
             .run("/bin/sh", &["-c", "printf 'a\\377b'"])
             .expect("stray bytes must not discard the reading");
@@ -490,7 +546,7 @@ mod tests {
     // --- the four probe implementations, the behavior R2a owes -------------
 
     use super::SystemProbes;
-    use crate::probes::{IdleProbe, MoshRateProbe, PhoneMarkerProbe, SessionViewProbe};
+    use crate::probes::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
     use crate::surface::{Visibility, visibility};
 
     fn probes_answering(answer: &str) -> SystemProbes<FakeRunner> {
@@ -563,40 +619,195 @@ mod tests {
         );
     }
 
-    #[test]
-    fn no_sessions_means_no_sample_and_the_sampler_never_runs() {
-        // An empty CSV would be judged INACTIVE either way, but skipping the
-        // sampler is what keeps a full second of live counters off this path;
-        // the call recording is the proof it was skipped.
-        let probes = probes_answering("");
-        assert_eq!(probes.sample_csv(), None);
-        let calls = probes.runner.calls.borrow();
-        assert_eq!(calls.len(), 1, "only pgrep may run, got {calls:?}");
-        assert_eq!(calls[0], "/usr/bin/pgrep -x mosh-server");
-    }
+    // --- the phone's input clock -------------------------------------------
 
-    #[test]
-    fn a_pgrep_with_no_matches_is_no_sample_which_reads_inactive() {
-        // Real pgrep exits non-zero on no matches, which the runner reports
-        // as None: the shape the production path actually produces.
-        assert_eq!(probes_failing().sample_csv(), None);
-    }
-
-    #[test]
-    fn the_sampler_argv_matches_the_bash_original_byte_for_byte() {
-        // The -J column order puts bytes_in in field 5, the exact shape the
-        // rate judge parses; a reordering here ships a dead probe silently.
-        let probes = SystemProbes::new(
-            FakeRunner::scripted(&[("pgrep", "101\n2002\n"), ("nettop", "csv\n")]),
+    /// The probe with the three discovery answers scripted by exact argv,
+    /// pointed at a marker path nothing reads.
+    fn phone_probe(answers: &[(&str, &str)]) -> SystemProbes<ExactArgvRunner> {
+        SystemProbes::new(
+            ExactArgvRunner {
+                answers: answers
+                    .iter()
+                    .map(|(call, out)| ((*call).to_string(), (*out).to_string()))
+                    .collect(),
+                calls: RefCell::new(Vec::new()),
+            },
             "/marker".to_string(),
-        );
-        assert_eq!(probes.sample_csv(), Some("csv\n".to_string()));
-        let calls = probes.runner.calls.borrow();
-        assert_eq!(calls[0], "/usr/bin/pgrep -x mosh-server");
+        )
+    }
+
+    /// The live chain, recorded on dresden 2026-08-15: one detached
+    /// `mosh-server`, the herdr client it forked, and that client's pty.
+    const DISCOVERY: [(&str, &str); 3] = [
+        ("/usr/bin/pgrep -x mosh-server", "14362\n"),
+        ("/usr/bin/pgrep -P 14362", "14363\n"),
+        // ps pads its column to a fixed width, which the parser trims.
+        ("/bin/ps -o tty= -p 14363", "ttys000 \n"),
+    ];
+
+    #[test]
+    fn the_discovery_argv_is_pinned_to_the_chain_that_was_measured_live() {
+        // THREE CALLS, in this order, with the ids batched rather than one
+        // spawn per process. `mosh-server` itself has no controlling
+        // terminal (measured: `??`), which is why the client is walked to at
+        // all; a reordering or a dropped step ships a probe that silently
+        // never reads a phone.
+        let probes = phone_probe(&DISCOVERY);
+        probes.phone_input_atime_secs();
         assert_eq!(
-            calls[1],
-            "/usr/bin/nettop -P -L 2 -x -n -J time,interface,state,bytes_in,bytes_out -p 101 -p 2002"
+            probes.runner.calls.borrow().as_slice(),
+            &[
+                "/usr/bin/pgrep -x mosh-server".to_string(),
+                "/usr/bin/pgrep -P 14362".to_string(),
+                "/bin/ps -o tty= -p 14363".to_string(),
+            ]
         );
+    }
+
+    #[test]
+    fn every_server_and_every_client_is_asked_for_in_one_call_each() {
+        // Two phones attached at once is the case that grows the id lists,
+        // and both pgrep and ps take the whole list, so the spawn count
+        // stays at three however many sessions are open.
+        let probes = phone_probe(&[
+            ("/usr/bin/pgrep -x mosh-server", "14362\n900\n"),
+            ("/usr/bin/pgrep -P 14362,900", "14363\n901\n"),
+            ("/bin/ps -o tty= -p 14363,901", "ttys000 \nttys001 \n"),
+        ]);
+        probes.phone_input_atime_secs();
+        assert_eq!(probes.runner.calls.borrow().len(), 3);
+    }
+
+    #[test]
+    fn a_failure_at_any_step_of_the_chain_reads_as_no_phone_rather_than_a_fresh_one() {
+        // Never fresh is the fail direction: a phone that cannot be read
+        // must drop out of the arbitration, not park the operator on it and
+        // silence every banner. Each case drops one scripted answer, which
+        // is that command failing.
+        for dropped in [
+            "/usr/bin/pgrep -x mosh-server",
+            "/usr/bin/pgrep -P 14362",
+            "/bin/ps -o tty= -p 14363",
+        ] {
+            let scripted: Vec<(&str, &str)> = DISCOVERY
+                .iter()
+                .copied()
+                .filter(|(call, _)| *call != dropped)
+                .collect();
+            assert_eq!(
+                phone_probe(&scripted).phone_input_atime_secs(),
+                None,
+                "case: {dropped} unanswered"
+            );
+        }
+    }
+
+    #[test]
+    fn no_mosh_server_at_all_never_asks_for_children_of_nothing() {
+        // `pgrep -P` with an empty list is a usage error, not a query
+        // answering "none", so the walk stops rather than spawning it.
+        let probes = phone_probe(&[("/usr/bin/pgrep -x mosh-server", "\n")]);
+        assert_eq!(probes.phone_input_atime_secs(), None);
+        assert_eq!(
+            probes.runner.calls.borrow().as_slice(),
+            &["/usr/bin/pgrep -x mosh-server".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_server_whose_client_has_no_terminal_reads_as_no_phone() {
+        // `ps -o tty=` prints `??` for a process with no controlling
+        // terminal, and there is no clock on a terminal that is not there.
+        let probes = phone_probe(&[
+            ("/usr/bin/pgrep -x mosh-server", "14362\n"),
+            ("/usr/bin/pgrep -P 14362", "14363\n"),
+            ("/bin/ps -o tty= -p 14363", "??       \n"),
+        ]);
+        assert_eq!(probes.phone_input_atime_secs(), None);
+    }
+
+    // --- parse_tty_names, the step that becomes a path ----------------------
+
+    #[test]
+    fn a_padded_terminal_name_is_trimmed_because_the_padding_is_the_format() {
+        // Unlike a pid line, where padding is output we did not expect, `ps
+        // -o tty=` pads its column by design.
+        assert_eq!(
+            parse_tty_names("ttys000 \nttys001  \n"),
+            ["ttys000", "ttys001"]
+        );
+    }
+
+    #[test]
+    fn a_process_with_no_controlling_terminal_names_none() {
+        assert!(parse_tty_names("??       \n").is_empty());
+        assert!(parse_tty_names("").is_empty());
+        assert_eq!(parse_tty_names("??      \nttys000 \n"), ["ttys000"]);
+    }
+
+    #[test]
+    fn a_name_that_could_escape_the_device_directory_is_refused_outright() {
+        // The name is joined onto /dev, so this is the trust boundary: a
+        // reading carrying a slash or a dot-dot must never become a path.
+        for hostile in [
+            "../../etc/passwd",
+            "..",
+            "tty/../../root",
+            "tty s000",
+            "tty;rm",
+            "tty.0",
+        ] {
+            assert!(
+                parse_tty_names(&format!("{hostile}\n")).is_empty(),
+                "case: {hostile}"
+            );
+        }
+    }
+
+    // --- newest_terminal_atime, against files whose atimes are set ----------
+
+    /// A file with the given access time, and the name to reach it by.
+    fn terminal_with_atime(dir: &std::path::Path, name: &str, stamp: &str) {
+        let path = dir.join(name);
+        std::fs::write(&path, b"").expect("terminal fixture");
+        assert!(
+            std::process::Command::new("/usr/bin/touch")
+                .args(["-a", "-t", stamp])
+                .arg(&path)
+                .status()
+                .expect("touch runs")
+                .success()
+        );
+    }
+
+    #[test]
+    fn the_freshest_terminal_wins_across_every_session_found() {
+        // Two phones attached, one put down an hour ago and one in a hand:
+        // the reading is the one being used, so the stale session cannot
+        // drag the verdict away from the live one.
+        let dir = std::env::temp_dir().join(format!("pns-tty-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        terminal_with_atime(&dir, "ttys000", "202001010000.00");
+        terminal_with_atime(&dir, "ttys001", "202101010000.00");
+        let newest = newest_terminal_atime(&dir.to_string_lossy(), "ttys000 \nttys001 \n");
+        let stale = newest_terminal_atime(&dir.to_string_lossy(), "ttys000 \n");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(newest, Some(1_609_484_400), "the 2021 atime is the reading");
+        assert_eq!(stale, Some(1_577_862_000), "and alone the 2020 one is");
+    }
+
+    #[test]
+    fn a_terminal_that_cannot_be_stat_ed_drops_out_without_taking_the_others_with_it() {
+        let dir = std::env::temp_dir().join(format!("pns-tty-gone-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        terminal_with_atime(&dir, "ttys000", "202001010000.00");
+        let mixed = newest_terminal_atime(&dir.to_string_lossy(), "ttysGONE \nttys000 \n");
+        let none = newest_terminal_atime(&dir.to_string_lossy(), "ttysGONE \n");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(mixed, Some(1_577_862_000));
+        assert_eq!(none, None, "nothing readable is no reading at all");
     }
 
     #[test]
@@ -643,12 +854,12 @@ mod tests {
 
     /// Answers exact argv and records every call, so an unscripted call reads
     /// as that herdr subcommand failing rather than as a silent default.
-    struct HerdrRunner {
+    struct ExactArgvRunner {
         answers: Vec<(String, String)>,
         calls: RefCell<Vec<String>>,
     }
 
-    impl CommandRunner for HerdrRunner {
+    impl CommandRunner for ExactArgvRunner {
         fn run(&self, program: &str, args: &[&str]) -> Option<String> {
             let call = format!("{program} {}", args.join(" "));
             self.calls.borrow_mut().push(call.clone());
@@ -659,9 +870,9 @@ mod tests {
         }
     }
 
-    fn viewer(answers: Vec<(String, String)>) -> SystemProbes<HerdrRunner> {
+    fn viewer(answers: Vec<(String, String)>) -> SystemProbes<ExactArgvRunner> {
         SystemProbes::new(
-            HerdrRunner {
+            ExactArgvRunner {
                 answers,
                 calls: RefCell::new(Vec::new()),
             },

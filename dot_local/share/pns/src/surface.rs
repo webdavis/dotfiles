@@ -87,32 +87,48 @@ pub fn visibility(origin: &str, view: &SessionView) -> Visibility {
 
 /// Where the operator's eyes are, by NEWEST SIGNAL WINS.
 ///
-/// Two signals compete: physical input at the desk, and the deliberate Back
-/// Tap marker. Whichever happened more recently wins, and a signal older than
-/// the freshness window counts for nothing, which is what retired the marker's
-/// fixed TTL: a tap holds mobile for as long as nothing newer contradicts it,
-/// not for five minutes.
+/// TWO CLOCKS OF THE SAME KIND, which is the whole amendment (operator
+/// confirmed 2026-08-15). The desk reports when its keyboard was last touched
+/// and the phone reports when the mosh client's pty was last WRITTEN TO by its
+/// reader; both answer "how long since a human last did something here", so
+/// the fresher one is where the operator is. A signal older than the freshness
+/// window counts for nothing, which is what retired the marker's fixed TTL: a
+/// signal holds its surface for as long as nothing newer contradicts it.
 ///
-/// Streaming outranks both. Bytes moving over moshi are the operator's eyes
-/// on the session right now, which beats even fresh desk input, since the desk
-/// reading cannot tell typing from a cat on the keyboard.
+/// WHY THE PHONE NEEDED ITS OWN CLOCK. The reading it replaces was a
+/// one-second sample of bytes moving over moshi, and passive viewing moves
+/// almost none: drill D5(i) had the operator reading the session on the phone
+/// while the sample came in under the floor, fresh desk input won on a desk
+/// nobody was at, and the banner fired into an empty room. Input is what the
+/// desk was always measuring, so measuring it on the phone too puts the two on
+/// one comparable footing.
+///
+/// THE TAP AND THE PTY ARE ONE CLASS. A Back Tap is manual phone input by
+/// another route, so it does not outrank the client's own clock and is not
+/// outranked by it; the fresher of the two speaks for the phone, and that
+/// combined reading is what meets the desk.
 ///
 /// A missing reading is never fresh, so every unknown falls toward Away rather
 /// than Desk: getting a card while at the desk costs a glance, missing one
 /// while away costs the event.
 pub fn surface(
     desk_input_age: Option<u64>,
+    phone_input_age: Option<u64>,
     marker_age: Option<u64>,
-    moshi_streaming: bool,
     desk_fresh_secs: u64,
 ) -> Surface {
-    if moshi_streaming {
-        return Surface::Mobile;
-    }
     let fresh = |age: Option<u64>| age.filter(|seconds| *seconds < desk_fresh_secs);
-    match (fresh(desk_input_age), fresh(marker_age)) {
-        (Some(desk), Some(tap)) => {
-            if desk <= tap {
+    // Smallest age is the most recent, and an unreadable one simply does not
+    // compete: two ways of touching the phone, one verdict for the phone.
+    let phone = [fresh(phone_input_age), fresh(marker_age)]
+        .into_iter()
+        .flatten()
+        .min();
+    match (fresh(desk_input_age), phone) {
+        // The tie goes to the desk, where the operator has to be sitting for
+        // the reading to exist at all.
+        (Some(desk), Some(phone)) => {
+            if desk <= phone {
                 Surface::Desk
             } else {
                 Surface::Mobile
@@ -234,63 +250,102 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Surface: newest signal wins between the Back Tap marker and desk
-    // input; moshi streaming means Mobile; nothing fresh means Away.
+    // Surface: newest signal wins between two input clocks, the desk's
+    // keyboard and the phone's pty (with the Back Tap as manual phone
+    // input); nothing fresh means Away.
     // ------------------------------------------------------------------
 
     #[test]
     fn every_surface_case_in_the_matrix_arbitrates_correctly() {
-        // (case label, last desk input age secs, marker age secs,
-        //  moshi streaming, desk fresh threshold, expected)
         // Ages are seconds-ago; None = reading unavailable.
-        // (label, desk input age, marker age, streaming, fresh window, expected)
-        type Case = (&'static str, Option<u64>, Option<u64>, bool, u64, Surface);
-        let matrix: [Case; 8] = [
+        // (label, desk input age, phone input age, marker age, fresh window,
+        //  expected)
+        type Case = (
+            &'static str,
+            Option<u64>,
+            Option<u64>,
+            Option<u64>,
+            u64,
+            Surface,
+        );
+        let matrix: [Case; 11] = [
             (
-                "typing at the desk, no tap, no streaming",
+                "typing at the desk, phone untouched",
                 Some(2),
                 None,
-                false,
+                None,
+                120,
+                Surface::Desk,
+            ),
+            (
+                "scrolling moshi now beats desk touched 90s ago",
+                Some(90),
+                Some(5),
+                None,
+                120,
+                Surface::Mobile,
+            ),
+            (
+                "passive viewing still wins: the pty moved, the desk did not",
+                Some(600),
+                Some(60),
+                None,
+                120,
+                Surface::Mobile,
+            ),
+            (
+                "desk input AFTER the last phone input cancels it",
+                Some(5),
+                Some(60),
+                None,
+                120,
+                Surface::Desk,
+            ),
+            (
+                "the tie goes to the desk, where the operator is sitting",
+                Some(30),
+                Some(30),
+                None,
                 120,
                 Surface::Desk,
             ),
             (
                 "tap newer than the last desk input wins: mobile",
                 Some(300),
+                None,
                 Some(30),
-                false,
                 120,
                 Surface::Mobile,
             ),
             (
                 "desk input AFTER the tap cancels it",
                 Some(5),
+                None,
                 Some(60),
-                false,
                 120,
                 Surface::Desk,
             ),
             (
-                "moshi actively streaming is mobile even with no tap",
-                Some(600),
-                None,
-                true,
+                "the tap speaks for the phone when it is the fresher of the two",
+                Some(50),
+                Some(100),
+                Some(10),
                 120,
                 Surface::Mobile,
             ),
             (
-                "streaming outranks a stale desk reading",
-                Some(90),
-                None,
-                true,
+                "and the pty speaks for it when IT is the fresher of the two",
+                Some(50),
+                Some(10),
+                Some(100),
                 120,
                 Surface::Mobile,
             ),
             (
                 "nothing fresh anywhere is away",
                 Some(600),
-                None,
-                false,
+                Some(600),
+                Some(600),
                 120,
                 Surface::Away,
             ),
@@ -298,22 +353,14 @@ mod tests {
                 "no readings at all fails toward away, never desk",
                 None,
                 None,
-                false,
-                120,
-                Surface::Away,
-            ),
-            (
-                "an old tap alone does not hold mobile forever",
-                Some(3000),
-                Some(2400),
-                false,
+                None,
                 120,
                 Surface::Away,
             ),
         ];
-        for (label, desk_input_age, marker_age, streaming, desk_fresh, expected) in matrix {
+        for (label, desk_input_age, phone_input_age, marker_age, desk_fresh, expected) in matrix {
             assert_eq!(
-                surface(desk_input_age, marker_age, streaming, desk_fresh),
+                surface(desk_input_age, phone_input_age, marker_age, desk_fresh),
                 expected,
                 "case: {label}"
             );
@@ -321,16 +368,35 @@ mod tests {
     }
 
     #[test]
-    fn the_tap_needs_no_expiry_window_while_it_stays_the_newest_signal() {
-        // Newest-signal-wins replaced the fixed five-minute marker TTL: a
-        // 20-minute-old tap still means mobile when the desk has been idle
-        // longer and moshi has the session open enough to matter. The tap
-        // only loses to newer desk input or to full away-ness.
+    fn a_phone_signal_needs_no_expiry_window_while_it_stays_the_newest_one() {
+        // Newest-signal-wins replaced the fixed five-minute marker TTL: an
+        // hour-old session still reads mobile while the phone's clock is the
+        // fresher of the two, and only newer desk input or full staleness
+        // takes it back.
         assert_eq!(
-            surface(Some(2000), Some(1200), true, 120),
+            surface(Some(2000), Some(30), Some(3600), 120),
             Surface::Mobile,
-            "old tap + streaming stays mobile"
+            "a long-open session whose pty just moved is still mobile"
         );
+    }
+
+    #[test]
+    fn a_phone_reading_that_could_not_be_taken_never_counts_as_fresh() {
+        // The discovery chain has four steps and any of them can come back
+        // with nothing. Reading that as "just used" would park the operator
+        // on a phone that is not in their hand and silence every banner.
+        assert_eq!(surface(Some(5), None, None, 120), Surface::Desk);
+        assert_eq!(surface(Some(600), None, None, 120), Surface::Away);
+        assert_eq!(surface(None, None, None, 120), Surface::Away);
+    }
+
+    #[test]
+    fn a_stale_phone_reading_loses_to_the_desk_rather_than_holding_mobile() {
+        // Mosh sessions outlive the attention paid to them: the client stays
+        // attached for days. Presence is the pty's CLOCK, never the session's
+        // existence, so an attached-but-untouched session decides nothing.
+        assert_eq!(surface(Some(5), Some(9_000), None, 120), Surface::Desk);
+        assert_eq!(surface(Some(9_000), Some(9_000), None, 120), Surface::Away);
     }
 
     // ------------------------------------------------------------------

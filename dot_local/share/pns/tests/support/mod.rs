@@ -60,10 +60,10 @@ impl Sandbox {
         command
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
             .env("RELAY_IDLE_SECS", "99999")
-            // The rate sample is a full second of LIVE counters. The suite
-            // states the streaming verdict instead; a test about streaming
-            // overrides this with its own value.
-            .env("RELAY_MOSHI_VIEWING", "0")
+            // The phone's clock is read by walking the DEVELOPER'S OWN live
+            // mosh sessions, so the suite states it instead: untouched for a
+            // day. A test about the phone overrides this with its own age.
+            .env("RELAY_PHONE_INPUT_AGE", "99999")
             // No live condenser: a Stop hook spawns one for real, and the
             // suite must never reach the operator's own Codex.
             .env("CODEX_BIN", "/nonexistent/codex");
