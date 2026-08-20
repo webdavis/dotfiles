@@ -847,19 +847,27 @@ mod tests {
 
     // --- newest_terminal_atime, against files whose atimes are set ----------
 
-    /// A file with the given access time, and the name to reach it by.
-    fn terminal_with_atime(dir: &std::path::Path, name: &str, stamp: &str) {
-        let path = dir.join(name);
-        std::fs::write(&path, b"").expect("terminal fixture");
-        assert!(
-            std::process::Command::new("/usr/bin/touch")
-                .args(["-a", "-t", stamp])
-                .arg(&path)
-                .status()
-                .expect("touch runs")
-                .success()
-        );
+    /// A file whose access time is exactly this many seconds past the epoch.
+    ///
+    /// AN ABSOLUTE INSTANT, never a wall-clock stamp. This used to shell out
+    /// to `touch -a -t`, which reads its stamp in the HOST'S LOCAL TIME, so
+    /// the fixture meant one epoch on the developer's machine and another on
+    /// a UTC runner: the same two assertions passed in Denver and failed in
+    /// CI, seven hours apart. The probe under test reports epoch seconds, so
+    /// the fixture states epoch seconds and the assertion reads the same
+    /// constant back.
+    fn terminal_with_atime(dir: &std::path::Path, name: &str, atime_secs: u64) {
+        let file = std::fs::File::create(dir.join(name)).expect("terminal fixture");
+        file.set_times(
+            std::fs::FileTimes::new()
+                .set_accessed(std::time::UNIX_EPOCH + std::time::Duration::from_secs(atime_secs)),
+        )
+        .expect("set the fixture atime");
     }
+
+    /// Two instants far enough apart that nothing but the freshest can win.
+    const PUT_DOWN_ATIME: u64 = 1_577_836_800;
+    const IN_HAND_ATIME: u64 = 1_609_459_200;
 
     #[test]
     fn the_freshest_terminal_wins_across_every_session_found() {
@@ -869,13 +877,17 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("pns-tty-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("fixture dir");
-        terminal_with_atime(&dir, "ttys000", "202001010000.00");
-        terminal_with_atime(&dir, "ttys001", "202101010000.00");
+        terminal_with_atime(&dir, "ttys000", PUT_DOWN_ATIME);
+        terminal_with_atime(&dir, "ttys001", IN_HAND_ATIME);
         let newest = newest_terminal_atime(&dir.to_string_lossy(), "ttys000 \nttys001 \n");
         let stale = newest_terminal_atime(&dir.to_string_lossy(), "ttys000 \n");
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(newest, Some(1_609_484_400), "the 2021 atime is the reading");
-        assert_eq!(stale, Some(1_577_862_000), "and alone the 2020 one is");
+        assert_eq!(
+            newest,
+            Some(IN_HAND_ATIME),
+            "the newer atime is the reading"
+        );
+        assert_eq!(stale, Some(PUT_DOWN_ATIME), "and alone the older one is");
     }
 
     #[test]
@@ -883,11 +895,11 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("pns-tty-gone-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("fixture dir");
-        terminal_with_atime(&dir, "ttys000", "202001010000.00");
+        terminal_with_atime(&dir, "ttys000", PUT_DOWN_ATIME);
         let mixed = newest_terminal_atime(&dir.to_string_lossy(), "ttysGONE \nttys000 \n");
         let none = newest_terminal_atime(&dir.to_string_lossy(), "ttysGONE \n");
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(mixed, Some(1_577_862_000));
+        assert_eq!(mixed, Some(PUT_DOWN_ATIME));
         assert_eq!(none, None, "nothing readable is no reading at all");
     }
 
