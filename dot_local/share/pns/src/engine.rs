@@ -393,13 +393,13 @@ mod tests {
                 "at the desk, pane on another tab: banner",
                 Some(2),
                 Some(elsewhere("wW:p1")),
-                vec!["hermes", "macos-banner"],
+                vec!["macos-banner", "hermes"],
             ),
             (
                 "at the desk, view unreadable: banner, never suppressed on doubt",
                 Some(2),
                 None,
-                vec!["hermes", "macos-banner"],
+                vec!["macos-banner", "hermes"],
             ),
             (
                 "away, pane on screen: the card still fires",

@@ -139,13 +139,16 @@ mod tests {
     // --- channel_plan ------------------------------------------------------
 
     #[test]
-    fn the_alert_path_plans_phone_then_log_then_banner() {
+    fn the_alert_path_plans_phone_then_banner_then_log() {
+        // The two presence-sensitive surfaces come first and the durable log
+        // last: the plan is computed from one reading of where the operator
+        // is, and hermes posts over the network under its own deadline.
         assert_eq!(
             channel_plan(&three_enabled(), false, false, reaching(true, true)),
             vec![
                 leg("moshi", ReportMode::Silent),
-                leg("hermes", ReportMode::Silent),
                 leg("macos-banner", ReportMode::Silent),
+                leg("hermes", ReportMode::Silent),
             ]
         );
     }
@@ -155,8 +158,8 @@ mod tests {
         assert_eq!(
             channel_plan(&three_enabled(), false, false, reaching(true, false)),
             vec![
-                leg("hermes", ReportMode::Silent),
-                leg("macos-banner", ReportMode::Silent)
+                leg("macos-banner", ReportMode::Silent),
+                leg("hermes", ReportMode::Silent)
             ]
         );
     }

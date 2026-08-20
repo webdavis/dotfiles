@@ -638,15 +638,6 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         watch_card,
     );
 
-    // The pulse is part of the PLAN now, not a second invocation: the shell
-    // used to call `pns pulse` alongside the notification, which meant the
-    // tier was decided twice and could disagree with itself.
-    if decision.pulse {
-        // The state IS the exit code here: the shell notifier derives
-        // --state from `$?`, and an agent turn that did not fail succeeded.
-        fire_pulse(hue_table, if event.state == "failed" { "1" } else { "0" });
-    }
-
     if decision.legs.is_empty() {
         // A verdict that must be SAID, but only for the contradiction the
         // caller asked for: a silent exit is indistinguishable from delivery.
@@ -655,9 +646,26 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
                 "relay: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
             );
         }
-        return;
+    } else {
+        dispatch_legs(&decision, event, &home);
     }
 
+    // THE PULSE GOES LAST, after every channel the operator might be waiting
+    // on. It is part of the PLAN rather than a second invocation (the shell
+    // used to call `pns pulse` alongside the notification, so the tier was
+    // decided twice and could disagree with itself), but it talks to a bridge
+    // over the network under a ten-second deadline, and nothing an operator
+    // reads should queue behind decoration. It still fires for a plan that
+    // reached no channel at all: the lights are not a leg.
+    if decision.pulse {
+        // The state IS the exit code here: the shell notifier derives
+        // --state from `$?`, and an agent turn that did not fail succeeded.
+        fire_pulse(hue_table, if event.state == "failed" { "1" } else { "0" });
+    }
+}
+
+/// Every leg to its destination, in the registry's delivery order.
+fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs, home: &str) {
     // Sanitized ONCE here rather than per channel: a channel may be written in
     // any language and cannot be expected to share the guard. Warned about
     // only now, because a scrub nobody was going to receive is not news.

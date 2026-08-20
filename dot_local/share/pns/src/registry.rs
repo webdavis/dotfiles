@@ -158,20 +158,25 @@ pub const ROSTER: [(&str, Routing); 4] = [
         },
     ),
     (
-        "hermes",
-        Routing {
-            local: false,
-            presence_gated: false,
-            durable: true,
-            event_dispatched: true,
-        },
-    ),
-    (
+        // AHEAD OF THE DURABLE LOG, because this one is presence-sensitive
+        // and that one is not. The plan is computed from a reading of where
+        // the operator is at dispatch, and hermes can post synchronously
+        // against a deadline; delivering the banner after it would show the
+        // operator a decision taken about a moment that had passed.
         "macos-banner",
         Routing {
             local: true,
             presence_gated: false,
             durable: false,
+            event_dispatched: true,
+        },
+    ),
+    (
+        "hermes",
+        Routing {
+            local: false,
+            presence_gated: false,
+            durable: true,
             event_dispatched: true,
         },
     ),
@@ -355,7 +360,7 @@ mod tests {
             super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Missing));
         assert_eq!(
             selection_names(&selection),
-            vec!["moshi", "hermes", "macos-banner", "hue"]
+            vec!["moshi", "macos-banner", "hermes", "hue"]
         );
         assert_eq!(warning, None);
     }
@@ -381,7 +386,7 @@ mod tests {
         );
         assert_eq!(
             selection_names(&selection),
-            vec!["moshi", "hermes", "macos-banner", "hue"]
+            vec!["moshi", "macos-banner", "hermes", "hue"]
         );
         let warning = warning.expect("a broken config must be said aloud");
         assert!(warning.contains("key with no value"));
@@ -395,7 +400,7 @@ mod tests {
             super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
         assert_eq!(
             selection_names(&selection),
-            vec!["moshi", "hermes", "macos-banner", "hue"]
+            vec!["moshi", "macos-banner", "hermes", "hue"]
         );
         let warning = warning.expect("the typo'd name must be said aloud");
         assert!(warning.contains("mosih"));
