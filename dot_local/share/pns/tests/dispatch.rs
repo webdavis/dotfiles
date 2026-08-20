@@ -429,6 +429,35 @@ fn the_delivered_event_is_newline_terminated_for_line_oriented_channels() {
 }
 
 #[test]
+fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
+    // The config layer refuses a non-boolean `enabled` by name, and a plugin
+    // SETTING that quietly reads false is the same defect one level down: an
+    // operator who wrote true in quotes got no card and no reason for it.
+    let sandbox = Sandbox::new("watch-card-wrong-type");
+    std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
+    std::fs::write(
+        sandbox.path(".config/pns/config.toml"),
+        "[plugins.moshi]\nenabled = true\nmobile_watch_card = \"true\"\n\
+         [plugins.hermes]\nenabled = true\n",
+    )
+    .expect("config");
+    let mut command = sandbox.relay();
+    command.env("RELAY_PHONE_INPUT_AGE", "0");
+    sandbox.stub_herdr(&mut command, true);
+    let output = run(command
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args(["--pane", "t1:p2", "--long-running"]));
+    assert!(
+        stderr(&output).contains("mobile_watch_card"),
+        "the refusal names the setting: {output:?}"
+    );
+    assert!(
+        !sandbox.fired("moshi"),
+        "and the card stays off, which is the default it fell back to"
+    );
+}
+
+#[test]
 fn a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly() {
     // Event mode has always printed the sanitized warning for a config it
     // could not read. Pulse mode collapsed unreadable and malformed together

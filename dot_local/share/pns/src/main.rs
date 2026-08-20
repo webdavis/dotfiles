@@ -613,6 +613,11 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // settings and the plan needs moshi's card toggle.
     let (hue_table, watch_card) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (enabled_hue_table(config), mobile_watch_card(config)),
+        // A config that could not be read falls back to the DEFAULTS of both,
+        // and deliberately disagrees with the plugin selection below, which
+        // falls back to the whole roster. Selection keeps notifications
+        // working through a broken config; these two say what an operator
+        // asked for, and an unreadable file asked for nothing.
         _ => (None, false),
     };
     let (selection, warning) = select_plugins(&roster(), loaded);
@@ -757,12 +762,26 @@ fn enabled_hue_table(config: &pns::config::Config) -> Option<toml::Table> {
 ///
 /// DEFAULT OFF (operator ruling 2026-08-12): a card about the pane already on
 /// screen is noise, and the pulse alone marks the long command finishing.
+///
+/// A value of the WRONG TYPE is refused out loud, the way the config layer
+/// refuses a non-boolean `enabled` by name. Reading `"true"` as false is the
+/// same defect one level down: the operator asked for something, did not get
+/// it, and was told nothing.
 fn mobile_watch_card(config: &pns::config::Config) -> bool {
-    config
+    let Some(stated) = config
         .plugins
         .get("moshi")
-        .and_then(|moshi| moshi.settings.get("mobile_watch_card")?.as_bool())
-        .unwrap_or(false)
+        .and_then(|moshi| moshi.settings.get("mobile_watch_card"))
+    else {
+        return false;
+    };
+    stated.as_bool().unwrap_or_else(|| {
+        eprintln!(
+            "pns: config error (moshi.mobile_watch_card is {}, not a boolean); the mobile watching card stays off",
+            stated.type_str()
+        );
+        false
+    })
 }
 
 /// The lights signal, from whichever mode asked for it.
