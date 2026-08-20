@@ -12,7 +12,7 @@ set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TEMPLATE="$REPO_ROOT/.chezmoiscripts/run_after_46-bounce-moshi-hook-on-upgrade.sh.tmpl"
+TEMPLATE="$REPO_ROOT/.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -188,4 +188,46 @@ grep -q 'claude-hook subcommand is gone' "$sandbox/out" ||
 [[ $status -eq 0 ]] ||
   fail "7: a renamed subcommand must WARN, not abort the apply, got $status"
 
-printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse, a stopped daemon does not abort the apply, a renamed hook subcommand is reported)\n'
+# --- 8: no pns gate on disk must be REPORTED, not skipped in silence --------
+# With no binary to point at, the pi and omp extensions keep calling moshi-hook
+# directly: the presence gate is off and the only symptom is pushes arriving
+# while the operator sits at the keyboard, which reads as moshi being noisy
+# rather than as a regression. Every other way of losing the gate already
+# warned; this one did not, and it is the way a fresh machine lost it.
+
+cat >"$sandbox/fake-binary" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "$sandbox/fake-binary"
+mkdir -p "$sandbox/home/.pi/agent/extensions"
+printf 'const helperBinary = "/opt/homebrew/bin/moshi-hook"\n' \
+  >"$sandbox/home/.pi/agent/extensions/moshi-hooks.ts"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+  MOSHI_EXTENSION_ROOT="$sandbox/home" PNS_MOSHI_GATE="$sandbox/no-such-gate.sh" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+grep -q 'no pns presence gate' "$sandbox/out" ||
+  fail "8: a missing pns gate must say so (out: $(cat "$sandbox/out"))"
+grep -q 'unfiltered' "$sandbox/out" ||
+  fail "8: the warning must say what the operator will actually see"
+[[ $status -eq 0 ]] ||
+  fail "8: a missing pns gate must WARN, not abort the apply, got $status"
+grep -q '/opt/homebrew/bin/moshi-hook' "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts" ||
+  fail '8: with no gate to point at, the extension must be left exactly as it was'
+
+# --- 9: a gate ON DISK is written into the extension --------------------------
+# The other half of case 8, and the reason the script runs after the build:
+# given a binary, the repoint happens and the gate is back in the path.
+
+printf '#!/bin/bash\n' >"$sandbox/gate.sh"
+chmod +x "$sandbox/gate.sh"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+  MOSHI_EXTENSION_ROOT="$sandbox/home" PNS_MOSHI_GATE="$sandbox/gate.sh" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "9: the repoint must not abort the apply, got $status"
+grep -q "helperBinary = \"$sandbox/gate.sh\"" "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts" ||
+  fail "9: the extension must end up pointing at the gate (file: $(cat "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts"))"
+
+printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse, a stopped daemon does not abort the apply, a renamed hook subcommand is reported, a missing pns gate is reported and changes nothing, a present one is repointed)\n'
