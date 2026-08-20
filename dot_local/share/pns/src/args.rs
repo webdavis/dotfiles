@@ -136,7 +136,10 @@ mod tests {
         assert_eq!(parsed.detail, "");
         assert!(parsed.long_running, "the tier must still apply");
         assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("--detail"), "the warning names the flag");
+        assert!(
+            warnings[0].contains("--detail"),
+            "the warning names the flag"
+        );
     }
 
     #[test]
