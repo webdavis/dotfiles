@@ -78,10 +78,10 @@ fn gate_mode(subcommand: &str) -> i32 {
     if !pns::hooks::is_harness_subcommand(subcommand) || !forward_to_moshi() {
         return 0;
     }
-    let Some(payload) = read_payload() else {
+    let Some(payload) = read_payload().filter(|payload| payload_is_whole(payload)) else {
         return 0;
     };
-    forward_to_moshi_hook(subcommand, &payload)
+    spawn_moshi_hook(subcommand, &payload).map_or(0, moshi_decision)
 }
 
 /// A harness event, from the payload on stdin.
@@ -340,13 +340,21 @@ fn git_branch(cwd: &str) -> String {
         .unwrap_or_default()
 }
 
-/// A blocking event: the notification first, then the operator's decision.
+/// A blocking event: the round trip started, then the notification, then the
+/// operator's decision.
 ///
-/// The notification goes out with the phone leg suppressed, because moshi is
-/// about to raise the actionable card and pns's own push would be the same
-/// event twice. Then the payload is written back BYTE FOR BYTE: this hook
-/// consumed stdin, and a consumed-but-not-forwarded stream leaves moshi with
-/// an empty parse, after which it silently does nothing.
+/// THE FORWARD STARTS BEFORE THE NOTIFICATION, and that order is the whole
+/// point. The phone leg is suppressed because moshi is about to raise the
+/// actionable card itself and pns's own push would be the same event twice,
+/// so the suppression is only correct once that card is really coming. It
+/// used to be applied to the INTENT to forward: an away operator whose
+/// moshi-hook could not spawn lost the one notification still able to reach
+/// them, in exchange for a round trip that never happened.
+///
+/// The payload goes back BYTE FOR BYTE, because this hook consumed stdin and
+/// a consumed-but-not-forwarded stream leaves moshi with an empty parse,
+/// after which it silently does nothing. A payload too large to have arrived
+/// whole is the one thing not forwarded: see `payload_is_whole`.
 fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32 {
     let event = pns::args::EventArgs {
         agent: agent.to_string(),
@@ -356,15 +364,19 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
         pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
         ..Default::default()
     };
-    let Some(subcommand) = moshi_subcommand(agent).filter(|_| forward_to_moshi()) else {
-        run_event(&event);
-        return 0;
-    };
-    // Suppressed here rather than by the plan: the caller is about to raise
-    // the card itself, which the surface model cannot know.
-    unsafe { std::env::set_var("RELAY_SKIP_PHONE", "1") };
+    // Each test guards the reading below it: the surface probe never runs for
+    // a payload that was never going to be forwarded.
+    let forwarded = moshi_subcommand(agent)
+        .filter(|_| payload_is_whole(payload_json))
+        .filter(|_| forward_to_moshi())
+        .and_then(|subcommand| spawn_moshi_hook(&subcommand, payload_json));
+    if forwarded.is_some() {
+        // Suppressed here rather than by the plan: the card moshi is raising
+        // is something the surface model cannot know about.
+        unsafe { std::env::set_var("RELAY_SKIP_PHONE", "1") };
+    }
     run_event(&event);
-    forward_to_moshi_hook(&subcommand, payload_json)
+    forwarded.map_or(0, moshi_decision)
 }
 
 /// Whether the operator can answer from the phone at all. THE SURFACE decides:
@@ -385,23 +397,38 @@ fn forward_to_moshi() -> bool {
         != pns::surface::Surface::Desk
 }
 
-/// Hand moshi the stream and become its answer.
-fn forward_to_moshi_hook(subcommand: &str, payload_json: &str) -> i32 {
+/// Start moshi on the stream. `None` is "not installed", which is the
+/// harness's "no opinion": it prompts as usual.
+///
+/// THE WRITE HAPPENS OFF THIS THREAD. A child that does not read its stdin
+/// blocks the writer as soon as the pipe buffer fills, and a payload larger
+/// than that buffer is ordinary. Writing here would put that block in front
+/// of the notification and in front of the wait below, which is supposed to
+/// be the only place this waits on anybody. The thread outlives a caller that
+/// stops waiting, which is fine: it holds a pipe and a copy of the payload,
+/// and the process is on its way out.
+fn spawn_moshi_hook(subcommand: &str, payload_json: &str) -> Option<std::process::Child> {
     let moshi = std::env::var("MOSHI_HOOK_BIN")
         .unwrap_or_else(|_| "/opt/homebrew/bin/moshi-hook".to_string());
-    let Ok(mut child) = Command::new(&moshi)
+    let mut child = Command::new(&moshi)
         .arg(subcommand)
         .stdin(Stdio::piped())
         .spawn()
-    else {
-        // Not installed is "no opinion": the harness prompts as usual.
-        return 0;
-    };
+        .ok()?;
     if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(payload_json.as_bytes());
+        let payload = payload_json.to_string();
+        // Dropping the pipe when the write finishes is what gives the child
+        // its EOF; a child waiting on one would otherwise never start.
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(payload.as_bytes());
+        });
     }
-    // NO deadline and NO default: this waits on a human, and the code it
-    // returns is their answer.
+    Some(child)
+}
+
+/// Become moshi's answer. NO deadline and NO default: this waits on a human,
+/// and the code it returns is their decision.
+fn moshi_decision(mut child: std::process::Child) -> i32 {
     child
         .wait()
         .ok()
@@ -418,8 +445,10 @@ fn read_payload() -> Option<String> {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut payload = String::new();
+        // ONE BYTE PAST the cap, so a payload that hit it is distinguishable
+        // from one that merely reached it: see `payload_is_whole`.
         let read = std::io::Read::read_to_string(
-            &mut std::io::Read::take(std::io::stdin(), MAX_PAYLOAD_BYTES),
+            &mut std::io::Read::take(std::io::stdin(), MAX_PAYLOAD_BYTES + 1),
             &mut payload,
         );
         let _ = sender.send(read.ok().map(|_| payload));
@@ -485,6 +514,18 @@ fn pulse_threshold_secs() -> u64 {
 
 /// A harness payload is a small JSON object; anything larger is not one.
 const MAX_PAYLOAD_BYTES: u64 = 1_000_000;
+
+/// Whether the payload is the bytes the harness actually sent.
+///
+/// A payload that reached the cap was CUT MID-OBJECT, so it is no longer
+/// JSON and no longer what anybody wrote. Forwarding it hands moshi an empty
+/// parse, which is the exact failure the byte-for-byte rule exists to
+/// prevent; measured 2026-08-19, a 1.2MB payload forwarded as exactly
+/// 1,000,000 bytes. The notification still goes out, carrying whatever an
+/// unparseable payload yields, because something IS blocked either way.
+fn payload_is_whole(payload_json: &str) -> bool {
+    payload_json.len() <= MAX_PAYLOAD_BYTES as usize
+}
 
 /// How long the payload may take to arrive. Generous, because a harness
 /// writing a large transcript path is normal and a hang is not.

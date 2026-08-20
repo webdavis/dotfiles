@@ -322,6 +322,9 @@ fn a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it() 
 
 #[test]
 fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
+    // The card is suppressed for a round trip that DUPLICATES it, and this
+    // one never started: an away operator with no moshi-hook installed lost
+    // the only notification that could still reach them (sol, 2026-08-19).
     let sandbox = Sandbox::new("hook-blocked-no-moshi");
     let mut command = sandbox.relay();
     command
@@ -330,6 +333,71 @@ fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(0));
     assert!(sandbox.fired("hermes"), "the notification still goes out");
+    assert!(
+        sandbox.fired("moshi"),
+        "a forward that never spawned suppresses nothing"
+    );
+}
+
+#[test]
+fn a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were() {
+    // The reader caps stdin, so an over-cap payload is TRUNCATED mid-object.
+    // Forwarding it hands moshi invalid JSON, which is the empty parse the
+    // byte-for-byte contract exists to prevent; measured 2026-08-19 as
+    // exactly 1,000,000 bytes forwarded out of a 1.2MB payload.
+    let sandbox = Sandbox::new("hook-blocked-oversized");
+    let mut command = sandbox.relay();
+    command.env("RELAY_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    let mut child = spawn_hook(command, "blocked");
+    let payload = format!(r#"{{"message":"{}"}}"#, "x".repeat(1_200_000));
+    write_payload(&mut child, payload.as_bytes());
+    assert_eq!(
+        finished_within(child, HANG_LIMIT),
+        Some(0),
+        "an over-cap payload is not the operator's decision"
+    );
+    assert!(
+        !sandbox.path("moshi.argv").exists(),
+        "half an object must never reach moshi"
+    );
+    assert!(
+        sandbox.fired("hermes"),
+        "and the operator still hears that something is blocked"
+    );
+}
+
+#[test]
+fn a_moshi_that_never_reads_its_stdin_cannot_hold_the_notification() {
+    // The write ran on this thread, so a child that does not read blocked it
+    // once the pipe buffer filled: the permission request hung BEFORE the
+    // notification went out and before the wait that is meant to be the only
+    // place this waits on a person.
+    let sandbox = Sandbox::new("hook-blocked-deaf-moshi");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    write_script(&bin.join("moshi-hook"), "sleep 30");
+    let mut command = sandbox.relay();
+    command
+        .env("RELAY_IDLE_SECS", "99999")
+        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+    let mut child = spawn_hook(command, "blocked");
+    // Past the 64KB pipe buffer, which is what turns a child that does not
+    // read into a writer that never returns.
+    let payload = format!(r#"{{"message":"{}"}}"#, "x".repeat(200_000));
+    write_payload(&mut child, payload.as_bytes());
+    let deadline = std::time::Instant::now() + HANG_LIMIT;
+    while !sandbox.fired("hermes") && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let notified = sandbox.fired("hermes");
+    // The hook is still waiting on the "human" by design, so the test ends it.
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(
+        notified,
+        "the notification must not wait on a child that never reads"
+    );
 }
 
 #[test]
