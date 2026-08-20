@@ -717,9 +717,11 @@ fn a_turn_whose_transcript_lands_late_is_re_read_until_it_does() {
 #[test]
 fn a_malformed_reread_interval_falls_back_instead_of_panicking() {
     // Duration::from_secs_f64 panics on these, on a path whose contract is
-    // exiting 0.
+    // exiting 0. The last two are FINITE and non-negative, so they passed the
+    // filter that guarded the other four and panicked in the constructor
+    // anyway; sol reproduced exit 101 from 1e300 on 2026-08-19.
     let sandbox = Sandbox::new("hook-bad-interval");
-    for value in ["NaN", "inf", "-1", "not-a-number"] {
+    for value in ["NaN", "inf", "-1", "not-a-number", "1e30", "1e300"] {
         let mut command = sandbox.relay();
         command
             .env("PNS_REPLY_REREAD_INTERVAL", value)

@@ -437,22 +437,31 @@ fn now_secs() -> Option<u64> {
 /// VALIDATED before it is believed, and falling back to the default rather
 /// than to no retries.
 fn reread_attempts() -> u32 {
-    std::env::var("PNS_REPLY_REREAD_ATTEMPTS")
-        .ok()
-        .and_then(|raw| raw.parse().ok())
-        .unwrap_or(DEFAULT_REREAD_ATTEMPTS)
+    reread_attempts_from(std::env::var("PNS_REPLY_REREAD_ATTEMPTS").ok().as_deref())
 }
 
 fn reread_interval() -> Duration {
-    // from_secs_f64 PANICS on NaN, infinity and negatives, and this runs on a
-    // path whose contract is exiting 0. A value that is not a finite,
-    // non-negative number is not an interval, so the default stands.
-    std::env::var("PNS_REPLY_REREAD_INTERVAL")
-        .ok()
-        .and_then(|raw| raw.parse::<f64>().ok())
-        .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
-        .map(Duration::from_secs_f64)
+    reread_interval_from(std::env::var("PNS_REPLY_REREAD_INTERVAL").ok().as_deref())
+}
+
+/// The count, clamped. See `MAX_REREAD_ATTEMPTS`.
+fn reread_attempts_from(raw: Option<&str>) -> u32 {
+    raw.and_then(|raw| raw.parse().ok())
+        .unwrap_or(DEFAULT_REREAD_ATTEMPTS)
+        .min(MAX_REREAD_ATTEMPTS)
+}
+
+/// The interval, clamped.
+///
+/// `try_from_secs_f64` IS the validation, and it replaced a hand-written one
+/// that looked complete: NaN, infinity and negatives were refused, but a
+/// finite oversized value like `1e300` passed and panicked the constructor
+/// anyway, exiting 101 on a path whose whole contract is exiting 0.
+fn reread_interval_from(raw: Option<&str>) -> Duration {
+    raw.and_then(|raw| raw.parse::<f64>().ok())
+        .and_then(|seconds| Duration::try_from_secs_f64(seconds).ok())
         .unwrap_or(DEFAULT_REREAD_INTERVAL)
+        .min(MAX_REREAD_INTERVAL)
 }
 
 /// How long a turn must run to earn the lights.
@@ -493,6 +502,12 @@ const TRANSCRIPT_TAIL_BYTES: u64 = 4_000_000;
 /// short enough that a turn which really said nothing is reported promptly.
 const DEFAULT_REREAD_ATTEMPTS: u32 = 4;
 const DEFAULT_REREAD_INTERVAL: Duration = Duration::from_millis(150);
+
+/// The ceilings on those two knobs. Their PRODUCT is how long a Stop hook can
+/// sit re-reading a transcript that is never going to fill, so each is capped
+/// rather than believed: a stray zero in either costs seconds, never hours.
+const MAX_REREAD_ATTEMPTS: u32 = 10;
+const MAX_REREAD_INTERVAL: Duration = Duration::from_secs(5);
 
 /// The condenser is a model call on a notification path: worth a few seconds,
 /// never worth holding a turn's report.
@@ -942,7 +957,61 @@ impl Bridge for UreqBridge {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_path;
+    use super::{
+        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        reread_attempts_from, reread_interval_from, resolve_path,
+    };
+    use std::time::Duration;
+
+    #[test]
+    fn every_reread_interval_that_is_not_a_duration_falls_back_to_the_default() {
+        // The first four panicked `Duration::from_secs_f64` outright. The last
+        // two are FINITE and non-negative, so they passed the guard written
+        // for the others and panicked in the constructor anyway (exit 101 on
+        // a hook whose whole contract is exiting 0).
+        for raw in [
+            "NaN",
+            "inf",
+            "-inf",
+            "-1",
+            "not-a-number",
+            "",
+            "1e30",
+            "1e300",
+        ] {
+            assert_eq!(
+                reread_interval_from(Some(raw)),
+                DEFAULT_REREAD_INTERVAL,
+                "interval {raw:?}"
+            );
+        }
+        assert_eq!(reread_interval_from(None), DEFAULT_REREAD_INTERVAL);
+    }
+
+    #[test]
+    fn an_oversized_reread_knob_is_clamped_rather_than_believed() {
+        // Both knobs multiply into how long a Stop hook can hold a turn's
+        // report open, so each has a ceiling: a stray zero must cost seconds,
+        // never hours.
+        assert_eq!(reread_interval_from(Some("1000000")), MAX_REREAD_INTERVAL);
+        assert_eq!(
+            reread_attempts_from(Some("4294967295")),
+            MAX_REREAD_ATTEMPTS
+        );
+        assert_eq!(reread_attempts_from(Some("11")), MAX_REREAD_ATTEMPTS);
+    }
+
+    #[test]
+    fn a_reread_knob_inside_its_ceiling_is_taken_as_written() {
+        assert_eq!(
+            reread_interval_from(Some("0.25")),
+            Duration::from_millis(250)
+        );
+        assert_eq!(reread_interval_from(Some("0")), Duration::ZERO);
+        assert_eq!(reread_attempts_from(Some("2")), 2);
+        assert_eq!(reread_attempts_from(Some("0")), 0);
+        assert_eq!(reread_attempts_from(None), DEFAULT_REREAD_ATTEMPTS);
+    }
 
     #[test]
     fn an_empty_channels_dir_variable_means_the_default_not_the_current_dir() {
