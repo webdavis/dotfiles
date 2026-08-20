@@ -153,8 +153,7 @@ pub fn condenser_verdict(codex_output: &str) -> Option<(String, String)> {
             matches!(state, "done" | "asking" | "blocked")
                 .then(|| (state.to_string(), summary.to_string()))
         })
-        .filter(|(_, summary)| summary.chars().any(|character| !character.is_whitespace()))
-        .next_back()
+        .rfind(|(_, summary)| summary.chars().any(|character| !character.is_whitespace()))
 }
 
 /// The prompt the condenser answers. One line out, so the caller can parse it
