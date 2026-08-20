@@ -40,13 +40,68 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         cwd: text("cwd"),
         transcript_path: text("transcript_path"),
         last_assistant_message: text("last_assistant_message"),
-        // `.message // .detail`, as the bash read it.
-        message: match text("message") {
-            empty if empty.is_empty() => text("detail"),
-            message => message,
-        },
+        // `.message // .detail`, as the bash read it, and then the tool the
+        // request is about for the harnesses that send neither.
+        message: [text("message"), text("detail")]
+            .into_iter()
+            .find(|stated| !stated.is_empty())
+            .unwrap_or_else(|| tool_request(&payload)),
     }
 }
+
+/// What a permission request is asking for, when the payload says only which
+/// tool wants to run.
+///
+/// Codex 0.147 PermissionRequest payloads carry `tool_name` and `tool_input`
+/// and NEITHER `message` nor `detail` (measured 2026-08-19), so every Codex
+/// approval reached the banner and the durable log carrying nothing but the
+/// state word `blocked`. An operator deciding from a phone needs the tool and
+/// what it wants to do with it.
+fn tool_request(payload: &serde_json::Value) -> String {
+    let tool = payload
+        .get("tool_name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let arguments = payload.get("tool_input").map(one_line).unwrap_or_default();
+    let request = match (tool, arguments.as_str()) {
+        ("", arguments) => arguments.to_string(),
+        (tool, "") => tool.to_string(),
+        (tool, arguments) => format!("{tool}: {arguments}"),
+    };
+    // THE HEAD, not the tail: a write carries the whole file in its input, and
+    // it is the tool plus the start of its arguments that identifies the
+    // request. The reply's own cap keeps the end instead, because there the
+    // last thing said is the summary.
+    request.chars().take(TOOL_REQUEST_MAX_CHARS).collect()
+}
+
+/// A JSON value as one line of plain text: a string bare, an array's members
+/// joined, an object's as `key=value`. Nested JSON on a phone card is
+/// punctuation an operator has to read past to find the command.
+///
+/// Recursion is bounded by the parse that produced the value: serde_json
+/// refuses a document nested deeper than its own limit, so there is no depth
+/// here that was not already accepted as a payload.
+fn one_line(value: &serde_json::Value) -> String {
+    match value {
+        // Flattened, because a newline inside a command would otherwise break
+        // the single rendered line every channel expects.
+        serde_json::Value::String(text) => text.split_whitespace().collect::<Vec<_>>().join(" "),
+        serde_json::Value::Array(members) => {
+            members.iter().map(one_line).collect::<Vec<_>>().join(" ")
+        }
+        serde_json::Value::Object(fields) => fields
+            .iter()
+            .map(|(key, value)| format!("{key}={}", one_line(value)))
+            .collect::<Vec<_>>()
+            .join(" "),
+        scalar => scalar.to_string(),
+    }
+}
+
+/// Enough to name a tool and the start of what it was handed, and no more: the
+/// rest is a card nobody reads.
+const TOOL_REQUEST_MAX_CHARS: usize = 320;
 
 /// The assistant text of the transcript's LAST turn.
 ///
@@ -172,6 +227,62 @@ mod tests {
         assert_eq!(parse_payload(r#"{"message":"m"}"#).message, "m");
         assert_eq!(parse_payload(r#"{"detail":"d"}"#).message, "d");
         assert_eq!(parse_payload(r#"{"message":"","detail":"d"}"#).message, "d");
+    }
+
+    #[test]
+    fn a_codex_permission_request_says_which_tool_wants_what() {
+        // Codex 0.147 sends tool_name and tool_input and NEITHER message nor
+        // detail, so every Codex approval reached the banner and the durable
+        // log carrying nothing but the state word: an operator was asked to
+        // approve something the card could not name.
+        let payload = parse_payload(
+            r#"{"hook_event_name":"PermissionRequest","session_id":"s1","cwd":"/a/b",
+                "tool_name":"shell","tool_input":{"command":["bash","-lc","rm -rf build"]}}"#,
+        );
+        assert_eq!(payload.message, "shell: command=bash -lc rm -rf build");
+    }
+
+    #[test]
+    fn a_payload_that_states_its_own_message_is_never_second_guessed() {
+        // The composed line is a LAST resort: a harness that says what it
+        // wants keeps saying it, whatever else the payload carries.
+        assert_eq!(
+            parse_payload(r#"{"message":"may I","tool_name":"shell"}"#).message,
+            "may I"
+        );
+        assert_eq!(
+            parse_payload(r#"{"detail":"may I","tool_name":"shell"}"#).message,
+            "may I"
+        );
+    }
+
+    #[test]
+    fn a_tool_request_is_cut_from_the_head_and_kept_to_one_line() {
+        // A write carries the whole file in its input. The tool and the start
+        // of its arguments identify the request; the rest is a phone card
+        // nobody can read, and a newline in it would break the rendered line.
+        let payload = parse_payload(
+            r#"{"tool_name":"write","tool_input":{"path":"/a/b","contents":"line one\nline two"}}"#,
+        );
+        assert!(
+            payload
+                .message
+                .starts_with("write: contents=line one line two"),
+            "got {:?}",
+            payload.message
+        );
+        assert!(!payload.message.contains('\n'));
+
+        let long = "x".repeat(5_000);
+        let payload = parse_payload(&format!(r#"{{"tool_name":"write","tool_input":"{long}"}}"#));
+        assert!(payload.message.starts_with("write: xxx"));
+        assert!(payload.message.chars().count() < 400, "an uncapped request");
+    }
+
+    #[test]
+    fn a_payload_naming_no_tool_and_no_message_still_says_nothing_rather_than_guessing() {
+        assert_eq!(parse_payload(r#"{"session_id":"s1"}"#).message, "");
+        assert_eq!(parse_payload(r#"{"tool_input":{}}"#).message, "");
     }
 
     #[test]
