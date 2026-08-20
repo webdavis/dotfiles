@@ -25,6 +25,20 @@ pub fn title(agent: &str, state: &str, project: &str) -> String {
 /// The body: the summary itself, branch-prefixed. Deliberately NOT a repeat of
 /// the state and project the title already carries, so a channel with a short
 /// preview spends it on content rather than boilerplate.
+///
+/// The prefix is `branch: body`, never `(branch) body`: macOS argument parsing
+/// eats a terminal-notifier `-message` whose FIRST CHARACTER is "(", "[", "-"
+/// (read as an option) or presumably "{", and the banner then renders
+/// title-only. Only position one matters: mid-text punctuation and a leading
+/// digit both render fine, and neither a leading space nor a zero-width space
+/// escapes the rule (live probes P3-P7, 2026-08-12). One format across every
+/// channel, so Discord reads the same way rather than the banner getting a
+/// special case.
+///
+/// A detail that begins with one of those characters is no longer a limit: the
+/// banner spawn armors the first character of every value it passes (see
+/// `channels::banner::notifier_args`), so composition here is free to produce
+/// anything.
 pub fn message(branch: &str, detail: &str, state: &str) -> String {
     let body = match (detail.is_empty(), state.is_empty()) {
         (false, _) => detail,
@@ -34,7 +48,7 @@ pub fn message(branch: &str, detail: &str, state: &str) -> String {
     if branch.is_empty() {
         body.to_string()
     } else {
-        format!("({branch}) {body}")
+        format!("{branch}: {body}")
     }
 }
 
@@ -132,7 +146,20 @@ mod tests {
     fn message_prefixes_the_branch_when_there_is_one() {
         assert_eq!(
             message("main", "ran the suite", "done"),
-            "(main) ran the suite"
+            "main: ran the suite"
+        );
+    }
+
+    #[test]
+    fn mid_text_punctuation_survives_composition_untouched() {
+        // What this module can actually promise. Whether a leading character
+        // survives is the BANNER's encoding to guarantee, not this one's: the
+        // old assertion here only ever exercised a branch-prefixed message,
+        // which cannot start with one of those characters, while a branchless
+        // detail can and is covered where the encoding lives.
+        assert!(
+            message("main", "text with (parens) in the middle", "done")
+                .contains("(parens) in the middle")
         );
     }
 

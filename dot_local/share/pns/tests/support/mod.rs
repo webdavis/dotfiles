@@ -59,42 +59,34 @@ impl Sandbox {
         let mut command = self.bare();
         command
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
-            .env("RELAY_IDLE_SECS", "99999");
+            .env("RELAY_IDLE_SECS", "99999")
+            // The phone's clock is read by walking the DEVELOPER'S OWN live
+            // mosh sessions, so the suite states it instead: untouched for a
+            // day. A test about the phone overrides this with its own age.
+            .env("RELAY_PHONE_INPUT_AGE", "99999")
+            // No live condenser: a Stop hook spawns one for real, and the
+            // suite must never reach the operator's own Codex.
+            .env("CODEX_BIN", "/nonexistent/codex");
         command
     }
 
     /// The engine with NOTHING pointing it at stubs, which is the only way to
-    /// reach the native plugins. Every inherited override and proxy is
-    /// cleared, so a developer's environment cannot decide a verdict.
+    /// reach the native plugins.
+    ///
+    /// EVERYTHING is cleared and only what the binary genuinely needs is put
+    /// back, so a developer's environment cannot decide a verdict. The old
+    /// blocklist named the variables to remove, which meant every new
+    /// override had to be added here too or it would leak in silently; this
+    /// states what a test keeps instead, and a new override is excluded by
+    /// default.
     pub fn bare(&self) -> Command {
         let mut command = Command::new(ENGINE);
+        command.env_clear();
         command.env("HOME", &self.root);
-        for inherited in [
-            "PNS_CHANNELS_DIR",
-            "PNS_TERMINAL_BUNDLE_ID",
-            "PNS_PHONE_MARKER_FILE",
-            "RELAY_IDLE_SECS",
-            "RELAY_DESK_IDLE_SECS",
-            "RELAY_SKIP_PHONE",
-            "RELAY_FORCE_PHONE",
-            "RELAY_PHONE_ATTENTION",
-            "RELAY_MOSHI_VIEWING",
-            "RELAY_HERDR_FOCUSED_PANE",
-            "RELAY_REMOTE_TIMEOUT",
-            "PNS_PHYSICAL_FRESH_SECS",
-            "PNS_PHONE_MARKER_TTL",
-            "PNS_ATTENTION_FLOOR_BYTES",
-            "RELAY_AUTH_FILE",
-            "RELAY_MOSHI_URL",
-            "RELAY_HERMES_URL",
-            "http_proxy",
-            "https_proxy",
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-            "NO_PROXY",
-        ] {
-            command.env_remove(inherited);
+        // PATH survives because the binary resolves herdr and terminal-notifier
+        // through it, and a test that stubs either one prepends to this.
+        if let Some(path) = std::env::var_os("PATH") {
+            command.env("PATH", path);
         }
         command
     }
@@ -110,22 +102,60 @@ impl Sandbox {
         serde_json::from_str(&raw).unwrap_or_else(|error| panic!("{channel}: {error}: {raw}"))
     }
 
+    /// A stub `herdr` first on PATH, answering the two calls the session view
+    /// makes. `origin_visible` decides whether the event's pane sits on the
+    /// tab being looked at or on another one, which is the whole input the
+    /// visibility model takes.
+    ///
+    /// Nothing caller-relative is answered: `pane current`, and a `pane
+    /// layout` that names no pane, both resolve against whoever asked, and
+    /// the view must never use either. Both exit non-zero here, so a build
+    /// that regresses to one reads the session as unreadable instead of
+    /// passing on a stub that could not tell the difference.
+    pub fn stub_herdr(&self, command: &mut Command, origin_visible: bool) {
+        let origin_tab = if origin_visible { "t1" } else { "t9" };
+        self.stub_on_path(
+            command,
+            "herdr",
+            &format!(
+                r#"case "$1 $2 $3" in
+  "workspace list ")      printf '%s' '{{"result":{{"workspaces":[{{"active_tab_id":"t1","focused":true,"workspace_id":"w1"}}]}}}}' ;;
+  "pane layout --pane")   printf '%s' '{{"result":{{"layout":{{"focused_pane_id":"t1:p1","tab_id":"{origin_tab}","zoomed":false}}}}}}' ;;
+  *)                      exit 1 ;;
+esac"#
+            ),
+        );
+    }
+
+    /// A stub binary of that name, first on PATH.
+    fn stub_on_path(&self, command: &mut Command, name: &str, body: &str) {
+        let stub_bin = self.path("bin");
+        std::fs::create_dir_all(&stub_bin).expect("stub bin");
+        write_script(&stub_bin.join(name), body);
+        let mut path = OsString::from(&stub_bin);
+        path.push(":");
+        path.push(
+            command
+                .get_envs()
+                .find(|(key, _)| *key == "PATH")
+                .and_then(|(_, value)| value)
+                .map(OsString::from)
+                .unwrap_or_else(|| std::env::var_os("PATH").unwrap_or_default()),
+        );
+        command.env("PATH", path);
+    }
+
     /// A stub `terminal-notifier` first on PATH, so the native banner's spawn
     /// is recorded instead of posting a real notification.
     pub fn stub_notifier(&self, command: &mut Command) {
-        let stub_bin = self.path("bin");
-        std::fs::create_dir_all(&stub_bin).expect("stub bin");
-        write_script(
-            &stub_bin.join("terminal-notifier"),
+        self.stub_on_path(
+            command,
+            "terminal-notifier",
             &format!(
                 "printf '%s\\n' \"$*\" >\"{}/notifier.args\"",
                 self.display()
             ),
         );
-        let mut path = OsString::from(stub_bin);
-        path.push(":");
-        path.push(std::env::var_os("PATH").unwrap_or_default());
-        command.env("PATH", path);
     }
 
     pub fn write_auth(&self, contents: &str) -> PathBuf {

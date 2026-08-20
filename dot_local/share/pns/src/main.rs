@@ -5,6 +5,7 @@
 //! is delegated to the library. It exits 0 on every path, because a
 //! notification must never fail the work it reports on.
 
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
@@ -13,26 +14,582 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
-use pns::channels::hermes::{DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, remote_deadline};
-use pns::channels::hue::{
-    Bridge, HuePulse, Sleeper, acquire_pulse_lock, hue_enabled, hue_settings, put_succeeded,
+use pns::channels::hermes::{
+    DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, hermes_secret, remote_deadline,
 };
-use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost};
-use pns::channels::{Channel, native_first};
+use pns::channels::hue::{Bridge, HuePulse, hue_settings};
+use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret, read_auth};
+use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
-use pns::engine::{Overrides, decide, event_json, resolve_path, select_plugins};
-use pns::registry::{Registry, Routing};
+use pns::engine::{Overrides, decide};
+use pns::hooks::{
+    HookPayload, condenser_prompt, condenser_verdict, moshi_subcommand, parse_payload,
+    transcript_reply,
+};
+use pns::registry::{Registry, select_plugins};
 use pns::render;
-use pns::system::{SystemCommandRunner, SystemProbes};
+use pns::system::{SystemCommandRunner, SystemProbes, run_bounded};
 
 fn main() {
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("pulse")) {
+    let first = std::env::args_os().nth(1).unwrap_or_default();
+    if first == *"pulse" {
         pulse_mode();
         return;
     }
+    // The gate moshi's OWN extension calls. pi and omp spawn
+    // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
+    // for a subcommand, so the binary answers the bare harness word itself.
+    let first = first.to_string_lossy().into_owned();
+    if pns::hooks::is_harness_subcommand(&first) {
+        std::process::exit(gate_mode(&first));
+    }
+    // The same gate, spelled the way an operator reads it. Both forms end in
+    // gate_mode, which REFUSES a word it will not vouch for: falling through
+    // to the event path instead is how the documented spelling used to fire a
+    // notification about an empty event.
+    if first == *"gate" {
+        std::process::exit(gate_mode(&second_argument()));
+    }
+    if first == *"hook" {
+        std::process::exit(hook_mode(&second_argument()));
+    }
+    event_mode();
+}
 
+/// The word after the subcommand, or empty when there is none.
+fn second_argument() -> String {
+    std::env::args_os()
+        .nth(2)
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// A presence-gated pass-through to moshi-hook, for the harnesses that reach
+/// it directly rather than through a pns hook.
+///
+/// EXIT 0 MEANS "NOT FORWARDED" on every path that declines (no moshi, the
+/// operator at the desk, a subcommand this will not vouch for), which is the
+/// harness's "no opinion, prompt as usual". The forwarded path is the one
+/// place a non-zero exit is correct: there it is the operator's decision.
+fn gate_mode(subcommand: &str) -> i32 {
+    if !pns::hooks::is_harness_subcommand(subcommand) || !forward_to_moshi(&system_probes()) {
+        return 0;
+    }
+    let Some(payload) = read_payload().filter(|payload| payload_is_whole(payload)) else {
+        return 0;
+    };
+    spawn_moshi_hook(subcommand, &payload).map_or(0, moshi_decision)
+}
+
+/// A harness event, from the payload on stdin.
+///
+/// THE EXIT CONTRACT AND ITS ONE EXCEPTION. Every path here is a notification,
+/// and a notification that cannot be delivered must never fail the turn it
+/// reports on, so every path returns 0. The forwarded blocking path is the
+/// exception: there the exit code is the OPERATOR'S DECISION, and answering it
+/// here would answer the permission prompt for them.
+fn hook_mode(event: &str) -> i32 {
+    let Some(payload_json) = read_payload() else {
+        // A harness that opened the pipe and never wrote must not hold a hook
+        // open forever; no payload is no notification, and still exit 0.
+        return 0;
+    };
+    let payload = parse_payload(&payload_json);
+    let agent = std::env::var("RELAY_AGENT").unwrap_or_else(|_| "claude".to_string());
+
+    match event {
+        "prompt" => start_of_turn(&payload),
+        "stop" => end_of_turn(&payload, &agent),
+        "blocked" => return blocking_event(&payload, &agent, &payload_json),
+        "asked" | "plan-ready" => run_event(
+            &pns::args::EventArgs {
+                agent,
+                state: event.to_string(),
+                project: project_of(&payload.cwd),
+                detail: payload.message.clone(),
+                pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                ..Default::default()
+            },
+            &system_probes(),
+        ),
+        // An event this binary does not serve is not an error the harness
+        // should hear about on a notification path.
+        _ => eprintln!("pns: unknown hook event `{event}`"),
+    }
+    0
+}
+
+/// The turn's start marker, so the Stop hook can measure the turn that just
+/// finished rather than the whole session.
+fn start_of_turn(payload: &HookPayload) {
+    let Some(marker) = turn_marker(&payload.session_id) else {
+        return;
+    };
+    if let Some(parent) = marker.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    // Only when none is there: a second prompt inside one turn must not
+    // restart the clock.
+    if !marker.exists() {
+        let _ = std::fs::write(&marker, now_secs().unwrap_or_default().to_string());
+    }
+}
+
+/// The turn's marker path, or None for a session id that cannot become a
+/// filename. The id arrives in the harness payload, and `..` in it would
+/// escape the state directory.
+fn turn_marker(session_id: &str) -> Option<std::path::PathBuf> {
+    if !pns::safety::session_id_is_safe(session_id) {
+        return None;
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let state_dir = resolve_path(
+        std::env::var("PNS_STATE_DIR").ok().as_deref(),
+        &format!("{home}/.local/state/pns"),
+    );
+    Some(state_dir.join(format!("session-{session_id}.start")))
+}
+
+/// How long the finished turn ran, CLAIMING the marker first.
+///
+/// The claim is a rename, which is atomic: two Stops racing the same turn
+/// cannot both read it and both pulse, because only one rename can succeed.
+/// Reading first and unlinking after left that window open, and an unlink
+/// that failed left the marker wedged for every later turn.
+///
+/// It runs BEFORE the reply and the condenser for the same reason. Stop is
+/// asynchronous, so the next prompt can arrive while this one is still
+/// condensing: with the marker still on disk that prompt writes nothing, and
+/// this Stop then deletes the marker its successor was relying on. Claiming
+/// up front also keeps the condenser's own latency out of the elapsed time it
+/// is measuring.
+///
+/// The value is VALIDATED before it reaches arithmetic: a truncated write or
+/// a hand edit must be a decision, not a crash.
+fn consume_turn_marker(session_id: &str) -> Option<u64> {
+    let marker = turn_marker(session_id)?;
+    let claim = marker.with_extension(format!("claim.{}", std::process::id()));
+    std::fs::rename(&marker, &claim).ok()?;
+    let started = std::fs::read_to_string(&claim);
+    let _ = std::fs::remove_file(&claim);
+    let started: u64 = started.ok()?.trim().parse().ok()?;
+    Some(now_secs()?.saturating_sub(started))
+}
+
+/// The Stop hook: what the turn said, and whether it ran long enough to earn
+/// the lights.
+fn end_of_turn(payload: &HookPayload, agent: &str) {
+    // FIRST, before anything slow: see consume_turn_marker.
+    let elapsed = consume_turn_marker(&payload.session_id);
+    let reply = turn_reply(payload);
+    let (state, detail) = match reply.is_empty() {
+        true => ("done".to_string(), String::new()),
+        false => condense(&reply),
+    };
+    run_event(
+        &pns::args::EventArgs {
+            agent: agent.to_string(),
+            state,
+            project: project_of(&payload.cwd),
+            branch: git_branch(&payload.cwd),
+            detail,
+            pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+            long_running: pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs())),
+            ..Default::default()
+        },
+        &system_probes(),
+    );
+}
+
+/// The turn's final text: the harness's own copy first, the transcript tail
+/// as the fallback.
+///
+/// THE FALLBACK IS RE-READ inside a bounded window. The harness has not always
+/// flushed the assistant's final text when the Stop hook runs (live capture
+/// 2026-08-12: one read came back empty and the notification shipped with no
+/// detail at all). An expired window proves only that nothing readable arrived
+/// in time; a turn that said nothing, an unreadable transcript and an
+/// unparseable one all leave the same empty string and are reported the same.
+///
+/// Emptiness is judged on the FLATTENED reply, because a block carrying only
+/// whitespace is non-empty raw and empty once flattened, which is the same
+/// missing-summary symptom through another door.
+fn turn_reply(payload: &HookPayload) -> String {
+    let flatten = |text: &str| pns::render::flatten_reply(text, REPLY_MAX_CHARS);
+    let from_payload = flatten(&payload.last_assistant_message);
+    if !from_payload.is_empty() || payload.transcript_path.is_empty() {
+        return from_payload;
+    }
+    for attempt in 0..=reread_attempts() {
+        if attempt > 0 {
+            std::thread::sleep(reread_interval());
+        }
+        let reply = flatten(&transcript_reply(&transcript_tail(
+            &payload.transcript_path,
+        )));
+        if !reply.is_empty() {
+            return reply;
+        }
+    }
+    String::new()
+}
+
+/// The tail of a transcript, never the whole file: a long session grows it
+/// past 200MB, and the extraction only ever needs the last turn. Measured
+/// 2026-08-05: slurping the whole file held ~33MB resident and minutes of CPU.
+fn transcript_tail(path: &str) -> String {
+    use std::io::{Read, Seek, SeekFrom};
+    // CHECKED BEFORE OPENING, and on the link itself. Opening a FIFO blocks
+    // until a writer appears and /dev/zero never ends; both hang a hook whose
+    // whole contract is answering promptly. A transcript is a regular file.
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return String::new();
+    };
+    if !metadata.is_file() {
+        return String::new();
+    }
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return String::new();
+    };
+    let _ = file.seek(SeekFrom::Start(
+        metadata.len().saturating_sub(TRANSCRIPT_TAIL_BYTES),
+    ));
+    let mut tail = Vec::new();
+    // Capped as well as sought: the file can grow between the two calls, and
+    // a seek that failed would otherwise read all of it.
+    let _ = file.take(TRANSCRIPT_TAIL_BYTES).read_to_end(&mut tail);
+    String::from_utf8_lossy(&tail).into_owned()
+}
+
+/// The turn condensed to a state and a sentence, by a cheap model when one
+/// answers and by trimming the reply when it does not.
+fn condense(reply: &str) -> (String, String) {
+    let fallback = || ("done".to_string(), pns::render::preview(reply));
+    // The re-entry guard: the condenser is itself an agent run, and its own
+    // Stop hook would call this again. The stripped home below installs no
+    // hooks at all, which is the hard guarantee; this is the cheap one.
+    if std::env::var("RELAY_SUMMARIZING").is_ok() {
+        return fallback();
+    }
+    let Some(home) = condenser_home() else {
+        return fallback();
+    };
+    let codex = std::env::var("CODEX_BIN").unwrap_or_else(|_| "codex".to_string());
+    let mut command = Command::new(&codex);
+    command
+        .args(["exec", "--ephemeral", "--skip-git-repo-check", "-C"])
+        .arg(&home)
+        .args(["-s", "read-only", "-"])
+        .env("RELAY_SUMMARIZING", "1")
+        .env("CODEX_HOME", &home);
+    let deadline = env_deadline("PNS_CONDENSER_DEADLINE_MS").unwrap_or(CONDENSER_DEADLINE);
+    match run_bounded(command, Some(&condenser_prompt(reply)), deadline)
+        .as_deref()
+        .and_then(condenser_verdict)
+    {
+        Some((state, summary)) => (state, summary.trim().to_string()),
+        None => fallback(),
+    }
+}
+
+/// A private, stripped Codex home: a minimal config (fast model, low
+/// reasoning) and the live auth symlinked, with NO hooks or plugins. That cuts
+/// the load (~9s to ~3s) and means the condenser run has no Stop hook of its
+/// own, which is the hard guarantee against a relay-to-codex-to-relay loop.
+/// It is created owner-only, because it points at the live Codex credentials.
+fn condenser_home() -> Option<std::path::PathBuf> {
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+    let user_home = std::env::var("HOME").unwrap_or_default();
+    let home = resolve_path(
+        std::env::var("RELAY_CODEX_HOME").ok().as_deref(),
+        &format!("{user_home}/.config/relay/codex-home"),
+    );
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&home)
+        .ok()?;
+    let config = home.join("config.toml");
+    if !config.exists() {
+        let written = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&config)
+            .map(|mut file| {
+                std::io::Write::write_all(
+                    &mut file,
+                    b"model = \"gpt-5.5\"\nmodel_reasoning_effort = \"low\"\n",
+                )
+            });
+        let _ = written;
+    }
+    let auth = home.join("auth.json");
+    let _ = std::fs::remove_file(&auth);
+    let _ = std::os::unix::fs::symlink(format!("{user_home}/.codex/auth.json"), &auth);
+    Some(home)
+}
+
+/// The branch the work happened on, or none. Bounded like every other spawn:
+/// a wedged git must not hold a notification.
+fn git_branch(cwd: &str) -> String {
+    if cwd.is_empty() || !std::path::Path::new(cwd).is_dir() {
+        return String::new();
+    }
+    let mut command = Command::new("git");
+    command.args(["-C", cwd, "branch", "--show-current"]);
+    run_bounded(command, None, GIT_DEADLINE)
+        .map(|branch| branch.trim().to_string())
+        .unwrap_or_default()
+}
+
+/// A blocking event: the round trip started, then the notification, then the
+/// operator's decision.
+///
+/// THE FORWARD STARTS BEFORE THE NOTIFICATION, and that order is the whole
+/// point. The phone leg is suppressed because moshi is about to raise the
+/// actionable card itself and pns's own push would be the same event twice,
+/// so the suppression is only correct once that card is really coming. It
+/// used to be applied to the INTENT to forward: an away operator whose
+/// moshi-hook could not spawn lost the one notification still able to reach
+/// them, in exchange for a round trip that never happened.
+///
+/// The payload goes back BYTE FOR BYTE, because this hook consumed stdin and
+/// a consumed-but-not-forwarded stream leaves moshi with an empty parse,
+/// after which it silently does nothing. A payload too large to have arrived
+/// whole is the one thing not forwarded: see `payload_is_whole`.
+fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32 {
+    let event = pns::args::EventArgs {
+        agent: agent.to_string(),
+        state: "blocked".to_string(),
+        project: project_of(&payload.cwd),
+        detail: payload.message.clone(),
+        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+        ..Default::default()
+    };
+    // Each test guards the reading below it: the surface probe never runs for
+    // a payload that was never going to be forwarded.
+    // ONE probe set for the whole event: the forward decision below and the
+    // delivery plan inside run_event are two questions about one moment.
+    let probes = system_probes();
+    let forwarded = moshi_subcommand(agent)
+        .filter(|_| payload_is_whole(payload_json))
+        .filter(|_| forward_to_moshi(&probes))
+        .and_then(|subcommand| spawn_moshi_hook(&subcommand, payload_json));
+    if forwarded.is_some() {
+        // Suppressed here rather than by the plan: the card moshi is raising
+        // is something the surface model cannot know about.
+        unsafe { std::env::set_var("RELAY_SKIP_PHONE", "1") };
+    }
+    run_event(&event, &probes);
+    forwarded.map_or(0, moshi_decision)
+}
+
+/// Whether the operator can answer from the phone at all. THE SURFACE decides:
+/// on mobile or away the card is the only way to reach them, and at the desk
+/// the harness prompt in front of them already is one.
+///
+/// It is handed the caller's probe set rather than building its own, which is
+/// what makes this reading and the delivery plan's reading the SAME one: they
+/// are two questions about one moment, and a boundary crossed between two
+/// measurements cards a phone with no round trip behind it.
+fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
+    pns::engine::operator_surface(probes, &overrides_from_env(), now_secs())
+        != pns::surface::Surface::Desk
+}
+
+/// The probe set for ONE invocation. Built here and shared, never per
+/// consumer: see `SystemProbes`.
+fn system_probes() -> SystemProbes<SystemCommandRunner> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    SystemProbes::new(
+        SystemCommandRunner,
+        resolve_path(
+            std::env::var("PNS_PHONE_MARKER_FILE").ok().as_deref(),
+            &format!("{home}/.local/state/pns/phone-attention.marker"),
+        )
+        .to_string_lossy()
+        .into_owned(),
+    )
+}
+
+/// Start moshi on the stream. `None` is "not installed", which is the
+/// harness's "no opinion": it prompts as usual.
+///
+/// THE WRITE HAPPENS OFF THIS THREAD. A child that does not read its stdin
+/// blocks the writer as soon as the pipe buffer fills, and a payload larger
+/// than that buffer is ordinary. Writing here would put that block in front
+/// of the notification and in front of the wait below, which is supposed to
+/// be the only place this waits on anybody. The thread outlives a caller that
+/// stops waiting, which is fine: it holds a pipe and a copy of the payload,
+/// and the process is on its way out.
+fn spawn_moshi_hook(subcommand: &str, payload_json: &str) -> Option<std::process::Child> {
+    let moshi = std::env::var("MOSHI_HOOK_BIN")
+        .unwrap_or_else(|_| "/opt/homebrew/bin/moshi-hook".to_string());
+    let mut child = Command::new(&moshi)
+        .arg(subcommand)
+        .stdin(Stdio::piped())
+        .spawn()
+        .ok()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        let payload = payload_json.to_string();
+        // Dropping the pipe when the write finishes is what gives the child
+        // its EOF; a child waiting on one would otherwise never start.
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(payload.as_bytes());
+        });
+    }
+    Some(child)
+}
+
+/// Become moshi's answer. NO deadline and NO default: this waits on a human,
+/// and the code it returns is their decision.
+fn moshi_decision(mut child: std::process::Child) -> i32 {
+    child
+        .wait()
+        .ok()
+        .and_then(|status| status.code())
+        .unwrap_or(0)
+}
+
+/// The harness payload from stdin, bounded in SIZE and in TIME.
+///
+/// Neither bound is theoretical: a pipe nobody closes hangs the hook before
+/// the exit contract can run, and a payload nobody caps can exhaust memory
+/// long before the reply's own character cap applies.
+fn read_payload() -> Option<String> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut payload = String::new();
+        // ONE BYTE PAST the cap, so a payload that hit it is distinguishable
+        // from one that merely reached it: see `payload_is_whole`.
+        let read = std::io::Read::read_to_string(
+            &mut std::io::Read::take(std::io::stdin(), MAX_PAYLOAD_BYTES + 1),
+            &mut payload,
+        );
+        let _ = sender.send(read.ok().map(|_| payload));
+    });
+    // The reader thread outlives a refusal, which is fine: the process is
+    // about to exit, and it holds nothing but its own buffer.
+    receiver.recv_timeout(payload_deadline()).ok().flatten()
+}
+
+/// The project an event belongs to: the last segment of the working directory.
+fn project_of(cwd: &str) -> String {
+    cwd.rsplit('/')
+        .find(|part| !part.is_empty())
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn now_secs() -> Option<u64> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|since_epoch| since_epoch.as_secs())
+}
+
+/// How many extra times the transcript is re-read while the harness flushes.
+/// VALIDATED before it is believed, and falling back to the default rather
+/// than to no retries.
+fn reread_attempts() -> u32 {
+    reread_attempts_from(std::env::var("PNS_REPLY_REREAD_ATTEMPTS").ok().as_deref())
+}
+
+fn reread_interval() -> Duration {
+    reread_interval_from(std::env::var("PNS_REPLY_REREAD_INTERVAL").ok().as_deref())
+}
+
+/// The count, clamped. See `MAX_REREAD_ATTEMPTS`.
+fn reread_attempts_from(raw: Option<&str>) -> u32 {
+    raw.and_then(|raw| raw.parse().ok())
+        .unwrap_or(DEFAULT_REREAD_ATTEMPTS)
+        .min(MAX_REREAD_ATTEMPTS)
+}
+
+/// The interval, clamped.
+///
+/// `try_from_secs_f64` IS the validation, and it replaced a hand-written one
+/// that looked complete: NaN, infinity and negatives were refused, but a
+/// finite oversized value like `1e300` passed and panicked the constructor
+/// anyway, exiting 101 on a path whose whole contract is exiting 0.
+fn reread_interval_from(raw: Option<&str>) -> Duration {
+    raw.and_then(|raw| raw.parse::<f64>().ok())
+        .and_then(|seconds| Duration::try_from_secs_f64(seconds).ok())
+        .unwrap_or(DEFAULT_REREAD_INTERVAL)
+        .min(MAX_REREAD_INTERVAL)
+}
+
+/// How long a turn must run to earn the lights.
+fn pulse_threshold_secs() -> u64 {
+    std::env::var("PNS_PULSE_THRESHOLD_SECS")
+        .ok()
+        .and_then(|raw| raw.parse().ok())
+        .unwrap_or(pns::pulse::DEFAULT_LONG_SESSION_SECS)
+}
+
+/// A harness payload is a small JSON object; anything larger is not one.
+const MAX_PAYLOAD_BYTES: u64 = 1_000_000;
+
+/// Whether the payload is the bytes the harness actually sent.
+///
+/// A payload that reached the cap was CUT MID-OBJECT, so it is no longer
+/// JSON and no longer what anybody wrote. Forwarding it hands moshi an empty
+/// parse, which is the exact failure the byte-for-byte rule exists to
+/// prevent; measured 2026-08-19, a 1.2MB payload forwarded as exactly
+/// 1,000,000 bytes. The notification still goes out, carrying whatever an
+/// unparseable payload yields, because something IS blocked either way.
+fn payload_is_whole(payload_json: &str) -> bool {
+    payload_json.len() <= MAX_PAYLOAD_BYTES as usize
+}
+
+/// How long the payload may take to arrive. Generous, because a harness
+/// writing a large transcript path is normal and a hang is not.
+fn payload_deadline() -> Duration {
+    env_deadline("PNS_PAYLOAD_DEADLINE_MS").unwrap_or(Duration::from_secs(5))
+}
+
+/// A deadline override in milliseconds, for tests that must prove expiry
+/// without waiting out the production window.
+fn env_deadline(variable: &str) -> Option<Duration> {
+    std::env::var(variable)
+        .ok()?
+        .parse()
+        .ok()
+        .map(Duration::from_millis)
+}
+
+/// At most this much of a turn reaches the condenser or the notification.
+const REPLY_MAX_CHARS: usize = 8000;
+
+/// The last few megabytes of a transcript parse in well under a second, and
+/// carry far more than one turn.
+const TRANSCRIPT_TAIL_BYTES: u64 = 4_000_000;
+
+/// Four extra reads at 150ms: enough for the harness to finish flushing,
+/// short enough that a turn which really said nothing is reported promptly.
+const DEFAULT_REREAD_ATTEMPTS: u32 = 4;
+const DEFAULT_REREAD_INTERVAL: Duration = Duration::from_millis(150);
+
+/// The ceilings on those two knobs. Their PRODUCT is how long a Stop hook can
+/// sit re-reading a transcript that is never going to fill, so each is capped
+/// rather than believed: a stray zero in either costs seconds, never hours.
+const MAX_REREAD_ATTEMPTS: u32 = 10;
+const MAX_REREAD_INTERVAL: Duration = Duration::from_secs(5);
+
+/// The condenser is a model call on a notification path: worth a few seconds,
+/// never worth holding a turn's report.
+const CONDENSER_DEADLINE: Duration = Duration::from_secs(30);
+
+/// A branch lookup is a local read; anything slower than this is a wedged
+/// repository, not an answer worth waiting for.
+const GIT_DEADLINE: Duration = Duration::from_secs(5);
+
+/// One notification from argv.
+fn event_mode() {
     // Lossy rather than validating: a stray byte in argv degrades into an
     // unknown token, which the lenient contract already skips, instead of
     // aborting an always-exit-0 notification.
@@ -44,80 +601,46 @@ fn main() {
     for warning in &warnings {
         eprintln!("relay: {warning}");
     }
+    run_event(&event, &system_probes());
+}
 
-    // THE ROSTER, and the only statement of delivery order. A destination is
-    // added here, never in policy.
-    let mut registry = Registry::new();
-    for (name, routing) in [
-        (
-            "moshi",
-            Routing {
-                local: false,
-                presence_gated: true,
-                durable: false,
-            },
-        ),
-        (
-            "hermes",
-            Routing {
-                local: false,
-                presence_gated: false,
-                durable: true,
-            },
-        ),
-        (
-            "macos-banner",
-            Routing {
-                local: true,
-                presence_gated: false,
-                durable: false,
-            },
-        ),
-    ] {
-        if let Err(error) = registry.register(name, routing) {
-            eprintln!("pns: {error:?}");
-        }
-    }
-
+/// One notification, end to end: decide, render, dispatch. THE one event path,
+/// whether the event came from argv or from a harness hook.
+fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRunner>) {
     let home = std::env::var("HOME").unwrap_or_default();
-    let (selection, warning) =
-        select_plugins(&registry, load_config(&config_path(&home)), &["hue"]);
+    let loaded = load_config(&config_path(&home));
+    // Read off the config before selection consumes it: the pulse needs hue's
+    // settings and the plan needs moshi's card toggle.
+    let (hue_table, watch_card) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (enabled_hue_table(config), mobile_watch_card(config)),
+        // A config that could not be read falls back to the DEFAULTS of both,
+        // and deliberately disagrees with the plugin selection below, which
+        // falls back to the whole roster. Selection keeps notifications
+        // working through a broken config; these two say what an operator
+        // asked for, and an unreadable file asked for nothing.
+        _ => (None, false),
+    };
+    let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
 
-    let overrides = Overrides::from_env(
-        &std::env::vars_os()
-            .map(|(name, value)| {
-                (
-                    name.to_string_lossy().into_owned(),
-                    value.to_string_lossy().into_owned(),
-                )
-            })
-            .collect::<BTreeMap<_, _>>(),
-    );
+    let overrides = overrides_from_env();
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()
         .map(|since_epoch| since_epoch.as_secs());
-    let probes = SystemProbes::new(
-        SystemCommandRunner,
-        resolve_path(
-            std::env::var("PNS_PHONE_MARKER_FILE").ok().as_deref(),
-            &format!("{home}/.local/state/pns/phone-attention.marker"),
-        )
-        .to_string_lossy()
-        .into_owned(),
-    );
 
     let decision = decide(
-        &probes,
+        probes,
         &selection,
         &overrides,
         event.local_only,
         event.remote_only,
         &event.pane,
         now_secs,
+        event.long_running,
+        watch_card,
     );
 
     if decision.legs.is_empty() {
@@ -128,9 +651,26 @@ fn main() {
                 "relay: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
             );
         }
-        return;
+    } else {
+        dispatch_legs(&decision, event, &home);
     }
 
+    // THE PULSE GOES LAST, after every channel the operator might be waiting
+    // on. It is part of the PLAN rather than a second invocation (the shell
+    // used to call `pns pulse` alongside the notification, so the tier was
+    // decided twice and could disagree with itself), but it talks to a bridge
+    // over the network under a ten-second deadline, and nothing an operator
+    // reads should queue behind decoration. It still fires for a plan that
+    // reached no channel at all: the lights are not a leg.
+    if decision.pulse {
+        // The state IS the exit code here: the shell notifier derives
+        // --state from `$?`, and an agent turn that did not fail succeeded.
+        fire_pulse(hue_table, if event.state == "failed" { "1" } else { "0" });
+    }
+}
+
+/// Every leg to its destination, in the registry's delivery order.
+fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs, home: &str) {
     // Sanitized ONCE here rather than per channel: a channel may be written in
     // any language and cannot be expected to share the guard. Warned about
     // only now, because a scrub nobody was going to receive is not news.
@@ -142,10 +682,8 @@ fn main() {
     } else {
         event.pane.as_str()
     };
+    let rendered = rendered_event(event, pane);
 
-    let title = render::title(&event.agent, &event.state, &event.project);
-    let message = render::message(&event.branch, &event.detail, &event.state);
-    let preview = render::preview(&message);
     let channels_dir_override = std::env::var("PNS_CHANNELS_DIR")
         .ok()
         .filter(|dir| !dir.is_empty());
@@ -153,10 +691,139 @@ fn main() {
         channels_dir_override.as_deref(),
         &format!("{home}/.local/libexec/pns/channels"),
     );
+    let auth = AuthFile {
+        path: resolve_path(
+            std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
+            &format!("{home}/.config/relay/auth.json"),
+        ),
+        contents: OnceCell::new(),
+    };
+    let banner = banner_channel();
 
-    let banner = BannerChannel {
+    for leg in &decision.legs {
+        let delivered = deliver_leg(
+            leg,
+            &rendered,
+            &banner,
+            &auth,
+            native_first(channels_dir_override.is_some()),
+            &channels_dir,
+        );
+        // THE ONE PLACE a delivery reaches the operator. A channel says what
+        // happened; whether anyone hears it is the leg's reporting mode, and
+        // that rule lives here rather than in three channels.
+        if let Some(line) = delivered.line_for(leg.mode) {
+            println!("{line}");
+        }
+    }
+}
+
+/// Every override the engine reads, out of the process environment.
+fn overrides_from_env() -> Overrides {
+    Overrides::from_env(
+        &std::env::vars_os()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>(),
+    )
+}
+
+/// The parsed arguments plus the sanitized pane, rendered into the one event
+/// every channel is handed.
+fn rendered_event(event: &pns::args::EventArgs, pane: &str) -> pns::channels::Event {
+    let message = render::message(&event.branch, &event.detail, &event.state);
+    pns::channels::Event {
+        agent: event.agent.clone(),
+        state: event.state.clone(),
+        project: event.project.clone(),
+        branch: event.branch.clone(),
+        detail: event.detail.clone(),
+        title: render::title(&event.agent, &event.state, &event.project),
+        preview: render::preview(&message),
+        message,
+        pane: pane.to_string(),
+    }
+}
+
+/// Hue's settings, only when the operator enabled it explicitly.
+fn enabled_hue_table(config: &pns::config::Config) -> Option<toml::Table> {
+    config
+        .plugins
+        .get("hue")
+        .filter(|hue| hue.enabled)
+        .map(|hue| hue.settings.clone())
+}
+
+/// Whether a card fires while the operator is watching the pane on mobile.
+///
+/// DEFAULT OFF (operator ruling 2026-08-12): a card about the pane already on
+/// screen is noise, and the pulse alone marks the long command finishing.
+///
+/// A value of the WRONG TYPE is refused out loud, the way the config layer
+/// refuses a non-boolean `enabled` by name. Reading `"true"` as false is the
+/// same defect one level down: the operator asked for something, did not get
+/// it, and was told nothing.
+fn mobile_watch_card(config: &pns::config::Config) -> bool {
+    let Some(stated) = config
+        .plugins
+        .get("moshi")
+        .and_then(|moshi| moshi.settings.get("mobile_watch_card"))
+    else {
+        return false;
+    };
+    stated.as_bool().unwrap_or_else(|| {
+        eprintln!(
+            "pns: config error (moshi.mobile_watch_card is {}, not a boolean); the mobile watching card stays off",
+            stated.type_str()
+        );
+        false
+    })
+}
+
+/// The lights signal, from whichever mode asked for it.
+fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
+    let Some(hue) = hue_table.and_then(|settings| {
+        hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
+    }) else {
+        return;
+    };
+    HuePulse {
+        bridge: UreqBridge {
+            base: format!("https://{}/clip/v2/resource", hue.bridge),
+            key: hue.key,
+        },
+        rooms: hue.rooms,
+    }
+    .run(exit_code);
+}
+
+/// The auth file, read AT MOST ONCE and only if a leg asks for it.
+///
+/// Eager reading made every notification wait on a file no plan might need:
+/// point RELAY_AUTH_FILE at a FIFO nobody writes and an executable-only
+/// delivery blocks forever. One read is still the rule, so two native legs
+/// cannot sign against two different versions of the file.
+struct AuthFile {
+    path: std::path::PathBuf,
+    contents: OnceCell<Option<String>>,
+}
+
+impl AuthFile {
+    fn contents(&self) -> Option<&str> {
+        self.contents
+            .get_or_init(|| read_auth(&self.path))
+            .as_deref()
+    }
+}
+
+/// The banner, which now only needs to know where to send the click.
+fn banner_channel() -> BannerChannel<SystemCommandRunner> {
+    BannerChannel {
         runner: SystemCommandRunner,
-        probes: SystemProbes::new(SystemCommandRunner, String::new()),
         // An EMPTY override falls through, so an exported-but-blank variable
         // cannot shadow the inherited bundle id.
         terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
@@ -168,92 +835,95 @@ fn main() {
                     .filter(|id| !id.is_empty())
             })
             .unwrap_or_default(),
-        // A garbled idle override leaves the THRESHOLD unknown, which is what
-        // makes the banner unsuppressable without a third override state: the
-        // bash keeps the garbled string, fails its numeric test and fires, so
-        // consulting the live probe here could drop a banner instead.
-        desk_idle_secs: if overrides.desk_invalid || overrides.idle_invalid {
-            None
-        } else {
-            Some(
-                overrides
-                    .desk_idle_secs
-                    .unwrap_or(pns::engine::DEFAULT_DESK_IDLE_SECS),
-            )
-        },
         herdr_path: executable_in_path("herdr"),
-        idle_override: overrides.idle_secs,
-        focused_override: overrides.focused_pane.clone(),
-    };
-    let native = pns::channels::Event {
-        agent: event.agent.clone(),
-        state: event.state.clone(),
-        project: event.project.clone(),
-        branch: event.branch.clone(),
-        detail: event.detail.clone(),
-        title: title.clone(),
-        message: message.clone(),
-        preview: preview.clone(),
-        pane: pane.to_string(),
-    };
-
-    let auth_path = resolve_path(
-        std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
-        &format!("{home}/.config/relay/auth.json"),
-    );
-    let moshi = MoshiChannel {
-        http: UreqPost::default(),
-        auth_path: auth_path.clone(),
-        url: std::env::var("RELAY_MOSHI_URL")
-            .ok()
-            .filter(|url| !url.is_empty())
-            .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string()),
-    };
-
-    let hermes = HermesChannel {
-        post: UreqSignedPost,
-        auth_path,
-        url: std::env::var("RELAY_HERMES_URL")
-            .ok()
-            .filter(|url| !url.is_empty())
-            .unwrap_or_else(|| DEFAULT_HERMES_URL.to_string()),
-        sync_deadline: remote_deadline(std::env::var("RELAY_REMOTE_TIMEOUT").ok().as_deref()),
-    };
-
-    for leg in &decision.legs {
-        if native_first(channels_dir_override.is_some()) {
-            match leg.name {
-                "macos-banner" => {
-                    banner.deliver(&native, leg.mode);
-                    continue;
-                }
-                "moshi" => {
-                    moshi.deliver(&native, leg.mode);
-                    continue;
-                }
-                "hermes" => {
-                    hermes.deliver(&native, leg.mode);
-                    continue;
-                }
-                _ => {}
-            }
-        }
-        deliver(
-            &channels_dir.join(format!("{}.sh", leg.name)),
-            &event_json(
-                &event.agent,
-                &event.state,
-                &event.project,
-                &event.branch,
-                &event.detail,
-                &title,
-                &message,
-                &preview,
-                pane,
-                leg.mode.as_str(),
-            ),
-        );
     }
+}
+
+/// The moshi push, with the token this event already read.
+fn moshi_channel(auth: Option<&str>) -> MoshiChannel<UreqPost> {
+    MoshiChannel {
+        http: UreqPost::default(),
+        token: auth.and_then(moshi_secret),
+        url: url_from_env("RELAY_MOSHI_URL", DEFAULT_MOSHI_URL),
+    }
+}
+
+/// The hermes post, with the key this event already read. The path comes with
+/// it only so the not-set-up line can name the file that had no key in it.
+fn hermes_channel(
+    auth: Option<&str>,
+    auth_path: std::path::PathBuf,
+) -> HermesChannel<UreqSignedPost> {
+    HermesChannel {
+        post: UreqSignedPost,
+        key: auth.and_then(hermes_secret),
+        auth_path,
+        url: url_from_env("RELAY_HERMES_URL", DEFAULT_HERMES_URL),
+        sync_deadline: remote_deadline(std::env::var("RELAY_REMOTE_TIMEOUT").ok().as_deref()),
+    }
+}
+
+/// An endpoint override, where EMPTY means the default like every other path
+/// and URL this binary reads.
+fn url_from_env(variable: &str, default: &str) -> String {
+    std::env::var(variable)
+        .ok()
+        .filter(|url| !url.is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
+/// One leg to its destination: the native plugin when it wins, else the
+/// executable channel of that name.
+fn deliver_leg(
+    leg: &pns::routing::Leg,
+    rendered: &pns::channels::Event,
+    banner: &BannerChannel<SystemCommandRunner>,
+    auth: &AuthFile,
+    native_wins: bool,
+    channels_dir: &Path,
+) -> Delivery {
+    if native_wins {
+        // The two network channels are built HERE rather than up front,
+        // because building one is what reads the auth file.
+        match leg.name {
+            "macos-banner" => return banner.deliver(rendered, leg.mode),
+            "moshi" => return moshi_channel(auth.contents()).deliver(rendered, leg.mode),
+            "hermes" => {
+                return hermes_channel(auth.contents(), auth.path.clone())
+                    .deliver(rendered, leg.mode);
+            }
+            _ => {}
+        }
+    }
+    deliver(
+        &channels_dir.join(format!("{}.sh", leg.name)),
+        &rendered.to_json(leg.mode),
+    )
+}
+
+/// A path from the environment, defaulting like bash's `${VAR:-default}`:
+/// EMPTY means the default as much as unset does, because joining a filename
+/// to an empty path resolves into the current directory and quietly delivers
+/// nothing.
+fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(
+        candidate
+            .filter(|value| !value.is_empty())
+            .unwrap_or(default),
+    )
+}
+
+/// THE ROSTER, and the only statement of delivery order. A destination is
+/// added to `registry::ROSTER`, never to policy; this turns those
+/// declarations into the registry both modes select from.
+fn roster() -> Registry {
+    let mut registry = Registry::new();
+    for (name, routing) in pns::registry::ROSTER {
+        if let Err(error) = registry.register(name, routing) {
+            eprintln!("pns: {error:?}");
+        }
+    }
+    registry
 }
 
 /// The first executable of that name on PATH, absolute, or None. The click
@@ -273,9 +943,14 @@ fn executable_in_path(name: &str) -> Option<String> {
 /// Hand one channel its event on stdin. A channel that is missing, is not
 /// executable, or fails is not an error: it is simply not installed, or it
 /// declined, and neither may take down the siblings or the caller.
-fn deliver(channel: &Path, event: &str) {
+///
+/// SILENT BY DESIGN, and deliberately so now that it says so in the type: the
+/// common failure here is a channel nobody installed, and reporting that on
+/// every event would be noise. The status is still dropped; what changed is
+/// that it is dropped in one visible place instead of implicitly.
+fn deliver(channel: &Path, event: &str) -> Delivery {
     let Ok(mut child) = Command::new(channel).stdin(Stdio::piped()).spawn() else {
-        return;
+        return Delivery::Silent;
     };
     if let Some(mut stdin) = child.stdin.take() {
         // Newline-terminated, as the bash's `jq -cn` emitted it: a channel
@@ -284,38 +959,37 @@ fn deliver(channel: &Path, event: &str) {
         let _ = stdin.write_all(b"\n");
     }
     let _ = child.wait();
+    Delivery::Silent
 }
 
-/// The `pulse` mode: read the hue table, take the single-pulse lock, and run
-/// the sequence against the bridge. Every absence is a silent exit 0.
+/// The `pulse` mode: read the hue table and signal the bridge with the exit
+/// code it was handed. Every absence is a silent exit 0.
+///
+/// NOTHING IN THIS REPO CALLS IT. The tiers that used to are part of the event
+/// plan now, which is what stopped the tier being decided twice; this stays as
+/// the operator's own command for signalling the lights by hand, and for
+/// checking that a bridge and key in the config actually work.
 fn pulse_mode() {
     let home = std::env::var("HOME").unwrap_or_default();
-    let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
-        return;
+    // FAIL CLOSED, unlike an event. The roster fallback that keeps every
+    // notification working through a broken config is an EVENT-mode rule:
+    // applying it here would let an unrelated typo switch a deliberately
+    // disabled pulse back on. The pulse runs only when its own table says
+    // enabled, explicitly.
+    let config = match load_config(&config_path(&home)) {
+        Ok(LoadOutcome::Loaded(config)) => config,
+        // Absent is not a mistake; never opting in earns no warning.
+        Ok(LoadOutcome::Missing) => return,
+        Err(error) => {
+            // The sanitized detail event mode prints, with the outcome THIS
+            // mode had: there is no recoverable setting to fall back to, so
+            // nothing pulses.
+            eprintln!("pns: config error ({}); no pulse", error.detail());
+            return;
+        }
     };
-    let Some(hue) = hue_enabled(&config).and_then(|settings| {
-        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
-    }) else {
-        return;
-    };
-
-    // The SAME path the bash channel locks, so the two cannot interleave
-    // during the repoint window. The kernel drops it on any exit, and the
-    // binding lives to the end of the pulse.
-    let Some(_lock) = acquire_pulse_lock(std::path::Path::new(&format!("{home}/.local/state")))
-    else {
-        return;
-    };
-
-    HuePulse {
-        bridge: UreqBridge {
-            base: format!("https://{}/clip/v2/resource", hue.bridge),
-            key: hue.key,
-        },
-        sleeper: RealSleeper,
-        rooms: hue.rooms,
-    }
-    .run(
+    fire_pulse(
+        enabled_hue_table(&config),
         &std::env::args_os()
             .nth(2)
             .map(|code| code.to_string_lossy().into_owned())
@@ -332,7 +1006,7 @@ struct UreqBridge {
 impl UreqBridge {
     fn agent(&self) -> ureq::Agent {
         ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(10)))
+            .timeout_global(Some(BRIDGE_DEADLINE))
             .max_redirects(0)
             // The bridge serves a self-signed certificate for its own LAN
             // address, so verification is disabled here exactly as openhue
@@ -347,6 +1021,10 @@ impl UreqBridge {
     }
 }
 
+/// How long one bridge call may take. The pulse is decoration on a
+/// notification, so it must never be what makes one slow.
+const BRIDGE_DEADLINE: Duration = Duration::from_secs(10);
+
 impl Bridge for UreqBridge {
     fn get(&self, path: &str) -> Option<String> {
         self.agent()
@@ -359,29 +1037,91 @@ impl Bridge for UreqBridge {
             .ok()
     }
 
-    fn put(&self, path: &str, body: &str) -> bool {
-        // A 2xx is not an applied write: the bridge reports application
-        // failures in an errors array alongside it.
-        let Ok(mut response) = self
+    fn put(&self, path: &str, body: &str) {
+        // Nothing reads the outcome: a pulse that did not land is not worth
+        // failing, reporting or retrying on a notification path.
+        let _ = self
             .agent()
             .put(format!("{}/{path}", self.base))
             .header("hue-application-key", &self.key)
             .content_type("application/json")
-            .send(body)
-        else {
-            return false;
-        };
-        put_succeeded(
-            true,
-            &response.body_mut().read_to_string().unwrap_or_default(),
-        )
+            .send(body);
     }
 }
 
-struct RealSleeper;
+#[cfg(test)]
+mod tests {
+    use super::{
+        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        reread_attempts_from, reread_interval_from, resolve_path,
+    };
+    use std::time::Duration;
 
-impl Sleeper for RealSleeper {
-    fn sleep(&self, duration: Duration) {
-        std::thread::sleep(duration);
+    #[test]
+    fn every_reread_interval_that_is_not_a_duration_falls_back_to_the_default() {
+        // The first four panicked `Duration::from_secs_f64` outright. The last
+        // two are FINITE and non-negative, so they passed the guard written
+        // for the others and panicked in the constructor anyway (exit 101 on
+        // a hook whose whole contract is exiting 0).
+        for raw in [
+            "NaN",
+            "inf",
+            "-inf",
+            "-1",
+            "not-a-number",
+            "",
+            "1e30",
+            "1e300",
+        ] {
+            assert_eq!(
+                reread_interval_from(Some(raw)),
+                DEFAULT_REREAD_INTERVAL,
+                "interval {raw:?}"
+            );
+        }
+        assert_eq!(reread_interval_from(None), DEFAULT_REREAD_INTERVAL);
+    }
+
+    #[test]
+    fn an_oversized_reread_knob_is_clamped_rather_than_believed() {
+        // Both knobs multiply into how long a Stop hook can hold a turn's
+        // report open, so each has a ceiling: a stray zero must cost seconds,
+        // never hours.
+        assert_eq!(reread_interval_from(Some("1000000")), MAX_REREAD_INTERVAL);
+        assert_eq!(
+            reread_attempts_from(Some("4294967295")),
+            MAX_REREAD_ATTEMPTS
+        );
+        assert_eq!(reread_attempts_from(Some("11")), MAX_REREAD_ATTEMPTS);
+    }
+
+    #[test]
+    fn a_reread_knob_inside_its_ceiling_is_taken_as_written() {
+        assert_eq!(
+            reread_interval_from(Some("0.25")),
+            Duration::from_millis(250)
+        );
+        assert_eq!(reread_interval_from(Some("0")), Duration::ZERO);
+        assert_eq!(reread_attempts_from(Some("2")), 2);
+        assert_eq!(reread_attempts_from(Some("0")), 0);
+        assert_eq!(reread_attempts_from(None), DEFAULT_REREAD_ATTEMPTS);
+    }
+
+    #[test]
+    fn an_empty_channels_dir_variable_means_the_default_not_the_current_dir() {
+        // Bash's ${VAR:-default} defaults on EMPTY as well as unset; joining
+        // a filename to an empty path would quietly deliver nothing.
+        assert_eq!(
+            resolve_path(Some(""), "/fallback/channels"),
+            std::path::PathBuf::from("/fallback/channels")
+        );
+        assert_eq!(
+            resolve_path(None, "/fallback/channels"),
+            std::path::PathBuf::from("/fallback/channels")
+        );
+        assert_eq!(
+            resolve_path(Some("/set/dir"), "/fallback/channels"),
+            std::path::PathBuf::from("/set/dir")
+        );
     }
 }

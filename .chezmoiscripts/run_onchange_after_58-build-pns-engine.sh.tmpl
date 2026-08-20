@@ -72,7 +72,9 @@ report_line 'building the release binary'
 # on its own without touching the marker.
 # --locked: build exactly the committed lock. Without it cargo may rewrite
 # the deployed lockfile and pull dependencies the lock never recorded.
-"$cargo_bin" build --release --locked --quiet --manifest-path "$crate_dir/Cargo.toml"
+# --bin pns: the crate also carries a test-only capture server, and only this
+# binary is ever installed. Without the flag every apply compiles both.
+"$cargo_bin" build --release --locked --quiet --bin pns --manifest-path "$crate_dir/Cargo.toml"
 
 mkdir -p "$install_dir"
 # install(1) replaces the target through a temporary file and a rename

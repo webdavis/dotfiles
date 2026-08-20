@@ -392,9 +392,12 @@ Names are verb-first where a bare noun would not say what happens (`compress-and
 apply time from the crate at `~/.local/share/pns` and installed here because launchd and the hooks are
 what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
 `~/.config/pns/config.toml` file selects by name, so adding one is a registration rather than a file
-dropped in a directory. Only `hooks/` remains bash: those are EVENT SOURCES that feed the engine, kept
-separate from destinations because conflating the two is the easy mistake, and `helpers/` survives for
-exactly as long as they do (`moshi-gate.sh` runs the presence probes to decide an approval round trip).
+dropped in a directory. The HOOKS are the engine too: `pns hook prompt|stop|blocked|asked|plan-ready`
+reads the harness payload on stdin and runs the one event path, and `pns gate <harness>-hook` is the
+presence-gated pass-through to moshi-hook. That gate answers the BARE word too (`pns pi-hook`), which is
+the spelling moshi's own generated pi and omp extensions are stuck with: their `helperBinary` field holds
+one pathname and has no room for a subcommand. `hooks/codex/install-hooks.sh` is the last bash left under
+`pns/`, because writing another tool's config file is what it does.
 
 **Moving a script is never just a move.** Its path is referenced by LaunchAgent plists, `.chezmoiscripts`
 runners, Claude Code hook declarations in `modify_settings.json`, aerospace and herdr keybindings, the
@@ -520,12 +523,15 @@ raising their own banner: the state is `done` or `failed` off the exit code, the
 name and how long it ran, and the pane is `HERDR_PANE_ID`, which is what makes the banner focus that pane
 on click. Commands at 30s or longer go through the engine's normal presence gate (banner and Discord
 always, phone when away; operator ruling 2026-08-06: away means mobile, and mobile means glancing, so 30s
-is enough to earn the phone); at 5 minutes or longer they also pulse Hue lights through the engine's own
-`pns pulse` subcommand, which is handed the exit code and pulses green on success, red otherwise. The
-pulse fires only when `~/.config/pns/config.toml` exists, because the engine's pulse mode needs an
-enabled `[plugins.hue]` table carrying the bridge and key. Interactive TUIs are skipped by a prefix match
-on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`,
-`codex`, `fzf`. The agent CLIs are on that list because they fire their own relay hooks.
+is enough to earn the phone); at 5 minutes or longer they pass `--long-running`, and the lights are part
+of the engine's own delivery plan from there, pulsing green on success and red otherwise off the same
+exit code the state came from. The shell used to make a second `pns pulse` call of its own, which meant
+the tier was decided twice and could disagree with itself. `pns pulse <exit-code>` still exists, but
+nothing in this repo calls it: it is the operator's manual command for signalling the lights by hand and
+for checking that a `[plugins.hue]` table's bridge and key actually work. Interactive TUIs are skipped by
+a prefix match on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`,
+`claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on that list because they fire their own relay
+hooks.
 
 ## Code Style
 

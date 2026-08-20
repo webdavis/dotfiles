@@ -3,15 +3,17 @@
 //! WHAT LIVES HERE AND WHAT DOES NOT. Everything here runs a command and hands
 //! the bytes to a parser; every parser is a free function taking `&str`, so a
 //! test drives fixture output and never spawns anything. The DECISIONS all live
-//! in `presence` and `routing`, which is why nothing in this module compares,
-//! thresholds or judges.
+//! in `surface`, `presence` and `routing`, which is why nothing in this module
+//! compares, thresholds or judges: it says what the machine reported, and
+//! `surface` says what that means.
 //!
 //! The runner seam exists for the same reason: a test substitutes the command
-//! output, so the suite never samples the live machine. That matters more than
-//! usual here, because the rate sample takes a full second of live counters and
-//! a suite that ran it would be both slow and nondeterministic.
+//! output, so the suite never reads the live machine. That matters more than
+//! usual here, because these readings are of the developer's own desk and
+//! phone, and a suite that took them would answer differently every run.
 
 use std::process::Command;
+use std::time::Duration;
 
 /// Runs a command and returns its stdout, or `None` when it cannot be run or
 /// exits non-zero. The seam every probe reads the world through.
@@ -19,22 +21,110 @@ pub trait CommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Option<String>;
 }
 
-/// The production runner: spawns the command and keeps stdout on success only.
+/// The production runner: spawns the command under a deadline and keeps its
+/// stdout.
+///
+/// EVERY PROBE IS BOUNDED. A wedged herdr, ioreg, pgrep or ps would otherwise
+/// hold a notification open indefinitely, and the readings all have a
+/// fail-direction already: no answer reads as unknown, which never suppresses.
 pub struct SystemCommandRunner;
+
+/// One window for every probe. All of them answer in milliseconds, so this is
+/// generous and still far short of a hang.
+const PROBE_DEADLINE: Duration = Duration::from_secs(5);
 
 impl CommandRunner for SystemCommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Option<String> {
-        let output = Command::new(program).args(args).output().ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        // Lossy, because the rate CSV is judged row by row downstream: one
-        // invalid byte must cost its own row, never the whole sample. The
-        // replacement character it leaves behind is what the idle parser
-        // refuses, so a corrupted count still reads as unknown.
-        Some(String::from_utf8_lossy(&output.stdout).into_owned())
+        let mut command = Command::new(program);
+        command.args(args);
+        run_bounded(command, None, PROBE_DEADLINE)
     }
 }
+
+/// Run a command with a deadline, returning its stdout on success.
+///
+/// There is no wait-with-timeout in the standard library and macOS ships no
+/// `timeout(1)`, so the wait happens on a thread and the child is killed when
+/// the window closes. Every spawn on a notification path is bounded: the
+/// notification is worth less than the turn it reports on.
+pub fn run_bounded(
+    mut command: Command,
+    stdin_text: Option<&str>,
+    deadline: Duration,
+) -> Option<String> {
+    let expires_at = std::time::Instant::now() + deadline;
+    let mut child = command
+        .stdin(if stdin_text.is_some() {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::null()
+        })
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    // The WRITE is inside the window too: a child that never reads its stdin
+    // blocks the writer, and doing it before the clock started meant the
+    // deadline never covered the case.
+    let stdin_text = stdin_text.map(String::from);
+    let mut stdin = child.stdin.take();
+    let mut stdout = child.stdout.take()?;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        if let (Some(text), Some(mut pipe)) = (stdin_text, stdin.take()) {
+            let _ = std::io::Write::write_all(&mut pipe, text.as_bytes());
+        }
+        // Dropping stdin closes it, which is what tells the child to stop
+        // reading; without it a child waiting on EOF never exits.
+        drop(stdin);
+        // Bytes, then LOSSY: every reading here is judged line by line
+        // downstream, so one invalid byte must cost its own line rather than
+        // the whole answer, and read_to_string would refuse the lot.
+        let mut output = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut stdout, &mut output);
+        let _ = sender.send(String::from_utf8_lossy(&output).into_owned());
+    });
+
+    let output = receiver.recv_timeout(deadline).ok();
+    // Closed stdout is not an exited process: a child can close it and sleep,
+    // so the wait is polled against the SAME deadline rather than blocking.
+    let status = match output.is_some() {
+        true => wait_until(&mut child, expires_at),
+        false => None,
+    };
+    let Some(status) = status else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    };
+    // A command that failed has no reading to give: every caller here treats
+    // no answer as unknown, which is the honest report.
+    status.success().then_some(output).flatten()
+}
+
+/// Poll a child to exit, up to a deadline. There is no wait-with-timeout in
+/// the standard library and macOS ships no `timeout(1)`.
+fn wait_until(
+    child: &mut std::process::Child,
+    expires_at: std::time::Instant,
+) -> Option<std::process::ExitStatus> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status),
+            Err(_) => return None,
+            Ok(None) => {}
+        }
+        if std::time::Instant::now() >= expires_at {
+            return None;
+        }
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// How often a bounded wait checks. Short enough not to add latency anyone
+/// notices, long enough not to spin a core.
+const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// The idle counter's own units, as the registry reports them.
 const IOREG_IDLE_KEY: &str = "HIDIdleTime";
@@ -43,7 +133,11 @@ const IOREG_IDLE_KEY: &str = "HIDIdleTime";
 /// it does not control.
 pub const IOREG_PATH: &str = "/usr/sbin/ioreg";
 pub const PGREP_PATH: &str = "/usr/bin/pgrep";
-pub const NETTOP_PATH: &str = "/usr/bin/nettop";
+pub const PS_PATH: &str = "/bin/ps";
+
+/// Where a terminal name from `ps` resolves to. The name is validated before
+/// it is joined, because this is the one place a reading becomes a PATH.
+const TTY_DIR: &str = "/dev";
 
 /// The idle nanosecond count, taken from the FIRST line that carries the key.
 ///
@@ -81,36 +175,96 @@ pub fn parse_pids(pgrep_output: &str) -> Vec<String> {
         .collect()
 }
 
-/// The focused pane id, from the multiplexer's JSON pane listing.
+/// The terminal names `ps` printed, one per line, discarding every line that
+/// is not one.
 ///
-/// Parsed WITHOUT a JSON dependency: the listing is one object per pane on a
-/// single line, so the pane carrying `"focused":true` is found by locating that
-/// marker and reading the `pane_id` value out of THAT object only. The search
-/// stops at the object's closing brace (pane objects are flat, so the first one
-/// closes it), because reading on would return the NEXT pane's id and suppress
-/// a card about a pane nobody is watching. A shape this module does not
-/// recognise yields None, which fails OPEN (the card still fires).
-pub fn parse_focused_pane(pane_list_json: &str) -> Option<String> {
-    let focused_at = pane_list_json.find("\"focused\":true")?;
-    let object_start = pane_list_json[..focused_at].rfind('{')?;
-    let object = &pane_list_json[object_start..];
-    let object = &object[..object.find('}')?];
-    let key = "\"pane_id\":\"";
-    let value_start = object.find(key)? + key.len();
-    let value_end = object[value_start..].find('"')?;
-    Some(object[value_start..value_start + value_end].to_string())
+/// THIS IS A TRUST BOUNDARY, because the name is about to become a path under
+/// `/dev`. A process with no controlling terminal prints `??`, and that is
+/// only the benign case: anything not plain alphanumeric is refused outright,
+/// so no reading can carry a slash or a `..` into the join below.
+///
+/// The name is trimmed first, unlike a process id: `ps -o tty=` pads its
+/// column to a fixed width, so the padding is the format rather than the
+/// garbled output that padding around a pid would be.
+pub fn parse_tty_names(ps_output: &str) -> Vec<&str> {
+    ps_output
+        .lines()
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric()))
+        .collect()
 }
 
-/// The four probes: three read the machine through one command each, and the
-/// marker reads the filesystem directly, because an mtime needs no subprocess.
+/// The tab the SESSION is showing, from `workspace list`: the active tab of
+/// the one workspace flagged focused.
+///
+/// This is the only session-global answer herdr gives. No workspace flagged
+/// focused is None, which becomes an unreadable view rather than a guess.
+pub fn parse_focused_tab(workspace_list_json: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(workspace_list_json)
+        .ok()?
+        .pointer("/result/workspaces")?
+        .as_array()?
+        .iter()
+        .find(|workspace| workspace.get("focused").and_then(|f| f.as_bool()) == Some(true))?
+        .get("active_tab_id")?
+        .as_str()
+        .map(str::to_string)
+}
+
+/// One tab's arrangement, from `pane layout`.
+#[derive(Debug, PartialEq)]
+pub struct TabLayout {
+    /// The tab this layout describes, which is the tab holding whichever pane
+    /// the call addressed.
+    pub tab_id: String,
+    /// The focused pane WITHIN this tab. Tab-level truth, not the caller's
+    /// pane: every pane in a tab is answered the same focused pane id.
+    pub focused_pane: String,
+    /// ZOOM IS TAB-LEVEL: one pane fills the window and every sibling is off
+    /// screen.
+    pub zoomed: bool,
+}
+
+/// A tab's arrangement, addressed by any pane inside it. The pane list is not
+/// read: visibility turns on the focused pane and the zoom flag alone.
+///
+/// A missing field is a shape we do not know, and the whole reading is
+/// refused rather than half-trusted: assuming a tab is unzoomed suppresses a
+/// notification the operator cannot see.
+pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
+    let layout = serde_json::from_str::<serde_json::Value>(layout_json)
+        .ok()?
+        .pointer("/result/layout")?
+        .clone();
+    Some(TabLayout {
+        tab_id: layout.get("tab_id")?.as_str()?.to_string(),
+        focused_pane: layout.get("focused_pane_id")?.as_str()?.to_string(),
+        zoomed: layout.get("zoomed")?.as_bool()?,
+    })
+}
+
+/// The four probes: three read the machine through commands, and the marker
+/// reads the filesystem directly, because an mtime needs no subprocess.
 ///
 /// One struct rather than four, because they share the runner and a caller
 /// composes the traits it needs. SOLID: the command probes depend on the
 /// runner abstraction, never on `Command` directly, so that edge substitutes
 /// in tests; the marker's substitution point is the path it is handed.
+/// ONE PROBE SET IS ONE READING, however many consumers ask for it. Each
+/// reading is taken at most once and remembered, including the reading that
+/// came back empty, because an unreadable probe is an answer too.
+///
+/// The blocked path is what makes this load-bearing: it asks where the
+/// operator is twice by design, once to decide whether an approval is
+/// forwarded to the phone at all and again to decide what the notification
+/// delivers. Taking the measurement twice lets a freshness boundary fall
+/// between them, which cards a phone with no round trip behind it.
 pub struct SystemProbes<R: CommandRunner> {
     runner: R,
     marker_path: String,
+    idle: std::cell::OnceCell<Option<u64>>,
+    marker_mtime: std::cell::OnceCell<Option<u64>>,
+    phone_atime: std::cell::OnceCell<Option<u64>>,
 }
 
 impl<R: CommandRunner> SystemProbes<R> {
@@ -118,75 +272,161 @@ impl<R: CommandRunner> SystemProbes<R> {
         Self {
             runner,
             marker_path,
+            idle: std::cell::OnceCell::new(),
+            marker_mtime: std::cell::OnceCell::new(),
+            phone_atime: std::cell::OnceCell::new(),
         }
     }
 }
 
 impl<R: CommandRunner> crate::probes::IdleProbe for SystemProbes<R> {
     fn idle_secs(&self) -> Option<u64> {
-        let ioreg_output = self.runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
-        crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
+        *self.idle.get_or_init(|| {
+            let ioreg_output = self.runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
+            crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
+        })
     }
 }
 
 impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
     fn marker_mtime_secs(&self) -> Option<u64> {
-        // The LINK itself, never its target, matching BSD `stat -f %m`: the
-        // Back Tap touch lands on this path, so a dangling link still carries
-        // the reading and following it would erase one.
-        let modified = std::fs::symlink_metadata(&self.marker_path)
-            .ok()?
-            .modified()
-            .ok()?;
-        Some(
-            modified
-                .duration_since(std::time::UNIX_EPOCH)
+        *self.marker_mtime.get_or_init(|| {
+            // The LINK itself, never its target, matching BSD `stat -f %m`: the
+            // Back Tap touch lands on this path, so a dangling link still
+            // carries the reading and following it would erase one.
+            let modified = std::fs::symlink_metadata(&self.marker_path)
                 .ok()?
-                .as_secs(),
-        )
+                .modified()
+                .ok()?;
+            Some(
+                modified
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()?
+                    .as_secs(),
+            )
+        })
     }
 }
 
-impl<R: CommandRunner> crate::probes::MoshRateProbe for SystemProbes<R> {
-    fn sample_csv(&self) -> Option<String> {
-        let pids = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
-        if pids.is_empty() {
+impl<R: CommandRunner> crate::probes::PhoneInputProbe for SystemProbes<R> {
+    /// WHEN THE PHONE LAST TYPED, SCROLLED OR TAPPED INTO THE SESSION, as the
+    /// access time of the pty its mosh client is attached to.
+    ///
+    /// THE READING IS ATIME, AND THAT IS THE WHOLE TRICK. On macOS a tty's
+    /// atime moves when something is written INTO it and its mtime moves when
+    /// something is read OUT of it, so atime is input and mtime is the agent
+    /// talking back. Proven live on 2026-08-15 in both directions: a scroll on
+    /// the phone moved the mosh pty's atime while typing at the desk left it
+    /// untouched. That is what makes this comparable with the desk's own idle
+    /// clock instead of the byte sample it replaces, which passive viewing
+    /// could not move at all.
+    ///
+    /// THREE BOUNDED SPAWNS, never one per process: `mosh-server` runs
+    /// detached with no controlling terminal of its own, so the terminal
+    /// belongs to the client it forked, and both `pgrep -P` and `ps -p` take
+    /// the whole list of ids at once.
+    ///
+    /// FRESHEST WINS across every session found, and any step coming back
+    /// empty leaves None. None is never fresh, which drops the phone out of
+    /// the arbitration rather than parking the operator on it: a phone that
+    /// cannot be read must not silence the banner.
+    fn phone_input_atime_secs(&self) -> Option<u64> {
+        *self.phone_atime.get_or_init(|| {
+            let servers = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
+            let clients = parse_pids(&self.pgrep_children(&servers)?);
+            if clients.is_empty() {
+                return None;
+            }
+            let terminals = self
+                .runner
+                .run(PS_PATH, &["-o", "tty=", "-p", &clients.join(",")])?;
+            newest_terminal_atime(TTY_DIR, &terminals)
+        })
+    }
+}
+
+/// The most recent access time among the terminals `ps` named, or None when
+/// not one of them could be read.
+///
+/// The directory is a parameter so the lookup can be pointed at fixtures; in
+/// production it is always `/dev`.
+pub fn newest_terminal_atime(tty_dir: &str, ps_output: &str) -> Option<u64> {
+    parse_tty_names(ps_output)
+        .into_iter()
+        .filter_map(|name| atime_secs(&format!("{tty_dir}/{name}")))
+        .max()
+}
+
+/// A file's access time in whole seconds since the epoch, or None when it
+/// cannot be read. A plain `stat`, which does not itself count as an access,
+/// so taking the reading never disturbs it.
+fn atime_secs(path: &str) -> Option<u64> {
+    Some(
+        std::fs::metadata(path)
+            .ok()?
+            .accessed()
+            .ok()?
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()?
+            .as_secs(),
+    )
+}
+
+impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
+    /// Two reads, and NEITHER may be caller-relative.
+    ///
+    /// `herdr pane current` is the trap this builder exists to avoid: it
+    /// resolves "current" from the CALLER'S `HERDR_PANE_ID`, and the caller
+    /// is always the pane the event fired from, so a view built on it makes
+    /// the origin its own focused pane and every desk event self-suppresses.
+    /// Measured live on 2026-08-13 (drill D4): with the session zoomed onto
+    /// wW:p3R, a hook in wW:p3K was answered wW:p3K.
+    ///
+    /// So what is on screen comes from `workspace list`, the one session-
+    /// global answer herdr gives, and the arrangement comes from the ORIGIN
+    /// tab's own layout, addressed by the pane id the event carried. That
+    /// layout names the origin's tab as well, so the third call is gone.
+    /// Either call failing yields None, which the model reads as Unknown
+    /// rather than as "not visible".
+    fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
+        let focused_tab = parse_focused_tab(&self.herdr("workspace", &["list"])?)?;
+        let layout = parse_layout(&self.herdr("pane", &["layout", "--pane", origin_pane])?)?;
+        Some(crate::surface::SessionView {
+            origin_tab: layout.tab_id,
+            focused_tab,
+            focused_pane: layout.focused_pane,
+            zoomed: layout.zoomed,
+        })
+    }
+}
+
+impl<R: CommandRunner> SystemProbes<R> {
+    /// Every child of the given parents, in one call. No parents means no
+    /// call: `pgrep -P` with an empty list is a usage error, not a query
+    /// answering "none".
+    fn pgrep_children(&self, parents: &[String]) -> Option<String> {
+        if parents.is_empty() {
             return None;
         }
-        // -P collapses to one row per process, -x prints raw byte counts rather
-        // than MiB, -n skips address resolution, and -L 2 is what makes this two
-        // samples a second apart in CSV. The -J column list puts bytes_in in
-        // field 5, which is the shape the rate judge parses.
-        let mut args = vec![
-            "-P",
-            "-L",
-            "2",
-            "-x",
-            "-n",
-            "-J",
-            "time,interface,state,bytes_in,bytes_out",
-        ];
-        for pid in &pids {
-            args.push("-p");
-            args.push(pid);
-        }
-        self.runner.run(NETTOP_PATH, &args)
+        self.runner.run(PGREP_PATH, &["-P", &parents.join(",")])
     }
-}
 
-impl<R: CommandRunner> crate::probes::FocusedPaneProbe for SystemProbes<R> {
-    fn focused_pane(&self) -> Option<String> {
-        // Resolved through PATH, unlike the system binaries above: the
-        // multiplexer is not at a fixed location, and a context whose PATH does
-        // not carry it reads as unknown, which fails OPEN into a card.
-        let pane_list = self.runner.run("herdr", &["pane", "list"])?;
-        parse_focused_pane(&pane_list)
+    /// Resolved through PATH, unlike the system binaries above: the
+    /// multiplexer is not at a fixed location, and a context whose PATH does
+    /// not carry it reads as unknown, which fails OPEN into a notification.
+    fn herdr(&self, subcommand: &str, args: &[&str]) -> Option<String> {
+        let mut argv = vec![subcommand];
+        argv.extend_from_slice(args);
+        self.runner.run("herdr", &argv)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CommandRunner, parse_focused_pane, parse_idle_nanoseconds, parse_pids};
+    use super::{
+        CommandRunner, newest_terminal_atime, parse_focused_tab, parse_idle_nanoseconds,
+        parse_layout, parse_pids, parse_tty_names,
+    };
     use std::cell::RefCell;
 
     /// Records what it was asked to run and answers from a script, so a test
@@ -212,18 +452,6 @@ mod tests {
                 calls: RefCell::new(Vec::new()),
             }
         }
-
-        /// One answer per program, keyed by a substring of its path, for the
-        /// probe that chains two commands.
-        fn scripted(scripts: &[(&str, &str)]) -> Self {
-            Self {
-                answers: scripts
-                    .iter()
-                    .map(|(program, out)| ((*program).to_string(), Some((*out).to_string())))
-                    .collect(),
-                calls: RefCell::new(Vec::new()),
-            }
-        }
     }
 
     impl CommandRunner for FakeRunner {
@@ -236,6 +464,65 @@ mod tests {
                 .find(|(key, _)| program.contains(key.as_str()))
                 .and_then(|(_, answer)| answer.clone())
         }
+    }
+
+    // --- one reading per probe set ------------------------------------------
+
+    /// Counts what it was asked to run, and keeps the counter reachable after
+    /// the runner is handed to the probe set that owns it.
+    struct CountingRunner {
+        answer: String,
+        calls: std::rc::Rc<std::cell::Cell<u32>>,
+    }
+
+    impl CommandRunner for CountingRunner {
+        fn run(&self, _program: &str, _args: &[&str]) -> Option<String> {
+            self.calls.set(self.calls.get() + 1);
+            Some(self.answer.clone())
+        }
+    }
+
+    #[test]
+    fn a_reading_asked_for_twice_is_still_taken_once() {
+        // The blocked path asks where the operator is TWICE by design: once to
+        // decide whether an approval is forwarded to the phone at all, and
+        // again to decide what the notification delivers. Two spawns can
+        // answer differently, and a freshness boundary crossed between them
+        // cards a phone with no round trip behind it.
+        use crate::probes::IdleProbe;
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let probes = SystemProbes::new(
+            CountingRunner {
+                answer: "\"HIDIdleTime\" = 5000000000".to_string(),
+                calls: std::rc::Rc::clone(&calls),
+            },
+            "/nonexistent/marker".to_string(),
+        );
+        assert_eq!(probes.idle_secs(), Some(5));
+        assert_eq!(
+            probes.idle_secs(),
+            Some(5),
+            "and the same answer both times"
+        );
+        assert_eq!(calls.get(), 1, "one probe set is one reading");
+    }
+
+    #[test]
+    fn a_reading_that_came_back_empty_is_not_retaken_either() {
+        // An unreadable probe is an ANSWER, and re-taking it would let two
+        // consumers disagree about a machine that told the first one nothing.
+        use crate::probes::IdleProbe;
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let probes = SystemProbes::new(
+            CountingRunner {
+                answer: "nothing the parser recognizes".to_string(),
+                calls: std::rc::Rc::clone(&calls),
+            },
+            "/nonexistent/marker".to_string(),
+        );
+        assert_eq!(probes.idle_secs(), None);
+        assert_eq!(probes.idle_secs(), None);
+        assert_eq!(calls.get(), 1);
     }
 
     // --- parse_idle_nanoseconds --------------------------------------------
@@ -300,32 +587,6 @@ mod tests {
 
     // --- parse_focused_pane -------------------------------------------------
 
-    #[test]
-    fn the_focused_pane_id_comes_from_the_object_carrying_the_focused_marker() {
-        let json = r#"{"result":{"panes":[{"pane_id":"wW:p7","focused":false},{"pane_id":"wW:p21","focused":true}]}}"#;
-        assert_eq!(parse_focused_pane(json), Some("wW:p21".to_string()));
-    }
-
-    #[test]
-    fn a_listing_with_nothing_focused_reads_as_unknown_so_the_card_still_fires() {
-        let json = r#"{"result":{"panes":[{"pane_id":"wW:p7","focused":false}]}}"#;
-        assert_eq!(parse_focused_pane(json), None);
-    }
-
-    #[test]
-    fn a_shape_this_parser_does_not_recognise_reads_as_unknown_rather_than_guessing() {
-        assert_eq!(parse_focused_pane("not json at all"), None);
-        assert_eq!(parse_focused_pane(""), None);
-    }
-
-    #[test]
-    fn a_focused_object_without_a_pane_id_is_unknown_never_a_neighbours_id() {
-        // Reading past the focused object would return the NEXT pane's id and
-        // suppress a card about a pane the operator is not watching.
-        let json = r#"{"result":{"panes":[{"focused":true},{"pane_id":"wW:p7","focused":false}]}}"#;
-        assert_eq!(parse_focused_pane(json), None);
-    }
-
     // --- the production runner, against real processes ----------------------
 
     use super::SystemCommandRunner;
@@ -354,9 +615,9 @@ mod tests {
     }
 
     #[test]
-    fn the_production_runner_keeps_a_sample_with_stray_invalid_bytes() {
-        // The rate CSV is judged row by row downstream, matching the bash awk
-        // parser's tolerance: one bad byte must not discard a whole sample.
+    fn the_production_runner_keeps_a_reading_with_stray_invalid_bytes() {
+        // Every reading is judged line by line downstream, so one bad byte
+        // must cost its own line rather than the whole answer.
         let out = SystemCommandRunner
             .run("/bin/sh", &["-c", "printf 'a\\377b'"])
             .expect("stray bytes must not discard the reading");
@@ -366,7 +627,8 @@ mod tests {
     // --- the four probe implementations, the behavior R2a owes -------------
 
     use super::SystemProbes;
-    use crate::probes::{FocusedPaneProbe, IdleProbe, MoshRateProbe, PhoneMarkerProbe};
+    use crate::probes::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
+    use crate::surface::{Visibility, visibility};
 
     fn probes_answering(answer: &str) -> SystemProbes<FakeRunner> {
         SystemProbes::new(FakeRunner::answering(answer), "/marker".to_string())
@@ -438,40 +700,207 @@ mod tests {
         );
     }
 
-    #[test]
-    fn no_sessions_means_no_sample_and_the_sampler_never_runs() {
-        // An empty CSV would be judged INACTIVE either way, but skipping the
-        // sampler is what keeps a full second of live counters off this path;
-        // the call recording is the proof it was skipped.
-        let probes = probes_answering("");
-        assert_eq!(probes.sample_csv(), None);
-        let calls = probes.runner.calls.borrow();
-        assert_eq!(calls.len(), 1, "only pgrep may run, got {calls:?}");
-        assert_eq!(calls[0], "/usr/bin/pgrep -x mosh-server");
-    }
+    // --- the phone's input clock -------------------------------------------
 
-    #[test]
-    fn a_pgrep_with_no_matches_is_no_sample_which_reads_inactive() {
-        // Real pgrep exits non-zero on no matches, which the runner reports
-        // as None: the shape the production path actually produces.
-        assert_eq!(probes_failing().sample_csv(), None);
-    }
-
-    #[test]
-    fn the_sampler_argv_matches_the_bash_original_byte_for_byte() {
-        // The -J column order puts bytes_in in field 5, the exact shape the
-        // rate judge parses; a reordering here ships a dead probe silently.
-        let probes = SystemProbes::new(
-            FakeRunner::scripted(&[("pgrep", "101\n2002\n"), ("nettop", "csv\n")]),
+    /// The probe with the three discovery answers scripted by exact argv,
+    /// pointed at a marker path nothing reads.
+    fn phone_probe(answers: &[(&str, &str)]) -> SystemProbes<ExactArgvRunner> {
+        SystemProbes::new(
+            ExactArgvRunner {
+                answers: answers
+                    .iter()
+                    .map(|(call, out)| ((*call).to_string(), (*out).to_string()))
+                    .collect(),
+                calls: RefCell::new(Vec::new()),
+            },
             "/marker".to_string(),
-        );
-        assert_eq!(probes.sample_csv(), Some("csv\n".to_string()));
-        let calls = probes.runner.calls.borrow();
-        assert_eq!(calls[0], "/usr/bin/pgrep -x mosh-server");
+        )
+    }
+
+    /// The live chain, recorded on dresden 2026-08-15: one detached
+    /// `mosh-server`, the herdr client it forked, and that client's pty.
+    const DISCOVERY: [(&str, &str); 3] = [
+        ("/usr/bin/pgrep -x mosh-server", "14362\n"),
+        ("/usr/bin/pgrep -P 14362", "14363\n"),
+        // ps pads its column to a fixed width, which the parser trims.
+        ("/bin/ps -o tty= -p 14363", "ttys000 \n"),
+    ];
+
+    #[test]
+    fn the_discovery_argv_is_pinned_to_the_chain_that_was_measured_live() {
+        // THREE CALLS, in this order, with the ids batched rather than one
+        // spawn per process. `mosh-server` itself has no controlling
+        // terminal (measured: `??`), which is why the client is walked to at
+        // all; a reordering or a dropped step ships a probe that silently
+        // never reads a phone.
+        let probes = phone_probe(&DISCOVERY);
+        probes.phone_input_atime_secs();
         assert_eq!(
-            calls[1],
-            "/usr/bin/nettop -P -L 2 -x -n -J time,interface,state,bytes_in,bytes_out -p 101 -p 2002"
+            probes.runner.calls.borrow().as_slice(),
+            &[
+                "/usr/bin/pgrep -x mosh-server".to_string(),
+                "/usr/bin/pgrep -P 14362".to_string(),
+                "/bin/ps -o tty= -p 14363".to_string(),
+            ]
         );
+    }
+
+    #[test]
+    fn every_server_and_every_client_is_asked_for_in_one_call_each() {
+        // Two phones attached at once is the case that grows the id lists,
+        // and both pgrep and ps take the whole list, so the spawn count
+        // stays at three however many sessions are open.
+        let probes = phone_probe(&[
+            ("/usr/bin/pgrep -x mosh-server", "14362\n900\n"),
+            ("/usr/bin/pgrep -P 14362,900", "14363\n901\n"),
+            ("/bin/ps -o tty= -p 14363,901", "ttys000 \nttys001 \n"),
+        ]);
+        probes.phone_input_atime_secs();
+        assert_eq!(probes.runner.calls.borrow().len(), 3);
+    }
+
+    #[test]
+    fn a_failure_at_any_step_of_the_chain_reads_as_no_phone_rather_than_a_fresh_one() {
+        // Never fresh is the fail direction: a phone that cannot be read
+        // must drop out of the arbitration, not park the operator on it and
+        // silence every banner. Each case drops one scripted answer, which
+        // is that command failing.
+        for dropped in [
+            "/usr/bin/pgrep -x mosh-server",
+            "/usr/bin/pgrep -P 14362",
+            "/bin/ps -o tty= -p 14363",
+        ] {
+            let scripted: Vec<(&str, &str)> = DISCOVERY
+                .iter()
+                .copied()
+                .filter(|(call, _)| *call != dropped)
+                .collect();
+            assert_eq!(
+                phone_probe(&scripted).phone_input_atime_secs(),
+                None,
+                "case: {dropped} unanswered"
+            );
+        }
+    }
+
+    #[test]
+    fn no_mosh_server_at_all_never_asks_for_children_of_nothing() {
+        // `pgrep -P` with an empty list is a usage error, not a query
+        // answering "none", so the walk stops rather than spawning it.
+        let probes = phone_probe(&[("/usr/bin/pgrep -x mosh-server", "\n")]);
+        assert_eq!(probes.phone_input_atime_secs(), None);
+        assert_eq!(
+            probes.runner.calls.borrow().as_slice(),
+            &["/usr/bin/pgrep -x mosh-server".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_server_whose_client_has_no_terminal_reads_as_no_phone() {
+        // `ps -o tty=` prints `??` for a process with no controlling
+        // terminal, and there is no clock on a terminal that is not there.
+        let probes = phone_probe(&[
+            ("/usr/bin/pgrep -x mosh-server", "14362\n"),
+            ("/usr/bin/pgrep -P 14362", "14363\n"),
+            ("/bin/ps -o tty= -p 14363", "??       \n"),
+        ]);
+        assert_eq!(probes.phone_input_atime_secs(), None);
+    }
+
+    // --- parse_tty_names, the step that becomes a path ----------------------
+
+    #[test]
+    fn a_padded_terminal_name_is_trimmed_because_the_padding_is_the_format() {
+        // Unlike a pid line, where padding is output we did not expect, `ps
+        // -o tty=` pads its column by design.
+        assert_eq!(
+            parse_tty_names("ttys000 \nttys001  \n"),
+            ["ttys000", "ttys001"]
+        );
+    }
+
+    #[test]
+    fn a_process_with_no_controlling_terminal_names_none() {
+        assert!(parse_tty_names("??       \n").is_empty());
+        assert!(parse_tty_names("").is_empty());
+        assert_eq!(parse_tty_names("??      \nttys000 \n"), ["ttys000"]);
+    }
+
+    #[test]
+    fn a_name_that_could_escape_the_device_directory_is_refused_outright() {
+        // The name is joined onto /dev, so this is the trust boundary: a
+        // reading carrying a slash or a dot-dot must never become a path.
+        for hostile in [
+            "../../etc/passwd",
+            "..",
+            "tty/../../root",
+            "tty s000",
+            "tty;rm",
+            "tty.0",
+        ] {
+            assert!(
+                parse_tty_names(&format!("{hostile}\n")).is_empty(),
+                "case: {hostile}"
+            );
+        }
+    }
+
+    // --- newest_terminal_atime, against files whose atimes are set ----------
+
+    /// A file whose access time is exactly this many seconds past the epoch.
+    ///
+    /// AN ABSOLUTE INSTANT, never a wall-clock stamp. This used to shell out
+    /// to `touch -a -t`, which reads its stamp in the HOST'S LOCAL TIME, so
+    /// the fixture meant one epoch on the developer's machine and another on
+    /// a UTC runner: the same two assertions passed in Denver and failed in
+    /// CI, seven hours apart. The probe under test reports epoch seconds, so
+    /// the fixture states epoch seconds and the assertion reads the same
+    /// constant back.
+    fn terminal_with_atime(dir: &std::path::Path, name: &str, atime_secs: u64) {
+        let file = std::fs::File::create(dir.join(name)).expect("terminal fixture");
+        file.set_times(
+            std::fs::FileTimes::new()
+                .set_accessed(std::time::UNIX_EPOCH + std::time::Duration::from_secs(atime_secs)),
+        )
+        .expect("set the fixture atime");
+    }
+
+    /// Two instants far enough apart that nothing but the freshest can win.
+    const PUT_DOWN_ATIME: u64 = 1_577_836_800;
+    const IN_HAND_ATIME: u64 = 1_609_459_200;
+
+    #[test]
+    fn the_freshest_terminal_wins_across_every_session_found() {
+        // Two phones attached, one put down an hour ago and one in a hand:
+        // the reading is the one being used, so the stale session cannot
+        // drag the verdict away from the live one.
+        let dir = std::env::temp_dir().join(format!("pns-tty-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        terminal_with_atime(&dir, "ttys000", PUT_DOWN_ATIME);
+        terminal_with_atime(&dir, "ttys001", IN_HAND_ATIME);
+        let newest = newest_terminal_atime(&dir.to_string_lossy(), "ttys000 \nttys001 \n");
+        let stale = newest_terminal_atime(&dir.to_string_lossy(), "ttys000 \n");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(
+            newest,
+            Some(IN_HAND_ATIME),
+            "the newer atime is the reading"
+        );
+        assert_eq!(stale, Some(PUT_DOWN_ATIME), "and alone the older one is");
+    }
+
+    #[test]
+    fn a_terminal_that_cannot_be_stat_ed_drops_out_without_taking_the_others_with_it() {
+        let dir = std::env::temp_dir().join(format!("pns-tty-gone-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        terminal_with_atime(&dir, "ttys000", PUT_DOWN_ATIME);
+        let mixed = newest_terminal_atime(&dir.to_string_lossy(), "ttysGONE \nttys000 \n");
+        let none = newest_terminal_atime(&dir.to_string_lossy(), "ttysGONE \n");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(mixed, Some(PUT_DOWN_ATIME));
+        assert_eq!(none, None, "nothing readable is no reading at all");
     }
 
     #[test]
@@ -484,23 +913,207 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_pane_probe_asks_the_multiplexer_by_name_through_the_callers_path() {
-        let probes = probes_answering("{}");
-        probes.focused_pane();
-        assert_eq!(probes.runner.calls.borrow()[0], "herdr pane list");
+    // --- the session view, against herdr's real answers ---------------------
+
+    /// Recorded from a live herdr on 2026-08-13, trimmed to the fields the
+    /// view needs. A shape change upstream fails these rather than silently
+    /// reading Unknown forever.
+    ///
+    /// A workspace's `focused` flag and the `active_tab_id` beside it are the
+    /// only SESSION-GLOBAL statement of what is on screen. Every `pane`
+    /// answer is relative to the process that asked.
+    const WORKSPACE_LIST: &str = r#"{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"wW:t9","focused":true,"label":"dotfiles modernization","workspace_id":"wW"}]}}"#;
+    /// The same recorded shape with a second workspace ahead of the focused
+    /// one, which is where the operator is looking.
+    const WORKSPACE_LIST_SECOND_FOCUSED: &str = r#"{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"wV:t1","focused":false,"label":"other","workspace_id":"wV"},{"active_tab_id":"wW:t9","focused":true,"label":"dotfiles modernization","workspace_id":"wW"}]}}"#;
+    const WORKSPACE_LIST_NONE_FOCUSED: &str = r#"{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"wW:t9","focused":false,"label":"dotfiles modernization","workspace_id":"wW"}]}}"#;
+
+    /// The D4 live capture: tab wW:t9 zoomed onto wW:p3R, taken while the
+    /// operator held that zoom and the hook fired from wW:p3K.
+    const LAYOUT_ZOOMED_ON_SIBLING: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3R","panes":[{"focused":false,"pane_id":"wW:p3K"},{"focused":true,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":true},"type":"pane_layout"}}"#;
+    /// The same tab zoomed onto wW:p3K instead.
+    const LAYOUT_ZOOMED_ON_ORIGIN: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":true},"type":"pane_layout"}}"#;
+    const LAYOUT_UNZOOMED: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p3K","panes":[{"focused":true,"pane_id":"wW:p3K"},{"focused":false,"pane_id":"wW:p3R"}],"tab_id":"wW:t9","zoomed":false},"type":"pane_layout"}}"#;
+    /// A pane sitting in one of the workspace's other tabs.
+    const LAYOUT_OTHER_TAB: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wW:p10","panes":[{"focused":true,"pane_id":"wW:p10"}],"tab_id":"wW:tF","zoomed":false},"type":"pane_layout"}}"#;
+    /// A pane in the OTHER workspace's active tab.
+    const LAYOUT_OTHER_WORKSPACE: &str = r#"{"id":"cli:pane:layout","result":{"layout":{"focused_pane_id":"wV:p1","panes":[{"focused":true,"pane_id":"wV:p1"}],"tab_id":"wV:t1","zoomed":false},"type":"pane_layout"}}"#;
+
+    /// WHAT `herdr pane current` ACTUALLY ANSWERS A HOOK, recorded live on
+    /// 2026-08-13. It resolves "current" from the CALLER'S `HERDR_PANE_ID`,
+    /// so a hook running inside wW:p3K is told wW:p3K, `focused` flag and
+    /// all, while the session was really zoomed onto wW:p3R.
+    const PANE_CURRENT_CALLER_RELATIVE: &str = r#"{"id":"cli:pane:current","result":{"pane":{"focused":false,"pane_id":"wW:p3K","tab_id":"wW:t9","workspace_id":"wW"},"type":"pane_current"}}"#;
+
+    /// Answers exact argv and records every call, so an unscripted call reads
+    /// as that herdr subcommand failing rather than as a silent default.
+    struct ExactArgvRunner {
+        answers: Vec<(String, String)>,
+        calls: RefCell<Vec<String>>,
+    }
+
+    impl CommandRunner for ExactArgvRunner {
+        fn run(&self, program: &str, args: &[&str]) -> Option<String> {
+            let call = format!("{program} {}", args.join(" "));
+            self.calls.borrow_mut().push(call.clone());
+            self.answers
+                .iter()
+                .find(|(scripted, _)| *scripted == call)
+                .map(|(_, answer)| answer.clone())
+        }
+    }
+
+    fn viewer(answers: Vec<(String, String)>) -> SystemProbes<ExactArgvRunner> {
+        SystemProbes::new(
+            ExactArgvRunner {
+                answers,
+                calls: RefCell::new(Vec::new()),
+            },
+            String::new(),
+        )
+    }
+
+    /// Every answer a view of `origin` could want, INCLUDING the two
+    /// caller-relative ones: a test that tells the two readings apart has to
+    /// let the wrong reading succeed rather than fail for want of an answer.
+    fn answers(workspace_list: &str, origin: &str, layout: &str) -> Vec<(String, String)> {
+        vec![
+            (
+                "herdr workspace list".to_string(),
+                workspace_list.to_string(),
+            ),
+            (
+                format!("herdr pane layout --pane {origin}"),
+                layout.to_string(),
+            ),
+            (
+                "herdr pane current".to_string(),
+                PANE_CURRENT_CALLER_RELATIVE.to_string(),
+            ),
+            (
+                format!("herdr pane get {origin}"),
+                PANE_CURRENT_CALLER_RELATIVE.to_string(),
+            ),
+        ]
     }
 
     #[test]
-    fn a_pane_listing_yields_the_focused_pane_through_the_probe() {
-        let probes = probes_answering(
-            "{\"result\":{\"panes\":[{\"pane_id\":\"wW:p21\",\"focused\":true}]}}",
+    fn a_zoom_onto_a_sibling_hides_the_origin_that_pane_current_would_call_focused() {
+        // THE D4 LIVE FAILURE. `herdr pane current` is CALLER-RELATIVE: the
+        // hook runs inside the origin pane, so it is told the origin pane is
+        // the current one, the origin therefore equals the focused pane, and
+        // every desk event self-suppresses. The session was zoomed onto
+        // wW:p3R the whole time.
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_ZOOMED_ON_SIBLING))
+            .session_view("wW:p3K")
+            .expect("a readable view");
+        assert_eq!(view.focused_pane, "wW:p3R");
+        assert_eq!(visibility("wW:p3K", &view), Visibility::Hidden);
+    }
+
+    #[test]
+    fn the_view_asks_the_session_what_is_focused_and_never_asks_for_the_current_pane() {
+        // The two calls that carry no caller context: the focused workspace's
+        // active tab, and the ORIGIN tab's own layout, addressed by the pane
+        // id the event itself carried.
+        let probes = viewer(answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_ZOOMED_ON_SIBLING));
+        probes.session_view("wW:p3K").expect("a readable view");
+        assert_eq!(
+            probes.runner.calls.borrow().as_slice(),
+            &[
+                "herdr workspace list".to_string(),
+                "herdr pane layout --pane wW:p3K".to_string(),
+            ]
         );
-        assert_eq!(probes.focused_pane(), Some("wW:p21".to_string()));
     }
 
     #[test]
-    fn a_multiplexer_that_cannot_be_reached_reports_unknown_and_the_card_fires() {
-        assert_eq!(probes_failing().focused_pane(), None);
+    fn the_zoomed_pane_itself_stays_visible() {
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_ZOOMED_ON_ORIGIN))
+            .session_view("wW:p3K")
+            .expect("a readable view");
+        assert_eq!(visibility("wW:p3K", &view), Visibility::Visible);
+    }
+
+    #[test]
+    fn an_unzoomed_sibling_is_visible_beside_the_focused_pane() {
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p3R", LAYOUT_UNZOOMED))
+            .session_view("wW:p3R")
+            .expect("a readable view");
+        assert_eq!(visibility("wW:p3R", &view), Visibility::Visible);
+    }
+
+    #[test]
+    fn a_pane_on_another_tab_is_hidden_however_that_tab_is_arranged() {
+        let view = viewer(answers(WORKSPACE_LIST, "wW:p10", LAYOUT_OTHER_TAB))
+            .session_view("wW:p10")
+            .expect("a readable view");
+        assert_eq!(view.origin_tab, "wW:tF");
+        assert_eq!(visibility("wW:p10", &view), Visibility::Hidden);
+    }
+
+    #[test]
+    fn the_focused_workspace_decides_the_tab_not_the_first_one_listed() {
+        // wV is listed first and its active tab holds the origin, but the
+        // operator is looking at wW. Reading the first workspace instead of
+        // the focused one would call this Visible.
+        let view = viewer(answers(
+            WORKSPACE_LIST_SECOND_FOCUSED,
+            "wV:p1",
+            LAYOUT_OTHER_WORKSPACE,
+        ))
+        .session_view("wV:p1")
+        .expect("a readable view");
+        assert_eq!(view.focused_tab, "wW:t9");
+        assert_eq!(visibility("wV:p1", &view), Visibility::Hidden);
+    }
+
+    #[test]
+    fn a_session_with_no_focused_workspace_is_unreadable_rather_than_a_guess() {
+        assert!(
+            viewer(answers(
+                WORKSPACE_LIST_NONE_FOCUSED,
+                "wW:p3K",
+                LAYOUT_UNZOOMED
+            ))
+            .session_view("wW:p3K")
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn any_herdr_call_failing_leaves_the_view_unreadable_rather_than_guessing() {
+        // Unknown never suppresses, so a multiplexer that cannot answer costs
+        // a spare notification rather than a lost one.
+        for dropped in ["herdr workspace list", "herdr pane layout --pane wW:p3K"] {
+            let scripted = answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_UNZOOMED)
+                .into_iter()
+                .filter(|(call, _)| call != dropped)
+                .collect();
+            assert!(
+                viewer(scripted).session_view("wW:p3K").is_none(),
+                "case: {dropped} unanswered"
+            );
+        }
+    }
+
+    #[test]
+    fn an_answer_this_parser_does_not_recognise_is_unreadable_too() {
+        assert_eq!(parse_focused_tab("not json"), None);
+        assert_eq!(parse_focused_tab(r#"{"result":{"workspaces":[]}}"#), None);
+        // A focused workspace with no active tab names no tab, and inventing
+        // one would suppress against a tab that is not on screen.
+        assert_eq!(
+            parse_focused_tab(r#"{"result":{"workspaces":[{"focused":true}]}}"#),
+            None
+        );
+        assert!(parse_layout("not json").is_none());
+        // A layout missing the zoom flag or either id is a shape we do not
+        // know: refusing beats assuming a tab is unzoomed and suppressing.
+        assert!(
+            parse_layout(r#"{"result":{"layout":{"focused_pane_id":"wW:p3K","tab_id":"wW:t9"}}}"#)
+                .is_none()
+        );
+        assert!(parse_layout(r#"{"result":{"layout":{"zoomed":false}}}"#).is_none());
     }
 }

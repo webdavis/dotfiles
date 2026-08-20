@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# relay-codex-hooks.sh: adds relay done+blocked to ~/.codex/hooks.json, preserves
+# relay-codex-hooks.sh: adds the engine's stop+blocked hooks to ~/.codex/hooks.json, preserves
 # herdr's SessionStart, idempotent.
 # -e included deliberately: without it an unguarded invocation below cannot
 # fail this test, which is how a broken installer would pass.
@@ -12,9 +12,9 @@ script="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/libexec/pn
 home="$(mktemp -d)"
 trap 'rm -rf "$home"' EXIT
 mkdir -p "$home/.codex" "$home/.local/libexec/pns/hooks"
-# fake relay-agent so the script's -x guard passes
-printf '#!/usr/bin/env bash\n' >"$home/.local/libexec/pns/hooks/relay-agent.sh"
-chmod +x "$home/.local/libexec/pns/hooks/relay-agent.sh"
+# fake engine so the script's -x guard passes
+printf '#!/usr/bin/env bash\n' >"$home/.local/libexec/pns/pns"
+chmod +x "$home/.local/libexec/pns/pns"
 # herdr's pre-existing SessionStart entry must survive
 cat >"$home/.codex/hooks.json" <<'JSON'
 {"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}]}}
@@ -28,22 +28,22 @@ jq -e '.hooks.SessionStart[0].hooks[0].command | test("herdr-agent-state")' <<<"
   echo "relay-codex-hooks: FAIL -- herdr SessionStart not preserved" >&2
   exit 1
 }
-jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("relay-agent.sh done"))' <<<"$got" >/dev/null || {
+jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("pns hook stop"))' <<<"$got" >/dev/null || {
   echo "relay-codex-hooks: FAIL -- relay done not added" >&2
   exit 1
 }
-jq -e '[.hooks.PermissionRequest[]?.hooks[]?.command] | any(test("relay-agent.sh blocked"))' <<<"$got" >/dev/null || {
+jq -e '[.hooks.PermissionRequest[]?.hooks[]?.command] | any(test("pns hook blocked"))' <<<"$got" >/dev/null || {
   echo "relay-codex-hooks: FAIL -- relay blocked not added" >&2
   exit 1
 }
 # idempotent: a second run must not duplicate relay's Stop entry
 HOME="$home" bash "$script"
-n="$(jq '[.hooks.Stop[]?.hooks[]?.command | select(test("relay-agent.sh done"))] | length' "$home/.codex/hooks.json")"
+n="$(jq '[.hooks.Stop[]?.hooks[]?.command | select(test("pns hook stop"))] | length' "$home/.codex/hooks.json")"
 [[ $n -eq 1 ]] || {
   echo "relay-codex-hooks: FAIL -- not idempotent (Stop relay count=$n)" >&2
   exit 1
 }
-m="$(jq '[.hooks.PermissionRequest[]?.hooks[]?.command | select(test("relay-agent.sh blocked"))] | length' "$home/.codex/hooks.json")"
+m="$(jq '[.hooks.PermissionRequest[]?.hooks[]?.command | select(test("pns hook blocked"))] | length' "$home/.codex/hooks.json")"
 [[ $m -eq 1 ]] || {
   echo "relay-codex-hooks: FAIL -- not idempotent (PermissionRequest relay count=$m)" >&2
   exit 1
@@ -54,8 +54,8 @@ m="$(jq '[.hooks.PermissionRequest[]?.hooks[]?.command | select(test("relay-agen
 # {"hooks":{}} and gains relay's two entries.
 h5="$home/f5empty"
 mkdir -p "$h5/.codex" "$h5/.local/libexec/pns/hooks"
-printf '#!/usr/bin/env bash\n' >"$h5/.local/libexec/pns/hooks/relay-agent.sh"
-chmod +x "$h5/.local/libexec/pns/hooks/relay-agent.sh"
+printf '#!/usr/bin/env bash\n' >"$h5/.local/libexec/pns/pns"
+chmod +x "$h5/.local/libexec/pns/pns"
 : >"$h5/.codex/hooks.json"
 HOME="$h5" bash "$script" >/dev/null 2>&1 || {
   echo "relay-codex-hooks: FAIL -- run errored on an empty hooks.json" >&2
@@ -65,7 +65,7 @@ jq -e 'type=="object" and (.hooks|type=="object")' "$h5/.codex/hooks.json" >/dev
   echo "relay-codex-hooks: FAIL -- empty input did not heal to a valid object (blank file written?)" >&2
   exit 1
 }
-jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("relay-agent.sh done"))' "$h5/.codex/hooks.json" >/dev/null || {
+jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("pns hook stop"))' "$h5/.codex/hooks.json" >/dev/null || {
   echo "relay-codex-hooks: FAIL -- empty input healed but the relay done entry is missing" >&2
   exit 1
 }
@@ -74,8 +74,8 @@ jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("relay-agent.sh done"))' "$h
 # malformed; the script warns and leaves the file byte-for-byte untouched, never writing two merged roots.
 h6="$home/f6multi"
 mkdir -p "$h6/.codex" "$h6/.local/libexec/pns/hooks"
-printf '#!/usr/bin/env bash\n' >"$h6/.local/libexec/pns/hooks/relay-agent.sh"
-chmod +x "$h6/.local/libexec/pns/hooks/relay-agent.sh"
+printf '#!/usr/bin/env bash\n' >"$h6/.local/libexec/pns/pns"
+chmod +x "$h6/.local/libexec/pns/pns"
 printf '{"hooks":{}}{"hooks":{}}' >"$h6/.codex/hooks.json"
 before6="$(cat "$h6/.codex/hooks.json")"
 warn6="$(HOME="$h6" bash "$script" 2>&1 >/dev/null)"
@@ -98,8 +98,8 @@ grep -qi "untouched" <<<"$warn6" || {
 # /hooks; an idempotent re-run (no content change) stays silent. It never synthesizes trust, never a bypass.
 h7="$home/f7trust"
 mkdir -p "$h7/.codex" "$h7/.local/libexec/pns/hooks"
-printf '#!/usr/bin/env bash\n' >"$h7/.local/libexec/pns/hooks/relay-agent.sh"
-chmod +x "$h7/.local/libexec/pns/hooks/relay-agent.sh"
+printf '#!/usr/bin/env bash\n' >"$h7/.local/libexec/pns/pns"
+chmod +x "$h7/.local/libexec/pns/pns"
 cat >"$h7/.codex/hooks.json" <<'JSON'
 {"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}]}}
 JSON
@@ -117,4 +117,34 @@ grep -qi "/hooks" <<<"$warn_noop" && {
   echo "relay-codex-hooks: FAIL -- the trust advisory repeated on an idempotent no-change re-run" >&2
   exit 1
 }
+
+# The LIVE shape at conversion time: the file still names the retired script.
+# Appending beside those entries left Codex running two handlers per event, a
+# stale one that fails and ours.
+h8="$home/f8stale"
+mkdir -p "$h8/.codex" "$h8/.local/libexec/pns"
+printf '#!/usr/bin/env bash\n' >"$h8/.local/libexec/pns/pns"
+chmod +x "$h8/.local/libexec/pns/pns"
+cat >"$h8/.codex/hooks.json" <<'JSON'
+{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}],"Stop":[{"hooks":[{"type":"command","command":"RELAY_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh done"}]}],"PermissionRequest":[{"hooks":[{"type":"command","command":"RELAY_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh blocked"}]}]}}
+JSON
+HOME="$h8" bash "$script" >/dev/null 2>&1
+got8="$(cat "$h8/.codex/hooks.json")"
+jq -e '[.hooks.Stop[]?.hooks[]?.command] | any(test("relay-agent")) | not' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- a stale relay-agent Stop entry survived the merge" >&2
+  exit 1
+}
+jq -e '[.hooks.PermissionRequest[]?.hooks[]?.command] | any(test("relay-agent")) | not' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- a stale relay-agent PermissionRequest entry survived" >&2
+  exit 1
+}
+jq -e '[.hooks.Stop[]?.hooks[]?.command] | length == 1' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- Stop must carry exactly one handler after pruning" >&2
+  exit 1
+}
+jq -e '.hooks.SessionStart[0].hooks[0].command | test("herdr-agent-state")' <<<"$got8" >/dev/null || {
+  echo "relay-codex-hooks: FAIL -- pruning removed herdr's own entry" >&2
+  exit 1
+}
+
 echo "relay-codex-hooks: OK"

@@ -19,12 +19,14 @@ Overwritten from the template on every apply, whatever the live file holds.
   `Read(credentials.json)`, `Read(.aws/credentials)`, `Read(.ssh/id_*)`), `permissions.defaultMode` =
   `bypassPermissions`.
 - `hooks`, five event keys:
-  - `UserPromptSubmit` marks session start.
-  - `Stop` runs two commands, `claude-stop-pulse.sh` (Hue lights) and an async `relay-agent.sh done`.
-  - `Notification` (`permission_prompt` matcher) runs two, `alerter --timeout 30` and an async
-    `relay-agent.sh blocked`.
-  - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, both calling
-    `relay-agent.sh`.
+  - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
+  - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in
+    the same pass, where a second hook used to decide the tier on its own.
+  - `Notification` (`permission_prompt` matcher) runs `alerter --timeout 30`; the approval itself hangs
+    off `PermissionRequest`, which runs `pns hook blocked` NOT async, because its exit code is the
+    operator's answer.
+  - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, calling `pns hook asked`
+    and `pns hook plan-ready`.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (27 today), each set to
   `user-invocable-only`, sourced from `dot_agents/custom-skill-lock.json` and gated by
   `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.

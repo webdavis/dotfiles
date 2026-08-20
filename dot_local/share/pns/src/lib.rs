@@ -1,7 +1,8 @@
 //! pns: the decision core plus its thin edges.
 //!
-//! THE SPLIT THAT MATTERS. The decision modules (`presence`, `routing`,
-//! `render`, `pulse`, `safety`) are total functions of their arguments: no
+//! THE SPLIT THAT MATTERS. The decision modules (`surface`, `presence`,
+//! `routing`, `render`, `pulse`, `safety`) are total functions of their
+//! arguments: no
 //! network, no files, no clock, no environment. That is what makes them
 //! testable one behavior at a time, in microseconds, without stubbing a
 //! subprocess. The edges (`system` reads the machine, `config` reads the
@@ -16,6 +17,7 @@ pub mod args;
 pub mod channels;
 pub mod config;
 pub mod engine;
+pub mod hooks;
 pub mod presence;
 pub mod probes;
 pub mod pulse;
@@ -23,12 +25,13 @@ pub mod registry;
 pub mod render;
 pub mod routing;
 pub mod safety;
+pub mod surface;
 pub mod system;
 
 /// A plain decimal count, or `None` when the text is not one.
 ///
-/// The single gate every numeric reading passes: an idle clock, a byte floor,
-/// an elapsed time. It is deliberately STRICTER than the standard integer
+/// The single gate every numeric reading passes: an idle clock, a signal's
+/// age, an elapsed time. It is deliberately STRICTER than the standard integer
 /// parse, which accepts a leading `+` and surrounding shapes this must not:
 /// a reading that is not plain digits is UNKNOWN, and each caller states its
 /// own fail direction for unknown rather than inheriting a coerced number.
@@ -147,32 +150,5 @@ mod tests {
             Some(9_223_372_036_854_775_807)
         );
         assert_eq!(parse_count("9223372036854775808"), None);
-    }
-
-    #[test]
-    fn a_threshold_past_the_shell_ceiling_still_pushes_because_it_reads_as_unknown() {
-        // The end-to-end form: the shell sends this card, so the port must too.
-        assert!(crate::routing::wants_phone(
-            Some(500),
-            parse_count("9223372036854775808"),
-            false,
-            false,
-            false,
-        ));
-    }
-
-    #[test]
-    fn an_octal_looking_threshold_still_pushes_because_it_reads_as_unknown() {
-        // The whole point of the unknown arm, measured end to end: the shell
-        // sends the phone card for an idle of 500 against a desk threshold of
-        // `0600`, because 500 is not below octal 384. Reading it as decimal
-        // 600 would drop that push instead.
-        assert!(crate::routing::wants_phone(
-            Some(500),
-            parse_count("0600"),
-            false,
-            false,
-            false,
-        ));
     }
 }

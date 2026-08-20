@@ -9,8 +9,8 @@
 //! argv, a child environment, or any printed line; the signature is computed
 //! in-process over the exact body bytes.
 
-use super::{Channel, Event};
-use crate::routing::Mode;
+use super::{Delivery, Event};
+use crate::routing::ReportMode;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -109,20 +109,37 @@ pub fn skipped_line(auth_path: &std::path::Path) -> String {
     )
 }
 
+/// The deadline an ASYNC leg posts under. Not configurable: nobody is waiting
+/// on the answer, so this only bounds how long a background process lingers.
+const ASYNC_DEADLINE: Duration = Duration::from_secs(10);
+
+/// The default SYNC deadline, the one a caller waits out. Short because the
+/// caller is blocked on it, and configurable for the same reason.
+const DEFAULT_SYNC_DEADLINE_SECS: u64 = 5;
+
+/// The ceiling a configured sync deadline is clamped to: a day is already
+/// longer than any notification can matter, and it keeps an absurd value out
+/// of ureq's deadline arithmetic.
+const MAX_SYNC_DEADLINE_SECS: u64 = 86_400;
+
 /// The sync deadline: `RELAY_REMOTE_TIMEOUT` validated as a count, else 5
 /// seconds, because a garbled deadline must not become zero or forever.
 pub fn remote_deadline(env_value: Option<&str>) -> Option<Duration> {
-    let seconds = env_value.and_then(crate::parse_count).unwrap_or(5);
+    let seconds = env_value
+        .and_then(crate::parse_count)
+        .unwrap_or(DEFAULT_SYNC_DEADLINE_SECS);
     // Zero is curl's `-m 0`: no deadline at all, and caller intent rather
-    // than a default. The clamp keeps an absurd value out of ureq's deadline
-    // arithmetic; a day is already longer than any notification can matter.
-    (seconds != 0).then(|| Duration::from_secs(seconds.min(86_400)))
+    // than a default.
+    (seconds != 0).then(|| Duration::from_secs(seconds.min(MAX_SYNC_DEADLINE_SECS)))
 }
 
 /// The native hermes plugin.
 pub struct HermesChannel<P: SignedPost> {
     pub post: P,
-    /// `RELAY_AUTH_FILE` override, else `~/.config/relay/auth.json`.
+    /// The signing key, read from the auth file ONCE at the composition
+    /// root. None is the not-set-up case.
+    pub key: Option<String>,
+    /// Where that file was, for the not-set-up line only.
     pub auth_path: PathBuf,
     /// `RELAY_HERMES_URL` override, else the default.
     pub url: String,
@@ -131,31 +148,22 @@ pub struct HermesChannel<P: SignedPost> {
     pub sync_deadline: Option<Duration>,
 }
 
-impl<P: SignedPost> Channel for HermesChannel<P> {
-    fn deliver(&self, event: &Event, mode: Mode) {
+impl<P: SignedPost> HermesChannel<P> {
+    pub fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery {
         let body = hermes_body(event);
-        let signature = std::fs::read_to_string(&self.auth_path)
-            .ok()
-            .as_deref()
-            .and_then(hermes_secret)
-            .and_then(|key| sign(&key, &body));
-        let Some(signature) = signature else {
-            // No key is unavailable, not a failure. Sync callers are told,
-            // because an empty Discord channel looks like the jobs stopped.
-            if mode == Mode::Sync {
-                println!("{}", skipped_line(&self.auth_path));
-            }
-            return;
+        let Some(signature) = self.key.as_deref().and_then(|key| sign(key, &body)) else {
+            // No key is unavailable, not a failure. Reported because an
+            // empty Discord channel looks like the jobs stopped.
+            return Delivery::Reported(skipped_line(&self.auth_path));
         };
 
         let deadline = match mode {
-            Mode::Sync => self.sync_deadline,
-            Mode::Async => Some(Duration::from_secs(10)),
+            ReportMode::ReportOutcome => self.sync_deadline,
+            ReportMode::Silent => Some(ASYNC_DEADLINE),
         };
-        let outcome = self.post.post(&self.url, &body, &signature, deadline);
-        if mode == Mode::Sync {
-            println!("{}", outcome_line(outcome));
-        }
+        Delivery::Reported(outcome_line(
+            self.post.post(&self.url, &body, &signature, deadline),
+        ))
     }
 }
 
@@ -203,8 +211,8 @@ mod tests {
         DEFAULT_HERMES_URL, HermesChannel, PostOutcome, SignedPost, hermes_body, hermes_secret,
         outcome_line, remote_deadline, sign, skipped_line,
     };
-    use crate::channels::{Channel, Event};
-    use crate::routing::Mode;
+    use crate::channels::{Delivery, Event};
+    use crate::routing::ReportMode;
     use std::cell::RefCell;
     use std::time::Duration;
 
@@ -245,32 +253,20 @@ mod tests {
         }
     }
 
-    fn channel_with_auth(
-        auth: &str,
-        outcome: PostOutcome,
-    ) -> (HermesChannel<RecordingPost>, std::path::PathBuf) {
-        // A process-wide counter, because two tests handing in the SAME auth
-        // string must never share a path: parallel runs would race on the
-        // cleanup and one test would read the other's deleted file.
-        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "pns-hermes-auth-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        ));
-        std::fs::write(&path, auth).unwrap();
-        (
-            HermesChannel {
-                post: RecordingPost {
-                    outcome,
-                    posts: RefCell::new(Vec::new()),
-                },
-                auth_path: path.clone(),
-                url: "http://127.0.0.1:9/test".to_string(),
-                sync_deadline: Some(Duration::from_secs(5)),
+    /// The channel as the composition root builds it: the key already
+    /// extracted, and a path that exists only to be named in the not-set-up
+    /// line.
+    fn channel_with_auth(auth: &str, outcome: PostOutcome) -> HermesChannel<RecordingPost> {
+        HermesChannel {
+            post: RecordingPost {
+                outcome,
+                posts: RefCell::new(Vec::new()),
             },
-            path,
-        )
+            key: hermes_secret(auth),
+            auth_path: std::path::PathBuf::from("/test/auth.json"),
+            url: "http://127.0.0.1:9/test".to_string(),
+            sync_deadline: Some(Duration::from_secs(5)),
+        }
     }
 
     // --- the body ------------------------------------------------------------
@@ -397,12 +393,11 @@ mod tests {
 
     #[test]
     fn the_key_never_rides_in_the_body_the_url_or_the_signature() {
-        let (channel, path) = channel_with_auth(
+        let channel = channel_with_auth(
             r#"{"hermes_secret":"sekrit-key-9"}"#,
             PostOutcome::Status(200),
         );
-        channel.deliver(&event(), Mode::Async);
-        std::fs::remove_file(&path).ok();
+        channel.deliver(&event(), ReportMode::Silent);
         let posts = channel.post.posts.borrow();
         assert!(!posts[0].0.contains("sekrit-key-9"));
         assert!(!posts[0].1.contains("sekrit-key-9"));
@@ -499,10 +494,12 @@ mod tests {
 
     #[test]
     fn a_key_posts_once_with_the_signature_of_the_exact_body_bytes() {
-        let (channel, path) =
-            channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
-        channel.deliver(&event(), Mode::Async);
-        std::fs::remove_file(&path).ok();
+        let channel = channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
+        assert_eq!(
+            channel.deliver(&event(), ReportMode::Silent),
+            Delivery::Reported("relay: posted HTTP 200".to_string()),
+            "the channel reports what happened; the leg's mode decides who hears it"
+        );
         let posts = channel.post.posts.borrow();
         assert_eq!(posts.len(), 1);
         assert_eq!(posts[0].0, "http://127.0.0.1:9/test");
@@ -520,10 +517,8 @@ mod tests {
 
     #[test]
     fn sync_carries_the_validated_sync_deadline() {
-        let (channel, path) =
-            channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
-        channel.deliver(&event(), Mode::Sync);
-        std::fs::remove_file(&path).ok();
+        let channel = channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
+        channel.deliver(&event(), ReportMode::ReportOutcome);
         assert_eq!(
             channel.post.posts.borrow()[0].3,
             Some(Duration::from_secs(5))
@@ -532,10 +527,13 @@ mod tests {
 
     #[test]
     fn no_key_means_no_post_in_either_mode() {
-        for mode in [Mode::Async, Mode::Sync] {
-            let (channel, path) = channel_with_auth(r#"{}"#, PostOutcome::Status(200));
-            channel.deliver(&event(), mode);
-            std::fs::remove_file(&path).ok();
+        for mode in [ReportMode::Silent, ReportMode::ReportOutcome] {
+            let channel = channel_with_auth(r#"{}"#, PostOutcome::Status(200));
+            assert_eq!(
+                channel.deliver(&event(), mode),
+                Delivery::Reported(super::skipped_line(std::path::Path::new("/test/auth.json"))),
+                "not set up is reported in both modes; only sync prints it"
+            );
             assert!(channel.post.posts.borrow().is_empty());
         }
     }

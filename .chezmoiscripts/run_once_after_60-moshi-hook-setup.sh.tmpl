@@ -10,6 +10,12 @@
 # name) and before run_after_72, which wires relay's Codex hooks and depends on
 # the Codex exclusion below having already happened.
 #
+# The `install` below REGENERATES the pi and omp extension files, which drops
+# the line pointing them at the pns presence gate. That is why the repoint
+# lives in run_after_62 and not in the 46 it was written as: it has to run
+# after this script, or every apply that re-fires this one leaves pi and omp
+# calling moshi-hook directly with no gate in front of it.
+#
 # Claude Code and Codex are deliberately EXCLUDED from `moshi-hook install --target`
 # below -- relay owns their pushes (Claude via the modify-template; Codex via
 # ~/.local/libexec/pns/hooks/codex/install-hooks.sh, merged into ~/.codex/hooks.json beside herdr's).
@@ -20,7 +26,7 @@
 # `moshi-hook install --help`), and patching the third-party binary is not
 # permitted. So Claude Code's hooks are owned solely by chezmoi's modify-template
 # (private_dot_claude/modify_settings.json), which already wires the relay
-# notifier (relay-agent.sh, on Stop and on the notification events). Excluding
+# notifier (`pns hook`, on Stop and on the notification events). Excluding
 # claude here keeps moshi-hook off Claude Code entirely, so only the states relay
 # reports fire -- never a push on prompt submission. moshi-hook still manages
 # every other CLI natively.

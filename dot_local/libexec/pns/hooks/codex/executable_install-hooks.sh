@@ -6,11 +6,11 @@
 set -euo pipefail
 
 hooks="$HOME/.codex/hooks.json"
-agent="$HOME/.local/libexec/pns/hooks/relay-agent.sh"
-[[ -x $agent ]] || exit 0 # relay-agent not deployed yet; nothing to wire
+agent="$HOME/.local/libexec/pns/pns"
+[[ -x $agent ]] || exit 0 # the engine is not deployed yet; nothing to wire
 
-done_cmd="RELAY_AGENT=codex $agent done"
-blocked_cmd="RELAY_AGENT=codex $agent blocked"
+done_cmd="RELAY_AGENT=codex $agent hook stop"
+blocked_cmd="RELAY_AGENT=codex $agent hook blocked"
 
 # Read the existing config. Require EXACTLY one object root whose "hooks" is an object; heal an
 # empty/whitespace/absent file from the {"hooks":{}} default; on any OTHER malformed input (multiple
@@ -30,13 +30,22 @@ if [[ -f $hooks ]]; then
   fi
 fi
 
+# PRUNE, then ensure. The hooks these replaced named a script that no longer
+# exists, and appending beside them left Codex running two handlers for one
+# event: a stale one that fails and ours. An entry is ours to remove when its
+# command mentions the retired script; herdr's own entries never do.
 merged="$(printf '%s' "$base" | jq \
   --arg d "$done_cmd" --arg b "$blocked_cmd" '
+  def prune($event):
+    .hooks[$event] = ((.hooks[$event] // [])
+      | map(.hooks |= map(select((.command // "") | test("relay-agent\\.sh") | not)))
+      | map(select((.hooks | length) > 0)));
   def ensure($event; $cmd):
     .hooks[$event] = ((.hooks[$event] // [])
       | if any(.[]?.hooks[]?; .command == $cmd) then .
         else . + [{hooks: [{type: "command", command: $cmd}]}] end);
-  ensure("Stop"; $d) | ensure("PermissionRequest"; $b)
+  prune("Stop") | prune("PermissionRequest")
+  | ensure("Stop"; $d) | ensure("PermissionRequest"; $b)
 ')" || exit 0
 
 # Validate the merged candidate before writing: it must still be an object with an object "hooks".

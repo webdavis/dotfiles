@@ -25,6 +25,16 @@
 # no matter what lands on disk later. So if the two inodes match, the daemon
 # is running today's binary. If they don't, brew swapped the file after the
 # daemon started, and the bounce below fixes that.
+#
+# THE NUMBER IS LOAD-BEARING, and it is why this runs at 62 rather than at the
+# 46 it was written for. Scripts run in name order, so 46 put this BEFORE two
+# scripts it depends on: 58 builds the pns binary the repoint below points at,
+# and run_once_after_60 runs `moshi-hook install`, which regenerates the very
+# extension files this repoints. A fresh machine therefore had no pns to point
+# at when this ran, and every apply that re-fired the 60 script undid the
+# repoint immediately afterwards. Both ended with pi and omp calling moshi-hook
+# directly, with no presence gate and no sound made about it. Keep this after
+# both.
 set -euo pipefail
 
 readonly SERVICE_LABEL='homebrew.mxcl.moshi-hook'
@@ -43,11 +53,13 @@ MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 # Neither failure makes a sound on its own, so this script re-checks both
 # after every upgrade. The two variables are overridable so tests can run
 # against fixtures instead of live files.
-PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-$HOME/.local/libexec/pns/hooks/moshi-gate.sh}"
+PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-$HOME/.local/libexec/pns/pns}"
 MOSHI_EXTENSION_ROOT="${MOSHI_EXTENSION_ROOT:-$HOME}"
 
 # 1. THE REPOINT. pi and omp are driven by a TypeScript extension moshi
 # GENERATES, hard-coding `const helperBinary = "/opt/homebrew/bin/moshi-hook"`.
+# The field holds ONE pathname and no arguments, which is why the engine
+# answers a bare `<harness>-hook` first argument as the gate itself.
 # `moshi-hook install` and every upgrade rewrite that file, reverting the one
 # line pns owns. Nothing fails when it does; the symptom is unfiltered phone
 # pushes while the operator sits at the keyboard, which reads as moshi being
@@ -81,6 +93,15 @@ if [[ -x $PNS_MOSHI_GATE ]]; then
         "$extension" >&2
     fi
   done
+else
+  # The third way to lose the gate, and the one that used to be silent. With no
+  # binary to point at there is nothing to repoint, so the extensions keep
+  # calling moshi-hook directly and the symptom is unfiltered pushes rather
+  # than a failure. This is expected to be unreachable now that the script runs
+  # after the build, which is exactly why hearing it means the build did not
+  # produce a binary.
+  printf 'moshi-hook: WARNING: no pns presence gate at %s, so the pi and omp extensions keep calling moshi-hook directly and their pushes are unfiltered.\n' \
+    "$PNS_MOSHI_GATE" >&2
 fi
 
 # 2. THE SUBCOMMAND. The per-harness hook subcommands are UNDOCUMENTED (none of

@@ -28,6 +28,11 @@ pub struct Routing {
     /// an undelivered log entry is invisible in a way an undelivered alert
     /// is not.
     pub durable: bool,
+    /// Whether an EVENT dispatches it at all. False for a plugin the binary
+    /// serves in its own mode rather than as a leg (hue's pulse today): it
+    /// registers so the config can select it and a typo in its name is still
+    /// caught, but no notification ever routes to it.
+    pub event_dispatched: bool,
 }
 
 /// One registered plugin: its config-table name and its routing declaration.
@@ -127,8 +132,110 @@ impl Registry {
     }
 }
 
+/// The real roster, for tests that need the production declarations rather
+/// than a made-up pair. Four fixtures used to reproduce this independently,
+/// so a declaration could change in the roster and stay green in three of
+/// them; there is one now, and the composition root registers the same set.
+#[cfg(test)]
+pub fn test_roster() -> Registry {
+    let mut registry = Registry::new();
+    for (name, routing) in ROSTER {
+        registry.register(name, routing).unwrap();
+    }
+    registry
+}
+
+/// The declarations the composition root registers, named once so a test can
+/// run against the real thing.
+pub const ROSTER: [(&str, Routing); 4] = [
+    (
+        "moshi",
+        Routing {
+            local: false,
+            presence_gated: true,
+            durable: false,
+            event_dispatched: true,
+        },
+    ),
+    (
+        // AHEAD OF THE DURABLE LOG, because this one is presence-sensitive
+        // and that one is not. The plan is computed from a reading of where
+        // the operator is at dispatch, and hermes can post synchronously
+        // against a deadline; delivering the banner after it would show the
+        // operator a decision taken about a moment that had passed.
+        "macos-banner",
+        Routing {
+            local: true,
+            presence_gated: false,
+            durable: false,
+            event_dispatched: true,
+        },
+    ),
+    (
+        "hermes",
+        Routing {
+            local: false,
+            presence_gated: false,
+            durable: true,
+            event_dispatched: true,
+        },
+    ),
+    (
+        // A local surface the binary drives in its own `pulse` mode. It
+        // registers so the config can select it and so a typo in its name is
+        // still refused, but no event ever routes to it.
+        "hue",
+        Routing {
+            local: true,
+            presence_gated: false,
+            durable: false,
+            event_dispatched: false,
+        },
+    ),
+];
+
+/// Which plugins run, given what loading the config found. The composition
+/// policy in one place:
+///
+/// A LOADED config is authoritative. A MISSING config selects every built-in,
+/// so the cutover from the bash engine changes nothing until an operator
+/// opts in by writing one. A BROKEN config (unreadable, malformed, invalid,
+/// or naming an unknown plugin) is LOUD, the returned warning, but still
+/// selects every built-in: on an always-exit-0 notification path, a config
+/// error that silently turned every notification off would be the exact
+/// failure the config layer exists to refuse.
+pub fn select_plugins(
+    registry: &Registry,
+    loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
+) -> (Selection, Option<String>) {
+    use crate::config::LoadOutcome;
+    use RegistryError;
+
+    match loaded {
+        Ok(LoadOutcome::Loaded(config)) => match registry.enabled(&config) {
+            Ok(selection) => (selection, None),
+            Err(error) => {
+                let detail = match error {
+                    RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
+                    RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
+                };
+                (registry.all(), Some(roster_warning(&detail)))
+            }
+        },
+        Ok(LoadOutcome::Missing) => (registry.all(), None),
+        Err(error) => (registry.all(), Some(roster_warning(error.detail()))),
+    }
+}
+
+/// The one line a broken config prints: what was wrong, and that nothing was
+/// turned off because of it.
+fn roster_warning(detail: &str) -> String {
+    format!("pns: config error ({detail}); running every built-in plugin")
+}
+
 #[cfg(test)]
 mod tests {
+    use super::Selection;
     use super::{Registry, RegistryError, Routing};
     use crate::config::parse_config;
 
@@ -136,16 +243,19 @@ mod tests {
         local: false,
         presence_gated: true,
         durable: false,
+        event_dispatched: true,
     };
     const DURABLE: Routing = Routing {
         local: false,
         presence_gated: false,
         durable: true,
+        event_dispatched: true,
     };
     const LOCAL: Routing = Routing {
         local: true,
         presence_gated: false,
         durable: false,
+        event_dispatched: true,
     };
 
     fn three_plugin_registry() -> Registry {
@@ -235,5 +345,92 @@ mod tests {
         let config = parse_config("").unwrap();
         let enabled = three_plugin_registry().enabled(&config).unwrap();
         assert!(enabled.is_empty());
+    }
+
+    // --- plugin selection at the composition root ---------------------------
+
+    fn selection_names(selection: &Selection) -> Vec<&str> {
+        selection.iter().map(|r| r.name).collect()
+    }
+
+    #[test]
+    fn a_missing_config_selects_every_builtin_so_the_cutover_changes_nothing() {
+        use crate::config::LoadOutcome;
+        let (selection, warning) =
+            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Missing));
+        assert_eq!(
+            selection_names(&selection),
+            vec!["moshi", "macos-banner", "hermes", "hue"]
+        );
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn a_loaded_config_is_authoritative() {
+        use crate::config::LoadOutcome;
+        let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+        let (selection, warning) =
+            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+        assert_eq!(selection_names(&selection), vec!["hermes"]);
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn a_broken_config_is_loud_but_never_turns_notifications_off() {
+        use crate::config::ConfigError;
+        let (selection, warning) = super::select_plugins(
+            &super::test_roster(),
+            Err(ConfigError::Malformed(
+                "key with no value at line 1".to_string(),
+            )),
+        );
+        assert_eq!(
+            selection_names(&selection),
+            vec!["moshi", "macos-banner", "hermes", "hue"]
+        );
+        let warning = warning.expect("a broken config must be said aloud");
+        assert!(warning.contains("key with no value"));
+    }
+
+    #[test]
+    fn a_config_naming_an_unknown_plugin_is_loud_and_falls_back_to_the_roster() {
+        use crate::config::LoadOutcome;
+        let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
+        let (selection, warning) =
+            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+        assert_eq!(
+            selection_names(&selection),
+            vec!["moshi", "macos-banner", "hermes", "hue"]
+        );
+        let warning = warning.expect("the typo'd name must be said aloud");
+        assert!(warning.contains("mosih"));
+    }
+
+    #[test]
+    fn a_hue_table_selects_hue_like_any_other_plugin_and_warns_about_nothing() {
+        // It used to be a string exception stripped before the unknown-name
+        // refusal. It is a registration now, so configuring the pulse is
+        // ordinary and costs the operator no part of their event selection.
+        use crate::config::LoadOutcome;
+        let config =
+            parse_config("[plugins.hermes]\nenabled = true\n[plugins.hue]\nenabled = true\n")
+                .unwrap();
+        let (selection, warning) =
+            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+        assert_eq!(selection_names(&selection), vec!["hermes", "hue"]);
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn a_true_typo_is_still_refused() {
+        use crate::config::LoadOutcome;
+        let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
+        let (_, warning) =
+            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+        assert!(
+            warning
+                .expect("the typo is still the defect")
+                .contains("mosih")
+        );
     }
 }
