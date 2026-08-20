@@ -185,16 +185,17 @@
      then the prompt appears and Notification fires), so this is one seam per
      harness, matching Codex's PermissionRequest entry in
      hooks/codex/install-hooks.sh. alerter keeps the Notification slot: it is a
-     local sound, not a notification pns routes.  --- */ -}}
+     local sound, not a notification pns routes.
+
+     ONE Stop entry: the engine measures the turn and reports it in the same
+     pass, where a separate pulse hook used to decide the tier again on its
+     own.  --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
 {{- $hooks := dict
     "UserPromptSubmit" (list (dict
       "hooks" (list (dict
         "type" "command"
         "command" (printf "%s/.local/libexec/pns/pns hook prompt" $home)))))
-    {{- /* ONE Stop entry: the engine measures the turn and reports it in the
-           same pass, where a separate pulse hook used to decide the tier
-           again on its own. */ -}}
     "Stop" (list (dict
       "hooks" (list (dict
         "type" "command"
