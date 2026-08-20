@@ -485,7 +485,8 @@ if [[ $- == *i* ]]; then
     # which is what puts the lights in the engine's own plan. It used to be a
     # second `pns pulse` call from here, so the tier was decided twice and the
     # shell had to know about the hue config to avoid a silent no-op.
-    # No test pins these thresholds: only a real long command exercises them.
+    # test/unit/pns-shell-notifier-engine-choice.sh pins both tiers by driving
+    # this function against a stub engine and reading the argv it produced.
     # The engine binary, by absolute path: an apply installs it before this
     # file changes, so there is nothing to fall back to any more.
     local pns_engine="$HOME/.local/libexec/pns/pns"

@@ -827,14 +827,12 @@ fn a_second_stop_cannot_re_fire_the_tier_because_the_marker_is_claimed_once() {
     std::fs::write(marker(&sandbox, "s1"), "1").expect("marker");
     let payload = r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"x"}"#;
     hook_with(with_state_dir(&sandbox), &sandbox, "stop", payload);
-    let first = sandbox.event("hermes")["long_running"].clone();
     std::fs::remove_file(sandbox.path("hermes.event")).expect("clear");
     hook_with(with_state_dir(&sandbox), &sandbox, "stop", payload);
     assert!(
         sandbox.path("hermes.event").exists(),
         "the second Stop still notifies"
     );
-    let _ = first;
     assert!(
         !marker(&sandbox, "s1").exists(),
         "and the marker stays consumed"

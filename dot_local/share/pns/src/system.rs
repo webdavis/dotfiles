@@ -3,8 +3,9 @@
 //! WHAT LIVES HERE AND WHAT DOES NOT. Everything here runs a command and hands
 //! the bytes to a parser; every parser is a free function taking `&str`, so a
 //! test drives fixture output and never spawns anything. The DECISIONS all live
-//! in `presence` and `routing`, which is why nothing in this module compares,
-//! thresholds or judges.
+//! in `surface`, `presence` and `routing`, which is why nothing in this module
+//! compares, thresholds or judges: it says what the machine reported, and
+//! `surface` says what that means.
 //!
 //! The runner seam exists for the same reason: a test substitutes the command
 //! output, so the suite never reads the live machine. That matters more than

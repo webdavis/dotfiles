@@ -9,6 +9,10 @@
 # every deadline is a named constant in Rust, because macOS ships no
 # timeout(1) and shelling out for one was a spawn to bound a spawn.
 #
+# One spawn is not on that roster and cannot be: an EXECUTABLE CHANNEL, run by
+# name out of the channels directory. The roster above is what this binary
+# chooses to run, and a channel is what an operator dropped in for it to run.
+#
 # `nettop` LEFT on 2026-08-15, and `ps` arrived in the same ruling. The phone's
 # presence used to be a one-second `nettop` sample of bytes moving over moshi,
 # which passive viewing could not move; it is now the access time of the mosh
@@ -16,8 +20,9 @@
 #
 # Every dependency is taken where a format demands it and nowhere else:
 # TOML for the config edge, JSON for the event contract, TLS for the phone
-# webhook. The decision core and the probe edge run on std alone, and that
-# split is the property to keep.
+# webhook. The decision core runs on std alone, and that split is the property
+# to keep. The probe edge is std plus the JSON the herdr CLI answers in, which
+# is the same rule: a format nobody should hand-parse.
 
 [package]
 name = "pns"

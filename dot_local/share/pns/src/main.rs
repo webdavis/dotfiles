@@ -962,8 +962,13 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
     Delivery::Silent
 }
 
-/// The `pulse` mode: read the hue table, take the single-pulse lock, and run
-/// the sequence against the bridge. Every absence is a silent exit 0.
+/// The `pulse` mode: read the hue table and signal the bridge with the exit
+/// code it was handed. Every absence is a silent exit 0.
+///
+/// NOTHING IN THIS REPO CALLS IT. The tiers that used to are part of the event
+/// plan now, which is what stopped the tier being decided twice; this stays as
+/// the operator's own command for signalling the lights by hand, and for
+/// checking that a bridge and key in the config actually work.
 fn pulse_mode() {
     let home = std::env::var("HOME").unwrap_or_default();
     // FAIL CLOSED, unlike an event. The roster fallback that keeps every

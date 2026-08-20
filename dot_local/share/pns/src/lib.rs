@@ -1,7 +1,8 @@
 //! pns: the decision core plus its thin edges.
 //!
-//! THE SPLIT THAT MATTERS. The decision modules (`presence`, `routing`,
-//! `render`, `pulse`, `safety`) are total functions of their arguments: no
+//! THE SPLIT THAT MATTERS. The decision modules (`surface`, `presence`,
+//! `routing`, `render`, `pulse`, `safety`) are total functions of their
+//! arguments: no
 //! network, no files, no clock, no environment. That is what makes them
 //! testable one behavior at a time, in microseconds, without stubbing a
 //! subprocess. The edges (`system` reads the machine, `config` reads the
@@ -29,8 +30,8 @@ pub mod system;
 
 /// A plain decimal count, or `None` when the text is not one.
 ///
-/// The single gate every numeric reading passes: an idle clock, a byte floor,
-/// an elapsed time. It is deliberately STRICTER than the standard integer
+/// The single gate every numeric reading passes: an idle clock, a signal's
+/// age, an elapsed time. It is deliberately STRICTER than the standard integer
 /// parse, which accepts a leading `+` and surrounding shapes this must not:
 /// a reading that is not plain digits is UNKNOWN, and each caller states its
 /// own fail direction for unknown rather than inheriting a coerced number.
