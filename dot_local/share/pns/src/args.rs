@@ -40,9 +40,12 @@ where
         "--detail",
         "--pane",
     ];
-    let recognized = |token: &str| {
-        VALUE_FLAGS.contains(&token) || token == "--local-only" || token == "--remote-only"
-    };
+    // Every flag that takes no value. It is a LIST rather than a chain of
+    // comparisons because the chain is what went stale: `--long-running` was
+    // handled below and never added here, so a value flag in front of it ate
+    // it as its value and the tier vanished without a warning.
+    const BARE_FLAGS: [&str; 3] = ["--long-running", "--local-only", "--remote-only"];
+    let recognized = |token: &str| VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token);
 
     let mut parsed = EventArgs::default();
     let mut warnings = Vec::new();
@@ -121,6 +124,19 @@ mod tests {
         assert_eq!(parsed.agent, "claude");
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("--pane"), "the warning names the flag");
+    }
+
+    #[test]
+    fn the_long_running_flag_is_protected_from_being_eaten_like_every_other_one() {
+        // It was handled but left out of the predicate, so `--detail
+        // --long-running` swallowed it as the detail text: the notification
+        // carried a flag name as its summary AND lost the tier that decides
+        // the lights, both in silence.
+        let (parsed, warnings) = args(&["--detail", "--long-running"]);
+        assert_eq!(parsed.detail, "");
+        assert!(parsed.long_running, "the tier must still apply");
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("--detail"), "the warning names the flag");
     }
 
     #[test]
