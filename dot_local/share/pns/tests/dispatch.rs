@@ -263,6 +263,28 @@ fn desk_input_after_the_tap_cancels_it() {
 }
 
 #[test]
+fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
+    // Drill D6, run (i), 2026-08-19: Back Tap with moshi closed produced
+    // NOTHING. The tap moved the surface to mobile, the origin pane sat
+    // focused on the desk display nobody was at, and mobile-plus-visible
+    // suppressed. `relay()` states the phone's pty clock as a day untouched,
+    // which is exactly the closed-moshi half of the repro.
+    let sandbox = Sandbox::new("tap-moshi-closed");
+    let marker = sandbox.path("phone.marker");
+    std::fs::write(&marker, "").expect("marker");
+    let mut command = sandbox.relay();
+    command
+        .env("RELAY_IDLE_SECS", "300")
+        .env("PNS_PHONE_MARKER_FILE", &marker);
+    sandbox.stub_herdr(&mut command, true);
+    run(command
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args(["--pane", "t1:p2"]));
+    assert!(sandbox.fired("moshi"), "the tap asked for the card");
+    assert!(!sandbox.fired("macos-banner"), "mobile never banners");
+}
+
+#[test]
 fn a_narrowing_flag_still_beats_a_fresh_tap() {
     let sandbox = Sandbox::new("tap-local-only");
     let marker = sandbox.path("phone.marker");

@@ -85,6 +85,20 @@ pub fn visibility(origin: &str, view: &SessionView) -> Visibility {
     Visibility::Visible
 }
 
+/// A reading still inside the freshness window, or nothing at all.
+fn fresh_age(age: Option<u64>, fresh_secs: u64) -> Option<u64> {
+    age.filter(|seconds| *seconds < fresh_secs)
+}
+
+/// Whether a reading is recent enough to speak for its surface.
+///
+/// ONE definition of fresh, exported so there is only ever one: the
+/// arbitration below and the mobile-visibility rule beside it must not be able
+/// to disagree about whether the phone was just used.
+pub fn is_fresh(age: Option<u64>, fresh_secs: u64) -> bool {
+    fresh_age(age, fresh_secs).is_some()
+}
+
 /// Where the operator's eyes are, by NEWEST SIGNAL WINS.
 ///
 /// TWO CLOCKS OF THE SAME KIND, which is the whole amendment (operator
@@ -117,7 +131,7 @@ pub fn surface(
     marker_age: Option<u64>,
     desk_fresh_secs: u64,
 ) -> Surface {
-    let fresh = |age: Option<u64>| age.filter(|seconds| *seconds < desk_fresh_secs);
+    let fresh = |age: Option<u64>| fresh_age(age, desk_fresh_secs);
     // Smallest age is the most recent, and an unreadable one simply does not
     // compete: two ways of touching the phone, one verdict for the phone.
     let phone = [fresh(phone_input_age), fresh(marker_age)]
@@ -138,6 +152,38 @@ pub fn surface(
         (None, Some(_)) => Surface::Mobile,
         (None, None) => Surface::Away,
     }
+}
+
+/// The visibility the DELIVERY decision runs on, which is not always the one
+/// the session reports.
+///
+/// A MOBILE SURFACE REACHED BY THE BACK TAP ALONE IS WATCHING NOTHING. Two
+/// different things put the operator on mobile, and only one of them means a
+/// screen is in front of them: the phone's pty clock says moshi is open and
+/// taking input, while the tap says only that they reached for the phone. When
+/// the tap is the fresher signal and the pty clock is not fresh at all, moshi
+/// is not open in their hand, so the session is on screen nowhere they can see
+/// it. The desk display showing the origin pane is showing it to an empty
+/// chair.
+///
+/// Drill D6 caught exactly that on 2026-08-19: a Back Tap with moshi closed
+/// produced NOTHING, because the session view answered Visible for a pane
+/// focused on the unattended desk display and mobile-plus-visible suppresses.
+/// The operator's confirmed mobile matrix has that row firing the card.
+///
+/// When the pty clock IS fresh the session view governs unchanged, because
+/// moshi really is open and what it shows is what the operator sees. That is
+/// the D5 behavior and this rule must never reach it.
+pub fn effective_visibility(
+    surface: Surface,
+    phone_input_fresh: bool,
+    session: Visibility,
+) -> Visibility {
+    if surface == Surface::Mobile && !phone_input_fresh {
+        // Nothing is on screen for them, so nothing can suppress.
+        return Visibility::Hidden;
+    }
+    session
 }
 
 /// What one event should do. The operator-confirmed matrix, as three rules.
@@ -168,7 +214,7 @@ pub fn plan(
 #[cfg(test)]
 mod tests {
     use super::{DeliveryPlan, SessionView, Surface, Visibility};
-    use super::{plan, surface, visibility};
+    use super::{effective_visibility, plan, surface, visibility};
 
     // ------------------------------------------------------------------
     // Visibility: one session-level fact, computed from herdr's own view.
@@ -397,6 +443,119 @@ mod tests {
         // existence, so an attached-but-untouched session decides nothing.
         assert_eq!(surface(Some(5), Some(9_000), None, 120), Surface::Desk);
         assert_eq!(surface(Some(9_000), Some(9_000), None, 120), Surface::Away);
+    }
+
+    // ------------------------------------------------------------------
+    // Effective visibility: a mobile surface the Back Tap alone reached is
+    // watching nothing, whatever any client's display shows (drill D6).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn every_effective_visibility_case_adjusts_or_passes_through_correctly() {
+        // (case label, surface, the phone's pty clock is fresh, what the
+        //  session reports, what the delivery decision must run on)
+        let matrix = [
+            (
+                "D6 REPRO: tapped with moshi closed, pane on the unattended desk",
+                Surface::Mobile,
+                false,
+                Visibility::Visible,
+                Visibility::Hidden,
+            ),
+            (
+                "tapped with moshi closed and no readable view at all",
+                Surface::Mobile,
+                false,
+                Visibility::Unknown,
+                Visibility::Hidden,
+            ),
+            (
+                "D5 GUARD: moshi open on the pane itself, which really is watched",
+                Surface::Mobile,
+                true,
+                Visibility::Visible,
+                Visibility::Visible,
+            ),
+            (
+                "moshi open, showing another tab: hidden either way",
+                Surface::Mobile,
+                true,
+                Visibility::Hidden,
+                Visibility::Hidden,
+            ),
+            (
+                "the desk is never adjusted: a cold phone says nothing about it",
+                Surface::Desk,
+                false,
+                Visibility::Visible,
+                Visibility::Visible,
+            ),
+            (
+                "and away is never adjusted either",
+                Surface::Away,
+                false,
+                Visibility::Visible,
+                Visibility::Visible,
+            ),
+        ];
+        for (label, surface, phone_input_fresh, session, expected) in matrix {
+            assert_eq!(
+                effective_visibility(surface, phone_input_fresh, session),
+                expected,
+                "case: {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_rule_rewrites_nothing_but_a_mobile_surface_the_phone_never_earned() {
+        // The blast radius, measured over the whole input space rather than
+        // argued from the rows above: eighteen combinations, and only the
+        // three with a mobile surface and a cold pty clock may come back
+        // saying anything other than what the session reported.
+        for surface in [Surface::Desk, Surface::Mobile, Surface::Away] {
+            for phone_input_fresh in [false, true] {
+                for session in [Visibility::Visible, Visibility::Hidden, Visibility::Unknown] {
+                    let adjusted = effective_visibility(surface, phone_input_fresh, session);
+                    let may_be_rewritten = surface == Surface::Mobile && !phone_input_fresh;
+                    assert!(
+                        may_be_rewritten || adjusted == session,
+                        "{surface:?}, pty fresh {phone_input_fresh}, {session:?} \
+                         was rewritten to {adjusted:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_back_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_on_screen() {
+        // Drill D6, 2026-08-19: the tap put the surface on mobile, the origin
+        // pane sat focused on the desk display nobody was at, and the card
+        // never fired. Row 1 of the operator's confirmed mobile matrix says
+        // a tap with moshi never opened has to produce one.
+        let delivery = plan(
+            Surface::Mobile,
+            effective_visibility(Surface::Mobile, false, Visibility::Visible),
+            false,
+            false,
+        );
+        assert!(delivery.phone_card, "the tap asked for the card");
+        assert!(!delivery.banner, "and mobile never banners");
+    }
+
+    #[test]
+    fn moshi_open_on_the_origin_pane_still_suppresses_the_card() {
+        // The D5 guard, in the same composed form: the D6 rule must not reach
+        // the case that already passed its drill. A card describing the pane
+        // filling the phone's screen is the noise the model exists to remove.
+        let delivery = plan(
+            Surface::Mobile,
+            effective_visibility(Surface::Mobile, true, Visibility::Visible),
+            false,
+            false,
+        );
+        assert!(!delivery.phone_card, "the pane is already on the phone");
     }
 
     // ------------------------------------------------------------------

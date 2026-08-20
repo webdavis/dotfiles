@@ -160,10 +160,31 @@ fn read_world<P>(
 where
     P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + SessionViewProbe,
 {
+    let reading = surface_reading(probes, overrides, now_secs);
     WorldSnapshot {
-        surface: operator_surface(probes, overrides, now_secs),
-        visibility: operator_visibility(probes, pane),
+        surface: reading.surface,
+        // The session reports one fact for every client, and a phone with
+        // moshi closed is not one of them: see `surface::effective_visibility`.
+        visibility: crate::surface::effective_visibility(
+            reading.surface,
+            reading.phone_input_fresh,
+            operator_visibility(probes, pane),
+        ),
     }
+}
+
+/// Where the operator is, and whether the PHONE'S OWN clock is what says so.
+///
+/// The two come out together because they are one judgement over one set of
+/// readings. Deriving the phone's freshness a second time somewhere else is
+/// how the arbitration and the visibility rule beside it would come to
+/// disagree about whether the phone was just used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SurfaceReading {
+    surface: Surface,
+    /// The phone's pty clock is fresh: moshi is open and taking input. False
+    /// on a Mobile surface means the Back Tap alone put the operator there.
+    phone_input_fresh: bool,
 }
 
 /// Where the operator is, from the three readings the arbitration needs.
@@ -177,6 +198,15 @@ pub fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u
 where
     P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe,
 {
+    surface_reading(probes, overrides, now_secs).surface
+}
+
+/// The arbitration and the freshness of the reading behind it, in one pass
+/// over the probes.
+fn surface_reading<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> SurfaceReading
+where
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe,
+{
     // A garbled threshold is UNKNOWN, never the default: substituting 120
     // would read a stale desk as fresh and hold the operator at their desk.
     let desk_fresh_secs = if overrides.desk_invalid {
@@ -185,7 +215,11 @@ where
         Some(overrides.desk_idle_secs.unwrap_or(DEFAULT_DESK_IDLE_SECS))
     };
     let Some(desk_fresh_secs) = desk_fresh_secs else {
-        return Surface::Away;
+        // With no window to measure against, nothing can be called fresh.
+        return SurfaceReading {
+            surface: Surface::Away,
+            phone_input_fresh: false,
+        };
     };
 
     let desk_input_age = if overrides.idle_invalid {
@@ -210,7 +244,15 @@ where
         }
     };
     let marker_age = age_of(probes.marker_mtime_secs());
-    crate::surface::surface(desk_input_age, phone_input_age, marker_age, desk_fresh_secs)
+    SurfaceReading {
+        surface: crate::surface::surface(
+            desk_input_age,
+            phone_input_age,
+            marker_age,
+            desk_fresh_secs,
+        ),
+        phone_input_fresh: crate::surface::is_fresh(phone_input_age, desk_fresh_secs),
+    }
 }
 
 /// Whether the origin pane is on screen. An unreadable view is Unknown, which
@@ -401,6 +443,60 @@ mod tests {
         let legs = names(&decision);
         assert!(!legs.contains(&"macos-banner"), "got {legs:?}");
         assert!(legs.contains(&"moshi"), "got {legs:?}");
+    }
+
+    #[test]
+    fn what_put_the_operator_on_mobile_decides_whether_the_watched_pane_suppresses() {
+        // Both rows are on mobile with the origin pane reported as on screen,
+        // and only the reason differs. Drill D6 (2026-08-19) found the first
+        // one silent: the tap moved the surface, the desk display had the pane
+        // focused for nobody, and mobile-plus-visible ate the card.
+        // (label, marker mtime, phone pty atime, the legs it must dispatch)
+        type Case = (&'static str, Option<u64>, Option<u64>, Vec<&'static str>);
+        let matrix: [Case; 2] = [
+            (
+                "D6: tapped, moshi never opened, so nothing is being watched",
+                Some(999_990),
+                None,
+                vec!["moshi", "hermes"],
+            ),
+            (
+                "D5: moshi open on the pane, which is watching it for real",
+                None,
+                Some(999_990),
+                vec!["hermes"],
+            ),
+        ];
+        for (label, marker_mtime, phone_atime, expected) in matrix {
+            let probes = CountingProbes {
+                idle: Some(9_000),
+                marker_mtime,
+                phone_atime,
+                view: Some(watching("wW:p1")),
+                ..CountingProbes::default()
+            };
+            assert_eq!(
+                names(&decide_with(&probes, &Overrides::default(), "wW:p1")),
+                expected,
+                "case: {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_tap_with_moshi_closed_cards_even_when_the_session_view_cannot_be_read() {
+        // The other half of the D6 row: an unreadable view already never
+        // suppressed, and the tap must not turn that into a new way to.
+        let probes = CountingProbes {
+            idle: Some(9_000),
+            marker_mtime: Some(999_990),
+            view: None,
+            ..CountingProbes::default()
+        };
+        let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
+        let legs = names(&decision);
+        assert!(legs.contains(&"moshi"), "got {legs:?}");
+        assert!(!legs.contains(&"macos-banner"), "mobile never banners");
     }
 
     #[test]
