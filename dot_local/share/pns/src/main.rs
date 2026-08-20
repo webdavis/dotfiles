@@ -75,7 +75,7 @@ fn second_argument() -> String {
 /// harness's "no opinion, prompt as usual". The forwarded path is the one
 /// place a non-zero exit is correct: there it is the operator's decision.
 fn gate_mode(subcommand: &str) -> i32 {
-    if !pns::hooks::is_harness_subcommand(subcommand) || !forward_to_moshi() {
+    if !pns::hooks::is_harness_subcommand(subcommand) || !forward_to_moshi(&system_probes()) {
         return 0;
     }
     let Some(payload) = read_payload().filter(|payload| payload_is_whole(payload)) else {
@@ -104,14 +104,17 @@ fn hook_mode(event: &str) -> i32 {
         "prompt" => start_of_turn(&payload),
         "stop" => end_of_turn(&payload, &agent),
         "blocked" => return blocking_event(&payload, &agent, &payload_json),
-        "asked" | "plan-ready" => run_event(&pns::args::EventArgs {
-            agent,
-            state: event.to_string(),
-            project: project_of(&payload.cwd),
-            detail: payload.message.clone(),
-            pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-            ..Default::default()
-        }),
+        "asked" | "plan-ready" => run_event(
+            &pns::args::EventArgs {
+                agent,
+                state: event.to_string(),
+                project: project_of(&payload.cwd),
+                detail: payload.message.clone(),
+                pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                ..Default::default()
+            },
+            &system_probes(),
+        ),
         // An event this binary does not serve is not an error the harness
         // should hear about on a notification path.
         _ => eprintln!("pns: unknown hook event `{event}`"),
@@ -186,16 +189,19 @@ fn end_of_turn(payload: &HookPayload, agent: &str) {
         true => ("done".to_string(), String::new()),
         false => condense(&reply),
     };
-    run_event(&pns::args::EventArgs {
-        agent: agent.to_string(),
-        state,
-        project: project_of(&payload.cwd),
-        branch: git_branch(&payload.cwd),
-        detail,
-        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-        long_running: pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs())),
-        ..Default::default()
-    });
+    run_event(
+        &pns::args::EventArgs {
+            agent: agent.to_string(),
+            state,
+            project: project_of(&payload.cwd),
+            branch: git_branch(&payload.cwd),
+            detail,
+            pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+            long_running: pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs())),
+            ..Default::default()
+        },
+        &system_probes(),
+    );
 }
 
 /// The turn's final text: the harness's own copy first, the transcript tail
@@ -366,25 +372,40 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     };
     // Each test guards the reading below it: the surface probe never runs for
     // a payload that was never going to be forwarded.
+    // ONE probe set for the whole event: the forward decision below and the
+    // delivery plan inside run_event are two questions about one moment.
+    let probes = system_probes();
     let forwarded = moshi_subcommand(agent)
         .filter(|_| payload_is_whole(payload_json))
-        .filter(|_| forward_to_moshi())
+        .filter(|_| forward_to_moshi(&probes))
         .and_then(|subcommand| spawn_moshi_hook(&subcommand, payload_json));
     if forwarded.is_some() {
         // Suppressed here rather than by the plan: the card moshi is raising
         // is something the surface model cannot know about.
         unsafe { std::env::set_var("RELAY_SKIP_PHONE", "1") };
     }
-    run_event(&event);
+    run_event(&event, &probes);
     forwarded.map_or(0, moshi_decision)
 }
 
 /// Whether the operator can answer from the phone at all. THE SURFACE decides:
 /// on mobile or away the card is the only way to reach them, and at the desk
 /// the harness prompt in front of them already is one.
-fn forward_to_moshi() -> bool {
+///
+/// It is handed the caller's probe set rather than building its own, which is
+/// what makes this reading and the delivery plan's reading the SAME one: they
+/// are two questions about one moment, and a boundary crossed between two
+/// measurements cards a phone with no round trip behind it.
+fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
+    pns::engine::operator_surface(probes, &overrides_from_env(), now_secs())
+        != pns::surface::Surface::Desk
+}
+
+/// The probe set for ONE invocation. Built here and shared, never per
+/// consumer: see `SystemProbes`.
+fn system_probes() -> SystemProbes<SystemCommandRunner> {
     let home = std::env::var("HOME").unwrap_or_default();
-    let probes = SystemProbes::new(
+    SystemProbes::new(
         SystemCommandRunner,
         resolve_path(
             std::env::var("PNS_PHONE_MARKER_FILE").ok().as_deref(),
@@ -392,9 +413,7 @@ fn forward_to_moshi() -> bool {
         )
         .to_string_lossy()
         .into_owned(),
-    );
-    pns::engine::operator_surface(&probes, &overrides_from_env(), now_secs())
-        != pns::surface::Surface::Desk
+    )
 }
 
 /// Start moshi on the stream. `None` is "not installed", which is the
@@ -582,12 +601,12 @@ fn event_mode() {
     for warning in &warnings {
         eprintln!("relay: {warning}");
     }
-    run_event(&event);
+    run_event(&event, &system_probes());
 }
 
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
-fn run_event(event: &pns::args::EventArgs) {
+fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRunner>) {
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     // Read off the config before selection consumes it: the pulse needs hue's
@@ -602,22 +621,13 @@ fn run_event(event: &pns::args::EventArgs) {
     }
 
     let overrides = overrides_from_env();
-    let probes = SystemProbes::new(
-        SystemCommandRunner,
-        resolve_path(
-            std::env::var("PNS_PHONE_MARKER_FILE").ok().as_deref(),
-            &format!("{home}/.local/state/pns/phone-attention.marker"),
-        )
-        .to_string_lossy()
-        .into_owned(),
-    );
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()
         .map(|since_epoch| since_epoch.as_secs());
 
     let decision = decide(
-        &probes,
+        probes,
         &selection,
         &overrides,
         event.local_only,

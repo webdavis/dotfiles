@@ -249,9 +249,21 @@ pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
 /// composes the traits it needs. SOLID: the command probes depend on the
 /// runner abstraction, never on `Command` directly, so that edge substitutes
 /// in tests; the marker's substitution point is the path it is handed.
+/// ONE PROBE SET IS ONE READING, however many consumers ask for it. Each
+/// reading is taken at most once and remembered, including the reading that
+/// came back empty, because an unreadable probe is an answer too.
+///
+/// The blocked path is what makes this load-bearing: it asks where the
+/// operator is twice by design, once to decide whether an approval is
+/// forwarded to the phone at all and again to decide what the notification
+/// delivers. Taking the measurement twice lets a freshness boundary fall
+/// between them, which cards a phone with no round trip behind it.
 pub struct SystemProbes<R: CommandRunner> {
     runner: R,
     marker_path: String,
+    idle: std::cell::OnceCell<Option<u64>>,
+    marker_mtime: std::cell::OnceCell<Option<u64>>,
+    phone_atime: std::cell::OnceCell<Option<u64>>,
 }
 
 impl<R: CommandRunner> SystemProbes<R> {
@@ -259,32 +271,39 @@ impl<R: CommandRunner> SystemProbes<R> {
         Self {
             runner,
             marker_path,
+            idle: std::cell::OnceCell::new(),
+            marker_mtime: std::cell::OnceCell::new(),
+            phone_atime: std::cell::OnceCell::new(),
         }
     }
 }
 
 impl<R: CommandRunner> crate::probes::IdleProbe for SystemProbes<R> {
     fn idle_secs(&self) -> Option<u64> {
-        let ioreg_output = self.runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
-        crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
+        *self.idle.get_or_init(|| {
+            let ioreg_output = self.runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
+            crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
+        })
     }
 }
 
 impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
     fn marker_mtime_secs(&self) -> Option<u64> {
-        // The LINK itself, never its target, matching BSD `stat -f %m`: the
-        // Back Tap touch lands on this path, so a dangling link still carries
-        // the reading and following it would erase one.
-        let modified = std::fs::symlink_metadata(&self.marker_path)
-            .ok()?
-            .modified()
-            .ok()?;
-        Some(
-            modified
-                .duration_since(std::time::UNIX_EPOCH)
+        *self.marker_mtime.get_or_init(|| {
+            // The LINK itself, never its target, matching BSD `stat -f %m`: the
+            // Back Tap touch lands on this path, so a dangling link still
+            // carries the reading and following it would erase one.
+            let modified = std::fs::symlink_metadata(&self.marker_path)
                 .ok()?
-                .as_secs(),
-        )
+                .modified()
+                .ok()?;
+            Some(
+                modified
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()?
+                    .as_secs(),
+            )
+        })
     }
 }
 
@@ -311,15 +330,17 @@ impl<R: CommandRunner> crate::probes::PhoneInputProbe for SystemProbes<R> {
     /// the arbitration rather than parking the operator on it: a phone that
     /// cannot be read must not silence the banner.
     fn phone_input_atime_secs(&self) -> Option<u64> {
-        let servers = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
-        let clients = parse_pids(&self.pgrep_children(&servers)?);
-        if clients.is_empty() {
-            return None;
-        }
-        let terminals = self
-            .runner
-            .run(PS_PATH, &["-o", "tty=", "-p", &clients.join(",")])?;
-        newest_terminal_atime(TTY_DIR, &terminals)
+        *self.phone_atime.get_or_init(|| {
+            let servers = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
+            let clients = parse_pids(&self.pgrep_children(&servers)?);
+            if clients.is_empty() {
+                return None;
+            }
+            let terminals = self
+                .runner
+                .run(PS_PATH, &["-o", "tty=", "-p", &clients.join(",")])?;
+            newest_terminal_atime(TTY_DIR, &terminals)
+        })
     }
 }
 
@@ -442,6 +463,65 @@ mod tests {
                 .find(|(key, _)| program.contains(key.as_str()))
                 .and_then(|(_, answer)| answer.clone())
         }
+    }
+
+    // --- one reading per probe set ------------------------------------------
+
+    /// Counts what it was asked to run, and keeps the counter reachable after
+    /// the runner is handed to the probe set that owns it.
+    struct CountingRunner {
+        answer: String,
+        calls: std::rc::Rc<std::cell::Cell<u32>>,
+    }
+
+    impl CommandRunner for CountingRunner {
+        fn run(&self, _program: &str, _args: &[&str]) -> Option<String> {
+            self.calls.set(self.calls.get() + 1);
+            Some(self.answer.clone())
+        }
+    }
+
+    #[test]
+    fn a_reading_asked_for_twice_is_still_taken_once() {
+        // The blocked path asks where the operator is TWICE by design: once to
+        // decide whether an approval is forwarded to the phone at all, and
+        // again to decide what the notification delivers. Two spawns can
+        // answer differently, and a freshness boundary crossed between them
+        // cards a phone with no round trip behind it.
+        use crate::probes::IdleProbe;
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let probes = SystemProbes::new(
+            CountingRunner {
+                answer: "\"HIDIdleTime\" = 5000000000".to_string(),
+                calls: std::rc::Rc::clone(&calls),
+            },
+            "/nonexistent/marker".to_string(),
+        );
+        assert_eq!(probes.idle_secs(), Some(5));
+        assert_eq!(
+            probes.idle_secs(),
+            Some(5),
+            "and the same answer both times"
+        );
+        assert_eq!(calls.get(), 1, "one probe set is one reading");
+    }
+
+    #[test]
+    fn a_reading_that_came_back_empty_is_not_retaken_either() {
+        // An unreadable probe is an ANSWER, and re-taking it would let two
+        // consumers disagree about a machine that told the first one nothing.
+        use crate::probes::IdleProbe;
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let probes = SystemProbes::new(
+            CountingRunner {
+                answer: "nothing the parser recognizes".to_string(),
+                calls: std::rc::Rc::clone(&calls),
+            },
+            "/nonexistent/marker".to_string(),
+        );
+        assert_eq!(probes.idle_secs(), None);
+        assert_eq!(probes.idle_secs(), None);
+        assert_eq!(calls.get(), 1);
     }
 
     // --- parse_idle_nanoseconds --------------------------------------------
