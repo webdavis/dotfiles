@@ -581,11 +581,18 @@ fn a_stuck_multiplexer_leaves_the_view_unreadable_rather_than_blocking() {
 /// The gate is reached by the BARE harness word, because moshi's generated
 /// extension holds one pathname with no room for a subcommand.
 fn gate(sandbox: &Sandbox, word: &str, payload: &str) -> std::process::Output {
+    gate_argv(sandbox, &[word], payload)
+}
+
+/// The same gate, reached by whatever argv the caller spells: the bare word
+/// moshi's extension uses, or the `gate <word>` form the documentation gives
+/// an operator.
+fn gate_argv(sandbox: &Sandbox, argv: &[&str], payload: &str) -> std::process::Output {
     let mut command = sandbox.relay();
     command.env("RELAY_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 7);
     let mut child = command
-        .arg(word)
+        .args(argv)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -643,6 +650,47 @@ fn a_zero_decision_passes_through_as_zero_and_is_not_a_default() {
         sandbox.path("moshi.argv").exists(),
         "an approval reaches moshi; a zero exit is its answer, not a skip"
     );
+}
+
+#[test]
+fn the_documented_gate_subcommand_reaches_the_same_gate_as_the_bare_word() {
+    // CLAUDE.md gives `pns gate <harness>-hook` as the operator-facing form,
+    // and only the bare word was ever implemented: the documented one fell
+    // through to EVENT mode, which forwarded nothing and fired a notification
+    // about an empty event nobody asked for.
+    let sandbox = Sandbox::new("gate-subcommand");
+    let output = gate_argv(&sandbox, &["gate", "pi-hook"], "{\"ask\":1}\n");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "the decision is still the exit code"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.argv"))
+            .expect("argv")
+            .trim(),
+        "pi-hook"
+    );
+    assert!(
+        !sandbox.fired("hermes"),
+        "a gate forwards; it never raises an event of its own"
+    );
+}
+
+#[test]
+fn the_gate_subcommand_refuses_a_word_it_will_not_vouch_for_without_notifying() {
+    // The refusal has to be a refusal on BOTH forms. Falling through to event
+    // mode here is how the bogus notification got out.
+    let sandbox = Sandbox::new("gate-subcommand-refuses");
+    for word in ["", "nonsense", "../../etc/passwd", "pi-hook; rm -rf /"] {
+        let output = gate_argv(&sandbox, &["gate", word], "{}");
+        assert_eq!(output.status.code(), Some(0), "word {word:?}");
+        assert!(
+            !sandbox.path("moshi.argv").exists(),
+            "word {word:?} reached moshi"
+        );
+        assert!(!sandbox.fired("hermes"), "word {word:?} raised an event");
+    }
 }
 
 #[test]

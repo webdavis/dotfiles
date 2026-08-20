@@ -45,15 +45,26 @@ fn main() {
     if pns::hooks::is_harness_subcommand(&first) {
         std::process::exit(gate_mode(&first));
     }
+    // The same gate, spelled the way an operator reads it. Both forms end in
+    // gate_mode, which REFUSES a word it will not vouch for: falling through
+    // to the event path instead is how the documented spelling used to fire a
+    // notification about an empty event.
+    if first == *"gate" {
+        std::process::exit(gate_mode(&second_argument()));
+    }
     if first == *"hook" {
-        std::process::exit(hook_mode(
-            &std::env::args_os()
-                .nth(2)
-                .unwrap_or_default()
-                .to_string_lossy(),
-        ));
+        std::process::exit(hook_mode(&second_argument()));
     }
     event_mode();
+}
+
+/// The word after the subcommand, or empty when there is none.
+fn second_argument() -> String {
+    std::env::args_os()
+        .nth(2)
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// A presence-gated pass-through to moshi-hook, for the harnesses that reach
