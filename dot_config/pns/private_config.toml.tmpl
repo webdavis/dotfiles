@@ -22,4 +22,15 @@ enabled = true
 bridge = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName }}"
 key = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password }}"
 rooms = ["3F - Studio", "2F - Kitchen"]
+
+# The home probe: is the phone on the home wifi, answered by the UDR's
+# client list. A SENSOR, not a plugin: nothing in the delivery plan reads it
+# yet (part 2's catch-up and quiet-window slices will), so it lives outside
+# [plugins] and `pns home` is how it is drilled. The phone is matched by
+# NAME because iOS private wifi addresses make the MAC rotate per network.
+# Its API key is unifi_api_key in the relay auth file, beside the other
+# secrets.
+[home]
+router_url = "https://192.168.1.1"
+phone = "mister"
 {{- end }}

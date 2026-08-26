@@ -17,6 +17,7 @@ pub mod args;
 pub mod channels;
 pub mod config;
 pub mod engine;
+pub mod home;
 pub mod hooks;
 pub mod presence;
 pub mod probes;

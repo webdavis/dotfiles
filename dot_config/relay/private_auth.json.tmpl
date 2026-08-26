@@ -1,4 +1,5 @@
 {
   "moshi_secret": {{ (keepassxc "Moshi :: Webhook Secret").Password | quote }},
-  "hermes_secret": {{ (keepassxc "Hermes :: Webhook Secret :: #relay").Password | quote }}
+  "hermes_secret": {{ (keepassxc "Hermes :: Webhook Secret :: #relay").Password | quote }},
+  "unifi_api_key": {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | quote }}
 }

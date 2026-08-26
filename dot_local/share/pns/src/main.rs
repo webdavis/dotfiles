@@ -38,6 +38,13 @@ fn main() {
         pulse_mode();
         return;
     }
+    // The home diagnostic: one reading of the router, said out loud. The
+    // doctor mode (P3) will absorb it; until then this is how the probe is
+    // drilled and how a wrong config is diagnosed.
+    if first == *"home" {
+        home_mode();
+        return;
+    }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
@@ -995,6 +1002,63 @@ fn pulse_mode() {
             .map(|code| code.to_string_lossy().into_owned())
             .unwrap_or_else(|| "0".to_string()),
     );
+}
+
+/// The `home` mode: one reading of the home probe, reported in one line.
+///
+/// A DIAGNOSTIC, not a notification: it always exits 0 and says what it
+/// found, including every way it can be unconfigured, because its job is to
+/// answer "why did the probe not read" as much as "is the phone home". The
+/// key itself is never printed, on any path.
+fn home_mode() {
+    let home_dir = std::env::var("HOME").unwrap_or_default();
+    let config = match load_config(&config_path(&home_dir)) {
+        Ok(LoadOutcome::Loaded(config)) => config,
+        Ok(LoadOutcome::Missing) => {
+            println!("home: not configured (no config file)");
+            return;
+        }
+        Err(error) => {
+            println!("home: config error ({})", error.detail());
+            return;
+        }
+    };
+    let Some(settings) = pns::home::home_settings(config.home.as_ref()) else {
+        println!("home: not configured (no [home] table with router_url and phone)");
+        return;
+    };
+    let auth_path = resolve_path(
+        std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
+        &format!("{home_dir}/.config/relay/auth.json"),
+    );
+    let Some(key) = read_auth(&auth_path)
+        .as_deref()
+        .and_then(pns::home::unifi_secret)
+    else {
+        println!(
+            "home: no unifi_api_key in {} (the probe is not set up)",
+            auth_path.display()
+        );
+        return;
+    };
+    let router = pns::home::UreqRouter {
+        base: settings.router_url,
+        key,
+    };
+    match pns::home::read_home_presence(&router, &settings.phone) {
+        pns::home::HomePresence::Home => {
+            println!("home: phone \"{}\" is on the home network", settings.phone);
+        }
+        pns::home::HomePresence::NotHome => {
+            println!(
+                "home: phone \"{}\" is NOT on the home network",
+                settings.phone
+            );
+        }
+        pns::home::HomePresence::Unknown => {
+            println!("home: unknown (router unreachable or its answer unreadable)");
+        }
+    }
 }
 
 /// The CLIP v2 bridge over ureq.
