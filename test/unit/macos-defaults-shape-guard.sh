@@ -90,8 +90,11 @@ readonly MISTAGGED_SEQUENCE_TAGS=(
 )
 
 # The tag spellings that mean "a plain sequence" and must all still be accepted.
-# The non-specific `!` is in the list because yq resolves it to `!!seq` on a
-# sequence (measured), so an operator who writes it is writing a plain list.
+# The non-specific `!` is in the list because on a sequence it RESOLVES to
+# `!!seq` by the YAML spec, so an operator who writes it is writing a plain
+# list. yq's report of it changed underfoot: <= 4.53.3 answered the resolved
+# `seq !!seq`, >= 4.53.6 answers the authored `seq !` (both measured), which is
+# why the classifier accepts both spellings and this case guards the pair.
 readonly PLAIN_SEQUENCE_TAGS=('' '!!seq' '!')
 
 # require_superseded_tag_check_satisfied <path>, fail unless this fixture
@@ -273,6 +276,7 @@ done
 # this branch is broken. That is exactly the pin a direct call provides and a
 # fixture cannot.
 require_verdict 'seq !!seq' list "a plain sequence"
+require_verdict 'seq !' list "a sequence wearing the non-specific tag, which yq >= 4.53.6 reports verbatim"
 require_verdict 'map !!map' map "a plain mapping"
 require_verdict 'map !!seq' map "a mapping wearing a !!seq tag"
 require_verdict 'scalar !!seq' other "a scalar wearing a !!seq tag"

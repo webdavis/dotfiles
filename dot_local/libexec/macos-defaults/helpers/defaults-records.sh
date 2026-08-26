@@ -267,6 +267,12 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 # down: this file is a library, and sourcing it twice must be a no-op.
 DEFAULTS_RECORDS_LIST_KIND='seq'
 DEFAULTS_RECORDS_LIST_TAG='!!seq'
+# The YAML non-specific tag. On a sequence it MEANS !!seq by the spec's
+# resolution, and the runner template renders it; yq <= 4.53.3 reported it
+# already resolved (`seq !!seq`) while yq >= 4.53.6 reports the authored
+# spelling verbatim (`seq !`, measured 2026-08-25), so the accept set names
+# both spellings of the same plain list.
+DEFAULTS_RECORDS_NONSPECIFIC_TAG='!'
 DEFAULTS_RECORDS_MAP_KIND='map'
 DEFAULTS_RECORDS_MAP_TAG='!!map'
 DEFAULTS_RECORDS_SCALAR_KIND='scalar'
@@ -290,11 +296,13 @@ DEFAULTS_RECORDS_COUNT_EXPRESSION='.macos.defaults | length'
 # declares at .macos.defaults. PURE: one string in, one verdict out, no file
 # access and no globals beyond the four yq answers named above.
 #
-#   list       a plain YAML sequence: kind seq AND tag !!seq. The whole accept
-#              set, and the only accepted verdict. An untagged sequence, an
-#              explicitly `!!seq`-tagged one, and one wearing the non-specific
-#              `!` tag all answer exactly this pair (measured), so the
-#              conjunction admits every legitimate spelling and nothing else.
+#   list       a plain YAML sequence: kind seq AND a tag that means "plain
+#              list". The whole accept set, and the only accepted verdict. An
+#              untagged sequence and an explicitly `!!seq`-tagged one answer
+#              `seq !!seq`; one wearing the non-specific `!` answers
+#              `seq !!seq` on yq <= 4.53.3 and `seq !` on >= 4.53.6 (both
+#              measured), so the conjunction admits those two tag spellings
+#              and nothing else.
 #   mistagged  a real sequence carrying any OTHER tag. Its own verdict rather
 #              than a fold into "other", because the operator's fix is specific
 #              (delete the tag) and differs from every other refusal here.
@@ -324,8 +332,11 @@ records_declaration_verdict() { # <shape-answer>
     "$DEFAULTS_RECORDS_LIST_KIND")
       # BOTH answers, or neither. A sequence whose tag names something else is
       # still refused, because the runner template refuses several such files
-      # outright and this reader must never be the permissive one.
-      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ]]; then
+      # outright and this reader must never be the permissive one. The
+      # non-specific `!` is the one other accepted spelling: it resolves to
+      # !!seq on a sequence, and only yq's REPORT of it changed at 4.53.6.
+      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ||
+        $node_tag == "$DEFAULTS_RECORDS_NONSPECIFIC_TAG" ]]; then
         printf 'list\n'
       else
         printf 'mistagged\n'
@@ -835,8 +846,8 @@ defaults_records_declared_count() { # <path>, print the validated record count
   case $declaration_verdict in
     list) ;;
     mistagged)
-      printf 'error: %s tags .macos.defaults as %q; the record list is a real sequence, so only its TAG is wrong, and the only tag accepted on it is %s, because the runner template refuses several of the others with a parse error while this reader would take the records, so the two readers would disagree about whether this file has any settings at all; delete the tag\n' \
-        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" >&2
+      printf 'error: %s tags .macos.defaults as %q; the record list is a real sequence, so only its TAG is wrong, and the only tags accepted on it are %s and the non-specific %s, because the runner template refuses several of the others with a parse error while this reader would take the records, so the two readers would disagree about whether this file has any settings at all; delete the tag\n' \
+        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_NONSPECIFIC_TAG" >&2
       return 2
       ;;
     map)
