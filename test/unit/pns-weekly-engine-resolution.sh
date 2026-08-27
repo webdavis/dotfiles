@@ -46,6 +46,8 @@ UNATTENDED_LOG_STATE_DIR="$scratch/state" unattended_log_post \
   fail "the record must reach the resolved engine"
 grep -qx -- '--remote-only' "$scratch/posted" ||
   fail "the weekly record is the durable log path, so it must stay --remote-only"
+{ grep -qx -- '--channel' "$scratch/posted" && grep -qx -- 'unattended-upgrades' "$scratch/posted"; } ||
+  fail "the record names its route (--channel unattended-upgrades); a raw URL override is the retired way"
 
 # --- the three jobs resolve through the guard, none keeps a default --------
 # The path may appear inside weekly_engine's terminal fallback and nowhere

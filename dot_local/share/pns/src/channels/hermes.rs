@@ -85,6 +85,57 @@ pub fn hermes_secret(auth_json: &str) -> Option<String> {
     (!key.is_empty()).then_some(key)
 }
 
+/// The URL for a NAMED route on the same gateway the default posts to: the
+/// base URL with its final path segment swapped for the route. Names, not
+/// URLs, cross the CLI: the gateway and its route table stay the single
+/// source of truth in the hermes config, and a caller says only WHERE.
+///
+/// `None` for a route that could not safely become a path segment; the
+/// caller says so and posts to the default, because a misrouted notification
+/// on the loud route beats a silently dropped one.
+pub fn channel_url(base_url: &str, route: &str) -> Option<String> {
+    if route.is_empty()
+        || !route
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return None;
+    }
+    let (prefix, _default_route) = base_url.rsplit_once('/')?;
+    Some(format!("{prefix}/{route}"))
+}
+
+#[cfg(test)]
+mod channel_url_tests {
+    use super::{DEFAULT_HERMES_URL, channel_url};
+
+    #[test]
+    fn a_route_name_swaps_the_default_urls_final_segment() {
+        assert_eq!(
+            channel_url(DEFAULT_HERMES_URL, "unattended-upgrades").as_deref(),
+            Some("http://127.0.0.1:8644/webhooks/unattended-upgrades")
+        );
+    }
+
+    #[test]
+    fn a_name_that_could_not_be_a_path_segment_is_refused_not_glued() {
+        // The name is about to become part of a URL, so this is a trust
+        // boundary like the site id's: nothing traversal-shaped passes.
+        for hostile in ["", "a/b", "../x", "a b", "a?x=1", "a#f", "."] {
+            assert_eq!(
+                channel_url(DEFAULT_HERMES_URL, hostile),
+                None,
+                "case: {hostile:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_base_without_a_path_yields_nothing_rather_than_a_bogus_url() {
+        assert_eq!(channel_url("no-slashes-here", "log"), None);
+    }
+}
+
 /// The line sync mode prints for one outcome, exactly as the bash spells it.
 pub fn outcome_line(outcome: PostOutcome) -> String {
     match outcome {

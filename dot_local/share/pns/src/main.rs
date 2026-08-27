@@ -15,7 +15,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{
-    DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, hermes_secret, remote_deadline,
+    DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
 use pns::channels::hue::{Bridge, HuePulse, hue_settings};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret, read_auth};
@@ -704,6 +704,7 @@ fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs,
         contents: OnceCell::new(),
     };
     let banner = banner_channel();
+    let hermes_url = hermes_url_for(&event.channel);
 
     for leg in &decision.legs {
         let delivered = deliver_leg(
@@ -711,6 +712,7 @@ fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs,
             &rendered,
             &banner,
             &auth,
+            &hermes_url,
             native_first(channels_dir_override.is_some()),
             &channels_dir,
         );
@@ -858,14 +860,38 @@ fn moshi_channel(auth: Option<&str>) -> MoshiChannel<UreqPost> {
 fn hermes_channel(
     auth: Option<&str>,
     auth_path: std::path::PathBuf,
+    url: String,
 ) -> HermesChannel<UreqSignedPost> {
     HermesChannel {
         post: UreqSignedPost,
         key: auth.and_then(hermes_secret),
         auth_path,
-        url: url_from_env("PNS_HERMES_URL", DEFAULT_HERMES_URL),
+        url,
         sync_deadline: remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()),
     }
+}
+
+/// The hermes endpoint one event posts to. The env override wins (an explicit
+/// URL, the tests' escape hatch), then a `--channel` route name derived from
+/// the default gateway, then the default (alert) route itself. An unusable
+/// name is said out loud and falls back LOUD-WARD: a misrouted notification
+/// on the alert route beats a silently dropped one.
+fn hermes_url_for(channel: &str) -> String {
+    let env_override = std::env::var("PNS_HERMES_URL")
+        .ok()
+        .filter(|url| !url.is_empty());
+    if let Some(url) = env_override {
+        return url;
+    }
+    if channel.is_empty() {
+        return DEFAULT_HERMES_URL.to_string();
+    }
+    channel_url(DEFAULT_HERMES_URL, channel).unwrap_or_else(|| {
+        eprintln!(
+            "pns: --channel {channel:?} is not a usable route name; posting to the default route"
+        );
+        DEFAULT_HERMES_URL.to_string()
+    })
 }
 
 /// An endpoint override, where EMPTY means the default like every other path
@@ -884,6 +910,7 @@ fn deliver_leg(
     rendered: &pns::channels::Event,
     banner: &BannerChannel<SystemCommandRunner>,
     auth: &AuthFile,
+    hermes_url: &str,
     native_wins: bool,
     channels_dir: &Path,
 ) -> Delivery {
@@ -894,7 +921,7 @@ fn deliver_leg(
             "macos-banner" => return banner.deliver(rendered, leg.mode),
             "moshi" => return moshi_channel(auth.contents()).deliver(rendered, leg.mode),
             "hermes" => {
-                return hermes_channel(auth.contents(), auth.path.clone())
+                return hermes_channel(auth.contents(), auth.path.clone(), hermes_url.to_string())
                     .deliver(rendered, leg.mode);
             }
             _ => {}

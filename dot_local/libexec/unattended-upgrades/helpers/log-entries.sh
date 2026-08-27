@@ -55,13 +55,10 @@
 # forever and nothing else would notice.
 UNATTENDED_LOG_ROUTE="unattended-upgrades"
 
-# The gateway URL this library posts to. UNATTENDED_LOG_HERMES_URL overrides it
-# (tests). The default host:port must match .platforms.webhook.extra.{host,port}
-# in the hermes config; run_after_68 probes the live config's real port, which is
-# the check that actually catches a drift here.
-unattended_log_url() {
-  printf '%s' "${UNATTENDED_LOG_HERMES_URL:-http://127.0.0.1:8644/webhooks/$UNATTENDED_LOG_ROUTE}"
-}
+# The gateway URL is pns's business now: the post below names the ROUTE with
+# --channel and pns derives the endpoint from its own default gateway, so the
+# host:port lives in exactly one place. run_after_68 probes the live hermes
+# config's real port, which is the check that catches a drift there.
 
 # The machine this entry is about. The channel aggregates unattended jobs, and
 # the daemon-host role is expected to move to a second Mac, so an entry that does
@@ -486,7 +483,7 @@ unattended_log_post() {
   fi
   # stdout captured (it is the outcome), stderr left alone so pns's own
   # warnings still reach this job's run log unmangled.
-  outcome="$(PNS_HERMES_URL="$(unattended_log_url)" "$pns_script" --remote-only \
+  outcome="$("$pns_script" --remote-only --channel "$UNATTENDED_LOG_ROUTE" \
     --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&- || true)"
   [[ -n $outcome ]] && printf '%s\n' "$outcome"
   grep -q '^pns: posted HTTP 2' <<<"$outcome"
