@@ -1,16 +1,15 @@
 //! The moshi channel, native: the phone push, a single HTTPS POST.
 //!
-//! THE SECRET'S PATH IS THE POINT. The token is read from the auth file,
-//! placed in the request BODY, and never touches argv, the environment of a
-//! child, or an error string: the bash put it on stdin for the same reason
-//! (the process table is world-readable), and in-process is the stronger
-//! form of the same rule. An absent auth file or key is the
-//! silent-unavailable case: the channel is simply not set up, which is not
-//! an error and must not say anything.
+//! THE SECRET'S PATH IS THE POINT. The token is read from the config's
+//! `[plugins.moshi]` table, placed in the request BODY, and never touches
+//! argv, the environment of a child, or an error string: the bash put it on
+//! stdin for the same reason (the process table is world-readable), and
+//! in-process is the stronger form of the same rule. A missing or empty
+//! token is the silent-unavailable case: the channel is simply not set up,
+//! which is not an error and must not say anything.
 
 use super::{Delivery, Event};
 use crate::routing::ReportMode;
-use std::path::Path;
 
 /// Where the push goes when `PNS_MOSHI_URL` says nothing.
 pub const DEFAULT_MOSHI_URL: &str = "https://api.getmoshi.app/api/webhook";
@@ -21,16 +20,12 @@ pub trait HttpPost {
     fn post_json(&self, url: &str, body: &str) -> bool;
 }
 
-/// The moshi token, or None for every way the auth file can fail to provide
-/// one: absent, unreadable, not JSON, no key, or an empty value. All of
-/// them mean "not set up", never an error.
-pub fn moshi_secret(auth_json: &str) -> Option<String> {
-    let token = serde_json::from_str::<serde_json::Value>(auth_json)
-        .ok()?
-        .get("moshi_secret")?
-        .as_str()?
-        .to_string();
-    (!token.is_empty()).then_some(token)
+/// The moshi token out of the `[plugins.moshi]` settings, or None for every
+/// way the config can fail to provide one: no `token` key, the wrong type,
+/// or an empty value. All of them mean "not set up", never an error.
+pub fn moshi_secret(settings: &toml::Table) -> Option<String> {
+    let token = settings.get("token")?.as_str()?;
+    (!token.is_empty()).then(|| token.to_string())
 }
 
 /// The webhook body: token, title, and the PREVIEW as the message, because
@@ -39,16 +34,11 @@ pub fn webhook_body(token: &str, title: &str, preview: &str) -> String {
     serde_json::json!({ "token": token, "title": title, "message": preview }).to_string()
 }
 
-/// Read the auth file quietly: any failure is None, the not-set-up case.
-pub fn read_auth(path: &Path) -> Option<String> {
-    std::fs::read_to_string(path).ok()
-}
-
 /// The native moshi plugin.
 pub struct MoshiChannel<H: HttpPost> {
     pub http: H,
-    /// The token, read from the auth file ONCE at the composition root. None
-    /// is the not-set-up case, which delivers nothing.
+    /// The token, read from the config at the composition root. None is the
+    /// not-set-up case, which delivers nothing.
     pub token: Option<String>,
     /// `PNS_MOSHI_URL` override, else the default.
     pub url: String,
@@ -127,13 +117,13 @@ mod tests {
     }
 
     /// The channel as the composition root builds it: the secret already
-    /// extracted, no file anywhere near it.
-    fn channel_with_auth(auth: &str) -> MoshiChannel<RecordingHttp> {
+    /// extracted from the `[plugins.moshi]` settings, no file anywhere near it.
+    fn channel_with_settings(settings: &str) -> MoshiChannel<RecordingHttp> {
         MoshiChannel {
             http: RecordingHttp {
                 posts: RefCell::new(Vec::new()),
             },
-            token: moshi_secret(auth),
+            token: moshi_secret(&settings.parse().unwrap()),
             url: "https://example.invalid/hook".to_string(),
         }
     }
@@ -150,20 +140,22 @@ mod tests {
     // --- the secret ---------------------------------------------------------
 
     #[test]
-    fn the_secret_is_the_non_empty_moshi_key() {
+    fn the_secret_is_the_non_empty_token_setting() {
         assert_eq!(
-            moshi_secret(r#"{"moshi_secret":"tok-1","other":"x"}"#),
+            moshi_secret(&"token = \"tok-1\"\nother = \"x\"\n".parse().unwrap()),
             Some("tok-1".to_string())
         );
     }
 
     #[test]
-    fn every_way_the_auth_can_fail_to_provide_a_token_reads_not_set_up() {
-        assert_eq!(moshi_secret(""), None);
-        assert_eq!(moshi_secret("not json"), None);
-        assert_eq!(moshi_secret(r#"{"other":"x"}"#), None);
-        assert_eq!(moshi_secret(r#"{"moshi_secret":""}"#), None);
-        assert_eq!(moshi_secret(r#"{"moshi_secret":42}"#), None);
+    fn every_way_the_settings_can_fail_to_provide_a_token_reads_not_set_up() {
+        for settings in ["", "other = \"x\"\n", "token = \"\"\n", "token = 42\n"] {
+            assert_eq!(
+                moshi_secret(&settings.parse().unwrap()),
+                None,
+                "case: {settings:?}"
+            );
+        }
     }
 
     // --- the body -----------------------------------------------------------
@@ -186,7 +178,7 @@ mod tests {
 
     #[test]
     fn no_token_means_no_post_and_no_sound() {
-        let channel = channel_with_auth(r#"{"other":"x"}"#);
+        let channel = channel_with_settings("other = \"x\"\n");
         assert_eq!(
             channel.deliver(&event(), ReportMode::Silent),
             Delivery::Silent
@@ -196,7 +188,7 @@ mod tests {
 
     #[test]
     fn a_token_posts_once_to_the_url_with_the_preview_never_the_message() {
-        let channel = channel_with_auth(r#"{"moshi_secret":"tok-1"}"#);
+        let channel = channel_with_settings("token = \"tok-1\"\n");
         channel.deliver(&event(), ReportMode::Silent);
         let posts = channel.http.posts.borrow();
         assert_eq!(posts.len(), 1);

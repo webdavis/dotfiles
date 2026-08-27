@@ -516,36 +516,6 @@ fn wait_bounded(mut child: std::process::Child, limit: std::time::Duration) -> O
 }
 
 #[test]
-fn a_plan_with_no_native_leg_never_opens_the_auth_file() {
-    // A FIFO nobody writes to blocks forever on open. Reading auth before
-    // knowing whether any leg wants it turns an unrelated stall into a hung
-    // notification, so the read has to wait until a channel actually asks.
-    let sandbox = support::Sandbox::new("auth-never-read");
-    let fifo = sandbox.path("auth.fifo");
-    assert!(
-        std::process::Command::new("/usr/bin/mkfifo")
-            .arg(&fifo)
-            .status()
-            .expect("mkfifo runs")
-            .success()
-    );
-    let child = sandbox
-        .pns()
-        // The phone's age is stated so this test measures the auth read
-        // alone, not the live process walk underneath it.
-        .env("PNS_PHONE_INPUT_AGE", "99999")
-        .env("PNS_AUTH_FILE", &fifo)
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
-        .spawn()
-        .expect("the engine starts");
-    assert_eq!(
-        wait_bounded(child, std::time::Duration::from_millis(500)),
-        Some(0),
-        "executable channels need no secret, so nothing may block on the auth file"
-    );
-}
-
-#[test]
 fn an_unknown_plugin_never_resurrects_a_disabled_pulse() {
     // The full-roster fallback is an EVENT-mode rule: it keeps notifications
     // working when a config is wrong. Applying it to the pulse turns a

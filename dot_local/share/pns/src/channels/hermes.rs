@@ -11,7 +11,6 @@
 
 use super::{Delivery, Event};
 use crate::routing::ReportMode;
-use std::path::PathBuf;
 use std::time::Duration;
 
 /// The gateway when `PNS_HERMES_URL` says nothing: the local hermes
@@ -74,15 +73,11 @@ pub fn sign(secret: &str, body: &str) -> Option<String> {
     )
 }
 
-/// The hermes signing key out of the auth JSON: `.hermes_secret`, non-empty,
-/// else None. Silent, like every not-set-up reading.
-pub fn hermes_secret(auth_json: &str) -> Option<String> {
-    let key = serde_json::from_str::<serde_json::Value>(auth_json)
-        .ok()?
-        .get("hermes_secret")?
-        .as_str()?
-        .to_string();
-    (!key.is_empty()).then_some(key)
+/// The hermes signing key out of the `[plugins.hermes]` settings: `key`,
+/// non-empty, else None. Silent, like every not-set-up reading.
+pub fn hermes_secret(settings: &toml::Table) -> Option<String> {
+    let key = settings.get("key")?.as_str()?;
+    (!key.is_empty()).then(|| key.to_string())
 }
 
 /// The URL for a NAMED route on the same gateway the default posts to: the
@@ -152,12 +147,12 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
     }
 }
 
-/// The line sync mode prints when there is no signing key.
-pub fn skipped_line(auth_path: &std::path::Path) -> String {
-    format!(
-        "pns: post SKIPPED -- no hermes signing key in {}; nothing was sent",
-        auth_path.display()
-    )
+/// The line sync mode prints when there is no signing key. It names the
+/// config key to write, because "not set up" without an address sends the
+/// operator hunting.
+pub fn skipped_line() -> String {
+    "pns: post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
+        .to_string()
 }
 
 /// The deadline an ASYNC leg posts under. Not configurable: nobody is waiting
@@ -187,11 +182,9 @@ pub fn remote_deadline(env_value: Option<&str>) -> Option<Duration> {
 /// The native hermes plugin.
 pub struct HermesChannel<P: SignedPost> {
     pub post: P,
-    /// The signing key, read from the auth file ONCE at the composition
-    /// root. None is the not-set-up case.
+    /// The signing key, read from the config at the composition root. None
+    /// is the not-set-up case.
     pub key: Option<String>,
-    /// Where that file was, for the not-set-up line only.
-    pub auth_path: PathBuf,
     /// `PNS_HERMES_URL` override, else the default.
     pub url: String,
     /// The sync deadline, already validated at the edge; None is curl's
@@ -205,7 +198,7 @@ impl<P: SignedPost> HermesChannel<P> {
         let Some(signature) = self.key.as_deref().and_then(|key| sign(key, &body)) else {
             // No key is unavailable, not a failure. Reported because an
             // empty Discord channel looks like the jobs stopped.
-            return Delivery::Reported(skipped_line(&self.auth_path));
+            return Delivery::Reported(skipped_line());
         };
 
         let deadline = match mode {
@@ -305,16 +298,14 @@ mod tests {
     }
 
     /// The channel as the composition root builds it: the key already
-    /// extracted, and a path that exists only to be named in the not-set-up
-    /// line.
-    fn channel_with_auth(auth: &str, outcome: PostOutcome) -> HermesChannel<RecordingPost> {
+    /// extracted from the `[plugins.hermes]` settings.
+    fn channel_with_settings(settings: &str, outcome: PostOutcome) -> HermesChannel<RecordingPost> {
         HermesChannel {
             post: RecordingPost {
                 outcome,
                 posts: RefCell::new(Vec::new()),
             },
-            key: hermes_secret(auth),
-            auth_path: std::path::PathBuf::from("/test/auth.json"),
+            key: hermes_secret(&settings.parse().unwrap()),
             url: "http://127.0.0.1:9/test".to_string(),
             sync_deadline: Some(Duration::from_secs(5)),
         }
@@ -351,11 +342,14 @@ mod tests {
     }
 
     #[test]
-    fn every_way_the_auth_can_fail_to_provide_a_key_reads_not_set_up() {
-        assert_eq!(hermes_secret(""), None);
-        assert_eq!(hermes_secret("not json"), None);
-        assert_eq!(hermes_secret(r#"{"moshi_secret":"x"}"#), None);
-        assert_eq!(hermes_secret(r#"{"hermes_secret":""}"#), None);
+    fn every_way_the_settings_can_fail_to_provide_a_key_reads_not_set_up() {
+        for settings in ["", "other = \"x\"\n", "key = \"\"\n", "key = 42\n"] {
+            assert_eq!(
+                hermes_secret(&settings.parse().unwrap()),
+                None,
+                "case: {settings:?}"
+            );
+        }
     }
 
     // --- the sync voice ------------------------------------------------------
@@ -381,10 +375,10 @@ mod tests {
     }
 
     #[test]
-    fn the_no_key_line_names_the_auth_file_the_operator_must_fix() {
+    fn the_no_key_line_names_the_config_key_the_operator_must_fix() {
         assert_eq!(
-            skipped_line(std::path::Path::new("/x/auth.json")),
-            "pns: post SKIPPED -- no hermes signing key in /x/auth.json; nothing was sent"
+            skipped_line(),
+            "pns: post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
         );
     }
 
@@ -444,10 +438,7 @@ mod tests {
 
     #[test]
     fn the_key_never_rides_in_the_body_the_url_or_the_signature() {
-        let channel = channel_with_auth(
-            r#"{"hermes_secret":"sekrit-key-9"}"#,
-            PostOutcome::Status(200),
-        );
+        let channel = channel_with_settings("key = \"sekrit-key-9\"\n", PostOutcome::Status(200));
         channel.deliver(&event(), ReportMode::Silent);
         let posts = channel.post.posts.borrow();
         assert!(!posts[0].0.contains("sekrit-key-9"));
@@ -545,7 +536,7 @@ mod tests {
 
     #[test]
     fn a_key_posts_once_with_the_signature_of_the_exact_body_bytes() {
-        let channel = channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
+        let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(200));
         assert_eq!(
             channel.deliver(&event(), ReportMode::Silent),
             Delivery::Reported("pns: posted HTTP 200".to_string()),
@@ -568,7 +559,7 @@ mod tests {
 
     #[test]
     fn sync_carries_the_validated_sync_deadline() {
-        let channel = channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
+        let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(200));
         channel.deliver(&event(), ReportMode::ReportOutcome);
         assert_eq!(
             channel.post.posts.borrow()[0].3,
@@ -579,10 +570,10 @@ mod tests {
     #[test]
     fn no_key_means_no_post_in_either_mode() {
         for mode in [ReportMode::Silent, ReportMode::ReportOutcome] {
-            let channel = channel_with_auth(r#"{}"#, PostOutcome::Status(200));
+            let channel = channel_with_settings("", PostOutcome::Status(200));
             assert_eq!(
                 channel.deliver(&event(), mode),
-                Delivery::Reported(super::skipped_line(std::path::Path::new("/test/auth.json"))),
+                Delivery::Reported(super::skipped_line()),
                 "not set up is reported in both modes; only sync prints it"
             );
             assert!(channel.post.posts.borrow().is_empty());

@@ -158,10 +158,13 @@ esac"#
         );
     }
 
-    pub fn write_auth(&self, contents: &str) -> PathBuf {
-        let path = self.path("auth.json");
-        std::fs::write(&path, contents).expect("auth file");
-        path
+    /// The engine's config, written where its HOME will find it. The secrets
+    /// live in this file now, so this is also how a native test arms a
+    /// channel.
+    pub fn write_config(&self, contents: &str) {
+        let dir = self.path(".config/pns");
+        std::fs::create_dir_all(&dir).expect("config dir");
+        std::fs::write(dir.join("config.toml"), contents).expect("config file");
     }
 }
 

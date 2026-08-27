@@ -5,6 +5,7 @@
 
 [plugins.moshi]
 enabled = true
+token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
 # Whether a long command's card still fires while you are watching that pane
 # on the phone. OFF by operator ruling 2026-08-12: a card describing the pane
 # already filling the screen is noise, and the light pulse alone marks the
@@ -13,6 +14,7 @@ enabled = true
 
 [plugins.hermes]
 enabled = true
+key = "{{ (keepassxc "Hermes :: Webhook Secret :: #relay").Password }}"
 
 [plugins.macos-banner]
 enabled = true
@@ -28,9 +30,8 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # yet (part 2's catch-up and quiet-window slices will), so it lives outside
 # [plugins] and `pns home` is how it is drilled. The phone is matched by
 # NAME because iOS private wifi addresses make the MAC rotate per network.
-# Its API key is unifi_api_key in the relay auth file, beside the other
-# secrets.
 [home]
 router_url = "https://192.168.1.1"
 phone = "mister"
+api_key = "{{ (keepassxc "UniFi :: API Key (dresden-udr)").Password }}"
 {{- end }}

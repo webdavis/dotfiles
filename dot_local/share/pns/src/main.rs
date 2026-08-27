@@ -5,7 +5,6 @@
 //! is delegated to the library. It exits 0 on every path, because a
 //! notification must never fail the work it reports on.
 
-use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
@@ -18,7 +17,7 @@ use pns::channels::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
 use pns::channels::hue::{Bridge, HuePulse, hue_settings};
-use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret, read_auth};
+use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret};
 use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
@@ -617,15 +616,22 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     // Read off the config before selection consumes it: the pulse needs hue's
-    // settings and the plan needs moshi's card toggle.
-    let (hue_table, watch_card) = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => (enabled_hue_table(config), mobile_watch_card(config)),
-        // A config that could not be read falls back to the DEFAULTS of both,
-        // and deliberately disagrees with the plugin selection below, which
-        // falls back to the whole roster. Selection keeps notifications
-        // working through a broken config; these two say what an operator
-        // asked for, and an unreadable file asked for nothing.
-        _ => (None, false),
+    // settings, the plan needs moshi's card toggle, and the two network
+    // channels need their secrets.
+    let (hue_table, watch_card, moshi_token, hermes_key) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (
+            enabled_hue_table(config),
+            mobile_watch_card(config),
+            plugin_settings(config, "moshi").and_then(moshi_secret),
+            plugin_settings(config, "hermes").and_then(hermes_secret),
+        ),
+        // A config that could not be read falls back to the DEFAULTS of all
+        // four, and deliberately disagrees with the plugin selection below,
+        // which falls back to the whole roster. Selection keeps notifications
+        // working through a broken config; these say what an operator asked
+        // for, and an unreadable file asked for nothing: with no secrets, the
+        // network channels are simply not set up.
+        _ => (None, false, None, None),
     };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
@@ -659,7 +665,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
             );
         }
     } else {
-        dispatch_legs(&decision, event, &home);
+        dispatch_legs(&decision, event, &home, moshi_token, hermes_key);
     }
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
@@ -677,7 +683,13 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
 }
 
 /// Every leg to its destination, in the registry's delivery order.
-fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs, home: &str) {
+fn dispatch_legs(
+    decision: &pns::engine::Decision,
+    event: &pns::args::EventArgs,
+    home: &str,
+    moshi_token: Option<String>,
+    hermes_key: Option<String>,
+) {
     // Sanitized ONCE here rather than per channel: a channel may be written in
     // any language and cannot be expected to share the guard. Warned about
     // only now, because a scrub nobody was going to receive is not news.
@@ -696,23 +708,17 @@ fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs,
         channels_dir_override.as_deref(),
         &format!("{home}/.local/libexec/pns/channels"),
     );
-    let auth = AuthFile {
-        path: resolve_path(
-            std::env::var("PNS_AUTH_FILE").ok().as_deref(),
-            &format!("{home}/.config/pns/auth.json"),
-        ),
-        contents: OnceCell::new(),
-    };
     let banner = banner_channel();
-    let hermes_url = hermes_url_for(&event.channel);
+    let moshi = moshi_channel(moshi_token);
+    let hermes = hermes_channel(hermes_key, hermes_url_for(&event.channel));
 
     for leg in &decision.legs {
         let delivered = deliver_leg(
             leg,
             &rendered,
             &banner,
-            &auth,
-            &hermes_url,
+            &moshi,
+            &hermes,
             native_first(channels_dir_override.is_some()),
             &channels_dir,
         );
@@ -791,6 +797,14 @@ fn mobile_watch_card(config: &pns::config::Config) -> bool {
     })
 }
 
+/// One plugin's settings table, when the config carries the plugin at all.
+fn plugin_settings<'config>(
+    config: &'config pns::config::Config,
+    name: &str,
+) -> Option<&'config toml::Table> {
+    config.plugins.get(name).map(|plugin| &plugin.settings)
+}
+
 /// The lights signal, from whichever mode asked for it.
 fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
     let Some(hue) = hue_table.and_then(|settings| {
@@ -806,25 +820,6 @@ fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
         rooms: hue.rooms,
     }
     .run(exit_code);
-}
-
-/// The auth file, read AT MOST ONCE and only if a leg asks for it.
-///
-/// Eager reading made every notification wait on a file no plan might need:
-/// point PNS_AUTH_FILE at a FIFO nobody writes and an executable-only
-/// delivery blocks forever. One read is still the rule, so two native legs
-/// cannot sign against two different versions of the file.
-struct AuthFile {
-    path: std::path::PathBuf,
-    contents: OnceCell<Option<String>>,
-}
-
-impl AuthFile {
-    fn contents(&self) -> Option<&str> {
-        self.contents
-            .get_or_init(|| read_auth(&self.path))
-            .as_deref()
-    }
 }
 
 /// The banner, which now only needs to know where to send the click.
@@ -846,26 +841,20 @@ fn banner_channel() -> BannerChannel<SystemCommandRunner> {
     }
 }
 
-/// The moshi push, with the token this event already read.
-fn moshi_channel(auth: Option<&str>) -> MoshiChannel<UreqPost> {
+/// The moshi push, with the token the config already provided.
+fn moshi_channel(token: Option<String>) -> MoshiChannel<UreqPost> {
     MoshiChannel {
         http: UreqPost::default(),
-        token: auth.and_then(moshi_secret),
+        token,
         url: url_from_env("PNS_MOSHI_URL", DEFAULT_MOSHI_URL),
     }
 }
 
-/// The hermes post, with the key this event already read. The path comes with
-/// it only so the not-set-up line can name the file that had no key in it.
-fn hermes_channel(
-    auth: Option<&str>,
-    auth_path: std::path::PathBuf,
-    url: String,
-) -> HermesChannel<UreqSignedPost> {
+/// The hermes post, with the key the config already provided.
+fn hermes_channel(key: Option<String>, url: String) -> HermesChannel<UreqSignedPost> {
     HermesChannel {
         post: UreqSignedPost,
-        key: auth.and_then(hermes_secret),
-        auth_path,
+        key,
         url,
         sync_deadline: remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()),
     }
@@ -909,21 +898,16 @@ fn deliver_leg(
     leg: &pns::routing::Leg,
     rendered: &pns::channels::Event,
     banner: &BannerChannel<SystemCommandRunner>,
-    auth: &AuthFile,
-    hermes_url: &str,
+    moshi: &MoshiChannel<UreqPost>,
+    hermes: &HermesChannel<UreqSignedPost>,
     native_wins: bool,
     channels_dir: &Path,
 ) -> Delivery {
     if native_wins {
-        // The two network channels are built HERE rather than up front,
-        // because building one is what reads the auth file.
         match leg.name {
             "macos-banner" => return banner.deliver(rendered, leg.mode),
-            "moshi" => return moshi_channel(auth.contents()).deliver(rendered, leg.mode),
-            "hermes" => {
-                return hermes_channel(auth.contents(), auth.path.clone(), hermes_url.to_string())
-                    .deliver(rendered, leg.mode);
-            }
+            "moshi" => return moshi.deliver(rendered, leg.mode),
+            "hermes" => return hermes.deliver(rendered, leg.mode),
             _ => {}
         }
     }
@@ -1063,31 +1047,8 @@ fn home_mode() {
         println!("{}", setup_report(&SetupFailure::InvalidHomeTable));
         return;
     };
-    let auth_path = resolve_path(
-        std::env::var("PNS_AUTH_FILE").ok().as_deref(),
-        &format!("{home_dir}/.config/pns/auth.json"),
-    );
-    // CHECKED BEFORE OPENING, like transcript_tail: a FIFO at this path
-    // blocks a plain read until a writer appears, and a diagnostic's whole
-    // contract is answering promptly. stat does not open, so the check
-    // itself cannot block; an absent file falls through to the key report.
-    if std::fs::metadata(&auth_path).is_ok_and(|metadata| !metadata.is_file()) {
-        println!(
-            "{}",
-            setup_report(&SetupFailure::AuthFileIrregular(
-                auth_path.display().to_string()
-            ))
-        );
-        return;
-    }
-    let Some(key) = read_auth(&auth_path)
-        .as_deref()
-        .and_then(pns::home::unifi_secret)
-    else {
-        println!(
-            "{}",
-            setup_report(&SetupFailure::NoAuthKey(auth_path.display().to_string()))
-        );
+    let Some(key) = pns::home::home_api_key(home_table) else {
+        println!("{}", setup_report(&SetupFailure::NoApiKey));
         return;
     };
     let router = pns::home::UreqRouter::new(settings.router_url, key);

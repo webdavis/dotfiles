@@ -106,17 +106,13 @@ pub fn home_settings(home: Option<&toml::Table>) -> Option<HomeSettings> {
     })
 }
 
-/// The UniFi API key out of the pns auth file, or `None` for every way the
-/// file can fail to provide one. Mirrors `moshi_secret`: the key's path from
-/// file to request header must never touch argv, the environment, or an
-/// error string.
-pub fn unifi_secret(auth_json: &str) -> Option<String> {
-    let key = serde_json::from_str::<serde_json::Value>(auth_json)
-        .ok()?
-        .get("unifi_api_key")?
-        .as_str()?
-        .to_string();
-    (!key.is_empty()).then_some(key)
+/// The UniFi API key out of the `[home]` table (`api_key`), or `None` for
+/// every way the config can fail to provide one. Mirrors `moshi_secret`: the
+/// key's path from config to request header must never touch argv, the
+/// environment, or an error string.
+pub fn home_api_key(home: &toml::Table) -> Option<String> {
+    let key = home.get("api_key")?.as_str()?;
+    (!key.is_empty()).then(|| key.to_string())
 }
 
 /// One reading: fetch through the seam, parse, judge.
@@ -134,7 +130,7 @@ pub fn read_home_presence<R: Router>(router: &R, phone: &str) -> HomePresence {
 /// native legs.
 ///
 /// THE SECRET'S PATH IS THE POINT, exactly as in the moshi channel: the key
-/// travels from the auth file into the request HEADER and nowhere else,
+/// travels from the config into the request HEADER and nowhere else,
 /// never argv, never a child's environment, never an error string. TLS
 /// verification is disabled the way the hue bridge's is, and for the same
 /// reason: the router serves a self-signed certificate for its own LAN
@@ -147,7 +143,7 @@ pub struct UreqRouter {
     agent: ureq::Agent,
     /// e.g. `https://192.168.1.1`, from the `[home]` table.
     base: String,
-    /// The API key, from the auth file.
+    /// The API key, from the `[home]` table.
     key: String,
 }
 
@@ -255,8 +251,7 @@ pub enum SetupFailure {
     ConfigError(String),
     NoHomeTable,
     InvalidHomeTable,
-    NoAuthKey(String),
-    AuthFileIrregular(String),
+    NoApiKey,
 }
 
 /// The one line for a setup failure. PURE for the same reason as `report`.
@@ -272,11 +267,8 @@ pub fn setup_report(failure: &SetupFailure) -> String {
              or not a string"
                 .to_string()
         }
-        SetupFailure::NoAuthKey(path) => {
-            format!("home: no unifi_api_key in {path} (the probe is not set up)")
-        }
-        SetupFailure::AuthFileIrregular(path) => {
-            format!("home: {path} is not a regular file, so it was not read")
+        SetupFailure::NoApiKey => {
+            "home: no api_key in the [home] table (the probe is not set up)".to_string()
         }
     }
 }
@@ -284,8 +276,9 @@ pub fn setup_report(failure: &SetupFailure) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        HomePresence, HomeSettings, Router, SetupFailure, first_site_id, home_settings,
-        parse_client_names, phone_presence, read_home_presence, report, setup_report, unifi_secret,
+        HomePresence, HomeSettings, Router, SetupFailure, first_site_id, home_api_key,
+        home_settings, parse_client_names, phone_presence, read_home_presence, report,
+        setup_report,
     };
 
     /// The live capture of 2026-08-20 from the UDR's
@@ -439,23 +432,19 @@ mod tests {
     // --- the secret ----------------------------------------------------------
 
     #[test]
-    fn the_unifi_key_reads_from_the_auth_file_beside_the_other_secrets() {
+    fn the_api_key_reads_from_the_home_table_beside_the_router() {
         assert_eq!(
-            unifi_secret(r#"{"moshi_secret":"m","unifi_api_key":"k-123"}"#),
+            home_api_key(&table(
+                "router_url = \"https://192.168.1.1\"\napi_key = \"k-123\"\n"
+            )),
             Some("k-123".to_string())
         );
     }
 
     #[test]
-    fn every_way_the_auth_file_fails_to_provide_a_key_is_quietly_not_set_up() {
-        for auth in [
-            "",
-            "not json",
-            "{}",
-            r#"{"unifi_api_key":""}"#,
-            r#"{"unifi_api_key":5}"#,
-        ] {
-            assert_eq!(unifi_secret(auth), None, "case: {auth:?}");
+    fn every_way_the_home_table_fails_to_provide_a_key_is_quietly_not_set_up() {
+        for home in ["", "api_key = \"\"\n", "api_key = 5\n"] {
+            assert_eq!(home_api_key(&table(home)), None, "case: {home:?}");
         }
     }
 
@@ -574,14 +563,7 @@ mod tests {
             ),
             (SetupFailure::NoHomeTable, "router_url"),
             (SetupFailure::InvalidHomeTable, "router_url"),
-            (
-                SetupFailure::NoAuthKey("/x/auth.json".to_string()),
-                "/x/auth.json",
-            ),
-            (
-                SetupFailure::AuthFileIrregular("/x/auth.json".to_string()),
-                "regular file",
-            ),
+            (SetupFailure::NoApiKey, "api_key"),
         ] {
             let line = setup_report(&failure);
             assert!(line.starts_with("home: "), "case {failure:?}: {line}");
