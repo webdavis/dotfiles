@@ -446,7 +446,7 @@ __update_skills_note_scheduled_attempt() {
 }
 
 # Loud alert on both channels the brief names: a local alerter notification and
-# a relay push. Best-effort; a missing tool or relay never fails the run.
+# a pns push. Best-effort; a missing tool or pns never fails the run.
 __update_skills_alert() {
   local detail="$1"
   if command -v alerter >/dev/null 2>&1; then
@@ -455,7 +455,7 @@ __update_skills_alert() {
   local relay_script
   relay_script="$(weekly_engine)"
   if [[ -x $relay_script ]]; then
-    # 9>&- for the same reason relay_fork_advisory carries it: relay DETACHES
+    # 9>&- for the same reason relay_fork_advisory carries it: pns DETACHES
     # channels that outlive this run, a kernel flock on fd 9 is held until the
     # LAST copy of the fd closes, and an inherited copy in a detached curl keeps
     # the lock held after the updater exits, so the next slot defers over a
@@ -1988,7 +1988,7 @@ __gen_reset_failure_streaks() {
 # The full-run weekly attempt (brief steps 2-5): reuse a recovered complete
 # matching candidate, or build one; run the lanes; validate; publish with the
 # atomic exchange; reconcile the store links. ANY failure discards the WHOLE
-# candidate (no partial promotion), records a required failure (loud + relay),
+# candidate (no partial promotion), records a required failure (loud + pns),
 # and leaves the live generation untouched; the next slot retries.
 __gen_weekly_attempt() {
   local relay_script
@@ -2639,7 +2639,7 @@ converge_hermes_skills() {
 # superpowersRouting table. --check probes first so a fix can be logged LOUDLY:
 # a fix means something rewrote the mirror since the last run, and the operator
 # should know what. Soft-gated on the script existing (chezmoi ships it; a
-# half-provisioned machine skips silently), exactly like the relay.sh gate.
+# half-provisioned machine skips silently), exactly like the pns gate.
 assert_superpowers_routing() {
   local routing_script="$HOME/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh"
   local relay_script
@@ -2816,7 +2816,7 @@ else
   # RETRYABLE deferral in EVERY mode: exit the distinct 75 so the first-install
   # wrapper preserves its retry marker and a weekly slot simply writes no stamp
   # and lets a later slot retry. Any OTHER non-zero (unwritable ~/.agents so
-  # `exec 9>>` failed) is a REQUIRED failure: loud warn + relay, no stamp, a
+  # `exec 9>>` failed) is a REQUIRED failure: loud warn + pns, no stamp, a
   # non-zero exit (the wrapper keeps its marker), never a silent success.
   __update_skills_lock_rc=0
   __update_skills_acquire_lock || __update_skills_lock_rc=$?
@@ -2859,7 +2859,7 @@ else
   # missing/unparseable/schema-broken roster, or a VALID roster whose tracked
   # set is empty while the live generation still holds skills (a delist-all is
   # indistinguishable from corruption), is a refused run: loud required
-  # failure, relay alert, exit 1 (which also keys the first-install wrapper's
+  # failure, pns alert, exit 1 (which also keys the first-install wrapper's
   # retry marker), and the live store/generation/fan-out untouched.
   # --check-forks-only mutates nothing and keeps its tolerant no-op contract.
   if [[ -z $CHECK_FORKS_ONLY ]]; then
@@ -2939,7 +2939,7 @@ __update_skills_note_scheduled_attempt
 # reported warning, never a failure, the weekly run must survive a dead network.
 #
 # Everything this phase can go wrong with is ADVISORY: every outcome is a
-# LOUD report (log line plus a relay push carrying its own state) and the phase
+# LOUD report (log line plus a pns push carrying its own state) and the phase
 # still returns 0. It must never fail the weekly run, which by the time it
 # reaches here has already published a generation and has yet to write its
 # success stamp. run_fork_drift_watch is what makes that structural.
@@ -3058,20 +3058,20 @@ GIT_CONFIG_NEUTRALIZED_PATH="/dev/null"
 GIT_CONFIG_COUNT_NONE="0"
 GIT_CONFIG_PARAMETERS_NONE=""
 
-# Soft-gate on relay.sh, exactly like the pre-commit hook's gitleaks stage: its
+# Soft-gate on pns, exactly like the pre-commit hook's gitleaks stage: its
 # absence is a silent skip, not an error. `|| true` because an advisory
-# notification must never decide the run's exit status. A relay push reaches
+# notification must never decide the run's exit status. A pns push reaches
 # the operator's phone, so it is a side effect --dry-run must not have: the dry
 # preview still LOGS every finding, it just does not notify anyone about it.
 #
-# `9>&-` closes the serialize lock's fd for relay and everything it spawns, for
-# the same reason it is on the drift clone below. relay.sh is fire-and-forget:
+# `9>&-` closes the serialize lock's fd for pns and everything it spawns, for
+# the same reason it is on the drift clone below. pns is fire-and-forget:
 # it DETACHES its three channels (two `curl -m 10` and one terminal-notifier)
 # and exits without waiting, so those children outlive this whole run. The lock
 # is a kernel flock on fd 9 which the kernel holds until the LAST copy of the fd
 # closes, so a detached child that inherited it keeps the lock held after the
 # updater has exited, and the next scheduled slot defers with exit 75 over a
-# competing run that does not exist. Measured with the real relay.sh against a
+# competing run that does not exist. Measured with the real pns against a
 # blackholed endpoint: without this close the lock outlived the run by 10s
 # (lsof named the detached curls as the holders), and with it the lock is free
 # the moment the run exits while those same curls are still running. That widest
@@ -3080,11 +3080,11 @@ GIT_CONFIG_PARAMETERS_NONE=""
 # that was never opened (no /usr/bin/lockf, so no lock) is a no-op.
 #
 # Deliberately NOT under a deadline, unlike the clone. That clone waits on a
-# remote by construction; relay.sh performs no synchronous network I/O at all,
+# remote by construction; pns performs no synchronous network I/O at all,
 # every channel that can block is already detached behind its own `-m 10`.
-# Measured with all three channels blocked for 20s: relay.sh still returned in
+# Measured with all three channels blocked for 20s: pns still returned in
 # 95ms. A hand-rolled deadline here would bound the WAIT and not the work (the
-# channels are detached already, so killing relay does not stop them) while
+# channels are detached already, so killing pns does not stop them) while
 # adding a kill path that can cut a push between its channels, on a call site
 # that fires up to fifteen times a run.
 relay_fork_advisory() {

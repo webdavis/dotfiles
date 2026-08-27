@@ -1,4 +1,4 @@
-//! relay's CLI contract, ported verbatim: lenient, warning, never fatal.
+//! pns's CLI contract, ported verbatim: lenient, warning, never fatal.
 //!
 //! The engine sits on an always-exit-0 notification path, so argument
 //! problems WARN and degrade rather than abort. Three rules carry the

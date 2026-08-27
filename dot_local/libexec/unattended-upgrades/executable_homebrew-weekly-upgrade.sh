@@ -8,8 +8,8 @@
 # but never aborts the rest, and cleanup always runs. No Gatekeeper/quarantine
 # stripping -- present-time "Open?" prompts are acceptable (operator is here).
 #
-# It also RELAYS, on both of this machine's channels. A failing step alerts on
-# the existing relay route so it lands in the priority channel, and every
+# It also POSTS, on both of this machine's channels. A failing step alerts on
+# the existing pns route so it lands in the priority channel, and every
 # SCHEDULED run posts a record of what it upgraded to the separate
 # #unattended-upgrades channel. Act on one, record the other. Before this the
 # helper relayed nothing at all: a weekly upgrade could fail every step and the
@@ -96,9 +96,9 @@ UPGRADE_RECORD_EPOCH=""
 UPGRADE_RECORD_ISO=""
 read -r UPGRADE_RECORD_EPOCH UPGRADE_RECORD_ISO < <(date -u '+%s %Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || true
 
-# The relay script by ABSOLUTE path. The LaunchAgent's PATH is
+# The pns script by ABSOLUTE path. The LaunchAgent's PATH is
 # /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin, with no
-# ~/.local/bin in it, so a bare `relay.sh` would never be found under launchd and
+# ~/.local/bin in it, so a bare `pns` would never be found under launchd and
 # every alert would vanish exactly when it mattered.
 # The engine, resolved without depending on log-entries.sh: partial
 # deployment explicitly tolerates that helper being absent, and the engine
@@ -111,18 +111,18 @@ weekly_engine() {
     printf '%s' "${HOME:-}/.local/libexec/pns/pns"
   fi
 }
-RELAY="${HOMEBREW_WEEKLY_RELAY:-$(weekly_engine)}"
+ENGINE="${HOMEBREW_WEEKLY_ENGINE:-$(weekly_engine)}"
 
-# weekly_alert <state> <detail> -- the EXISTING relay route, so this lands in the
+# weekly_alert <state> <detail> -- the EXISTING pns route, so this lands in the
 # priority channel beside every other alert on this machine. Best effort: a
-# missing relay never fails the upgrade, and a failure to notify is stated.
+# missing pns never fails the upgrade, and a failure to notify is stated.
 weekly_alert() {
   local state="$1" detail="$2"
-  if [[ ! -x $RELAY ]]; then
-    printf 'homebrew-weekly-upgrade: no executable pns engine at %s; this alert was NOT delivered\n' "$RELAY" >&2
+  if [[ ! -x $ENGINE ]]; then
+    printf 'homebrew-weekly-upgrade: no executable pns engine at %s; this alert was NOT delivered\n' "$ENGINE" >&2
     return 0
   fi
-  "$RELAY" --agent homebrew-weekly-upgrade --state "$state" \
+  "$ENGINE" --agent homebrew-weekly-upgrade --state "$state" \
     --project "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" --detail "$detail" 9>&- || true
   return 0
 }
@@ -144,11 +144,11 @@ weekly_record() {
   # nothing sent. A broken record channel cannot report itself, so it is also
   # said once a week on the ALERT route, which is the one that lands in the
   # priority channel.
-  if ! UNATTENDED_LOG_RELAY="$RELAY" unattended_log_post homebrew-weekly-upgrade "$class" \
+  if ! UNATTENDED_LOG_ENGINE="$ENGINE" unattended_log_post homebrew-weekly-upgrade "$class" \
     "$(unattended_log_host)" "$detail"; then
     unattended_log_release_week "$LOG_WEEK_GUARD" "$class"
     printf 'homebrew-weekly-upgrade: the weekly record was NOT delivered; this week stays unclaimed so a later run retries\n' >&2
-    UNATTENDED_LOG_RELAY="$RELAY" unattended_log_alert_delivery_failure "$LOG_WEEK_GUARD" homebrew-weekly-upgrade
+    UNATTENDED_LOG_ENGINE="$ENGINE" unattended_log_alert_delivery_failure "$LOG_WEEK_GUARD" homebrew-weekly-upgrade
   fi
   return 0
 }

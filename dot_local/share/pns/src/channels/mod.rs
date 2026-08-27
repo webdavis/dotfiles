@@ -117,12 +117,12 @@ mod tests {
         // much the channel had to say, and a silent channel says nothing
         // however the leg reports.
         assert_eq!(
-            Delivery::Reported("relay: posted HTTP 200".to_string())
+            Delivery::Reported("pns: posted HTTP 200".to_string())
                 .line_for(ReportMode::ReportOutcome),
-            Some("relay: posted HTTP 200".to_string())
+            Some("pns: posted HTTP 200".to_string())
         );
         assert_eq!(
-            Delivery::Reported("relay: posted HTTP 200".to_string()).line_for(ReportMode::Silent),
+            Delivery::Reported("pns: posted HTTP 200".to_string()).line_for(ReportMode::Silent),
             None
         );
         assert_eq!(Delivery::Silent.line_for(ReportMode::ReportOutcome), None);

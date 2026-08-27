@@ -12,7 +12,7 @@ use super::{Delivery, Event};
 use crate::routing::ReportMode;
 use std::path::Path;
 
-/// Where the push goes when `RELAY_MOSHI_URL` says nothing.
+/// Where the push goes when `PNS_MOSHI_URL` says nothing.
 pub const DEFAULT_MOSHI_URL: &str = "https://api.getmoshi.app/api/webhook";
 
 /// The POST seam: one call, a URL and a JSON body in, success or not out.
@@ -50,7 +50,7 @@ pub struct MoshiChannel<H: HttpPost> {
     /// The token, read from the auth file ONCE at the composition root. None
     /// is the not-set-up case, which delivers nothing.
     pub token: Option<String>,
-    /// `RELAY_MOSHI_URL` override, else the default.
+    /// `PNS_MOSHI_URL` override, else the default.
     pub url: String,
 }
 

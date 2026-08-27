@@ -179,11 +179,11 @@ assert_value_stays_on_one_line() {
 
 @test "a secret or credential file is rendered by basename, never with its path or its content hash" {
   render "$(crit agent_secretfile_changed \
-    '{"path":"/Users/x/.config/relay/webhook-secret","sha256":"cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"}')
+    '{"path":"/Users/x/.config/pns/webhook-secret","sha256":"cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"}')
 $(crit agent_authfile_changed \
     '{"path":"/Users/x/.codex/config.toml","sha256":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}')"
   assert_holds 'webhook-secret' 'the secret file is still identified, by basename'
-  refute_holds '/Users/x/.config/relay' 'the page fans out to Discord, so the path stays out of it'
+  refute_holds '/Users/x/.config/pns' 'the page fans out to Discord, so the path stays out of it'
   refute_holds 'cafebabe' 'the content hash of a secret stays out of the page'
   assert_holds 'config.toml' 'the credential file is identified by basename'
   refute_holds '/Users/x/.codex/config.toml' 'the credential path stays out of the page'

@@ -106,7 +106,7 @@ pub fn home_settings(home: Option<&toml::Table>) -> Option<HomeSettings> {
     })
 }
 
-/// The UniFi API key out of the relay auth file, or `None` for every way the
+/// The UniFi API key out of the pns auth file, or `None` for every way the
 /// file can fail to provide one. Mirrors `moshi_secret`: the key's path from
 /// file to request header must never touch argv, the environment, or an
 /// error string.

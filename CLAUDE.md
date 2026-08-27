@@ -150,7 +150,7 @@ the vault, which is no longer a goal now that the operator applies with it unloc
 Thirteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
 `~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`, `~/.config/pns/config.toml`,
-`~/.config/relay/auth.json`, `~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
+`~/.config/pns/auth.json`, `~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
 `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.

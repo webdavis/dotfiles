@@ -106,7 +106,7 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
     let mut command = sandbox.bare();
     // At the desk, because the banner is a desk surface now: an idle of
     // 99999 is the operator being away, and away raises no banner at all.
-    command.env("RELAY_IDLE_SECS", "0");
+    command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_notifier(&mut command);
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
@@ -129,9 +129,9 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
 
     let mut command = sandbox.bare();
     command
-        .env("RELAY_IDLE_SECS", "99999")
-        .env("RELAY_AUTH_FILE", &auth)
-        .env("RELAY_MOSHI_URL", capture.url());
+        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_AUTH_FILE", &auth)
+        .env("PNS_MOSHI_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
 
@@ -161,9 +161,9 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
     let auth = sandbox.write_auth("{\"moshi_secret\":\"tok-integration\"}\n");
     let mut command = sandbox.bare();
     command
-        .env("RELAY_IDLE_SECS", "99999")
-        .env("RELAY_AUTH_FILE", &auth)
-        .env("RELAY_MOSHI_URL", "http://127.0.0.1:1");
+        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_AUTH_FILE", &auth)
+        .env("PNS_MOSHI_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert!(
@@ -180,14 +180,14 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
 
     let mut command = sandbox.bare();
     command
-        .env("RELAY_AUTH_FILE", &auth)
-        .env("RELAY_HERMES_URL", capture.url());
+        .env("PNS_AUTH_FILE", &auth)
+        .env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command
         .args(["--agent", "weekly", "--state", "done", "--detail", "ran"])
         .arg("--remote-only"));
 
-    assert_eq!(stdout(&output), "relay: posted HTTP 200\n");
+    assert_eq!(stdout(&output), "pns: posted HTTP 200\n");
 
     let raw = capture.finish();
     let sent = header_of(&raw, "x-webhook-signature").expect("a signature header");
@@ -208,15 +208,15 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
 
     let mut command = sandbox.bare();
     command
-        .env("RELAY_AUTH_FILE", &auth)
-        .env("RELAY_HERMES_URL", capture.url());
+        .env("PNS_AUTH_FILE", &auth)
+        .env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command
         .args(["--agent", "weekly", "--state", "done", "--detail", "ran"])
         .arg("--remote-only"));
     capture.finish();
 
-    assert_eq!(stdout(&output), "relay: post FAILED HTTP 401\n");
+    assert_eq!(stdout(&output), "pns: post FAILED HTTP 401\n");
 }
 
 #[test]
@@ -227,10 +227,10 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
     let auth = sandbox.write_auth("{\"hermes_secret\":\"gate-signing-key\"}\n");
     let mut command = sandbox.bare();
     command
-        .env("RELAY_IDLE_SECS", "99999")
-        .env("RELAY_AUTH_FILE", &auth)
-        .env("RELAY_HERMES_URL", "http://127.0.0.1:1")
-        .env("RELAY_MOSHI_URL", "http://127.0.0.1:1");
+        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_AUTH_FILE", &auth)
+        .env("PNS_HERMES_URL", "http://127.0.0.1:1")
+        .env("PNS_MOSHI_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert!(

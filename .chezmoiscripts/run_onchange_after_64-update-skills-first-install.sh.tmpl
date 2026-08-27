@@ -48,7 +48,7 @@ set -euo pipefail
 UPDATER="$HOME/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh"
 MARKER_DIR="$HOME/.local/state/skills"
 MARKER="$MARKER_DIR/first-install-pending"
-RELAY="$HOME/.local/libexec/pns/pns"
+ENGINE="$HOME/.local/libexec/pns/pns"
 
 # Soft-gate on the deployed updater existing: a half-provisioned machine (updater
 # not yet applied) skips silently, exactly like the other loader chezmoiscripts.
@@ -95,8 +95,8 @@ else
   # Hard failure: bump the counter and relay, but never abort the apply.
   count="$(bump_retry_marker)"
   printf 'update-skills first-install pass failed (attempt %s); it will retry on the next apply\n' "$count" >&2
-  if [[ -x $RELAY ]]; then
-    "$RELAY" --agent update-skills --state first-install-failed --project skills \
+  if [[ -x $ENGINE ]]; then
+    "$ENGINE" --agent update-skills --state first-install-failed --project skills \
       --detail "first-install --install-only failed on this machine (attempt $count); it re-fires on the next apply" || true
   fi
 fi

@@ -1,4 +1,4 @@
-//! The relay binary: the composition root, and the only place with a main.
+//! The pns binary: the composition root, and the only place with a main.
 //!
 //! Everything here is WIRING. The registrations below are the roster, the
 //! environment and the config are read once at this edge, and every decision
@@ -105,7 +105,7 @@ fn hook_mode(event: &str) -> i32 {
         return 0;
     };
     let payload = parse_payload(&payload_json);
-    let agent = std::env::var("RELAY_AGENT").unwrap_or_else(|_| "claude".to_string());
+    let agent = std::env::var("PNS_AGENT").unwrap_or_else(|_| "claude".to_string());
 
     match event {
         "prompt" => start_of_turn(&payload),
@@ -278,7 +278,7 @@ fn condense(reply: &str) -> (String, String) {
     // The re-entry guard: the condenser is itself an agent run, and its own
     // Stop hook would call this again. The stripped home below installs no
     // hooks at all, which is the hard guarantee; this is the cheap one.
-    if std::env::var("RELAY_SUMMARIZING").is_ok() {
+    if std::env::var("PNS_SUMMARIZING").is_ok() {
         return fallback();
     }
     let Some(home) = condenser_home() else {
@@ -290,7 +290,7 @@ fn condense(reply: &str) -> (String, String) {
         .args(["exec", "--ephemeral", "--skip-git-repo-check", "-C"])
         .arg(&home)
         .args(["-s", "read-only", "-"])
-        .env("RELAY_SUMMARIZING", "1")
+        .env("PNS_SUMMARIZING", "1")
         .env("CODEX_HOME", &home);
     let deadline = env_deadline("PNS_CONDENSER_DEADLINE_MS").unwrap_or(CONDENSER_DEADLINE);
     match run_bounded(command, Some(&condenser_prompt(reply)), deadline)
@@ -305,14 +305,14 @@ fn condense(reply: &str) -> (String, String) {
 /// A private, stripped Codex home: a minimal config (fast model, low
 /// reasoning) and the live auth symlinked, with NO hooks or plugins. That cuts
 /// the load (~9s to ~3s) and means the condenser run has no Stop hook of its
-/// own, which is the hard guarantee against a relay-to-codex-to-relay loop.
+/// own, which is the hard guarantee against a pns-to-codex-to-pns loop.
 /// It is created owner-only, because it points at the live Codex credentials.
 fn condenser_home() -> Option<std::path::PathBuf> {
     use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
     let user_home = std::env::var("HOME").unwrap_or_default();
     let home = resolve_path(
-        std::env::var("RELAY_CODEX_HOME").ok().as_deref(),
-        &format!("{user_home}/.config/relay/codex-home"),
+        std::env::var("PNS_CODEX_HOME").ok().as_deref(),
+        &format!("{user_home}/.config/pns/codex-home"),
     );
     std::fs::DirBuilder::new()
         .recursive(true)
@@ -389,7 +389,7 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     if forwarded.is_some() {
         // Suppressed here rather than by the plan: the card moshi is raising
         // is something the surface model cannot know about.
-        unsafe { std::env::set_var("RELAY_SKIP_PHONE", "1") };
+        unsafe { std::env::set_var("PNS_SKIP_PHONE", "1") };
     }
     run_event(&event, &probes);
     forwarded.map_or(0, moshi_decision)
@@ -606,7 +606,7 @@ fn event_mode() {
             .map(|argument| argument.to_string_lossy().into_owned()),
     );
     for warning in &warnings {
-        eprintln!("relay: {warning}");
+        eprintln!("pns: {warning}");
     }
     run_event(&event, &system_probes());
 }
@@ -655,7 +655,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         // caller asked for: a silent exit is indistinguishable from delivery.
         if event.local_only && event.remote_only {
             println!(
-                "relay: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
+                "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
             );
         }
     } else {
@@ -682,9 +682,7 @@ fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs,
     // any language and cannot be expected to share the guard. Warned about
     // only now, because a scrub nobody was going to receive is not news.
     let pane = if decision.pane_dropped {
-        eprintln!(
-            "relay: dropped a pane id with shell metacharacters; no channel will focus a pane"
-        );
+        eprintln!("pns: dropped a pane id with shell metacharacters; no channel will focus a pane");
         ""
     } else {
         event.pane.as_str()
@@ -700,8 +698,8 @@ fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs,
     );
     let auth = AuthFile {
         path: resolve_path(
-            std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
-            &format!("{home}/.config/relay/auth.json"),
+            std::env::var("PNS_AUTH_FILE").ok().as_deref(),
+            &format!("{home}/.config/pns/auth.json"),
         ),
         contents: OnceCell::new(),
     };
@@ -811,7 +809,7 @@ fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
 /// The auth file, read AT MOST ONCE and only if a leg asks for it.
 ///
 /// Eager reading made every notification wait on a file no plan might need:
-/// point RELAY_AUTH_FILE at a FIFO nobody writes and an executable-only
+/// point PNS_AUTH_FILE at a FIFO nobody writes and an executable-only
 /// delivery blocks forever. One read is still the rule, so two native legs
 /// cannot sign against two different versions of the file.
 struct AuthFile {
@@ -851,7 +849,7 @@ fn moshi_channel(auth: Option<&str>) -> MoshiChannel<UreqPost> {
     MoshiChannel {
         http: UreqPost::default(),
         token: auth.and_then(moshi_secret),
-        url: url_from_env("RELAY_MOSHI_URL", DEFAULT_MOSHI_URL),
+        url: url_from_env("PNS_MOSHI_URL", DEFAULT_MOSHI_URL),
     }
 }
 
@@ -865,8 +863,8 @@ fn hermes_channel(
         post: UreqSignedPost,
         key: auth.and_then(hermes_secret),
         auth_path,
-        url: url_from_env("RELAY_HERMES_URL", DEFAULT_HERMES_URL),
-        sync_deadline: remote_deadline(std::env::var("RELAY_REMOTE_TIMEOUT").ok().as_deref()),
+        url: url_from_env("PNS_HERMES_URL", DEFAULT_HERMES_URL),
+        sync_deadline: remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()),
     }
 }
 
@@ -1039,8 +1037,8 @@ fn home_mode() {
         return;
     };
     let auth_path = resolve_path(
-        std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
-        &format!("{home_dir}/.config/relay/auth.json"),
+        std::env::var("PNS_AUTH_FILE").ok().as_deref(),
+        &format!("{home_dir}/.config/pns/auth.json"),
     );
     // CHECKED BEFORE OPENING, like transcript_tail: a FIFO at this path
     // blocks a plain read until a writer appears, and a diagnostic's whole

@@ -103,7 +103,7 @@ _run_vouched_pass() {
   findings+=("$(finding T01 new_admin_user added '"username":"eve","uid":"501"')")
   findings+=("$(finding T02 filevault_off added '"note":"off"')")
   findings+=("$(finding T03 filevault_off removed '"note":"restored"')")
-  findings+=("$(finding T04 agent_secretfile_changed added '"path":"/Users/x/.config/relay/webhook-secret"')")
+  findings+=("$(finding T04 agent_secretfile_changed added '"path":"/Users/x/.config/pns/webhook-secret"')")
   findings+=("$(finding T05 agent_exposure_changed added '"name":"nc","address":"0.0.0.0","port":"4444"')")
   findings+=("$(finding T06 agent_exposure_changed removed '"name":"nc","address":"0.0.0.0","port":"4444"')")
   findings+=("$(finding T07 suid_bin_unexpected added '"path":"/tmp/suid07"' /tmp/suid07)")

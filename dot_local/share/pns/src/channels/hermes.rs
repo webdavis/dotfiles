@@ -14,9 +14,9 @@ use crate::routing::ReportMode;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// The gateway when `RELAY_HERMES_URL` says nothing: the local hermes
+/// The gateway when `PNS_HERMES_URL` says nothing: the local hermes
 /// webhook route.
-pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/relay";
+pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns";
 
 /// What one signed POST came back with: a status code, or no response at
 /// all, which sync mode reports as its own distinct failure.
@@ -89,14 +89,14 @@ pub fn hermes_secret(auth_json: &str) -> Option<String> {
 pub fn outcome_line(outcome: PostOutcome) -> String {
     match outcome {
         PostOutcome::Status(code) if (200..300).contains(&code) => {
-            format!("relay: posted HTTP {code}")
+            format!("pns: posted HTTP {code}")
         }
-        PostOutcome::Status(code) => format!("relay: post FAILED HTTP {code}"),
+        PostOutcome::Status(code) => format!("pns: post FAILED HTTP {code}"),
         PostOutcome::NoStatus => {
-            "relay: post FAILED (curl reported no HTTP status at all)".to_string()
+            "pns: post FAILED (curl reported no HTTP status at all)".to_string()
         }
         PostOutcome::NoResponse => {
-            "relay: post FAILED HTTP 000 (no response; is the hermes gateway up?)".to_string()
+            "pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)".to_string()
         }
     }
 }
@@ -104,7 +104,7 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
 /// The line sync mode prints when there is no signing key.
 pub fn skipped_line(auth_path: &std::path::Path) -> String {
     format!(
-        "relay: post SKIPPED -- no hermes signing key in {}; nothing was sent",
+        "pns: post SKIPPED -- no hermes signing key in {}; nothing was sent",
         auth_path.display()
     )
 }
@@ -122,7 +122,7 @@ const DEFAULT_SYNC_DEADLINE_SECS: u64 = 5;
 /// of ureq's deadline arithmetic.
 const MAX_SYNC_DEADLINE_SECS: u64 = 86_400;
 
-/// The sync deadline: `RELAY_REMOTE_TIMEOUT` validated as a count, else 5
+/// The sync deadline: `PNS_REMOTE_TIMEOUT` validated as a count, else 5
 /// seconds, because a garbled deadline must not become zero or forever.
 pub fn remote_deadline(env_value: Option<&str>) -> Option<Duration> {
     let seconds = env_value
@@ -141,7 +141,7 @@ pub struct HermesChannel<P: SignedPost> {
     pub key: Option<String>,
     /// Where that file was, for the not-set-up line only.
     pub auth_path: PathBuf,
-    /// `RELAY_HERMES_URL` override, else the default.
+    /// `PNS_HERMES_URL` override, else the default.
     pub url: String,
     /// The sync deadline, already validated at the edge; None is curl's
     /// explicit no-deadline.
@@ -313,19 +313,19 @@ mod tests {
     fn sync_outcomes_are_spelled_exactly_as_the_bash_spells_them() {
         assert_eq!(
             outcome_line(PostOutcome::Status(200)),
-            "relay: posted HTTP 200"
+            "pns: posted HTTP 200"
         );
         assert_eq!(
             outcome_line(PostOutcome::Status(204)),
-            "relay: posted HTTP 204"
+            "pns: posted HTTP 204"
         );
         assert_eq!(
             outcome_line(PostOutcome::Status(404)),
-            "relay: post FAILED HTTP 404"
+            "pns: post FAILED HTTP 404"
         );
         assert_eq!(
             outcome_line(PostOutcome::NoResponse),
-            "relay: post FAILED HTTP 000 (no response; is the hermes gateway up?)"
+            "pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)"
         );
     }
 
@@ -333,7 +333,7 @@ mod tests {
     fn the_no_key_line_names_the_auth_file_the_operator_must_fix() {
         assert_eq!(
             skipped_line(std::path::Path::new("/x/auth.json")),
-            "relay: post SKIPPED -- no hermes signing key in /x/auth.json; nothing was sent"
+            "pns: post SKIPPED -- no hermes signing key in /x/auth.json; nothing was sent"
         );
     }
 
@@ -367,7 +367,7 @@ mod tests {
     fn a_redirect_is_the_final_answer_so_3xx_reads_failed() {
         assert_eq!(
             outcome_line(PostOutcome::Status(301)),
-            "relay: post FAILED HTTP 301"
+            "pns: post FAILED HTTP 301"
         );
     }
 
@@ -375,7 +375,7 @@ mod tests {
     fn the_never_attempted_case_has_its_own_bash_wording() {
         assert_eq!(
             outcome_line(PostOutcome::NoStatus),
-            "relay: post FAILED (curl reported no HTTP status at all)"
+            "pns: post FAILED (curl reported no HTTP status at all)"
         );
     }
 
@@ -497,7 +497,7 @@ mod tests {
         let channel = channel_with_auth(r#"{"hermes_secret":"key"}"#, PostOutcome::Status(200));
         assert_eq!(
             channel.deliver(&event(), ReportMode::Silent),
-            Delivery::Reported("relay: posted HTTP 200".to_string()),
+            Delivery::Reported("pns: posted HTTP 200".to_string()),
             "the channel reports what happened; the leg's mode decides who hears it"
         );
         let posts = channel.post.posts.borrow();
@@ -540,6 +540,6 @@ mod tests {
 
     #[test]
     fn the_default_url_is_the_local_gateway_route() {
-        assert_eq!(DEFAULT_HERMES_URL, "http://127.0.0.1:8644/webhooks/relay");
+        assert_eq!(DEFAULT_HERMES_URL, "http://127.0.0.1:8644/webhooks/pns");
     }
 }

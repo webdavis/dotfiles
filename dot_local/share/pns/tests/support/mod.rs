@@ -55,15 +55,15 @@ impl Sandbox {
     }
 
     /// The engine, pointed at the stubs and away from the desk.
-    pub fn relay(&self) -> Command {
+    pub fn pns(&self) -> Command {
         let mut command = self.bare();
         command
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
-            .env("RELAY_IDLE_SECS", "99999")
+            .env("PNS_IDLE_SECS", "99999")
             // The phone's clock is read by walking the DEVELOPER'S OWN live
             // mosh sessions, so the suite states it instead: untouched for a
             // day. A test about the phone overrides this with its own age.
-            .env("RELAY_PHONE_INPUT_AGE", "99999")
+            .env("PNS_PHONE_INPUT_AGE", "99999")
             // No live condenser: a Stop hook spawns one for real, and the
             // suite must never reach the operator's own Codex.
             .env("CODEX_BIN", "/nonexistent/codex");

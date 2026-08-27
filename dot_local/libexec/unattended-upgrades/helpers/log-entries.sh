@@ -44,7 +44,7 @@
 # question. The ISO field is for the human reading the entry.
 #
 # NOTHING HERE IS EVER SILENT. A missing marker, an unparseable marker, an
-# unwritable guard, an absent relay.sh: each produces a stated line. A quiet
+# unwritable guard, an absent pns.sh: each produces a stated line. A quiet
 # no-op in this file would read downstream as a delivered entry, which is the
 # precise failure mode the whole record exists to end.
 
@@ -433,16 +433,16 @@ unattended_log_change_section() {
 # unattended_log_post <agent> <state> <project> <detail> -- deliver one entry.
 #
 # --remote-only is not optional here. An unattended Monday-slot run is idle past
-# relay.sh's desk threshold by definition, so the default fan-out would buzz the
+# pns.sh's desk threshold by definition, so the default fan-out would buzz the
 # phone and pop a macOS banner for every weekly heartbeat, including the ones
 # that say nothing changed. That is the noise a separate channel was chosen to
 # avoid. --local-only is the wrong lever: it suppresses the hermes leg, which IS
-# the log. --remote-only also makes relay POST synchronously and print the
+# the log. --remote-only also makes pns POST synchronously and print the
 # delivery outcome, so a 401 or a 404 lands in this job's run log instead of
 # being discarded into /dev/null while the channel stays empty.
 #
-# 9>&- closes the caller's serialize-lock fd for relay and everything it spawns.
-# relay detaches channels that outlive this whole run, and a kernel flock is held
+# 9>&- closes the caller's serialize-lock fd for pns and everything it spawns.
+# pns detaches channels that outlive this whole run, and a kernel flock is held
 # until the LAST copy of the fd closes, so a detached child that inherited it
 # keeps the lock held after the job exited and the next scheduled slot defers
 # over a competing run that does not exist. Closing an fd that was never opened
@@ -454,11 +454,11 @@ unattended_log_change_section() {
 # silence the other 23 slots, and leave the week with no entry at all while the
 # guard asserted it had one.
 #
-# The outcome is read from relay's STDOUT line rather than from its exit status,
-# and deliberately so: relay exits 0 whatever the gateway answered, which is the
+# The outcome is read from pns's STDOUT line rather than from its exit status,
+# and deliberately so: pns exits 0 whatever the gateway answered, which is the
 # contract that keeps a broken record channel from breaking the job it reports
-# on. That line is relay's stated interface for --remote-only, pinned on both
-# sides (test/unit/relay-remote-only.sh writes it, this file reads it). It is
+# on. That line is pns's stated interface for --remote-only, pinned on both
+# sides (test/unit/pns-remote-only.sh writes it, this file reads it). It is
 # also echoed onward, so the caller's run log keeps it either way.
 #
 # Never ABORTS the caller: a non-zero return is a fact to act on, and both
@@ -468,7 +468,7 @@ unattended_log_change_section() {
 # test seam), else the binary by absolute path. The callers' -x guards are
 # what refuse a half-provisioned machine, loudly.
 unattended_engine() {
-  local override="${UNATTENDED_LOG_RELAY:-}"
+  local override="${UNATTENDED_LOG_ENGINE:-}"
   if [[ -n $override ]]; then
     printf '%s' "$override"
     return 0
@@ -478,24 +478,24 @@ unattended_engine() {
 
 unattended_log_post() {
   local agent="$1" state="$2" project="$3" detail="$4" outcome
-  local relay_script
-  relay_script="$(unattended_engine)"
-  if [[ ! -x $relay_script ]]; then
-    printf 'unattended-log: no executable pns engine at %s; this entry was NOT delivered (run chezmoi apply)\n' "$relay_script"
+  local pns_script
+  pns_script="$(unattended_engine)"
+  if [[ ! -x $pns_script ]]; then
+    printf 'unattended-log: no executable pns engine at %s; this entry was NOT delivered (run chezmoi apply)\n' "$pns_script"
     return 1
   fi
-  # stdout captured (it is the outcome), stderr left alone so relay's own
+  # stdout captured (it is the outcome), stderr left alone so pns's own
   # warnings still reach this job's run log unmangled.
-  outcome="$(RELAY_HERMES_URL="$(unattended_log_url)" "$relay_script" --remote-only \
+  outcome="$(PNS_HERMES_URL="$(unattended_log_url)" "$pns_script" --remote-only \
     --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&- || true)"
   [[ -n $outcome ]] && printf '%s\n' "$outcome"
-  grep -q '^relay: posted HTTP 2' <<<"$outcome"
+  grep -q '^pns: posted HTTP 2' <<<"$outcome"
 }
 
 # unattended_log_alert_delivery_failure <guard-dir> <agent> -- say on the ALERT
 # route that the record channel itself is broken. At most once per ISO week.
 #
-# WHY THIS EXISTS: relay already prints `post FAILED HTTP 401` into the job's run
+# WHY THIS EXISTS: pns already prints `post FAILED HTTP 401` into the job's run
 # log, and that is very nearly no better than silence. This whole design rests on
 # the operator NOT going looking (it is why drift-watch was rejected: a passive
 # signal goes unnoticed), and a broken record channel is the one failure the
@@ -503,29 +503,29 @@ unattended_log_post() {
 # lands in the priority channel with a banner and a phone push, exactly like
 # every other thing on this machine that needs acting on.
 #
-# NO RELAY_HERMES_URL override, which is what makes this the alert route: relay's
+# NO PNS_HERMES_URL override, which is what makes this the alert route: pns's
 # default is the alert webhook. No --remote-only either; this one should buzz.
 # There is no recursion risk: the alert path is fire-and-forget and never
 # re-enters this library.
 #
 # THE WEEK IS CLAIMED ONLY WHEN AN ALERT CAN ACTUALLY BE ATTEMPTED, which is the
 # same rule the record delivery follows by giving its claim back on a refusal. A
-# claim taken before the relay was found spent the week's one alert on a call
-# that sent nothing: a relay restored on Tuesday had every remaining slot's alert
+# claim taken before the pns was found spent the week's one alert on a call
+# that sent nothing: a pns restored on Tuesday had every remaining slot's alert
 # suppressed by that token, so the week lost BOTH halves at once, the record and
 # the alert saying the record could not be posted. The claim cannot cover the
 # delivery itself -- this route is fire-and-forget and its outcome is never
 # observed -- so it covers exactly what is knowable, that an attempt was made.
 unattended_log_alert_delivery_failure() {
   local guard="$1" agent="$2"
-  local relay_script
-  relay_script="$(unattended_engine)"
-  if [[ ! -x $relay_script ]]; then
-    printf 'unattended-log: no executable pns engine at %s; the broken-record-channel alert was NOT delivered either, and this week stays unclaimed so a later run retries it\n' "$relay_script"
+  local pns_script
+  pns_script="$(unattended_engine)"
+  if [[ ! -x $pns_script ]]; then
+    printf 'unattended-log: no executable pns engine at %s; the broken-record-channel alert was NOT delivered either, and this week stays unclaimed so a later run retries it\n' "$pns_script"
     return 0
   fi
   unattended_log_claim_week "$guard" delivery-alert || return 0
-  "$relay_script" --agent "$agent" --state log-channel-broken \
+  "$pns_script" --agent "$agent" --state log-channel-broken \
     --project "$(unattended_log_host)" \
     --detail "$(printf 'The weekly record from %s could NOT be delivered to the unattended-upgrades channel (this job'"'"'s run log carries the HTTP status). Until this is fixed that channel is silent for a reason that has nothing to do with the jobs it reports on, so its silence means nothing. Check that the hermes gateway is up and that it serves the unattended-upgrades route.' "$agent")" 9>&- || true
   return 0
