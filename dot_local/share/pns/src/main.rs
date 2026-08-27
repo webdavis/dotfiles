@@ -1011,54 +1011,68 @@ fn pulse_mode() {
 /// answer "why did the probe not read" as much as "is the phone home". The
 /// key itself is never printed, on any path.
 fn home_mode() {
+    use pns::home::{SetupFailure, report, setup_report};
     let home_dir = std::env::var("HOME").unwrap_or_default();
     let config = match load_config(&config_path(&home_dir)) {
         Ok(LoadOutcome::Loaded(config)) => config,
         Ok(LoadOutcome::Missing) => {
-            println!("home: not configured (no config file)");
+            println!("{}", setup_report(&SetupFailure::NoConfigFile));
             return;
         }
         Err(error) => {
-            println!("home: config error ({})", error.detail());
+            println!(
+                "{}",
+                setup_report(&SetupFailure::ConfigError(error.detail().to_string()))
+            );
             return;
         }
     };
-    let Some(settings) = pns::home::home_settings(config.home.as_ref()) else {
-        println!("home: not configured (no [home] table with router_url and phone)");
+    // A missing table and a present-but-invalid one get DIFFERENT lines: the
+    // first is fixed by writing the table, the second by fixing one value,
+    // and one message covering both sends the operator to the wrong edit.
+    let Some(home_table) = config.home.as_ref() else {
+        println!("{}", setup_report(&SetupFailure::NoHomeTable));
+        return;
+    };
+    let Some(settings) = pns::home::home_settings(Some(home_table)) else {
+        println!("{}", setup_report(&SetupFailure::InvalidHomeTable));
         return;
     };
     let auth_path = resolve_path(
         std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
         &format!("{home_dir}/.config/relay/auth.json"),
     );
+    // CHECKED BEFORE OPENING, like transcript_tail: a FIFO at this path
+    // blocks a plain read until a writer appears, and a diagnostic's whole
+    // contract is answering promptly. stat does not open, so the check
+    // itself cannot block; an absent file falls through to the key report.
+    if std::fs::metadata(&auth_path).is_ok_and(|metadata| !metadata.is_file()) {
+        println!(
+            "{}",
+            setup_report(&SetupFailure::AuthFileIrregular(
+                auth_path.display().to_string()
+            ))
+        );
+        return;
+    }
     let Some(key) = read_auth(&auth_path)
         .as_deref()
         .and_then(pns::home::unifi_secret)
     else {
         println!(
-            "home: no unifi_api_key in {} (the probe is not set up)",
-            auth_path.display()
+            "{}",
+            setup_report(&SetupFailure::NoAuthKey(auth_path.display().to_string()))
         );
         return;
     };
-    let router = pns::home::UreqRouter {
-        base: settings.router_url,
-        key,
-    };
-    match pns::home::read_home_presence(&router, &settings.phone) {
-        pns::home::HomePresence::Home => {
-            println!("home: phone \"{}\" is on the home network", settings.phone);
-        }
-        pns::home::HomePresence::NotHome => {
-            println!(
-                "home: phone \"{}\" is NOT on the home network",
-                settings.phone
-            );
-        }
-        pns::home::HomePresence::Unknown => {
-            println!("home: unknown (router unreachable or its answer unreadable)");
-        }
-    }
+    let router = pns::home::UreqRouter::new(settings.router_url, key);
+    println!(
+        "{}",
+        report(
+            pns::home::read_home_presence(&router, &settings.phone),
+            &settings.phone
+        )
+    );
 }
 
 /// The CLIP v2 bridge over ureq.
