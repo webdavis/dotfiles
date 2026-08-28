@@ -29,10 +29,6 @@ pub struct PluginEntry {
 #[derive(Debug, PartialEq, Default)]
 pub struct Config {
     pub plugins: BTreeMap<String, PluginEntry>,
-    /// The `[home]` probe table, kept as-is for `home::home_settings` to
-    /// interpret: a probe is a sensor, not a delivery plugin, so it does not
-    /// live under `plugins` and the registry never sees it.
-    pub home: Option<toml::Table>,
 }
 
 /// Why a config could not be used. Every variant carries the offender by
@@ -90,15 +86,6 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
 
     let mut config = Config::default();
     for (key, value) in document {
-        // `[home]` is the one non-plugins key the schema admits: a sensor's
-        // settings, carried whole for the home module to interpret.
-        if key == "home" {
-            let toml::Value::Table(home) = value else {
-                return Err(ConfigError::Invalid("`home` is not a table".to_string()));
-            };
-            config.home = Some(home);
-            continue;
-        }
         if key != "plugins" {
             return Err(ConfigError::Invalid(format!(
                 "unknown top-level key `{key}`"
@@ -235,29 +222,19 @@ mod tests {
     }
 
     #[test]
-    fn a_home_table_is_carried_through_for_the_probe_layer_to_interpret() {
-        // `[home]` is the one non-plugins key the schema admits: a sensor's
-        // settings, interpreted by the home module rather than this layer.
-        let config = parse_config("[home]\nenabled = true\nphone = \"mister\"\n").unwrap();
-        let home = config.home.expect("the table is carried");
-        assert_eq!(home.get("phone").and_then(|v| v.as_str()), Some("mister"));
-        assert!(config.plugins.is_empty(), "and it is not a plugin");
-    }
-
-    #[test]
-    fn a_home_value_that_is_not_a_table_is_refused_naming_it() {
-        let err = parse_config("home = true\n").unwrap_err();
+    fn a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored() {
+        // The probe's settings moved into `[plugins.router]`. A config still
+        // carrying `[home]` must be refused NAMING it, so the operator is sent
+        // to the one table they have to move; admitting it as a key nothing
+        // reads any more would leave `pns home` reporting "not configured"
+        // beside a file that plainly configures it.
+        let err = parse_config("[home]\nrouter_url = \"https://192.168.1.1\"\n").unwrap_err();
         match err {
             ConfigError::Invalid(message) => {
                 assert!(message.contains("home"), "the offender is named: {message}")
             }
             other => panic!("expected Invalid, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn an_absent_home_table_reads_as_none() {
-        assert_eq!(parse_config("").unwrap().home, None);
     }
 
     #[test]

@@ -140,27 +140,18 @@ mod tests {
     const ALL_THREE_ON: &str = "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
 
     fn three_enabled() -> Selection {
-        select(&crate::registry::test_roster(), ALL_THREE_ON)
-    }
-
-    /// The real roster plus a sensor, and the sensor is registered FIRST on
-    /// purpose: a plan that dropped an entry by POSITION rather than by kind
-    /// would shift every channel after it and fail these outright.
-    fn roster_plus_sensor() -> Registry {
-        let mut registry = Registry::new();
-        registry.register_sensor("router").unwrap();
-        for (name, routing) in crate::registry::ROSTER {
-            registry.register_channel(name, routing).unwrap();
-        }
-        registry
+        select(&crate::registry::roster(), ALL_THREE_ON)
     }
 
     const SENSOR_AND_THREE_ON: &str = "[plugins.router]\nenabled = true\n[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
 
     /// A selection holding an enabled sensor AND the three enabled channels,
-    /// so every sensor assertion carries its own positive control.
+    /// so every sensor assertion carries its own positive control. The real
+    /// roster declares the sensor FIRST, so a plan that dropped an entry by
+    /// POSITION rather than by kind would shift every channel after it and
+    /// fail these outright.
     fn sensor_and_three_enabled() -> Selection {
-        let enabled = select(&roster_plus_sensor(), SENSOR_AND_THREE_ON);
+        let enabled = select(&crate::registry::roster(), SENSOR_AND_THREE_ON);
         assert!(
             enabled.iter().any(|entry| entry.name == "router"),
             "the sensor must be SELECTED, or these test a selection miss rather than a plan filter"
@@ -316,7 +307,7 @@ mod tests {
     fn no_enabled_plugins_plan_nothing_under_every_flag() {
         // An unconfigured machine has an empty plan, not a crash and not a
         // built-in fallback: the caller reports the empty verdict.
-        let none = select(&crate::registry::test_roster(), "");
+        let none = select(&crate::registry::roster(), "");
         for (local, remote, phone) in [
             (false, false, true),
             (false, false, false),
@@ -333,10 +324,10 @@ mod tests {
     #[test]
     fn a_plugin_that_is_not_event_dispatched_is_never_a_leg_however_it_is_selected() {
         // hue is registered and selectable, and the pulse mode runs it, but no
-        // notification may route to it. Without this the roster's fourth entry
+        // notification may route to it. Without this the roster's last entry
         // would start appearing as a channel on every event.
         let enabled = select(
-            &crate::registry::test_roster(),
+            &crate::registry::roster(),
             "[plugins.hue]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
         );
         assert_eq!(
@@ -358,7 +349,7 @@ mod tests {
         // spelled sensor a typo. It selects them WITHOUT planning them, which
         // is the pair that matters: the machine nobody configured gets the
         // channels it always got and no exec attempt named after a sensor.
-        let all = roster_plus_sensor().all();
+        let all = crate::registry::roster().all();
         assert!(
             all.iter().any(|entry| entry.name == "router"),
             "the fallback roster must know the sensor's name"

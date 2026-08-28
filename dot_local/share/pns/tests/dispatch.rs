@@ -576,3 +576,98 @@ fn the_pulse_config_warning_says_what_pulse_mode_actually_did() {
     );
     assert!(output.status.success());
 }
+
+#[test]
+fn the_binarys_own_roster_knows_the_router_sensor() {
+    // The composition root registers the SAME roster the library's tests run
+    // against, so `[plugins.router]` is a known plugin to the real binary. A
+    // registry built separately in main would call the operator's correct
+    // spelling a typo, warn, and fall back to every built-in, which is how a
+    // deliberate selection turns into a delivery nobody asked for.
+    let sandbox = Sandbox::new("roster-knows-router");
+    // A RECORDING stub under the sensor's own name, so a router registered as
+    // a channel has something to reach and leaves a trace. Without it the
+    // rogue leg execs a channel script that does not exist, the engine
+    // shrugs at a missing channel, and every assertion below still passes.
+    sandbox.stub_channel(
+        "router",
+        &format!("cat >\"{}/router.event\"", sandbox.display()),
+    );
+    sandbox.write_config(
+        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n[plugins.hermes]\nenabled = true\n",
+    );
+    let output = run(sandbox
+        .pns()
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    assert!(
+        !stderr(&output).contains("unknown plugin"),
+        "the sensor is registered, not a typo: {output:?}"
+    );
+    assert!(sandbox.fired("hermes"), "the selection still delivers");
+    assert!(
+        !sandbox.fired("moshi"),
+        "and nothing fell back to the whole roster"
+    );
+    assert!(
+        !sandbox.fired("router"),
+        "the roster registers router as a SENSOR: an input carries no routing, \
+         so no event can be delivered to it"
+    );
+}
+
+// --- the home probe's diagnostic --------------------------------------------
+
+#[test]
+fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
+    // `home_mode` is the ONE place a cause becomes the line an operator
+    // reads, and that wiring only runs through the binary: collapsing its two
+    // failure arms onto a single message left every other test green, so a
+    // disabled probe and a brand nothing answers could both print "no
+    // api_key" with nothing to say so. Exact lines, because a cause that
+    // merely contains "home:" sends the operator to the wrong edit.
+    let sandbox = Sandbox::new("home-setup-failures");
+    let home_line = || {
+        stdout(&run(sandbox.bare().arg("home")))
+            .trim_end()
+            .to_string()
+    };
+    // No config has been written yet, so this case has to come first.
+    assert_eq!(home_line(), "home: not configured (no config file)");
+    for (config, line) in [
+        (
+            // The retired feature table, refused by NAME rather than ignored.
+            "[home]\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "home: config error (unknown top-level key `home`)",
+        ),
+        (
+            "[plugins.hermes]\nenabled = true\n",
+            "home: not configured (no [plugins.router] table)",
+        ),
+        (
+            "[plugins.router]\nenabled = false\nbrand = \"unifi\"\n\
+             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+            "home: [plugins.router] is present but enabled = false",
+        ),
+        (
+            "[plugins.router]\nenabled = true\n\
+             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+            "home: no brand in [plugins.router] (the only brand is \"unifi\")",
+        ),
+        (
+            "[plugins.router]\nenabled = true\nbrand = \"asus\"\n\
+             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+            "home: [plugins.router] has brand \"asus\", which no compiled-in backend answers \
+             (the only brand is \"unifi\")",
+        ),
+        (
+            // Everything else is in order, so the key is the only thing left
+            // to be missing, and the probe stops before it reaches a router.
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "home: no api_key in the [plugins.router] table (the probe is not set up)",
+        ),
+    ] {
+        sandbox.write_config(config);
+        assert_eq!(home_line(), line, "case: {config:?}");
+    }
+}

@@ -29,10 +29,9 @@ pub enum HomePresence {
     Unknown,
 }
 
-/// The `[home]` table's settings, validated. `None` is "not set up", which is
-/// a state and not an error, matching the config module's own philosophy.
+/// The router sensor's settings, validated.
 #[derive(Debug, PartialEq)]
-pub struct HomeSettings {
+pub struct RouterSettings {
     /// Where the router answers, e.g. `https://192.168.1.1`.
     pub router_url: String,
     /// The client name the phone appears under in the router's list.
@@ -89,29 +88,72 @@ pub fn phone_presence(names: Option<Vec<String>>, phone: &str) -> HomePresence {
     }
 }
 
-/// The `[home]` settings out of the config's table, or `None` when the table
-/// is absent or does not carry both values. A present-but-wrong-typed value
-/// is reported on stderr by the caller's layer; this stays pure.
-pub fn home_settings(home: Option<&toml::Table>) -> Option<HomeSettings> {
-    let home = home?;
+/// The enabled router sensor's settings table, or the cause it could not be
+/// had. The probe's config home is `[plugins.router]`, the sensor registered
+/// in the roster, so the whole file is read by one schema and the operator has
+/// one spelling to get right.
+pub fn enabled_router_table(config: &crate::config::Config) -> Result<&toml::Table, SetupFailure> {
+    let entry = config
+        .plugins
+        .get("router")
+        .ok_or(SetupFailure::NoRouterPlugin)?;
+    // A probe the operator SWITCHED OFF is not one they never wrote: one is
+    // fixed by flipping the flag in front of them, the other by writing a
+    // table, and a single "not configured" line sends half of them to the
+    // wrong edit.
+    if !entry.enabled {
+        return Err(SetupFailure::RouterDisabled);
+    }
+    Ok(&entry.settings)
+}
+
+/// The one brand a compiled-in backend answers. It is VALIDATED and then
+/// discarded: `trait Router` is the seam a second backend enters through, and
+/// the enum that dispatches between two of them is worth writing the day
+/// there are two.
+const UNIFI_BRAND: &str = "unifi";
+
+/// The settings out of the router sensor's table, or the cause they could not
+/// be had. The BRAND is settled first, because every setting under it belongs
+/// to whichever router it names.
+pub fn router_settings(router: &toml::Table) -> Result<RouterSettings, SetupFailure> {
+    // Present but EMPTY is the key left blank, the same hole as absent: the
+    // filter is what keeps `brand = ""` from being quoted back as a brand no
+    // backend answers, which names a value the operator never typed.
+    let brand = router
+        .get("brand")
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or(SetupFailure::NoBrand)?;
+    if brand != UNIFI_BRAND {
+        return Err(SetupFailure::UnknownBrand(brand.to_string()));
+    }
+    // Present but empty is a hole, not a value, and present but the wrong
+    // type is refused rather than coerced: both are one line for the operator
+    // to fix, and neither is a router this probe could reach.
     let value = |key: &str| {
-        home.get(key)
+        router
+            .get(key)
             .and_then(toml::Value::as_str)
             .filter(|value| !value.is_empty())
             .map(str::to_string)
+            .ok_or(SetupFailure::InvalidRouterTable)
     };
-    Some(HomeSettings {
+    Ok(RouterSettings {
         router_url: value("router_url")?,
         phone: value("phone")?,
     })
 }
 
-/// The UniFi API key out of the `[home]` table (`api_key`), or `None` for
-/// every way the config can fail to provide one. Mirrors `moshi_secret`: the
-/// key's path from config to request header must never touch argv, the
-/// environment, or an error string.
-pub fn home_api_key(home: &toml::Table) -> Option<String> {
-    let key = home.get("api_key")?.as_str()?;
+/// The router's API key out of its own table (`api_key`), or `None` for every
+/// way the config can fail to provide one.
+///
+/// SEPARATE from the settings, and it stays that way: the key never enters a
+/// type that derives Debug, so it cannot ride a formatted dump into a log
+/// line. Mirrors `moshi_secret`: the path from config to request header must
+/// never touch argv, the environment, or an error string.
+pub fn router_api_key(router: &toml::Table) -> Option<String> {
+    let key = router.get("api_key")?.as_str()?;
     (!key.is_empty()).then(|| key.to_string())
 }
 
@@ -135,15 +177,15 @@ pub fn read_home_presence<R: Router>(router: &R, phone: &str) -> HomePresence {
 /// verification is disabled the way the hue bridge's is, and for the same
 /// reason: the router serves a self-signed certificate for its own LAN
 /// address, and no CA vouches for it.
-pub struct UreqRouter {
+pub struct UniFiRouter {
     /// The agent every call rides, INJECTED so a test can hand in one wearing
     /// a scripted transport (`Agent::with_parts`): the production pipeline
     /// runs for real and only the wire is fake, which is the closest Rust
     /// analog to stubbing Swift's URL Loading System.
     agent: ureq::Agent,
-    /// e.g. `https://192.168.1.1`, from the `[home]` table.
+    /// e.g. `https://192.168.1.1`, from the `[plugins.router]` table.
     base: String,
-    /// The API key, from the `[home]` table.
+    /// The API key, from the `[plugins.router]` table.
     key: String,
 }
 
@@ -156,7 +198,7 @@ const ROUTER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
 /// streaming garbage costs at most this much memory before reading Unknown.
 const ROUTER_BODY_CAP: u64 = 1_000_000;
 
-impl UreqRouter {
+impl UniFiRouter {
     /// The production wiring: TLS with verification disabled exactly as the
     /// hue bridge's is (the router serves a self-signed certificate for its
     /// own LAN address, and no CA vouches for it), no redirects, and the
@@ -187,7 +229,7 @@ impl UreqRouter {
 /// The site is resolved by name (`default`) through the sites listing first,
 /// because site ids are per-install; both calls ride one agent and one
 /// deadline each.
-impl Router for UreqRouter {
+impl Router for UniFiRouter {
     fn clients_json(&self) -> Option<String> {
         let get = |path: &str| {
             self.agent
@@ -249,8 +291,11 @@ pub fn report(presence: HomePresence, phone: &str) -> String {
 pub enum SetupFailure {
     NoConfigFile,
     ConfigError(String),
-    NoHomeTable,
-    InvalidHomeTable,
+    NoRouterPlugin,
+    RouterDisabled,
+    NoBrand,
+    UnknownBrand(String),
+    InvalidRouterTable,
     NoApiKey,
 }
 
@@ -259,16 +304,26 @@ pub fn setup_report(failure: &SetupFailure) -> String {
     match failure {
         SetupFailure::NoConfigFile => "home: not configured (no config file)".to_string(),
         SetupFailure::ConfigError(detail) => format!("home: config error ({detail})"),
-        SetupFailure::NoHomeTable => {
-            "home: not configured (no [home] table with router_url and phone)".to_string()
+        SetupFailure::NoRouterPlugin => {
+            "home: not configured (no [plugins.router] table)".to_string()
         }
-        SetupFailure::InvalidHomeTable => {
-            "home: the [home] table is present but router_url or phone is missing, empty, \
-             or not a string"
+        SetupFailure::RouterDisabled => {
+            "home: [plugins.router] is present but enabled = false".to_string()
+        }
+        SetupFailure::NoBrand => {
+            format!("home: no brand in [plugins.router] (the only brand is \"{UNIFI_BRAND}\")")
+        }
+        SetupFailure::UnknownBrand(brand) => format!(
+            "home: [plugins.router] has brand \"{brand}\", which no compiled-in backend \
+             answers (the only brand is \"{UNIFI_BRAND}\")"
+        ),
+        SetupFailure::InvalidRouterTable => {
+            "home: the [plugins.router] table is present but router_url or phone is missing, \
+             empty, or not a string"
                 .to_string()
         }
         SetupFailure::NoApiKey => {
-            "home: no api_key in the [home] table (the probe is not set up)".to_string()
+            "home: no api_key in the [plugins.router] table (the probe is not set up)".to_string()
         }
     }
 }
@@ -276,9 +331,9 @@ pub fn setup_report(failure: &SetupFailure) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        HomePresence, HomeSettings, Router, SetupFailure, first_site_id, home_api_key,
-        home_settings, parse_client_names, phone_presence, read_home_presence, report,
-        setup_report,
+        HomePresence, Router, RouterSettings, SetupFailure, enabled_router_table, first_site_id,
+        parse_client_names, phone_presence, read_home_presence, report, router_api_key,
+        router_settings, setup_report,
     };
 
     /// The live capture of 2026-08-20 from the UDR's
@@ -397,12 +452,92 @@ mod tests {
     }
 
     #[test]
-    fn a_complete_home_table_yields_its_settings() {
+    fn no_router_plugin_table_at_all_is_not_configured_naming_the_table() {
+        // hermes rides along so this is a MISS on the router's own name and
+        // not a config the parser dropped whole.
+        let config = crate::config::parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
         assert_eq!(
-            home_settings(Some(&table(
-                "router_url = \"https://192.168.1.1\"\nphone = \"mister\"\n"
-            ))),
-            Some(HomeSettings {
+            enabled_router_table(&config),
+            Err(SetupFailure::NoRouterPlugin)
+        );
+        let line = setup_report(&SetupFailure::NoRouterPlugin);
+        assert!(line.contains("not configured"), "got: {line}");
+        assert!(line.contains("[plugins.router]"), "got: {line}");
+    }
+
+    #[test]
+    fn a_router_table_switched_off_is_told_apart_from_no_table_at_all() {
+        // Selection is the operator's, and a probe they turned off must not
+        // read as one they never wrote: the first is fixed by flipping a flag
+        // they are looking at, the second by writing a table.
+        let config = crate::config::parse_config(
+            "[plugins.router]\nenabled = false\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            enabled_router_table(&config),
+            Err(SetupFailure::RouterDisabled)
+        );
+        let disabled = setup_report(&SetupFailure::RouterDisabled);
+        assert_ne!(disabled, setup_report(&SetupFailure::NoRouterPlugin));
+        assert!(disabled.contains("[plugins.router]"), "got: {disabled}");
+        assert!(disabled.contains("enabled = false"), "got: {disabled}");
+    }
+
+    #[test]
+    fn a_router_table_with_no_brand_names_the_key_and_the_one_brand_that_answers() {
+        // WHICH ROUTER answers is the first question the table has to settle,
+        // because every setting under it belongs to that one. A non-string
+        // brand and an EMPTY one are the same hole: there is no name to match
+        // a backend by, and the empty one used to be quoted back as a brand
+        // nothing implements, which points at a value the operator never
+        // typed instead of at the key they left blank.
+        for text in [
+            "router_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "brand = 5\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "brand = \"\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+        ] {
+            assert_eq!(
+                router_settings(&table(text)),
+                Err(SetupFailure::NoBrand),
+                "case: {text:?}"
+            );
+        }
+        let line = setup_report(&SetupFailure::NoBrand);
+        assert!(line.contains("brand"), "got: {line}");
+        assert!(line.contains("[plugins.router]"), "got: {line}");
+        assert!(line.contains("\"unifi\""), "got: {line}");
+    }
+
+    #[test]
+    fn a_brand_no_compiled_in_backend_answers_is_refused_quoting_it() {
+        // Silently probing a UniFi endpoint on a router that is not one would
+        // read Unknown forever with nothing to look at; the refusal quotes
+        // what was asked for and says what this binary can answer.
+        let asus =
+            table("brand = \"asus\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n");
+        assert_eq!(
+            router_settings(&asus),
+            Err(SetupFailure::UnknownBrand("asus".to_string()))
+        );
+        let line = setup_report(&SetupFailure::UnknownBrand("asus".to_string()));
+        assert!(line.contains("\"asus\""), "got: {line}");
+        assert!(line.contains("\"unifi\""), "got: {line}");
+        assert!(line.contains("[plugins.router]"), "got: {line}");
+    }
+
+    #[test]
+    fn an_enabled_unifi_router_table_yields_its_url_and_phone() {
+        // The whole value path in one: the config's `[plugins.router]` table,
+        // through the selection gate, into the two settings the probe runs on.
+        let config = crate::config::parse_config(
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+        )
+        .unwrap();
+        let router = enabled_router_table(&config).expect("the enabled table");
+        assert_eq!(
+            router_settings(router),
+            Ok(RouterSettings {
                 router_url: "https://192.168.1.1".to_string(),
                 phone: "mister".to_string(),
             })
@@ -410,42 +545,56 @@ mod tests {
     }
 
     #[test]
-    fn an_absent_or_incomplete_table_is_not_set_up() {
-        assert_eq!(home_settings(None), None);
-        assert_eq!(
-            home_settings(Some(&table("router_url = \"https://192.168.1.1\"\n"))),
-            None
-        );
-        assert_eq!(home_settings(Some(&table("phone = \"mister\"\n"))), None);
-        // Present but empty is a hole, not a value.
-        assert_eq!(
-            home_settings(Some(&table("router_url = \"\"\nphone = \"mister\"\n"))),
-            None
-        );
-        // Present but the wrong type is refused, not coerced.
-        assert_eq!(
-            home_settings(Some(&table("router_url = 5\nphone = \"mister\"\n"))),
-            None
-        );
+    fn a_missing_empty_or_mistyped_url_or_phone_reports_the_invalid_table_line() {
+        // A present-but-wrong VALUE is fixed by editing one line; a missing
+        // TABLE is fixed by writing one. `phone = 5` reported as "no table"
+        // used to send the operator to write a table they already had.
+        let brand = "brand = \"unifi\"\n";
+        for text in [
+            "router_url = \"https://192.168.1.1\"\n",
+            "phone = \"mister\"\n",
+            "router_url = \"\"\nphone = \"mister\"\n",
+            "router_url = \"https://192.168.1.1\"\nphone = \"\"\n",
+            "router_url = 5\nphone = \"mister\"\n",
+            "router_url = \"https://192.168.1.1\"\nphone = 5\n",
+        ] {
+            assert_eq!(
+                router_settings(&table(&format!("{brand}{text}"))),
+                Err(SetupFailure::InvalidRouterTable),
+                "case: {text:?}"
+            );
+        }
+        let invalid = setup_report(&SetupFailure::InvalidRouterTable);
+        assert_ne!(invalid, setup_report(&SetupFailure::NoRouterPlugin));
+        assert!(invalid.contains("[plugins.router]"), "got: {invalid}");
+        assert!(invalid.contains("router_url"), "got: {invalid}");
+        assert!(invalid.contains("phone"), "got: {invalid}");
     }
 
     // --- the secret ----------------------------------------------------------
 
     #[test]
-    fn the_api_key_reads_from_the_home_table_beside_the_router() {
-        assert_eq!(
-            home_api_key(&table(
-                "router_url = \"https://192.168.1.1\"\napi_key = \"k-123\"\n"
-            )),
-            Some("k-123".to_string())
-        );
+    fn the_api_key_reads_from_the_router_plugin_table_beside_the_settings() {
+        // Through the config, so this pins WHERE the key is read from and not
+        // only how: a table lifted from anywhere else would pass a bare-table
+        // assertion just as well.
+        let config = crate::config::parse_config(
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+        )
+        .unwrap();
+        let router = enabled_router_table(&config).expect("the enabled table");
+        assert_eq!(router_api_key(router), Some("k-123".to_string()));
     }
 
     #[test]
-    fn every_way_the_home_table_fails_to_provide_a_key_is_quietly_not_set_up() {
-        for home in ["", "api_key = \"\"\n", "api_key = 5\n"] {
-            assert_eq!(home_api_key(&table(home)), None, "case: {home:?}");
+    fn every_way_the_router_table_fails_to_provide_a_key_is_quietly_not_set_up() {
+        for router in ["", "api_key = \"\"\n", "api_key = 5\n"] {
+            assert_eq!(router_api_key(&table(router)), None, "case: {router:?}");
         }
+        // And the line sends the operator to the table the key now lives in.
+        let line = setup_report(&SetupFailure::NoApiKey);
+        assert!(line.contains("[plugins.router]"), "got: {line}");
+        assert!(line.contains("api_key"), "got: {line}");
     }
 
     // --- pagination: an incomplete page must not report a departure ----------
@@ -539,21 +688,6 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_home_table_and_an_invalid_one_are_told_apart() {
-        // `phone = 5` used to be reported as "no [home] table", sending the
-        // operator to write a table that already exists instead of fixing
-        // one value.
-        let missing = setup_report(&SetupFailure::NoHomeTable);
-        let invalid = setup_report(&SetupFailure::InvalidHomeTable);
-        assert_ne!(missing, invalid);
-        assert!(missing.contains("no [home] table"), "got: {missing}");
-        assert!(
-            invalid.contains("[home] table is present"),
-            "got: {invalid}"
-        );
-    }
-
-    #[test]
     fn every_setup_failure_line_names_what_to_look_at() {
         for (failure, needle) in [
             (SetupFailure::NoConfigFile, "no config file"),
@@ -561,8 +695,11 @@ mod tests {
                 SetupFailure::ConfigError("bad at line 3".to_string()),
                 "bad at line 3",
             ),
-            (SetupFailure::NoHomeTable, "router_url"),
-            (SetupFailure::InvalidHomeTable, "router_url"),
+            (SetupFailure::NoRouterPlugin, "[plugins.router]"),
+            (SetupFailure::RouterDisabled, "[plugins.router]"),
+            (SetupFailure::NoBrand, "brand"),
+            (SetupFailure::UnknownBrand("asus".to_string()), "asus"),
+            (SetupFailure::InvalidRouterTable, "router_url"),
             (SetupFailure::NoApiKey, "api_key"),
         ] {
             let line = setup_report(&failure);
@@ -667,14 +804,18 @@ mod tests {
     fn scripted_router(
         responses: &[Vec<u8>],
         key: &str,
-    ) -> (super::UreqRouter, Arc<Mutex<Vec<u8>>>) {
+    ) -> (super::UniFiRouter, Arc<Mutex<Vec<u8>>>) {
         let connector = ScriptedConnector::default();
         let wire = Arc::clone(&connector.wire);
         *connector.responses.lock().unwrap() = responses.iter().cloned().collect();
         let config = ureq::Agent::config_builder().max_redirects(0).build();
         let agent = ureq::Agent::with_parts(config, connector, DefaultResolver::default());
         (
-            super::UreqRouter::with_agent(agent, "http://localhost:9".to_string(), key.to_string()),
+            super::UniFiRouter::with_agent(
+                agent,
+                "http://localhost:9".to_string(),
+                key.to_string(),
+            ),
             wire,
         )
     }
