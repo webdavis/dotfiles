@@ -515,7 +515,7 @@ pub fn setup_report(failure: &SetupFailure) -> String {
             format!("home: no brand in [plugins.router] (the only brand is \"{UNIFI_BRAND}\")")
         }
         SetupFailure::UnknownBrand(brand) => format!(
-            "home: [plugins.router] has brand \"{brand}\", which no compiled-in backend \
+            "home: [plugins.router] has brand {brand:?}, which no compiled-in backend \
              answers (the only brand is \"{UNIFI_BRAND}\")"
         ),
         SetupFailure::InvalidRouterTable => {
@@ -1515,6 +1515,19 @@ mod tests {
         assert_eq!(
             read_home_presence(&router, &identity("device_hostname = \"mister\"\n")),
             HomePresence::Unknown
+        );
+    }
+
+    #[test]
+    fn an_unknown_brand_with_control_bytes_is_escaped_like_every_other_spelled_value() {
+        let line = setup_report(&SetupFailure::UnknownBrand("a\u{1b}[31mz".to_string()));
+        assert!(
+            !line.contains('\u{1b}'),
+            "raw ESC must not reach stdout: {line}"
+        );
+        assert!(
+            line.contains("\\u{1b}"),
+            "the escaped form is shown: {line}"
         );
     }
 }
