@@ -935,7 +935,7 @@ fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
 fn roster() -> Registry {
     let mut registry = Registry::new();
     for (name, routing) in pns::registry::ROSTER {
-        if let Err(error) = registry.register(name, routing) {
+        if let Err(error) = registry.register_channel(name, routing) {
             eprintln!("pns: {error:?}");
         }
     }

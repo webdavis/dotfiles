@@ -1,4 +1,4 @@
-//! The plugin registry: compiled-in channels declare themselves here, and the
+//! The plugin registry: compiled-in plugins declare themselves here, and the
 //! config selects among them.
 //!
 //! This is what closes routing's KNOWN LIMIT. A channel no longer appears in
@@ -6,6 +6,10 @@
 //! surface, presence-gated, durable log), and the plan is computed over
 //! whatever is registered and enabled. Adding a destination is a registration
 //! at the composition root, never an edit to policy.
+//!
+//! A plugin comes in two KINDS. A channel is a destination; a sensor is an
+//! input and carries no routing, so it shares the one config table space and
+//! the one name check without being reachable by a delivery leg.
 //!
 //! Fail directions: registering the same name twice is refused (two plugins
 //! answering one config table is a wiring bug, not a preference), and a config
@@ -35,11 +39,29 @@ pub struct Routing {
     pub event_dispatched: bool,
 }
 
-/// One registered plugin: its config-table name and its routing declaration.
+/// What KIND of plugin this is, which decides whether it can be a delivery
+/// leg at all.
+///
+/// A CHANNEL is a destination and carries the routing that says where. A
+/// SENSOR is an input and carries no routing, so "a sensor never becomes a
+/// leg" is unrepresentable rather than filtered: there is nothing for the
+/// plan to read. That is deliberately a different question from
+/// [`Routing::event_dispatched`], which asks whether an event routes to an
+/// OUTPUT the binary drives in its own mode (hue's pulse). This asks whether
+/// the plugin is an output at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginKind {
+    /// A delivery destination, with the declaration of where it delivers.
+    Channel(Routing),
+    /// An input the engine reads. Never a destination.
+    Sensor,
+}
+
+/// One registered plugin: its config-table name and its kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Registration {
     pub name: &'static str,
-    pub routing: Routing,
+    pub kind: PluginKind,
 }
 
 /// Why registration or selection was refused, always naming the offender.
@@ -82,12 +104,35 @@ impl Registry {
         Self::default()
     }
 
-    /// Add a plugin. A name already taken is refused.
-    pub fn register(&mut self, name: &'static str, routing: Routing) -> Result<(), RegistryError> {
+    /// Add a delivery destination. A name already taken is refused.
+    pub fn register_channel(
+        &mut self,
+        name: &'static str,
+        routing: Routing,
+    ) -> Result<(), RegistryError> {
+        self.register_plugin(name, PluginKind::Channel(routing))
+    }
+
+    /// Add an input. It gets a name so the config can select it and so a typo
+    /// in that name is still refused, and no routing at all, so no path
+    /// reaches it with an event.
+    pub fn register_sensor(&mut self, name: &'static str) -> Result<(), RegistryError> {
+        self.register_plugin(name, PluginKind::Sensor)
+    }
+
+    /// ONE NAMESPACE FOR BOTH KINDS, because both are selected by one
+    /// `[plugins.<name>]` table: two plugins answering one table is a wiring
+    /// bug whatever kinds they are, and the operator would have no spelling
+    /// left to tell them apart.
+    fn register_plugin(
+        &mut self,
+        name: &'static str,
+        kind: PluginKind,
+    ) -> Result<(), RegistryError> {
         if self.registrations.iter().any(|entry| entry.name == name) {
             return Err(RegistryError::Duplicate(name.to_string()));
         }
-        self.registrations.push(Registration { name, routing });
+        self.registrations.push(Registration { name, kind });
         Ok(())
     }
 
@@ -140,7 +185,7 @@ impl Registry {
 pub fn test_roster() -> Registry {
     let mut registry = Registry::new();
     for (name, routing) in ROSTER {
-        registry.register(name, routing).unwrap();
+        registry.register_channel(name, routing).unwrap();
     }
     registry
 }
@@ -260,9 +305,9 @@ mod tests {
 
     fn three_plugin_registry() -> Registry {
         let mut registry = Registry::new();
-        registry.register("moshi", REMOTE_GATED).unwrap();
-        registry.register("hermes", DURABLE).unwrap();
-        registry.register("macos-banner", LOCAL).unwrap();
+        registry.register_channel("moshi", REMOTE_GATED).unwrap();
+        registry.register_channel("hermes", DURABLE).unwrap();
+        registry.register_channel("macos-banner", LOCAL).unwrap();
         registry
     }
 
@@ -277,11 +322,64 @@ mod tests {
     #[test]
     fn a_name_already_taken_is_refused_naming_it() {
         let mut registry = Registry::new();
-        registry.register("moshi", REMOTE_GATED).unwrap();
+        registry.register_channel("moshi", REMOTE_GATED).unwrap();
         assert_eq!(
-            registry.register("moshi", LOCAL),
+            registry.register_channel("moshi", LOCAL),
             Err(RegistryError::Duplicate("moshi".to_string()))
         );
+    }
+
+    // --- plugin kinds -------------------------------------------------------
+
+    #[test]
+    fn a_sensor_registers_by_name_so_a_typo_near_it_is_still_refused() {
+        // A sensor carries no routing, but it occupies a config table like any
+        // channel, so the registry has to know its name or the unknown-name
+        // refusal would call the operator's correct spelling a typo.
+        let mut registry = Registry::new();
+        registry.register_channel("hermes", DURABLE).unwrap();
+        registry.register_sensor("router").unwrap();
+        assert_eq!(registry.names(), vec!["hermes", "router"]);
+
+        let typo = parse_config("[plugins.rotuer]\nenabled = true\n").unwrap();
+        assert_eq!(
+            registry.enabled(&typo),
+            Err(RegistryError::UnknownPlugin("rotuer".to_string()))
+        );
+    }
+
+    #[test]
+    fn one_name_cannot_be_two_kinds_because_they_share_one_config_table_space() {
+        // `[plugins.router]` names exactly one plugin. If a sensor could take
+        // a channel's name the config would select both and the operator
+        // would have no way to say which they meant, so the second claim is
+        // refused in either order, naming the offender.
+        let mut sensor_first = Registry::new();
+        sensor_first.register_sensor("router").unwrap();
+        assert_eq!(
+            sensor_first.register_channel("router", LOCAL),
+            Err(RegistryError::Duplicate("router".to_string()))
+        );
+
+        let mut channel_first = Registry::new();
+        channel_first.register_channel("router", LOCAL).unwrap();
+        assert_eq!(
+            channel_first.register_sensor("router"),
+            Err(RegistryError::Duplicate("router".to_string()))
+        );
+
+        let mut twice = Registry::new();
+        twice.register_sensor("router").unwrap();
+        assert_eq!(
+            twice.register_sensor("router"),
+            Err(RegistryError::Duplicate("router".to_string()))
+        );
+
+        // The refusal is what keeps the roster from growing a second entry,
+        // not a silent overwrite of the first.
+        assert_eq!(sensor_first.names(), vec!["router"]);
+        assert_eq!(channel_first.names(), vec!["router"]);
+        assert_eq!(twice.names(), vec!["router"]);
     }
 
     // --- selection by config ------------------------------------------------
@@ -331,6 +429,33 @@ mod tests {
             three_plugin_registry().enabled(&config),
             Err(RegistryError::UnknownPlugin("mosih".to_string()))
         );
+    }
+
+    #[test]
+    fn a_config_that_enables_a_sensor_selects_it_alongside_the_channels() {
+        // A sensor is selected by an ordinary `[plugins.<name>]` table, so the
+        // config layer needs no idea that kinds exist. hermes rides along as
+        // the positive control: a selection that dropped everything would
+        // fail this too.
+        let mut registry = Registry::new();
+        registry.register_channel("hermes", DURABLE).unwrap();
+        registry.register_sensor("router").unwrap();
+
+        let both =
+            parse_config("[plugins.router]\nenabled = true\n[plugins.hermes]\nenabled = true\n")
+                .unwrap();
+        let selection = registry.enabled(&both).unwrap();
+        let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
+        assert_eq!(names, vec!["hermes", "router"]);
+
+        // And `enabled = false` turns a sensor off like anything else: no kind
+        // is quietly always-on.
+        let off =
+            parse_config("[plugins.router]\nenabled = false\n[plugins.hermes]\nenabled = true\n")
+                .unwrap();
+        let selection = registry.enabled(&off).unwrap();
+        let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
+        assert_eq!(names, vec!["hermes"]);
     }
 
     #[test]
