@@ -912,9 +912,11 @@ fn hermes_channel(key: Option<String>, url: String) -> HermesChannel<UreqSignedP
 
 /// The hermes endpoint one event posts to. The env override wins (an explicit
 /// URL, the tests' escape hatch), then a `--channel` route name derived from
-/// the default gateway, then the default (alert) route itself. An unusable
-/// name is said out loud and falls back LOUD-WARD: a misrouted notification
-/// on the alert route beats a silently dropped one.
+/// the default gateway, then the default route (`/webhooks/pns`) itself. The
+/// gateway has no route named "alert"; the default is where an event with no
+/// route named goes. An unusable name is said out loud and falls back
+/// LOUD-WARD: a misrouted notification on the default route beats a silently
+/// dropped one.
 fn hermes_url_for(channel: &str) -> String {
     let env_override = std::env::var("PNS_HERMES_URL")
         .ok()
@@ -1140,6 +1142,20 @@ fn home_mode() {
     // the one event path: presence, surface and the leg plan decide where it
     // lands exactly as they do for a finished agent turn. Nothing narrows it
     // and it is not long-running, so it raises no pulse.
+    //
+    // DISPATCH BEFORE REMEMBER, AND THE ORDER IS LOAD-BEARING. Tidied into
+    // remember-then-dispatch it would silently LOSE an alert: a crash, a
+    // wedged channel or a kill between the two leaves the episode recorded
+    // and never delivered, and the next run reads it as already told. This
+    // way round the same interruption re-alerts instead, and two overlapping
+    // hand runs that both read the memory before either writes both alert.
+    // Duplicates are the direction to fail in.
+    //
+    // THE COST, ACCEPTED: the delivery OUTCOME is not consulted before the
+    // write either, so a post the gateway rejected consumes the episode just
+    // as a delivered one does. Fire-and-forget is this engine's contract for
+    // every producer, and the printed line above has already told the one
+    // human who typed the command.
     if let Some(staleness) = alert {
         run_event(
             &pns::args::EventArgs {

@@ -170,6 +170,26 @@ esac"#
     }
 }
 
+/// A listing where the keys DISAGREE: the MAC names the phone, the client
+/// name matches nobody, and the address is now the neighbouring client's
+/// lease. Shared, so "stale" is one fixture rather than one per test file.
+pub const KEYS_DISAGREE: &str = r#"{"data":[
+    {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
+    {"name":"mouse","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
+
+/// The `[plugins.router]` table KEYS_DISAGREE is read against, and the lines
+/// that reading prints. Shared, because a second test asserting the
+/// diagnostic is unchanged is only worth anything if "unchanged" is the same
+/// text. LAST in every config built on it, so a test can append one more
+/// router setting by writing one more line.
+pub fn router_table(router_url: &str) -> String {
+    format!(
+        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"{router_url}\"\n\
+         device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
+         device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n"
+    )
+}
+
 /// A UniFi router on loopback, answering the two calls the probe makes: the
 /// sites listing, then whatever clients listing it has been given.
 ///
@@ -198,6 +218,17 @@ impl RouterStub {
 
     pub fn url(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
+    }
+
+    /// The same listener addressed by NAME instead of by literal address.
+    ///
+    /// A proxy bypass matches on HOST ALONE, port ignored, so a test that
+    /// routes the gateway through a proxy and needs this stub reached
+    /// directly cannot tell the two apart while both are spelled
+    /// `127.0.0.1`. `localhost` resolves here and is a different host string,
+    /// which is the only handle the bypass rule offers.
+    pub fn localhost_url(&self) -> String {
+        format!("http://localhost:{}", self.port)
     }
 
     /// What the router says from the next call on.

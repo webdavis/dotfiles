@@ -9,7 +9,7 @@ mod support;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use support::{RouterStub, Sandbox, run, stderr, stdout};
+use support::{KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout};
 
 // --- the alert path ---------------------------------------------------------
 
@@ -617,13 +617,6 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
 
 // --- the home probe's diagnostic --------------------------------------------
 
-/// A listing where the keys DISAGREE: the MAC names the phone, the client
-/// name matches nobody, and the address is now the neighbouring client's
-/// lease.
-const KEYS_DISAGREE: &str = r#"{"data":[
-    {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
-    {"name":"mouse","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
-
 /// The same three identifiers, all on one client again.
 const KEYS_AGREE: &str = r#"{"data":[
     {"name":"mister-2","ipAddress":"192.168.1.248","macAddress":"2e:11:ab:6d:b0:4f"}]}"#;
@@ -636,19 +629,6 @@ const KEYS_AWAY: &str = r#"{"data":[
 /// The router's captive-portal page, which is every unreachable or unreadable
 /// answer this probe can get.
 const NO_LISTING: &str = "<html>router login</html>";
-
-/// The `[plugins.router]` table KEYS_DISAGREE is read against, and the lines
-/// that reading prints. Shared, because a second test asserting the
-/// diagnostic is unchanged is only worth anything if "unchanged" is the same
-/// text. LAST in every config built on it, so a test can append one more
-/// router setting by writing one more line.
-fn router_table(router_url: &str) -> String {
-    format!(
-        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"{router_url}\"\n\
-         device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
-         device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n"
-    )
-}
 
 /// That table with a channel to deliver on: the probe now RAISES the stale
 /// warning as well as printing it, and a config selecting only the sensor
@@ -717,15 +697,18 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
     let sandbox = Sandbox::new("home-staleness");
     let router = RouterStub::start(KEYS_DISAGREE);
     sandbox.write_config(&stale_config(&router.url()));
+    // RAW STDOUT, trailing newline and all: "the diagnostic is unchanged" is a
+    // claim about the BYTES, and a trim would hide a blank line growing on the
+    // end of every line this file pins.
     let home = || {
         let mut probe = home_probe(&sandbox);
-        stdout(&run(&mut probe)).trim_end().to_string()
+        stdout(&run(&mut probe)).to_string()
     };
     let evidence = STALE_EVIDENCE;
     let warning = STALE_WARNING;
     let memory = sandbox.path(".local/state/pns/home-staleness");
 
-    assert_eq!(home(), format!("{evidence}\n{warning}"));
+    assert_eq!(home(), format!("{evidence}\n{warning}\n"));
     assert_eq!(
         std::fs::read_to_string(&memory)
             .expect("the episode is remembered")
@@ -733,7 +716,7 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
         "device_mac device_hostname=none device_ipv4=other"
     );
     // A REPEAT still tells the whole truth and says the warning no more.
-    assert_eq!(home(), evidence);
+    assert_eq!(home(), format!("{evidence}\n"));
     // RESOLVED: the memory is forgotten rather than left to suppress the next
     // episode, and the state is news again when it comes back.
     router.set_listing(KEYS_AGREE);
@@ -742,11 +725,11 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
         "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
          home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
          home:   device_hostname \"mister-2\" matched the client the verdict names\n\
-         home:   device_ipv4 \"192.168.1.248\" matched the client the verdict names"
+         home:   device_ipv4 \"192.168.1.248\" matched the client the verdict names\n"
     );
     assert!(!memory.exists(), "a resolved episode is forgotten");
     router.set_listing(KEYS_DISAGREE);
-    assert_eq!(home(), format!("{evidence}\n{warning}"));
+    assert_eq!(home(), format!("{evidence}\n{warning}\n"));
 
     // AWAY IS NOT RESOLVED. Leaving the house says nothing about the
     // identifiers: every key matches nothing because the device is not on the
@@ -759,14 +742,14 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
         "home: NOT on the home network (no configured identifier matched a client)\n\
          home:   device_mac \"2e:11:ab:6d:b0:4f\" matched no client\n\
          home:   device_hostname \"mister-2\" matched no client\n\
-         home:   device_ipv4 \"192.168.1.248\" matched no client"
+         home:   device_ipv4 \"192.168.1.248\" matched no client\n"
     );
     assert!(
         memory.exists(),
         "leaving the house does not resolve a disagreement"
     );
     router.set_listing(KEYS_DISAGREE);
-    assert_eq!(home(), evidence);
+    assert_eq!(home(), format!("{evidence}\n"));
 
     // AN UNREADABLE ANSWER searched nothing at all, so it cannot have found
     // the disagreement gone either. A five-second router timeout must not
@@ -774,14 +757,14 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
     router.set_listing(NO_LISTING);
     assert_eq!(
         home(),
-        "home: unknown (router unreachable or its answer unreadable)"
+        "home: unknown (router unreachable or its answer unreadable)\n"
     );
     assert!(
         memory.exists(),
         "an unreadable answer does not resolve a disagreement"
     );
     router.set_listing(KEYS_DISAGREE);
-    assert_eq!(home(), evidence);
+    assert_eq!(home(), format!("{evidence}\n"));
 }
 
 #[test]
@@ -799,15 +782,15 @@ fn a_state_directory_that_cannot_be_used_leaves_the_whole_diagnostic_standing() 
     let home = || {
         let mut probe = home_probe(&sandbox);
         probe.env("PNS_STATE_DIR", &blocked);
-        stdout(&run(&mut probe)).trim_end().to_string()
+        stdout(&run(&mut probe)).to_string()
     };
 
-    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}"));
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"));
     // The DOCUMENTED COST, pinned so it stays a cost and not a crash:
     // nothing could be remembered, so the same state is news again. A run
     // that went quiet here would mean a write had silently succeeded
     // somewhere this test cannot see.
-    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}"));
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"));
     assert!(blocked.is_file(), "the blocking file is left as it was");
 }
 
@@ -815,10 +798,12 @@ fn a_state_directory_that_cannot_be_used_leaves_the_whole_diagnostic_standing() 
 
 #[test]
 fn a_new_stale_state_is_delivered_as_one_alert_carrying_the_warning_sentence() {
-    // THE WARNING BECOMES A NOTIFICATION. `pns home` was a diagnostic nobody
-    // was scheduled to read, so a stale identifier could sit unnoticed for as
-    // long as nobody ran it by hand; the same condition that prints the
-    // sentence now hands it to the engine as an ordinary event.
+    // THE WARNING BECOMES A NOTIFICATION. The same condition that prints the
+    // sentence hands it to the engine as an ordinary event, so the hand run
+    // that prints the warning now delivers it too. NOTHING SCHEDULES `pns
+    // home` yet, so a stale identifier still waits for someone to type the
+    // command; what this closes is the reach past that one terminal, and the
+    // scheduling is later work.
     let sandbox = Sandbox::new("home-stale-alert");
     count_alerts(&sandbox);
     let router = RouterStub::start(KEYS_DISAGREE);
@@ -827,10 +812,11 @@ fn a_new_stale_state_is_delivered_as_one_alert_carrying_the_warning_sentence() {
     let output = run(&mut probe);
 
     // THE DIAGNOSTIC IS UNCHANGED, byte for byte: it grew a consumer, not a
-    // new way of saying things.
+    // new way of saying things. RAW, so "byte for byte" means it, down to the
+    // single newline `println!` ends the report with.
     assert_eq!(
-        stdout(&output).trim_end(),
-        format!("{STALE_EVIDENCE}\n{STALE_WARNING}")
+        stdout(&output),
+        format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n")
     );
     let delivered = alerts(&sandbox);
     assert_eq!(delivered.len(), 1, "one state, one alert: {delivered:?}");
@@ -1010,8 +996,8 @@ fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
         "the alert is still delivered, on the default route"
     );
     assert_eq!(
-        stdout(&output).trim_end(),
-        format!("{STALE_EVIDENCE}\n{STALE_WARNING}"),
+        stdout(&output),
+        format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"),
         "and the diagnostic itself is untouched"
     );
 }

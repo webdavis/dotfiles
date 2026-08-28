@@ -561,9 +561,9 @@ pub fn router_api_key(router: &toml::Table) -> Option<String> {
 }
 
 /// The hermes route the stale alert posts to, plus the complaint a value that
-/// could not be one earns. EMPTY IS THE DEFAULT ROUTE, the same spelling
-/// `--channel` and `hermes_url_for` already use, so no second vocabulary for
-/// "wherever alerts normally go".
+/// could not be one earns. EMPTY IS THE DEFAULT ROUTE (`/webhooks/pns`), the
+/// same spelling `--channel` and `hermes_url_for` already use, so one
+/// vocabulary covers all three.
 ///
 /// VALIDATED HERE rather than where the URL is built, because the operator
 /// TYPED THIS KEY: `hermes_url_for`'s own refusal names `--channel`, a flag
@@ -586,7 +586,7 @@ pub fn stale_alert_channel(router: &toml::Table) -> (String, Option<String>) {
     };
     match value
         .as_str()
-        .filter(|route| crate::channels::hermes::route_name_is_usable(route))
+        .filter(|route| crate::safety::route_name_is_usable(route))
     {
         Some(route) => (route.to_string(), None),
         None => (
@@ -1744,9 +1744,9 @@ mod tests {
     #[test]
     fn no_stale_alert_channel_at_all_asks_for_the_default_route_in_silence() {
         // ABSENT IS NOT AN ERROR: the key is optional, and an empty route is
-        // how every caller of `hermes_url_for` spells "the default alert
-        // route". Complaining here would put a config error in front of every
-        // operator who never asked to route the alert anywhere.
+        // how every caller of `hermes_url_for` spells the default route
+        // (`/webhooks/pns`). Complaining here would put a config error in
+        // front of every operator who never asked to route the alert anywhere.
         assert_eq!(
             stale_alert_channel(&table("brand = \"unifi\"\n")),
             (String::new(), None)
