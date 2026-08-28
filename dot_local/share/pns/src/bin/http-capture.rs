@@ -6,9 +6,18 @@
 //! depends on nothing with an interpreter cold start to diagnose. Exits
 //! non-zero if no request arrives within thirty seconds, so a wedged gate
 //! fails instead of hanging.
+//!
+//! IT ALSO STANDS IN FOR AN HTTP PROXY, which is how a gate observes the URL
+//! an event was posted to without owning the port in that URL. ureq speaks
+//! CONNECT to an HTTP proxy rather than sending an absolute-form request
+//! line, so the request being captured only exists past that handshake: the
+//! CONNECT is answered and the SAME socket is read again. NOTHING IS EVER
+//! FORWARDED. The tunnel terminates here, no connection is opened to the
+//! target named in the CONNECT, and a gate that pointed this at a real
+//! endpoint would still reach nothing.
 
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
 fn main() {
@@ -51,8 +60,21 @@ fn main() {
         .set_read_timeout(Some(Duration::from_secs(10)))
         .expect("read timeout");
 
-    // Read headers, then exactly Content-Length body bytes: reading to EOF
-    // would deadlock against a client that waits for the response.
+    let mut raw = read_message(&mut stream);
+    if raw.starts_with(b"CONNECT ") {
+        let _ = stream.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n");
+        raw = read_message(&mut stream);
+    }
+
+    std::fs::write(&capture_path, &raw).expect("write capture");
+    let _ =
+        stream.write_all(format!("HTTP/1.1 {status} X\r\nContent-Length: 0\r\n\r\n").as_bytes());
+}
+
+/// One HTTP message off the socket: headers to the blank line, then exactly
+/// Content-Length body bytes. Reading to EOF would deadlock against a client
+/// that waits for the response.
+fn read_message(stream: &mut TcpStream) -> Vec<u8> {
     let mut raw = Vec::new();
     let mut chunk = [0u8; 4096];
     let header_end = loop {
@@ -80,8 +102,5 @@ fn main() {
         }
         raw.extend_from_slice(&chunk[..read]);
     }
-
-    std::fs::write(&capture_path, &raw).expect("write capture");
-    let _ =
-        stream.write_all(format!("HTTP/1.1 {status} X\r\nContent-Length: 0\r\n\r\n").as_bytes());
+    raw
 }

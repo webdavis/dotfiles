@@ -1,5 +1,7 @@
-//! Guards on the two values that arrive from outside and are then used as
-//! something more dangerous than text.
+//! Guards on the values that arrive from outside and are then used as
+//! something more dangerous than text: a pane id that becomes a shell word, a
+//! session id that becomes a filename, a route name that becomes a URL path
+//! segment.
 
 /// True when a pane id may be interpolated into a notifier's execute-on-click
 /// argument, which takes a SHELL STRING. A pane carrying `; curl ... | sh`
@@ -30,6 +32,22 @@ pub fn session_id_is_safe(session_id: &str) -> bool {
         && session_id.chars().all(|character| {
             character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
         })
+}
+
+/// True when a name may become the final path segment of the hermes gateway
+/// URL: non-empty, and nothing outside the unreserved run of ASCII letters,
+/// digits, `-` and `_`. Nothing traversal-shaped, space-carrying or
+/// query-shaped passes.
+///
+/// THE ONE RULE, because two readers judge names: `channel_url` when it builds
+/// the URL, and the config read that resolves a route by name. Two spellings
+/// of "usable" would mean a value one waved through and the other refused,
+/// which is a route silently swapped for the default.
+pub fn route_name_is_usable(route: &str) -> bool {
+    !route.is_empty()
+        && route
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
 #[cfg(test)]

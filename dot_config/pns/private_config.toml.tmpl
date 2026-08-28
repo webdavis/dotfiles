@@ -42,4 +42,13 @@ brand = "unifi"
 router_url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = "{{ (keepassxc "UniFi :: API Key (dresden-udr)").Password }}"
+# The hermes route a stale-identifier alert posts to. UNSET IS THE WORKING
+# SETTING: the alert posts to the default route (`/webhooks/pns`), which is the
+# one route that both verifies against the key pns signs with (`[plugins.hermes]
+# key`) and renders the body pns sends (`{agent} · {state} · {project}` over
+# `{detail}`). Naming another route needs that hermes route prepared first, with
+# the pns signing secret and a pns-shaped prompt, or the POST is rejected and the
+# leg is silent, so nothing says the alert never landed. That is an operator
+# decision, not a default.
+# stale_alert_channel = "priority"
 {{- end }}

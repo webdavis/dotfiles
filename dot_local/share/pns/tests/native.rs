@@ -12,7 +12,9 @@ use hmac::{Hmac, KeyInit, Mac};
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
-use support::{CAPTURE, Sandbox, run, stderr, stdout, write_script};
+use support::{
+    CAPTURE, KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout, write_script,
+};
 
 /// The capture server, already bound to its ephemeral port.
 struct Capture {
@@ -228,5 +230,59 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
     assert!(
         stdout(&output).is_empty(),
         "an async delivery printed an outcome; async legs must be silent: {output:?}"
+    );
+}
+
+/// The route the config named, ON THE WIRE.
+///
+/// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE. `stale_alert_channel` reading a
+/// name and `channel_url` swapping a path segment are each pinned by unit
+/// tests; what nothing pinned is the ASSIGNMENT of the one onto the other, and
+/// dropping the route from the event passed the entire suite. Every other home
+/// test sets `PNS_CHANNELS_DIR`, which leaves the native hermes channel
+/// computing a URL nothing sends, and `PNS_HERMES_URL` outranks the route, so
+/// an endpoint override cannot observe it either.
+///
+/// SO THE GATEWAY IS PROXIED RATHER THAN MOVED. The engine posts to its own
+/// compile-time default, port 8644, which this test does not own and must not
+/// bind; `HTTP_PROXY` is what sends that connection to the capture server
+/// instead. ureq takes its proxy from the environment by default and opens the
+/// connection with CONNECT, so the capture answers the tunnel and reads the
+/// request inside it, forwarding nothing. `NO_PROXY` keeps the router stub
+/// direct, and since a bypass matches on HOST alone the stub is addressed as
+/// `localhost` while the gateway stays `127.0.0.1`.
+#[test]
+fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
+    let sandbox = Sandbox::new("stale-alert-route");
+    let router = RouterStub::start(KEYS_DISAGREE);
+    let capture = Capture::start(&sandbox, "stale-route", None);
+    sandbox.write_config(&format!(
+        "[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n\
+         {}stale_alert_channel = \"priority\"\n",
+        router_table(&router.localhost_url())
+    ));
+
+    let mut command = sandbox.bare();
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("HTTP_PROXY", capture.url())
+        .env("http_proxy", capture.url())
+        .env("NO_PROXY", "localhost");
+    sandbox.stub_notifier(&mut command);
+    run(command.arg("home"));
+
+    let raw = capture.finish();
+    assert_eq!(
+        raw.lines().next().unwrap_or_default(),
+        "POST /webhooks/priority HTTP/1.1",
+        "the alert did not carry the configured route: {raw}"
+    );
+    // AND THE GATEWAY IS UNMOVED. The config names a ROUTE, never a URL, so
+    // the host and port must still be the compiled-in default: a swap that
+    // took the base with it would be a different defect passing this test.
+    assert_eq!(
+        header_of(&raw, "host").as_deref(),
+        Some("127.0.0.1:8644"),
+        "the route swap moved the gateway too: {raw}"
     );
 }

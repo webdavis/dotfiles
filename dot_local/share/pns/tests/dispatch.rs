@@ -9,7 +9,7 @@ mod support;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use support::{RouterStub, Sandbox, run, stderr, stdout};
+use support::{KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout};
 
 // --- the alert path ---------------------------------------------------------
 
@@ -617,13 +617,6 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
 
 // --- the home probe's diagnostic --------------------------------------------
 
-/// A listing where the keys DISAGREE: the MAC names the phone, the client
-/// name matches nobody, and the address is now the neighbouring client's
-/// lease.
-const KEYS_DISAGREE: &str = r#"{"data":[
-    {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
-    {"name":"mouse","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
-
 /// The same three identifiers, all on one client again.
 const KEYS_AGREE: &str = r#"{"data":[
     {"name":"mister-2","ipAddress":"192.168.1.248","macAddress":"2e:11:ab:6d:b0:4f"}]}"#;
@@ -637,15 +630,55 @@ const KEYS_AWAY: &str = r#"{"data":[
 /// answer this probe can get.
 const NO_LISTING: &str = "<html>router login</html>";
 
-/// The config KEYS_DISAGREE is read against, and the lines that reading
-/// prints. Shared, because a second test asserting the diagnostic is
-/// unchanged is only worth anything if "unchanged" is the same text.
+/// That table with a channel to deliver on: the probe now RAISES the stale
+/// warning as well as printing it, and a config selecting only the sensor
+/// would plan no legs at all, so every one of these would pass without ever
+/// exercising a delivery.
 fn stale_config(router_url: &str) -> String {
     format!(
-        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"{router_url}\"\n\
-         device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
-         device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n"
+        "[plugins.hermes]\nenabled = true\n{}",
+        router_table(router_url)
     )
+}
+
+/// The engine reading the home probe, in the ONLY environment these may run
+/// in.
+///
+/// THE DIAGNOSTIC DELIVERS NOW, so `bare()` is no longer safe here: it reaches
+/// the native plugins, walks the developer's own presence probes and, with a
+/// hermes key in the config, posts to the operator's REAL gateway. `pns()`
+/// points every channel at a recording stub and pins the presence readings,
+/// and the URL is pinned at a port nothing listens on as well, so no path
+/// through this file can resolve hermes to the live gateway.
+fn home_probe(sandbox: &Sandbox) -> std::process::Command {
+    let mut probe = sandbox.pns();
+    probe.env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/nowhere");
+    probe.arg("home");
+    probe
+}
+
+/// The hermes stub replaced by one that APPENDS a line per delivery.
+///
+/// ONE ALERT PER EPISODE IS A COUNT, and the shared stub overwrites: a second
+/// delivery would be indistinguishable from the first, and a run that
+/// delivered nothing at all still leaves the previous run's file sitting
+/// there reading as a delivery.
+fn count_alerts(sandbox: &Sandbox) {
+    sandbox.stub_channel(
+        "hermes",
+        &format!("cat >>\"{}/hermes.events\"", sandbox.display()),
+    );
+}
+
+/// Every alert delivered so far, parsed, in order. The engine terminates each
+/// event with a newline, so one delivery is one line.
+fn alerts(sandbox: &Sandbox) -> Vec<serde_json::Value> {
+    std::fs::read_to_string(sandbox.path("hermes.events"))
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).expect("one delivered event per line"))
+        .collect()
 }
 
 const STALE_EVIDENCE: &str = "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
@@ -664,16 +697,18 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
     let sandbox = Sandbox::new("home-staleness");
     let router = RouterStub::start(KEYS_DISAGREE);
     sandbox.write_config(&stale_config(&router.url()));
+    // RAW STDOUT, trailing newline and all: "the diagnostic is unchanged" is a
+    // claim about the BYTES, and a trim would hide a blank line growing on the
+    // end of every line this file pins.
     let home = || {
-        stdout(&run(sandbox.bare().arg("home")))
-            .trim_end()
-            .to_string()
+        let mut probe = home_probe(&sandbox);
+        stdout(&run(&mut probe)).to_string()
     };
     let evidence = STALE_EVIDENCE;
     let warning = STALE_WARNING;
     let memory = sandbox.path(".local/state/pns/home-staleness");
 
-    assert_eq!(home(), format!("{evidence}\n{warning}"));
+    assert_eq!(home(), format!("{evidence}\n{warning}\n"));
     assert_eq!(
         std::fs::read_to_string(&memory)
             .expect("the episode is remembered")
@@ -681,7 +716,7 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
         "device_mac device_hostname=none device_ipv4=other"
     );
     // A REPEAT still tells the whole truth and says the warning no more.
-    assert_eq!(home(), evidence);
+    assert_eq!(home(), format!("{evidence}\n"));
     // RESOLVED: the memory is forgotten rather than left to suppress the next
     // episode, and the state is news again when it comes back.
     router.set_listing(KEYS_AGREE);
@@ -690,11 +725,11 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
         "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
          home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
          home:   device_hostname \"mister-2\" matched the client the verdict names\n\
-         home:   device_ipv4 \"192.168.1.248\" matched the client the verdict names"
+         home:   device_ipv4 \"192.168.1.248\" matched the client the verdict names\n"
     );
     assert!(!memory.exists(), "a resolved episode is forgotten");
     router.set_listing(KEYS_DISAGREE);
-    assert_eq!(home(), format!("{evidence}\n{warning}"));
+    assert_eq!(home(), format!("{evidence}\n{warning}\n"));
 
     // AWAY IS NOT RESOLVED. Leaving the house says nothing about the
     // identifiers: every key matches nothing because the device is not on the
@@ -707,14 +742,14 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
         "home: NOT on the home network (no configured identifier matched a client)\n\
          home:   device_mac \"2e:11:ab:6d:b0:4f\" matched no client\n\
          home:   device_hostname \"mister-2\" matched no client\n\
-         home:   device_ipv4 \"192.168.1.248\" matched no client"
+         home:   device_ipv4 \"192.168.1.248\" matched no client\n"
     );
     assert!(
         memory.exists(),
         "leaving the house does not resolve a disagreement"
     );
     router.set_listing(KEYS_DISAGREE);
-    assert_eq!(home(), evidence);
+    assert_eq!(home(), format!("{evidence}\n"));
 
     // AN UNREADABLE ANSWER searched nothing at all, so it cannot have found
     // the disagreement gone either. A five-second router timeout must not
@@ -722,14 +757,14 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
     router.set_listing(NO_LISTING);
     assert_eq!(
         home(),
-        "home: unknown (router unreachable or its answer unreadable)"
+        "home: unknown (router unreachable or its answer unreadable)\n"
     );
     assert!(
         memory.exists(),
         "an unreadable answer does not resolve a disagreement"
     );
     router.set_listing(KEYS_DISAGREE);
-    assert_eq!(home(), evidence);
+    assert_eq!(home(), format!("{evidence}\n"));
 }
 
 #[test]
@@ -745,18 +780,226 @@ fn a_state_directory_that_cannot_be_used_leaves_the_whole_diagnostic_standing() 
     let blocked = sandbox.path("state-is-a-file");
     std::fs::write(&blocked, "not a directory\n").expect("a file where the state dir would go");
     let home = || {
-        let mut probe = sandbox.bare();
-        probe.env("PNS_STATE_DIR", &blocked).arg("home");
-        stdout(&run(&mut probe)).trim_end().to_string()
+        let mut probe = home_probe(&sandbox);
+        probe.env("PNS_STATE_DIR", &blocked);
+        stdout(&run(&mut probe)).to_string()
     };
 
-    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}"));
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"));
     // The DOCUMENTED COST, pinned so it stays a cost and not a crash:
     // nothing could be remembered, so the same state is news again. A run
     // that went quiet here would mean a write had silently succeeded
     // somewhere this test cannot see.
-    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}"));
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"));
     assert!(blocked.is_file(), "the blocking file is left as it was");
+}
+
+// --- the stale warning, delivered -------------------------------------------
+
+#[test]
+fn a_new_stale_state_is_delivered_as_one_alert_carrying_the_warning_sentence() {
+    // THE WARNING BECOMES A NOTIFICATION. The same condition that prints the
+    // sentence hands it to the engine as an ordinary event, so the hand run
+    // that prints the warning now delivers it too. NOTHING SCHEDULES `pns
+    // home` yet, so a stale identifier still waits for someone to type the
+    // command; what this closes is the reach past that one terminal, and the
+    // scheduling is later work.
+    let sandbox = Sandbox::new("home-stale-alert");
+    count_alerts(&sandbox);
+    let router = RouterStub::start(KEYS_DISAGREE);
+    sandbox.write_config(&stale_config(&router.url()));
+    let mut probe = home_probe(&sandbox);
+    let output = run(&mut probe);
+
+    // THE DIAGNOSTIC IS UNCHANGED, byte for byte: it grew a consumer, not a
+    // new way of saying things. RAW, so "byte for byte" means it, down to the
+    // single newline `println!` ends the report with.
+    assert_eq!(
+        stdout(&output),
+        format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n")
+    );
+    let delivered = alerts(&sandbox);
+    assert_eq!(delivered.len(), 1, "one state, one alert: {delivered:?}");
+    let alert = &delivered[0];
+    // THE SAME SENTENCE the terminal printed, because both read it out of
+    // `stale_warning`.
+    assert_eq!(alert["detail"], STALE_WARNING);
+    assert_eq!(alert["message"], STALE_WARNING);
+    // An event ABOUT the reading, not from an agent: the title says which
+    // subsystem and what happened.
+    assert_eq!(alert["title"], "pns \u{b7} stale");
+    assert_eq!(alert["agent"], "pns");
+    assert_eq!(alert["state"], "stale");
+    // No pane to focus, no project and no branch: nothing here came from a
+    // terminal or a repository.
+    assert_eq!(alert["pane"], "");
+    assert_eq!(alert["project"], "");
+    assert_eq!(alert["branch"], "");
+}
+
+#[test]
+fn the_same_stale_state_alerts_once_and_a_returning_one_alerts_again() {
+    // ONE MEMORY, ONE DECISION: the file that decides whether the sentence is
+    // printed is the file that decides whether it is delivered, so the alert
+    // cannot fire on a state the operator was already told about, and cannot
+    // stay silent about one they were not.
+    let sandbox = Sandbox::new("home-stale-alert-once");
+    count_alerts(&sandbox);
+    let router = RouterStub::start(KEYS_DISAGREE);
+    sandbox.write_config(&stale_config(&router.url()));
+    let home = || {
+        let mut probe = home_probe(&sandbox);
+        run(&mut probe);
+    };
+
+    home();
+    assert_eq!(alerts(&sandbox).len(), 1, "the first sighting is news");
+    home();
+    assert_eq!(
+        alerts(&sandbox).len(),
+        1,
+        "the same state again is news to nobody"
+    );
+    // RESOLVED is not an alert either: an all-clear for a warning the
+    // operator may never have read is one more thing to read.
+    router.set_listing(KEYS_AGREE);
+    home();
+    assert_eq!(alerts(&sandbox).len(), 1, "a resolved state says nothing");
+    // And the episode coming BACK is news again, which is the half a memory
+    // that was never cleared would lose.
+    router.set_listing(KEYS_DISAGREE);
+    home();
+    assert_eq!(
+        alerts(&sandbox).len(),
+        2,
+        "the state returned, so it is news again"
+    );
+}
+
+#[test]
+fn only_a_home_reading_alerts_and_the_sensor_is_never_a_destination() {
+    // AWAY AND UNREADABLE HAVE NO OPINION about the identifiers, one layer up
+    // from the memory rule they already obey: every key matching nothing is
+    // what being out of the house IS, and a router timeout searched nothing at
+    // all. Delivering on either would page the operator for leaving the house.
+    let sandbox = Sandbox::new("home-stale-alert-not-home");
+    count_alerts(&sandbox);
+    // A RECORDING stub under the sensor's own name, so a router that had
+    // somehow become a leg leaves a trace instead of exec'ing nothing.
+    sandbox.stub_channel(
+        "router",
+        &format!("cat >\"{}/router.event\"", sandbox.display()),
+    );
+    let router = RouterStub::start(KEYS_AWAY);
+    sandbox.write_config(&stale_config(&router.url()));
+    let home = || {
+        let mut probe = home_probe(&sandbox);
+        run(&mut probe);
+    };
+
+    home();
+    assert!(alerts(&sandbox).is_empty(), "away is not a staleness");
+    router.set_listing(NO_LISTING);
+    home();
+    assert!(
+        alerts(&sandbox).is_empty(),
+        "an unreadable answer is not a staleness"
+    );
+    // The same probe on a Home reading DOES alert, which is what makes the
+    // two silences above assertions rather than a test that never armed.
+    router.set_listing(KEYS_DISAGREE);
+    home();
+    assert_eq!(alerts(&sandbox).len(), 1, "a Home reading alerts");
+    assert!(
+        !sandbox.fired("router"),
+        "the roster registers router as a SENSOR: an input carries no routing, \
+         so the alert ABOUT its reading can never be delivered back to it"
+    );
+}
+
+/// The same disagreement, with the OTHER client named in text nobody here
+/// typed: a quote and an ANSI screen clear, straight out of the router.
+const KEYS_DISAGREE_HOSTILE_LABEL: &str = r#"{"data":[
+    {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
+    {"name":"mo\"use\u001b[2J","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
+
+#[test]
+fn the_alert_carries_no_secret_and_no_raw_router_text() {
+    // TWO SECRETS ARE IN REACH on this path now: the router's own api_key,
+    // which `home_mode` reads, and the hermes signing key, which the dispatch
+    // reads. Neither may ride an event to a channel or a line to a terminal.
+    let sandbox = Sandbox::new("home-stale-alert-secrets");
+    count_alerts(&sandbox);
+    let router = RouterStub::start(KEYS_DISAGREE_HOSTILE_LABEL);
+    sandbox.write_config(&format!(
+        "[plugins.hermes]\nenabled = true\nkey = \"hermes-signing-secret\"\n{}",
+        router_table(&router.url())
+    ));
+    let mut probe = home_probe(&sandbox);
+    let output = run(&mut probe);
+
+    let delivered = std::fs::read_to_string(sandbox.path("hermes.events")).expect("an alert");
+    for secret in ["k-123", "hermes-signing-secret"] {
+        assert!(
+            !delivered.contains(secret),
+            "the delivered event carries {secret:?}: {delivered}"
+        );
+        assert!(
+            !stderr(&output).contains(secret),
+            "stderr carries {secret:?}: {}",
+            stderr(&output)
+        );
+        assert!(
+            !stdout(&output).contains(secret),
+            "the diagnostic carries {secret:?}: {}",
+            stdout(&output)
+        );
+    }
+    // THE ROUTER'S OWN STRINGS keep slice 4's escape in the terminal, and
+    // reach the alert body not at all: the sentence is built from config KEY
+    // NAMES, so a client label cannot ride it out to a channel.
+    assert!(
+        stdout(&output).contains(
+            "home:   device_ipv4 \"192.168.1.248\" matched a different client \
+             \"mo\\\"use\\u{1b}[2J\""
+        ),
+        "the evidence escapes the label: {}",
+        stdout(&output)
+    );
+    assert_eq!(alerts(&sandbox)[0]["detail"], STALE_WARNING);
+}
+
+#[test]
+fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
+    // LOUD-WARD: a config typo in the ROUTE must not be what silences the
+    // warning that route was configured for. The complaint names the config
+    // key, because that is the file the operator has to open, and the alert
+    // still goes out on the route they would have had by writing nothing.
+    let sandbox = Sandbox::new("home-stale-alert-bad-route");
+    count_alerts(&sandbox);
+    let router = RouterStub::start(KEYS_DISAGREE);
+    sandbox.write_config(&format!(
+        "{}stale_alert_channel = \"../alert\"\n",
+        stale_config(&router.url())
+    ));
+    let mut probe = home_probe(&sandbox);
+    let output = run(&mut probe);
+
+    assert_eq!(
+        stderr(&output).trim_end(),
+        "pns: config error (stale_alert_channel = \"../alert\" in [plugins.router] is not a \
+         usable route name); the stale alert posts to the default route"
+    );
+    assert_eq!(
+        alerts(&sandbox).len(),
+        1,
+        "the alert is still delivered, on the default route"
+    );
+    assert_eq!(
+        stdout(&output),
+        format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"),
+        "and the diagnostic itself is untouched"
+    );
 }
 
 #[test]
@@ -768,10 +1011,13 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
     // api_key" with nothing to say so. Exact lines, because a cause that
     // merely contains "home:" sends the operator to the wrong edit.
     let sandbox = Sandbox::new("home-setup-failures");
+    // Every case here stops before the router is read, so none of them can
+    // reach a delivery; it still runs in the safe environment, because "this
+    // path happens not to dispatch today" is not a property a test should be
+    // relying on to stay off the operator's real gateway.
     let home_line = || {
-        stdout(&run(sandbox.bare().arg("home")))
-            .trim_end()
-            .to_string()
+        let mut probe = home_probe(&sandbox);
+        stdout(&run(&mut probe)).trim_end().to_string()
     };
     // No config has been written yet, so this case has to come first.
     assert_eq!(home_line(), "home: not configured (no config file)");
