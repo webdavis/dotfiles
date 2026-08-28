@@ -117,9 +117,13 @@ const UNIFI_BRAND: &str = "unifi";
 /// be had. The BRAND is settled first, because every setting under it belongs
 /// to whichever router it names.
 pub fn router_settings(router: &toml::Table) -> Result<RouterSettings, SetupFailure> {
+    // Present but EMPTY is the key left blank, the same hole as absent: the
+    // filter is what keeps `brand = ""` from being quoted back as a brand no
+    // backend answers, which names a value the operator never typed.
     let brand = router
         .get("brand")
         .and_then(toml::Value::as_str)
+        .filter(|value| !value.is_empty())
         .ok_or(SetupFailure::NoBrand)?;
     if brand != UNIFI_BRAND {
         return Err(SetupFailure::UnknownBrand(brand.to_string()));
@@ -484,10 +488,14 @@ mod tests {
     fn a_router_table_with_no_brand_names_the_key_and_the_one_brand_that_answers() {
         // WHICH ROUTER answers is the first question the table has to settle,
         // because every setting under it belongs to that one. A non-string
-        // brand is the same hole: there is no name to match a backend by.
+        // brand and an EMPTY one are the same hole: there is no name to match
+        // a backend by, and the empty one used to be quoted back as a brand
+        // nothing implements, which points at a value the operator never
+        // typed instead of at the key they left blank.
         for text in [
             "router_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
             "brand = 5\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "brand = \"\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
         ] {
             assert_eq!(
                 router_settings(&table(text)),

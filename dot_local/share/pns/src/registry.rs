@@ -182,13 +182,16 @@ impl Registry {
 /// Four fixtures used to reproduce this independently, so a declaration could
 /// change in the roster and stay green in three of them.
 ///
+/// PRIVATE to this module, which is what confines its input to `ROSTER` and
+/// the slices its own tests hand it: an operator's config never reaches it.
+///
 /// IT PANICS on a refused registration, naming the offender, and that is safe
 /// on an always-exit-0 path because the only reachable refusal is a duplicate
 /// name in a compiled-in const: deterministic, so it fires on the first call
 /// in every mode and every test run and cannot reach an operator's machine.
 /// Logging and carrying on, which is what this replaced, drops a delivery leg
 /// silently and forever on the path whose job is to not be silent.
-pub fn build_registry(entries: &[Registration]) -> Registry {
+fn build_registry(entries: &[Registration]) -> Registry {
     let mut registry = Registry::new();
     for entry in entries {
         registry
