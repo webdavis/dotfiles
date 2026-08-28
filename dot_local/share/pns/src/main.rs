@@ -171,10 +171,13 @@ fn remembered_staleness() -> Option<String> {
     (!episode.is_empty()).then_some(episode)
 }
 
-/// Remember one staleness episode, or forget a resolved one. FAIL-QUIET in
-/// the `start_of_turn` style: an unwritable state directory must never change
-/// a verdict, fail the diagnostic, or crash. The cost of a failed write is
-/// one repeated warning.
+/// Remember one staleness episode, or forget one a HOME reading showed
+/// resolved. ONLY A HOME READING CALLS THIS: away and unreadable are not
+/// resolutions, so they never reach here to erase a live episode.
+///
+/// FAIL-QUIET in the `start_of_turn` style: an unwritable state directory
+/// must never change a verdict, fail the diagnostic, or crash. The cost of a
+/// failed write is one repeated warning.
 fn remember_staleness(episode: Option<&str>) {
     let memory = state_dir().join(STALENESS_MEMORY);
     let Some(episode) = episode else {
@@ -184,12 +187,26 @@ fn remember_staleness(episode: Option<&str>) {
     if let Some(parent) = memory.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&memory, format!("{episode}\n"));
+    // PUBLISHED BY RENAME, the way the turn marker's claim is claimed twenty
+    // lines up. A plain write truncates first, so a reader landing between
+    // the truncate and the bytes sees an empty file, which `remembered_
+    // staleness` reads as no episode at all. The pending path sits in the
+    // SAME directory, because a rename across filesystems is not one.
+    let pending = memory.with_extension(format!("new.{}", std::process::id()));
+    if std::fs::write(&pending, format!("{episode}\n")).is_err() {
+        return;
+    }
+    if std::fs::rename(&pending, &memory).is_err() {
+        // Still fail-quiet, and nothing half-written left in the state
+        // directory for the next run to trip over.
+        let _ = std::fs::remove_file(&pending);
+    }
 }
 
-/// One line, holding the episode the operator has already been warned about.
-/// NO SESSION ID: one config names one device, so there is one staleness
-/// state at a time and every reader of it means the same one.
+/// One line, holding the episode the operator has already been warned about,
+/// absent when a HOME reading showed no staleness. NO SESSION ID: one config
+/// names one device, so there is one staleness state at a time and every
+/// reader of it means the same one.
 const STALENESS_MEMORY: &str = "home-staleness";
 
 /// How long the finished turn ran, CLAIMING the marker first.
@@ -1040,7 +1057,7 @@ fn pulse_mode() {
 /// answer "why did the probe not read" as much as "is the device home". The
 /// key itself is never printed, on any path.
 fn home_mode() {
-    use pns::home::{SetupFailure, report, setup_report};
+    use pns::home::{HomePresence, SetupFailure, report, setup_report};
     let home_dir = std::env::var("HOME").unwrap_or_default();
     let config = match load_config(&config_path(&home_dir)) {
         Ok(LoadOutcome::Loaded(config)) => config,
@@ -1085,14 +1102,26 @@ fn home_mode() {
     // STILL WIRING: the library decides what is stale, what its episode is
     // called and whether that is news; this reads the memory, prints, and
     // writes the memory back.
-    let reading = pns::home::read_home_presence(&router, &settings.device);
-    let remembered = remembered_staleness();
-    println!("{}", report(&reading, remembered.as_deref()));
-    remember_staleness(
-        pns::home::stale_identifiers(&reading)
-            .map(|staleness| pns::home::episode_id(&staleness))
-            .as_deref(),
-    );
+    let reading = pns::home::read_home(&router, &settings.device);
+    // ONE DERIVATION, ONE DECISION. The episode is spelled once and the news
+    // decided once, then the SAME value is what gets printed and what gets
+    // remembered: two derivations of one fact, one in the print and one in
+    // the write, can only stay in step for as long as neither grows a
+    // condition of its own.
+    let staleness = pns::home::stale_identifiers(&reading);
+    let episode = staleness.as_ref().map(pns::home::episode_id);
+    let news = pns::home::is_new_staleness(remembered_staleness().as_deref(), episode.as_deref());
+    println!("{}", report(&reading, staleness.as_ref().filter(|_| news)));
+    // ONLY A HOME READING HAS AN OPINION ABOUT THE IDENTIFIERS. NotHome and
+    // Unknown both hand `stale_identifiers` a None, and writing that back
+    // would read "the disagreement resolved" out of a trip to the shops or a
+    // five-second router timeout: the same invention as reading a failed
+    // fetch as NotHome, one layer up. Away and unreadable leave the memory
+    // untouched, so the warning stays once per STATE rather than once per
+    // homecoming.
+    if matches!(reading.presence, HomePresence::Home { .. }) {
+        remember_staleness(episode.as_deref());
+    }
 }
 
 /// The CLIP v2 bridge over ureq.

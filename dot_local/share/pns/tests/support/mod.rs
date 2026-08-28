@@ -208,10 +208,28 @@ impl RouterStub {
 
 /// One request, one answer, one closed connection: `Connection: close` keeps
 /// the client from pooling a socket this server has already dropped.
+///
+/// THE WHOLE HEADER IS READ BEFORE IT IS ROUTED, the way `http-capture` reads
+/// its own request. ONE `read` is not a request: a segment boundary landing
+/// before the request line, or a read that errors, leaves the routing text
+/// short or empty, and text carrying no "clients" serves the SITES body as
+/// the clients listing. `parse_clients` accepts that as a complete listing of
+/// one anonymous client, so the test reports NotHome and reads as a flake
+/// rather than as its own assertion.
 fn answer(mut stream: std::net::TcpStream, listing: &Mutex<String>) {
-    let mut request = [0u8; 2048];
-    let read = std::io::Read::read(&mut stream, &mut request).unwrap_or(0);
-    let body = if String::from_utf8_lossy(&request[..read]).contains("clients") {
+    // A client that opens a socket and says nothing must not park this
+    // thread: the accept loop is serial, so one hang would stall every later
+    // request instead of failing one.
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+    let mut request = Vec::new();
+    let mut chunk = [0u8; 2048];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        match std::io::Read::read(&mut stream, &mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => request.extend_from_slice(&chunk[..read]),
+        }
+    }
+    let body = if String::from_utf8_lossy(&request).contains("clients") {
         listing.lock().expect("the listing").clone()
     } else {
         r#"{"data":[{"id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}]}"#.to_string()

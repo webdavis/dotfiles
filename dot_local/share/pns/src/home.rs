@@ -30,10 +30,13 @@
 //! FALSE STALENESS, the known ceiling: ONE physical device listed TWICE (wired
 //! beside wireless, or a roaming re-association the router has not aged out)
 //! puts the keys on different entries legitimately, and this reads that as a
-//! disagreement. Merging entries is not attempted, because the router gives no
-//! answer to "are these the same device" that is not a guess; the evidence
-//! names the other client instead, so the operator can see a duplicate for
-//! what it is.
+//! disagreement. It takes two entries carrying DIFFERENT fields to get there:
+//! a key the entry the verdict names ALSO carries is read off that entry, so
+//! a duplicate answering to the same name changes nothing and cannot flip the
+//! reading by being listed first. Merging entries is not attempted, because
+//! the router gives no answer to "are these the same device" that is not a
+//! guess; the evidence names the other client instead, so the operator can see
+//! a duplicate for what it is.
 //!
 //! Fail direction: every failure to read is `Unknown`, never `NotHome`. The
 //! future consumers suppress or replay on transitions, so inventing "the
@@ -217,73 +220,99 @@ pub fn home_reading(clients: Option<Vec<Client>>, device: &DeviceIdentity) -> Ho
     // which is exactly the operator's rule: when the keys agree the winner's
     // identity does not matter, and when they point at different clients the
     // strongest key is the one that says which client the device is. A key
-    // that matches nothing is skipped and never a failure.
-    //
-    // A CLIENT IS ITS INDEX in this listing, which is how two keys are known
-    // to have found the same entry. It is never printed and never persisted:
-    // the router's own ids are not compared, because the question is only
-    // "the same entry or not" inside this one reading.
-    let mut found = Vec::new();
-    if let Some(mac) = &device.mac {
-        found.push((
-            DeviceKey::Mac,
-            mac.clone(),
-            clients.iter().position(|client| {
-                client.mac.as_deref().and_then(normalized_mac).as_deref() == Some(mac.as_str())
-            }),
-        ));
-    }
-    if let Some(hostname) = &device.hostname {
-        found.push((
-            DeviceKey::Hostname,
-            hostname.clone(),
-            clients
-                .iter()
-                .position(|client| client.name.as_deref() == Some(hostname.as_str())),
-        ));
-    }
-    if let Some(ipv4) = device.ipv4 {
-        found.push((
-            DeviceKey::Ipv4,
-            ipv4.to_string(),
-            clients.iter().position(|client| {
-                client
-                    .ipv4
-                    .as_deref()
-                    .and_then(|text| text.parse::<std::net::Ipv4Addr>().ok())
-                    == Some(ipv4)
-            }),
-        ));
-    }
+    // that matches nothing is skipped and never a failure. This statement
+    // order is the whole precedence rule.
+    let configured: Vec<(DeviceKey, String)> = [
+        device.mac.clone().map(|mac| (DeviceKey::Mac, mac)),
+        device
+            .hostname
+            .clone()
+            .map(|hostname| (DeviceKey::Hostname, hostname)),
+        device.ipv4.map(|ipv4| (DeviceKey::Ipv4, ipv4.to_string())),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let first_match = |key: DeviceKey| {
+        clients
+            .iter()
+            .position(|client| client_carries(client, key, device))
+    };
     // A COMPLETE listing that no configured key matched is the only NotHome
     // there is: every unreadable, unparseable or incomplete answer left
     // through the Unknown above.
-    let (presence, winner_at) = match found.iter().find(|(_, _, at)| at.is_some()) {
+    let (presence, winner_at) = match configured
+        .iter()
+        .find_map(|(key, value)| first_match(*key).map(|at| (*key, value.clone(), at)))
+    {
         Some((key, value, at)) => (
             HomePresence::Home {
-                matched_by: *key,
-                value: value.clone(),
+                matched_by: key,
+                value,
             },
-            *at,
+            Some(at),
         ),
         None => (HomePresence::NotHome, None),
     };
     HomeReading {
         presence,
-        keys: found
+        keys: configured
             .into_iter()
-            .map(|(key, value, at)| KeyReading {
+            .map(|(key, value)| KeyReading {
                 key,
                 value,
-                outcome: match at {
-                    Some(at) if Some(at) == winner_at => KeyOutcome::MatchedDevice,
-                    Some(at) => KeyOutcome::MatchedOtherClient {
-                        client: client_label(&clients[at]),
-                    },
-                    None => KeyOutcome::MatchedNothing,
+                // MEMBERSHIP IN THE WINNER'S ENTRY is what "this device"
+                // means, not an index comparison against wherever this key
+                // matched first. A listing can carry one value twice (a
+                // duplicate entry, a name two clients answer to), and asking
+                // "which entry did this key find first" then answers out of
+                // the router's listing ORDER: reverse two entries and the
+                // same physical state flips between agreeing and stale, so
+                // the episode flaps on nothing. Asking whether the entry the
+                // verdict names carries this value has no order in it. Only
+                // a key that entry does NOT carry needs a first match, and
+                // that one is evidence rather than identity.
+                outcome: if winner_at.is_some_and(|at| client_carries(&clients[at], key, device)) {
+                    KeyOutcome::MatchedDevice
+                } else {
+                    match first_match(key) {
+                        Some(at) => KeyOutcome::MatchedOtherClient {
+                            client: client_label(&clients[at]),
+                        },
+                        None => KeyOutcome::MatchedNothing,
+                    }
                 },
             })
             .collect(),
+    }
+}
+
+/// Whether ONE listed client carries the value of ONE configured key: the
+/// single implementation of "this key matches that entry", asked to find the
+/// verdict and asked again of the entry the verdict names.
+fn client_carries(client: &Client, key: DeviceKey, device: &DeviceIdentity) -> bool {
+    match key {
+        // The router's spelling is normalized into the one the config was
+        // validated into, so a listing writing `2E-11-AB-6D-B0-4F` still
+        // matches `2e:11:ab:6d:b0:4f`.
+        DeviceKey::Mac => device.mac.as_deref().is_some_and(|mac| {
+            client.mac.as_deref().and_then(normalized_mac).as_deref() == Some(mac)
+        }),
+        // EXACT and case-sensitive: anything looser would let "mister-2"
+        // answer for "mister".
+        DeviceKey::Hostname => device
+            .hostname
+            .as_deref()
+            .is_some_and(|hostname| client.name.as_deref() == Some(hostname)),
+        // PARSED rather than compared as text, so a listing's own spelling of
+        // an address cannot miss the one the config holds.
+        DeviceKey::Ipv4 => device.ipv4.is_some_and(|ipv4| {
+            client
+                .ipv4
+                .as_deref()
+                .and_then(|text| text.parse::<std::net::Ipv4Addr>().ok())
+                == Some(ipv4)
+        }),
     }
 }
 
@@ -365,15 +394,24 @@ pub fn is_new_staleness(remembered: Option<&str>, current: Option<&str>) -> bool
 /// `SetupFailure::InvalidDeviceKey`'s `found` is, so the router's own text
 /// reaches a terminal as its escape and the nameless case reads as prose.
 ///
+/// PRESENT BUT EMPTY IS NOT IDENTIFYING, the same filter `router_settings`
+/// puts on a blank `brand`: the router lists a field it has no answer for as
+/// `""` as readily as it omits it, and `matched a different client ""` names
+/// nothing the operator can act on.
+///
 /// A client a key MATCHED always carries at least the field that matched it,
 /// so the last arm is the floor of a total function rather than a case the
 /// router produces.
 fn client_label(client: &Client) -> String {
-    match client
-        .name
-        .as_deref()
-        .or(client.mac.as_deref())
-        .or(client.ipv4.as_deref())
+    let identifying = |field: &Option<String>| {
+        field
+            .as_deref()
+            .filter(|text| !text.is_empty())
+            .map(str::to_string)
+    };
+    match identifying(&client.name)
+        .or_else(|| identifying(&client.mac))
+        .or_else(|| identifying(&client.ipv4))
     {
         Some(text) => format!("{text:?}"),
         None => "an unnamed client".to_string(),
@@ -523,7 +561,7 @@ pub fn router_api_key(router: &toml::Table) -> Option<String> {
 }
 
 /// One reading: fetch through the seam, parse, judge.
-pub fn read_home_presence<R: Router>(router: &R, device: &DeviceIdentity) -> HomeReading {
+pub fn read_home<R: Router>(router: &R, device: &DeviceIdentity) -> HomeReading {
     home_reading(
         router.clients_json().as_deref().and_then(parse_clients),
         device,
@@ -633,13 +671,21 @@ pub fn first_site_id(sites_json: &str) -> Option<String> {
 }
 
 /// What `pns home` says for one reading: the verdict, then one EVIDENCE line
-/// per configured key, then the staleness warning when it is news. PURE, so
-/// the words and the reading cannot drift apart untested.
+/// per configured key, then the staleness warning for whatever the caller
+/// hands in as news. PURE, so the words and the reading cannot drift apart
+/// untested.
 ///
 /// THE EVIDENCE IS NEVER WITHHELD. A hand-run diagnostic answers "why did it
 /// read that" as much as "what did it read", so every configured key says
 /// what it found on every run, however many times it has said it before.
-pub fn report(reading: &HomeReading, remembered: Option<&str>) -> String {
+///
+/// RENDERING ONLY: `news` arrives already decided, because the caller that
+/// decides it is also the one that REMEMBERS it. Deriving the episode here
+/// as well would settle one fact twice per run off two call sites, and the
+/// day either grows a condition (a channel gate, a quiet window) the line
+/// the operator read and the episode the file recorded could disagree about
+/// what they were told.
+pub fn report(reading: &HomeReading, news: Option<&Staleness>) -> String {
     let mut lines = vec![verdict_line(&reading.presence)];
     lines.extend(reading.keys.iter().map(|key| {
         format!(
@@ -647,7 +693,14 @@ pub fn report(reading: &HomeReading, remembered: Option<&str>) -> String {
             key.key.config_key(),
             key.value,
             match &key.outcome {
-                KeyOutcome::MatchedDevice => "matched this device".to_string(),
+                // THE CLIENT THE VERDICT NAMES, which is all the scan
+                // established. "this device" would claim identity with the
+                // operator's own hardware, and when the winning key is
+                // itself the stale one (a reclaimed lease answering for a
+                // phone that left) the entry it names belongs to somebody
+                // else. The evidence surface exists to be read on exactly
+                // that reading, so it says what it knows.
+                KeyOutcome::MatchedDevice => "matched the client the verdict names".to_string(),
                 KeyOutcome::MatchedOtherClient { client } =>
                     format!("matched a different client {client}"),
                 KeyOutcome::MatchedNothing => "matched no client".to_string(),
@@ -657,9 +710,7 @@ pub fn report(reading: &HomeReading, remembered: Option<&str>) -> String {
     // ONLY THE ALERT-SHAPED LINE IS DEDUPED. The evidence above it says the
     // same thing in more words every single run; this one sentence is the
     // one a consumer would act on, so it is said once per state.
-    if let Some(staleness) = stale_identifiers(reading)
-        && is_new_staleness(remembered, Some(&episode_id(&staleness)))
-    {
+    if let Some(staleness) = news {
         lines.push(format!(
             "home: an identifier looks stale: {} {} with {}",
             staleness
@@ -772,7 +823,7 @@ mod tests {
     use super::{
         Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, Router,
         RouterSettings, SetupFailure, device_identity, enabled_router_table, episode_id,
-        first_site_id, home_reading, is_new_staleness, parse_clients, read_home_presence, report,
+        first_site_id, home_reading, is_new_staleness, parse_clients, read_home, report,
         router_api_key, router_settings, setup_report, stale_identifiers,
     };
 
@@ -1131,6 +1182,20 @@ mod tests {
                     {"ipAddress":"192.168.1.8"}]}"#,
                 "\"192.168.1.8\"",
             ),
+            // PRESENT BUT EMPTY is the field the router has no answer for,
+            // the same hole as absent: `matched a different client ""` names
+            // nothing an operator can act on, so an empty field falls through
+            // to the next one exactly as a missing field does.
+            (
+                r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
+                    {"name":"","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.8"}]}"#,
+                "\"60:82:46:3c:fb:01\"",
+            ),
+            (
+                r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
+                    {"name":"","macAddress":"","ipAddress":"192.168.1.8"}]}"#,
+                "\"192.168.1.8\"",
+            ),
         ] {
             assert_eq!(
                 home_reading(
@@ -1145,6 +1210,45 @@ mod tests {
                     client: client.to_string(),
                 },
                 "case: {listing:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_the_winners_own_entry_carries_is_this_device_in_either_listing_order() {
+        // ONE physical state, listed two ways. Two clients answer to
+        // "mister" and only the second-listed one carries the configured MAC,
+        // which is the duplicate-entry case the module docs name. The MAC
+        // wins either way and its entry ALSO carries the hostname, so nothing
+        // disagrees with anything and the order the router happened to list
+        // them in cannot change that.
+        let winner_second = r#"{"data":[
+            {"name":"mister","ipAddress":"192.168.1.7","macAddress":"60:82:46:3c:fb:01"},
+            {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"}]}"#;
+        let winner_first = r#"{"data":[
+            {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
+            {"name":"mister","ipAddress":"192.168.1.7","macAddress":"60:82:46:3c:fb:01"}]}"#;
+        for listing in [winner_second, winner_first] {
+            let reading = home_reading(
+                parse_clients(listing),
+                &identity(
+                    "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
+                     device_hostname = \"mister\"\n",
+                ),
+            );
+            assert_eq!(
+                reading
+                    .keys
+                    .iter()
+                    .map(|reading| reading.outcome.clone())
+                    .collect::<Vec<_>>(),
+                vec![KeyOutcome::MatchedDevice, KeyOutcome::MatchedDevice],
+                "case: {listing:?}"
+            );
+            assert_eq!(
+                stale_identifiers(&reading),
+                None,
+                "a key the winner's own entry carries is not stale: {listing:?}"
             );
         }
     }
@@ -1232,14 +1336,14 @@ mod tests {
     fn one_reading_runs_fetch_parse_judge_in_order() {
         let device = identity("device_hostname = \"mister\"\n");
         assert_eq!(
-            read_home_presence(&FakeRouter(Some(CLIENTS_CAPTURE)), &device).presence,
+            read_home(&FakeRouter(Some(CLIENTS_CAPTURE)), &device).presence,
             HomePresence::Home {
                 matched_by: DeviceKey::Hostname,
                 value: "mister".to_string(),
             }
         );
         assert_eq!(
-            read_home_presence(&FakeRouter(None), &device).presence,
+            read_home(&FakeRouter(None), &device).presence,
             HomePresence::Unknown
         );
     }
@@ -1897,21 +2001,19 @@ mod tests {
         // as its escape exactly as the matched value does.
         let listing = r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
             {"name":"mo\"use\u001b[2J","ipAddress":"192.168.1.8"}]}"#;
-        assert_eq!(
-            report(
-                &home_reading(
-                    parse_clients(listing),
-                    &identity(
-                        "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
-                         device_hostname = \"mister\"\n\
-                         device_ipv4 = \"192.168.1.8\"\n"
-                    ),
-                ),
-                None
+        let reading = home_reading(
+            parse_clients(listing),
+            &identity(
+                "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
+                 device_hostname = \"mister\"\n\
+                 device_ipv4 = \"192.168.1.8\"\n",
             ),
+        );
+        assert_eq!(
+            report(&reading, stale_identifiers(&reading).as_ref()),
             "home: on the home network (matched by device_hostname \"mister\")\n\
              home:   device_mac \"2e:11:ab:6d:b0:4f\" matched no client\n\
-             home:   device_hostname \"mister\" matched this device\n\
+             home:   device_hostname \"mister\" matched the client the verdict names\n\
              home:   device_ipv4 \"192.168.1.8\" matched a different client \
              \"mo\\\"use\\u{1b}[2J\"\n\
              home: an identifier looks stale: device_mac, device_ipv4 disagree with \
@@ -1933,11 +2035,11 @@ mod tests {
             ),
         );
         let evidence = "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
-             home:   device_mac \"2e:11:ab:6d:b0:4f\" matched this device\n\
+             home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
              home:   device_hostname \"mister-2\" matched no client\n\
              home:   device_ipv4 \"192.168.1.248\" matched a different client \"mouse\"";
         assert_eq!(
-            report(&reading, None),
+            report(&reading, stale_identifiers(&reading).as_ref()),
             format!(
                 "{evidence}\nhome: an identifier looks stale: device_hostname, device_ipv4 \
                  disagree with device_mac"
@@ -1946,29 +2048,21 @@ mod tests {
         // A REPEAT keeps every evidence line and drops the alert-shaped one:
         // a hand-run diagnostic always tells the whole truth, and only the
         // warning is said once.
-        assert_eq!(
-            report(
-                &reading,
-                Some("device_mac device_hostname=none device_ipv4=other")
-            ),
-            evidence
-        );
+        assert_eq!(report(&reading, None), evidence);
         // ONE disagreeing key is one key: the sentence agrees with what it
         // is naming.
+        let one_key = home_reading(
+            parse_clients(CLIENTS_CAPTURE),
+            &identity(
+                "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
+                 device_ipv4 = \"192.168.1.248\"\n",
+            ),
+        );
         assert_eq!(
-            report(
-                &home_reading(
-                    parse_clients(CLIENTS_CAPTURE),
-                    &identity(
-                        "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
-                         device_ipv4 = \"192.168.1.248\"\n",
-                    ),
-                ),
-                None
-            )
-            .lines()
-            .last()
-            .expect("a staleness line"),
+            report(&one_key, stale_identifiers(&one_key).as_ref())
+                .lines()
+                .last()
+                .expect("a staleness line"),
             "home: an identifier looks stale: device_ipv4 disagrees with device_mac"
         );
     }
@@ -2129,7 +2223,7 @@ mod tests {
         let (router, wire) =
             scripted_router(&[http_ok(SITES_CAPTURE), http_ok(CLIENTS_CAPTURE)], "k-123");
         assert_eq!(
-            read_home_presence(&router, &identity("device_hostname = \"mister\"\n")).presence,
+            read_home(&router, &identity("device_hostname = \"mister\"\n")).presence,
             HomePresence::Home {
                 matched_by: DeviceKey::Hostname,
                 value: "mister".to_string(),
@@ -2162,7 +2256,7 @@ mod tests {
             "k-123",
         );
         assert_eq!(
-            read_home_presence(&router, &identity("device_hostname = \"mister\"\n")).presence,
+            read_home(&router, &identity("device_hostname = \"mister\"\n")).presence,
             HomePresence::Unknown
         );
         let wire = String::from_utf8_lossy(&wire.lock().unwrap()).to_lowercase();
@@ -2191,7 +2285,7 @@ mod tests {
             "k-123",
         );
         assert_eq!(
-            read_home_presence(&router, &identity("device_hostname = \"mister\"\n")).presence,
+            read_home(&router, &identity("device_hostname = \"mister\"\n")).presence,
             HomePresence::Unknown
         );
     }
