@@ -9,7 +9,7 @@ mod support;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use support::{Sandbox, run, stderr, stdout};
+use support::{RouterStub, Sandbox, run, stderr, stdout};
 
 // --- the alert path ---------------------------------------------------------
 
@@ -616,6 +616,148 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
 }
 
 // --- the home probe's diagnostic --------------------------------------------
+
+/// A listing where the keys DISAGREE: the MAC names the phone, the client
+/// name matches nobody, and the address is now the neighbouring client's
+/// lease.
+const KEYS_DISAGREE: &str = r#"{"data":[
+    {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
+    {"name":"mouse","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
+
+/// The same three identifiers, all on one client again.
+const KEYS_AGREE: &str = r#"{"data":[
+    {"name":"mister-2","ipAddress":"192.168.1.248","macAddress":"2e:11:ab:6d:b0:4f"}]}"#;
+
+/// A complete listing carrying none of the configured identifiers: the device
+/// is out of the house, which is the most ordinary reading this probe takes.
+const KEYS_AWAY: &str = r#"{"data":[
+    {"name":"mouse","ipAddress":"192.168.1.3","macAddress":"60:82:46:3c:fb:01"}]}"#;
+
+/// The router's captive-portal page, which is every unreachable or unreadable
+/// answer this probe can get.
+const NO_LISTING: &str = "<html>router login</html>";
+
+/// The config KEYS_DISAGREE is read against, and the lines that reading
+/// prints. Shared, because a second test asserting the diagnostic is
+/// unchanged is only worth anything if "unchanged" is the same text.
+fn stale_config(router_url: &str) -> String {
+    format!(
+        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"{router_url}\"\n\
+         device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
+         device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n"
+    )
+}
+
+const STALE_EVIDENCE: &str = "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
+     home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
+     home:   device_hostname \"mister-2\" matched no client\n\
+     home:   device_ipv4 \"192.168.1.248\" matched a different client \"mouse\"";
+
+const STALE_WARNING: &str =
+    "home: an identifier looks stale: device_hostname, device_ipv4 disagree with device_mac";
+
+#[test]
+fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state() {
+    // THE MEMORY IS A REAL FILE under a real HOME, which is the one edge this
+    // slice adds: the dedupe is only worth anything if a LATER run of the
+    // binary reads what this one wrote.
+    let sandbox = Sandbox::new("home-staleness");
+    let router = RouterStub::start(KEYS_DISAGREE);
+    sandbox.write_config(&stale_config(&router.url()));
+    let home = || {
+        stdout(&run(sandbox.bare().arg("home")))
+            .trim_end()
+            .to_string()
+    };
+    let evidence = STALE_EVIDENCE;
+    let warning = STALE_WARNING;
+    let memory = sandbox.path(".local/state/pns/home-staleness");
+
+    assert_eq!(home(), format!("{evidence}\n{warning}"));
+    assert_eq!(
+        std::fs::read_to_string(&memory)
+            .expect("the episode is remembered")
+            .trim(),
+        "device_mac device_hostname=none device_ipv4=other"
+    );
+    // A REPEAT still tells the whole truth and says the warning no more.
+    assert_eq!(home(), evidence);
+    // RESOLVED: the memory is forgotten rather than left to suppress the next
+    // episode, and the state is news again when it comes back.
+    router.set_listing(KEYS_AGREE);
+    assert_eq!(
+        home(),
+        "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
+         home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
+         home:   device_hostname \"mister-2\" matched the client the verdict names\n\
+         home:   device_ipv4 \"192.168.1.248\" matched the client the verdict names"
+    );
+    assert!(!memory.exists(), "a resolved episode is forgotten");
+    router.set_listing(KEYS_DISAGREE);
+    assert_eq!(home(), format!("{evidence}\n{warning}"));
+
+    // AWAY IS NOT RESOLVED. Leaving the house says nothing about the
+    // identifiers: every key matches nothing because the device is not on the
+    // wifi, so the live episode survives the trip and the homecoming is quiet.
+    // Without this the warning is once per HOMECOMING, which for a phone is
+    // once a day.
+    router.set_listing(KEYS_AWAY);
+    assert_eq!(
+        home(),
+        "home: NOT on the home network (no configured identifier matched a client)\n\
+         home:   device_mac \"2e:11:ab:6d:b0:4f\" matched no client\n\
+         home:   device_hostname \"mister-2\" matched no client\n\
+         home:   device_ipv4 \"192.168.1.248\" matched no client"
+    );
+    assert!(
+        memory.exists(),
+        "leaving the house does not resolve a disagreement"
+    );
+    router.set_listing(KEYS_DISAGREE);
+    assert_eq!(home(), evidence);
+
+    // AN UNREADABLE ANSWER searched nothing at all, so it cannot have found
+    // the disagreement gone either. A five-second router timeout must not
+    // rearm the warning.
+    router.set_listing(NO_LISTING);
+    assert_eq!(
+        home(),
+        "home: unknown (router unreachable or its answer unreadable)"
+    );
+    assert!(
+        memory.exists(),
+        "an unreadable answer does not resolve a disagreement"
+    );
+    router.set_listing(KEYS_DISAGREE);
+    assert_eq!(home(), evidence);
+}
+
+#[test]
+fn a_state_directory_that_cannot_be_used_leaves_the_whole_diagnostic_standing() {
+    // THE MEMORY IS THIS SLICE'S ONE EDGE and it is FAIL-QUIET: a state
+    // directory that is a regular FILE breaks every read and every write of
+    // it, and the verdict, the evidence, the warning and the exit code must
+    // not notice. `run` asserts the exit 0, which is the half a stray
+    // `unwrap` would take out.
+    let sandbox = Sandbox::new("home-unusable-state");
+    let router = RouterStub::start(KEYS_DISAGREE);
+    sandbox.write_config(&stale_config(&router.url()));
+    let blocked = sandbox.path("state-is-a-file");
+    std::fs::write(&blocked, "not a directory\n").expect("a file where the state dir would go");
+    let home = || {
+        let mut probe = sandbox.bare();
+        probe.env("PNS_STATE_DIR", &blocked).arg("home");
+        stdout(&run(&mut probe)).trim_end().to_string()
+    };
+
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}"));
+    // The DOCUMENTED COST, pinned so it stays a cost and not a crash:
+    // nothing could be remembered, so the same state is news again. A run
+    // that went quiet here would mean a write had silently succeeded
+    // somewhere this test cannot see.
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}"));
+    assert!(blocked.is_file(), "the blocking file is left as it was");
+}
 
 #[test]
 fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {

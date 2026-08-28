@@ -8,8 +8,10 @@
 #![allow(dead_code)] // each test binary uses its own subset of this harness.
 
 use std::ffi::OsString;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::{Arc, Mutex};
 
 pub const ENGINE: &str = env!("CARGO_BIN_EXE_pns");
 pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
@@ -166,6 +168,81 @@ esac"#
         std::fs::create_dir_all(&dir).expect("config dir");
         std::fs::write(dir.join("config.toml"), contents).expect("config file");
     }
+}
+
+/// A UniFi router on loopback, answering the two calls the probe makes: the
+/// sites listing, then whatever clients listing it has been given.
+///
+/// IN-PROCESS, on a thread rather than a child: the engine under test is the
+/// process that has to be real, and a listener the test owns can have its
+/// listing swapped between runs, which is how a resolved staleness is
+/// observed. The thread ends with the test binary.
+pub struct RouterStub {
+    port: u16,
+    listing: Arc<Mutex<String>>,
+}
+
+impl RouterStub {
+    pub fn start(listing: &str) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("loopback bind");
+        let port = listener.local_addr().expect("local addr").port();
+        let listing = Arc::new(Mutex::new(listing.to_string()));
+        let served = Arc::clone(&listing);
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                answer(stream, &served);
+            }
+        });
+        RouterStub { port, listing }
+    }
+
+    pub fn url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+
+    /// What the router says from the next call on.
+    pub fn set_listing(&self, listing: &str) {
+        *self.listing.lock().expect("the listing") = listing.to_string();
+    }
+}
+
+/// One request, one answer, one closed connection: `Connection: close` keeps
+/// the client from pooling a socket this server has already dropped.
+///
+/// THE WHOLE HEADER IS READ BEFORE IT IS ROUTED, the way `http-capture` reads
+/// its own request. ONE `read` is not a request: a segment boundary landing
+/// before the request line, or a read that errors, leaves the routing text
+/// short or empty, and text carrying no "clients" serves the SITES body as
+/// the clients listing. `parse_clients` accepts that as a complete listing of
+/// one anonymous client, so the test reports NotHome and reads as a flake
+/// rather than as its own assertion.
+fn answer(mut stream: std::net::TcpStream, listing: &Mutex<String>) {
+    // A client that opens a socket and says nothing must not park this
+    // thread: the accept loop is serial, so one hang would stall every later
+    // request instead of failing one.
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+    let mut request = Vec::new();
+    let mut chunk = [0u8; 2048];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        match std::io::Read::read(&mut stream, &mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => request.extend_from_slice(&chunk[..read]),
+        }
+    }
+    let body = if String::from_utf8_lossy(&request).contains("clients") {
+        listing.lock().expect("the listing").clone()
+    } else {
+        r#"{"data":[{"id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}]}"#.to_string()
+    };
+    let _ = std::io::Write::write_all(
+        &mut stream,
+        format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\
+             Content-Length: {}\r\n\r\n{body}",
+            body.len()
+        )
+        .as_bytes(),
+    );
 }
 
 impl Drop for Sandbox {
