@@ -560,6 +560,46 @@ pub fn router_api_key(router: &toml::Table) -> Option<String> {
     (!key.is_empty()).then(|| key.to_string())
 }
 
+/// The hermes route the stale alert posts to, plus the complaint a value that
+/// could not be one earns. EMPTY IS THE DEFAULT ROUTE, the same spelling
+/// `--channel` and `hermes_url_for` already use, so no second vocabulary for
+/// "wherever alerts normally go".
+///
+/// VALIDATED HERE rather than where the URL is built, because the operator
+/// TYPED THIS KEY: `hermes_url_for`'s own refusal names `--channel`, a flag
+/// nobody passed on this path, and would send them hunting for it.
+///
+/// LOUD-WARD ON EVERY FAILURE. A value of the wrong type, an empty string and
+/// a name no URL could carry all fall back to the default route with one
+/// complaint, because they are one fix; the alert still goes out, on the route
+/// the operator would have got had they written nothing. Refusing to alert
+/// over a misspelled route would let a config typo silence the very warning it
+/// is configuring, and a diagnostic that can be taken down by its own settings
+/// is not one.
+///
+/// THE COMPLAINT IS RETURNED, not printed: this stays a value function, and
+/// the composition root decides that a warning goes to stderr, exactly as
+/// `select_plugins` hands its roster warning back.
+pub fn stale_alert_channel(router: &toml::Table) -> (String, Option<String>) {
+    let Some(value) = router.get("stale_alert_channel") else {
+        return (String::new(), None);
+    };
+    match value
+        .as_str()
+        .filter(|route| crate::channels::hermes::route_name_is_usable(route))
+    {
+        Some(route) => (route.to_string(), None),
+        None => (
+            String::new(),
+            Some(format!(
+                "pns: config error (stale_alert_channel = {} in [plugins.router] is not a \
+                 usable route name); the stale alert posts to the default route",
+                spell(value)
+            )),
+        ),
+    }
+}
+
 /// One reading: fetch through the seam, parse, judge.
 pub fn read_home<R: Router>(router: &R, device: &DeviceIdentity) -> HomeReading {
     home_reading(
@@ -711,23 +751,45 @@ pub fn report(reading: &HomeReading, news: Option<&Staleness>) -> String {
     // same thing in more words every single run; this one sentence is the
     // one a consumer would act on, so it is said once per state.
     if let Some(staleness) = news {
-        lines.push(format!(
-            "home: an identifier looks stale: {} {} with {}",
-            staleness
-                .disagreeing
-                .iter()
-                .map(|key| key.key.config_key())
-                .collect::<Vec<_>>()
-                .join(", "),
-            if staleness.disagreeing.len() == 1 {
-                "disagrees"
-            } else {
-                "disagree"
-            },
-            staleness.winner.config_key()
-        ));
+        lines.push(stale_warning(staleness));
     }
     lines.join("\n")
+}
+
+/// The one sentence a stale state is worth saying out loud: which keys
+/// disagree, and with which one.
+///
+/// A FUNCTION OF ITS OWN because it has TWO readers, the terminal line
+/// `report` prints and the detail of the alert `pns home` delivers, and a
+/// sentence written out twice is a sentence that drifts. Byte-identical in
+/// both, deliberately: the operator reading the notification and the operator
+/// reading the diagnostic are told the same thing in the same words.
+///
+/// IT KEEPS THE `home:` PREFIX, which is not only a terminal convention here.
+/// The notification's own title says `pns`, and the prefix is what names the
+/// PROBE inside it; the alternative was a body that could be about anything
+/// this binary does.
+///
+/// NOTHING THE ROUTER SAID IS IN IT. Every value here is a compiled-in config
+/// key name, so no client label, no address and no matched value can ride the
+/// sentence out to a channel; the evidence that does carry router text stays
+/// in the terminal, escaped by `report`.
+pub fn stale_warning(staleness: &Staleness) -> String {
+    format!(
+        "home: an identifier looks stale: {} {} with {}",
+        staleness
+            .disagreeing
+            .iter()
+            .map(|key| key.key.config_key())
+            .collect::<Vec<_>>()
+            .join(", "),
+        if staleness.disagreeing.len() == 1 {
+            "disagrees"
+        } else {
+            "disagree"
+        },
+        staleness.winner.config_key()
+    )
 }
 
 /// The one line for the verdict itself. PURE for the same reason as its
@@ -824,7 +886,8 @@ mod tests {
         Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, Router,
         RouterSettings, SetupFailure, device_identity, enabled_router_table, episode_id,
         first_site_id, home_reading, is_new_staleness, parse_clients, read_home, report,
-        router_api_key, router_settings, setup_report, stale_identifiers,
+        router_api_key, router_settings, setup_report, stale_alert_channel, stale_identifiers,
+        stale_warning,
     };
 
     /// The live capture of 2026-08-20 from the UDR's
@@ -1666,6 +1729,60 @@ mod tests {
         assert!(line.contains("api_key"), "got: {line}");
     }
 
+    // --- where the stale alert is routed -------------------------------------
+
+    #[test]
+    fn a_usable_stale_alert_channel_is_read_back_as_the_route_verbatim() {
+        // The operator names a hermes ROUTE, and the name they typed is what
+        // the alert carries: nothing here rewrites, lowercases or defaults it.
+        assert_eq!(
+            stale_alert_channel(&table("stale_alert_channel = \"priority\"\n")),
+            ("priority".to_string(), None)
+        );
+    }
+
+    #[test]
+    fn no_stale_alert_channel_at_all_asks_for_the_default_route_in_silence() {
+        // ABSENT IS NOT AN ERROR: the key is optional, and an empty route is
+        // how every caller of `hermes_url_for` spells "the default alert
+        // route". Complaining here would put a config error in front of every
+        // operator who never asked to route the alert anywhere.
+        assert_eq!(
+            stale_alert_channel(&table("brand = \"unifi\"\n")),
+            (String::new(), None)
+        );
+    }
+
+    #[test]
+    fn a_stale_alert_channel_that_is_not_a_usable_route_complains_and_falls_back() {
+        // LOUD-WARD, the same direction `hermes_url_for` falls: a misrouted
+        // alert on the default route beats one silently dropped, and the
+        // complaint names the CONFIG KEY, because the config is where the
+        // operator has to go. The three ways the value can fail are one
+        // message, because they are one fix.
+        for (setting, quoted) in [
+            ("stale_alert_channel = \"\"\n", "\"\""),
+            ("stale_alert_channel = \"a/b\"\n", "\"a/b\""),
+            ("stale_alert_channel = \"../alert\"\n", "\"../alert\""),
+            ("stale_alert_channel = 5\n", "<integer>"),
+            ("stale_alert_channel = true\n", "<boolean>"),
+        ] {
+            let (route, complaint) = stale_alert_channel(&table(setting));
+            assert_eq!(route, String::new(), "case: {setting:?}");
+            assert_eq!(
+                complaint.as_deref(),
+                Some(
+                    format!(
+                        "pns: config error (stale_alert_channel = {quoted} in [plugins.router] \
+                         is not a usable route name); the stale alert posts to the default route"
+                    )
+                    .as_str()
+                ),
+                "case: {setting:?}"
+            );
+        }
+    }
+
     // --- pagination: an incomplete page must not report a departure ----------
 
     #[test]
@@ -1928,6 +2045,39 @@ mod tests {
         ] {
             assert_eq!(is_new_staleness(remembered, current), news, "case: {case}");
         }
+    }
+
+    #[test]
+    fn the_stale_warning_is_one_sentence_that_agrees_with_the_keys_it_names() {
+        // THE SENTENCE A CONSUMER ACTS ON, which is why it is a function of
+        // its own: the diagnostic prints it and the delivered alert carries
+        // it, and one spelling is what keeps the terminal line and the
+        // notification from drifting apart.
+        let two_disagree = home_reading(
+            parse_clients(CLIENTS_CAPTURE),
+            &identity(
+                "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
+                 device_hostname = \"mister-2\"\n\
+                 device_ipv4 = \"192.168.1.248\"\n",
+            ),
+        );
+        assert_eq!(
+            stale_warning(&stale_identifiers(&two_disagree).expect("two keys point away")),
+            "home: an identifier looks stale: device_hostname, device_ipv4 \
+             disagree with device_mac"
+        );
+        // ONE disagreeing key is one key: the verb agrees with what it names.
+        let one_disagrees = home_reading(
+            parse_clients(CLIENTS_CAPTURE),
+            &identity(
+                "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
+                 device_ipv4 = \"192.168.1.248\"\n",
+            ),
+        );
+        assert_eq!(
+            stale_warning(&stale_identifiers(&one_disagrees).expect("one key points away")),
+            "home: an identifier looks stale: device_ipv4 disagrees with device_mac"
+        );
     }
 
     // --- the reported lines, pinned so the words match the verdict -----------

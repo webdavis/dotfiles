@@ -42,4 +42,6 @@ brand = "unifi"
 router_url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = "{{ (keepassxc "UniFi :: API Key (dresden-udr)").Password }}"
+# The hermes route a stale-identifier alert posts to. Unset means the normal alert route.
+stale_alert_channel = "priority"
 {{- end }}

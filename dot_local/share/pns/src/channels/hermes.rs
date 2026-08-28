@@ -89,20 +89,57 @@ pub fn hermes_secret(settings: &toml::Table) -> Option<String> {
 /// caller says so and posts to the default, because a misrouted notification
 /// on the loud route beats a silently dropped one.
 pub fn channel_url(base_url: &str, route: &str) -> Option<String> {
-    if route.is_empty()
-        || !route
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-    {
+    if !route_name_is_usable(route) {
         return None;
     }
     let (prefix, _default_route) = base_url.rsplit_once('/')?;
     Some(format!("{prefix}/{route}"))
 }
 
+/// Whether a name can safely become the final path segment of the gateway
+/// URL: non-empty, and nothing outside the unreserved run of ASCII letters,
+/// digits, `-` and `_`.
+///
+/// A TRUST BOUNDARY, and the ONE rule for it. The name reaches a URL, so
+/// nothing traversal-shaped, space-carrying or query-shaped passes; and it is
+/// its own function because two readers judge names now, `channel_url` when
+/// it builds the URL and the config read that resolves a route by name. Two
+/// spellings of "usable" would mean a value one of them waved through and the
+/// other refused, which is a route silently swapped for the default.
+pub fn route_name_is_usable(route: &str) -> bool {
+    !route.is_empty()
+        && route
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
 #[cfg(test)]
 mod channel_url_tests {
-    use super::{DEFAULT_HERMES_URL, channel_url};
+    use super::{DEFAULT_HERMES_URL, channel_url, route_name_is_usable};
+
+    #[test]
+    fn one_rule_judges_a_route_name_wherever_it_is_read() {
+        // THE PREDICATE IS THE SHARED HALF: the config read that resolves a
+        // route by name and the URL swap that spends it must agree about what
+        // a name is, or a value the config waved through becomes a URL the
+        // swap refuses (or worse, the other way around).
+        for usable in ["priority", "unattended-upgrades", "pns", "log_2", "A9"] {
+            assert!(route_name_is_usable(usable), "case: {usable:?}");
+        }
+        // Every form `channel_url` refuses, refused here too AND still refused
+        // through it: the extraction is only worth anything if the caller kept
+        // asking.
+        for hostile in [
+            "", "a/b", "../x", "a b", "a?x=1", "a#f", ".", "a\nb", "%2e%2e", "café",
+        ] {
+            assert!(!route_name_is_usable(hostile), "case: {hostile:?}");
+            assert_eq!(
+                channel_url(DEFAULT_HERMES_URL, hostile),
+                None,
+                "case: {hostile:?}"
+            );
+        }
+    }
 
     #[test]
     fn a_route_name_swaps_the_default_urls_final_segment() {
