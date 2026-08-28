@@ -28,14 +28,18 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # The home probe: is the phone on the home wifi, answered by the UDR's client
 # list. A SENSOR rather than a channel, so it is selected here like any plugin
 # and no event can ever route to it; `pns home` is how it is read and drilled,
-# and the catch-up and quiet-window slices are what will spend the reading. The
-# phone is matched by NAME because iOS private wifi addresses make the MAC
-# rotate per network. `brand` names which compiled-in backend answers; "unifi"
-# is the only one today, and an unknown brand is refused out loud.
+# and the catch-up and quiet-window slices are what will spend the reading.
+# THE DEVICE is named by up to three keys, `device_mac`, `device_hostname` and
+# `device_ipv4`; at least one is required, any one of them matching a client
+# reads home, and on disagreement the strongest (that order) names the match.
+# The phone is matched by NAME because iOS private wifi addresses make its MAC
+# rotate per network; `device_mac` is the key for a device whose MAC is stable.
+# `brand` names which compiled-in backend answers; "unifi" is the only one
+# today, and an unknown brand is refused out loud.
 [plugins.router]
 enabled = true
 brand = "unifi"
 router_url = "https://192.168.1.1"
-phone = "mister"
+device_hostname = "mister"
 api_key = "{{ (keepassxc "UniFi :: API Key (dresden-udr)").Password }}"
 {{- end }}
