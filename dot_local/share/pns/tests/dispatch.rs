@@ -9,7 +9,7 @@ mod support;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use support::{Sandbox, run, stderr, stdout};
+use support::{RouterStub, Sandbox, run, stderr, stdout};
 
 // --- the alert path ---------------------------------------------------------
 
@@ -616,6 +616,67 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
 }
 
 // --- the home probe's diagnostic --------------------------------------------
+
+/// A listing where the keys DISAGREE: the MAC names the phone, the client
+/// name matches nobody, and the address is now the neighbouring client's
+/// lease.
+const KEYS_DISAGREE: &str = r#"{"data":[
+    {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
+    {"name":"mouse","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
+
+/// The same three identifiers, all on one client again.
+const KEYS_AGREE: &str = r#"{"data":[
+    {"name":"mister-2","ipAddress":"192.168.1.248","macAddress":"2e:11:ab:6d:b0:4f"}]}"#;
+
+#[test]
+fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state() {
+    // THE MEMORY IS A REAL FILE under a real HOME, which is the one edge this
+    // slice adds: the dedupe is only worth anything if a LATER run of the
+    // binary reads what this one wrote.
+    let sandbox = Sandbox::new("home-staleness");
+    let router = RouterStub::start(KEYS_DISAGREE);
+    sandbox.write_config(&format!(
+        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"{}\"\n\
+         device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
+         device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n",
+        router.url()
+    ));
+    let home = || {
+        stdout(&run(sandbox.bare().arg("home")))
+            .trim_end()
+            .to_string()
+    };
+    let evidence = "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
+                    home:   device_mac \"2e:11:ab:6d:b0:4f\" matched this device\n\
+                    home:   device_hostname \"mister-2\" matched no client\n\
+                    home:   device_ipv4 \"192.168.1.248\" matched a different client \"mouse\"";
+    let warning = "home: an identifier looks stale: device_hostname, device_ipv4 \
+                   disagree with device_mac";
+    let memory = sandbox.path(".local/state/pns/home-staleness");
+
+    assert_eq!(home(), format!("{evidence}\n{warning}"));
+    assert_eq!(
+        std::fs::read_to_string(&memory)
+            .expect("the episode is remembered")
+            .trim(),
+        "device_mac device_hostname=none device_ipv4=other"
+    );
+    // A REPEAT still tells the whole truth and says the warning no more.
+    assert_eq!(home(), evidence);
+    // RESOLVED: the memory is forgotten rather than left to suppress the next
+    // episode, and the state is news again when it comes back.
+    router.set_listing(KEYS_AGREE);
+    assert_eq!(
+        home(),
+        "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
+         home:   device_mac \"2e:11:ab:6d:b0:4f\" matched this device\n\
+         home:   device_hostname \"mister-2\" matched this device\n\
+         home:   device_ipv4 \"192.168.1.248\" matched this device"
+    );
+    assert!(!memory.exists(), "a resolved episode is forgotten");
+    router.set_listing(KEYS_DISAGREE);
+    assert_eq!(home(), format!("{evidence}\n{warning}"));
+}
 
 #[test]
 fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {

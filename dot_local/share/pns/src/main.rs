@@ -152,13 +152,45 @@ fn turn_marker(session_id: &str) -> Option<std::path::PathBuf> {
     if !pns::safety::session_id_is_safe(session_id) {
         return None;
     }
+    Some(state_dir().join(format!("session-{session_id}.start")))
+}
+
+/// Where this binary keeps what it has to remember between runs.
+fn state_dir() -> std::path::PathBuf {
     let home = std::env::var("HOME").unwrap_or_default();
-    let state_dir = resolve_path(
+    resolve_path(
         std::env::var("PNS_STATE_DIR").ok().as_deref(),
         &format!("{home}/.local/state/pns"),
-    );
-    Some(state_dir.join(format!("session-{session_id}.start")))
+    )
 }
+
+/// The staleness episode this machine was last told about, if any.
+fn remembered_staleness() -> Option<String> {
+    let episode = std::fs::read_to_string(state_dir().join(STALENESS_MEMORY)).ok()?;
+    let episode = episode.trim().to_string();
+    (!episode.is_empty()).then_some(episode)
+}
+
+/// Remember one staleness episode, or forget a resolved one. FAIL-QUIET in
+/// the `start_of_turn` style: an unwritable state directory must never change
+/// a verdict, fail the diagnostic, or crash. The cost of a failed write is
+/// one repeated warning.
+fn remember_staleness(episode: Option<&str>) {
+    let memory = state_dir().join(STALENESS_MEMORY);
+    let Some(episode) = episode else {
+        let _ = std::fs::remove_file(&memory);
+        return;
+    };
+    if let Some(parent) = memory.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&memory, format!("{episode}\n"));
+}
+
+/// One line, holding the episode the operator has already been warned about.
+/// NO SESSION ID: one config names one device, so there is one staleness
+/// state at a time and every reader of it means the same one.
+const STALENESS_MEMORY: &str = "home-staleness";
 
 /// How long the finished turn ran, CLAIMING the marker first.
 ///
@@ -1050,9 +1082,16 @@ fn home_mode() {
         return;
     };
     let router = pns::home::UniFiRouter::new(settings.router_url, key);
-    println!(
-        "{}",
-        report(&pns::home::read_home_presence(&router, &settings.device))
+    // STILL WIRING: the library decides what is stale, what its episode is
+    // called and whether that is news; this reads the memory, prints, and
+    // writes the memory back.
+    let reading = pns::home::read_home_presence(&router, &settings.device);
+    let remembered = remembered_staleness();
+    println!("{}", report(&reading, remembered.as_deref()));
+    remember_staleness(
+        pns::home::stale_identifiers(&reading)
+            .map(|staleness| pns::home::episode_id(&staleness))
+            .as_deref(),
     );
 }
 
