@@ -1052,10 +1052,7 @@ fn home_mode() {
     let router = pns::home::UniFiRouter::new(settings.router_url, key);
     println!(
         "{}",
-        report(
-            pns::home::read_home_presence(&router, &settings.phone),
-            &settings.phone
-        )
+        report(&pns::home::read_home_presence(&router, &settings.device))
     );
 }
 

@@ -645,25 +645,53 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
         ),
         (
             "[plugins.router]\nenabled = false\nbrand = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: [plugins.router] is present but enabled = false",
         ),
         (
             "[plugins.router]\nenabled = true\n\
-             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: no brand in [plugins.router] (the only brand is \"unifi\")",
         ),
         (
             "[plugins.router]\nenabled = true\nbrand = \"asus\"\n\
-             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: [plugins.router] has brand \"asus\", which no compiled-in backend answers \
              (the only brand is \"unifi\")",
+        ),
+        (
+            // The URL is the one setting left outside the device keys, so it
+            // keeps its own line, and that line no longer names them.
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+             device_hostname = \"mister\"\napi_key = \"k-123\"\n",
+            "home: the [plugins.router] table is present but router_url is missing, empty, \
+             or not a string",
+        ),
+        (
+            // A table with no device in it at all. The retired `phone` key
+            // lands here too, which is the rename the operator has to make.
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+            "home: no device to look for in [plugins.router] \
+             (set at least one of device_mac, device_hostname, device_ipv4)",
+        ),
+        (
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+             router_url = \"https://192.168.1.1\"\ndevice_ipv4 = \"192.168.1\"\napi_key = \"k-123\"\n",
+            "home: device_ipv4 = \"192.168.1\" in [plugins.router] is not an IPv4 address \
+             (a dotted quad, e.g. \"192.168.1.169\")",
+        ),
+        (
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+             router_url = \"https://192.168.1.1\"\ndevice_mac = \"2e11ab6db04f\"\napi_key = \"k-123\"\n",
+            "home: device_mac = \"2e11ab6db04f\" in [plugins.router] is not a MAC address \
+             (six hex pairs under one separator, e.g. \"2e:11:ab:6d:b0:4f\")",
         ),
         (
             // Everything else is in order, so the key is the only thing left
             // to be missing, and the probe stops before it reaches a router.
             "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
             "home: no api_key in the [plugins.router] table (the probe is not set up)",
         ),
     ] {
