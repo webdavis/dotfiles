@@ -1,11 +1,12 @@
 //! WHICH destinations an event reaches, and whether the phone is one of them.
 //!
 //! The plan names NO channel. It is computed over the routing DECLARATIONS of
-//! whatever plugins the registry selected, which is what closed the old
+//! whatever CHANNELS the registry selected, which is what closed the old
 //! enum's open/closed violation: adding a destination is a registration, not
-//! an edit here.
+//! an edit here. A selected plugin of any other kind holds no declaration, so
+//! it is not something the plan can reach.
 
-use crate::registry::Selection;
+use crate::registry::{PluginKind, Selection};
 
 /// Whether a leg's outcome is reported to the operator.
 ///
@@ -72,31 +73,37 @@ pub fn channel_plan(
     };
     enabled
         .iter()
+        // ROUTING IS WHAT A LEG IS PLANNED FROM, and only a channel has any.
+        // A sensor is an input: it holds no declaration to read, so no flag,
+        // no fallback and no kind added later can turn one into a leg. The
+        // match stays exhaustive so a third kind has to state its answer here
+        // rather than inherit delivery from a catch-all.
+        .filter_map(|entry| match entry.kind {
+            PluginKind::Channel(routing) => Some((entry.name, routing)),
+            PluginKind::Sensor => None,
+        })
         // A plugin the binary serves in its own mode is not a destination an
         // event can reach, whatever the config selected it for.
-        .filter(|entry| entry.routing.event_dispatched)
-        .filter(|entry| match (local_only, remote_only) {
-            (true, _) => entry.routing.local,
-            (_, true) => entry.routing.durable,
+        .filter(|(_, routing)| routing.event_dispatched)
+        .filter(|(_, routing)| match (local_only, remote_only) {
+            (true, _) => routing.local,
+            (_, true) => routing.durable,
             _ => true,
         })
         // THE PLAN decides which surfaces an event reaches; the declarations
         // decide which plugin is which surface. A presence-gated plugin is the
         // phone, a local one is this machine's own screen, and anything else
         // is the durable log, which every event reaches.
-        .filter(|entry| {
-            if entry.routing.presence_gated {
+        .filter(|(_, routing)| {
+            if routing.presence_gated {
                 delivery.phone_card
-            } else if entry.routing.local {
+            } else if routing.local {
                 delivery.banner
             } else {
                 true
             }
         })
-        .map(|entry| Leg {
-            name: entry.name,
-            mode,
-        })
+        .map(|(name, _)| Leg { name, mode })
         .collect()
 }
 
@@ -121,8 +128,8 @@ mod tests {
     }
 
     /// Every selection comes out of a real registry and a real config, so
-    /// each plan test exercises register, enabled and channel_plan END TO
-    /// END: a registry that mislaid a routing declaration fails these, not
+    /// each plan test exercises register_channel, enabled and channel_plan END
+    /// TO END: a registry that mislaid a routing declaration fails these, not
     /// only its own unit tests.
     fn select(registry: &Registry, config_text: &str) -> Selection {
         registry
@@ -136,6 +143,31 @@ mod tests {
         select(&crate::registry::test_roster(), ALL_THREE_ON)
     }
 
+    /// The real roster plus a sensor, and the sensor is registered FIRST on
+    /// purpose: a plan that dropped an entry by POSITION rather than by kind
+    /// would shift every channel after it and fail these outright.
+    fn roster_plus_sensor() -> Registry {
+        let mut registry = Registry::new();
+        registry.register_sensor("router").unwrap();
+        for (name, routing) in crate::registry::ROSTER {
+            registry.register_channel(name, routing).unwrap();
+        }
+        registry
+    }
+
+    const SENSOR_AND_THREE_ON: &str = "[plugins.router]\nenabled = true\n[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
+
+    /// A selection holding an enabled sensor AND the three enabled channels,
+    /// so every sensor assertion carries its own positive control.
+    fn sensor_and_three_enabled() -> Selection {
+        let enabled = select(&roster_plus_sensor(), SENSOR_AND_THREE_ON);
+        assert!(
+            enabled.iter().any(|entry| entry.name == "router"),
+            "the sensor must be SELECTED, or these test a selection miss rather than a plan filter"
+        );
+        enabled
+    }
+
     // --- channel_plan ------------------------------------------------------
 
     #[test]
@@ -145,6 +177,28 @@ mod tests {
         // is, and hermes posts over the network under its own deadline.
         assert_eq!(
             channel_plan(&three_enabled(), false, false, reaching(true, true)),
+            vec![
+                leg("moshi", ReportMode::Silent),
+                leg("macos-banner", ReportMode::Silent),
+                leg("hermes", ReportMode::Silent),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_selected_sensor_is_never_a_leg_on_the_alert_path() {
+        // A sensor is an INPUT. It is selected, it occupies a config table,
+        // and no event routes to it: without this the engine would try to
+        // exec `channels/router.sh` on every notification. The three channels
+        // are the positive control, so a plan that dropped everything cannot
+        // pass by looking like a suppressed sensor.
+        assert_eq!(
+            channel_plan(
+                &sensor_and_three_enabled(),
+                false,
+                false,
+                reaching(true, true)
+            ),
             vec![
                 leg("moshi", ReportMode::Silent),
                 leg("macos-banner", ReportMode::Silent),
@@ -180,6 +234,32 @@ mod tests {
     }
 
     #[test]
+    fn a_selected_sensor_is_never_a_leg_under_local_only_either() {
+        // The flag most likely to admit one: a sensor reads THIS machine, so
+        // a "local surface" reading of local-only would hand it the event.
+        // Nothing about a sensor is local to the plan, because a sensor holds
+        // no routing to be local WITH. The banner is the positive control.
+        assert_eq!(
+            channel_plan(
+                &sensor_and_three_enabled(),
+                true,
+                false,
+                reaching(true, true)
+            ),
+            vec![leg("macos-banner", ReportMode::Silent)]
+        );
+        assert_eq!(
+            channel_plan(
+                &sensor_and_three_enabled(),
+                true,
+                false,
+                reaching(true, false)
+            ),
+            vec![leg("macos-banner", ReportMode::Silent)]
+        );
+    }
+
+    #[test]
     fn remote_only_plans_the_durable_legs_alone_and_sync_which_keeps_a_lost_entry_visible() {
         // The suppressed-phone form is the one that pins SYNC to the flag
         // alone. Without it a narrowing that also consulted the phone verdict
@@ -191,6 +271,31 @@ mod tests {
         );
         assert_eq!(
             channel_plan(&three_enabled(), false, true, reaching(true, false)),
+            vec![leg("hermes", ReportMode::ReportOutcome)]
+        );
+    }
+
+    #[test]
+    fn a_selected_sensor_is_never_a_leg_under_remote_only_either() {
+        // And not on the LOG path, where a leg is planned sync and a failure
+        // is printed: a sensor arriving here would be an exec attempt the
+        // operator gets told about by name. hermes is the positive control.
+        assert_eq!(
+            channel_plan(
+                &sensor_and_three_enabled(),
+                false,
+                true,
+                reaching(true, true)
+            ),
+            vec![leg("hermes", ReportMode::ReportOutcome)]
+        );
+        assert_eq!(
+            channel_plan(
+                &sensor_and_three_enabled(),
+                false,
+                true,
+                reaching(true, false)
+            ),
             vec![leg("hermes", ReportMode::ReportOutcome)]
         );
     }
@@ -246,6 +351,29 @@ mod tests {
     }
 
     #[test]
+    fn the_unconfigured_machine_knows_every_sensor_and_still_plans_channels_only() {
+        // `all()` is the fallback a MISSING or BROKEN config lands on, so it
+        // has to hold the sensors: the unknown-name refusal reads that same
+        // roster, and a fallback that forgot them would call a correctly
+        // spelled sensor a typo. It selects them WITHOUT planning them, which
+        // is the pair that matters: the machine nobody configured gets the
+        // channels it always got and no exec attempt named after a sensor.
+        let all = roster_plus_sensor().all();
+        assert!(
+            all.iter().any(|entry| entry.name == "router"),
+            "the fallback roster must know the sensor's name"
+        );
+        assert_eq!(
+            channel_plan(&all, false, false, reaching(true, true)),
+            vec![
+                leg("moshi", ReportMode::Silent),
+                leg("macos-banner", ReportMode::Silent),
+                leg("hermes", ReportMode::Silent),
+            ]
+        );
+    }
+
+    #[test]
     fn the_presence_gate_means_one_thing_under_every_flag() {
         // Two hypotheticals pin the gate as a COMPOSED filter rather than a
         // branch: a presence-gated LOCAL plugin (a wearable's buzz) on the
@@ -254,7 +382,7 @@ mod tests {
         // the gate inside either flag's branch keeps one of them wrongly.
         let mut registry = Registry::new();
         registry
-            .register(
+            .register_channel(
                 "buzz",
                 Routing {
                     local: true,
@@ -265,7 +393,7 @@ mod tests {
             )
             .unwrap();
         registry
-            .register(
+            .register_channel(
                 "pager",
                 Routing {
                     local: false,
