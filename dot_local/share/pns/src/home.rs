@@ -30,9 +30,24 @@
 //! device left" out of an unreachable router would fire a false transition;
 //! Unknown is the reading that changes nothing.
 
-/// One way a device can be recognized in the router's client list, DECLARED
-/// STRONGEST FIRST: a MAC is the device itself, a client name is what the
-/// operator called it, and an address is whatever DHCP handed out today.
+/// One way a device can be recognized in the router's client list. Strength
+/// runs MAC, then hostname, then address: a MAC is the device itself, a client
+/// name is what the operator called it, and an address is whatever DHCP handed
+/// out today.
+///
+/// THE ORDER THE VARIANTS ARE DECLARED IN IS NOT THAT RULE. Nothing derives an
+/// ordering off it and nothing iterates the variants, so reversing this enum
+/// leaves the whole suite green; the statement order of `home_presence`'s three
+/// `if let` blocks is the only thing that decides which key a Home verdict
+/// names.
+///
+/// A FOURTH VARIANT COMPILES WITHOUT REACHING THREE PLACES, and none of them
+/// fails when it is missed: `device_identity`'s key reads (the key is never
+/// read out of the config), `home_presence`'s scan (it never matches a client),
+/// and the `NoDeviceIdentifier` line's key list (the operator is never told the
+/// key exists). The compiler asks only about the two exhaustive matches,
+/// `config_key` here and the shape in `setup_report`, so those three are hand
+/// edits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKey {
     Mac,
@@ -450,8 +465,12 @@ pub fn first_site_id(sites_json: &str) -> Option<String> {
 /// every suite before this function existed.
 pub fn report(presence: &HomePresence) -> String {
     match presence {
+        // The matched value is DEBUG-QUOTED, the same escape `spell` gives a
+        // config value: the value came from the router's own listing, so a
+        // client name carrying a quote or a control byte would otherwise reach
+        // a terminal verbatim. A plain name reads exactly as it did before.
         HomePresence::Home { matched_by, value } => format!(
-            "home: on the home network (matched by {} \"{value}\")",
+            "home: on the home network (matched by {} {value:?})",
             matched_by.config_key()
         ),
         HomePresence::NotHome => {
@@ -1253,6 +1272,18 @@ mod tests {
                 value: "mister".to_string(),
             }),
             "home: on the home network (matched by device_hostname \"mister\")"
+        );
+        // THE VALUE IS ESCAPED, exactly as `spell` escapes a config value next
+        // door: a client name carrying a quote or an ESC byte reaches stdout as
+        // its escape, never as the byte. The two lines above are the proof this
+        // costs nothing to read: debug-quoting a plain string is the same
+        // quoted form it always had.
+        assert_eq!(
+            report(&HomePresence::Home {
+                matched_by: DeviceKey::Hostname,
+                value: "mist\"er\u{1b}[2J".to_string(),
+            }),
+            "home: on the home network (matched by device_hostname \"mist\\\"er\\u{1b}[2J\")"
         );
         assert_eq!(
             report(&HomePresence::NotHome),

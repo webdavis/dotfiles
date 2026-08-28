@@ -1005,7 +1005,7 @@ fn pulse_mode() {
 ///
 /// A DIAGNOSTIC, not a notification: it always exits 0 and says what it
 /// found, including every way it can be unconfigured, because its job is to
-/// answer "why did the probe not read" as much as "is the phone home". The
+/// answer "why did the probe not read" as much as "is the device home". The
 /// key itself is never printed, on any path.
 fn home_mode() {
     use pns::home::{SetupFailure, report, setup_report};

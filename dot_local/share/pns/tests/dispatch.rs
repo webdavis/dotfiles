@@ -668,8 +668,10 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
              or not a string",
         ),
         (
-            // A table with no device in it at all. The retired `phone` key
-            // lands here too, which is the rename the operator has to make.
+            // A table with no device in it at all. A config still carrying the
+            // retired `phone` key lands here, and the line names the three keys
+            // to set rather than the key that went away: no back-compat, so
+            // nothing here mentions `phone`.
             "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
             "home: no device to look for in [plugins.router] \
