@@ -26,7 +26,7 @@ dead_letter_count() {
 @test "T-DRAIN-continue-past-permanent: a permanent poison row in the middle does not starve the rows behind it" {
   export OSQUERY_DRAIN_MAX_ATTEMPTS=20
   export OSQUERY_DRAIN_MAX_AGE_SECONDS=604800
-  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  local url='http://127.0.0.1:8644/webhooks/priority' body_b64
   body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
   _osquery_store_alert_row 1000 osquery-front "$url" "$body_b64"
   _osquery_store_alert_row 2000 osquery-poison "$url" "$body_b64"
@@ -47,7 +47,7 @@ dead_letter_count() {
 }
 
 @test "T-DRAIN-continue-past-malformed: an undecodable poison row in the middle is skipped and the rows behind it still deliver" {
-  local url='http://127.0.0.1:8644/webhooks/osquery-priority' good_body
+  local url='http://127.0.0.1:8644/webhooks/priority' good_body
   good_body=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
   _osquery_store_alert_row 1000 osquery-a "$url" "$good_body"
   _osquery_store_alert_row 2000 osquery-corrupt "$url" '####' # not decodable base64
@@ -72,7 +72,7 @@ dead_letter_count() {
   export OSQUERY_DRAIN_MAX_ATTEMPTS=50
   export OSQUERY_DRAIN_MAX_AGE_SECONDS=604800
   export OSQUERY_DRAIN_RETRY_BASE_SECONDS=3600 # so the transient row defers, not redelivers
-  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  local url='http://127.0.0.1:8644/webhooks/priority' body_b64
   body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
   # Interleave the four classes by occurrence order, a deliverable at each end.
   _osquery_store_alert_row 1000 osquery-deliver-1 "$url" "$body_b64" # 2xx
@@ -116,7 +116,7 @@ dead_letter_count() {
   # drainer executable). A failing FIRST record must not abort the pass: the
   # per-row delivery runs inside an `if`, so its nonzero return is consumed and
   # the loop keeps going. Runs the drain in a real errexit subshell to prove it.
-  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  local url='http://127.0.0.1:8644/webhooks/priority' body_b64
   body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
   _osquery_store_alert_row 1000 osquery-poison-first "$url" "$body_b64"
   _osquery_store_alert_row 2000 osquery-tail "$url" "$body_b64"

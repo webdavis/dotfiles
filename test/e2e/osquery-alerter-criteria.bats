@@ -139,7 +139,7 @@ digest_has() { grep -qF -- "$1" "$OSQUERY_DIGEST_STORE"; }
 }
 
 @test "C3b: agent_secretfile_changed pages" {
-  feed '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{"path":"/Users/x/.config/relay/webhook-secret","sha256":"cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"}}'
+  feed '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{"path":"/Users/x/.config/pns/webhook-secret","sha256":"cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"}}'
   assert_crit_page
   pbody_has 'Agent secret file changed'
 }
@@ -209,9 +209,9 @@ EOF
 
 # --- Criterion 7: basename-only; no full path, no sha256 in the payload ------
 @test "C7: a paged agent_secretfile_changed body shows the basename only, never the path or sha256" {
-  feed '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{"path":"/Users/x/.config/relay/webhook-secret","sha256":"cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"}}'
+  feed '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{"path":"/Users/x/.config/pns/webhook-secret","sha256":"cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"}}'
   assert_crit_page
   pbody_has 'webhook-secret'                 # the basename is present
-  pbody_lacks '/Users/x/.config/relay'       # the full path is NOT in the payload
+  pbody_lacks '/Users/x/.config/pns'       # the full path is NOT in the payload
   pbody_lacks 'cafebabe'                      # the sha256 is NOT in the payload
 }

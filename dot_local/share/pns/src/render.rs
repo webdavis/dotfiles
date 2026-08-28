@@ -13,7 +13,7 @@ const FLATTEN_WHITESPACE: [char; 4] = [' ', '\t', '\r', '\n'];
 
 /// The one-line heading a channel with a title field uses.
 pub fn title(agent: &str, state: &str, project: &str) -> String {
-    let agent = if agent.is_empty() { "relay" } else { agent };
+    let agent = if agent.is_empty() { "pns" } else { agent };
     let state = if state.is_empty() { "done" } else { state };
     if project.is_empty() {
         format!("{agent} · {state}")
@@ -132,12 +132,12 @@ mod tests {
 
     #[test]
     fn title_falls_back_to_relay_and_done_when_the_caller_gave_neither() {
-        assert_eq!(title("", "", ""), "relay · done");
+        assert_eq!(title("", "", ""), "pns · done");
     }
 
     #[test]
     fn title_still_carries_a_project_under_both_fallbacks() {
-        assert_eq!(title("", "", "dotfiles"), "relay · done · dotfiles");
+        assert_eq!(title("", "", "dotfiles"), "pns · done · dotfiles");
     }
 
     // --- message -----------------------------------------------------------

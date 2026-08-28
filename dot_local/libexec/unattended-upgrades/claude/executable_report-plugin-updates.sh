@@ -49,7 +49,7 @@
 #                overwrote would swallow the change it was meant to catch.
 #
 # ERREXIT IS ON, and every failure this helper means to TOLERATE is guarded where
-# it happens rather than by leaving errexit off: the relay call inside alert(),
+# it happens rather than by leaving errexit off: the pns call inside alert(),
 # the host lookup that falls back to unknown-host, and the library's own
 # bookkeeping write, which warns and returns 0 by design so a weekly job never
 # dies over its marker file. Everything else that fails stops the run, because
@@ -126,7 +126,7 @@ weekly_engine() {
 # The engine by ABSOLUTE path, resolved AFTER the source above: a LaunchAgent's
 # PATH carries no ~/.local anything, and the resolution must not run before
 # the function it prefers can possibly exist.
-RELAY="${REPORT_PLUGIN_UPDATES_RELAY:-$(weekly_engine)}"
+ENGINE="${REPORT_PLUGIN_UPDATES_ENGINE:-$(weekly_engine)}"
 
 # The entry's opening lines, from ONE clock reading captured at START-UP, before
 # this run can rewrite its own marker. Read later, the gap would be zero on every
@@ -161,17 +161,17 @@ mark_success_or_exit() {
   exit 1
 }
 
-# alert <state> <detail> -- the EXISTING relay route, so this lands in the
+# alert <state> <detail> -- the EXISTING pns route, so this lands in the
 # priority channel beside every other alert on this machine. Best effort: a
-# missing relay never changes the outcome, and a failure to notify is stated.
+# missing pns never changes the outcome, and a failure to notify is stated.
 alert() {
   local state="$1" detail="$2"
-  if [[ ! -x $RELAY ]]; then
+  if [[ ! -x $ENGINE ]]; then
     printf '%s: no executable pns engine at %s; this alert was NOT delivered\n' \
-      "$AGENT_NAME" "$RELAY" >&2
+      "$AGENT_NAME" "$ENGINE" >&2
     return 0
   fi
-  "$RELAY" --agent "$AGENT_NAME" --state "$state" \
+  "$ENGINE" --agent "$AGENT_NAME" --state "$state" \
     --project "$(unattended_log_host 2>/dev/null || printf 'unknown-host')" \
     --detail "$detail" 9>&- || true
   return 0
@@ -197,14 +197,14 @@ record_entry() {
   # GIVEN BACK when the attempt failed so the week is never marked done with
   # nothing sent. A broken record channel cannot report itself, so it is also
   # said once a week on the ALERT route, which is the one that buzzes.
-  if UNATTENDED_LOG_RELAY="$RELAY" unattended_log_post "$AGENT_NAME" "$class" \
+  if UNATTENDED_LOG_ENGINE="$ENGINE" unattended_log_post "$AGENT_NAME" "$class" \
     "$(unattended_log_host)" "$detail"; then
     return 0
   fi
   unattended_log_release_week "$LOG_WEEK_GUARD" "$class"
   printf '%s: the entry was NOT delivered; this week stays unclaimed so a later run retries\n' \
     "$AGENT_NAME" >&2
-  UNATTENDED_LOG_RELAY="$RELAY" unattended_log_alert_delivery_failure "$LOG_WEEK_GUARD" "$AGENT_NAME"
+  UNATTENDED_LOG_ENGINE="$ENGINE" unattended_log_alert_delivery_failure "$LOG_WEEK_GUARD" "$AGENT_NAME"
   return 1
 }
 

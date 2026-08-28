@@ -1,11 +1,10 @@
-//! The relay binary: the composition root, and the only place with a main.
+//! The pns binary: the composition root, and the only place with a main.
 //!
 //! Everything here is WIRING. The registrations below are the roster, the
 //! environment and the config are read once at this edge, and every decision
 //! is delegated to the library. It exits 0 on every path, because a
 //! notification must never fail the work it reports on.
 
-use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
@@ -15,10 +14,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use pns::args::parse_args;
 use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{
-    DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, hermes_secret, remote_deadline,
+    DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
 use pns::channels::hue::{Bridge, HuePulse, hue_settings};
-use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret, read_auth};
+use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret};
 use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
@@ -36,6 +35,13 @@ fn main() {
     let first = std::env::args_os().nth(1).unwrap_or_default();
     if first == *"pulse" {
         pulse_mode();
+        return;
+    }
+    // The home diagnostic: one reading of the router, said out loud. The
+    // doctor mode (P3) will absorb it; until then this is how the probe is
+    // drilled and how a wrong config is diagnosed.
+    if first == *"home" {
+        home_mode();
         return;
     }
     // The gate moshi's OWN extension calls. pi and omp spawn
@@ -98,7 +104,7 @@ fn hook_mode(event: &str) -> i32 {
         return 0;
     };
     let payload = parse_payload(&payload_json);
-    let agent = std::env::var("RELAY_AGENT").unwrap_or_else(|_| "claude".to_string());
+    let agent = std::env::var("PNS_AGENT").unwrap_or_else(|_| "claude".to_string());
 
     match event {
         "prompt" => start_of_turn(&payload),
@@ -271,7 +277,7 @@ fn condense(reply: &str) -> (String, String) {
     // The re-entry guard: the condenser is itself an agent run, and its own
     // Stop hook would call this again. The stripped home below installs no
     // hooks at all, which is the hard guarantee; this is the cheap one.
-    if std::env::var("RELAY_SUMMARIZING").is_ok() {
+    if std::env::var("PNS_SUMMARIZING").is_ok() {
         return fallback();
     }
     let Some(home) = condenser_home() else {
@@ -283,7 +289,7 @@ fn condense(reply: &str) -> (String, String) {
         .args(["exec", "--ephemeral", "--skip-git-repo-check", "-C"])
         .arg(&home)
         .args(["-s", "read-only", "-"])
-        .env("RELAY_SUMMARIZING", "1")
+        .env("PNS_SUMMARIZING", "1")
         .env("CODEX_HOME", &home);
     let deadline = env_deadline("PNS_CONDENSER_DEADLINE_MS").unwrap_or(CONDENSER_DEADLINE);
     match run_bounded(command, Some(&condenser_prompt(reply)), deadline)
@@ -298,14 +304,14 @@ fn condense(reply: &str) -> (String, String) {
 /// A private, stripped Codex home: a minimal config (fast model, low
 /// reasoning) and the live auth symlinked, with NO hooks or plugins. That cuts
 /// the load (~9s to ~3s) and means the condenser run has no Stop hook of its
-/// own, which is the hard guarantee against a relay-to-codex-to-relay loop.
+/// own, which is the hard guarantee against a pns-to-codex-to-pns loop.
 /// It is created owner-only, because it points at the live Codex credentials.
 fn condenser_home() -> Option<std::path::PathBuf> {
     use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
     let user_home = std::env::var("HOME").unwrap_or_default();
     let home = resolve_path(
-        std::env::var("RELAY_CODEX_HOME").ok().as_deref(),
-        &format!("{user_home}/.config/relay/codex-home"),
+        std::env::var("PNS_CODEX_HOME").ok().as_deref(),
+        &format!("{user_home}/.config/pns/codex-home"),
     );
     std::fs::DirBuilder::new()
         .recursive(true)
@@ -382,7 +388,7 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     if forwarded.is_some() {
         // Suppressed here rather than by the plan: the card moshi is raising
         // is something the surface model cannot know about.
-        unsafe { std::env::set_var("RELAY_SKIP_PHONE", "1") };
+        unsafe { std::env::set_var("PNS_SKIP_PHONE", "1") };
     }
     run_event(&event, &probes);
     forwarded.map_or(0, moshi_decision)
@@ -599,7 +605,7 @@ fn event_mode() {
             .map(|argument| argument.to_string_lossy().into_owned()),
     );
     for warning in &warnings {
-        eprintln!("relay: {warning}");
+        eprintln!("pns: {warning}");
     }
     run_event(&event, &system_probes());
 }
@@ -610,15 +616,22 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     // Read off the config before selection consumes it: the pulse needs hue's
-    // settings and the plan needs moshi's card toggle.
-    let (hue_table, watch_card) = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => (enabled_hue_table(config), mobile_watch_card(config)),
-        // A config that could not be read falls back to the DEFAULTS of both,
-        // and deliberately disagrees with the plugin selection below, which
-        // falls back to the whole roster. Selection keeps notifications
-        // working through a broken config; these two say what an operator
-        // asked for, and an unreadable file asked for nothing.
-        _ => (None, false),
+    // settings, the plan needs moshi's card toggle, and the two network
+    // channels need their secrets.
+    let (hue_table, watch_card, moshi_token, hermes_key) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (
+            enabled_hue_table(config),
+            mobile_watch_card(config),
+            plugin_settings(config, "moshi").and_then(moshi_secret),
+            plugin_settings(config, "hermes").and_then(hermes_secret),
+        ),
+        // A config that could not be read falls back to the DEFAULTS of all
+        // four, and deliberately disagrees with the plugin selection below,
+        // which falls back to the whole roster. Selection keeps notifications
+        // working through a broken config; these say what an operator asked
+        // for, and an unreadable file asked for nothing: with no secrets, the
+        // network channels are simply not set up.
+        _ => (None, false, None, None),
     };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
@@ -648,11 +661,11 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         // caller asked for: a silent exit is indistinguishable from delivery.
         if event.local_only && event.remote_only {
             println!(
-                "relay: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
+                "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
             );
         }
     } else {
-        dispatch_legs(&decision, event, &home);
+        dispatch_legs(&decision, event, &home, moshi_token, hermes_key);
     }
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
@@ -670,14 +683,18 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
 }
 
 /// Every leg to its destination, in the registry's delivery order.
-fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs, home: &str) {
+fn dispatch_legs(
+    decision: &pns::engine::Decision,
+    event: &pns::args::EventArgs,
+    home: &str,
+    moshi_token: Option<String>,
+    hermes_key: Option<String>,
+) {
     // Sanitized ONCE here rather than per channel: a channel may be written in
     // any language and cannot be expected to share the guard. Warned about
     // only now, because a scrub nobody was going to receive is not news.
     let pane = if decision.pane_dropped {
-        eprintln!(
-            "relay: dropped a pane id with shell metacharacters; no channel will focus a pane"
-        );
+        eprintln!("pns: dropped a pane id with shell metacharacters; no channel will focus a pane");
         ""
     } else {
         event.pane.as_str()
@@ -691,21 +708,17 @@ fn dispatch_legs(decision: &pns::engine::Decision, event: &pns::args::EventArgs,
         channels_dir_override.as_deref(),
         &format!("{home}/.local/libexec/pns/channels"),
     );
-    let auth = AuthFile {
-        path: resolve_path(
-            std::env::var("RELAY_AUTH_FILE").ok().as_deref(),
-            &format!("{home}/.config/relay/auth.json"),
-        ),
-        contents: OnceCell::new(),
-    };
     let banner = banner_channel();
+    let moshi = moshi_channel(moshi_token);
+    let hermes = hermes_channel(hermes_key, hermes_url_for(&event.channel));
 
     for leg in &decision.legs {
         let delivered = deliver_leg(
             leg,
             &rendered,
             &banner,
-            &auth,
+            &moshi,
+            &hermes,
             native_first(channels_dir_override.is_some()),
             &channels_dir,
         );
@@ -784,6 +797,14 @@ fn mobile_watch_card(config: &pns::config::Config) -> bool {
     })
 }
 
+/// One plugin's settings table, when the config carries the plugin at all.
+fn plugin_settings<'config>(
+    config: &'config pns::config::Config,
+    name: &str,
+) -> Option<&'config toml::Table> {
+    config.plugins.get(name).map(|plugin| &plugin.settings)
+}
+
 /// The lights signal, from whichever mode asked for it.
 fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
     let Some(hue) = hue_table.and_then(|settings| {
@@ -799,25 +820,6 @@ fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
         rooms: hue.rooms,
     }
     .run(exit_code);
-}
-
-/// The auth file, read AT MOST ONCE and only if a leg asks for it.
-///
-/// Eager reading made every notification wait on a file no plan might need:
-/// point RELAY_AUTH_FILE at a FIFO nobody writes and an executable-only
-/// delivery blocks forever. One read is still the rule, so two native legs
-/// cannot sign against two different versions of the file.
-struct AuthFile {
-    path: std::path::PathBuf,
-    contents: OnceCell<Option<String>>,
-}
-
-impl AuthFile {
-    fn contents(&self) -> Option<&str> {
-        self.contents
-            .get_or_init(|| read_auth(&self.path))
-            .as_deref()
-    }
 }
 
 /// The banner, which now only needs to know where to send the click.
@@ -839,28 +841,46 @@ fn banner_channel() -> BannerChannel<SystemCommandRunner> {
     }
 }
 
-/// The moshi push, with the token this event already read.
-fn moshi_channel(auth: Option<&str>) -> MoshiChannel<UreqPost> {
+/// The moshi push, with the token the config already provided.
+fn moshi_channel(token: Option<String>) -> MoshiChannel<UreqPost> {
     MoshiChannel {
         http: UreqPost::default(),
-        token: auth.and_then(moshi_secret),
-        url: url_from_env("RELAY_MOSHI_URL", DEFAULT_MOSHI_URL),
+        token,
+        url: url_from_env("PNS_MOSHI_URL", DEFAULT_MOSHI_URL),
     }
 }
 
-/// The hermes post, with the key this event already read. The path comes with
-/// it only so the not-set-up line can name the file that had no key in it.
-fn hermes_channel(
-    auth: Option<&str>,
-    auth_path: std::path::PathBuf,
-) -> HermesChannel<UreqSignedPost> {
+/// The hermes post, with the key the config already provided.
+fn hermes_channel(key: Option<String>, url: String) -> HermesChannel<UreqSignedPost> {
     HermesChannel {
         post: UreqSignedPost,
-        key: auth.and_then(hermes_secret),
-        auth_path,
-        url: url_from_env("RELAY_HERMES_URL", DEFAULT_HERMES_URL),
-        sync_deadline: remote_deadline(std::env::var("RELAY_REMOTE_TIMEOUT").ok().as_deref()),
+        key,
+        url,
+        sync_deadline: remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()),
     }
+}
+
+/// The hermes endpoint one event posts to. The env override wins (an explicit
+/// URL, the tests' escape hatch), then a `--channel` route name derived from
+/// the default gateway, then the default (alert) route itself. An unusable
+/// name is said out loud and falls back LOUD-WARD: a misrouted notification
+/// on the alert route beats a silently dropped one.
+fn hermes_url_for(channel: &str) -> String {
+    let env_override = std::env::var("PNS_HERMES_URL")
+        .ok()
+        .filter(|url| !url.is_empty());
+    if let Some(url) = env_override {
+        return url;
+    }
+    if channel.is_empty() {
+        return DEFAULT_HERMES_URL.to_string();
+    }
+    channel_url(DEFAULT_HERMES_URL, channel).unwrap_or_else(|| {
+        eprintln!(
+            "pns: --channel {channel:?} is not a usable route name; posting to the default route"
+        );
+        DEFAULT_HERMES_URL.to_string()
+    })
 }
 
 /// An endpoint override, where EMPTY means the default like every other path
@@ -878,20 +898,16 @@ fn deliver_leg(
     leg: &pns::routing::Leg,
     rendered: &pns::channels::Event,
     banner: &BannerChannel<SystemCommandRunner>,
-    auth: &AuthFile,
+    moshi: &MoshiChannel<UreqPost>,
+    hermes: &HermesChannel<UreqSignedPost>,
     native_wins: bool,
     channels_dir: &Path,
 ) -> Delivery {
     if native_wins {
-        // The two network channels are built HERE rather than up front,
-        // because building one is what reads the auth file.
         match leg.name {
             "macos-banner" => return banner.deliver(rendered, leg.mode),
-            "moshi" => return moshi_channel(auth.contents()).deliver(rendered, leg.mode),
-            "hermes" => {
-                return hermes_channel(auth.contents(), auth.path.clone())
-                    .deliver(rendered, leg.mode);
-            }
+            "moshi" => return moshi.deliver(rendered, leg.mode),
+            "hermes" => return hermes.deliver(rendered, leg.mode),
             _ => {}
         }
     }
@@ -994,6 +1010,54 @@ fn pulse_mode() {
             .nth(2)
             .map(|code| code.to_string_lossy().into_owned())
             .unwrap_or_else(|| "0".to_string()),
+    );
+}
+
+/// The `home` mode: one reading of the home probe, reported in one line.
+///
+/// A DIAGNOSTIC, not a notification: it always exits 0 and says what it
+/// found, including every way it can be unconfigured, because its job is to
+/// answer "why did the probe not read" as much as "is the phone home". The
+/// key itself is never printed, on any path.
+fn home_mode() {
+    use pns::home::{SetupFailure, report, setup_report};
+    let home_dir = std::env::var("HOME").unwrap_or_default();
+    let config = match load_config(&config_path(&home_dir)) {
+        Ok(LoadOutcome::Loaded(config)) => config,
+        Ok(LoadOutcome::Missing) => {
+            println!("{}", setup_report(&SetupFailure::NoConfigFile));
+            return;
+        }
+        Err(error) => {
+            println!(
+                "{}",
+                setup_report(&SetupFailure::ConfigError(error.detail().to_string()))
+            );
+            return;
+        }
+    };
+    // A missing table and a present-but-invalid one get DIFFERENT lines: the
+    // first is fixed by writing the table, the second by fixing one value,
+    // and one message covering both sends the operator to the wrong edit.
+    let Some(home_table) = config.home.as_ref() else {
+        println!("{}", setup_report(&SetupFailure::NoHomeTable));
+        return;
+    };
+    let Some(settings) = pns::home::home_settings(Some(home_table)) else {
+        println!("{}", setup_report(&SetupFailure::InvalidHomeTable));
+        return;
+    };
+    let Some(key) = pns::home::home_api_key(home_table) else {
+        println!("{}", setup_report(&SetupFailure::NoApiKey));
+        return;
+    };
+    let router = pns::home::UreqRouter::new(settings.router_url, key);
+    println!(
+        "{}",
+        report(
+            pns::home::read_home_presence(&router, &settings.phone),
+            &settings.phone
+        )
     );
 }
 

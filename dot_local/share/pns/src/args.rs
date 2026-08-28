@@ -1,4 +1,4 @@
-//! relay's CLI contract, ported verbatim: lenient, warning, never fatal.
+//! pns's CLI contract, ported verbatim: lenient, warning, never fatal.
 //!
 //! The engine sits on an always-exit-0 notification path, so argument
 //! problems WARN and degrade rather than abort. Three rules carry the
@@ -19,6 +19,11 @@ pub struct EventArgs {
     pub branch: String,
     pub detail: String,
     pub pane: String,
+    /// The named hermes route this event posts to, resolved through the
+    /// config's `[plugins.hermes]` channels table; empty means the default
+    /// (alert) route. Names, not URLs: the caller says WHERE, the config
+    /// says HOW to get there.
+    pub channel: String,
     pub local_only: bool,
     pub remote_only: bool,
     /// The >=300s tier: the lights signal rides on top of whatever else the
@@ -32,13 +37,14 @@ pub fn parse_args<I>(argv: I) -> (EventArgs, Vec<String>)
 where
     I: IntoIterator<Item = String>,
 {
-    const VALUE_FLAGS: [&str; 6] = [
+    const VALUE_FLAGS: [&str; 7] = [
         "--agent",
         "--state",
         "--project",
         "--branch",
         "--detail",
         "--pane",
+        "--channel",
     ];
     // Every flag that takes no value. It is a LIST rather than a chain of
     // comparisons because the chain is what went stale: `--long-running` was
@@ -69,6 +75,7 @@ where
                     "--project" => parsed.project = value,
                     "--branch" => parsed.branch = value,
                     "--detail" => parsed.detail = value,
+                    "--channel" => parsed.channel = value,
                     _ => parsed.pane = value,
                 }
             }
@@ -112,6 +119,19 @@ mod tests {
         assert!(parsed.local_only);
         assert!(!parsed.remote_only);
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn the_channel_flag_names_a_route_and_is_protected_like_every_value_flag() {
+        let (parsed, warnings) = args(&["--channel", "log", "--agent", "brew"]);
+        assert_eq!(parsed.channel, "log");
+        assert_eq!(parsed.agent, "brew");
+        assert!(warnings.is_empty());
+        // And it is never eaten as another flag's value.
+        let (parsed, warnings) = args(&["--detail", "--channel", "log"]);
+        assert_eq!(parsed.detail, "");
+        assert_eq!(parsed.channel, "log");
+        assert_eq!(warnings.len(), 1);
     }
 
     #[test]

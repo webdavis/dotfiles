@@ -30,13 +30,13 @@ chmod +x "$binary"
 [[ "$(unattended_engine)" == "$binary" ]] ||
   fail "the binary is the engine, got: $(unattended_engine)"
 
-[[ "$(UNATTENDED_LOG_RELAY=/custom/engine unattended_engine)" == /custom/engine ]] ||
+[[ "$(UNATTENDED_LOG_ENGINE=/custom/engine unattended_engine)" == /custom/engine ]] ||
   fail "an explicit override must win outright"
 
 # --- the record actually goes to the resolved engine -----------------------
 # unattended_log_post is what every weekly job calls; it must hand the record
 # to the binary once that exists.
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >"%s/posted"\nprintf "relay: posted HTTP 200\\n"\n' \
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >"%s/posted"\nprintf "pns: posted HTTP 200\\n"\n' \
   "$scratch" >"$binary"
 chmod +x "$binary"
 UNATTENDED_LOG_STATE_DIR="$scratch/state" unattended_log_post \
@@ -46,6 +46,8 @@ UNATTENDED_LOG_STATE_DIR="$scratch/state" unattended_log_post \
   fail "the record must reach the resolved engine"
 grep -qx -- '--remote-only' "$scratch/posted" ||
   fail "the weekly record is the durable log path, so it must stay --remote-only"
+{ grep -qx -- '--channel' "$scratch/posted" && grep -qx -- 'unattended-upgrades' "$scratch/posted"; } ||
+  fail "the record names its route (--channel unattended-upgrades); a raw URL override is the retired way"
 
 # --- the three jobs resolve through the guard, none keeps a default --------
 # The path may appear inside weekly_engine's terminal fallback and nowhere
@@ -59,7 +61,7 @@ for job in \
   "dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"; do
   grep -q 'weekly_engine()' "$REPO_ROOT/$job" ||
     fail "$job must define the guarded resolution"
-  assignments="$(grep -nE '(RELAY|relay_script)=' "$REPO_ROOT/$job" | grep -v '^[0-9]*: *#' || true)"
+  assignments="$(grep -nE '(PNS|pns_script)=' "$REPO_ROOT/$job" | grep -v '^[0-9]*: *#' || true)"
   if grep 'libexec/pns/relay\.sh' <<<"$assignments" >/dev/null; then
     fail "$job assigns the bash engine directly instead of weekly_engine: $assignments"
   fi
@@ -123,7 +125,7 @@ for job in \
 done
 
 # --- the resolution runs where its function exists --------------------------
-# The regression this pins: RELAY= called unattended_engine forty lines above
+# The regression this pins: the engine assignment called unattended_engine forty lines above
 # the source that defines it, so every scheduled run died 127 at load. The
 # seed run proves the script gets PAST resolution and into its real work (the
 # inventory stage), whatever that stage then says.

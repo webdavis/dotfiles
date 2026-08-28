@@ -20,7 +20,7 @@ use crate::registry::Selection;
 use crate::routing::Leg;
 use crate::surface::{Surface, Visibility};
 
-/// The idle threshold the bash defaults to when `RELAY_DESK_IDLE_SECS` says
+/// The idle threshold the bash defaults to when `PNS_DESK_IDLE_SECS` says
 /// nothing: past this the operator counts as away from the desk.
 pub const DEFAULT_DESK_IDLE_SECS: u64 = 120;
 
@@ -47,7 +47,7 @@ pub struct Overrides {
 }
 
 impl Overrides {
-    /// Parse the RELAY_* and PNS_* variables out of an environment map.
+    /// Parse the PNS_* and PNS_* variables out of an environment map.
     pub fn from_env(vars: &BTreeMap<String, String>) -> Self {
         // A present-but-garbled value is reported alongside the None, so the
         // caller can refuse it rather than fall back to a default.
@@ -59,14 +59,14 @@ impl Overrides {
             }
         };
         let set = |key: &str| vars.get(key).is_some_and(|raw| !raw.is_empty());
-        let (idle_secs, idle_invalid) = read("RELAY_IDLE_SECS");
-        let (desk_idle_secs, desk_invalid) = read("RELAY_DESK_IDLE_SECS");
-        let (phone_input_age, phone_invalid) = read("RELAY_PHONE_INPUT_AGE");
+        let (idle_secs, idle_invalid) = read("PNS_IDLE_SECS");
+        let (desk_idle_secs, desk_invalid) = read("PNS_DESK_IDLE_SECS");
+        let (phone_input_age, phone_invalid) = read("PNS_PHONE_INPUT_AGE");
         Self {
             idle_secs,
             desk_idle_secs,
-            skip_phone: set("RELAY_SKIP_PHONE"),
-            force_phone: set("RELAY_FORCE_PHONE"),
+            skip_phone: set("PNS_SKIP_PHONE"),
+            force_phone: set("PNS_FORCE_PHONE"),
             phone_input_age,
             idle_invalid,
             desk_invalid,
@@ -631,7 +631,7 @@ mod tests {
         // value is refused rather than falling back to the live reading,
         // which would let a probe answer a question the caller overrode.
         let vars = BTreeMap::from([(
-            "RELAY_PHONE_INPUT_AGE".to_string(),
+            "PNS_PHONE_INPUT_AGE".to_string(),
             "not-a-number".to_string(),
         )]);
         let overrides = Overrides::from_env(&vars);
@@ -761,7 +761,7 @@ mod tests {
         // Bash keeps a non-empty override and never runs the probe. Falling
         // back to the probe would both pay the read and let a live reading
         // hold the operator at a desk the override said nothing about.
-        let vars = BTreeMap::from([("RELAY_IDLE_SECS".to_string(), "not-a-number".to_string())]);
+        let vars = BTreeMap::from([("PNS_IDLE_SECS".to_string(), "not-a-number".to_string())]);
         let overrides = Overrides::from_env(&vars);
         let probes = CountingProbes {
             idle: Some(5),
@@ -779,7 +779,7 @@ mod tests {
     fn a_garbage_desk_threshold_fails_toward_away_never_into_the_default() {
         // Substituting the default would read a stale desk as fresh and hold
         // the operator at a desk they are not at.
-        let vars = BTreeMap::from([("RELAY_DESK_IDLE_SECS".to_string(), "0600".to_string())]);
+        let vars = BTreeMap::from([("PNS_DESK_IDLE_SECS".to_string(), "0600".to_string())]);
         let overrides = Overrides::from_env(&vars);
         let probes = CountingProbes {
             idle: Some(5),
@@ -792,8 +792,8 @@ mod tests {
     #[test]
     fn skip_and_force_parse_from_their_relay_variables() {
         let vars = BTreeMap::from([
-            ("RELAY_SKIP_PHONE".to_string(), "1".to_string()),
-            ("RELAY_FORCE_PHONE".to_string(), "1".to_string()),
+            ("PNS_SKIP_PHONE".to_string(), "1".to_string()),
+            ("PNS_FORCE_PHONE".to_string(), "1".to_string()),
         ]);
         let overrides = Overrides::from_env(&vars);
         assert!(overrides.skip_phone);

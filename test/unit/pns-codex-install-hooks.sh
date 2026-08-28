@@ -126,7 +126,7 @@ mkdir -p "$h8/.codex" "$h8/.local/libexec/pns"
 printf '#!/usr/bin/env bash\n' >"$h8/.local/libexec/pns/pns"
 chmod +x "$h8/.local/libexec/pns/pns"
 cat >"$h8/.codex/hooks.json" <<'JSON'
-{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}],"Stop":[{"hooks":[{"type":"command","command":"RELAY_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh done"}]}],"PermissionRequest":[{"hooks":[{"type":"command","command":"RELAY_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh blocked"}]}]}}
+{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}],"Stop":[{"hooks":[{"type":"command","command":"PNS_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh done"}]}],"PermissionRequest":[{"hooks":[{"type":"command","command":"PNS_AGENT=codex /Users/x/.local/libexec/pns/hooks/relay-agent.sh blocked"}]}]}}
 JSON
 HOME="$h8" bash "$script" >/dev/null 2>&1
 got8="$(cat "$h8/.codex/hooks.json")"

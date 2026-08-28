@@ -10,7 +10,7 @@ use support::{Sandbox, write_script};
 
 /// One hook run: the payload on stdin, the output back.
 fn hook(sandbox: &Sandbox, event: &str, payload: &str) -> std::process::Output {
-    hook_with(sandbox.relay(), sandbox, event, payload)
+    hook_with(sandbox.pns(), sandbox, event, payload)
 }
 
 fn hook_with(
@@ -40,7 +40,7 @@ fn marker(sandbox: &Sandbox, session: &str) -> std::path::PathBuf {
 }
 
 fn with_state_dir(sandbox: &Sandbox) -> Command {
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command.env("PNS_STATE_DIR", sandbox.path("state"));
     command
 }
@@ -185,7 +185,7 @@ fn a_turn_with_nothing_readable_still_notifies_with_no_detail() {
 #[test]
 fn a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back() {
     let sandbox = Sandbox::new("hook-stop-condenser");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     sandbox.stub_codex(&mut command, "asking|it wants a choice");
     hook_with(
         command,
@@ -201,7 +201,7 @@ fn a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back() {
     assert_eq!(event["detail"], "it wants a choice");
 
     let blank = Sandbox::new("hook-stop-condenser-blank");
-    let mut command = blank.relay();
+    let mut command = blank.pns();
     blank.stub_codex(&mut command, "done|   ");
     hook_with(
         command,
@@ -219,8 +219,8 @@ fn a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back() {
 #[test]
 fn the_re_entry_guard_keeps_a_condenser_run_from_condensing_itself() {
     let sandbox = Sandbox::new("hook-stop-reentry");
-    let mut command = sandbox.relay();
-    command.env("RELAY_SUMMARIZING", "1");
+    let mut command = sandbox.pns();
+    command.env("PNS_SUMMARIZING", "1");
     sandbox.stub_codex(&mut command, "asking|never asked");
     hook_with(
         command,
@@ -234,7 +234,7 @@ fn the_re_entry_guard_keeps_a_condenser_run_from_condensing_itself() {
 #[test]
 fn the_herdr_pane_reaches_the_event_verbatim_and_a_hostile_one_is_scrubbed_downstream() {
     let sandbox = Sandbox::new("hook-stop-pane");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command.env("HERDR_PANE_ID", "wW:p21");
     hook_with(
         command,
@@ -250,9 +250,9 @@ fn the_herdr_pane_reaches_the_event_verbatim_and_a_hostile_one_is_scrubbed_downs
 #[test]
 fn a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decision() {
     let sandbox = Sandbox::new("hook-blocked-forward");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     // Away, so the phone is the only way to answer.
-    command.env("RELAY_IDLE_SECS", "99999");
+    command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let payload = "{\"message\":\"may I\",\"session_id\":\"s1\"}\n";
     let output = hook_with(command, &sandbox, "blocked", payload);
@@ -278,8 +278,8 @@ fn a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decisi
 #[test]
 fn the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_phone() {
     let sandbox = Sandbox::new("hook-blocked-notifies");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "99999");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 0);
     hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert!(sandbox.fired("hermes"), "the paper trail is still written");
@@ -292,8 +292,8 @@ fn the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_pho
 #[test]
 fn at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual() {
     let sandbox = Sandbox::new("hook-blocked-desk");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "0");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(0), "no opinion: prompt as usual");
@@ -310,10 +310,10 @@ fn a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it() 
     // was touched 90s ago and is still inside the freshness window, but the
     // phone was touched 5s ago and that is where the operator can answer.
     let sandbox = Sandbox::new("hook-blocked-phone-fresher");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
-        .env("RELAY_IDLE_SECS", "90")
-        .env("RELAY_PHONE_INPUT_AGE", "5");
+        .env("PNS_IDLE_SECS", "90")
+        .env("PNS_PHONE_INPUT_AGE", "5");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(42), "the operator's own answer");
@@ -326,9 +326,9 @@ fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
     // one never started: an away operator with no moshi-hook installed lost
     // the only notification that could still reach them (sol, 2026-08-19).
     let sandbox = Sandbox::new("hook-blocked-no-moshi");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
-        .env("RELAY_IDLE_SECS", "99999")
+        .env("PNS_IDLE_SECS", "99999")
         .env("MOSHI_HOOK_BIN", "/nonexistent/moshi-hook");
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(0));
@@ -346,8 +346,8 @@ fn a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were() {
     // byte-for-byte contract exists to prevent; measured 2026-08-19 as
     // exactly 1,000,000 bytes forwarded out of a 1.2MB payload.
     let sandbox = Sandbox::new("hook-blocked-oversized");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "99999");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let mut child = spawn_hook(command, "blocked");
     let payload = format!(r#"{{"message":"{}"}}"#, "x".repeat(1_200_000));
@@ -377,9 +377,9 @@ fn a_moshi_that_never_reads_its_stdin_cannot_hold_the_notification() {
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("stub bin");
     write_script(&bin.join("moshi-hook"), "sleep 30");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
-        .env("RELAY_IDLE_SECS", "99999")
+        .env("PNS_IDLE_SECS", "99999")
         .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     let mut child = spawn_hook(command, "blocked");
     // Past the 64KB pipe buffer, which is what turns a child that does not
@@ -403,10 +403,8 @@ fn a_moshi_that_never_reads_its_stdin_cannot_hold_the_notification() {
 #[test]
 fn a_harness_pns_does_not_register_for_is_never_handed_to_moshi() {
     let sandbox = Sandbox::new("hook-blocked-unknown-agent");
-    let mut command = sandbox.relay();
-    command
-        .env("RELAY_IDLE_SECS", "99999")
-        .env("RELAY_AGENT", "pi");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999").env("PNS_AGENT", "pi");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(0));
@@ -418,8 +416,8 @@ fn a_harness_pns_does_not_register_for_is_never_handed_to_moshi() {
 #[test]
 fn a_non_blocking_event_never_pays_for_the_round_trip() {
     let sandbox = Sandbox::new("hook-asked");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "99999");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "asked", r#"{"message":"which one?"}"#);
     assert_eq!(output.status.code(), Some(0));
@@ -442,7 +440,7 @@ fn nothing_that_goes_wrong_building_a_notification_fails_the_harness_turn() {
 #[test]
 fn a_garbage_re_read_knob_still_notifies_and_still_exits_zero() {
     let sandbox = Sandbox::new("hook-garbage-knob");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command.env("PNS_REPLY_REREAD_ATTEMPTS", "not-a-number");
     let output = hook_with(
         command,
@@ -471,7 +469,7 @@ impl HookStubs for Sandbox {
         );
         prepend_path(command, &bin);
         command.env("CODEX_BIN", bin.join("codex"));
-        command.env("RELAY_CODEX_HOME", self.path("codex-home"));
+        command.env("PNS_CODEX_HOME", self.path("codex-home"));
     }
 
     fn stub_moshi(&self, command: &mut Command, exit_code: i32) {
@@ -547,7 +545,7 @@ fn a_transcript_that_never_ends_is_not_read_at_all() {
             .success()
     );
     for path in ["/dev/zero".to_string(), fifo.display().to_string()] {
-        let mut child = spawn_hook(sandbox.relay(), "stop");
+        let mut child = spawn_hook(sandbox.pns(), "stop");
         let payload =
             format!(r#"{{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"{path}"}}"#);
         write_payload(&mut child, payload.as_bytes());
@@ -564,7 +562,7 @@ fn a_payload_nobody_finishes_writing_still_exits_on_the_contract() {
     // The pipe stays open with nothing in it, which used to hang before any
     // of the exit-0 contract could run.
     let sandbox = Sandbox::new("hook-payload-hang");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command.env("PNS_PAYLOAD_DEADLINE_MS", "200");
     let child = spawn_hook(command, "stop");
     assert_eq!(
@@ -583,10 +581,10 @@ fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "cat >/dev/null; exec 1>&-; sleep 30");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
         .env("CODEX_BIN", bin.join("codex"))
-        .env("RELAY_CODEX_HOME", sandbox.path("codex-home"))
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
         .env("PNS_CONDENSER_DEADLINE_MS", "300");
     let mut child = spawn_hook(command, "stop");
     write_payload(
@@ -609,10 +607,10 @@ fn a_condenser_that_never_reads_its_stdin_is_bounded_too() {
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "sleep 30");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
         .env("CODEX_BIN", bin.join("codex"))
-        .env("RELAY_CODEX_HOME", sandbox.path("codex-home"))
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
         .env("PNS_CONDENSER_DEADLINE_MS", "300");
     let mut child = spawn_hook(command, "stop");
     let big = "x".repeat(200_000);
@@ -630,8 +628,8 @@ fn a_stuck_multiplexer_leaves_the_view_unreadable_rather_than_blocking() {
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("herdr"), "sleep 30");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "0");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "0");
     let mut path = std::ffi::OsString::from(&bin);
     path.push(":");
     path.push(std::env::var_os("PATH").unwrap_or_default());
@@ -656,8 +654,8 @@ fn gate(sandbox: &Sandbox, word: &str, payload: &str) -> std::process::Output {
 /// moshi's extension uses, or the `gate <word>` form the documentation gives
 /// an operator.
 fn gate_argv(sandbox: &Sandbox, argv: &[&str], payload: &str) -> std::process::Output {
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "99999");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 7);
     let mut child = command
         .args(argv)
@@ -699,8 +697,8 @@ fn the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision() {
 #[test]
 fn a_zero_decision_passes_through_as_zero_and_is_not_a_default() {
     let sandbox = Sandbox::new("gate-approves");
-    let mut command = sandbox.relay();
-    command.env("RELAY_IDLE_SECS", "99999");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 0);
     let mut child = command
         .arg("pi-hook")
@@ -793,13 +791,13 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     // Long enough for the marker to age past the stated desk reading, which
     // is whole seconds, and no longer.
     write_script(&bin.join("codex"), "sleep 2");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
-        .env("RELAY_IDLE_SECS", "1")
-        .env("RELAY_DESK_IDLE_SECS", "120")
+        .env("PNS_IDLE_SECS", "1")
+        .env("PNS_DESK_IDLE_SECS", "120")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("CODEX_BIN", bin.join("codex"))
-        .env("RELAY_CODEX_HOME", sandbox.path("codex-home"));
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     hook_with(
         command,
         &sandbox,
@@ -847,7 +845,7 @@ fn a_turn_whose_transcript_lands_late_is_re_read_until_it_does() {
     let sandbox = Sandbox::new("hook-late-flush");
     let transcript = sandbox.path("t.jsonl");
     std::fs::write(&transcript, "").expect("empty transcript");
-    let mut command = sandbox.relay();
+    let mut command = sandbox.pns();
     command
         .env("PNS_REPLY_REREAD_ATTEMPTS", "8")
         .env("PNS_REPLY_REREAD_INTERVAL", "0.05");
@@ -878,7 +876,7 @@ fn a_malformed_reread_interval_falls_back_instead_of_panicking() {
     // anyway; sol reproduced exit 101 from 1e300 on 2026-08-19.
     let sandbox = Sandbox::new("hook-bad-interval");
     for value in ["NaN", "inf", "-1", "not-a-number", "1e30", "1e300"] {
-        let mut command = sandbox.relay();
+        let mut command = sandbox.pns();
         command
             .env("PNS_REPLY_REREAD_INTERVAL", value)
             .env("PNS_REPLY_REREAD_ATTEMPTS", "1");
@@ -1004,7 +1002,7 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
 
     let mut slow = with_state_dir(&sandbox);
     slow.env("CODEX_BIN", bin.join("codex"))
-        .env("RELAY_CODEX_HOME", sandbox.path("codex-home"));
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     let mut stop = spawn_hook(slow, "stop");
     write_payload(
         &mut stop,
