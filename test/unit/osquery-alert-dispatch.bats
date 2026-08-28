@@ -43,14 +43,14 @@ printf '%s' "$?" >"$work/status.url-store"
 
 # An apostrophe dead-letter reason on an otherwise ordinary row.
 _osquery_store_alert_row 2000 osquery-apos-reason \
-  'http://127.0.0.1:8644/webhooks/osquery-priority' "$body_b64"
+  'http://127.0.0.1:8644/webhooks/priority' "$body_b64"
 printf '%s' "$?" >"$work/status.reason-store"
 _osquery_dead_letter_alert_row osquery-apos-reason none "operator's note: gateway refused the page"
 printf '%s' "$?" >"$work/status.reason-deadletter"
 
 # An apostrophe request id through store, retry bookkeeping and delete-by-id.
 _osquery_store_alert_row 3000 "osquery-o'brien" \
-  'http://127.0.0.1:8644/webhooks/osquery-priority' "$body_b64"
+  'http://127.0.0.1:8644/webhooks/priority' "$body_b64"
 printf '%s' "$?" >"$work/status.id-store"
 _osquery_record_transient_failure "osquery-o'brien"
 printf '%s' "$?" >"$work/status.id-transient"

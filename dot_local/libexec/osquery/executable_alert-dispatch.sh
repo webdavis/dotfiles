@@ -22,7 +22,7 @@
 # One Discord route: the #priority channel (the one channel the user watches),
 # signed with the osquery HMAC key below. Only a CRIT page is POSTed; any other
 # severity does the local notification only.
-OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
+OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/priority}"
 # The notifier signs with its OWN copy of the HMAC key, read from its own secret
 # file, NOT from hermes's .env. HMAC is symmetric so the value must match the
 # gateway's, but the signer must not reach into the verifier's credential store;

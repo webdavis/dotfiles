@@ -32,7 +32,7 @@ set -euo pipefail
 
 # The #priority route the pages actually use (the one send_alert POSTs). Probed
 # with a bare GET: no signing header, so the HMAC key never reaches this wire.
-HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
+HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/priority}"
 ROUTE_TIMEOUT="${OSQUERY_WATCHDOG_ROUTE_TIMEOUT:-3}"
 # Canary freshness bound (shared with the heartbeat via OSQUERY_CANARY_MAX_AGE): the
 # scheduled canary runs every 600s, so 1800s (three intervals) tolerates a missed
