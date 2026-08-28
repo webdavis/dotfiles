@@ -177,66 +177,90 @@ impl Registry {
     }
 }
 
-/// The real roster, for tests that need the production declarations rather
-/// than a made-up pair. Four fixtures used to reproduce this independently,
-/// so a declaration could change in the roster and stay green in three of
-/// them; there is one now, and the composition root registers the same set.
-#[cfg(test)]
-pub fn test_roster() -> Registry {
+/// A registry out of a slice of declarations: the ONE constructor, used by
+/// the composition root and by every test that wants the production set.
+/// Four fixtures used to reproduce this independently, so a declaration could
+/// change in the roster and stay green in three of them.
+///
+/// IT PANICS on a refused registration, naming the offender, and that is safe
+/// on an always-exit-0 path because the only reachable refusal is a duplicate
+/// name in a compiled-in const: deterministic, so it fires on the first call
+/// in every mode and every test run and cannot reach an operator's machine.
+/// Logging and carrying on, which is what this replaced, drops a delivery leg
+/// silently and forever on the path whose job is to not be silent.
+pub fn build_registry(entries: &[Registration]) -> Registry {
     let mut registry = Registry::new();
-    for (name, routing) in ROSTER {
-        registry.register_channel(name, routing).unwrap();
+    for entry in entries {
+        registry
+            .register_plugin(entry.name, entry.kind)
+            .unwrap_or_else(|error| panic!("pns: the compiled-in roster is invalid: {error:?}"));
     }
     registry
 }
 
+/// THE ROSTER the composition root registers, and the only statement of
+/// delivery order. A destination is added here, never to policy.
+pub fn roster() -> Registry {
+    build_registry(&ROSTER)
+}
+
 /// The declarations the composition root registers, named once so a test can
-/// run against the real thing.
-pub const ROSTER: [(&str, Routing); 4] = [
-    (
-        "moshi",
-        Routing {
+/// run against the real thing. Each entry states its KIND, so a sensor rides
+/// in the same list as the channels rather than in a second one the
+/// composition root has to remember.
+pub const ROSTER: [Registration; 5] = [
+    Registration {
+        // The home probe's router: an INPUT, so it holds no delivery order to
+        // state and sits ahead of the channels, whose order is delivery order.
+        // `pns home` reads it; no event can route to it, because a sensor
+        // carries no routing for a plan to read.
+        name: "router",
+        kind: PluginKind::Sensor,
+    },
+    Registration {
+        name: "moshi",
+        kind: PluginKind::Channel(Routing {
             local: false,
             presence_gated: true,
             durable: false,
             event_dispatched: true,
-        },
-    ),
-    (
+        }),
+    },
+    Registration {
         // AHEAD OF THE DURABLE LOG, because this one is presence-sensitive
         // and that one is not. The plan is computed from a reading of where
         // the operator is at dispatch, and hermes can post synchronously
         // against a deadline; delivering the banner after it would show the
         // operator a decision taken about a moment that had passed.
-        "macos-banner",
-        Routing {
+        name: "macos-banner",
+        kind: PluginKind::Channel(Routing {
             local: true,
             presence_gated: false,
             durable: false,
             event_dispatched: true,
-        },
-    ),
-    (
-        "hermes",
-        Routing {
+        }),
+    },
+    Registration {
+        name: "hermes",
+        kind: PluginKind::Channel(Routing {
             local: false,
             presence_gated: false,
             durable: true,
             event_dispatched: true,
-        },
-    ),
-    (
+        }),
+    },
+    Registration {
         // A local surface the binary drives in its own `pulse` mode. It
         // registers so the config can select it and so a typo in its name is
         // still refused, but no event ever routes to it.
-        "hue",
-        Routing {
+        name: "hue",
+        kind: PluginKind::Channel(Routing {
             local: true,
             presence_gated: false,
             durable: false,
             event_dispatched: false,
-        },
-    ),
+        }),
+    },
 ];
 
 /// Which plugins run, given what loading the config found. The composition
@@ -281,7 +305,7 @@ fn roster_warning(detail: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::Selection;
-    use super::{Registry, RegistryError, Routing};
+    use super::{PluginKind, Registration, Registry, RegistryError, Routing, build_registry};
     use crate::config::parse_config;
 
     const REMOTE_GATED: Routing = Routing {
@@ -380,6 +404,77 @@ mod tests {
         assert_eq!(sensor_first.names(), vec!["router"]);
         assert_eq!(channel_first.names(), vec!["router"]);
         assert_eq!(twice.names(), vec!["router"]);
+    }
+
+    // --- the one roster constructor -----------------------------------------
+
+    #[test]
+    fn a_registry_is_built_from_a_slice_of_declarations_in_the_order_given() {
+        // ONE constructor, taking the declarations as data. Two hand-written
+        // loops over the same const diverge the moment one of them grows a
+        // kind the other does not know about; a slice in and a registry out
+        // makes that unrepresentable, and lets a test hand it a roster of its
+        // own without the composition root's four entries in the way.
+        let entries = [
+            Registration {
+                name: "hermes",
+                kind: PluginKind::Channel(DURABLE),
+            },
+            Registration {
+                name: "router",
+                kind: PluginKind::Sensor,
+            },
+        ];
+        assert_eq!(build_registry(&entries).names(), vec!["hermes", "router"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "router")]
+    fn a_roster_that_claims_one_name_twice_panics_naming_it() {
+        // The only reachable duplicate is in a compiled-in const, so it is
+        // deterministic: it fires on the first call in every mode and every
+        // test run and cannot reach an operator's machine. Logging and
+        // carrying on instead drops a plugin silently and forever, on a path
+        // whose whole job is to not be silent.
+        let entries = [
+            Registration {
+                name: "router",
+                kind: PluginKind::Sensor,
+            },
+            Registration {
+                name: "router",
+                kind: PluginKind::Channel(LOCAL),
+            },
+        ];
+        build_registry(&entries);
+    }
+
+    #[test]
+    fn the_production_roster_carries_the_router_sensor_beside_the_four_channels() {
+        // The const has to SAY what each entry is, so the sensor rides in the
+        // same declaration as the channels rather than in a second list the
+        // composition root has to remember to register. The sensor is first
+        // because it holds no delivery order to state, which also means a plan
+        // that dropped an entry by POSITION rather than by kind would shift
+        // every channel after it.
+        let declared: Vec<(&str, bool)> = super::ROSTER
+            .iter()
+            .map(|entry| (entry.name, entry.kind == PluginKind::Sensor))
+            .collect();
+        assert_eq!(
+            declared,
+            vec![
+                ("router", true),
+                ("moshi", false),
+                ("macos-banner", false),
+                ("hermes", false),
+                ("hue", false),
+            ]
+        );
+        assert_eq!(
+            super::roster().names(),
+            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
+        );
     }
 
     // --- selection by config ------------------------------------------------
@@ -482,10 +577,10 @@ mod tests {
     fn a_missing_config_selects_every_builtin_so_the_cutover_changes_nothing() {
         use crate::config::LoadOutcome;
         let (selection, warning) =
-            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Missing));
+            super::select_plugins(&super::roster(), Ok(LoadOutcome::Missing));
         assert_eq!(
             selection_names(&selection),
-            vec!["moshi", "macos-banner", "hermes", "hue"]
+            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
         );
         assert_eq!(warning, None);
     }
@@ -495,7 +590,7 @@ mod tests {
         use crate::config::LoadOutcome;
         let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
         let (selection, warning) =
-            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+            super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(config)));
         assert_eq!(selection_names(&selection), vec!["hermes"]);
         assert_eq!(warning, None);
     }
@@ -504,14 +599,14 @@ mod tests {
     fn a_broken_config_is_loud_but_never_turns_notifications_off() {
         use crate::config::ConfigError;
         let (selection, warning) = super::select_plugins(
-            &super::test_roster(),
+            &super::roster(),
             Err(ConfigError::Malformed(
                 "key with no value at line 1".to_string(),
             )),
         );
         assert_eq!(
             selection_names(&selection),
-            vec!["moshi", "macos-banner", "hermes", "hue"]
+            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
         );
         let warning = warning.expect("a broken config must be said aloud");
         assert!(warning.contains("key with no value"));
@@ -522,10 +617,10 @@ mod tests {
         use crate::config::LoadOutcome;
         let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
         let (selection, warning) =
-            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+            super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(config)));
         assert_eq!(
             selection_names(&selection),
-            vec!["moshi", "macos-banner", "hermes", "hue"]
+            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
         );
         let warning = warning.expect("the typo'd name must be said aloud");
         assert!(warning.contains("mosih"));
@@ -541,7 +636,7 @@ mod tests {
             parse_config("[plugins.hermes]\nenabled = true\n[plugins.hue]\nenabled = true\n")
                 .unwrap();
         let (selection, warning) =
-            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+            super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(config)));
         assert_eq!(selection_names(&selection), vec!["hermes", "hue"]);
         assert_eq!(warning, None);
     }
@@ -550,8 +645,7 @@ mod tests {
     fn a_true_typo_is_still_refused() {
         use crate::config::LoadOutcome;
         let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
-        let (_, warning) =
-            super::select_plugins(&super::test_roster(), Ok(LoadOutcome::Loaded(config)));
+        let (_, warning) = super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(config)));
         assert!(
             warning
                 .expect("the typo is still the defect")

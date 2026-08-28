@@ -1,6 +1,7 @@
 //! The pns binary: the composition root, and the only place with a main.
 //!
-//! Everything here is WIRING. The registrations below are the roster, the
+//! Everything here is WIRING. The roster is one constant and one constructor
+//! in `registry`, so there is no second construction of it to diverge; the
 //! environment and the config are read once at this edge, and every decision
 //! is delegated to the library. It exits 0 on every path, because a
 //! notification must never fail the work it reports on.
@@ -25,7 +26,7 @@ use pns::hooks::{
     HookPayload, condenser_prompt, condenser_verdict, moshi_subcommand, parse_payload,
     transcript_reply,
 };
-use pns::registry::{Registry, select_plugins};
+use pns::registry::{roster, select_plugins};
 use pns::render;
 use pns::system::{SystemCommandRunner, SystemProbes, run_bounded};
 
@@ -929,19 +930,6 @@ fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
     )
 }
 
-/// THE ROSTER, and the only statement of delivery order. A destination is
-/// added to `registry::ROSTER`, never to policy; this turns those
-/// declarations into the registry both modes select from.
-fn roster() -> Registry {
-    let mut registry = Registry::new();
-    for (name, routing) in pns::registry::ROSTER {
-        if let Err(error) = registry.register_channel(name, routing) {
-            eprintln!("pns: {error:?}");
-        }
-    }
-    registry
-}
-
 /// The first executable of that name on PATH, absolute, or None. The click
 /// string bakes it in because the click runs in a bare launchd context whose
 /// PATH cannot find `~/.local/bin`.
@@ -1036,22 +1024,32 @@ fn home_mode() {
             return;
         }
     };
-    // A missing table and a present-but-invalid one get DIFFERENT lines: the
-    // first is fixed by writing the table, the second by fixing one value,
-    // and one message covering both sends the operator to the wrong edit.
-    let Some(home_table) = config.home.as_ref() else {
-        println!("{}", setup_report(&SetupFailure::NoHomeTable));
-        return;
+    // EVERY CAUSE IS DECIDED IN THE LIBRARY, so each line is pinned by a
+    // value-in, value-out test and this stays wiring: a missing table, a
+    // disabled one, a brand nothing answers and a mistyped value each send
+    // the operator to a different edit, and one message covering two of them
+    // sends half of them to the wrong one.
+    let router_table = match pns::home::enabled_router_table(&config) {
+        Ok(table) => table,
+        Err(failure) => {
+            println!("{}", setup_report(&failure));
+            return;
+        }
     };
-    let Some(settings) = pns::home::home_settings(Some(home_table)) else {
-        println!("{}", setup_report(&SetupFailure::InvalidHomeTable));
-        return;
+    let settings = match pns::home::router_settings(router_table) {
+        Ok(settings) => settings,
+        Err(failure) => {
+            println!("{}", setup_report(&failure));
+            return;
+        }
     };
-    let Some(key) = pns::home::home_api_key(home_table) else {
+    // The key stays its own read, so it never joins the settings in a type
+    // that could be dumped whole.
+    let Some(key) = pns::home::router_api_key(router_table) else {
         println!("{}", setup_report(&SetupFailure::NoApiKey));
         return;
     };
-    let router = pns::home::UreqRouter::new(settings.router_url, key);
+    let router = pns::home::UniFiRouter::new(settings.router_url, key);
     println!(
         "{}",
         report(

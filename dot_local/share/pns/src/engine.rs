@@ -337,7 +337,7 @@ mod tests {
     }
 
     fn three_selection() -> Selection {
-        crate::registry::test_roster()
+        crate::registry::roster()
             .enabled(
                 &parse_config(
                     "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
