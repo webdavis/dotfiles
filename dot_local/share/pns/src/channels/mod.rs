@@ -68,7 +68,7 @@ impl Event {
 /// THE SENTENCE CARRIES NO `pns: ` PREFIX. It is added by the one place that
 /// prints, so a caller that labels a line with the plugin's name does not have
 /// to unpick a prefix out of the middle of its own.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Delivery {
     /// Nothing worth saying, which is almost always the case.
     Silent,

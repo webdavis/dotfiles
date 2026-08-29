@@ -224,6 +224,62 @@ fn publish_state_line(path: &Path, line: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Append one decision to the ring, and prune it back to the cap.
+///
+/// FAIL-QUIET, in `remember_staleness`'s style and deliberately the opposite
+/// of `quiet_mode`'s loud write. A mute that did not land is a promise broken
+/// to a human standing at the terminal; a decision that did not record is a
+/// diagnostic missing later, on a path whose stdout is read by a harness hook
+/// and whose only reader already says honestly that it has nothing. Printing a
+/// complaint here would put a line about the state directory into every hook's
+/// output for the rest of this machine's life.
+fn record_decision(record: &pns::decision_log::Record) {
+    // The failure is DROPPED here and nowhere else: see the doc comment.
+    let _ = append_decision(
+        &state_dir().join(DECISIONS),
+        &pns::decision_log::line(record),
+    );
+}
+
+/// The append and the prune behind it.
+///
+/// WRITTEN BY APPEND, never read-modify-write: an append needs no read, so two
+/// events firing at once (a Stop hook and the long-running notifier are a
+/// normal pair) cannot lose each other's line. The prune only runs when the
+/// file went over the cap, and republishes the last `KEPT` lines through the
+/// same atomic publish every other state file uses.
+///
+/// ACCEPTED LIMIT: an append landing exactly during the prune's rename is
+/// lost. It costs ONE RECORD at a rare boundary, never a card and never a
+/// corrupted file, because the rename is atomic and the republished text is
+/// always whole lines.
+fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?
+        .write_all(format!("{line}\n").as_bytes())?;
+    let contents = std::fs::read_to_string(path)?;
+    let kept: Vec<&str> = contents.lines().collect();
+    if kept.len() <= pns::decision_log::KEPT {
+        return Ok(());
+    }
+    // Joined with newlines, because the publish writes the one trailing
+    // newline back itself.
+    publish_state_line(
+        path,
+        &kept[kept.len() - pns::decision_log::KEPT..].join("\n"),
+    )
+}
+
+/// The decision ring: one line per event, `KEPT` deep, beside `quiet-until`
+/// and `home-staleness`. NOT a log stream and not rotate-logs' business: it is
+/// bounded state that prunes itself.
+const DECISIONS: &str = "decisions";
+
 /// One line, holding the episode the operator has already been warned about,
 /// absent when a HOME reading showed no staleness. NO SESSION ID: one config
 /// names one device, so there is one staleness state at a time and every
@@ -736,7 +792,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         watch_card,
     );
 
-    if decision.legs.is_empty() {
+    let outcomes = if decision.legs.is_empty() {
         // A verdict that must be SAID, but only for the contradiction the
         // caller asked for: a silent exit is indistinguishable from delivery.
         if event.local_only && event.remote_only {
@@ -744,25 +800,44 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
                 "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
             );
         }
+        Vec::new()
     } else {
-        for (leg, delivered) in dispatch_legs(
+        let outcomes = dispatch_legs(
             &decision.legs,
             decision.pane_dropped,
             event,
             &home,
             moshi_token,
             hermes_key,
-        ) {
+        );
+        for (leg, delivered) in &outcomes {
             // THE ONE PLACE a delivery reaches the operator, and the one place
             // the `pns: ` prefix is written. A channel says WHAT happened; the
             // leg's mode says whether anyone hears it, and this says how it is
             // labelled, so a second caller that labels its lines by plugin
             // name does not have to unpick a prefix out of the middle of one.
-            if let Some(line) = delivered.line_for(leg.mode) {
+            if let Some(line) = delivered.clone().line_for(leg.mode) {
                 println!("pns: {line}");
             }
         }
-    }
+        outcomes
+    };
+
+    // THE RECORD GOES HERE, after every channel and before the pulse. After,
+    // because the leg verdicts are part of it and because a crash in recording
+    // must not cost a channel; before, because the pulse talks to a bridge
+    // under a ten-second deadline and would take the record with it. THE
+    // ACCEPTED PRICE, stated: a decision is lost if a channel hangs to its
+    // deadline and the process is killed before this runs.
+    //
+    // BOTH BRANCHES RECORD. "Nothing fired" is exactly what an operator opens
+    // the report to ask about.
+    record_decision(&pns::decision_log::Record {
+        event,
+        decision: &decision,
+        overrides: &overrides,
+        legs: &outcomes,
+    });
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
     // on. It is part of the PLAN rather than a second invocation (the shell
@@ -1448,8 +1523,40 @@ fn doctor_mode() -> i32 {
         println!("{}", pns::doctor::line(check, outcome));
     }
     println!("{}", pns::doctor::summary(&outcomes));
+    // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
+    // census plus its summary is one complete thought whose line order the
+    // suite already pins, and nothing below can disturb it.
+    for line in decision_section() {
+        println!("{line}");
+    }
+    // THE EXIT CODE DOES NOT MOVE. The section above reports HISTORY, not
+    // health: an empty log on a fresh machine is not a failure, and neither is
+    // one nothing could read. The sends alone earn the code.
     pns::doctor::exit_code(&outcomes)
 }
+
+/// The decision ring, read back and rendered.
+///
+/// READ AND NEVER APPENDED. A doctor that recorded would push the decision the
+/// operator came to read out of the ring by the act of going to look at it.
+fn decision_section() -> Vec<String> {
+    let now = now_secs();
+    match std::fs::read_to_string(state_dir().join(DECISIONS)) {
+        Ok(contents) => pns::decision_log::section(Some(&contents), now),
+        // ABSENT IS ITS OWN STATE, and the one the section has an honest line
+        // for. Anything else is a directory or a permission problem, which is
+        // a different thing to say.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            pns::decision_log::section(None, now)
+        }
+        Err(error) => vec![format!("{DECISIONS_UNREADABLE} ({}).", error.kind())],
+    }
+}
+
+/// A ring that is there and cannot be read. Said HERE rather than in the log
+/// module, for the reason `NO_HUE_BRIDGE_LINE` is: the sentence needs
+/// something only the reader of the file knows.
+const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be read";
 
 /// What a doctor typed wrong is told. ONE WORD AND NO FLAGS: a namespace built
 /// for callers that do not exist makes the common case longer to type, and the

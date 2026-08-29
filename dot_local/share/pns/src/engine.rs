@@ -127,7 +127,33 @@ pub fn decide<P>(
 where
     P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + SessionViewProbe,
 {
-    let world = read_world(probes, overrides, pane, now_secs);
+    let reading = surface_reading(probes, overrides, now_secs);
+    let session_visibility = operator_visibility(probes, pane);
+    // EVERY FIELD IS STATED HERE, once. The event-shaped half cannot be
+    // filled by the reading above, and a struct assembled in two places is
+    // one a later edit can leave holding a default nobody meant.
+    let world = GateInputs {
+        desk_input_age: reading.desk_input_age,
+        phone_input_age: reading.phone_input_age,
+        marker_age: reading.marker_age,
+        screen_locked: reading.screen_locked,
+        desk_fresh_secs: reading.desk_fresh_secs,
+        surface: reading.surface,
+        session_visibility,
+        // The session reports one fact for every client, and a phone with
+        // moshi closed is not one of them: see `surface::effective_visibility`.
+        visibility: crate::surface::effective_visibility(
+            reading.surface,
+            reading.phone_input_fresh,
+            session_visibility,
+        ),
+        now_secs,
+        long_running,
+        mobile_watch_card,
+        local_only,
+        remote_only,
+        pane_present: !pane.is_empty(),
+    };
     let delivery = crate::surface::plan(
         world.surface,
         world.visibility,
@@ -204,31 +230,19 @@ pub struct GateInputs {
     /// What the plan actually ran on, which differs from the session's own
     /// answer exactly where the Back Tap rewrite applied.
     pub visibility: Visibility,
-}
-
-/// Take the snapshot. The only probe access on the delivery path.
-fn read_world<P>(probes: &P, overrides: &Overrides, pane: &str, now_secs: Option<u64>) -> GateInputs
-where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + SessionViewProbe,
-{
-    let reading = surface_reading(probes, overrides, now_secs);
-    let session_visibility = operator_visibility(probes, pane);
-    GateInputs {
-        desk_input_age: reading.desk_input_age,
-        phone_input_age: reading.phone_input_age,
-        marker_age: reading.marker_age,
-        screen_locked: reading.screen_locked,
-        desk_fresh_secs: reading.desk_fresh_secs,
-        surface: reading.surface,
-        session_visibility,
-        // The session reports one fact for every client, and a phone with
-        // moshi closed is not one of them: see `surface::effective_visibility`.
-        visibility: crate::surface::effective_visibility(
-            reading.surface,
-            reading.phone_input_fresh,
-            session_visibility,
-        ),
-    }
+    /// THE ONE CLOCK READ every age above was taken against. `None` is a
+    /// clock nobody could read, which is why those ages are absent.
+    pub now_secs: Option<u64>,
+    /// The tier the caller stated.
+    pub long_running: bool,
+    /// The config's opt-in for carding a phone that is already watching.
+    pub mobile_watch_card: bool,
+    /// The caller's narrowing flags.
+    pub local_only: bool,
+    pub remote_only: bool,
+    /// An origin pane was given. Its VALUE is never carried: the decision
+    /// used it for exactly this and for the safety check beside it.
+    pub pane_present: bool,
 }
 
 /// Where the operator is, and whether the PHONE'S OWN clock is what says so.
@@ -638,6 +652,47 @@ mod tests {
         let inputs = decide_with(&no_idle_reading, &Overrides::default(), "").inputs;
         assert_eq!(inputs.screen_locked, None);
         assert_eq!(no_idle_reading.lock_reads.get(), 0, "and never read at all");
+    }
+
+    #[test]
+    fn writing_the_record_consults_no_probe_the_decision_had_not_already_read() {
+        // THE RECORD MUST NOT BECOME A SECOND READING. The whole feature is
+        // worthless, and actively misleading, if any value on the line is
+        // re-read after `decide` returned: two readings of where the operator
+        // is can disagree, and the explanation would then belong to a moment
+        // the decision never saw. AN EXTRA READ IS A FAILURE EVEN WHERE THE
+        // VALUE HAPPENS TO MATCH, which is why this compares the counts rather
+        // than the line.
+        let reads = |also_record: bool| {
+            let probes = CountingProbes {
+                idle: Some(30),
+                marker_mtime: Some(999_400),
+                phone_atime: Some(999_912),
+                screen_locked: Some(false),
+                view: Some(watching("wW:p1")),
+                ..CountingProbes::default()
+            };
+            let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
+            if also_record {
+                crate::decision_log::line(&crate::decision_log::Record {
+                    event: &crate::args::EventArgs::default(),
+                    decision: &decision,
+                    overrides: &Overrides::default(),
+                    legs: &[],
+                });
+            }
+            [
+                probes.idle_reads.get(),
+                probes.marker_reads.get(),
+                probes.phone_reads.get(),
+                probes.lock_reads.get(),
+                probes.view_reads.get(),
+            ]
+        };
+        assert_eq!(reads(true), reads(false));
+        // And every probe really was consulted, so the equality above is an
+        // agreement between two live readings rather than between two zeroes.
+        assert_eq!(reads(false), [1, 1, 1, 1, 1]);
     }
 
     // --- the plan drives the legs -------------------------------------------
