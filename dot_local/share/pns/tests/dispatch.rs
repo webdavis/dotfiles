@@ -1967,6 +1967,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "pns doctor: 3 sent, 0 failed, 2 skipped",
             NO_MOSHI_HOOK_LINE,
             NO_DECISION_RECORDED,
+            NONE_WAITING,
         ],
         "one line per REGISTERED plugin, in registration order: a report that \
          walked the selection would answer what is on when the operator asked \
@@ -2235,6 +2236,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "pns doctor: 0 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
             NO_DECISION_RECORDED,
+            NONE_WAITING,
         ],
         "the whole roster is still the report; only a census can say this"
     );
@@ -2449,15 +2451,23 @@ fn ring_path(sandbox: &Sandbox) -> std::path::PathBuf {
 /// and the child is killed before the panic so nothing is left holding the
 /// fixture open.
 fn run_before_the_deadline(command: &mut std::process::Command) -> std::process::ExitStatus {
+    output_before_the_deadline(command).status
+}
+
+/// The same wait, keeping what the event said. Piped rather than discarded
+/// because a caller also has to prove the event stayed SILENT about the file
+/// it could not write; the volume is a handful of lines, far inside a pipe
+/// buffer, so the poll below cannot deadlock on a full one.
+fn output_before_the_deadline(command: &mut std::process::Command) -> std::process::Output {
     let mut child = command
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .spawn()
         .expect("the engine starts");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     loop {
-        if let Some(status) = child.try_wait().expect("the child is waitable") {
-            return status;
+        if child.try_wait().expect("the child is waitable").is_some() {
+            return child.wait_with_output().expect("the child is waitable");
         }
         if std::time::Instant::now() >= deadline {
             let _ = child.kill();
@@ -2674,9 +2684,14 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     );
     assert!(lines[heading + 2].contains(" c1/done "), "{printed}");
     assert_eq!(
+        lines[heading + 3],
+        NONE_WAITING,
+        "and only the journal's count follows it: {printed}"
+    );
+    assert_eq!(
         lines.len(),
-        heading + 3,
-        "and nothing follows it: {printed}"
+        heading + 4,
+        "with nothing after that: {printed}"
     );
 }
 
@@ -2689,7 +2704,7 @@ fn the_doctors_exit_code_does_not_move_for_a_log_that_is_absent_or_unreadable() 
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
     assert!(
-        printed.ends_with(&format!("{NO_DECISION_RECORDED}\n")),
+        printed.ends_with(&format!("{NO_DECISION_RECORDED}\n{NONE_WAITING}\n")),
         "{printed}"
     );
     assert_eq!(
@@ -2705,7 +2720,9 @@ fn the_doctors_exit_code_does_not_move_for_a_log_that_is_absent_or_unreadable() 
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
     assert!(
-        printed.ends_with("  unreadable entry: \"not a decision at all\"\n"),
+        printed.ends_with(&format!(
+            "  unreadable entry: \"not a decision at all\"\n{NONE_WAITING}\n"
+        )),
         "{printed}"
     );
     assert_eq!(
@@ -2728,7 +2745,13 @@ fn a_ring_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit_co
 
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
-    let last = printed.lines().last().unwrap_or_default();
+    let lines: Vec<&str> = printed.lines().collect();
+    assert_eq!(
+        lines.last(),
+        Some(&NONE_WAITING),
+        "the journal's count still comes after it: {printed}"
+    );
+    let last = lines[lines.len() - 2];
     let opening = "pns doctor: the decision log could not be read (";
     assert!(last.starts_with(opening), "{printed}");
     assert!(
@@ -2761,6 +2784,390 @@ fn the_doctor_records_no_decision_of_its_own() {
         std::fs::read_to_string(&ring).expect("the ring"),
         before,
         "the doctor wrote to the ring it was reading"
+    );
+}
+
+// --- the missed-notification journal ----------------------------------------
+
+/// The journal's own depth, stated here rather than imported: a test that read
+/// the constant it is checking would agree with any value the source held.
+const JOURNAL_KEPT: usize = 25;
+
+/// The decision ring's depth, for the same reason.
+const RING_KEPT: usize = 5;
+
+/// The operator's mute, published straight into the state directory.
+///
+/// THE ONLY WAY AN EVENT IS MISSED IN A TEST, and not a shortcut: the mute is
+/// the one thing that zeroes a plan the matrix would have decorated, which is
+/// what the journal exists to queue. Written rather than spawned through
+/// `pns quiet`, because the engine reads one absolute expiry and a test can
+/// state one without a second process.
+fn mute(sandbox: &Sandbox) {
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let expiry = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+        + 600;
+    std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
+}
+
+/// The journal's path, with the state directory that holds it already made, so
+/// a test can plant something there before the first event runs.
+fn journal_path(sandbox: &Sandbox) -> std::path::PathBuf {
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    sandbox.path("state/missed-notifications")
+}
+
+/// The journal, oldest first, which is the order an append leaves it in.
+fn journal(sandbox: &Sandbox) -> Vec<String> {
+    std::fs::read_to_string(sandbox.path("state/missed-notifications"))
+        .map(|contents| contents.lines().map(str::to_string).collect())
+        .unwrap_or_default()
+}
+
+/// A journal of `count` entries, each carrying its own index, written the way
+/// the engine leaves them. THE TEST IS THE REPLAYER'S STAND-IN here: reading
+/// an entry back is what the file is for, and it is a test doing it rather
+/// than a pns command.
+fn planted_journal(count: usize) -> String {
+    (0..count)
+        .map(|which| {
+            format!("{{\"at\":1756499000,\"agent\":\"claude\",\"state\":\"done\",\"project\":\"p\",\"branch\":\"b\",\"detail\":\"planted {which}\"}}\n")
+        })
+        .collect()
+}
+
+/// One entry's field, parsed. Only a test reads these.
+fn field(entry: &str, name: &str) -> String {
+    let parsed: serde_json::Value =
+        serde_json::from_str(entry).unwrap_or_else(|error| panic!("{error}: {entry}"));
+    parsed[name].as_str().unwrap_or_default().to_string()
+}
+
+#[test]
+fn the_shared_append_prunes_each_ring_to_its_own_callers_depth() {
+    // ONE HELPER, TWO DEPTHS, which is exactly where an off-by-one hides. Both
+    // files start AT their caps, so the one event below pushes each of them
+    // over by exactly one and the prune has to answer with a different number
+    // for each. A journal silently pruning to the ring's five fails here.
+    let sandbox = Sandbox::new("journal-two-depths");
+    mute(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(JOURNAL_KEPT)).expect("the journal");
+    let ring: String = (0..RING_KEPT)
+        .map(|which| format!("1756499000 c{which}/done surface=Away\n"))
+        .collect();
+    std::fs::write(sandbox.path("state/decisions"), ring).expect("the ring");
+
+    run(logged_event(&sandbox)
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--detail", "this event's own summary"]));
+
+    let waiting = journal(&sandbox);
+    // THE APPEND REALLY RAN, asserted before the count: a journal nothing
+    // wrote is still exactly its planted depth, so the count alone would pass
+    // on a build that never journals anything at all.
+    assert_eq!(
+        field(waiting.last().expect("a journal"), "detail"),
+        "this event's own summary",
+        "the newest entry is this event's: {waiting:?}"
+    );
+    assert_eq!(
+        waiting.len(),
+        JOURNAL_KEPT,
+        "the journal kept its own depth"
+    );
+    assert_eq!(
+        decisions(&sandbox).len(),
+        RING_KEPT,
+        "and the ring kept its own"
+    );
+}
+
+#[test]
+fn a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_shown() {
+    // THE MUTE'S QUEUE. The operator muted, so the matrix's card never fired
+    // and nothing reached them, while the durable log still has the event in
+    // full. What lands here is the minimum a replay needs to rebuild the card.
+    let sandbox = Sandbox::new("journal-append");
+    mute(&sandbox);
+    run(logged_event(&sandbox)
+        .args(["--agent", "claude", "--state", "blocked"])
+        .args(["--project", "dotfiles", "--branch", "main"])
+        .args(["--detail", "a private summary"]));
+    assert!(
+        sandbox.fired("hermes"),
+        "the durable log is exempt from the mute and still has the event in full"
+    );
+    assert!(!sandbox.fired("moshi"), "and the card the mute swallowed");
+
+    let waiting = journal(&sandbox);
+    assert_eq!(waiting.len(), 1, "exactly one entry: {waiting:?}");
+    for (name, expected) in [
+        ("agent", "claude"),
+        ("state", "blocked"),
+        ("project", "dotfiles"),
+        ("branch", "main"),
+        ("detail", "a private summary"),
+    ] {
+        assert_eq!(field(&waiting[0], name), expected, "{name}: {waiting:?}");
+    }
+    let parsed: serde_json::Value = serde_json::from_str(&waiting[0]).expect("one JSON object");
+    assert!(
+        parsed["at"].as_u64().is_some_and(|at| at > 1_700_000_000),
+        "the decision's own clock read: {waiting:?}"
+    );
+}
+
+#[test]
+fn a_delivered_event_journals_nothing_at_all() {
+    // NO FILE ON A MACHINE THAT NEVER MISSED ONE, which is what makes the
+    // journal's presence meaningful. Away cards the phone, so this event
+    // reached the operator and there is nothing to replay.
+    let sandbox = Sandbox::new("journal-delivered");
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    assert!(sandbox.fired("moshi"), "the card really fired");
+    assert!(
+        !sandbox.path("state/missed-notifications").exists(),
+        "a delivered event left a journal behind"
+    );
+}
+
+#[test]
+fn the_journal_keeps_only_the_most_recent_misses_with_the_oldest_gone() {
+    // THE FILE IS WHAT IS WAITING, never everything that was ever missed. The
+    // planted journal starts AT the cap, so this event pushes it over by
+    // exactly one and the oldest entry is the one that has to go.
+    let sandbox = Sandbox::new("journal-prune");
+    mute(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(JOURNAL_KEPT)).expect("the journal");
+
+    run(logged_event(&sandbox)
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--detail", "the newest miss"]));
+
+    let waiting = journal(&sandbox);
+    assert_eq!(waiting.len(), JOURNAL_KEPT, "got {} entries", waiting.len());
+    assert_eq!(
+        field(&waiting[0], "detail"),
+        "planted 1",
+        "the oldest was dropped: {waiting:?}"
+    );
+    assert_eq!(
+        field(waiting.last().expect("a journal"), "detail"),
+        "the newest miss",
+        "and the newest is last: {waiting:?}"
+    );
+}
+
+#[test]
+fn a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_event() {
+    // MEASURED ON THE RING and inherited here by sharing its append: opening a
+    // FIFO for writing BLOCKS until something opens the read end, so an append
+    // that trusted the path would park the hook that called it, on every
+    // event, until the machine is rebooted.
+    let sandbox = Sandbox::new("journal-fifo");
+    mute(&sandbox);
+    let path = journal_path(&sandbox);
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&path)
+            .status()
+            .expect("mkfifo runs")
+            .success(),
+        "the fixture has to be a real FIFO"
+    );
+
+    let output = output_before_the_deadline(
+        logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]),
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a journal nobody could write costs the event nothing"
+    );
+    assert!(sandbox.fired("hermes"), "the durable log still fired");
+    assert_eq!(stdout(&output), "", "nothing is said about the journal");
+    assert!(
+        !stderr(&output).contains("missed"),
+        "nor on the other stream: {}",
+        stderr(&output)
+    );
+    // REFUSED, NOT REPAIRED: the path still holds what it held.
+    assert!(
+        std::fs::symlink_metadata(&path)
+            .expect("the fifo")
+            .file_type()
+            .is_fifo(),
+        "the journal's path was rewritten"
+    );
+}
+
+#[test]
+fn a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing() {
+    // FAIL-QUIET, in `record_decision`'s style. A journal entry that did not
+    // land costs a replay, never a card, and a complaint printed here would
+    // put a line about the state directory into every hook's output for the
+    // rest of this machine's life.
+    let sandbox = Sandbox::new("journal-unwritable");
+    mute(&sandbox);
+    set_state_mode(&sandbox, 0o500);
+    let output = logged_event(&sandbox)
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .output()
+        .expect("the engine runs");
+    // ALWAYS PUT BACK before the assertions: a directory left at 0500 is one
+    // the sandbox's own cleanup cannot remove.
+    set_state_mode(&sandbox, 0o700);
+
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
+    assert!(sandbox.fired("hermes"), "every channel still fires");
+    assert_eq!(stdout(&output), "", "nothing is said about the write");
+    assert!(
+        !stderr(&output).contains("missed") && !stderr(&output).contains("journal"),
+        "nor on the other stream: {}",
+        stderr(&output)
+    );
+    assert!(
+        !sandbox.path("state/missed-notifications").exists(),
+        "and nothing was written"
+    );
+}
+
+/// The journal's permission bits.
+fn journal_mode(sandbox: &Sandbox) -> u32 {
+    std::os::unix::fs::PermissionsExt::mode(
+        &std::fs::metadata(sandbox.path("state/missed-notifications"))
+            .expect("the journal")
+            .permissions(),
+    ) & 0o777
+}
+
+#[test]
+fn the_journal_is_created_readable_and_writable_by_its_owner_alone() {
+    // THE MODE ITSELF IS THE ASSERTION, not "narrower than the umask": the
+    // file holds the operator's own text and nothing in the state directory
+    // has a reason to be world-readable.
+    let sandbox = Sandbox::new("journal-mode");
+    mute(&sandbox);
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    assert_eq!(journal_mode(&sandbox), 0o600, "the append created it");
+
+    // AND AFTER A PRUNE, which is a SECOND create: the prune publishes by
+    // renaming a pending file over the journal, so the pending file's mode is
+    // the one the journal ends up wearing.
+    std::fs::write(journal_path(&sandbox), planted_journal(JOURNAL_KEPT)).expect("the journal");
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "y"]));
+    assert_eq!(
+        journal(&sandbox).len(),
+        JOURNAL_KEPT,
+        "the prune really ran"
+    );
+    assert_eq!(journal_mode(&sandbox), 0o600, "the prune republished it");
+}
+
+/// What the doctor says about a journal holding two entries.
+const TWO_WAITING: &str =
+    "pns doctor: 2 missed notifications are recorded; nothing replays them yet.";
+
+/// What it says when there is none, which is deliberately about what is
+/// RECORDED: an empty journal means either nothing was missed or a write did
+/// not land, and the line claims neither.
+const NONE_WAITING: &str = "pns doctor: no missed notification is recorded.";
+
+#[test]
+fn the_doctor_counts_the_journal_last_and_never_moves_its_exit_code_for_it() {
+    // HISTORY BELOW HISTORY, both below the gradeable pairing lines. An
+    // unreplayed journal is not a failure, so the count sits under the one
+    // section that already cannot move the exit code.
+    let sandbox = Sandbox::new("doctor-journal-count");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]));
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = stdout(&output);
+    let lines: Vec<&str> = printed.lines().collect();
+    let heading = lines
+        .iter()
+        .position(|line| *line == format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"))
+        .unwrap_or_else(|| panic!("no decision heading in {printed}"));
+    assert_eq!(
+        lines.last(),
+        Some(&TWO_WAITING),
+        "the count is the last line: {printed}"
+    );
+    assert_eq!(
+        lines.len(),
+        heading + 3,
+        "one decision, then the count, and nothing else: {printed}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the sends and the pairing alone own the exit code: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_journal_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit_code() {
+    // ABSENT IS ITS OWN STATE with its own honest line. This is the OTHER one:
+    // something is at the path and the read failed, which is a different thing
+    // to say. A directory is the portable way to produce a real read error.
+    let sandbox = Sandbox::new("doctor-journal-unreadable");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    std::fs::create_dir_all(journal_path(&sandbox)).expect("a directory at the journal");
+
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = stdout(&output);
+    let last = printed.lines().last().unwrap_or_default();
+    let opening = "pns doctor: the missed-notification journal could not be read (";
+    assert!(last.starts_with(opening), "{printed}");
+    assert!(
+        last.ends_with(").") && last.len() > opening.len() + 2,
+        "the kind is NAMED rather than left an empty parenthesis: {printed}"
+    );
+    assert!(
+        !printed.contains(NONE_WAITING),
+        "and it is never told as an absent journal: {printed}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the sends alone own the exit code: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn the_doctor_leaves_the_journal_exactly_as_it_found_it() {
+    // READING IS ALLOWED, WRITING IS NOT. A doctor that journaled would file a
+    // miss for the act of going to look for one, and its own test send is the
+    // last event that should ever be replayed.
+    let sandbox = Sandbox::new("doctor-journal-readonly");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+
+    doctor_command(&sandbox).output().expect("the engine runs");
+
+    assert_eq!(
+        std::fs::read(journal_path(&sandbox)).expect("the journal"),
+        before,
+        "the doctor wrote to the journal it was reading"
+    );
+    let mut state: Vec<String> = std::fs::read_dir(sandbox.path("state"))
+        .expect("the state dir")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    state.sort();
+    assert_eq!(
+        state,
+        ["missed-notifications"],
+        "the doctor left something else in the state directory"
     );
 }
 

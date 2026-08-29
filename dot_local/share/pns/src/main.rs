@@ -8,6 +8,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -214,7 +215,16 @@ fn publish_state_line(path: &Path, line: &str) -> std::io::Result<()> {
         let _ = std::fs::create_dir_all(parent);
     }
     let pending = path.with_extension(format!("new.{}", std::process::id()));
-    std::fs::write(&pending, format!("{line}\n"))?;
+    // THE PENDING FILE CARRIES THE MODE, because the rename is what publishes
+    // it: a prune that wrote its replacement at the umask's mode would undo
+    // the one the append created the file with.
+    std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(STATE_FILE_MODE)
+        .open(&pending)?
+        .write_all(format!("{line}\n").as_bytes())?;
     if let Err(error) = std::fs::rename(&pending, path) {
         // Nothing half-written is left in the state directory for the next
         // run to trip over.
@@ -239,6 +249,37 @@ fn record_decision(record: &pns::decision_log::Record) {
         &state_dir().join(DECISIONS),
         &pns::decision_log::line(record),
         pns::decision_log::KEPT,
+    );
+}
+
+/// Journal one event the operator could not have perceived, so a replayer can
+/// find it later. A delivered event writes nothing at all.
+///
+/// ITS OWN FUNCTION rather than a second job inside `record_decision`: the two
+/// records have different reasons to change, and this write is conditional
+/// where the decision's is not.
+///
+/// FAIL-QUIET, in `record_decision`'s exact style and for its exact reason. An
+/// event path whose stdout a harness hook reads must not gain a line about the
+/// state directory, and a journal entry that did not land costs a replay,
+/// never a card.
+///
+/// THE EPOCH IS THE DECISION'S OWN CLOCK READ, taken off the readings it
+/// decided from rather than by a second `SystemTime` call here: two readings
+/// of one moment can disagree.
+fn record_missed(
+    event: &pns::args::EventArgs,
+    decision: &pns::engine::Decision,
+    overrides: &Overrides,
+) {
+    if !pns::missed_notifications::was_missed(decision, overrides) {
+        return;
+    }
+    // The failure is DROPPED here and nowhere else: see the doc comment.
+    let _ = append_ring_line(
+        &state_dir().join(MISSED_NOTIFICATIONS),
+        &pns::missed_notifications::entry(event, decision.inputs.now_secs),
+        pns::missed_notifications::KEPT,
     );
 }
 
@@ -299,6 +340,7 @@ fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()>
     std::fs::OpenOptions::new()
         .create(true)
         .append(true)
+        .mode(STATE_FILE_MODE)
         .open(path)?
         .write_all(format!("{separator}{line}\n").as_bytes())?;
 
@@ -358,6 +400,22 @@ const RING_READ_MAX: u64 = 256 * 1024;
 /// and `home-staleness`. NOT a log stream and not rotate-logs' business: it is
 /// bounded state that prunes itself.
 const DECISIONS: &str = "decisions";
+
+/// The missed-notification journal: one JSON object per line, oldest first,
+/// `missed_notifications::KEPT` deep, beside `decisions` and `quiet-until`.
+/// Bounded state that prunes itself, not a log stream and not rotate-logs'
+/// business.
+const MISSED_NOTIFICATIONS: &str = "missed-notifications";
+
+/// The mode every file this tool creates in its state directory is born with.
+///
+/// ONE RULE FOR THE DIRECTORY'S CONTENTS rather than a knob for one caller:
+/// none of them has a reason to be world-readable, and the journal holds the
+/// operator's own text. ACCEPTED LIMIT: it applies AT CREATE, so a file an
+/// earlier build already left on disk keeps its umask mode until it is next
+/// created. Nothing here chmods a file it found, in keeping with the ring's
+/// refuse-rather-than-repair stance.
+const STATE_FILE_MODE: u32 = 0o600;
 
 /// One line, holding the episode the operator has already been warned about,
 /// absent when a HOME reading showed no staleness. NO SESSION ID: one config
@@ -932,6 +990,11 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         overrides: &overrides,
         legs: &outcomes,
     });
+    // THE JOURNAL GOES WITH IT, inheriting the ordering contract stated above
+    // rather than restating it: same site, same accepted price, and both
+    // branches reach it, including the empty-plan branch, which is where most
+    // misses live.
+    record_missed(event, &decision, &overrides);
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
     // on. It is part of the PLAN rather than a second invocation (the shell
@@ -1631,6 +1694,10 @@ fn doctor_mode() -> i32 {
     for line in decision_section() {
         println!("{line}");
     }
+    // HISTORY BELOW HISTORY, and last for the reason the decision section is
+    // second to last: an unreplayed journal is not a failure, so it sits under
+    // the one section that already cannot move the exit code.
+    println!("{}", missed_line());
     // THE DECISION SECTION DOES NOT MOVE THE EXIT CODE. It reports HISTORY,
     // not health: an empty log on a fresh machine is not a failure, and
     // neither is one nothing could read. The pairing IS health and does move
@@ -1721,6 +1788,32 @@ fn decision_section() -> Vec<String> {
 /// module, for the reason `NO_HUE_BRIDGE_LINE` is: the sentence needs
 /// something only the reader of the file knows.
 const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be read";
+
+/// The missed-notification journal, COUNTED and never rendered.
+///
+/// READ AND NEVER APPENDED, for the reason the decision section is: a doctor
+/// that journaled would file a miss for the act of going to look for one, and
+/// its own test send is the last event anything should ever replay.
+///
+/// NOTHING HERE PARSES AN ENTRY. The contents go straight to `waiting_line`,
+/// which counts lines and has no parse at all, so the operator's own text has
+/// no path from this file to a terminal.
+fn missed_line() -> String {
+    match std::fs::read_to_string(state_dir().join(MISSED_NOTIFICATIONS)) {
+        Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents)),
+        // ABSENT IS ITS OWN STATE, and the one the line has an honest sentence
+        // for. Anything else is a directory or a permission problem, which is
+        // a different thing to say.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            pns::missed_notifications::waiting_line(None)
+        }
+        Err(error) => format!("{MISSED_UNREADABLE} ({}).", error.kind()),
+    }
+}
+
+/// A journal that is there and cannot be read. Said HERE rather than in the
+/// module, for the reason `DECISIONS_UNREADABLE` is.
+const MISSED_UNREADABLE: &str = "pns doctor: the missed-notification journal could not be read";
 
 /// What a doctor typed wrong is told. ONE WORD AND NO FLAGS: a namespace built
 /// for callers that do not exist makes the common case longer to type, and the

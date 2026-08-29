@@ -21,6 +21,7 @@ pub mod doctor;
 pub mod engine;
 pub mod home;
 pub mod hooks;
+pub mod missed_notifications;
 pub mod presence;
 pub mod probes;
 pub mod pulse;
