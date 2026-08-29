@@ -335,7 +335,15 @@ mod tests {
         let long = "x".repeat(5_000);
         let payload = parse_payload(&format!(r#"{{"error":"API Error: {long}"}}"#));
         assert!(payload.message.starts_with("API Error: xxx"));
-        assert!(payload.message.chars().count() < 400, "an uncapped error");
+        // THE CAP ITSELF, spelled out rather than read back off the constant
+        // the cut uses: an assertion phrased against `TOOL_REQUEST_MAX_CHARS`
+        // agrees with whatever that constant is moved to, which is the one
+        // thing this is here to catch.
+        assert_eq!(
+            payload.message.chars().count(),
+            320,
+            "an error is cut at the shared cap, not merely somewhere under it"
+        );
     }
 
     #[test]
