@@ -1,4 +1,4 @@
-//! The IO edge: the four probe traits implemented against the real machine.
+//! The IO edge: the five probe traits implemented against the real machine.
 //!
 //! WHAT LIVES HERE AND WHAT DOES NOT. Everything here runs a command and hands
 //! the bytes to a parser; every parser is a free function taking `&str`, so a
@@ -129,6 +129,10 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// The idle counter's own units, as the registry reports them.
 const IOREG_IDLE_KEY: &str = "HIDIdleTime";
 
+/// The console lock aggregate's key, MATCHED QUOTED so the key's own token is
+/// what the search anchors on rather than any name that merely ends in it.
+const IOREG_LOCK_KEY: &str = "\"IOConsoleLocked\"";
+
 /// Absolute, because a probe must not resolve a system binary through a PATH
 /// it does not control.
 pub const IOREG_PATH: &str = "/usr/sbin/ioreg";
@@ -158,6 +162,33 @@ pub fn parse_idle_nanoseconds(ioreg_output: &str) -> Option<&str> {
         .lines()
         .find(|line| line.contains(IOREG_IDLE_KEY))
         .and_then(|line| line.split_whitespace().last())
+}
+
+/// Whether the console is locked, from the Root dictionary's own aggregate.
+///
+/// `Some(true)` for `Yes`, `Some(false)` for `No`, `None` for a key that is
+/// absent or carries anything else. THE FAIL DIRECTION IS DELIBERATE and the
+/// decision states it (`surface::surface`): only `Some(true)` locks, so a
+/// reading nobody could take leaves the shipped desk-freshness behavior in
+/// place instead of killing the desk banner permanently wherever this key is
+/// renamed or dropped.
+///
+/// WHAT THE QUOTED KEY KEEPS OUT is the `"IOConsoleUsers"` line printed
+/// beside it: that array holds one dictionary per login session, each with a
+/// nested `CGSSessionScreenIsLocked` of its own, and reading a per-session
+/// flag would mean picking the console session first. `IOConsoleLocked` is
+/// the aggregate the kernel already computed.
+pub fn parse_screen_locked(ioreg_output: &str) -> Option<bool> {
+    match ioreg_output
+        .lines()
+        .find(|line| line.contains(IOREG_LOCK_KEY))?
+        .split_whitespace()
+        .last()?
+    {
+        "Yes" => Some(true),
+        "No" => Some(false),
+        _ => None,
+    }
 }
 
 /// The process ids `pgrep` printed, one per line, discarding anything that is
@@ -243,10 +274,10 @@ pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
     })
 }
 
-/// The four probes: three read the machine through commands, and the marker
+/// The five probes: four read the machine through commands, and the marker
 /// reads the filesystem directly, because an mtime needs no subprocess.
 ///
-/// One struct rather than four, because they share the runner and a caller
+/// One struct rather than five, because they share the runner and a caller
 /// composes the traits it needs. SOLID: the command probes depend on the
 /// runner abstraction, never on `Command` directly, so that edge substitutes
 /// in tests; the marker's substitution point is the path it is handed.
@@ -265,6 +296,7 @@ pub struct SystemProbes<R: CommandRunner> {
     idle: std::cell::OnceCell<Option<u64>>,
     marker_mtime: std::cell::OnceCell<Option<u64>>,
     phone_atime: std::cell::OnceCell<Option<u64>>,
+    screen_locked: std::cell::OnceCell<Option<bool>>,
 }
 
 impl<R: CommandRunner> SystemProbes<R> {
@@ -275,6 +307,7 @@ impl<R: CommandRunner> SystemProbes<R> {
             idle: std::cell::OnceCell::new(),
             marker_mtime: std::cell::OnceCell::new(),
             phone_atime: std::cell::OnceCell::new(),
+            screen_locked: std::cell::OnceCell::new(),
         }
     }
 }
@@ -284,6 +317,23 @@ impl<R: CommandRunner> crate::probes::IdleProbe for SystemProbes<R> {
         *self.idle.get_or_init(|| {
             let ioreg_output = self.runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
             crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
+        })
+    }
+}
+
+impl<R: CommandRunner> crate::probes::ScreenLockProbe for SystemProbes<R> {
+    /// The Root node with its own properties, which is the one node carrying
+    /// the console aggregate; `-d1` stops the walk there rather than printing
+    /// the tree under it.
+    ///
+    /// A SECOND `ioreg` SPAWN, not a second parse of the idle probe's output:
+    /// that one asks for the `IOHIDSystem` class and the aggregate is not in
+    /// it. This read is the cheaper of the two by a wide margin (92KB against
+    /// 294KB, measured on dresden 2026-08-28) and only happens where the idle
+    /// reading it exists to qualify was taken.
+    fn screen_locked(&self) -> Option<bool> {
+        *self.screen_locked.get_or_init(|| {
+            parse_screen_locked(&self.runner.run(IOREG_PATH, &["-n", "Root", "-d1"])?)
         })
     }
 }
@@ -425,7 +475,7 @@ impl<R: CommandRunner> SystemProbes<R> {
 mod tests {
     use super::{
         CommandRunner, newest_terminal_atime, parse_focused_tab, parse_idle_nanoseconds,
-        parse_layout, parse_pids, parse_tty_names,
+        parse_layout, parse_pids, parse_screen_locked, parse_tty_names,
     };
     use std::cell::RefCell;
 
@@ -558,6 +608,76 @@ mod tests {
         );
     }
 
+    // --- parse_screen_locked ------------------------------------------------
+
+    /// The Root dictionary as `/usr/sbin/ioreg -n Root -d1` prints it, trimmed
+    /// to the neighbourhood of the key.
+    ///
+    /// The `"IOConsoleLocked"` LINES ARE LIVE SHAPES, each captured on dresden
+    /// (Darwin 25.2.0) in the state it describes: `= Yes` while the screen was
+    /// genuinely locked, `= No` while it was not, six leading spaces and all.
+    /// The `"IOConsoleUsers"` line beside it is the captured one with the
+    /// nested `CGSSessionScreenIsLocked` WRITTEN IN. That key is the decoy
+    /// this fixture aims at rather than a claim about what the kernel prints
+    /// next to a locked console, and what it pins is the parser reading the
+    /// aggregate off its own line instead of anything in that per-session
+    /// array.
+    const ROOT_LOCKED: &str = r#"+-o Root  <class IORegistryEntry, id 0x100000100, retain 28>
+    {
+      "OS Build Version" = "25C56"
+      "IOConsoleLocked" = Yes
+      "IOConsoleUsers" = ({"kCGSSessionOnConsoleKey"=Yes,"CGSSessionScreenIsLocked"=Yes,"kCGSSessionUserNameKey"="stephen"})
+    }
+"#;
+
+    /// The unlocked shape carrying the same decoy: a parser reaching into the
+    /// per-session array reads Yes here and reports a locked screen at a desk
+    /// the operator is sitting at.
+    const ROOT_UNLOCKED_WITH_DECOY: &str = r#"+-o Root  <class IORegistryEntry, id 0x100000100, retain 28>
+    {
+      "OS Build Version" = "25C56"
+      "IOConsoleLocked" = No
+      "IOConsoleUsers" = ({"kCGSSessionOnConsoleKey"=Yes,"CGSSessionScreenIsLocked"=Yes,"kCGSSessionUserNameKey"="stephen"})
+    }
+"#;
+
+    #[test]
+    fn the_console_key_saying_yes_is_a_locked_screen() {
+        assert_eq!(parse_screen_locked(ROOT_LOCKED), Some(true));
+    }
+
+    #[test]
+    fn the_console_key_saying_no_is_an_unlocked_screen_whatever_the_session_array_says() {
+        // THE PRECISION TEST. `CGSSessionScreenIsLocked` rides inside the
+        // `"IOConsoleUsers"` line one row below, so a parser that searches for
+        // anything less specific than the aggregate's own key answers from a
+        // per-session flag and reports a locked screen at an occupied desk.
+        assert_eq!(parse_screen_locked(ROOT_UNLOCKED_WITH_DECOY), Some(false));
+    }
+
+    #[test]
+    fn a_console_key_that_is_missing_or_says_something_else_reads_as_no_reading() {
+        // None is not "unlocked", it is "nobody could tell", and only the
+        // decision above states what to do about that. Reporting either
+        // verdict here would put a guess where a reading belongs.
+        assert_eq!(
+            parse_screen_locked("+-o Root\n    {\n      \"OS Build Version\" = \"25C56\"\n    }\n"),
+            None,
+            "the key is not in this dictionary at all"
+        );
+        assert_eq!(parse_screen_locked(""), None, "and no output is no reading");
+        assert_eq!(
+            parse_screen_locked("      \"IOConsoleLocked\" = Maybe\n"),
+            None,
+            "a value this parser does not know is not a verdict"
+        );
+        assert_eq!(
+            parse_screen_locked("      \"IOConsoleLocked\"\n"),
+            None,
+            "and neither is a key printed with no value beside it"
+        );
+    }
+
     // --- parse_pids ---------------------------------------------------------
 
     #[test]
@@ -624,7 +744,7 @@ mod tests {
         assert!(out.starts_with('a') && out.ends_with('b'));
     }
 
-    // --- the four probe implementations, the behavior R2a owes -------------
+    // --- the five probe implementations, the behavior R2a owes -------------
 
     use super::SystemProbes;
     use crate::probes::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
@@ -910,6 +1030,37 @@ mod tests {
         assert_eq!(
             probes.runner.calls.borrow()[0],
             "/usr/sbin/ioreg -c IOHIDSystem"
+        );
+    }
+
+    #[test]
+    fn the_lock_probe_reads_the_root_dictionary_by_exact_argv_and_only_once() {
+        // The Root node with its own properties, which is where the console
+        // aggregate is printed; `-d1` keeps it to that one node. Once per
+        // invocation, like every reading here: the blocked path asks where
+        // the operator is twice by design and both answers must be the same
+        // measurement.
+        use crate::probes::ScreenLockProbe;
+        let probes = SystemProbes::new(
+            ExactArgvRunner {
+                answers: vec![(
+                    "/usr/sbin/ioreg -n Root -d1".to_string(),
+                    ROOT_LOCKED.to_string(),
+                )],
+                calls: RefCell::new(Vec::new()),
+            },
+            "/marker".to_string(),
+        );
+        assert_eq!(probes.screen_locked(), Some(true));
+        assert_eq!(
+            probes.screen_locked(),
+            Some(true),
+            "and the same answer both times"
+        );
+        assert_eq!(
+            *probes.runner.calls.borrow(),
+            vec!["/usr/sbin/ioreg -n Root -d1".to_string()],
+            "the exact argv, taken once"
         );
     }
 

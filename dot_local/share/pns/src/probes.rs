@@ -31,6 +31,19 @@ pub trait PhoneInputProbe {
     fn phone_input_atime_secs(&self) -> Option<u64>;
 }
 
+/// Whether the console screen is locked.
+///
+/// A separate reading from the idle clock beside it even though one command
+/// answers both questions, because they are different facts: the idle clock
+/// says how long ago the keyboard was touched, and this says whether touching
+/// it again would reach the session at all.
+///
+/// `Some(true)` is locked, `Some(false)` unlocked, `None` unreadable, and the
+/// decision (`surface::surface`) treats only `Some(true)` as locked.
+pub trait ScreenLockProbe {
+    fn screen_locked(&self) -> Option<bool>;
+}
+
 /// The session's display state, as the multiplexer sees it. One reading for
 /// the whole event: herdr is the server and every client shows the same panes,
 /// so what is on screen is a session-level fact and not a per-client one.
@@ -60,6 +73,12 @@ impl<T: PhoneMarkerProbe> PhoneMarkerProbe for &T {
 impl<T: PhoneInputProbe> PhoneInputProbe for &T {
     fn phone_input_atime_secs(&self) -> Option<u64> {
         (*self).phone_input_atime_secs()
+    }
+}
+
+impl<T: ScreenLockProbe> ScreenLockProbe for &T {
+    fn screen_locked(&self) -> Option<bool> {
+        (*self).screen_locked()
     }
 }
 
