@@ -45,6 +45,11 @@ fn main() {
         home_mode();
         return;
     }
+    // The operator's mute, typed and timed. Also a MODE: it writes the state
+    // the event path reads, and delivers nothing itself.
+    if first == *"quiet" {
+        std::process::exit(quiet_mode());
+    }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
@@ -698,11 +703,20 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         eprintln!("{warning}");
     }
 
-    let overrides = overrides_from_env();
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()
         .map(|since_epoch| since_epoch.as_secs());
+    // THE MUTE IS AN INPUT TO THE DECISION, stated here and nowhere else. It
+    // is never a filter over `decision.legs` afterwards: which legs are
+    // decorative is routing's policy, and re-deriving it here would be the
+    // second copy of a rule that then drifts. `overrides_from_env` cannot
+    // reach the field, which is what keeps a variable from ever muting the
+    // operator or ending a mute they are still inside.
+    let overrides = Overrides {
+        muted: muted_now(now_secs),
+        ..overrides_from_env()
+    };
 
     let decision = decide(
         probes,
@@ -1229,6 +1243,107 @@ fn home_mode() {
     if matches!(reading.presence, HomePresence::Home { .. }) {
         remember_staleness(episode.as_deref());
     }
+}
+
+/// The `quiet` mode: the operator's own mute, typed and timed.
+///
+/// THE ONLY NON-ZERO EXITS HERE THAT ARE NOT AN OPERATOR'S APPROVAL DECISION,
+/// and they are correct. The always-exit-0 contract covers the hook and
+/// notification paths, where a non-zero exit would fail the turn being
+/// reported on; this is hand typed, is never a hook, and a subcommand that
+/// silently swallows a typo is a mute the operator believes is on.
+///
+/// THE REPORT IS READ BACK OFF THE FILE after whatever was asked for, rather
+/// than rendered from what this run intended, so the line cannot claim a mute
+/// that never landed.
+fn quiet_mode() -> i32 {
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(2)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let quiet_until = state_dir().join(QUIET_UNTIL);
+    match arguments.as_slice() {
+        // NO ARGUMENT REPORTS and mutes nothing. There is no untimed toggle:
+        // an indefinite mute the operator forgets is a notification system
+        // that has silently stopped working, and making this form the report
+        // also means no invocation can mute by accident.
+        [] => {}
+        // Unlinking is also how a file nothing can parse is cleared, which is
+        // the remedy the corrupt-state complaint names.
+        [word] if word == "off" => {
+            let _ = std::fs::remove_file(&quiet_until);
+        }
+        [duration] => match pns::quiet::parse_duration(duration) {
+            Ok(seconds) => {
+                let Some(expiry) = now_secs().map(|now| now.saturating_add(seconds)) else {
+                    eprintln!("pns: state error (the clock cannot be read); nothing is muted");
+                    return 1;
+                };
+                // LOUD, unlike `remember_staleness`: that one is a background
+                // warning that must never crash a diagnostic, and this is a
+                // human waiting on an answer. Reporting success for a mute
+                // that is not in effect is the worst outcome available.
+                if let Err(error) = publish_state_line(&quiet_until, &expiry.to_string()) {
+                    eprintln!(
+                        "pns: state error (quiet-until could not be written: {error}); nothing is muted"
+                    );
+                    return 1;
+                }
+            }
+            Err(refusal) => {
+                eprintln!("{refusal}");
+                eprintln!("{QUIET_USAGE}");
+                return 2;
+            }
+        },
+        // ANY EXTRA WORD IS A REFUSAL, never a silent fallthrough to the
+        // report: a typo an operator does not see is a mute they believe is
+        // on.
+        _ => {
+            eprintln!("{QUIET_USAGE}");
+            return 2;
+        }
+    }
+    println!(
+        "{}",
+        pns::quiet::status_line(read_quiet_expiry(), now_secs())
+    );
+    0
+}
+
+/// What a mute typed wrong is told, once, on stderr. The refusal above it
+/// quotes what was typed; this says what the command takes.
+const QUIET_USAGE: &str =
+    "pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h";
+
+/// One line, holding the epoch second the operator's mute ends. ABSENT is the
+/// ordinary state and the file is never created to say "not muted": every
+/// reader compares the expiry with its own clock, so a file left behind after
+/// the window is already inert.
+const QUIET_UNTIL: &str = "quiet-until";
+
+/// The mute's expiry, if the operator set one.
+///
+/// A FILE NOTHING CAN PARSE COMPLAINS AND READS AS NOT MUTED, which is the
+/// OPPOSITE of the lights window's fail-closed reading and deliberately so: a
+/// window failing closed costs one flash of a lamp, and a mute failing closed
+/// costs every notification, including the card for a tool call the operator
+/// is blocked on, with no expiry and no way for them to see it. The complaint
+/// repeats for as long as the file stays broken, which is proportional: it IS
+/// broken until someone fixes it. An ABSENT file says nothing at all.
+fn read_quiet_expiry() -> Option<u64> {
+    let raw = std::fs::read_to_string(state_dir().join(QUIET_UNTIL)).ok()?;
+    pns::quiet::expiry_from_state(&raw)
+        .inspect_err(|complaint| eprintln!("{complaint}"))
+        .ok()
+}
+
+/// Whether the operator's mute is on, judged on THE RUN'S OWN clock reading:
+/// the same one the rest of the decision is taken against. An expiry crossed
+/// mid-run costs one event either way, and one decision on one reading is the
+/// engine's stated contract.
+fn muted_now(now_secs: Option<u64>) -> bool {
+    pns::quiet::is_muted(read_quiet_expiry(), now_secs)
 }
 
 /// The CLIP v2 bridge over ureq.
