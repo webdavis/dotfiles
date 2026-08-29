@@ -164,10 +164,14 @@ pub fn exit_code(outcomes: &[Outcome], pairing: &PairingReport) -> i32 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PairingReport {
     pub pairing: Pairing,
-    /// moshi's `server:` sentence, filtered and capped, RELAYED AND NEVER
-    /// GRADED. `None` when moshi printed no such line, which is what an
-    /// unpaired host prints today and what a moshi that renamed the line
-    /// would print: both degrade to no relay and nothing else moves.
+    /// moshi's `server:` sentence AS MOSHI WROTE IT, RELAYED AND NEVER
+    /// GRADED. Held raw: the printable filter and the relay cap belong to
+    /// `pairing_lines`, which is the point the sentence becomes something
+    /// printed, and putting them here as well would be two places to disagree
+    /// about what is safe to print.
+    /// `None` when moshi printed no such line, which is what an unpaired host
+    /// prints today and what a moshi that renamed the line would print: both
+    /// degrade to no relay and nothing else moves.
     pub server: Option<String>,
 }
 
@@ -200,9 +204,30 @@ pub enum Pairing {
 pub fn pairing_report(json: Option<&str>, plain: Option<&str>) -> PairingReport {
     PairingReport {
         pairing: pairing_of(json),
-        server: plain.and_then(server_said),
+        server: plain
+            .filter(|plain| within_cap(plain))
+            .and_then(server_said),
     }
 }
+
+/// Whether an answer is small enough to be looked at.
+///
+/// THE SPAWN'S DEADLINE BOUNDS TIME, NOT BYTES. Its stdout is slurped with no
+/// ceiling, so a moshi-hook that answered endlessly while staying inside its
+/// window would hand the whole thing to serde on one leg and have every line
+/// of it scanned on the other. This is checked BEFORE either, which is the
+/// only point where it means anything, and it is checked HERE rather than in
+/// the shared bounded spawn: every other caller of that spawn reads a
+/// different tool, and one of them is a condenser whose whole job is to answer
+/// at length.
+fn within_cap(answer: &str) -> bool {
+    answer.len() <= ANSWER_MAX
+}
+
+/// How much of an answer this check will read. Thousands of times the captured
+/// 0.3.3 answer, which is a couple of hundred bytes, and still far short of
+/// anything worth parsing by accident.
+const ANSWER_MAX: usize = 1024 * 1024;
 
 /// What moshi said about the server, taken off the ONE line that begins with
 /// the label at column zero.
@@ -239,7 +264,9 @@ pub fn pairing_lines(report: &PairingReport) -> Vec<String> {
     lines
 }
 
-/// Somebody else's sentence, made safe to put on a terminal, and capped.
+/// Somebody else's text, made safe to put on a terminal, and capped. EVERY
+/// string moshi chose goes through this: the relayed server sentence and the
+/// two identity fields alike.
 ///
 /// FILTERED AT THE POINT IT BECOMES A LINE, which is the only place that can
 /// promise it: the report holds what moshi said, and this is what decides what
@@ -278,10 +305,19 @@ const RELAY_MAX: usize = 200;
 /// as a verdict either way.
 fn said_of(pairing: &Pairing) -> String {
     match pairing {
+        // FILTERED THE SAME WAY THE RELAYED SENTENCE IS, because they are the
+        // same kind of thing: strings another program chose, printed on the
+        // operator's terminal inside a line pns signs its own name to. An
+        // unfiltered newline in a `displayName` forges a `pns doctor:` line
+        // exactly as one in the server sentence does.
         Pairing::Paired {
             host_id,
             display_name,
-        } => format!("paired as {display_name} ({host_id})."),
+        } => format!(
+            "paired as {} ({}).",
+            printable(display_name),
+            printable(host_id)
+        ),
         // THE REMEDY IS IN THE LINE, because this is the state the whole check
         // exists for and it is invisible everywhere else: the census reports
         // the moshi channel green over its webhook the whole time, while every
@@ -318,6 +354,13 @@ fn pairing_of(json: Option<&str>) -> Pairing {
     let Some(json) = json else {
         return Pairing::NoAnswer;
     };
+    // AN ANSWER TOO BIG TO READ IS AN ANSWER THIS CANNOT READ, which is a
+    // state this already has a line for. It is NOT no-answer: moshi-hook ran
+    // and said something, and the honest report is that pns declined to read
+    // it rather than that nothing arrived.
+    if !within_cap(json) {
+        return Pairing::Unreadable;
+    }
     let Ok(answer) = serde_json::from_str::<serde_json::Value>(json) else {
         return Pairing::Unreadable;
     };
@@ -802,6 +845,40 @@ mod tests {
             !lines[1].contains('\r'),
             "a carriage return reached the terminal: {:?}",
             lines[1]
+        );
+    }
+
+    #[test]
+    fn an_identity_moshi_named_cannot_forge_a_report_line_either() {
+        // THE IDENTITY FIELDS ARE THIRD-PARTY TEXT TOO, and they reach the
+        // same terminal by the same route. MEASURED: a `displayName` carrying
+        // a newline and a forged summary printed
+        // `pns doctor: 9 sent, 0 failed, 0 skipped` as its own line inside the
+        // real report, which is the exact forgery the relay filter exists to
+        // stop one field to the left.
+        let forged = "{\"paired\":true,\
+             \"displayName\":\"dresd\u{e9}n\\npns doctor: 9 sent, 0 failed, 0 skipped\\r\\u001b[2K\",\
+             \"hostId\":\"host_1\\nforged\"}";
+        let lines = pairing_lines(&pairing_report(Some(forged), None));
+
+        assert_eq!(
+            lines.iter().flat_map(|line| line.lines()).count(),
+            1,
+            "an identity forged a report line: {lines:?}"
+        );
+        assert_eq!(
+            lines[0],
+            "pns doctor: moshi pairing: paired as dresdnpns doctor: 9 sent, 0 failed, \
+             0 skipped[2K (host_1forged).",
+            "BOTH fields go through the SAME filter the relayed sentence does: \
+             the newline, the carriage return and the escape are gone, the \
+             non-ASCII character is gone with them, and what is left is \
+             visibly inside the one line pns wrote"
+        );
+        assert!(
+            !lines[0].chars().any(char::is_control),
+            "a control byte reached the terminal: {:?}",
+            lines[0]
         );
     }
 

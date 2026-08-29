@@ -1818,6 +1818,18 @@ fn no_moshi_hook(sandbox: &Sandbox, command: &mut std::process::Command) {
 /// of them was `probe`. It is a thin stub plus a spy and reasons about
 /// nothing: the fixtures are the bytes the real 0.3.3 binary printed, so this
 /// models the tool rather than what the check wishes the tool did.
+///
+/// THE ARGUMENTS ARE RECORDED WITH THEIR BOUNDARIES INTACT, one unit separator
+/// after each and one line per invocation, because `"$*"` joins them with a
+/// space: under it a single argument `status --json` and the two real ones
+/// leave an identical record, so a spy reading it could not tell the shape the
+/// doctor actually spawned from a shape it never would.
+///
+/// A FIXTURE MAY NOT CONTAIN AN APOSTROPHE. Both are interpolated into a
+/// single-quoted shell string below, so one apostrophe ends that string and
+/// the stub silently prints something else, or fails to parse at all. The
+/// plausible case is not an attack but a contraction: a future `server:`
+/// sentence reading "moshi can't reach the server" would do it.
 fn stub_moshi_hook(
     sandbox: &Sandbox,
     command: &mut std::process::Command,
@@ -1830,7 +1842,8 @@ fn stub_moshi_hook(
     write_script(
         &script,
         &format!(
-            "printf '%s\\n' \"$*\" >>\"{sandbox}/moshi-hook.argv\"\n\
+            "printf '%s\\x1f' \"$@\" >>\"{sandbox}/moshi-hook.argv\"\n\
+             printf '\\n' >>\"{sandbox}/moshi-hook.argv\"\n\
              case \"$*\" in\n\
              *--json*) printf '%s' '{json}' ;;\n\
              *) printf '%s' '{plain}' ;;\n\
@@ -1841,10 +1854,23 @@ fn stub_moshi_hook(
     command.env("MOSHI_HOOK_BIN", &script);
 }
 
-/// Every argument the stub was ever handed, one invocation per line.
-fn moshi_hook_argv(sandbox: &Sandbox) -> Vec<String> {
+/// Every argv the stub was ever handed, one vector per invocation, with the
+/// argument boundaries the stub recorded preserved.
+fn moshi_hook_argv(sandbox: &Sandbox) -> Vec<Vec<String>> {
     std::fs::read_to_string(sandbox.path("moshi-hook.argv"))
-        .map(|recorded| recorded.lines().map(str::to_string).collect())
+        .map(|recorded| {
+            recorded
+                .lines()
+                .map(|line| {
+                    // TERMINATOR, not separator: the stub writes one after
+                    // every argument, so a plain split would invent a trailing
+                    // empty argument on every invocation.
+                    line.split_terminator('\u{1f}')
+                        .map(str::to_string)
+                        .collect()
+                })
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -2235,10 +2261,17 @@ fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel()
     ] {
         let sandbox = Sandbox::new("doctor-refusal");
         sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
-        let output = doctor_command(&sandbox)
-            .args(&arguments)
-            .output()
-            .expect("the engine runs");
+        let mut command = doctor_command(&sandbox);
+        // A RECORDING moshi-hook rather than the absent one, so "reaches no
+        // channel" covers the binary the pairing check spawns as well: an
+        // absent path proves nothing about whether it was reached for.
+        stub_moshi_hook(
+            &sandbox,
+            &mut command,
+            PAIRED_STATUS_JSON,
+            PAIRED_STATUS_PLAIN,
+        );
+        let output = command.args(&arguments).output().expect("the engine runs");
 
         assert_eq!(
             output.status.code(),
@@ -2260,6 +2293,15 @@ fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel()
                 "{channel} was sent a payload by a refused command: {arguments:?}"
             );
         }
+        // BEFORE ANYTHING IS SENT OR PRINTED includes before anything is
+        // SPAWNED. The pairing check runs another program, and a refusal that
+        // still reached for it would put a network call and five seconds
+        // behind a command the operator typed wrong.
+        let spawned = moshi_hook_argv(&sandbox);
+        assert!(
+            spawned.is_empty(),
+            "a refused doctor spawned moshi-hook {spawned:?}: {arguments:?}"
+        );
     }
 }
 // --- the decision log -------------------------------------------------------
@@ -2775,12 +2817,15 @@ fn the_doctor_runs_moshi_hook_exactly_twice_and_never_probes() {
     let recorded = moshi_hook_argv(&sandbox);
     assert_eq!(
         recorded,
-        ["status --json", "status"],
+        [vec!["status", "--json"], vec!["status"]],
         "the local fact is read first and off its own call, so a slow network \
          cannot cost the doctor an answer it already had"
     );
     assert!(
-        !recorded.iter().any(|argv| argv.contains("probe")),
+        !recorded
+            .iter()
+            .flatten()
+            .any(|argument| argument == "probe"),
         "{recorded:?}"
     );
 }
@@ -2852,6 +2897,47 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
     assert!(
         printed.contains("pns doctor: 3 sent, 0 failed, 2 skipped"),
         "and the sections printed before it survived: {printed}"
+    );
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
+
+    // AND THE OTHER LEG THE OTHER WAY. The json call is the one nothing was
+    // pinning: it reaches no network today, but "today" is the whole reason
+    // to pin it, and an unbounded spawn there parks the same hand-typed
+    // command the plain leg is bounded to protect.
+    let sandbox = Sandbox::new("doctor-pairing-hang-json");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    let script = bin.join("moshi-hook");
+    write_script(
+        &script,
+        &format!(
+            "case \"$*\" in\n\
+             *--json*) exec sleep 30 ;;\n\
+             *) printf '%s' '{PAIRED_STATUS_PLAIN}' ;;\n\
+             esac"
+        ),
+    );
+    let mut command = doctor_command(&sandbox);
+    command.env("MOSHI_HOOK_BIN", &script);
+    command.env("PNS_MOSHI_JSON_DEADLINE_MS", "200");
+
+    let started = std::time::Instant::now();
+    let output = command.output().expect("the engine runs");
+    let waited = started.elapsed();
+
+    assert!(
+        waited < std::time::Duration::from_secs(2),
+        "the doctor waited {waited:?} on the json call"
+    );
+    let printed = stdout(&output);
+    assert!(
+        printed.contains(NO_MOSHI_HOOK_LINE),
+        "a leg that never answered is a leg that could not be graded: {printed}"
+    );
+    assert!(
+        printed.contains(MOSHI_SAYS_LINE),
+        "and the other leg's answer still arrives: {printed}"
     );
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
 }
@@ -2931,5 +3017,54 @@ fn the_pairing_check_records_nothing_of_its_own() {
         std::fs::read_to_string(sandbox.path("state/decisions")).expect("the ring"),
         ring_before,
         "the pairing check wrote to the ring"
+    );
+}
+
+#[test]
+fn an_answer_over_the_byte_cap_is_refused_on_both_legs_rather_than_read() {
+    // THE DEADLINES BOUND TIME, NOT BYTES. A moshi-hook that answered
+    // endlessly would be inside its window the whole time while the JSON leg
+    // handed the lot to serde and the plain leg scanned every line of it.
+    //
+    // BOTH ANSWERS BELOW ARE WELL FORMED and would read as a healthy paired
+    // host if anything read them: only their SIZE is wrong. Junk bytes would
+    // land on Unreadable through serde and prove nothing about the cap.
+    let sandbox = Sandbox::new("doctor-pairing-over-cap");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    let script = bin.join("moshi-hook");
+    write_script(
+        &script,
+        "case \"$*\" in\n\
+         *--json*) printf '{\"paired\":true,\"displayName\":\"dresden\",\
+         \"hostId\":\"host_over_cap\",\"pad\":\"%1100000s\"}' '' ;;\n\
+         *) printf 'server:       Moshi Pro attached (usage scope: license)\\n%1100000s\\n' '' ;;\n\
+         esac",
+    );
+    let mut command = doctor_command(&sandbox);
+    command.env("MOSHI_HOOK_BIN", &script);
+
+    let started = std::time::Instant::now();
+    let output = command.output().expect("the engine runs");
+    let waited = started.elapsed();
+
+    let printed = stdout(&output);
+    assert!(
+        printed
+            .contains("pns doctor: moshi pairing: moshi-hook answered something this cannot read."),
+        "an over-cap answer is refused before it is parsed: {printed}"
+    );
+    assert!(
+        !printed.contains("dresden") && !printed.contains("host_over_cap"),
+        "the over-cap answer was parsed anyway: {printed}"
+    );
+    assert!(
+        !printed.contains("moshi says"),
+        "an over-cap answer is refused before it is scanned: {printed}"
+    );
+    assert!(
+        waited < std::time::Duration::from_secs(5),
+        "the doctor spent {waited:?} on an answer it refused"
     );
 }

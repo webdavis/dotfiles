@@ -28,9 +28,7 @@ use pns::hooks::{
 };
 use pns::registry::{roster, select_plugins};
 use pns::render;
-use pns::system::{
-    CommandRunner, SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded,
-};
+use pns::system::{SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded};
 
 fn main() {
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
@@ -1660,16 +1658,33 @@ fn doctor_mode() -> i32 {
 /// as no answer and be reported as "could not check" while the approval path
 /// is really dead. A future moshi that renamed or dropped the `server:` line
 /// degrades the other way, silently and safely.
+///
+/// THE WORST CASE IS THE TWO DEADLINES ADDED, not the larger of them: the legs
+/// run one after the other, so a moshi-hook wedged on both puts 5s + 8s on a
+/// hand-typed command, measured at 13.07 seconds. Ten seconds is not the
+/// bound and nobody should treat it as one.
 fn read_pairing() -> pns::doctor::PairingReport {
     let binary = moshi_hook_bin();
-    // The probe runner's own five-second window, which is 65x the measured
-    // call and reaches no network.
-    let json = SystemCommandRunner.run(&binary, &["status", "--json"]);
+    let mut json = Command::new(&binary);
+    json.args(["status", "--json"]);
+    let json = run_bounded(json, None, moshi_json_deadline());
     let mut plain = Command::new(&binary);
     plain.arg("status");
     let plain = run_bounded(plain, None, moshi_status_deadline());
     pns::doctor::pairing_report(json.as_deref(), plain.as_deref())
 }
+
+/// How long `moshi-hook status --json` may take.
+///
+/// GENEROUS AGAINST A MEASURED 77ms, and pinned here rather than inherited
+/// from the probe runner's shared window: this leg reaches no network today,
+/// and "today" is exactly why the bound has to be this function's own to state
+/// and a test's own to move.
+fn moshi_json_deadline() -> Duration {
+    env_deadline("PNS_MOSHI_JSON_DEADLINE_MS").unwrap_or(MOSHI_JSON_DEADLINE)
+}
+
+const MOSHI_JSON_DEADLINE: Duration = Duration::from_secs(5);
 
 /// How long plain `moshi-hook status` may take.
 ///
