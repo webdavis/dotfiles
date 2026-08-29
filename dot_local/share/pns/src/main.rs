@@ -30,7 +30,9 @@ use pns::hooks::{
 };
 use pns::registry::{roster, select_plugins};
 use pns::render;
-use pns::system::{SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded};
+use pns::system::{
+    PROBE_READ_MAX, SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded,
+};
 
 fn main() {
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
@@ -1562,9 +1564,14 @@ fn condense(reply: &str) -> (String, String) {
         .env("PNS_SUMMARIZING", "1")
         .env("CODEX_HOME", &home);
     let deadline = env_deadline("PNS_CONDENSER_DEADLINE_MS").unwrap_or(CONDENSER_DEADLINE);
-    match run_bounded(command, Some(&condenser_prompt(reply)), deadline)
-        .as_deref()
-        .and_then(condenser_verdict)
+    match run_bounded(
+        command,
+        Some(&condenser_prompt(reply)),
+        deadline,
+        PROBE_READ_MAX,
+    )
+    .as_deref()
+    .and_then(condenser_verdict)
     {
         Some((state, summary)) => (state, summary.trim().to_string()),
         None => fallback(),
@@ -1617,7 +1624,7 @@ fn git_branch(cwd: &str) -> String {
     }
     let mut command = Command::new("git");
     command.args(["-C", cwd, "branch", "--show-current"]);
-    run_bounded(command, None, GIT_DEADLINE)
+    run_bounded(command, None, GIT_DEADLINE, PROBE_READ_MAX)
         .map(|branch| branch.trim().to_string())
         .unwrap_or_default()
 }
@@ -1914,7 +1921,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
             mobile_watch_card(config),
             plugin_settings(config, "moshi").and_then(moshi_secret),
             plugin_settings(config, "hermes").and_then(hermes_secret),
-            config.recap,
+            config.recap.clone(),
         ),
         // A config that could not be read falls back to the DEFAULTS of all
         // five, and deliberately disagrees with the plugin selection below,
@@ -2794,12 +2801,19 @@ fn read_pairing() -> pns::doctor::PairingReport {
     let binary = moshi_hook_bin();
     let mut json = Command::new(&binary);
     json.args(["status", "--json"]);
-    let json = run_bounded(json, None, moshi_json_deadline());
+    // ONE BYTE PAST THE CHECK'S OWN CAP on both legs, so an answer over that cap
+    // still ARRIVES over it: read to the cap exactly and a truncated answer
+    // would pass the refusal that exists to catch it.
+    let json = run_bounded(json, None, moshi_json_deadline(), OVER_PAIRING_CAP);
     let mut plain = Command::new(&binary);
     plain.arg("status");
-    let plain = run_bounded(plain, None, moshi_status_deadline());
+    let plain = run_bounded(plain, None, moshi_status_deadline(), OVER_PAIRING_CAP);
     pns::doctor::pairing_report(json.as_deref(), plain.as_deref())
 }
+
+/// One byte past what `doctor::pairing_report` will read, which is what keeps
+/// "over the cap" and "exactly at the cap" two different answers.
+const OVER_PAIRING_CAP: u64 = pns::doctor::ANSWER_MAX as u64 + 1;
 
 /// How long `moshi-hook status --json` may take.
 ///
@@ -2926,24 +2940,84 @@ fn recap_mode() -> i32 {
         return 2;
     };
     let home = std::env::var("HOME").unwrap_or_default();
-    // FAIL CLOSED ON THE ROUTE AND OPEN ON THE POST, which is `pulse_mode`'s
-    // split: a config nobody can read named no route, so the recap goes to the
-    // default one rather than to a route the operator never asked for.
-    let (thread, hermes_key) = match load_config(&config_path(&home)) {
+    // FAIL CLOSED ON THE ROUTE AND ON THE SUMMARIZER, AND OPEN ON THE POST,
+    // which is `pulse_mode`'s split: a config nobody can read named no route
+    // and no command, so the recap goes to the default route, plainly, rather
+    // than to a route the operator never asked for or through a program they
+    // never named.
+    let (hermes_key, recap) = match load_config(&config_path(&home)) {
         Ok(LoadOutcome::Loaded(config)) => (
-            config.recap.digest_as_thread,
             plugin_settings(&config, "hermes").and_then(hermes_secret),
+            config.recap,
         ),
-        _ => (false, None),
+        _ => (
+            None,
+            pns::config::Recap {
+                digest_as_thread: false,
+                ..Default::default()
+            },
+        ),
     };
     let entries = activity_in(since, until);
+    // THE ANSWER IS TAKEN BEFORE THE BODY IS COMPOSED and nothing else waits on
+    // it: this process was started so that a model could be slow somewhere
+    // nobody is standing.
+    // AND NOT OVER AN EMPTY WINDOW. A night with nothing in it has nothing to
+    // select from, and the model would be handed "nothing was recorded in this
+    // window" under an instruction to rewrite it as a timeline. That is a
+    // process spawned to summarize nothing and an invitation to invent, on the
+    // one path an operator reaches by hand.
+    let answered = recap
+        .summarizer
+        .as_deref()
+        .filter(|_| !entries.is_empty())
+        .map(|argv| {
+            summarize(
+                argv,
+                Duration::from_secs(recap.summarizer_deadline_secs),
+                &pns::recap::prompt(&entries, &|at| wall_clock(at)),
+            )
+        });
+    let timeline = match &answered {
+        None => pns::recap::Timeline::Mechanical,
+        Some(None) => pns::recap::Timeline::Unanswered,
+        Some(Some(lines)) => pns::recap::Timeline::Summarized(lines),
+    };
     let body = pns::recap::body(
         &entries,
         &wall_clock(Some(since)),
         &wall_clock(Some(until)),
         &|at| wall_clock(at),
+        timeline,
     );
-    post_recap(&body, thread, &home, hermes_key)
+    post_recap(&body, recap.digest_as_thread, &home, hermes_key)
+}
+
+/// The configured command, handed the window on stdin, and what it said back
+/// as timeline lines. None for every way of not answering.
+///
+/// ARGV STRAIGHT TO `Command`, NEVER THROUGH A SHELL, which is what makes the
+/// key safe to hold anything: the words are the words, so there is no quoting
+/// rule to get wrong and nothing in the window can be read as syntax.
+///
+/// THE SEAM IS THE ONE THE PROBES ALREADY USE. `run_bounded` writes the prompt
+/// inside the deadline window, reads stdout lossily, kills the child when the
+/// window closes and answers None on a non-zero exit, which is every rung of
+/// this ladder but the last; `recap::answer` owns that one.
+///
+/// A BACKEND THAT IS NOT INSTALLED IS NOT A SPECIAL CASE. The spawn fails, the
+/// seam answers None, and the recap posts the plain list saying so, which is
+/// the same thing the operator sees when the model is simply slow.
+fn summarize(argv: &[String], deadline: Duration, prompt: &str) -> Option<Vec<String>> {
+    let (program, arguments) = argv.split_first()?;
+    let mut command = Command::new(program);
+    command.args(arguments);
+    pns::recap::answer(&run_bounded(
+        command,
+        Some(prompt),
+        deadline,
+        pns::recap::MAX_ANSWER_BYTES as u64 + 1,
+    )?)
 }
 
 /// The window bounds off argv, or None for anything this will not vouch for.
@@ -3012,6 +3086,14 @@ fn wall_clock(epoch: Option<u64>) -> String {
 ///
 /// ONE FALLBACK AND NO LOOP. A default route that refuses too is a gateway
 /// problem, and a recap is not worth a retry storm against one.
+///
+/// ACCEPTED LIMIT ON THE CHARACTER CEILING: the fallback line is appended to a
+/// body `recap::fit` has already fitted, so the second post may exceed
+/// `recap::MAX_CHARS` by that one line. Fitting it in would mean composing the
+/// body twice, once per route, on a path taken only when the first route
+/// refused. The ceiling has 100 characters of headroom under the gateway's own
+/// split threshold and this line is 82 characters plus its newline, so the post
+/// still lands as one message.
 fn post_recap(body: &str, thread: bool, home: &str, hermes_key: Option<String>) -> i32 {
     if !thread {
         deliver_recap(body, "", home, hermes_key);

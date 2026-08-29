@@ -7,10 +7,11 @@
 //! contents, and neither knows the other's plugin names.
 //!
 //! `[recap]` is the one top-level table that is not a plugin, and the second
-//! key admitted here: three booleans and a count THIS layer reads itself.
-//! Because it reads them, it can judge them, so an unknown key inside it, and a
-//! count that is not a threshold, are refused rather than passed along the way
-//! a plugin's settings are.
+//! key admitted here: three booleans, two counts and one argument list THIS
+//! layer reads itself. Because it reads them, it can judge them, so an unknown
+//! key inside it, a count that is not a threshold, and a summarizer that is not
+//! a list of command words are refused rather than passed along the way a
+//! plugin's settings are.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config, because a typo that turns every
@@ -31,7 +32,8 @@ pub struct PluginEntry {
     pub settings: toml::Table,
 }
 
-/// The recap's three independent delivery switches.
+/// The recap's three delivery switches, its volume threshold, and the command
+/// it hands the window to.
 ///
 /// ABSENT IS ALL ON, which is what makes the table optional: a machine that
 /// never writes one behaves exactly as it did before the table existed. Each
@@ -43,21 +45,31 @@ pub struct PluginEntry {
 /// whose config was written before this table existed, and it would do it
 /// silently.
 ///
-/// `min_events` IS THE ONE COUNT HERE, and it is a key rather than a constant
-/// because nobody can calibrate it yet: the locked volume threshold carries a
-/// tilde, and the machine it was written for has no history to measure. The
-/// recap prints the window's real count in its own header every time, so one
-/// week of real recaps settles the number without a rebuild.
+/// `min_events` IS A KEY RATHER THAN A CONSTANT because nobody can calibrate it
+/// yet: the locked volume threshold carries a tilde, and the machine it was
+/// written for has no history to measure. The recap prints the window's real
+/// count in its own header every time, so one week of real recaps settles the
+/// number without a rebuild.
 ///
-/// COPY, so the composition root can read it off a borrowed config and carry
-/// it as ONE value rather than as a row of loose booleans. Four adjacent bools
-/// in one call are a swap waiting to happen; named fields are not.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// `summarizer` IS ARGV AND NEVER A SHELL STRING, which is what makes it a
+/// backend switch rather than a plugin: nothing is interpreted, so there is no
+/// quoting rule and no injection surface, and a different backend is simply a
+/// different array. UNSET IS A WORKING SETTING, and the common one: with no
+/// summarizer the recap posts the plain mechanical lists.
+///
+/// ONE NAMED VALUE, never a row of loose booleans. Four of the six fields are
+/// bools or counts; spread through a call they would sit adjacent and a swap
+/// would go unnoticed, and named fields cannot be transposed. It is CLONE
+/// rather than Copy only because the argv is a `Vec`, and the composition root
+/// clones it once off a borrowed config.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Recap {
     pub replay_card: bool,
     pub digest: bool,
     pub digest_as_thread: bool,
     pub min_events: usize,
+    pub summarizer: Option<Vec<String>>,
+    pub summarizer_deadline_secs: u64,
 }
 
 impl Default for Recap {
@@ -67,6 +79,8 @@ impl Default for Recap {
             digest: true,
             digest_as_thread: true,
             min_events: DEFAULT_MIN_EVENTS,
+            summarizer: None,
+            summarizer_deadline_secs: DEFAULT_SUMMARIZER_DEADLINE_SECS,
         }
     }
 }
@@ -74,6 +88,26 @@ impl Default for Recap {
 /// How many events a window needs before a recap is worth the operator's
 /// attention. The operator's own stated figure; see `Recap`.
 const DEFAULT_MIN_EVENTS: usize = 8;
+
+/// How long the summarizer may take before the recap gives up on it and posts
+/// the plain lists.
+///
+/// FOUR MINUTES, and it is generous on purpose. MEASURED on this machine:
+/// `ollama run qwen3.5:4b` over the same prompt took 3m20s on a cold model load
+/// and 9.3s warm. Nobody is waiting on it, because the caller is the detached
+/// process the event path never joined; a deadline under the cold case would
+/// turn every first recap after a reboot into the fallback.
+///
+/// ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `min_events`'s zero. A deadline
+/// of nothing simply cannot be met, so the recap falls to the plain lists and
+/// SAYS it did, which is the same outcome as any other summarizer that does not
+/// answer. Nothing silently changes shape, so there is nothing to refuse.
+const DEFAULT_SUMMARIZER_DEADLINE_SECS: u64 = 240;
+
+/// The most any summarizer may be given. ONE HOUR, which is fifteen times the
+/// cold load the default covers, so no honest backend on any machine meets it;
+/// see `seconds` for the two failures that live past it.
+const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
 
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
 #[derive(Debug, PartialEq, Default)]
@@ -187,57 +221,147 @@ fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         return Err(ConfigError::Invalid("`recap` is not a table".to_string()));
     };
     let mut recap = Recap::default();
+    // ONE ARM PER KEY, and the three that are not booleans read through a
+    // function of their own, so each refusal sits with the shape it judges.
     for (key, setting) in table {
-        // THE COUNT IS ITS OWN ARM, ahead of the switches, because it is the
-        // one key here that is not a boolean. A negative or fractional value is
-        // refused BY NAME rather than clamped: the operator asked for a
-        // threshold, and a silently corrected one is a threshold they believe
-        // they set.
-        if key == "min_events" {
-            let Some(count) = setting
-                .as_integer()
-                .and_then(|count| usize::try_from(count).ok())
-            else {
-                return Err(ConfigError::Invalid(format!(
-                    "`recap` key `min_events` has type `{}`, not a count",
-                    setting.type_str()
-                )));
-            };
-            // AND ZERO IS REFUSED BY NAME TOO, for the same reason a negative
-            // is. `counted.len() >= 0` is always true, so a zero threshold
-            // recaps EVERY event, including one over an empty window, which is
-            // the state `recap::NOTHING_HAPPENED` says the event path never
-            // posts. An operator calibrating the knob downward gets a card and
-            // a Discord recap on every event, each saying nothing was
-            // recorded. One is the floor: it means "any activity at all".
-            if count == 0 {
-                return Err(ConfigError::Invalid(
-                    "`recap` key `min_events` is 0, which is not a threshold; 1 is the floor"
-                        .to_string(),
-                ));
-            }
-            recap.min_events = count;
-            continue;
-        }
-        let switch = match key.as_str() {
-            "replay_card" => &mut recap.replay_card,
-            "digest" => &mut recap.digest,
-            "digest_as_thread" => &mut recap.digest_as_thread,
+        match key.as_str() {
+            "min_events" => recap.min_events = threshold(&setting)?,
+            "summarizer" => recap.summarizer = Some(argv(&setting)?),
+            "summarizer_deadline_secs" => recap.summarizer_deadline_secs = seconds(&setting)?,
+            "replay_card" => recap.replay_card = flag(&key, &setting)?,
+            "digest" => recap.digest = flag(&key, &setting)?,
+            "digest_as_thread" => recap.digest_as_thread = flag(&key, &setting)?,
             _ => {
                 return Err(ConfigError::Invalid(format!("unknown `recap` key `{key}`")));
-            }
-        };
-        match setting {
-            toml::Value::Boolean(flag) => *switch = flag,
-            other => {
-                return Err(ConfigError::Invalid(format!(
-                    "`recap` key `{key}` has type `{}`, not boolean",
-                    other.type_str()
-                )));
             }
         }
     }
     Ok(recap)
+}
+
+/// One `[recap]` switch. A value of any other type is refused BY NAME rather
+/// than read as its own truthiness, which is what would leave a delivery on
+/// while its config said otherwise.
+fn flag(key: &str, setting: &toml::Value) -> Result<bool, ConfigError> {
+    setting.as_bool().ok_or_else(|| {
+        ConfigError::Invalid(format!(
+            "`recap` key `{key}` has type `{}`, not boolean",
+            setting.type_str()
+        ))
+    })
+}
+
+/// `min_events`, the volume threshold. A negative or fractional value is
+/// refused BY NAME rather than clamped: the operator asked for a threshold, and
+/// a silently corrected one is a threshold they believe they set.
+fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
+    let Some(count) = setting
+        .as_integer()
+        .and_then(|count| usize::try_from(count).ok())
+    else {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `min_events` has type `{}`, not a count",
+            setting.type_str()
+        )));
+    };
+    // AND ZERO IS REFUSED BY NAME TOO, for the same reason a negative is.
+    // `counted.len() >= 0` is always true, so a zero threshold recaps EVERY
+    // event, including one over an empty window, which is the state
+    // `recap::NOTHING_HAPPENED` says the event path never posts. An operator
+    // calibrating the knob downward gets a card and a Discord recap on every
+    // event, each saying nothing was recorded. One is the floor: it means "any
+    // activity at all".
+    if count == 0 {
+        return Err(ConfigError::Invalid(
+            "`recap` key `min_events` is 0, which is not a threshold; 1 is the floor".to_string(),
+        ));
+    }
+    Ok(count)
+}
+
+/// `summarizer_deadline_secs`, in whole seconds. See `min_events` for why a
+/// value that is not a count is refused rather than corrected; zero is a
+/// deadline nothing can meet, which is the fallback saying so, not a shape
+/// this layer has to judge.
+///
+/// THE TOP END IS REFUSED BY NAME TOO, and unlike zero it really is a shape
+/// this layer has to judge. Two things break past the ceiling and neither is
+/// visible where it happens. NOTHING SUPERVISES THE DETACHED RECAP CHILD, which
+/// `spawn_recap` states outright: at four minutes that is fine, and at a day it
+/// is one child plus one wedged backend held for a day, with a second pair
+/// arriving at the next return moment. AND `9223372036854775807` IS A PLAIN
+/// TOML INTEGER: it parses, and `Instant::now() + Duration::from_secs` of it
+/// PANICS (MEASURED: "overflow when adding duration to instant") inside a
+/// process whose stderr is /dev/null and whose exit code nobody reads, so the
+/// recap simply vanishes after the card has said it is coming. A refusal the
+/// operator reads beats a silence they cannot.
+fn seconds(setting: &toml::Value) -> Result<u64, ConfigError> {
+    let Some(count) = setting
+        .as_integer()
+        .and_then(|count| u64::try_from(count).ok())
+    else {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `summarizer_deadline_secs` has type `{}`, not a count of seconds",
+            setting.type_str()
+        )));
+    };
+    if count > MAX_SUMMARIZER_DEADLINE_SECS {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `summarizer_deadline_secs` is {count}, past the \
+             {MAX_SUMMARIZER_DEADLINE_SECS}-second ceiling"
+        )));
+    }
+    Ok(count)
+}
+
+/// `summarizer`, the command the window is handed to: a list of WORDS, passed
+/// to the process directly and never through a shell.
+///
+/// THE SHELL STRING IS THE MISTAKE THIS REFUSES. `summarizer = "ollama run
+/// qwen3.5:4b"` is what a hand writes first, and reading it as a one-word
+/// command would name a binary nobody has, so it is refused by name rather than
+/// left to fail once a night inside a detached process.
+///
+/// AN EMPTY LIST IS REFUSED TOO, because it names no command at all: taken as
+/// written it would leave the summarizer configured and unrunnable, which reads
+/// to the operator as a summarizer that is not answering rather than as a table
+/// they have to fix.
+///
+/// AND SO IS AN EMPTY FIRST WORD, on that same reasoning rather than a new one.
+/// `[""]` parses, `Command::new("")` fails to spawn, and the operator gets
+/// precisely the outcome the paragraph above exists to prevent. Only the first
+/// word is judged: an empty ARGUMENT is a real thing to pass a program, and
+/// nothing about it stops the command running.
+fn argv(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+    let Some(words) = setting.as_array() else {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `summarizer` has type `{}`, not a list of command words",
+            setting.type_str()
+        )));
+    };
+    if words.is_empty() {
+        return Err(ConfigError::Invalid(
+            "`recap` key `summarizer` is empty, so it names no command to run".to_string(),
+        ));
+    }
+    let words: Vec<String> = words
+        .iter()
+        .map(|word| {
+            word.as_str().map(str::to_string).ok_or_else(|| {
+                ConfigError::Invalid(format!(
+                    "`recap` key `summarizer` has a `{}` in it, not a list of command words",
+                    word.type_str()
+                ))
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    if words[0].is_empty() {
+        return Err(ConfigError::Invalid(
+            "`recap` key `summarizer` starts with an empty word, so it names no command to run"
+                .to_string(),
+        ));
+    }
+    Ok(words)
 }
 
 /// The IO edge: read the file at `path` and hand its text to the parser.
@@ -559,6 +683,122 @@ mod tests {
             match err {
                 ConfigError::Invalid(message) => assert!(
                     message.contains("min_events"),
+                    "the offender is named for {stated}: {message}"
+                ),
+                other => panic!("expected Invalid for {stated}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn the_summarizer_is_an_argument_list_the_operator_states_word_by_word() {
+        // ARGV, NEVER A SHELL STRING. Nothing here is interpreted, so there is
+        // no quoting rule to get wrong and no injection surface at all; a
+        // different backend is a different array and a Linux machine writes its
+        // own, which is the whole of the configurable-backend mandate.
+        let config = parse_config(
+            "[recap]\nsummarizer = [\"ollama\", \"run\", \"qwen3.5:4b\", \"--think=false\"]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            config.recap.summarizer.as_deref(),
+            Some(
+                ["ollama", "run", "qwen3.5:4b", "--think=false"]
+                    .map(String::from)
+                    .as_slice()
+            ),
+            "the words the operator wrote, in order"
+        );
+        assert_eq!(
+            parse_config("[recap]\ndigest = true\n")
+                .unwrap()
+                .recap
+                .summarizer,
+            None,
+            "UNSET IS THE WORKING SETTING: no summarizer is the plain lists"
+        );
+    }
+
+    #[test]
+    fn a_summarizer_that_is_not_a_list_of_words_is_refused_naming_the_key() {
+        // THE FOUR SHAPES A HAND WRITES BY MISTAKE: the shell string this key
+        // deliberately is not, an array with something that is not a word in
+        // it, an empty array that names no command at all, and an array whose
+        // FIRST WORD is empty, which names no command either and used to parse.
+        // `Command::new("")` fails to spawn, and the operator then reads a
+        // summarizer that is not answering rather than the table they have to
+        // fix, which is the exact outcome the empty-array refusal exists to
+        // prevent. Each is refused by name rather than leaving the summarizer
+        // silently unset, which is the difference between a recap that says it
+        // fell back and one the operator believes is summarized.
+        for (stated, expected) in [
+            ("\"ollama run qwen3.5:4b\"", "not a list"),
+            ("[\"ollama\", 3]", "not a list"),
+            ("[]", "names no command"),
+            ("[\"\"]", "names no command"),
+            ("[\"\", \"run\"]", "names no command"),
+        ] {
+            let err = parse_config(&format!("[recap]\nsummarizer = {stated}\n")).unwrap_err();
+            match err {
+                ConfigError::Invalid(message) => {
+                    assert!(
+                        message.contains("summarizer"),
+                        "the offender is named for {stated}: {message}"
+                    );
+                    assert!(
+                        message.contains(expected),
+                        "the refusal says what is wrong for {stated}: {message}"
+                    );
+                }
+                other => panic!("expected Invalid for {stated}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn the_summarizers_deadline_is_a_count_of_seconds_defaulted_to_a_cold_model_load() {
+        // FOUR MINUTES, because a cold `ollama` load MEASURED 3m20s on this
+        // machine against 9.3s warm, and nobody is waiting: the caller is a
+        // process the event path never joined.
+        assert_eq!(
+            parse_config("[recap]\ndigest = true\n")
+                .unwrap()
+                .recap
+                .summarizer_deadline_secs,
+            240,
+            "the default covers a cold model load"
+        );
+        assert_eq!(
+            parse_config("[recap]\nsummarizer_deadline_secs = 5\n")
+                .unwrap()
+                .recap
+                .summarizer_deadline_secs,
+            5
+        );
+        // AND IT HAS A TOP END, refused by name for `min_events`'s own reason.
+        // An hour is already far past the cold load the default covers, and past
+        // it the two failures are real: nothing supervises the detached recap
+        // child, so a wedged backend holds one child and one backend process for
+        // as long as the number says, and `9223372036854775807` is a plain TOML
+        // integer that PANICS the child at `Instant::now() + deadline`
+        // (MEASURED: "overflow when adding duration to instant"). That panic
+        // lands in a process whose stderr is /dev/null and whose exit code
+        // nobody reads, so the recap vanishes with no rung of the ladder taken,
+        // after the card has already said it is coming.
+        assert_eq!(
+            parse_config("[recap]\nsummarizer_deadline_secs = 3600\n")
+                .unwrap()
+                .recap
+                .summarizer_deadline_secs,
+            3600,
+            "an hour is inside the ceiling"
+        );
+        for stated in ["\"soon\"", "9.5", "-1", "3601", "9223372036854775807"] {
+            let err = parse_config(&format!("[recap]\nsummarizer_deadline_secs = {stated}\n"))
+                .unwrap_err();
+            match err {
+                ConfigError::Invalid(message) => assert!(
+                    message.contains("summarizer_deadline_secs"),
                     "the offender is named for {stated}: {message}"
                 ),
                 other => panic!("expected Invalid for {stated}, got {other:?}"),

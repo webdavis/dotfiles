@@ -41,6 +41,28 @@
 # floor and means "any activity at all"; zero is refused, because it would recap
 # every single event, including one over a window where nothing happened.
 # min_events = 8
+# The command that turns the window into the night-in-order lines. ARGV, NEVER A
+# SHELL STRING: the words are passed to the program as they are written here, so
+# nothing is interpreted and there is no quoting rule to get wrong. It is handed
+# the timeline on stdin and answers with the lines on stdout. UNSET IS A WORKING
+# SETTING and the common one: with no summarizer the recap posts the plain
+# mechanical list. Only these lines ever change; the header's count, what needs
+# you, and the phone card are composed by pns whatever comes back, and a
+# summarizer that fails, is not installed, says nothing or runs long falls to
+# that same plain list, which says so in its own heading. THE THREE OLLAMA FLAGS
+# ARE NOT OPTIONAL: measured on this machine, `ollama run` without them
+# interleaves terminal control bytes and a "Thinking..." preamble into its
+# output, and those reach Discord verbatim. Another backend is simply another
+# array.
+# summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
+# How long that command may take. FOUR MINUTES because a COLD model load measured
+# 3m20s here against 9.3s warm, and nobody is waiting: the recap is rendered in a
+# process the event you were standing at never joined. Past the deadline the
+# command is killed and the plain list is posted. AN HOUR IS THE CEILING and a
+# bigger number is refused by name: nothing supervises the process the recap is
+# rendered in, so a wedged backend past that is a pair of processes held for as
+# long as the number says.
+# summarizer_deadline_secs = 240
 
 [plugins.moshi]
 enabled = true
