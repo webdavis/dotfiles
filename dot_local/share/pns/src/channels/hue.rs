@@ -452,6 +452,7 @@ mod tests {
             "10pm-7am",
             "2:00-07:00",
             "22:00-07:00 ",
+            "   ",
         ] {
             let refusal = quiet_window(&table(&format!("quiet_hours = \"{stated}\"")))
                 .expect_err("a window this shape names no hours");
