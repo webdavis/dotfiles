@@ -18,7 +18,7 @@ Overwritten from the template on every apply, whatever the live file holds.
   `Bash(...)` globs), `permissions.deny` (`Read(.env)`, `Read(.env.*)`, `Read(secrets/**)`,
   `Read(credentials.json)`, `Read(.aws/credentials)`, `Read(.ssh/id_*)`), `permissions.defaultMode` =
   `bypassPermissions`.
-- `hooks`, seven event keys:
+- `hooks`, eight event keys:
   - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
   - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in
     the same pass, where a second hook used to decide the tier on its own.
@@ -29,6 +29,9 @@ Overwritten from the template on every apply, whatever the live file holds.
     operator's answer.
   - `PermissionDenied` runs `pns hook denied` async, reporting the tool call auto-mode refused without
     ever asking; async is what keeps pns out of the retry decision the harness awaits on this hook.
+  - `Elicitation` runs `pns hook asked` async, carding the MCP server that stopped mid-tool-call to ask
+    the operator for input; async is what keeps pns out of the answer, since this hook runs before the
+    dialog is shown and exit code 2 alone would decline the request outright.
   - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, calling `pns hook asked`
     and `pns hook plan-ready`.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (27 today), each set to

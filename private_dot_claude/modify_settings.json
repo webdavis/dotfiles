@@ -206,6 +206,18 @@
      appear to answer a question it has no business answering. Deliberately NO
      matcher, and note that a matcher here would filter by TOOL NAME rather
      than by the reason, which is the opposite of StopFailure's error text.
+
+     Elicitation fires when a connected MCP server asks the operator for input
+     and holds its tool call open waiting. It rides the `asked` word: the
+     interruption is the same one AskUserQuestion raises, and it is answered at
+     the pane the harness is already holding open. Async, and for the strongest
+     reason any entry here has: this hook runs BEFORE the dialog is shown and
+     the harness reads a decision out of it, where exit code 2 alone declines
+     the elicitation outright and the MCP server sees a refusal with no
+     explanation. An async hook is backgrounded with an empty answer, so pns
+     cannot answer a question it has no business answering. Deliberately NO
+     matcher, and note that a matcher here filters by MCP SERVER NAME, which is
+     neither PreToolUse's tool name nor StopFailure's error text.
      --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
 {{- $hooks := dict
@@ -237,6 +249,11 @@
         "type" "command"
         "async" true
         "command" (printf "%s/.local/libexec/pns/pns hook denied" $home)))))
+    "Elicitation" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook asked" $home)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"

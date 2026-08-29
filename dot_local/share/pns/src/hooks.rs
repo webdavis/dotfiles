@@ -40,14 +40,63 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         cwd: text("cwd"),
         transcript_path: text("transcript_path"),
         last_assistant_message: text("last_assistant_message"),
-        // `.message // .detail`, as the bash read it, then the error a dead
-        // turn reports, and then the tool the request is about for the
-        // harnesses that send none of the three.
-        message: [text("message"), text("detail"), reported_error(&payload)]
-            .into_iter()
-            .find(|stated| !stated.is_empty())
-            .unwrap_or_else(|| tool_request(&payload)),
+        // The asking MCP server in front of its own prompt, then `.message //
+        // .detail` as the bash read it, then the error a dead turn reports,
+        // and then the tool the request is about for the harnesses that send
+        // none of the three.
+        message: [
+            elicitation_request(&payload),
+            text("message"),
+            text("detail"),
+            reported_error(&payload),
+        ]
+        .into_iter()
+        .find(|stated| !stated.is_empty())
+        .unwrap_or_else(|| tool_request(&payload)),
     }
+}
+
+/// Which Model Context Protocol server is asking, in front of what it asked.
+///
+/// An elicitation payload states its own `message`, so without this the card
+/// carries the prompt with no attribution: "Please provide your API key" on a
+/// phone, from nobody. The operator cannot tell which of the connected servers
+/// wants the credential, which is the one thing that decides whether to answer.
+///
+/// IN FRONT OF THE CHAIN, where `reported_error` was deliberately put behind
+/// it, and the difference is the gate. `mcp_server_name` appears in exactly
+/// two hook input schemas in the whole 2.1.241 vocabulary, `Elicitation` and
+/// `ElicitationResult`, and Codex 0.149.1 sends it on nothing, so this returns
+/// the empty string for every payload pns handles today. It also PREFIXES
+/// rather than rewrites: the message the harness stated is preserved ahead of
+/// the cap, with the asker in front of it.
+fn elicitation_request(payload: &serde_json::Value) -> String {
+    // BOTH halves through the same flatten: a newline in the name a server
+    // registered under would break the rendered line exactly as one in the
+    // prompt would, and a name that flattens to nothing names nobody, so
+    // there is no attribution to put in front of the prompt.
+    let stated = |key: &str| {
+        payload
+            .get(key)
+            // A JSON null flattens to the WORD "null", which is neither a
+            // server anyone registered nor a prompt anyone sent.
+            .filter(|value| !value.is_null())
+            .map(one_line)
+            .unwrap_or_default()
+    };
+    let server = stated("mcp_server_name");
+    if server.is_empty() {
+        return String::new();
+    }
+    let asked = stated("message");
+    let request = if asked.is_empty() {
+        server
+    } else {
+        format!("{server}: {asked}")
+    };
+    // The HEAD, like a tool request: the server plus the start of what it
+    // wants identifies the ask, and an elicitation describing a form runs long.
+    request.chars().take(TOOL_REQUEST_MAX_CHARS).collect()
 }
 
 /// What a permission request is asking for, when the payload says only which
@@ -287,6 +336,44 @@ mod tests {
     }
 
     #[test]
+    fn an_elicitation_says_which_server_is_asking_in_front_of_what_it_asked() {
+        // An MCP server that stops mid-tool-call to ask the operator for
+        // input states its own `message`, so the chain resolves at step one
+        // and the card carries the prompt with NO attribution: "Please
+        // authorize Gmail access" on a phone, from nobody. Which of the
+        // connected servers wants the credential is the one thing that
+        // decides whether to answer it. THE PAYLOAD IS THE BINARY'S OWN FIELD
+        // SET (`mcp_server_name` and `message` required, `mode`, `url`,
+        // `elicitation_id` and `requested_schema` optional, over the base
+        // spread every other event shares), carrying every optional so the
+        // assertion also says which of them reach the card: none.
+        let payload = parse_payload(
+            r#"{"hook_event_name":"Elicitation","session_id":"s1","cwd":"/a/dotfiles",
+                "mcp_server_name":"composio","message":"Please authorize Gmail access",
+                "mode":"url","url":"https://backend.composio.dev/authorize/abc123",
+                "elicitation_id":"elic_01","requested_schema":{"api_key":{"type":"string"}}}"#,
+        );
+        assert_eq!(payload.message, "composio: Please authorize Gmail access");
+
+        // The harness requires `message` but its schema allows the EMPTY
+        // string, and a server that asks with one still deserves a name on
+        // the card rather than a dangling "composio: " or nothing at all.
+        let payload = parse_payload(r#"{"mcp_server_name":"composio","message":""}"#);
+        assert_eq!(payload.message, "composio");
+
+        // A JSON null is that same absence, not a prompt: flattened it would
+        // card the literal WORD "null" as what the server asked for.
+        let payload = parse_payload(r#"{"mcp_server_name":"composio","message":null}"#);
+        assert_eq!(payload.message, "composio");
+
+        // A name made of whitespace names nobody, so there is no attribution
+        // to put in front and the stated message stands alone rather than
+        // arriving behind a blank prefix and a colon.
+        let payload = parse_payload(r#"{"mcp_server_name":"   ","message":"authorize Gmail"}"#);
+        assert_eq!(payload.message, "authorize Gmail");
+    }
+
+    #[test]
     fn a_payload_that_states_its_own_message_is_never_second_guessed() {
         // The composed line is a LAST resort: a harness that says what it
         // wants keeps saying it, whatever else the payload carries.
@@ -321,6 +408,40 @@ mod tests {
         let payload = parse_payload(&format!(r#"{{"tool_name":"write","tool_input":"{long}"}}"#));
         assert!(payload.message.starts_with("write: xxx"));
         assert!(payload.message.chars().count() < 400, "an uncapped request");
+    }
+
+    #[test]
+    fn an_elicitation_prompt_is_kept_to_one_line_and_cut_from_the_head_too() {
+        // An elicitation prompt describes a FORM, so it is multi-line often
+        // enough that the raw string would break the single rendered line
+        // every channel expects, and long enough that a phone card would be
+        // all schema. The same flatten and the same cap the two sibling
+        // composers use, cutting the HEAD because the server and the start of
+        // what it wants are what identify the ask.
+        let payload = parse_payload(
+            r#"{"hook_event_name":"Elicitation","session_id":"s1","cwd":"/a/dotfiles",
+                "mcp_server_name":"composio","message":"Fill this form:\n  name\n  email"}"#,
+        );
+        assert_eq!(payload.message, "composio: Fill this form: name email");
+        assert!(!payload.message.contains('\n'));
+
+        // The SERVER half goes through that same flatten, so a name carrying
+        // a newline cannot break the line the prompt half was flattened to
+        // protect.
+        let payload = parse_payload(r#"{"mcp_server_name":"corp\nprod","message":"authorize"}"#);
+        assert_eq!(payload.message, "corp prod: authorize");
+        assert!(!payload.message.contains('\n'));
+
+        let long = "x".repeat(5_000);
+        let payload = parse_payload(&format!(
+            r#"{{"mcp_server_name":"composio","message":"{long}"}}"#
+        ));
+        assert!(
+            payload.message.starts_with("composio: xxx"),
+            "got {:?}",
+            payload.message
+        );
+        assert!(payload.message.chars().count() < 400, "an uncapped prompt");
     }
 
     #[test]
