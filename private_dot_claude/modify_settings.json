@@ -189,7 +189,14 @@
 
      ONE Stop entry: the engine measures the turn and reports it in the same
      pass, where a separate pulse hook used to decide the tier again on its
-     own.  --- */ -}}
+     own.
+
+     StopFailure fires INSTEAD of Stop when a turn dies on an API error, so
+     without this entry a dead pane gets no card at all and the dead turn's
+     start marker is left for the next turn to inherit. Async like Stop, since
+     it is a report and nobody needs its exit code, and deliberately NO
+     matcher: the harness matches a StopFailure matcher against the error
+     TEXT, and every dead turn is news.  --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
 {{- $hooks := dict
     "UserPromptSubmit" (list (dict
@@ -201,6 +208,11 @@
         "type" "command"
         "async" true
         "command" (printf "%s/.local/libexec/pns/pns hook stop" $home)))))
+    "StopFailure" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook stop-failure" $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
       "hooks" (list (dict

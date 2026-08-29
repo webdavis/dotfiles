@@ -245,6 +245,98 @@ fn the_herdr_pane_reaches_the_event_verbatim_and_a_hostile_one_is_scrubbed_downs
     assert_eq!(sandbox.event("hermes")["pane"], "wW:p21");
 }
 
+// --- the turn that died -----------------------------------------------------
+
+#[test]
+fn a_turn_that_died_notifies_as_failed_and_says_what_killed_it() {
+    // Claude Code fires StopFailure and NOT Stop when a turn dies on an API
+    // error, so before this arm existed the operator walked back to a dead
+    // pane with no card, no banner and no Discord line.
+    let sandbox = Sandbox::new("hook-stop-failure");
+    let output = hook(
+        &sandbox,
+        "stop-failure",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","error":"API Error: 500 internal server error"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "failed");
+    assert_eq!(event["detail"], "API Error: 500 internal server error");
+    assert_eq!(event["project"], "dotfiles");
+}
+
+#[test]
+fn a_dead_turn_consumes_the_marker_so_the_next_turn_is_not_measured_from_its_start() {
+    // The leak this arm exists to close. StopFailure fires INSTEAD of Stop, so
+    // a marker left behind is found by the next prompt, which declines to
+    // rewrite it, and the turn AFTER the dead one is measured from the dead
+    // one's start. `long_running` is what raises the mobile watch card and the
+    // pulse, so one API error used to promote every later short turn to the
+    // long-running tier for the rest of the session.
+    let sandbox = Sandbox::new("hook-stop-failure-consumes");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(marker(&sandbox, "s1"), "1").expect("marker");
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop-failure",
+        r#"{"session_id":"s1","error":"API Error: 500"}"#,
+    );
+    assert!(
+        !marker(&sandbox, "s1").exists(),
+        "the marker is consumed, not left for the next turn to inherit"
+    );
+}
+
+#[test]
+fn a_dead_turn_spawns_no_condenser_and_reads_no_transcript() {
+    // The condenser is a model call on the one path where a model call has
+    // just failed, and the reply's transcript fallback is a bounded loop of
+    // sleeps spent recovering text that is not the news. THE STUB IS THE
+    // TRIPWIRE: it records having run, and its verdict would rewrite both the
+    // state and the detail, so a green here is a condenser that never started.
+    let sandbox = Sandbox::new("hook-stop-failure-no-condenser");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    write_script(
+        &bin.join("codex"),
+        &format!(
+            "touch '{sandbox}/codex.ran'; cat >/dev/null; printf 'asking|the condenser ran\\n'",
+            sandbox = sandbox.display()
+        ),
+    );
+    let transcript = sandbox.path("t.jsonl");
+    std::fs::write(
+        &transcript,
+        "{\"type\":\"user\",\"message\":{\"content\":\"ask\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"from the transcript\"}]}}\n",
+    )
+    .expect("transcript");
+    let mut command = sandbox.pns();
+    command
+        .env("CODEX_BIN", bin.join("codex"))
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
+    prepend_path(&mut command, &bin);
+    hook_with(
+        command,
+        &sandbox,
+        "stop-failure",
+        &format!(
+            r#"{{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"{}","last_assistant_message":"half a turn","error":"API Error: 500"}}"#,
+            transcript.display()
+        ),
+    );
+    assert!(
+        !sandbox.path("codex.ran").exists(),
+        "no model call on the one path where a model call has just failed"
+    );
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "failed", "no verdict may restate it");
+    assert_eq!(
+        event["detail"], "API Error: 500",
+        "neither the transcript nor the partial reply stands in for the error"
+    );
+}
+
 // --- the blocking round trip ------------------------------------------------
 
 #[test]
@@ -435,6 +527,32 @@ fn nothing_that_goes_wrong_building_a_notification_fails_the_harness_turn() {
     }
     let output = hook(&sandbox, "no-such-event", r#"{}"#);
     assert_eq!(output.status.code(), Some(0));
+}
+
+#[test]
+fn a_hook_word_this_binary_does_not_serve_says_so_and_notifies_nobody() {
+    // The match gains an arm every time a harness gains an event, and a word
+    // that reaches none of them must not fall through to the nearest one:
+    // `stop-failed` is one letter from the arm that reports a dead turn, and
+    // reporting one for it would be a card about an event that never
+    // happened. It costs a stderr line, no notification, and a zero exit,
+    // because an unserved event is not an error the harness should hear about
+    // on a notification path.
+    let sandbox = Sandbox::new("hook-unknown-event");
+    let output = hook(
+        &sandbox,
+        "stop-failed",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","error":"API Error: 500"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr).trim(),
+        "pns: unknown hook event `stop-failed`"
+    );
+    assert!(
+        !sandbox.fired("hermes"),
+        "an event nobody serves reaches no channel"
+    );
 }
 
 #[test]
@@ -1009,6 +1127,37 @@ fn a_turn_long_enough_pulses_and_a_short_one_does_not() {
         assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
         assert_eq!(bridge_calls(&reached) > 0, expected, "{label}");
     }
+}
+
+#[test]
+fn a_long_turn_that_died_still_earns_its_pulse() {
+    // The tier does not care HOW the turn ended: the operator who walked away
+    // from a long run is exactly the one the lights are for, and this is the
+    // first time a hook can reach the red half of the pulse at all.
+    //
+    // THE LISTENER COUNTS CONNECTIONS AND NEVER READS THE BODY (it closes the
+    // socket the instant it arrives), so this pins that the pulse fired, not
+    // that it was red. The colour is decided by `event.state`, which the
+    // failed-turn test above pins as `failed`.
+    let sandbox = Sandbox::new("hook-stop-failure-tier");
+    let reached = hue_listener(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let started = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_secs()
+        - 9_000;
+    std::fs::write(marker(&sandbox, "s1"), started.to_string()).expect("marker");
+    let mut child = spawn_hook(with_state_dir(&sandbox), "stop-failure");
+    write_payload(
+        &mut child,
+        br#"{"session_id":"s1","cwd":"/a/dotfiles","error":"API Error: 500"}"#,
+    );
+    assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+    assert!(
+        bridge_calls(&reached) > 0,
+        "a turn that earned the tier still earns it when it dies"
+    );
 }
 
 #[test]

@@ -122,6 +122,7 @@ fn hook_mode(event: &str) -> i32 {
     match event {
         "prompt" => start_of_turn(&payload),
         "stop" => end_of_turn(&payload, &agent),
+        "stop-failure" => failed_turn(&payload, &agent),
         "blocked" => return blocking_event(&payload, &agent, &payload_json),
         "asked" | "plan-ready" => run_event(
             &pns::args::EventArgs {
@@ -792,6 +793,40 @@ fn end_of_turn(payload: &HookPayload, agent: &str) {
             project: project_of(&payload.cwd),
             branch: git_branch(&payload.cwd),
             detail,
+            pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+            long_running: pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs())),
+            ..Default::default()
+        },
+        &system_probes(),
+    );
+}
+
+/// The StopFailure hook: a turn that died on an API error reports itself,
+/// where it used to report nothing at all.
+///
+/// THE MARKER IS CLAIMED HERE for the same reason `end_of_turn` claims it, and
+/// this is the arm that used to leak it: StopFailure fires INSTEAD of Stop, so
+/// a dead turn left its marker on disk, the next prompt found one and declined
+/// to rewrite the clock, and the turn after that was measured from the dead
+/// turn's start. `long_running` is what raises the mobile watch card and the
+/// pulse, so one API error promoted later short turns to the long-running tier
+/// for the rest of the session.
+///
+/// NO CONDENSER AND NO TRANSCRIPT. The condenser is a model call on the one
+/// path where a model call has just failed, the reply's fallback re-reads the
+/// transcript in a bounded loop of sleeps, and neither recovers the news: the
+/// harness states it as a plain string that is never empty. The payload's
+/// partial `last_assistant_message` is dropped for the same reason, since the
+/// question at a dead pane is why it stopped rather than what it had said.
+fn failed_turn(payload: &HookPayload, agent: &str) {
+    let elapsed = consume_turn_marker(&payload.session_id);
+    run_event(
+        &pns::args::EventArgs {
+            agent: agent.to_string(),
+            state: "failed".to_string(),
+            project: project_of(&payload.cwd),
+            branch: git_branch(&payload.cwd),
+            detail: payload.message.clone(),
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs())),
             ..Default::default()
