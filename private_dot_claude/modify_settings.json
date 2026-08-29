@@ -196,7 +196,17 @@
      start marker is left for the next turn to inherit. Async like Stop, since
      it is a report and nobody needs its exit code, and deliberately NO
      matcher: the harness matches a StopFailure matcher against the error
-     TEXT, and every dead turn is news.  --- */ -}}
+     TEXT, and every dead turn is news.
+
+     PermissionDenied fires when the auto-mode classifier refuses a tool call
+     on its own, which the operator otherwise learns only by reading the pane.
+     Async for a STRONGER reason than Stop's: the harness awaits this hook's
+     answer to learn whether the model may retry the refused call, and an async
+     hook is backgrounded with its late answer discarded, so pns can never
+     appear to answer a question it has no business answering. Deliberately NO
+     matcher, and note that a matcher here would filter by TOOL NAME rather
+     than by the reason, which is the opposite of StopFailure's error text.
+     --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
 {{- $hooks := dict
     "UserPromptSubmit" (list (dict
@@ -222,6 +232,11 @@
       "hooks" (list (dict
         "type" "command"
         "command" (printf "%s/.local/libexec/pns/pns hook blocked" $home)))))
+    "PermissionDenied" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook denied" $home)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"
