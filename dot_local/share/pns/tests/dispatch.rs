@@ -3671,10 +3671,16 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
 
 /// Every claim the state directory holds, which is where an undelivered batch
 /// waits when a run could not read it or did not survive to hand it over.
+/// BOTH NAMES A BATCH CAN WAIT UNDER: a run that failed to read what it took
+/// leaves it under the held name it renamed it to, and the claim name is what
+/// a run that never got that far leaves.
 fn claim_files(sandbox: &Sandbox) -> Vec<String> {
     state_files(sandbox)
         .into_iter()
-        .filter(|name| name.starts_with("missed-notifications.claim."))
+        .filter(|name| {
+            name.starts_with("missed-notifications.claim.")
+                || name.starts_with("missed-notifications.held.")
+        })
         .collect()
 }
 
@@ -3709,6 +3715,17 @@ fn a_journal_this_run_could_not_read_is_left_on_disk_rather_than_consumed() {
         1,
         "the undelivered batch was destroyed: {:?}",
         state_files(&sandbox)
+    );
+    // UNDER THE HELD NAME, which is the deterministic footprint of the rename
+    // that decides who owns this batch: the read happens only after that
+    // rename lands, so a batch this run could not read is one it had already
+    // taken from every other run. A build that reads the claim where it lies
+    // and owns it by unlinking leaves the claim name here instead, and owns
+    // nothing: eight processes unlinking one path on this host were every one
+    // of them told they had succeeded.
+    assert!(
+        left[0].starts_with("missed-notifications.held."),
+        "the batch was read where it lay, so nothing arbitrated the read: {left:?}"
     );
     assert_eq!(
         std::fs::read(sandbox.path(&format!("state/{}", left[0]))).expect("the claim"),
@@ -3747,6 +3764,138 @@ fn a_claim_an_earlier_run_never_finished_is_adopted_by_the_next_return() {
         state_files(&sandbox),
         ["decisions"],
         "the adopted claim outlived the delivery it rode on"
+    );
+}
+
+#[test]
+fn a_held_batch_whose_owner_is_still_running_is_left_exactly_where_it_is() {
+    // A HELD FILE IS A BATCH SOMEBODY IS READING RIGHT NOW, which is the whole
+    // reason its name sits outside the prefix the adoption scan matches: take
+    // one from a live owner and the double delivery the hold exists to prevent
+    // is back with an extra step in front of it.
+    //
+    // TWO KINDS OF LIVE OWNER, because `kill(pid, 0)` has two ways of saying
+    // the process is there. This test's own process answers success. Pid 1 is
+    // launchd, which this user may not signal, and answers EPERM: an error,
+    // and still a process that exists, so only ESRCH may count as gone.
+    let sandbox = Sandbox::new("replay-live-hold");
+    record_every_event(&sandbox);
+    let mine = journal_path(&sandbox).with_extension(format!("held.{}", std::process::id()));
+    let unsignalable = journal_path(&sandbox).with_extension("held.1");
+    std::fs::write(&mine, planted_journal(2)).expect("the live hold");
+    std::fs::write(&unsignalable, planted_journal(2)).expect("the unsignalable hold");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        1,
+        "a batch was taken from a process still holding it: {raised:?}"
+    );
+    assert_eq!(
+        std::fs::read(&mine).expect("the live hold"),
+        planted_journal(2).into_bytes(),
+        "the batch its owner is still reading was touched"
+    );
+    assert_eq!(
+        std::fs::read(&unsignalable).expect("the unsignalable hold"),
+        planted_journal(2).into_bytes(),
+        "a hold whose owner answers EPERM rather than ESRCH was read as gone"
+    );
+}
+
+#[test]
+fn a_held_batch_whose_owner_is_gone_is_adopted_exactly_once() {
+    // THE OTHER HALF OF THE HOLD. A run killed between the rename that takes a
+    // claim and the delivery leaves the batch under its own held name, and
+    // that name is outside the claim prefix, so widening the scan to reach it
+    // is what keeps the hold from being a way to lose a queue for good.
+    let sandbox = Sandbox::new("replay-abandoned-hold");
+    record_every_event(&sandbox);
+    let abandoned = journal_path(&sandbox).with_extension("held.999999");
+    std::fs::write(&abandoned, planted_journal(2)).expect("the abandoned hold");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the abandoned batch never came back: {raised:?}"
+    );
+    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "both entries of the abandoned hold came back: {body}"
+    );
+    assert_eq!(
+        state_files(&sandbox),
+        ["decisions"],
+        "the hold outlived the delivery it rode on"
+    );
+}
+
+#[test]
+fn an_unreadable_old_claim_cannot_starve_the_good_batch_behind_it() {
+    // THE HELD NAME IS PER CLAIM (pid then a sequence), and this is why. With
+    // one name per PROCESS, an unreadable first claim occupied it, every later
+    // claim in the run deferred, and every FOLLOWING run's adoption migrated
+    // the unreadable hold to its own fresh name first, so it always sorted
+    // oldest and the good batch behind it starved forever. Here both are
+    // handled in ONE run: the good batch delivers, the unreadable one parks.
+    let sandbox = Sandbox::new("replay-no-starvation");
+    record_every_event(&sandbox);
+    let unreadable = journal_path(&sandbox).with_extension("claim.222");
+    std::fs::write(&unreadable, b"\xff\xfe not text\n").expect("the unreadable claim");
+    let good = journal_path(&sandbox).with_extension("claim.333");
+    std::fs::write(&good, planted_journal(2)).expect("the good claim");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the good batch was starved by the unreadable one ahead of it: {raised:?}"
+    );
+    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
+    let held: Vec<String> = state_files(&sandbox)
+        .into_iter()
+        .filter(|name| name.contains(".held."))
+        .collect();
+    assert_eq!(
+        held.len(),
+        1,
+        "the unreadable batch must park under exactly one held name: {:?}",
+        state_files(&sandbox)
+    );
+}
+
+#[test]
+fn a_hand_planted_negative_hold_name_is_never_read_as_a_pid() {
+    // kill() reads a non-positive value as the GROUP and BROADCAST forms, so a
+    // file named held.-99999 would probe process GROUP 99999 and, absent, read
+    // as an abandoned hold. The parse refuses non-positive owners outright:
+    // the file is left exactly where it was found, delivered by nobody.
+    let sandbox = Sandbox::new("replay-negative-hold");
+    record_every_event(&sandbox);
+    let planted = journal_path(&sandbox).with_extension("held.-99999");
+    std::fs::write(&planted, planted_journal(2)).expect("the planted hold");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        1,
+        "a negative hold name was adopted through the group form: {raised:?}"
+    );
+    assert_eq!(
+        std::fs::read(&planted).expect("the planted hold"),
+        planted_journal(2).into_bytes(),
+        "the planted hold was touched"
     );
 }
 
@@ -3940,6 +4089,70 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
         state_files(&sandbox),
         ["decisions"],
         "the journal survived the race, or a racer left its claim behind"
+    );
+}
+
+/// MORE RACERS THAN THE JOURNAL TEST USES: they all take the SAME adoption
+/// path, and the window this hunts is a few microseconds wide, so the odds a
+/// pair lands inside it come from the number of pairs.
+const ADOPTERS: usize = 24;
+
+/// A SOAK, NOT A GATE, which is why it is ignored by default: run it with
+/// `cargo test -- --ignored --exact` and a loop around it. On the build that
+/// owned a claim by unlinking it, one round in 200 caught the double, and
+/// raising the racer count did not improve that (the spawn spread grows with
+/// the pair count). The deterministic statements of this invariant are the two
+/// held-file tests above; this one is corroboration, and each racer is bounded
+/// so a wedged one fails rather than parks the suite.
+#[test]
+#[ignore = "soak: a probabilistic hunt, roughly one catch in 200 rounds"]
+fn racing_present_events_adopt_one_stranded_claim_exactly_once() {
+    // ONE STRANDED CLAIM AND NO JOURNAL, which puts every racer on the SAME
+    // adoption path at the same moment: the rename that arbitrates the journal
+    // never runs, so all that stands between the batch and N deliveries is
+    // whatever `take_claim` uses to decide ownership.
+    let sandbox = Sandbox::new("replay-adopt-race");
+    record_every_event(&sandbox);
+    let stranded = journal_path(&sandbox).with_extension("claim.999999");
+    std::fs::write(&stranded, planted_journal(2)).expect("the stranded claim");
+
+    let mut commands: Vec<std::process::Command> =
+        (0..ADOPTERS).map(|_| present_event(&sandbox)).collect();
+    let racers: Vec<std::process::Child> = commands
+        .iter_mut()
+        .map(|command| {
+            command
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("the engine starts")
+        })
+        .collect();
+    for mut racer in racers {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while racer.try_wait().expect("the child is waitable").is_none() {
+            assert!(std::time::Instant::now() < deadline, "a racer never exited");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let done = racer.wait_with_output().expect("the child is waitable");
+        assert!(done.status.success(), "a racer failed: {}", stderr(&done));
+    }
+
+    for channel in ["macos-banner", "hermes"] {
+        let delivered = events(&sandbox, channel);
+        assert_eq!(
+            delivered
+                .iter()
+                .filter(|event| event["state"] == "missed")
+                .count(),
+            1,
+            "{channel} was handed the one stranded batch more than once: {delivered:?}"
+        );
+    }
+    assert_eq!(
+        state_files(&sandbox),
+        ["decisions"],
+        "a racer left the stranded claim behind"
     );
 }
 

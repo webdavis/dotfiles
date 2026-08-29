@@ -393,7 +393,8 @@ enum Claimed {
     /// is gone, so no other run can deliver them too.
     Taken(Vec<pns::missed_notifications::Entry>),
     /// The claim could not be read, or could not be given up. It is STILL ON
-    /// DISK under its claim name, whole, for the next return to adopt.
+    /// DISK, whole: under its claim name when the claim was never taken, or
+    /// under a held name, which a return AFTER this process is gone adopts.
     LeftForAdoption,
 }
 
@@ -416,15 +417,17 @@ impl Claimed {
 ///
 /// NOTHING UNDELIVERED IS EVER DESTROYED, which is the property the whole
 /// order below exists for. What this run cannot read, it leaves; what it
-/// cannot give up, it leaves; and everything left is left under a claim name,
-/// which is the name the NEXT return goes looking for.
+/// cannot give up, it leaves; what it leaves sits under its claim name or a
+/// held name, and one of the returns that follow goes looking for both.
 ///
 /// CLAIMED BY RENAME, which is `consume_turn_marker`'s idiom and is atomic:
 /// two events racing each other cannot both take one journal, because only one
-/// rename can win. THE REMOVE IS THE SECOND ARBITER, for the batch a rename
-/// already moved: exactly one caller can unlink a given directory entry, so
-/// two runs that both managed to READ one stranded claim still cannot both
-/// deliver it.
+/// rename can win. A SECOND RENAME IS THE SECOND ARBITER, for a batch an
+/// earlier run stranded: `take_claim` moves it on to a name carrying its own
+/// process id before it reads a byte, so two runs that both reached one
+/// stranded claim still cannot both deliver it. The unlink used to hold that
+/// job and MEASURED it cannot: on macOS 26.2 (APFS) eight processes unlinking
+/// ONE path were every one of them told they had succeeded.
 ///
 /// ADOPTION IS HOW A LOST BATCH COMES BACK. A run killed between the rename
 /// and the delivery, and a run whose read failed, both leave a claim behind;
@@ -454,11 +457,14 @@ fn claim_journal(state: &Path) -> Vec<pns::missed_notifications::Entry> {
     waiting
 }
 
-/// Every claim an earlier run left in the state directory, oldest first.
+/// Every claim an earlier run left in the state directory, oldest first, plus
+/// every hold whose owner did not live to give it up.
 ///
 /// MATCHED ON THE JOURNAL'S OWN CLAIM PREFIX and nothing looser: the turn
 /// marker claims itself in this directory too, under its own name, and a
-/// wider match would hand a turn's start time to the replayer.
+/// wider match would hand a turn's start time to the replayer. The one
+/// addition is an ABANDONED HOLD, which is a stranded batch in every way that
+/// matters here and is admitted only once the run that took it is gone.
 ///
 /// SORTED BY WHEN THEY WERE LAST WRITTEN, which is the journal's own
 /// timestamp: a rename does not touch it, so a claim still carries the moment
@@ -466,12 +472,15 @@ fn claim_journal(state: &Path) -> Vec<pns::missed_notifications::Entry> {
 /// costs an ordering and never a delivery.
 fn stranded_claims(state: &Path) -> Vec<std::path::PathBuf> {
     let prefix = format!("{MISSED_NOTIFICATIONS}.claim.");
-    let Ok(held) = std::fs::read_dir(state) else {
+    let Ok(entries) = std::fs::read_dir(state) else {
         return Vec::new();
     };
-    let mut found: Vec<(Option<SystemTime>, std::path::PathBuf)> = held
+    let mut found: Vec<(Option<SystemTime>, std::path::PathBuf)> = entries
         .flatten()
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with(&prefix))
+        .filter(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            name.starts_with(&prefix) || abandoned_hold(&name)
+        })
         // `DirEntry::metadata` does not traverse a symlink, matching the
         // append's and the reader's own refusal to judge one by its target.
         .map(|entry| {
@@ -486,6 +495,45 @@ fn stranded_claims(state: &Path) -> Vec<std::path::PathBuf> {
         .collect();
     found.sort();
     found.into_iter().map(|(_, path)| path).collect()
+}
+
+/// Whether a name is a HELD file whose owner is gone.
+///
+/// A held file is a batch some run had taken and was reading when it died, in
+/// a window one rename wide. Nothing else may touch one while its owner lives,
+/// which is the whole reason the name sits outside the claim prefix: an owner
+/// that is still reading cannot have its batch taken a second time.
+///
+/// A LIVE PROCESS IS THE ONLY THING THAT DEFERS IT. `kill(pid, 0)` answers
+/// `EPERM` for a process this user may not signal, which is still a process
+/// that exists, so only `ESRCH` counts as gone. A pid the machine has reused
+/// reads as alive, and that batch waits for the first return after the process
+/// wearing its number exits, which is the same shape of price
+/// `claim_by_rename` already names for its own pid guard: a replay deferred,
+/// never a replay destroyed and never one delivered twice.
+fn abandoned_hold(name: &str) -> bool {
+    let Some(owner) = name.strip_prefix(&format!("{MISSED_NOTIFICATIONS}.held.")) else {
+        return false;
+    };
+    // THE PID IS THE SEGMENT BEFORE THE FIRST DOT (held.<pid>.<seq>); a bare
+    // held.<pid> from an older build parses the same way.
+    let owner = owner.split('.').next().unwrap_or_default();
+    let Ok(pid) = owner.parse::<libc::pid_t>() else {
+        return false;
+    };
+    // kill() reads non-positive values as the GROUP and BROADCAST forms, so a
+    // hand-planted negative name must never reach it looking like a pid.
+    if pid <= 0 {
+        return false;
+    }
+    // kill() reads non-positive values as the GROUP and BROADCAST forms, so a
+    // hand-planted negative name must never reach it looking like a pid.
+    // SAFETY: `kill` with signal 0 sends nothing and only reports whether the
+    // process exists.
+    if unsafe { libc::kill(pid, 0) } != -1 {
+        return false;
+    }
+    std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
 }
 
 /// The journal renamed out of the way, or the reason it was not.
@@ -532,24 +580,52 @@ fn claim_by_rename(journal: &Path) -> Claimed {
     take_claim(&claim)
 }
 
-/// One claim read and given up, in that order.
+/// One claim HELD BY RENAME, then read and given up, in that order.
 ///
-/// THE ORDER IS THE WHOLE POINT. Removing first, or removing whatever the read
-/// answered, throws away a batch nobody has seen the moment the read fails:
-/// MEASURED as a journal with one undecodable byte in it coming back empty,
-/// with the file already gone. A read that failed leaves the claim exactly as
-/// it is.
+/// THE RENAME IS THE OWNERSHIP TEST, and the remove is no longer one. It used
+/// to be, on the premise that only one of two runs reading a stranded claim
+/// could unlink it. MEASURED on macOS 26.2 (APFS), that premise is false:
+/// eight processes unlinking ONE path were every one of them told they had
+/// succeeded, and two racing runs that both read one claim both delivered it
+/// (reproduced twice in 1500 rounds). A rename does arbitrate, measured in the
+/// same run: 40 rounds of eight racers, one winner every time.
 ///
-/// THE REMOVE IS ALSO THE OWNERSHIP TEST, and it is why a failed remove
-/// declines the batch rather than delivering it. Two runs can both read one
-/// stranded claim; only one of them can unlink it, and that one is the one
-/// that delivers. The other leaves a file that is no longer there and hands
-/// over nothing.
+/// THE HELD NAME IS OUTSIDE THE PREFIX THE ADOPTION SCAN MATCHES, so nothing
+/// can take this batch a second time while it is being read. It comes back
+/// into that scan only once the process named in it is gone.
+///
+/// THE READ STILL COMES BEFORE THE REMOVE, which is the older half of this and
+/// unchanged. Removing first, or removing whatever the read answered, throws
+/// away a batch nobody has seen the moment the read fails: MEASURED as a
+/// journal with one undecodable byte in it coming back empty, with the file
+/// already gone. A read that failed leaves the held file exactly as it is, for
+/// the adoption that recovers it.
 fn take_claim(claim: &Path) -> Claimed {
-    let Ok(contents) = readable_ring(claim) else {
+    // ONE HELD NAME PER CLAIM, not per process: pid then a per-run sequence.
+    // A single per-process name coupled every stranded claim in a run to the
+    // first one, and an UNREADABLE first claim then occupied the name, was
+    // migrated to a fresh name by every later run's adoption, always sorted
+    // oldest, and so STARVED every good batch behind it forever. The sequence
+    // dissolves the coupling; the adoption parses the pid segment alone.
+    static HELD_SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let held = claim.with_file_name(format!(
+        "{MISSED_NOTIFICATIONS}.held.{}.{}",
+        std::process::id(),
+        HELD_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    // The same refusal `claim_by_rename` makes about its own claim, for the
+    // same reason: a rename OVERWRITES, and a batch this run has not delivered
+    // must never be what it lands on.
+    if std::fs::symlink_metadata(&held).is_ok() {
+        return Claimed::LeftForAdoption;
+    }
+    if std::fs::rename(claim, &held).is_err() {
+        return Claimed::Nothing;
+    }
+    let Ok(contents) = readable_ring(&held) else {
         return Claimed::LeftForAdoption;
     };
-    if std::fs::remove_file(claim).is_err() {
+    if std::fs::remove_file(&held).is_err() {
         return Claimed::LeftForAdoption;
     }
     Claimed::Taken(pns::missed_notifications::entries(&contents))
