@@ -253,7 +253,10 @@ fn a_turn_that_died_notifies_as_failed_and_says_what_killed_it() {
     // error, so before this arm existed the operator walked back to a dead
     // pane with no card, no banner and no Discord line.
     let sandbox = Sandbox::new("hook-stop-failure");
-    let output = hook(
+    let mut command = sandbox.pns();
+    command.env("HERDR_PANE_ID", "wX:p9");
+    let output = hook_with(
+        command,
         &sandbox,
         "stop-failure",
         r#"{"session_id":"s1","cwd":"/a/dotfiles","error":"API Error: 500 internal server error"}"#,
@@ -263,6 +266,10 @@ fn a_turn_that_died_notifies_as_failed_and_says_what_killed_it() {
     assert_eq!(event["state"], "failed");
     assert_eq!(event["detail"], "API Error: 500 internal server error");
     assert_eq!(event["project"], "dotfiles");
+    // THE PANE RIDES THE FAILED CARD like the Stop card's: a click should
+    // focus the dead pane. Pinned here because a 4b mutation dropped it and
+    // nothing noticed.
+    assert_eq!(event["pane"], "wX:p9");
 }
 
 #[test]
