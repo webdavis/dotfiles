@@ -65,8 +65,8 @@ pub fn hue_settings(settings: &toml::Table, rooms_env: Option<&str>) -> Option<H
 /// The hours the lights stay dark, in minutes since local midnight.
 #[derive(Debug, PartialEq)]
 pub struct QuietWindow {
-    pub start: u16,
-    pub end: u16,
+    start: u16,
+    end: u16,
 }
 
 /// The window the operator configured, or None for no window at all.

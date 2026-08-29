@@ -728,11 +728,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     if decision.pulse {
         // The state IS the exit code here: the shell notifier derives
         // --state from `$?`, and an agent turn that did not fail succeeded.
-        fire_pulse_unless_quiet(
-            hue_table,
-            if event.state == "failed" { "1" } else { "0" },
-            now_secs,
-        );
+        fire_pulse_unless_quiet(hue_table, if event.state == "failed" { "1" } else { "0" });
     }
 }
 
@@ -867,7 +863,7 @@ fn plugin_settings<'config>(
 /// the quiet window untestable exactly while it is on. Inside the `if` that
 /// already earned a pulse, so a refusal is printed only where a room would
 /// otherwise have lit.
-fn fire_pulse_unless_quiet(hue_table: Option<toml::Table>, exit_code: &str, now_secs: Option<u64>) {
+fn fire_pulse_unless_quiet(hue_table: Option<toml::Table>, exit_code: &str) {
     // No table is nothing to quiet: an operator who never enabled the lights
     // gets the same silence `fire_pulse` would have given them.
     let Some(settings) = hue_table else {
@@ -884,9 +880,14 @@ fn fire_pulse_unless_quiet(hue_table: Option<toml::Table>, exit_code: &str, now_
             return;
         }
     };
+    // FRESH, not the run's start: the legs above dial the network under their
+    // own deadlines, so a run can cross into the window between starting and
+    // reaching the moment a room would actually light, and the older reading
+    // would flash it just inside quiet hours. HONEST LIMIT: no suite pins the
+    // freshness, because a test's clock does not advance mid-run.
     if !quiet_now(
         window.as_ref(),
-        now_secs.and_then(local_minutes_since_midnight),
+        now_secs().and_then(local_minutes_since_midnight),
     ) {
         fire_pulse(Some(settings), exit_code);
     }
@@ -1060,7 +1061,10 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// NOTHING IN THIS REPO CALLS IT. The tiers that used to are part of the event
 /// plan now, which is what stopped the tier being decided twice; this stays as
 /// the operator's own command for signalling the lights by hand, and for
-/// checking that a bridge and key in the config actually work.
+/// checking that a bridge and key in the config actually work. It ignores
+/// `hue.quiet_hours` on purpose: the gate lives at the event path's call site
+/// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
+/// inside the window, which is what keeps the window checkable while it is on.
 fn pulse_mode() {
     let home = std::env::var("HOME").unwrap_or_default();
     // FAIL CLOSED, unlike an event. The roster fallback that keeps every
