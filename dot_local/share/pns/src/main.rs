@@ -638,8 +638,7 @@ fn system_probes() -> SystemProbes<SystemCommandRunner> {
 /// stops waiting, which is fine: it holds a pipe and a copy of the payload,
 /// and the process is on its way out.
 fn spawn_moshi_hook(subcommand: &str, payload_json: &str) -> Option<std::process::Child> {
-    let moshi = std::env::var("MOSHI_HOOK_BIN")
-        .unwrap_or_else(|_| "/opt/homebrew/bin/moshi-hook".to_string());
+    let moshi = moshi_hook_bin();
     let mut child = Command::new(&moshi)
         .arg(subcommand)
         .stdin(Stdio::piped())
@@ -655,6 +654,22 @@ fn spawn_moshi_hook(subcommand: &str, payload_json: &str) -> Option<std::process
     }
     Some(child)
 }
+
+/// Where the moshi-hook binary is, asked ONE WAY for every caller.
+///
+/// Two spellings of "where is moshi-hook" is exactly the duplicated rule this
+/// crate keeps being bitten by: the day one of them learns a second lookup the
+/// other keeps answering the old address, and the two disagree silently. It is
+/// also the seam every test drives the binary through, which is what makes a
+/// caller stubbable at all.
+fn moshi_hook_bin() -> String {
+    std::env::var("MOSHI_HOOK_BIN").unwrap_or_else(|_| DEFAULT_MOSHI_HOOK_BIN.to_string())
+}
+
+/// Homebrew's own prefix, which is where the cask puts it. `MOSHI_HOOK_BIN`
+/// overrides it, and that override is how every test points a caller at a stub
+/// instead of at the operator's own moshi.
+const DEFAULT_MOSHI_HOOK_BIN: &str = "/opt/homebrew/bin/moshi-hook";
 
 /// Become moshi's answer. NO deadline and NO default: this waits on a human,
 /// and the code it returns is their decision.
@@ -1601,17 +1616,87 @@ fn doctor_mode() -> i32 {
         println!("{}", pns::doctor::line(check, outcome));
     }
     println!("{}", pns::doctor::summary(&outcomes));
+    // BETWEEN THE SUMMARY AND THE DECISION SECTION, which is health beside
+    // health and history last: this check can move the exit code and the
+    // decision log explicitly cannot, so the other order would put a gradeable
+    // line below an ungradeable one.
+    let pairing = read_pairing();
+    for line in pns::doctor::pairing_lines(&pairing) {
+        println!("{line}");
+    }
     // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
     // census plus its summary is one complete thought whose line order the
     // suite already pins, and nothing below can disturb it.
     for line in decision_section() {
         println!("{line}");
     }
-    // THE EXIT CODE DOES NOT MOVE. The section above reports HISTORY, not
-    // health: an empty log on a fresh machine is not a failure, and neither is
-    // one nothing could read. The sends alone earn the code.
-    pns::doctor::exit_code(&outcomes)
+    // THE DECISION SECTION DOES NOT MOVE THE EXIT CODE. It reports HISTORY,
+    // not health: an empty log on a fresh machine is not a failure, and
+    // neither is one nothing could read. The pairing IS health and does move
+    // it, which is why it is an argument rather than a second code combined
+    // here: one decision point, decided in one place.
+    pns::doctor::exit_code(&outcomes, &pairing)
 }
+
+/// What moshi-hook says about this host's pairing, in TWO BOUNDED SPAWNS of
+/// one subcommand.
+///
+/// The split is a correctness argument rather than a style one. `status
+/// --json` is local-only, measured at 77ms with the base URL pointed at an
+/// unroutable host, and it carries the pairing fact pns grades. Plain `status`
+/// is the only shape carrying a server verdict and is the only thing the
+/// doctor puts on the network for its own sake. One plain-only call would put
+/// the local fact behind the network, so an outage would read as "pairing
+/// could not be checked" on a machine that could have answered.
+///
+/// `probe` IS NEVER CALLED. Measured on 0.3.3, it answers `running: true` and
+/// `gateway: true` against a HOME holding no pairing at all while its hostId
+/// disappears, so its daemon-side provenance cannot be stated honestly.
+///
+/// A FORWARD RISK, named rather than coded around: every pairing state exits 0
+/// today, so a future moshi that exited non-zero when unpaired would come back
+/// as no answer and be reported as "could not check" while the approval path
+/// is really dead. A future moshi that renamed or dropped the `server:` line
+/// degrades the other way, silently and safely.
+///
+/// THE WORST CASE IS THE TWO DEADLINES ADDED, not the larger of them: the legs
+/// run one after the other, so a moshi-hook wedged on both puts 5s + 8s on a
+/// hand-typed command, measured at 13.07 seconds. Ten seconds is not the
+/// bound and nobody should treat it as one.
+fn read_pairing() -> pns::doctor::PairingReport {
+    let binary = moshi_hook_bin();
+    let mut json = Command::new(&binary);
+    json.args(["status", "--json"]);
+    let json = run_bounded(json, None, moshi_json_deadline());
+    let mut plain = Command::new(&binary);
+    plain.arg("status");
+    let plain = run_bounded(plain, None, moshi_status_deadline());
+    pns::doctor::pairing_report(json.as_deref(), plain.as_deref())
+}
+
+/// How long `moshi-hook status --json` may take.
+///
+/// GENEROUS AGAINST A MEASURED 77ms, and pinned here rather than inherited
+/// from the probe runner's shared window: this leg reaches no network today,
+/// and "today" is exactly why the bound has to be this function's own to state
+/// and a test's own to move.
+fn moshi_json_deadline() -> Duration {
+    env_deadline("PNS_MOSHI_JSON_DEADLINE_MS").unwrap_or(MOSHI_JSON_DEADLINE)
+}
+
+const MOSHI_JSON_DEADLINE: Duration = Duration::from_secs(5);
+
+/// How long plain `moshi-hook status` may take.
+///
+/// IT MUST EXCEED MOSHI'S OWN internal timeout, measured at about 5.1 seconds
+/// against an unroutable base URL. Killing it mid-wait would throw away the
+/// very `unavailable (...)` sentence that explains the delay, which is the one
+/// thing this call is for.
+fn moshi_status_deadline() -> Duration {
+    env_deadline("PNS_MOSHI_STATUS_DEADLINE_MS").unwrap_or(MOSHI_STATUS_DEADLINE)
+}
+
+const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
 
 /// The decision ring, read back and rendered.
 ///
