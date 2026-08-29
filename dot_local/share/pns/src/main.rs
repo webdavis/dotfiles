@@ -184,23 +184,33 @@ fn remember_staleness(episode: Option<&str>) {
         let _ = std::fs::remove_file(&memory);
         return;
     };
-    if let Some(parent) = memory.parent() {
+    // The failure is DROPPED here and nowhere else: see the doc comment.
+    let _ = publish_state_line(&memory, episode);
+}
+
+/// Publish one line to a state file, atomically. The error is returned rather
+/// than swallowed, so each caller states its own fail direction: a background
+/// warning drops it, and a human waiting on a typed command hears about it.
+///
+/// PUBLISHED BY RENAME, the way the turn marker's claim is claimed further
+/// down. A plain write truncates first, so a reader landing between the
+/// truncate and the bytes sees an empty file, which every reader of these
+/// files reads as no state at all. The pending path sits in the SAME
+/// directory, because a rename across filesystems is not one, and it carries
+/// this process's id so two runs publishing at once cannot share one.
+fn publish_state_line(path: &Path, line: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    // PUBLISHED BY RENAME, the way the turn marker's claim is claimed twenty
-    // lines up. A plain write truncates first, so a reader landing between
-    // the truncate and the bytes sees an empty file, which `remembered_
-    // staleness` reads as no episode at all. The pending path sits in the
-    // SAME directory, because a rename across filesystems is not one.
-    let pending = memory.with_extension(format!("new.{}", std::process::id()));
-    if std::fs::write(&pending, format!("{episode}\n")).is_err() {
-        return;
-    }
-    if std::fs::rename(&pending, &memory).is_err() {
-        // Still fail-quiet, and nothing half-written left in the state
-        // directory for the next run to trip over.
+    let pending = path.with_extension(format!("new.{}", std::process::id()));
+    std::fs::write(&pending, format!("{line}\n"))?;
+    if let Err(error) = std::fs::rename(&pending, path) {
+        // Nothing half-written is left in the state directory for the next
+        // run to trip over.
         let _ = std::fs::remove_file(&pending);
+        return Err(error);
     }
+    Ok(())
 }
 
 /// One line, holding the episode the operator has already been warned about,
