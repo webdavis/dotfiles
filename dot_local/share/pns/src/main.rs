@@ -124,7 +124,19 @@ fn hook_mode(event: &str) -> i32 {
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
         "blocked" => return blocking_event(&payload, &agent, &payload_json),
-        "asked" | "plan-ready" => run_event(
+        // THE MID-TURN NOTIFICATIONS, which is what makes one arm right for
+        // all three. Each reports something that happened INSIDE a turn that
+        // is still running, so none of them touches the turn marker: the clock
+        // belongs to the Stop or the StopFailure that ends the turn, and
+        // restarting it here would make a long turn report itself short and
+        // lose the tier it earned. None of them forwards to moshi either:
+        // `asked` and `plan-ready` are answered at the pane the harness is
+        // already holding open, and a denial is a decision the harness has
+        // ALREADY taken, so a card offering Allow and Deny would be answering
+        // a closed question no prompt is listening to. `denied` states no
+        // message of its own, so its detail resolves through `parse_payload`'s
+        // existing chain to the tool request.
+        "asked" | "plan-ready" | "denied" => run_event(
             &pns::args::EventArgs {
                 agent,
                 state: event.to_string(),
