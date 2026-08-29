@@ -3473,6 +3473,84 @@ fn an_away_event_delivers_no_replay_and_leaves_the_journal_byte_identical() {
     );
 }
 
+/// The three dispatched channels with the catch-up card switched off, which
+/// is the only `[recap]` key PR 1 reads.
+fn card_switched_off() -> String {
+    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\nreplay_card = false\n")
+}
+
+#[test]
+fn a_switched_off_replay_card_delivers_no_catch_up_and_leaves_the_journal_whole() {
+    // THE SWITCH GOES IN FRONT OF THE CLAIM, never after it: claiming renames
+    // the journal out of the way, so a return after that point would consume
+    // the queue and deliver nothing, which is worse than either half. The
+    // byte-identical journal is what says the switch is in front, and the
+    // single banner is what says it fired at all.
+    let sandbox = Sandbox::new("replay-card-off");
+    record_every_event(&sandbox);
+    sandbox.write_config(&card_switched_off());
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+
+    let output = run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        1,
+        "the live event alone, with no catch-up riding along: {raised:?}"
+    );
+    assert_eq!(raised[0]["state"], "done", "{raised:?}");
+    // READ AS AN OPTION, because the failure this pins is the journal being
+    // GONE: an `expect` here would report the operating system's words for a
+    // missing file instead of what happened, which is a queue consumed by a
+    // card nobody was sent.
+    assert_eq!(
+        std::fs::read(journal_path(&sandbox)).ok(),
+        Some(before),
+        "the queue was consumed by a card nobody was sent"
+    );
+    // A SETTING IS NOT A COMPLAINT: an operator who switched the card off is
+    // not told about it on every event.
+    assert_eq!(stderr(&output), "", "the switch printed something");
+}
+
+#[test]
+fn a_switched_off_replay_card_still_journals_the_misses_it_makes() {
+    // THE JOURNAL ALWAYS RECORDS, and that is structural rather than
+    // remembered: `record_missed` never learns the switch exists. Putting the
+    // switch there instead would empty the queue behind the card, so
+    // switching the card back on would have nothing to deliver.
+    //
+    // GUARD. It was already green before the switch existed and it stays
+    // green for as long as the switch stays out of the write site, so its
+    // teeth are the mutation that moves the gate INTO `record_missed`: that
+    // is the change this is here to turn red.
+    let sandbox = Sandbox::new("replay-card-off-journals");
+    record_every_event(&sandbox);
+    sandbox.write_config(&card_switched_off());
+
+    // AWAY CARDS THE PHONE, so this one was perceived and journals nothing.
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "away"]));
+    assert!(
+        journal(&sandbox).is_empty(),
+        "a delivered event journaled itself: {:?}",
+        journal(&sandbox)
+    );
+
+    // A MUTE ZEROES THE PLAN, which is a miss by every reading.
+    mute(&sandbox);
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "muted"]));
+
+    let waiting = journal(&sandbox);
+    assert_eq!(waiting.len(), 1, "the miss was recorded: {waiting:?}");
+    assert_eq!(
+        field(&waiting[0], "detail"),
+        "muted",
+        "and it is the missed event's: {waiting:?}"
+    );
+}
+
 #[test]
 fn a_muted_event_queues_its_own_miss_and_replays_nothing() {
     // THE MUTE IS FREE, and it is exactly what the operator asked for: a mute

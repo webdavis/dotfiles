@@ -6,6 +6,11 @@
 //! free-form here: this layer proves the shape, the registry interprets the
 //! contents, and neither knows the other's plugin names.
 //!
+//! `[recap]` is the one top-level table that is not a plugin, and the second
+//! key admitted here: three booleans THIS layer reads itself. Because it reads
+//! them, it can judge them, so an unknown key inside it is refused rather than
+//! passed along the way a plugin's settings are.
+//!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config, because a typo that turns every
 //! notification off must not pass quietly; a MISSING file is its own honest
@@ -25,10 +30,39 @@ pub struct PluginEntry {
     pub settings: toml::Table,
 }
 
+/// The recap's three independent delivery switches.
+///
+/// ABSENT IS ALL ON, which is what makes the table optional: a machine that
+/// never writes one behaves exactly as it did before the table existed. Each
+/// boolean gates ONLY its own delivery, so recap-only and card-only are both
+/// valid configurations and neither implies the other.
+///
+/// THE DEFAULT IS WRITTEN OUT rather than derived. `#[derive(Default)]` reads
+/// a bool as false, which would take every delivery away from every machine
+/// whose config was written before this table existed, and it would do it
+/// silently.
+#[derive(Debug, PartialEq)]
+pub struct Recap {
+    pub replay_card: bool,
+    pub digest: bool,
+    pub digest_as_thread: bool,
+}
+
+impl Default for Recap {
+    fn default() -> Self {
+        Recap {
+            replay_card: true,
+            digest: true,
+            digest_as_thread: true,
+        }
+    }
+}
+
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
 #[derive(Debug, PartialEq, Default)]
 pub struct Config {
     pub plugins: BTreeMap<String, PluginEntry>,
+    pub recap: Recap,
 }
 
 /// Why a config could not be used. Every variant carries the offender by
@@ -85,39 +119,77 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     })?;
 
     let mut config = Config::default();
+    // TWO ADMITTED KEYS AND NO MORE. The arm below is the whole schema at this
+    // level, and everything that is not one of the two is still refused BY
+    // NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
-        if key != "plugins" {
-            return Err(ConfigError::Invalid(format!(
-                "unknown top-level key `{key}`"
-            )));
-        }
-        let toml::Value::Table(plugins) = value else {
-            return Err(ConfigError::Invalid("`plugins` is not a table".to_string()));
-        };
+        match key.as_str() {
+            "recap" => config.recap = parse_recap(value)?,
+            "plugins" => {
+                let toml::Value::Table(plugins) = value else {
+                    return Err(ConfigError::Invalid("`plugins` is not a table".to_string()));
+                };
 
-        for (name, entry) in plugins {
-            let toml::Value::Table(mut settings) = entry else {
-                return Err(ConfigError::Invalid(format!(
-                    "plugin `{name}` is not a table"
-                )));
-            };
-            // `enabled` is removed rather than read, so the flag reaches this
-            // layer and everything left over reaches the plugin untouched.
-            let enabled = match settings.remove("enabled") {
-                None => false,
-                Some(toml::Value::Boolean(flag)) => flag,
-                Some(_) => {
-                    return Err(ConfigError::Invalid(format!(
-                        "plugin `{name}` has a non-boolean `enabled`"
-                    )));
+                for (name, entry) in plugins {
+                    let toml::Value::Table(mut settings) = entry else {
+                        return Err(ConfigError::Invalid(format!(
+                            "plugin `{name}` is not a table"
+                        )));
+                    };
+                    // `enabled` is removed rather than read, so the flag
+                    // reaches this layer and everything left over reaches the
+                    // plugin untouched.
+                    let enabled = match settings.remove("enabled") {
+                        None => false,
+                        Some(toml::Value::Boolean(flag)) => flag,
+                        Some(_) => {
+                            return Err(ConfigError::Invalid(format!(
+                                "plugin `{name}` has a non-boolean `enabled`"
+                            )));
+                        }
+                    };
+                    config
+                        .plugins
+                        .insert(name, PluginEntry { enabled, settings });
                 }
-            };
-            config
-                .plugins
-                .insert(name, PluginEntry { enabled, settings });
+            }
+            _ => {
+                return Err(ConfigError::Invalid(format!(
+                    "unknown top-level key `{key}`"
+                )));
+            }
         }
     }
     Ok(config)
+}
+
+/// `[recap]`'s switches, each starting at its default and moved only by a key
+/// that states it.
+fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
+    let toml::Value::Table(table) = value else {
+        return Err(ConfigError::Invalid("`recap` is not a table".to_string()));
+    };
+    let mut recap = Recap::default();
+    for (key, setting) in table {
+        let switch = match key.as_str() {
+            "replay_card" => &mut recap.replay_card,
+            "digest" => &mut recap.digest,
+            "digest_as_thread" => &mut recap.digest_as_thread,
+            _ => {
+                return Err(ConfigError::Invalid(format!("unknown `recap` key `{key}`")));
+            }
+        };
+        match setting {
+            toml::Value::Boolean(flag) => *switch = flag,
+            other => {
+                return Err(ConfigError::Invalid(format!(
+                    "`recap` key `{key}` has type `{}`, not boolean",
+                    other.type_str()
+                )));
+            }
+        }
+    }
+    Ok(recap)
 }
 
 /// The IO edge: read the file at `path` and hand its text to the parser.
@@ -278,6 +350,108 @@ mod tests {
             parse_config("not [ toml"),
             Err(ConfigError::Malformed(_))
         ));
+    }
+
+    // --- the recap's switches -----------------------------------------------
+
+    #[test]
+    fn a_recap_table_is_read_rather_than_refused_and_each_switch_stands_alone() {
+        // ONE KEY STATED, THE OTHER TWO UNTOUCHED. The three deliveries are
+        // independent, so an operator who silenced the recap must not find
+        // they also silenced the catch-up card, or the other way round.
+        let config = parse_config("[recap]\ndigest = false\n").unwrap();
+        assert!(!config.recap.digest, "the stated switch was read");
+        assert!(config.recap.replay_card, "the card kept its default");
+        assert!(config.recap.digest_as_thread, "the thread kept its default");
+    }
+
+    #[test]
+    fn a_config_with_no_recap_table_leaves_every_switch_on() {
+        // ABSENT IS ALL ON, which is what makes the table optional: a machine
+        // that never writes one behaves exactly as it did before the table
+        // existed. The direction is STATED rather than derived, because a
+        // derived default is all-off, and that would silently take the
+        // catch-up card away from every machine whose config predates this.
+        let config = parse_config("[plugins.hue]\nenabled = true\n").unwrap();
+        assert!(config.recap.replay_card, "the catch-up card");
+        assert!(config.recap.digest, "the recap");
+        assert!(config.recap.digest_as_thread, "the recap's own thread");
+    }
+
+    #[test]
+    fn a_misspelled_recap_key_is_refused_by_name_rather_than_left_at_its_default() {
+        // UNKNOWN KEYS REFUSE HERE, unlike a plugin's free-form settings, and
+        // the difference is who reads them: a plugin table is handed to a
+        // plugin this layer cannot judge, while this table is read here and
+        // nowhere else. An unjudged key is a typo that leaves the switch ON
+        // while the operator believes they turned it off.
+        let err = parse_config("[recap]\nreplaycard = false\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("replaycard"),
+                "the offender is named: {message}"
+            ),
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_non_boolean_recap_switch_is_refused_naming_the_key() {
+        // `digest = "yes"` read as a switch is the same defect one level down
+        // from a non-boolean `enabled`: the operator asked for something, did
+        // not get it, and was told nothing.
+        let err = parse_config("[recap]\ndigest = \"yes\"\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("digest"),
+                "the offender is named: {message}"
+            ),
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_top_level_key_that_merely_looks_like_recap_is_still_refused_by_name() {
+        // GUARD. Admitting `[recap]` admits ONE more key and nothing else:
+        // the plural typo, newly plausible now that the singular parses, has
+        // to name itself rather than sit there as a table nothing reads. The
+        // retired `[home]` table's test guards the same arm from the other
+        // side, and both must stay green as the arm grows.
+        let err = parse_config("[recaps]\ndigest = false\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("recaps"),
+                "the offender is named: {message}"
+            ),
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_non_table_recap_value_is_refused_naming_the_key() {
+        // `recap = 5` is `plugins = 5` one table over: a value at the key the
+        // switches hang off must refuse, never fall through to the all-on
+        // default and leave the operator believing their file was read.
+        //
+        // THE ARM IS NAMED, not just the key. "unknown top-level key `recap`"
+        // is what comes back when the admitting arm is gone entirely, and it
+        // carries the word `recap` too: an assertion that asked only for the
+        // name would pass for the refusal that says the table is not a
+        // setting at all, which is a different fault with a different fix.
+        let err = parse_config("recap = 5\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => {
+                assert!(
+                    message.contains("recap"),
+                    "the offender is named: {message}"
+                );
+                assert!(
+                    message.contains("is not a table"),
+                    "and it is the non-table arm rather than the unknown-key one: {message}"
+                );
+            }
+            other => panic!("expected Invalid, got {other:?}"),
+        }
     }
 
     // --- the IO edge --------------------------------------------------------
