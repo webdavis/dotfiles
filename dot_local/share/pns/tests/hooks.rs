@@ -452,6 +452,64 @@ fn a_garbage_re_read_knob_still_notifies_and_still_exits_zero() {
     assert_eq!(sandbox.event("hermes")["detail"], "a turn");
 }
 
+#[test]
+fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
+    // THE EXEMPTION IS STRUCTURAL: the forward runs in `blocking_event`, which
+    // builds its own overrides and never constructs a delivery plan, so the
+    // mute cannot reach it. Structural means it can be broken by moving code
+    // rather than by editing a line this feature added, which is what this
+    // pins. A muted operator who blocks on a permission prompt still gets the
+    // card and still answers it; only pns's own duplicate notification about
+    // that block goes quiet.
+    let sandbox = Sandbox::new("hook-blocked-muted");
+    let mut command = with_state_dir(&sandbox);
+    // Away, so the phone is the only way to answer at all.
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let expiry = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+        + 600;
+    let quiet_until = sandbox.path("state/quiet-until");
+    std::fs::write(&quiet_until, format!("{expiry}\n")).expect("the mute");
+
+    let payload = "{\"message\":\"may I\",\"session_id\":\"s1\"}\n";
+    let output = hook_with(command, &sandbox, "blocked", payload);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "the exit code IS the operator's decision, muted or not"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.stdin")).expect("moshi read the payload"),
+        payload,
+        "byte for byte: a consumed-but-not-forwarded stream leaves moshi with an empty parse"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.argv"))
+            .expect("moshi argv")
+            .trim(),
+        "claude-hook"
+    );
+    // The paper trail is written. The ABSENT CARD IS NOT EVIDENCE OF THE MUTE:
+    // the unmuted control produces the same two legs, because the forward's own
+    // skip suppresses pns's phone leg either way. This line pins that no second
+    // card appeared, and nothing about what silenced it; the pins above are
+    // what carry the exemption.
+    assert!(sandbox.fired("hermes"), "the durable log is never muted");
+    assert!(!sandbox.fired("moshi"));
+    assert!(
+        std::fs::read_to_string(&quiet_until)
+            .expect("the mute survives")
+            .trim()
+            == expiry.to_string(),
+        "the mute is untouched by the event it did not suppress"
+    );
+}
+
 /// Stubs live here rather than in the shared harness: only this suite spawns
 /// a condenser or an approval round trip.
 trait HookStubs {

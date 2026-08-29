@@ -22,6 +22,7 @@ pub mod hooks;
 pub mod presence;
 pub mod probes;
 pub mod pulse;
+pub mod quiet;
 pub mod registry;
 pub mod render;
 pub mod routing;
