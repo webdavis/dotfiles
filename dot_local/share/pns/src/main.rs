@@ -8,6 +8,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, Write};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -214,7 +215,23 @@ fn publish_state_line(path: &Path, line: &str) -> std::io::Result<()> {
         let _ = std::fs::create_dir_all(parent);
     }
     let pending = path.with_extension(format!("new.{}", std::process::id()));
-    std::fs::write(&pending, format!("{line}\n"))?;
+    // THE PENDING FILE CARRIES THE MODE, because the rename is what publishes
+    // it: a prune that wrote its replacement at the umask's mode would undo
+    // the one the append created the file with.
+    let mut pending_file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(STATE_FILE_MODE)
+        .open(&pending)?;
+    // AND AGAIN AFTER THE OPEN, because `mode` above applies only when the
+    // open CREATES the file. The pending path carries this process's own id,
+    // so a run interrupted between the open and the rename leaves one for the
+    // next run of that pid to REUSE, and a reused inode keeps whatever mode it
+    // was made with until this narrows it. Set on the open HANDLE rather than
+    // on the path, so nothing can be swapped in underneath between the two.
+    pending_file.set_permissions(std::fs::Permissions::from_mode(STATE_FILE_MODE))?;
+    pending_file.write_all(format!("{line}\n").as_bytes())?;
     if let Err(error) = std::fs::rename(&pending, path) {
         // Nothing half-written is left in the state directory for the next
         // run to trip over.
@@ -235,19 +252,54 @@ fn publish_state_line(path: &Path, line: &str) -> std::io::Result<()> {
 /// output for the rest of this machine's life.
 fn record_decision(record: &pns::decision_log::Record) {
     // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = append_decision(
+    let _ = append_ring_line(
         &state_dir().join(DECISIONS),
         &pns::decision_log::line(record),
+        pns::decision_log::KEPT,
     );
 }
 
-/// The append and the prune behind it.
+/// Journal one event the operator could not have perceived, so a replayer can
+/// find it later. A delivered event writes nothing at all.
+///
+/// ITS OWN FUNCTION rather than a second job inside `record_decision`: the two
+/// records have different reasons to change, and this write is conditional
+/// where the decision's is not.
+///
+/// FAIL-QUIET, in `record_decision`'s exact style and for its exact reason. An
+/// event path whose stdout a harness hook reads must not gain a line about the
+/// state directory, and a journal entry that did not land costs a replay,
+/// never a card.
+///
+/// THE EPOCH IS THE DECISION'S OWN CLOCK READ, taken off the readings it
+/// decided from rather than by a second `SystemTime` call here: two readings
+/// of one moment can disagree.
+fn record_missed(
+    event: &pns::args::EventArgs,
+    decision: &pns::engine::Decision,
+    overrides: &Overrides,
+) {
+    if !pns::missed_notifications::was_missed(decision, overrides) {
+        return;
+    }
+    // The failure is DROPPED here and nowhere else: see the doc comment.
+    let _ = append_ring_line(
+        &state_dir().join(MISSED_NOTIFICATIONS),
+        &pns::missed_notifications::entry(event, decision.inputs.now_secs),
+        pns::missed_notifications::KEPT,
+    );
+}
+
+/// The append and the prune behind it, for ANY of this tool's bounded state
+/// rings. The caller names the file and its own depth; everything below is
+/// one hardening serving every one of them, because a second hand-written
+/// copy of it is how one ring ends up without the FIFO guard.
 ///
 /// WRITTEN BY APPEND, never read-modify-write: an append needs no read, so two
 /// events firing at once (a Stop hook and the long-running notifier are a
 /// normal pair) cannot lose each other's line. The prune only runs when the
-/// file went over the cap, and republishes the last `KEPT` lines through the
-/// same atomic publish every other state file uses.
+/// file went over the caller's cap, and republishes the last `kept` lines
+/// through the same atomic publish every other state file uses.
 ///
 /// NOTHING ABOUT THE FILE IS TRUSTED, because none of it is this tool's word:
 /// the ring is a plain file in a directory an operator, a backup tool or
@@ -265,7 +317,7 @@ fn record_decision(record: &pns::decision_log::Record) {
 /// prune's or a heal's, is lost. It costs ONE RECORD at a rare boundary,
 /// never a card and never a torn file, because the rename is atomic and the
 /// text it publishes is always whole lines.
-fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
+fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -278,7 +330,7 @@ fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
         Ok(_) => {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "the decision ring is not a regular file",
+                "the ring is not a regular file",
             ));
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
@@ -295,26 +347,24 @@ fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
     std::fs::OpenOptions::new()
         .create(true)
         .append(true)
+        .mode(STATE_FILE_MODE)
         .open(path)?
         .write_all(format!("{separator}{line}\n").as_bytes())?;
 
-    let Some(contents) = readable_ring(path) else {
+    let Ok(contents) = readable_ring(path) else {
         // THE HEAL. What could not be read back cannot be pruned either, so
         // leaving it would leave the ring unbounded from here on. The line
         // just written is the part that is known good and known this tool's
         // own, and it is republished alone.
         return publish_state_line(path, line);
     };
-    let kept: Vec<&str> = contents.lines().collect();
-    if kept.len() <= pns::decision_log::KEPT {
+    let entries: Vec<&str> = contents.lines().collect();
+    if entries.len() <= kept {
         return Ok(());
     }
     // Joined with newlines, because the publish writes the one trailing
     // newline back itself.
-    publish_state_line(
-        path,
-        &kept[kept.len() - pns::decision_log::KEPT..].join("\n"),
-    )
+    publish_state_line(path, &entries[entries.len() - kept..].join("\n"))
 }
 
 /// Whether the ring's last byte is anything other than a newline, which is
@@ -336,18 +386,43 @@ fn ends_mid_line(path: &Path) -> std::io::Result<bool> {
     Ok(last[0] != b'\n')
 }
 
-/// The ring read back for the prune, or `None` when it cannot be: too large
-/// to pull into memory, or holding bytes no reader can decode.
+/// One of this tool's state files read back whole, or the reason it was
+/// refused: nothing at the path, something there that is not a regular file,
+/// too large to pull into memory, or bytes no reader can decode.
 ///
-/// THE SIZE IS CHECKED FIRST, because the alternative is learning the file is
-/// enormous by allocating it. The cap is far above anything this writes
-/// (`KEPT` lines of a few hundred bytes) and far below a size worth reading,
-/// so only a file some other hand left here can reach it.
-fn readable_ring(path: &Path) -> Option<String> {
-    if std::fs::metadata(path).ok()?.len() > RING_READ_MAX {
-        return None;
+/// EVERY READER OF THESE FILES GOES THROUGH IT, the prune's read-back and the
+/// doctor's two sections alike, because a raw `read_to_string` on a path an
+/// operator, a backup tool or another program can reach is the same two bugs
+/// wherever it is written. A FIFO parks the open forever, for READING as much
+/// as for writing, which wedges the hook that appended or the command a human
+/// is waiting on. A file some other hand grew to gigabytes is otherwise
+/// learned about by allocating it.
+///
+/// `symlink_metadata`, so the link itself is judged rather than whatever it
+/// points at, matching the append's own refusal a few lines up. The SIZE IS
+/// CHECKED FIRST for the reason above; the cap is far above anything this
+/// writes (`KEPT` lines of a few hundred bytes) and far below a size worth
+/// reading, so only a file some other hand left here can reach it.
+///
+/// THE REFUSALS ARE `io::Error`s rather than an absence, so a caller that has
+/// to tell "there is no file" from "the file could not be read" still can:
+/// the doctor says a different sentence for each, and the prune heals on
+/// either.
+fn readable_ring(path: &Path) -> std::io::Result<String> {
+    let found = std::fs::symlink_metadata(path)?;
+    if !found.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the state file is not a regular file",
+        ));
     }
-    std::fs::read_to_string(path).ok()
+    if found.len() > RING_READ_MAX {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::FileTooLarge,
+            "the state file is larger than this reads",
+        ));
+    }
+    std::fs::read_to_string(path)
 }
 
 /// The most of the ring that is ever read into memory.
@@ -357,6 +432,25 @@ const RING_READ_MAX: u64 = 256 * 1024;
 /// and `home-staleness`. NOT a log stream and not rotate-logs' business: it is
 /// bounded state that prunes itself.
 const DECISIONS: &str = "decisions";
+
+/// The missed-notification journal: one JSON object per line, oldest first,
+/// `missed_notifications::KEPT` deep, beside `decisions` and `quiet-until`.
+/// Bounded state that prunes itself, not a log stream and not rotate-logs'
+/// business.
+const MISSED_NOTIFICATIONS: &str = "missed-notifications";
+
+/// The mode every file this tool creates in its state directory is born with.
+///
+/// ONE RULE FOR THE DIRECTORY'S CONTENTS rather than a knob for one caller:
+/// none of them has a reason to be world-readable, and the journal holds the
+/// operator's own text. ACCEPTED LIMIT: an APPEND applies it at create, so a
+/// ring an earlier build already left on disk keeps its umask mode until it is
+/// next created, and nothing chmods a file it found there, in keeping with the
+/// ring's refuse-rather-than-repair stance. THE PUBLISH IS THE ONE PLACE THAT
+/// CHMODS, and it is not that case: the pending file it narrows is its own,
+/// named for this process, and the rename is about to publish that file's mode
+/// over the state file.
+const STATE_FILE_MODE: u32 = 0o600;
 
 /// One line, holding the episode the operator has already been warned about,
 /// absent when a HOME reading showed no staleness. NO SESSION ID: one config
@@ -931,6 +1025,11 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         overrides: &overrides,
         legs: &outcomes,
     });
+    // THE JOURNAL GOES WITH IT, inheriting the ordering contract stated above
+    // rather than restating it: same site, same accepted price, and both
+    // branches reach it, including the empty-plan branch, which is where most
+    // misses live.
+    record_missed(event, &decision, &overrides);
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
     // on. It is part of the PLAN rather than a second invocation (the shell
@@ -1630,6 +1729,10 @@ fn doctor_mode() -> i32 {
     for line in decision_section() {
         println!("{line}");
     }
+    // HISTORY BELOW HISTORY, and last for the reason the decision section is
+    // second to last: an unreplayed journal is not a failure, so it sits under
+    // the one section that already cannot move the exit code.
+    println!("{}", missed_line());
     // THE DECISION SECTION DOES NOT MOVE THE EXIT CODE. It reports HISTORY,
     // not health: an empty log on a fresh machine is not a failure, and
     // neither is one nothing could read. The pairing IS health and does move
@@ -1704,7 +1807,7 @@ const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
 /// operator came to read out of the ring by the act of going to look at it.
 fn decision_section() -> Vec<String> {
     let now = now_secs();
-    match std::fs::read_to_string(state_dir().join(DECISIONS)) {
+    match readable_ring(&state_dir().join(DECISIONS)) {
         Ok(contents) => pns::decision_log::section(Some(&contents), now),
         // ABSENT IS ITS OWN STATE, and the one the section has an honest line
         // for. Anything else is a directory or a permission problem, which is
@@ -1720,6 +1823,32 @@ fn decision_section() -> Vec<String> {
 /// module, for the reason `NO_HUE_BRIDGE_LINE` is: the sentence needs
 /// something only the reader of the file knows.
 const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be read";
+
+/// The missed-notification journal, COUNTED and never rendered.
+///
+/// READ AND NEVER APPENDED, for the reason the decision section is: a doctor
+/// that journaled would file a miss for the act of going to look for one, and
+/// its own test send is the last event anything should ever replay.
+///
+/// NOTHING HERE PARSES AN ENTRY. The contents go straight to `waiting_line`,
+/// which counts lines and has no parse at all, so the operator's own text has
+/// no path from this file to a terminal.
+fn missed_line() -> String {
+    match readable_ring(&state_dir().join(MISSED_NOTIFICATIONS)) {
+        Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents)),
+        // ABSENT IS ITS OWN STATE, and the one the line has an honest sentence
+        // for. Anything else is a directory or a permission problem, which is
+        // a different thing to say.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            pns::missed_notifications::waiting_line(None)
+        }
+        Err(error) => format!("{MISSED_UNREADABLE} ({}).", error.kind()),
+    }
+}
+
+/// A journal that is there and cannot be read. Said HERE rather than in the
+/// module, for the reason `DECISIONS_UNREADABLE` is.
+const MISSED_UNREADABLE: &str = "pns doctor: the missed-notification journal could not be read";
 
 /// What a doctor typed wrong is told. ONE WORD AND NO FLAGS: a namespace built
 /// for callers that do not exist makes the common case longer to type, and the
@@ -1937,8 +2066,10 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        reread_attempts_from, reread_interval_from, resolve_path,
+        STATE_FILE_MODE, publish_state_line, reread_attempts_from, reread_interval_from,
+        resolve_path,
     };
+    use std::os::unix::fs::PermissionsExt;
     use std::time::Duration;
 
     #[test]
@@ -1989,6 +2120,51 @@ mod tests {
         assert_eq!(reread_attempts_from(Some("2")), 2);
         assert_eq!(reread_attempts_from(Some("0")), 0);
         assert_eq!(reread_attempts_from(None), DEFAULT_REREAD_ATTEMPTS);
+    }
+
+    /// A published state file's mode, which is the only thing the test below
+    /// grades.
+    fn published_mode(path: &std::path::Path) -> u32 {
+        std::fs::metadata(path)
+            .expect("the published file")
+            .permissions()
+            .mode()
+            & 0o777
+    }
+
+    #[test]
+    fn a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it() {
+        // MEASURED: `OpenOptions::mode` applies only when the open CREATES the
+        // file, so a pending inode an earlier run left at the umask's mode
+        // keeps it, and the rename is what publishes that mode OVER the state
+        // file. The pending path carries this process's own id, which is
+        // exactly what makes a run interrupted between the open and the rename
+        // leave one for the next run of the same pid to reuse.
+        let directory =
+            std::env::temp_dir().join(format!("pns-publish-mode-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("the scratch directory");
+        let published = directory.join("missed-notifications");
+        let pending = published.with_extension(format!("new.{}", std::process::id()));
+        std::fs::write(&pending, "an interrupted run\n").expect("the pending file");
+        // STATED RATHER THAN INHERITED from the umask, so the fixture is the
+        // same wide mode on every machine and on a rerun that found its own
+        // leftovers.
+        std::fs::set_permissions(&pending, std::fs::Permissions::from_mode(0o644))
+            .expect("the wide mode");
+
+        publish_state_line(&published, "one line").expect("the publish");
+
+        // THE PUBLISH REALLY RAN, asserted before the mode: a file left from an
+        // earlier run already at 0600 would pass the mode assertion alone.
+        assert_eq!(
+            std::fs::read_to_string(&published).expect("the published file"),
+            "one line\n"
+        );
+        assert_eq!(
+            published_mode(&published),
+            STATE_FILE_MODE,
+            "the reused pending inode published its own wide mode"
+        );
     }
 
     #[test]
