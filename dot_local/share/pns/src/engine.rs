@@ -1085,7 +1085,14 @@ mod tests {
                     legs.iter()
                         .map(|name| Leg {
                             name,
-                            mode: ReportMode::Silent
+                            mode: ReportMode::Silent,
+                            // THE THREE-CHANNEL ROSTER, STATED: hermes is the
+                            // durable log and shows the operator nothing;
+                            // moshi is the phone and macos-banner this
+                            // screen, and both do. A plan that mislabelled
+                            // one fails here as well as in routing's own
+                            // tests, which is the point of stating it.
+                            decorative: *name != "hermes",
                         })
                         .collect::<Vec<Leg>>(),
                     pulse,

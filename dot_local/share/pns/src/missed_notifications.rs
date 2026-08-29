@@ -220,6 +220,14 @@ pub fn entries(contents: &str) -> Vec<Entry> {
 /// leaving the cut to `preview`, so the operator is told how many are behind
 /// the ones they can read; the full text of every entry already reached the
 /// durable log when it happened.
+///
+/// THE NEWEST ENTRY GOES IN WHATEVER ITS LENGTH, and only the ones behind it
+/// have to fit. MEASURED: a single missed notification with a 209-character
+/// detail took the body one character past the cap, so the loop stopped
+/// before appending anything and the card read "1 missed notification" with
+/// no content at all, which is precisely the notification it exists to
+/// deliver. The cut for that one entry is `render::preview`'s, on the way
+/// out, which is where every other over-long body is already cut.
 pub fn summary(waiting: &[Entry]) -> String {
     let mut body = match waiting.len() {
         1 => "1 missed notification".to_string(),
@@ -232,7 +240,11 @@ pub fn summary(waiting: &[Entry]) -> String {
         // stand in for how many were shown: the entries left out are the
         // oldest, and a body that skipped a long one to reach an older short
         // one would read as though the newest were missing.
-        if extended.chars().count() > crate::render::PREVIEW_MAX_CHARS {
+        //
+        // AND NEVER BEFORE THE FIRST ONE. `shown == 0` is the newest entry
+        // with nothing appended yet, and stopping there leaves the count
+        // standing alone as the whole card.
+        if shown > 0 && extended.chars().count() > crate::render::PREVIEW_MAX_CHARS {
             break;
         }
         body = extended;
@@ -291,12 +303,17 @@ fn capped(text: &str) -> String {
 /// so over a long absence the file under-reports what was truly missed, and no
 /// line here claims a number the file cannot back.
 ///
-/// IT NAMES WHAT DELIVERS THEM, which is a promise the binary keeps. The
-/// sentence used to end "nothing replays them yet", and the replay made that
-/// false the moment it shipped; what it says instead is the condition the
-/// operator can act on, since an event they are present for is what flushes
-/// the queue. The zero case says nothing about replaying, because there is
-/// nothing waiting to promise anything about.
+/// IT NAMES WHAT DELIVERS THEM, which is a promise the binary keeps, and it
+/// names it EXACTLY. The sentence used to end "nothing replays them yet",
+/// which the replay made false the moment it shipped, and then "the next
+/// event the operator is present for", which promises more than the binary
+/// does: presence alone delivers nothing. Three things have to be true at
+/// once, and the sentence says all three. The operator is not away; the event
+/// earned a banner or a card (a muted one earns neither, and neither does one
+/// on a pane they are watching); and a leg was there to raise it (a machine
+/// with only a durable channel raises nothing). The zero case says nothing
+/// about replaying, because there is nothing waiting to promise anything
+/// about.
 pub fn waiting_line(contents: Option<&str>) -> String {
     let waiting = contents
         .unwrap_or_default()
@@ -306,12 +323,14 @@ pub fn waiting_line(contents: Option<&str>) -> String {
     match waiting {
         0 => NONE_WAITING.to_string(),
         1 => "pns doctor: 1 missed notification is waiting to be replayed; \
-             the next event the operator is present for delivers it."
+             the next event that raises a banner or a card while the operator \
+             is not away delivers it."
             .to_string(),
         many => {
             format!(
                 "pns doctor: {many} missed notifications are waiting to be replayed; \
-                 the next event the operator is present for delivers them."
+                 the next event that raises a banner or a card while the operator \
+                 is not away delivers them."
             )
         }
     }
@@ -709,6 +728,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn an_entry_whose_keys_arrive_in_another_order_reads_back_the_same() {
+        // HAND-BUILT AND DELIBERATELY NOT FROM `entry`, which is the only way
+        // this says anything at all: `serde_json` writes the keys in one order,
+        // and a reader taking fields by POSITION would agree with every fixture
+        // the writer produced. The file is a plain file another hand can
+        // rewrite, so the reader has to be keyed.
+        let read = entries(
+            "{\"detail\":\"a private summary\",\"branch\":\"main\",\"at\":1756500000,\
+             \"project\":\"dotfiles\",\"state\":\"blocked\",\"agent\":\"claude\"}\n",
+        );
+        assert_eq!(
+            read,
+            vec![Entry {
+                at: Some(1_756_500_000),
+                agent: "claude".to_string(),
+                state: "blocked".to_string(),
+                project: "dotfiles".to_string(),
+                branch: "main".to_string(),
+                detail: "a private summary".to_string(),
+            }]
+        );
+    }
+
     // --- the summary one card carries --------------------------------------
 
     /// The journal as the replay receives it: oldest first, each entry naming
@@ -762,35 +805,112 @@ mod tests {
         );
     }
 
+    /// One entry of a stated length, carrying a phrase no other entry in its
+    /// fixture holds, so an assertion names WHICH entry reached the body.
+    fn sized(phrase: &str, padding: usize) -> Entry {
+        Entry {
+            agent: "claude".to_string(),
+            state: "done".to_string(),
+            detail: format!("{phrase}{}", "x".repeat(padding)),
+            ..Entry::default()
+        }
+    }
+
     #[test]
     fn a_summary_too_long_for_the_card_stops_early_and_still_names_the_true_count() {
         // THE COUNT NEVER LIES EITHER WAY: it is the real number even when the
         // body ran out of room, and the body never runs past what a card
-        // renders without a cut. Each detail here is a quarter of the cap, so
-        // the third one is where the body has to stop.
-        let long: Vec<Entry> = (0..4)
-            .map(|which| Entry {
-                agent: "claude".to_string(),
-                state: "done".to_string(),
-                detail: format!("{which}").repeat(crate::render::PREVIEW_MAX_CHARS / 4),
-                ..Entry::default()
-            })
-            .collect();
-        let body = summary(&long);
+        // renders without a cut.
+        //
+        // THE TWO NEWEST ARE LONG AND THE TWO OLDEST SHORT, which is what makes
+        // STOPPING distinguishable from SKIPPING at all. Four entries of ONE
+        // length cannot tell the two apart: what does not fit for the newest
+        // does not fit for an older one either, so a build that skipped and
+        // carried on would render exactly the same body. With a short entry
+        // waiting behind a long one, skipping reaches it and prints the oldest
+        // news as though the newest were missing.
+        let cap = crate::render::PREVIEW_MAX_CHARS;
+        let waiting = [
+            sized("the oldest short one", 0),
+            sized("the second short one", 0),
+            sized("the older long one", cap / 2),
+            sized("the newest long one", cap / 2),
+        ];
+        let body = summary(&waiting);
         assert!(
             body.starts_with("4 missed notifications. "),
             "the true count leads: {body}"
         );
         assert!(
-            body.chars().count() <= crate::render::PREVIEW_MAX_CHARS,
+            body.chars().count() <= cap,
             "the body is inside what a card renders whole: {} chars",
             body.chars().count()
         );
-        // NEWEST FIRST AND CONTIGUOUS: the two newest fit, the two oldest are
-        // represented by the count alone.
-        assert_eq!(body.matches("claude · done").count(), 2, "{body}");
-        assert!(body.contains('3') && body.contains('2'), "{body}");
-        assert!(!body.contains('1') && !body.contains('0'), "{body}");
+        assert!(
+            body.contains("the newest long one"),
+            "the newest entry is what the body spends its room on: {body}"
+        );
+        // AND NOTHING BEHIND THE ONE THAT DID NOT FIT, which is the assertion a
+        // `continue` in place of the `break` fails: it would reach past the
+        // older long entry to both short ones.
+        for skipped in [
+            "the older long one",
+            "the second short one",
+            "the oldest short one",
+        ] {
+            assert!(
+                !body.contains(skipped),
+                "{skipped} rode past the stop: {body}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_single_entry_past_the_cap_is_still_delivered_rather_than_becoming_a_bare_count() {
+        // MEASURED ON THE SHIPPED BUILD: a 209-character detail put the body
+        // one character past the cap, the loop broke before appending
+        // anything, and the whole card read "1 missed notification" with no
+        // content at all. The one notification the operator missed is exactly
+        // what a card is for, so the newest entry goes in whatever its length
+        // and `render::preview` takes the cut on the way out, which is the
+        // existing, tested path.
+        //
+        // THE TWO FIXTURES STRADDLE THE CAP BY ONE, and each asserts where it
+        // landed rather than trusting a length: 208 characters of detail is the
+        // last that fits whole, 209 the first that does not. A cap that moves
+        // fails these two lines and names the new number.
+        //
+        // THE MEASURED SHAPE, card and all: a title of `claude, blocked,
+        // dotfiles` is what puts the boundary at 208 characters of detail.
+        let carded = |detail: usize| Entry {
+            agent: "claude".to_string(),
+            state: "blocked".to_string(),
+            project: "dotfiles".to_string(),
+            detail: "x".repeat(detail),
+            ..Entry::default()
+        };
+        let cap = crate::render::PREVIEW_MAX_CHARS;
+        let fits = summary(&[carded(208)]);
+        assert_eq!(
+            fits.chars().count(),
+            cap,
+            "the fixture has to land ON the cap: {fits}"
+        );
+        assert!(fits.contains(&"x".repeat(208)), "{fits}");
+        let over = summary(&[carded(209)]);
+        assert_eq!(
+            over.chars().count(),
+            cap + 1,
+            "the fixture has to land one PAST the cap: {over}"
+        );
+        assert!(
+            over.starts_with("1 missed notification. "),
+            "the count still leads: {over}"
+        );
+        assert!(
+            over.contains(&"x".repeat(209)),
+            "the only entry there was never reached the card: {over}"
+        );
     }
 
     // --- the doctor's one line ---------------------------------------------
@@ -821,12 +941,14 @@ mod tests {
         assert_eq!(
             waiting_line(Some(&journal(3))),
             "pns doctor: 3 missed notifications are waiting to be replayed; \
-             the next event the operator is present for delivers them."
+             the next event that raises a banner or a card while the operator \
+             is not away delivers them."
         );
         assert_eq!(
             waiting_line(Some(&journal(1))),
             "pns doctor: 1 missed notification is waiting to be replayed; \
-             the next event the operator is present for delivers it."
+             the next event that raises a banner or a card while the operator \
+             is not away delivers it."
         );
     }
 
