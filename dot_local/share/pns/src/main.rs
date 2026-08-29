@@ -638,8 +638,7 @@ fn system_probes() -> SystemProbes<SystemCommandRunner> {
 /// stops waiting, which is fine: it holds a pipe and a copy of the payload,
 /// and the process is on its way out.
 fn spawn_moshi_hook(subcommand: &str, payload_json: &str) -> Option<std::process::Child> {
-    let moshi = std::env::var("MOSHI_HOOK_BIN")
-        .unwrap_or_else(|_| "/opt/homebrew/bin/moshi-hook".to_string());
+    let moshi = moshi_hook_bin();
     let mut child = Command::new(&moshi)
         .arg(subcommand)
         .stdin(Stdio::piped())
@@ -655,6 +654,22 @@ fn spawn_moshi_hook(subcommand: &str, payload_json: &str) -> Option<std::process
     }
     Some(child)
 }
+
+/// Where the moshi-hook binary is, asked ONE WAY for every caller.
+///
+/// Two spellings of "where is moshi-hook" is exactly the duplicated rule this
+/// crate keeps being bitten by: the day one of them learns a second lookup the
+/// other keeps answering the old address, and the two disagree silently. It is
+/// also the seam every test drives the binary through, which is what makes a
+/// caller stubbable at all.
+fn moshi_hook_bin() -> String {
+    std::env::var("MOSHI_HOOK_BIN").unwrap_or_else(|_| DEFAULT_MOSHI_HOOK_BIN.to_string())
+}
+
+/// Homebrew's own prefix, which is where the cask puts it. `MOSHI_HOOK_BIN`
+/// overrides it, and that override is how every test points a caller at a stub
+/// instead of at the operator's own moshi.
+const DEFAULT_MOSHI_HOOK_BIN: &str = "/opt/homebrew/bin/moshi-hook";
 
 /// Become moshi's answer. NO deadline and NO default: this waits on a human,
 /// and the code it returns is their decision.
