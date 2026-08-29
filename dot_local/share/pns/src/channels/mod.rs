@@ -59,20 +59,49 @@ impl Event {
 /// path: this exists so the one caller decides whether a line reaches the
 /// operator, instead of each channel deciding for itself and only one of them
 /// having an opinion.
+///
+/// THE VERDICT IS THE VARIANT, never a word inside the sentence. A caller that
+/// had to find "FAILED" in the text to learn whether a destination received
+/// anything would be a predicate keyed on English, and one of those has already
+/// cost this repo a defect.
+///
+/// THE SENTENCE CARRIES NO `pns: ` PREFIX. It is added by the one place that
+/// prints, so a caller that labels a line with the plugin's name does not have
+/// to unpick a prefix out of the middle of its own.
 #[derive(Debug, PartialEq)]
 pub enum Delivery {
     /// Nothing worth saying, which is almost always the case.
     Silent,
-    /// One operator-facing line, printed only when the leg reports.
-    Reported(String),
+    /// It arrived, and this is what the destination said about it.
+    Delivered(String),
+    /// It did not, and this is what the destination said about that.
+    Failed(String),
+    /// It was never even LAUNCHED, and this says which channel and why. An
+    /// executable channel that ran and said nothing is `Silent`; a spawn that
+    /// never happened delivered nothing at all, and a caller that cannot tell
+    /// the two apart calls an empty channels directory a set of successful
+    /// sends, which is exactly what a hand-run check did before this variant
+    /// existed.
+    ///
+    /// STILL SILENT ON THE NOTIFICATION PATH, in both report modes: the common
+    /// case is a channel nobody installed, and saying so on every event is the
+    /// noise the silence was for.
+    Unlaunched(String),
 }
 
 impl Delivery {
     /// The line to print for this leg, or None. REPORT MODE IS THE CALLER'S
     /// to know: a channel says what happened, never whether anyone hears it.
+    /// BOTH verdicts are printed on a reporting leg, because a failure is
+    /// exactly the outcome the log path exists to make visible.
     pub fn line_for(self, mode: ReportMode) -> Option<String> {
         match self {
-            Delivery::Reported(line) if mode == ReportMode::ReportOutcome => Some(line),
+            Delivery::Delivered(line) | Delivery::Failed(line)
+                if mode == ReportMode::ReportOutcome =>
+            {
+                Some(line)
+            }
+            // Silent, Unlaunched, and either verdict on a leg nobody reads.
             _ => None,
         }
     }
@@ -112,21 +141,41 @@ mod tests {
     }
 
     #[test]
-    fn only_a_reported_delivery_on_a_reporting_leg_reaches_the_operator() {
+    fn either_verdict_reaches_the_operator_on_a_reporting_leg_and_nothing_does_otherwise() {
         // The whole policy, in one place: an async leg says nothing however
         // much the channel had to say, and a silent channel says nothing
-        // however the leg reports.
+        // however the leg reports. The verdict never decides who hears it,
+        // only the mode does, so a failure is as printable as a success.
         assert_eq!(
-            Delivery::Reported("pns: posted HTTP 200".to_string())
-                .line_for(ReportMode::ReportOutcome),
-            Some("pns: posted HTTP 200".to_string())
+            Delivery::Delivered("posted HTTP 200".to_string()).line_for(ReportMode::ReportOutcome),
+            Some("posted HTTP 200".to_string())
         );
         assert_eq!(
-            Delivery::Reported("pns: posted HTTP 200".to_string()).line_for(ReportMode::Silent),
+            Delivery::Failed("post FAILED HTTP 401".to_string())
+                .line_for(ReportMode::ReportOutcome),
+            Some("post FAILED HTTP 401".to_string())
+        );
+        assert_eq!(
+            Delivery::Delivered("posted HTTP 200".to_string()).line_for(ReportMode::Silent),
+            None
+        );
+        assert_eq!(
+            Delivery::Failed("post FAILED HTTP 401".to_string()).line_for(ReportMode::Silent),
             None
         );
         assert_eq!(Delivery::Silent.line_for(ReportMode::ReportOutcome), None);
         assert_eq!(Delivery::Silent.line_for(ReportMode::Silent), None);
+        // AND A CHANNEL THAT NEVER LAUNCHED IS SWALLOWED IN BOTH MODES. It is
+        // the uninstalled-channel case, which has never been news on the
+        // notification path; the hand-run check is the one caller that reads
+        // it, and it reads the variant rather than a printed line.
+        for mode in [ReportMode::ReportOutcome, ReportMode::Silent] {
+            assert_eq!(
+                Delivery::Unlaunched("could not launch the channel".to_string()).line_for(mode),
+                None,
+                "mode: {mode:?}"
+            );
+        }
     }
 
     #[test]

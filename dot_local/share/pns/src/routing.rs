@@ -420,4 +420,44 @@ mod tests {
         assert_eq!(ReportMode::Silent.as_str(), "async");
         assert_eq!(ReportMode::ReportOutcome.as_str(), "sync");
     }
+
+    #[test]
+    fn no_plan_over_the_real_roster_hands_the_phone_or_the_banner_a_reporting_leg() {
+        // THE STRUCTURAL SAFETY ARGUMENT, and the only thing pinning it. moshi
+        // and macos-banner have sentences of their own now, and a REPORTING
+        // leg is the sole path that would put one on an event's stdout:
+        // `ReportOutcome` is produced under `--remote-only` alone, which keeps
+        // durable plugins only, and neither of those two is durable.
+        //
+        // IT IS BROKEN BY A LINE THIS SLICE NEVER TOUCHES. One `durable: true`
+        // in the roster would start printing a moshi sentence on the log path,
+        // so the input here is the REAL roster with everything selected rather
+        // than a fixture that could stay agreeable while the roster moved.
+        let registry = crate::registry::roster();
+        let every_plugin = registry.all();
+        for local_only in [false, true] {
+            for remote_only in [false, true] {
+                for banner in [false, true] {
+                    for card in [false, true] {
+                        let plan = channel_plan(
+                            &every_plugin,
+                            local_only,
+                            remote_only,
+                            reaching(banner, card),
+                        );
+                        for planned in plan {
+                            assert!(
+                                !(matches!(planned.name, "moshi" | "macos-banner")
+                                    && planned.mode == ReportMode::ReportOutcome),
+                                "the plan handed {} a reporting leg with local_only={local_only}, \
+                                 remote_only={remote_only}, banner={banner}, card={card}: its \
+                                 sentence would reach an event's stdout",
+                                planned.name
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

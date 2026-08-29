@@ -218,11 +218,19 @@ fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
 fn an_absent_channel_is_simply_not_installed() {
     let sandbox = Sandbox::new("absent-channel");
     std::fs::remove_file(sandbox.root.join("channels/hermes.sh")).expect("remove the channel");
-    run(sandbox
+    let output = run(sandbox
         .pns()
         .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
     assert!(sandbox.fired("macos-banner"));
+    // AND IT IS STILL A NON-EVENT. hermes runs sync on this path, so a launch
+    // failure that reported itself would print here; the hand-run check is the
+    // only caller that reads one.
+    assert_eq!(
+        stdout(&output),
+        "",
+        "a channel nobody installed is not news on the notification path"
+    );
 }
 
 // --- the attention override -------------------------------------------------
@@ -1728,4 +1736,430 @@ fn a_publish_whose_rename_fails_leaves_no_pending_file_behind() {
         pending.is_empty(),
         "left in the state directory: {pending:?}"
     );
+}
+
+// --- the durable log's printed outcomes -------------------------------------
+
+/// Every hermes outcome an event can reach WITHOUT a live gateway, byte for
+/// byte.
+///
+/// The proof that moving the `pns: ` prefix off the four sentences and onto the
+/// one print site changed nothing an operator reads. `tests/native.rs` pins the
+/// two outcomes that need a gateway to answer (200 and 401) against the capture
+/// server; these are the three that need nothing listening, so between them the
+/// set is complete.
+#[test]
+fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before() {
+    for (case, config, url, expected) in [
+        (
+            "no key in the config",
+            "[plugins.hermes]\nenabled = true\n",
+            "http://127.0.0.1:1/hook",
+            "pns: post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent\n",
+        ),
+        (
+            "a gateway nothing is listening for",
+            "[plugins.hermes]\nenabled = true\nkey = \"k\"\n",
+            "http://127.0.0.1:1/hook",
+            "pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)\n",
+        ),
+        (
+            "a url that is never put on the wire",
+            "[plugins.hermes]\nenabled = true\nkey = \"k\"\n",
+            "http://[::1",
+            "pns: post FAILED (curl reported no HTTP status at all)\n",
+        ),
+    ] {
+        let sandbox = Sandbox::new("hermes-outcome-lines");
+        sandbox.write_config(config);
+        let mut command = sandbox.bare();
+        command.env("PNS_HERMES_URL", url);
+        let output = run(command
+            .args(["--agent", "weekly", "--state", "done", "--detail", "ran"])
+            .arg("--remote-only"));
+        assert_eq!(stdout(&output), expected, "case: {case}");
+    }
+}
+
+// --- the doctor -------------------------------------------------------------
+
+/// The doctor's command, with its state directory inside the sandbox so a mute
+/// can be planted where the engine will read it.
+fn doctor_command(sandbox: &Sandbox) -> std::process::Command {
+    let mut command = sandbox.pns();
+    command.env("PNS_STATE_DIR", sandbox.path("state"));
+    command.arg("doctor");
+    command
+}
+
+/// Every channel an event dispatches, switched on. The sensor and the lights
+/// are deliberately absent: the report has to name them anyway.
+const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.moshi]\nenabled = true\n\
+     [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n";
+
+/// The line the doctor opens with, whatever it goes on to find.
+const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled channel. \
+     Every suppression gate is bypassed (the operator mute, the presence gate, the \
+     viewed-pane rule, the lights' quiet hours), because a check that can be suppressed \
+     proves nothing.";
+
+#[test]
+fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_each_one() {
+    let sandbox = Sandbox::new("doctor-sends");
+    // The sensor is switched ON here and the lights are not, so the one report
+    // carries both skip reasons: a plugin that cannot be a destination, and a
+    // plugin the config declined.
+    sandbox.write_config(&format!(
+        "[plugins.router]\nenabled = true\n{EVERY_DISPATCHED_CHANNEL}"
+    ));
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
+    for channel in ["moshi", "macos-banner", "hermes"] {
+        let event = sandbox.event(channel);
+        assert_eq!(event["agent"], "pns", "channel: {channel}");
+        assert_eq!(event["state"], "doctor", "channel: {channel}");
+        assert_eq!(
+            event["detail"], "test send from pns doctor; nothing is wrong and nothing needs doing",
+            "the payload says at once that nothing is wrong: channel {channel}"
+        );
+        assert_eq!(event["title"], "pns · doctor", "channel: {channel}");
+        assert_eq!(
+            event["pane"], "",
+            "the doctor carries no pane, because no test can watch a click land"
+        );
+        assert_eq!(
+            event["mode"], "sync",
+            "the operator is standing here waiting for the answer: channel {channel}"
+        );
+    }
+    assert!(
+        !stderr(&output).contains("dropped a pane id"),
+        "the doctor hands over no pane, so it has none to scrub: {}",
+        stderr(&output)
+    );
+
+    let reported = stdout(&output);
+    let printed: Vec<&str> = reported.lines().collect();
+    assert_eq!(printed[0], DOCTOR_OPENING);
+    assert_eq!(
+        &printed[1..],
+        [
+            "router: skipped, a sensor and never a delivery destination",
+            "moshi: sent, this channel reports no outcome",
+            "macos-banner: sent, this channel reports no outcome",
+            "hermes: sent, this channel reports no outcome",
+            "hue: skipped, not enabled in the config",
+            "pns doctor: 3 sent, 0 failed, 2 skipped",
+        ],
+        "one line per REGISTERED plugin, in registration order: a report that \
+         walked the selection would answer what is on when the operator asked \
+         what will reach them"
+    );
+}
+
+#[test]
+fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one() {
+    // THE FAILING CHANNEL IS THE FIRST ONE DISPATCHED, which is the whole
+    // point: failing the LAST enabled channel is a scenario a census that
+    // stopped at the first failure would pass unchanged. moshi leads the
+    // delivery order and has no token, the banner behind it still RECEIVES
+    // its payload, and hermes at the tail still gets its turn and says so.
+    //
+    // NATIVE, because a stub channel is silent by design and could never
+    // report a failure: leaving `PNS_CHANNELS_DIR` unset is the only condition
+    // under which the compiled-in plugins win. A config with no secrets is how
+    // both failures are produced end to end, with nothing stubbed to fail on
+    // command.
+    let sandbox = Sandbox::new("doctor-failure");
+    sandbox.write_config(
+        "[plugins.moshi]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n\
+         [plugins.hermes]\nenabled = true\n",
+    );
+    let mut command = sandbox.bare();
+    // Belt and braces: with no key nothing is posted at all, and if that ever
+    // changed this points the post at a port nothing listens on rather than at
+    // the operator's own gateway.
+    command.env("PNS_HERMES_URL", "http://127.0.0.1:1/hook");
+    sandbox.stub_notifier(&mut command);
+    let output = command.arg("doctor").output().expect("the engine runs");
+
+    let printed = stdout(&output);
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    assert!(
+        printed.contains(
+            "moshi: FAILED, push SKIPPED -- no moshi token in the config \
+             ([plugins.moshi] token); nothing was sent"
+        ),
+        "the first channel's own sentence, verbatim: {printed}"
+    );
+    assert!(
+        printed.contains("macos-banner: sent, posted the banner"),
+        "the leg behind the failure still delivered: {printed}"
+    );
+    assert!(
+        sandbox.path("notifier.args").exists(),
+        "and it was handed its payload, not merely reported on"
+    );
+    assert!(
+        printed.contains(
+            "hermes: FAILED, post SKIPPED -- no hermes key in the config \
+             ([plugins.hermes] key); nothing was sent"
+        ),
+        "the last leg still got its turn after an earlier failure: {printed}"
+    );
+    assert!(
+        printed.contains("pns doctor: 1 sent, 2 failed, 2 skipped"),
+        "{printed}"
+    );
+}
+
+#[test]
+fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_made() {
+    // MEASURED before the fix: a channels directory with nothing in it
+    // reported "3 sent, 0 failed" and exited 0, because a spawn that never
+    // happened and a channel that ran and said nothing came back as the same
+    // verdict. Green for a directory holding no channel at all is the one
+    // answer a hand-run check must never give.
+    let sandbox = Sandbox::new("doctor-unlaunchable");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let empty = sandbox.path("empty-channels");
+    std::fs::create_dir_all(&empty).expect("an empty channels dir");
+    let mut command = doctor_command(&sandbox);
+    command.env("PNS_CHANNELS_DIR", &empty);
+    let output = command.output().expect("the engine runs");
+
+    let printed = stdout(&output);
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    for channel in ["moshi", "macos-banner", "hermes"] {
+        assert!(
+            printed.lines().any(|line| line.starts_with(&format!(
+                "{channel}: FAILED, could not launch the channel at"
+            ))),
+            "{channel} was reported as sent by a spawn that never happened: {printed}"
+        );
+    }
+    assert!(
+        printed.contains("pns doctor: 0 sent, 3 failed, 2 skipped"),
+        "the summary has to count what the lines say: {printed}"
+    );
+}
+
+#[test]
+fn the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrides() {
+    // THE BYPASSES THIS RUN CAN OBSERVE. A mute standing, the operator at
+    // their desk, and both phone overrides set: on the event path the mute
+    // strips the decoration, the desk drops the phone and skip-phone drops it
+    // again over the top of force-phone, and here every channel still
+    // receives. Together they are the state someone is in when they stop to
+    // ask whether their channels still work.
+    //
+    // THE VIEWED-PANE RULE IS NOT AMONG THEM, and cannot be: `decide` is never
+    // called on this path, so no pane verdict exists to bypass and this run
+    // cannot tell a bypassed rule from an absent one. The session view is
+    // stubbed as watching the origin pane only so that a live herdr on the
+    // developer's own machine cannot decide the verdict.
+    let sandbox = Sandbox::new("doctor-bypasses-the-gates");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let expiry = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+        + 600;
+    std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
+
+    let mut command = doctor_command(&sandbox);
+    command
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SKIP_PHONE", "1")
+        .env("PNS_FORCE_PHONE", "1");
+    sandbox.stub_herdr(&mut command, true);
+    let output = command.output().expect("the engine runs");
+
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
+    for channel in ["moshi", "macos-banner", "hermes"] {
+        assert!(
+            sandbox.fired(channel),
+            "{channel} was suppressed by a gate the doctor exists to bypass: {}",
+            stdout(&output)
+        );
+    }
+    // AND IT REMEMBERS NOTHING. The doctor reads the config and sends; a run
+    // that left a record behind would be a second reader of the state
+    // directory with no reader of its own.
+    let state: Vec<String> = std::fs::read_dir(sandbox.path("state"))
+        .expect("the state dir")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        state,
+        ["quiet-until"],
+        "the doctor wrote to the state directory"
+    );
+}
+
+#[test]
+fn the_doctor_reaches_the_bridge_inside_the_lights_quiet_window() {
+    // The exemption `pns pulse` already has, for the same reason: gating the
+    // hand-run check would make the window uncheckable exactly while it is on.
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("doctor-quiet-window");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+         quiet_hours = \"{}\"\n",
+        window_around(utc_minute_now(), 120)
+    ));
+    let mut command = sandbox.bare();
+    command.env("TZ", "UTC");
+    let child = command.arg("doctor").spawn().expect("the engine starts");
+    assert!(
+        dialled_within(&listener, std::time::Duration::from_secs(5)),
+        "the operator asked for a check by hand and the lights were not part of it"
+    );
+    assert!(
+        wait_bounded(child, std::time::Duration::from_secs(5)).is_some(),
+        "and it finished rather than parking on the bridge"
+    );
+}
+
+#[test]
+fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
+    // `fire_pulse` answers zero rooms both for a bridge that listed none and
+    // for a hue table that resolves to no bridge at all, and the zero-rooms
+    // line blames the listing or the room names: production-reachable
+    // misdirection, sending the operator hunting through a bridge nothing
+    // dialled. The spy is here to prove nothing dialled it.
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("doctor-hue-unresolved");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\n"
+    ));
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    let printed = stdout(&output);
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    assert!(
+        printed.contains(
+            "hue: FAILED, pulse SKIPPED -- no hue bridge and key in the config \
+             ([plugins.hue] bridge, key); nothing was signalled"
+        ),
+        "the line names the settings to write: {printed}"
+    );
+    assert!(
+        !dialled_within(&listener, SETTLE),
+        "a bridge was dialled for a config that resolves to none"
+    );
+}
+
+#[test]
+fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_choose_between() {
+    // THE MIRROR of the line above, and the reason the zero-rooms sentence
+    // stays: a bridge and key that resolve ARE dialled, and a run that came
+    // back with no room cannot tell an empty listing from a room name nothing
+    // matched. Naming the settings here would send the operator to edit a
+    // config that is already right.
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("doctor-hue-listed-nothing");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n"
+    ));
+    // SPAWNED, not run to completion: the spy has to accept while the engine
+    // is still dialling, or the bridge deadline is what this test waits out.
+    let mut command = doctor_command(&sandbox);
+    command.stdout(std::process::Stdio::piped());
+    let child = command.spawn().expect("the engine starts");
+    assert!(
+        dialled_within(&listener, std::time::Duration::from_secs(5)),
+        "a resolvable bridge was never contacted"
+    );
+    let output = child.wait_with_output().expect("the engine finishes");
+
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    assert!(
+        stdout(&output).contains(
+            "hue: FAILED, signalled no rooms \
+             (no room listing from the bridge, or no configured room name matched)"
+        ),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one() {
+    let sandbox = Sandbox::new("doctor-nothing-enabled");
+    sandbox.write_config("[plugins.moshi]\nenabled = false\n");
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "a check with nothing to check must never report green: {}",
+        stderr(&output)
+    );
+    let reported = stdout(&output);
+    let printed: Vec<&str> = reported.lines().skip(1).collect();
+    assert_eq!(
+        printed,
+        [
+            "router: skipped, not enabled in the config",
+            "moshi: skipped, not enabled in the config",
+            "macos-banner: skipped, not enabled in the config",
+            "hermes: skipped, not enabled in the config",
+            "hue: skipped, not enabled in the config",
+            "pns doctor: 0 sent, 0 failed, 5 skipped",
+        ],
+        "the whole roster is still the report; only a census can say this"
+    );
+    for channel in ["moshi", "macos-banner", "hermes"] {
+        assert!(
+            !sandbox.fired(channel),
+            "{channel} received a payload from a config that enabled nothing"
+        );
+    }
+}
+
+#[test]
+fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel() {
+    // A DOCTOR THAT QUIETLY IGNORED AN ARGUMENT is a check the operator
+    // believes was narrower or wider than it was, which is worse than no check
+    // at all. The empty word is in the set because a shell that expanded a
+    // variable to nothing still typed something.
+    for arguments in [
+        vec!["extra"],
+        vec!["send"],
+        vec!["--dry-run"],
+        vec![""],
+        vec!["send", "hermes"],
+    ] {
+        let sandbox = Sandbox::new("doctor-refusal");
+        sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+        let output = doctor_command(&sandbox)
+            .args(&arguments)
+            .output()
+            .expect("the engine runs");
+
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "arguments: {arguments:?}, stderr: {}",
+            stderr(&output)
+        );
+        assert!(
+            stderr(&output)
+                .lines()
+                .any(|line| line == "pns: usage: pns doctor"),
+            "arguments: {arguments:?}, stderr: {}",
+            stderr(&output)
+        );
+        assert_eq!(stdout(&output), "", "arguments: {arguments:?}");
+        for channel in ["moshi", "macos-banner", "hermes"] {
+            assert!(
+                !sandbox.fired(channel),
+                "{channel} was sent a payload by a refused command: {arguments:?}"
+            );
+        }
+    }
 }

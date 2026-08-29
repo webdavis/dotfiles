@@ -50,6 +50,12 @@ fn main() {
     if first == *"quiet" {
         std::process::exit(quiet_mode());
     }
+    // One test send through every configured channel, and one line per
+    // registered plugin about it. A MODE for the same reason the others are:
+    // it takes no decision, so nothing about an event's plan reaches it.
+    if first == *"doctor" {
+        std::process::exit(doctor_mode());
+    }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
@@ -739,7 +745,23 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
             );
         }
     } else {
-        dispatch_legs(&decision, event, &home, moshi_token, hermes_key);
+        for (leg, delivered) in dispatch_legs(
+            &decision.legs,
+            decision.pane_dropped,
+            event,
+            &home,
+            moshi_token,
+            hermes_key,
+        ) {
+            // THE ONE PLACE a delivery reaches the operator, and the one place
+            // the `pns: ` prefix is written. A channel says WHAT happened; the
+            // leg's mode says whether anyone hears it, and this says how it is
+            // labelled, so a second caller that labels its lines by plugin
+            // name does not have to unpick a prefix out of the middle of one.
+            if let Some(line) = delivered.line_for(leg.mode) {
+                println!("pns: {line}");
+            }
+        }
     }
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
@@ -756,18 +778,28 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     }
 }
 
-/// Every leg to its destination, in the registry's delivery order.
+/// Every leg to its destination, in the registry's delivery order, each
+/// paired with what its channel had to say for itself.
+///
+/// IT RETURNS ITS OUTCOMES RATHER THAN PRINTING THEM. An event prints only what
+/// a reporting leg said; a hand-run check labels every outcome with its
+/// plugin's name and prints the lot. Two callers spelling one report two ways
+/// is exactly what a returned value is for.
+///
+/// THE LEGS AND THE SCRUB ARRIVE AS VALUES, not as a `Decision`: a caller that
+/// took no decision has none to hand over.
 fn dispatch_legs(
-    decision: &pns::engine::Decision,
+    legs: &[pns::routing::Leg],
+    pane_dropped: bool,
     event: &pns::args::EventArgs,
     home: &str,
     moshi_token: Option<String>,
     hermes_key: Option<String>,
-) {
+) -> Vec<(pns::routing::Leg, Delivery)> {
     // Sanitized ONCE here rather than per channel: a channel may be written in
     // any language and cannot be expected to share the guard. Warned about
     // only now, because a scrub nobody was going to receive is not news.
-    let pane = if decision.pane_dropped {
+    let pane = if pane_dropped {
         eprintln!("pns: dropped a pane id with shell metacharacters; no channel will focus a pane");
         ""
     } else {
@@ -786,23 +818,39 @@ fn dispatch_legs(
     let moshi = moshi_channel(moshi_token);
     let hermes = hermes_channel(hermes_key, hermes_url_for(&event.channel));
 
-    for leg in &decision.legs {
-        let delivered = deliver_leg(
-            leg,
-            &rendered,
-            &banner,
-            &moshi,
-            &hermes,
-            native_first(channels_dir_override.is_some()),
-            &channels_dir,
-        );
-        // THE ONE PLACE a delivery reaches the operator. A channel says what
-        // happened; whether anyone hears it is the leg's reporting mode, and
-        // that rule lives here rather than in three channels.
-        if let Some(line) = delivered.line_for(leg.mode) {
-            println!("{line}");
-        }
-    }
+    // NO `?` AND NO EARLY RETURN: one channel's failure costs the others
+    // nothing, and every channel above was constructed before the first
+    // delivery, so a leg cannot be lost to a sibling's refusal.
+    legs.iter()
+        .map(|leg| {
+            // A PANIC IS ONE LEG'S FAILURE, never the run's. Without this an
+            // unwinding channel takes the remaining legs and, in a hand-run
+            // check, the rest of the census with it, and a census that ended
+            // early is read as a report that finished. The default hook still
+            // prints its own trace to stderr, which is left alone: silencing
+            // it process-wide would hide every other panic in the binary.
+            let delivered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                deliver_leg(
+                    leg,
+                    &rendered,
+                    &banner,
+                    &moshi,
+                    &hermes,
+                    native_first(channels_dir_override.is_some()),
+                    &channels_dir,
+                )
+            }))
+            .unwrap_or_else(|_| {
+                // NO PAYLOAD TEXT: a panic message is written for a developer
+                // and may quote anything the channel was holding.
+                Delivery::Failed(format!(
+                    "the {} channel PANICKED; nothing was sent",
+                    leg.name
+                ))
+            });
+            (*leg, delivered)
+        })
+        .collect()
 }
 
 /// Every override the engine reads, out of the process environment.
@@ -917,12 +965,15 @@ fn fire_pulse_unless_quiet(hue_table: Option<toml::Table>, exit_code: &str) {
     }
 }
 
-/// The lights signal, from whichever mode asked for it.
-fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
+/// The lights signal, from whichever mode asked for it, and how many rooms it
+/// reached. Both notification callers discard the count; the hand-run check is
+/// what it exists for, since the bridge acknowledges no write and a room that
+/// was addressed is the last observable fact on this path.
+fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) -> usize {
     let Some(hue) = hue_table.and_then(|settings| {
         hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
     }) else {
-        return;
+        return 0;
     };
     HuePulse {
         bridge: UreqBridge {
@@ -931,7 +982,30 @@ fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
         },
         rooms: hue.rooms,
     }
-    .run(exit_code);
+    .run(exit_code)
+}
+
+/// Whether the config's hue table resolves to a bridge that could be dialled:
+/// the same reading `fire_pulse` takes, taken BEFORE it, so a check can tell a
+/// bridge that listed no room from a config that names no bridge at all.
+fn hue_resolves(hue_table: Option<&toml::Table>) -> bool {
+    hue_table.is_some_and(|settings| {
+        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()).is_some()
+    })
+}
+
+/// The pulse behind the same boundary every leg gets, so a panicking bridge
+/// call costs the census the rest of its lines rather than ending the report
+/// where the operator reads it as complete.
+fn pulse_outcome(hue_table: Option<toml::Table>) -> pns::doctor::Outcome {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| fire_pulse(hue_table, "0"))) {
+        Ok(rooms) => pns::doctor::Outcome::Signalled(rooms),
+        // NO ROOM IS CLAIMED, and no panic text is quoted: the message is
+        // written for a developer and may hold anything the pulse was carrying.
+        Err(_) => {
+            pns::doctor::Outcome::Failed("the pulse PANICKED; no room was signalled".to_string())
+        }
+    }
 }
 
 /// The banner, which now only needs to know where to send the click.
@@ -1061,13 +1135,23 @@ fn executable_in_path(name: &str) -> Option<String> {
 /// executable, or fails is not an error: it is simply not installed, or it
 /// declined, and neither may take down the siblings or the caller.
 ///
-/// SILENT BY DESIGN, and deliberately so now that it says so in the type: the
+/// SILENT ON THE NOTIFICATION PATH whichever verdict it answers with: the
 /// common failure here is a channel nobody installed, and reporting that on
-/// every event would be noise. The status is still dropped; what changed is
-/// that it is dropped in one visible place instead of implicitly.
+/// every event would be noise. THE TWO ARE STILL DIFFERENT VERDICTS. A channel
+/// that ran and said nothing is `Silent`; one that never started is
+/// `Unlaunched`, which prints nowhere an event can see and is what lets a
+/// hand-run check tell a delivery from a spawn that never happened. The exit
+/// status of a channel that DID run is still dropped, because a channel
+/// declining is its own business.
 fn deliver(channel: &Path, event: &str) -> Delivery {
-    let Ok(mut child) = Command::new(channel).stdin(Stdio::piped()).spawn() else {
-        return Delivery::Silent;
+    let mut child = match Command::new(channel).stdin(Stdio::piped()).spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return Delivery::Unlaunched(format!(
+                "could not launch the channel at {} ({error}); nothing was sent",
+                channel.display()
+            ));
+        }
     };
     if let Some(mut stdin) = child.stdin.take() {
         // Newline-terminated, as the bash's `jq -cn` emitted it: a channel
@@ -1244,6 +1328,151 @@ fn home_mode() {
         remember_staleness(episode.as_deref());
     }
 }
+
+/// The `doctor` mode: one test send through every enabled channel, and one
+/// line per REGISTERED plugin about what happened.
+///
+/// EVERY SUPPRESSION GATE IS BYPASSED, and structurally rather than by a flag.
+/// `decide()` is never called, so the presence verdict, the viewed-pane rule
+/// and the two phone overrides have nothing to say here; the mute is read in
+/// `run_event`, which this is not on; and the pulse goes through `fire_pulse`,
+/// the hand-run path `pns pulse` uses, so the lights' quiet window never sees
+/// it either. A check that can be suppressed proves nothing about the channel
+/// it was checking, and every one of those gates exists to stop a destination
+/// receiving.
+///
+/// THE CENSUS IS THE WHOLE ROSTER, never the selection: a plugin the config
+/// left off has to be VISIBLY absent by choice, or the report answers "what is
+/// on" when the operator asked "what will reach me".
+///
+/// EVERY SEND GOES THROUGH THE ENGINE'S OWN WIRING, down to the constructors
+/// and `dispatch_legs`, so a doctor cannot report green through a path an
+/// event would not use.
+fn doctor_mode() -> i32 {
+    // ANY EXTRA WORD IS A REFUSAL, before anything is sent or printed. A
+    // doctor that quietly ignored an argument is a check the operator believes
+    // was narrower or wider than it was.
+    if std::env::args_os().nth(2).is_some() {
+        eprintln!("{DOCTOR_USAGE}");
+        return 2;
+    }
+    println!("{DOCTOR_OPENING}");
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    let loaded = load_config(&config_path(&home));
+    // The same readings `run_event` takes off the same config, before
+    // selection consumes it.
+    let (hue_table, moshi_token, hermes_key) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (
+            enabled_hue_table(config),
+            plugin_settings(config, "moshi").and_then(moshi_secret),
+            plugin_settings(config, "hermes").and_then(hermes_secret),
+        ),
+        _ => (None, None, None),
+    };
+    let registry = roster();
+    // THE BROKEN-CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins`
+    // runs every built-in and warns, and the doctor's job is to say what an
+    // event would do, not what a tidier engine would do.
+    let (selection, warning) = select_plugins(&registry, loaded);
+    if let Some(warning) = warning {
+        eprintln!("{warning}");
+    }
+    let checks = pns::doctor::checks(&registry.all(), &selection);
+
+    let event = pns::args::EventArgs {
+        agent: "pns".to_string(),
+        state: "doctor".to_string(),
+        detail: DOCTOR_DETAIL.to_string(),
+        ..Default::default()
+    };
+    let legs: Vec<pns::routing::Leg> = checks
+        .iter()
+        .filter(|check| check.kind == pns::doctor::CheckKind::Send)
+        .map(|check| pns::routing::Leg {
+            name: check.plugin,
+            // The operator is standing here waiting for the answer, which is
+            // what the reporting mode means and which deadline hermes posts
+            // under. It decides nothing about who hears the report: the doctor
+            // prints every outcome itself.
+            mode: pns::routing::ReportMode::ReportOutcome,
+        })
+        .collect();
+    // NO PANE: its only consumer is the banner's click target, and whether a
+    // click focuses the right pane cannot be verified without a human clicking
+    // it, so carrying one would add the scrub rule to a second call site to
+    // test nothing this can observe.
+    let delivered = dispatch_legs(&legs, false, &event, &home, moshi_token, hermes_key);
+
+    let outcomes: Vec<pns::doctor::Outcome> = checks
+        .iter()
+        .map(|check| match check.kind {
+            pns::doctor::CheckKind::Skipped(reason) => pns::doctor::Outcome::Skipped(reason),
+            // NOTHING IS DIALLED FOR SETTINGS THAT RESOLVE TO NO BRIDGE.
+            // `fire_pulse` answers zero rooms for that config exactly as it
+            // does for a bridge that listed none, and the zero-rooms line
+            // blames the listing or the room names: both wrong here, and both
+            // send the operator hunting through a bridge nothing contacted.
+            pns::doctor::CheckKind::Pulse if !hue_resolves(hue_table.as_ref()) => {
+                pns::doctor::Outcome::Failed(NO_HUE_BRIDGE_LINE.to_string())
+            }
+            pns::doctor::CheckKind::Pulse => pulse_outcome(hue_table.clone()),
+            // BY NAME, never by position. The legs above are these checks in
+            // this order and `dispatch_legs` answers one outcome per leg, so
+            // the two agree today; a positional pairing that ever stopped
+            // agreeing would print one channel's verdict under another's
+            // label, which is a silent misreport rather than a visible one.
+            // The absent case cannot happen and still reports a problem rather
+            // than claiming a send, which is the direction to be wrong in.
+            pns::doctor::CheckKind::Send => {
+                match delivered.iter().find(|(leg, _)| leg.name == check.plugin) {
+                    Some((_, Delivery::Delivered(said))) => {
+                        pns::doctor::Outcome::Sent(said.clone())
+                    }
+                    Some((_, Delivery::Failed(said) | Delivery::Unlaunched(said))) => {
+                        pns::doctor::Outcome::Failed(said.clone())
+                    }
+                    // Silent BY DESIGN, which is an executable channel that
+                    // RAN: it was handed the event and has no second surface
+                    // to answer on.
+                    Some((_, Delivery::Silent)) => pns::doctor::Outcome::SentUnreported,
+                    None => {
+                        pns::doctor::Outcome::Failed("the leg was never dispatched".to_string())
+                    }
+                }
+            }
+        })
+        .collect();
+
+    for (check, outcome) in checks.iter().zip(&outcomes) {
+        println!("{}", pns::doctor::line(check, outcome));
+    }
+    println!("{}", pns::doctor::summary(&outcomes));
+    pns::doctor::exit_code(&outcomes)
+}
+
+/// What a doctor typed wrong is told. ONE WORD AND NO FLAGS: a namespace built
+/// for callers that do not exist makes the common case longer to type, and the
+/// report absorbs a new section without a new spelling.
+const DOCTOR_USAGE: &str = "pns: usage: pns doctor";
+
+/// The contract, STATED rather than measured. Whether a gate is currently in
+/// effect is the decision log's question, and reporting live gate state here
+/// would be that feature built twice, in two places, from two readings.
+const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled channel. \
+     Every suppression gate is bypassed (the operator mute, the presence gate, the \
+     viewed-pane rule, the lights' quiet hours), because a check that can be suppressed \
+     proves nothing.";
+
+/// The line for lights that were selected and never set up. It names the
+/// settings to write, the way moshi's and hermes's do, because "no rooms"
+/// without an address sends the operator to a bridge nothing dialled.
+const NO_HUE_BRIDGE_LINE: &str = "pulse SKIPPED -- no hue bridge and key in the config \
+     ([plugins.hue] bridge, key); nothing was signalled";
+
+/// The payload's detail, so whoever the card wakes knows at once that nothing
+/// is wrong and nothing needs doing.
+const DOCTOR_DETAIL: &str = "test send from pns doctor; nothing is wrong and nothing needs doing";
 
 /// The `quiet` mode: the operator's own mute, typed and timed.
 ///
