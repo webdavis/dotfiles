@@ -235,19 +235,23 @@ fn publish_state_line(path: &Path, line: &str) -> std::io::Result<()> {
 /// output for the rest of this machine's life.
 fn record_decision(record: &pns::decision_log::Record) {
     // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = append_decision(
+    let _ = append_ring_line(
         &state_dir().join(DECISIONS),
         &pns::decision_log::line(record),
+        pns::decision_log::KEPT,
     );
 }
 
-/// The append and the prune behind it.
+/// The append and the prune behind it, for ANY of this tool's bounded state
+/// rings. The caller names the file and its own depth; everything below is
+/// one hardening serving every one of them, because a second hand-written
+/// copy of it is how one ring ends up without the FIFO guard.
 ///
 /// WRITTEN BY APPEND, never read-modify-write: an append needs no read, so two
 /// events firing at once (a Stop hook and the long-running notifier are a
 /// normal pair) cannot lose each other's line. The prune only runs when the
-/// file went over the cap, and republishes the last `KEPT` lines through the
-/// same atomic publish every other state file uses.
+/// file went over the caller's cap, and republishes the last `kept` lines
+/// through the same atomic publish every other state file uses.
 ///
 /// NOTHING ABOUT THE FILE IS TRUSTED, because none of it is this tool's word:
 /// the ring is a plain file in a directory an operator, a backup tool or
@@ -265,7 +269,7 @@ fn record_decision(record: &pns::decision_log::Record) {
 /// prune's or a heal's, is lost. It costs ONE RECORD at a rare boundary,
 /// never a card and never a torn file, because the rename is atomic and the
 /// text it publishes is always whole lines.
-fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
+fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -278,7 +282,7 @@ fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
         Ok(_) => {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "the decision ring is not a regular file",
+                "the ring is not a regular file",
             ));
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
@@ -305,16 +309,13 @@ fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
         // own, and it is republished alone.
         return publish_state_line(path, line);
     };
-    let kept: Vec<&str> = contents.lines().collect();
-    if kept.len() <= pns::decision_log::KEPT {
+    let entries: Vec<&str> = contents.lines().collect();
+    if entries.len() <= kept {
         return Ok(());
     }
     // Joined with newlines, because the publish writes the one trailing
     // newline back itself.
-    publish_state_line(
-        path,
-        &kept[kept.len() - pns::decision_log::KEPT..].join("\n"),
-    )
+    publish_state_line(path, &entries[entries.len() - kept..].join("\n"))
 }
 
 /// Whether the ring's last byte is anything other than a newline, which is
