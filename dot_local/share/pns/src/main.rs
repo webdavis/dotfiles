@@ -28,7 +28,9 @@ use pns::hooks::{
 };
 use pns::registry::{roster, select_plugins};
 use pns::render;
-use pns::system::{SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded};
+use pns::system::{
+    CommandRunner, SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded,
+};
 
 fn main() {
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
@@ -1616,17 +1618,70 @@ fn doctor_mode() -> i32 {
         println!("{}", pns::doctor::line(check, outcome));
     }
     println!("{}", pns::doctor::summary(&outcomes));
+    // BETWEEN THE SUMMARY AND THE DECISION SECTION, which is health beside
+    // health and history last: this check can move the exit code and the
+    // decision log explicitly cannot, so the other order would put a gradeable
+    // line below an ungradeable one.
+    let pairing = read_pairing();
+    for line in pns::doctor::pairing_lines(&pairing) {
+        println!("{line}");
+    }
     // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
     // census plus its summary is one complete thought whose line order the
     // suite already pins, and nothing below can disturb it.
     for line in decision_section() {
         println!("{line}");
     }
-    // THE EXIT CODE DOES NOT MOVE. The section above reports HISTORY, not
-    // health: an empty log on a fresh machine is not a failure, and neither is
-    // one nothing could read. The sends alone earn the code.
-    pns::doctor::exit_code(&outcomes)
+    // THE DECISION SECTION DOES NOT MOVE THE EXIT CODE. It reports HISTORY,
+    // not health: an empty log on a fresh machine is not a failure, and
+    // neither is one nothing could read. The pairing IS health and does move
+    // it, which is why it is an argument rather than a second code combined
+    // here: one decision point, decided in one place.
+    pns::doctor::exit_code(&outcomes, &pairing)
 }
+
+/// What moshi-hook says about this host's pairing, in TWO BOUNDED SPAWNS of
+/// one subcommand.
+///
+/// The split is a correctness argument rather than a style one. `status
+/// --json` is local-only, measured at 77ms with the base URL pointed at an
+/// unroutable host, and it carries the pairing fact pns grades. Plain `status`
+/// is the only shape carrying a server verdict and is the only thing the
+/// doctor puts on the network for its own sake. One plain-only call would put
+/// the local fact behind the network, so an outage would read as "pairing
+/// could not be checked" on a machine that could have answered.
+///
+/// `probe` IS NEVER CALLED. Measured on 0.3.3, it answers `running: true` and
+/// `gateway: true` against a HOME holding no pairing at all while its hostId
+/// disappears, so its daemon-side provenance cannot be stated honestly.
+///
+/// A FORWARD RISK, named rather than coded around: every pairing state exits 0
+/// today, so a future moshi that exited non-zero when unpaired would come back
+/// as no answer and be reported as "could not check" while the approval path
+/// is really dead. A future moshi that renamed or dropped the `server:` line
+/// degrades the other way, silently and safely.
+fn read_pairing() -> pns::doctor::PairingReport {
+    let binary = moshi_hook_bin();
+    // The probe runner's own five-second window, which is 65x the measured
+    // call and reaches no network.
+    let json = SystemCommandRunner.run(&binary, &["status", "--json"]);
+    let mut plain = Command::new(&binary);
+    plain.arg("status");
+    let plain = run_bounded(plain, None, moshi_status_deadline());
+    pns::doctor::pairing_report(json.as_deref(), plain.as_deref())
+}
+
+/// How long plain `moshi-hook status` may take.
+///
+/// IT MUST EXCEED MOSHI'S OWN internal timeout, measured at about 5.1 seconds
+/// against an unroutable base URL. Killing it mid-wait would throw away the
+/// very `unavailable (...)` sentence that explains the delay, which is the one
+/// thing this call is for.
+fn moshi_status_deadline() -> Duration {
+    env_deadline("PNS_MOSHI_STATUS_DEADLINE_MS").unwrap_or(MOSHI_STATUS_DEADLINE)
+}
+
+const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
 
 /// The decision ring, read back and rendered.
 ///

@@ -10,7 +10,9 @@ mod support;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::FileTypeExt;
-use support::{KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout};
+use support::{
+    KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout, write_script,
+};
 
 // --- the alert path ---------------------------------------------------------
 
@@ -1785,13 +1787,98 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
 // --- the doctor -------------------------------------------------------------
 
 /// The doctor's command, with its state directory inside the sandbox so a mute
-/// can be planted where the engine will read it.
+/// can be planted where the engine will read it, and with no moshi-hook to
+/// run unless the test hands it one.
 fn doctor_command(sandbox: &Sandbox) -> std::process::Command {
     let mut command = sandbox.pns();
     command.env("PNS_STATE_DIR", sandbox.path("state"));
+    no_moshi_hook(sandbox, &mut command);
     command.arg("doctor");
     command
 }
+
+/// The moshi-hook EVERY doctor invocation gets unless it asked for a different
+/// one: a path inside the sandbox that does not exist.
+///
+/// WITHOUT THIS THE SUITE READS THE DEVELOPER'S OWN MACHINE. The doctor
+/// resolves the binary through `MOSHI_HOOK_BIN` over a Homebrew path, so an
+/// unstubbed run would spawn the real moshi-hook, contact the moshi API, take
+/// about five seconds doing it, and answer differently on every machine.
+/// Absent is also a real state rather than a flag, and the check is inert on
+/// the exit code for it, so no test here has its verdict decided by the stub.
+fn no_moshi_hook(sandbox: &Sandbox, command: &mut std::process::Command) {
+    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+}
+
+/// A moshi-hook that answers both shapes of `status` from canned bytes and
+/// APPENDS its argv to a record file.
+///
+/// Appending, rather than the hook suite's stub overwriting with `>`, is what
+/// lets a test assert that exactly two invocations happened and that neither
+/// of them was `probe`. It is a thin stub plus a spy and reasons about
+/// nothing: the fixtures are the bytes the real 0.3.3 binary printed, so this
+/// models the tool rather than what the check wishes the tool did.
+fn stub_moshi_hook(
+    sandbox: &Sandbox,
+    command: &mut std::process::Command,
+    json: &str,
+    plain: &str,
+) {
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    let script = bin.join("moshi-hook");
+    write_script(
+        &script,
+        &format!(
+            "printf '%s\\n' \"$*\" >>\"{sandbox}/moshi-hook.argv\"\n\
+             case \"$*\" in\n\
+             *--json*) printf '%s' '{json}' ;;\n\
+             *) printf '%s' '{plain}' ;;\n\
+             esac",
+            sandbox = sandbox.display()
+        ),
+    );
+    command.env("MOSHI_HOOK_BIN", &script);
+}
+
+/// Every argument the stub was ever handed, one invocation per line.
+fn moshi_hook_argv(sandbox: &Sandbox) -> Vec<String> {
+    std::fs::read_to_string(sandbox.path("moshi-hook.argv"))
+        .map(|recorded| recorded.lines().map(str::to_string).collect())
+        .unwrap_or_default()
+}
+
+/// `moshi-hook status --json` on this machine, moshi-hook 0.3.3, healthy. The
+/// values the capture elided are elided here too; nothing reads them.
+const PAIRED_STATUS_JSON: &str = r#"{"baseUrl":"https://api.getmoshi.app/api/v1","displayName":"dresden","hooks":[],"hostId":"host_b14dd2bb0b1f45899d9eaa81a71ff874","logPath":"...","paired":true,"platform":"macos","secretStore":"keychain","socketPath":"..."}"#;
+
+/// The same call with `HOME` pointed at an empty directory: no host id at all.
+const UNPAIRED_STATUS_JSON: &str = r#"{"baseUrl":"https://api.getmoshi.app/api/v1","hooks":[],"logPath":"...","paired":false,"platform":"macos","secretStore":"keychain","socketPath":"..."}"#;
+
+/// `moshi-hook status` (plain), healthy. Only this shape carries a server
+/// verdict; the JSON above is local-only and measured to do no network I/O.
+const PAIRED_STATUS_PLAIN: &str = "status:       paired
+host id:      host_b14dd2bb0b1f45899d9eaa81a71ff874
+display name: dresden
+server:       Moshi Pro attached (usage scope: license)";
+
+/// Plain `status` on an unpaired host. What was captured about this one is
+/// that it leads `unpaired` and has NO `server:` line at all, which is the
+/// only property anything here reads; the column padding is copied from the
+/// paired capture above rather than measured, and nothing consumes it.
+const UNPAIRED_STATUS_PLAIN: &str = "status:       unpaired";
+
+/// What the pairing check says when there is no moshi-hook to run at all,
+/// which is what every doctor test above gets unless it stubs one.
+const NO_MOSHI_HOOK_LINE: &str = "pns doctor: moshi pairing: moshi-hook did not answer \
+     (not installed, or it did not answer in time), so the approval path could not be checked.";
+
+/// The pairing line a healthy dresden earns.
+const PAIRED_LINE: &str =
+    "pns doctor: moshi pairing: paired as dresden (host_b14dd2bb0b1f45899d9eaa81a71ff874).";
+
+/// The relayed line beside it, in moshi's own words.
+const MOSHI_SAYS_LINE: &str = "pns doctor: moshi says: Moshi Pro attached (usage scope: license)";
 
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
@@ -1852,6 +1939,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "hermes: sent, this channel reports no outcome",
             "hue: skipped, not enabled in the config",
             "pns doctor: 3 sent, 0 failed, 2 skipped",
+            NO_MOSHI_HOOK_LINE,
             NO_DECISION_RECORDED,
         ],
         "one line per REGISTERED plugin, in registration order: a report that \
@@ -1884,6 +1972,10 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     // the operator's own gateway.
     command.env("PNS_HERMES_URL", "http://127.0.0.1:1/hook");
     sandbox.stub_notifier(&mut command);
+    // BY HAND, because this one needs `bare()` to reach the native plugins and
+    // so cannot go through `doctor_command`. Every doctor invocation in this
+    // file has to name a moshi-hook or it runs the operator's own.
+    no_moshi_hook(&sandbox, &mut command);
     let output = command.arg("doctor").output().expect("the engine runs");
 
     let printed = stdout(&output);
@@ -2015,6 +2107,9 @@ fn the_doctor_reaches_the_bridge_inside_the_lights_quiet_window() {
     ));
     let mut command = sandbox.bare();
     command.env("TZ", "UTC");
+    // BY HAND, for the same reason as above: `bare()` is what reaches the
+    // native lights, and an unnamed moshi-hook is the operator's own.
+    no_moshi_hook(&sandbox, &mut command);
     let child = command.arg("doctor").spawn().expect("the engine starts");
     assert!(
         dialled_within(&listener, std::time::Duration::from_secs(5)),
@@ -2112,6 +2207,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "hermes: skipped, not enabled in the config",
             "hue: skipped, not enabled in the config",
             "pns doctor: 0 sent, 0 failed, 5 skipped",
+            NO_MOSHI_HOOK_LINE,
             NO_DECISION_RECORDED,
         ],
         "the whole roster is still the report; only a census can say this"
@@ -2519,24 +2615,25 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
     let lines: Vec<&str> = printed.lines().collect();
-    let summary = lines
+    // ANCHORED ON THE HEADING THIS LOCATES ITSELF, rather than on an offset
+    // from the summary. Every assertion it was written to make survives (the
+    // heading leads the section, newest first, and nothing follows it); what
+    // it drops is its brittleness about which lines PRECEDE it, which the
+    // pairing check now sits in.
+    let heading = lines
         .iter()
-        .position(|line| *line == "pns doctor: 3 sent, 0 failed, 2 skipped")
-        .unwrap_or_else(|| panic!("no summary line in {printed}"));
-
-    assert_eq!(
-        lines[summary + 1],
-        format!("pns doctor: the last 2 decisions,{DECISION_HEADING_TAIL}"),
-        "{printed}"
-    );
+        .position(|line| {
+            *line == format!("pns doctor: the last 2 decisions,{DECISION_HEADING_TAIL}")
+        })
+        .unwrap_or_else(|| panic!("no decision heading in {printed}"));
     assert!(
-        lines[summary + 2].contains(" c2/done "),
+        lines[heading + 1].contains(" c2/done "),
         "the newest decision leads: {printed}"
     );
-    assert!(lines[summary + 3].contains(" c1/done "), "{printed}");
+    assert!(lines[heading + 2].contains(" c1/done "), "{printed}");
     assert_eq!(
         lines.len(),
-        summary + 4,
+        heading + 3,
         "and nothing follows it: {printed}"
     );
 }
@@ -2622,5 +2719,217 @@ fn the_doctor_records_no_decision_of_its_own() {
         std::fs::read_to_string(&ring).expect("the ring"),
         before,
         "the doctor wrote to the ring it was reading"
+    );
+}
+
+// --- the moshi pairing check ------------------------------------------------
+
+#[test]
+fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_section() {
+    // HEALTH SITS WITH HEALTH AND HISTORY GOES LAST. The pairing check can
+    // move the exit code and the decision log explicitly cannot, so grouping
+    // them the other way would put a gradeable line below an ungradeable one.
+    let sandbox = Sandbox::new("doctor-pairing-placement");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]));
+    let mut command = doctor_command(&sandbox);
+    stub_moshi_hook(
+        &sandbox,
+        &mut command,
+        PAIRED_STATUS_JSON,
+        PAIRED_STATUS_PLAIN,
+    );
+    let output = command.output().expect("the engine runs");
+
+    let printed = stdout(&output);
+    let lines: Vec<&str> = printed.lines().collect();
+    let summary = lines
+        .iter()
+        .position(|line| *line == "pns doctor: 3 sent, 0 failed, 2 skipped")
+        .unwrap_or_else(|| panic!("no summary line in {printed}"));
+    assert_eq!(lines[summary + 1], PAIRED_LINE, "{printed}");
+    assert_eq!(lines[summary + 2], MOSHI_SAYS_LINE, "{printed}");
+    assert_eq!(
+        lines[summary + 3],
+        format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
+        "the decision section still comes last: {printed}"
+    );
+}
+
+#[test]
+fn the_doctor_runs_moshi_hook_exactly_twice_and_never_probes() {
+    // TWO SPAWNS OF ONE SUBCOMMAND, and `probe` ZERO TIMES. Measured on 0.3.3,
+    // probe answers `running: true` and `gateway: true` against a HOME holding
+    // no pairing at all, so nothing it reports can be stated honestly.
+    let sandbox = Sandbox::new("doctor-pairing-argv");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let mut command = doctor_command(&sandbox);
+    stub_moshi_hook(
+        &sandbox,
+        &mut command,
+        PAIRED_STATUS_JSON,
+        PAIRED_STATUS_PLAIN,
+    );
+    command.output().expect("the engine runs");
+
+    let recorded = moshi_hook_argv(&sandbox);
+    assert_eq!(
+        recorded,
+        ["status --json", "status"],
+        "the local fact is read first and off its own call, so a slow network \
+         cannot cost the doctor an answer it already had"
+    );
+    assert!(
+        !recorded.iter().any(|argv| argv.contains("probe")),
+        "{recorded:?}"
+    );
+}
+
+#[test]
+fn a_doctor_with_no_moshi_hook_to_run_says_so_and_leaves_the_exit_code_to_the_sends() {
+    // A MACHINE THAT DOES NOT USE MOSHI MUST NOT FAIL ITS DOCTOR FOREVER. The
+    // helper already points this at a path that does not exist, which is the
+    // real absent case rather than a flag.
+    let sandbox = Sandbox::new("doctor-pairing-absent");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    let printed = stdout(&output);
+    assert!(printed.contains(NO_MOSHI_HOOK_LINE), "{printed}");
+    assert!(
+        !printed.contains("moshi says"),
+        "there is nothing to relay: {printed}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the sends alone earned it: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
+    // THE PLAIN CALL IS THE ONLY NETWORK I/O THE DOCTOR DOES ON ITS OWN
+    // BEHALF, so it is the one place a hang could park a hand-typed command.
+    // The json call still answers, which is the whole argument for splitting
+    // them: the local fact is not hostage to the network.
+    let sandbox = Sandbox::new("doctor-pairing-hang");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    let script = bin.join("moshi-hook");
+    write_script(
+        &script,
+        &format!(
+            "case \"$*\" in\n\
+             *--json*) printf '%s' '{PAIRED_STATUS_JSON}' ;;\n\
+             *) exec sleep 30 ;;\n\
+             esac"
+        ),
+    );
+    let mut command = doctor_command(&sandbox);
+    command.env("MOSHI_HOOK_BIN", &script);
+    command.env("PNS_MOSHI_STATUS_DEADLINE_MS", "200");
+
+    let started = std::time::Instant::now();
+    let output = command.output().expect("the engine runs");
+    let waited = started.elapsed();
+
+    assert!(
+        waited < std::time::Duration::from_secs(2),
+        "the doctor waited {waited:?} on a call it bounds"
+    );
+    let printed = stdout(&output);
+    assert!(
+        printed.contains(PAIRED_LINE),
+        "the local fact answered anyway: {printed}"
+    );
+    assert!(
+        !printed.contains("moshi says"),
+        "a call that never answered relays nothing: {printed}"
+    );
+    assert!(
+        printed.contains("pns doctor: 3 sent, 0 failed, 2 skipped"),
+        "and the sections printed before it survived: {printed}"
+    );
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
+}
+
+#[test]
+fn an_unpaired_host_exits_one_while_the_summary_still_reads_zero_failed() {
+    // THE GAP THIS CHECK EXISTS FOR. Every send is green, the census reports
+    // the moshi channel green over its webhook, and every approval card is
+    // dead. The summary counts SENDS and says so; the pairing line is printed
+    // directly above in plain words.
+    let sandbox = Sandbox::new("doctor-pairing-unpaired");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let mut command = doctor_command(&sandbox);
+    stub_moshi_hook(
+        &sandbox,
+        &mut command,
+        UNPAIRED_STATUS_JSON,
+        UNPAIRED_STATUS_PLAIN,
+    );
+    let output = command.output().expect("the engine runs");
+
+    let printed = stdout(&output);
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    assert!(
+        printed.contains("pns doctor: 3 sent, 0 failed, 2 skipped"),
+        "{printed}"
+    );
+    assert!(
+        printed.contains(
+            "pns doctor: moshi pairing: this host is NOT paired, so every \
+             approval card is dead until `moshi-hook pair` runs."
+        ),
+        "{printed}"
+    );
+    assert!(
+        !printed.contains("moshi says"),
+        "an unpaired host prints no server line at all: {printed}"
+    );
+}
+
+#[test]
+fn the_pairing_check_records_nothing_of_its_own() {
+    // NOTHING IS WRITTEN TO THE STATE DIRECTORY. The check reads two answers
+    // out of another binary and prints; a run that left a record behind would
+    // be a second writer of a ring with no reader of its own.
+    let sandbox = Sandbox::new("doctor-pairing-readonly");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]));
+    let listing = |sandbox: &Sandbox| {
+        let mut names: Vec<String> = std::fs::read_dir(sandbox.path("state"))
+            .expect("the state dir")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    };
+    let before = listing(&sandbox);
+    let ring_before = std::fs::read_to_string(sandbox.path("state/decisions")).expect("the ring");
+
+    let mut command = doctor_command(&sandbox);
+    stub_moshi_hook(
+        &sandbox,
+        &mut command,
+        PAIRED_STATUS_JSON,
+        PAIRED_STATUS_PLAIN,
+    );
+    let output = command.output().expect("the engine runs");
+
+    assert!(
+        stdout(&output).contains(PAIRED_LINE),
+        "the check has to have RUN for this to say anything: {}",
+        stdout(&output)
+    );
+    assert_eq!(listing(&sandbox), before, "the pairing check left a file");
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the ring"),
+        ring_before,
+        "the pairing check wrote to the ring"
     );
 }
