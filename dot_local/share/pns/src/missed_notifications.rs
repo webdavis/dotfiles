@@ -314,7 +314,16 @@ fn capped(text: &str) -> String {
 /// with only a durable channel raises nothing). The zero case says nothing
 /// about replaying, because there is nothing waiting to promise anything
 /// about.
-pub fn waiting_line(contents: Option<&str>) -> String {
+///
+/// `replay_card` IS THE FOURTH THING, and the one no event can satisfy: with
+/// `[recap] replay_card = false` the delivery is switched off, so the promise
+/// above is one the binary cannot keep for as long as the switch stands. The
+/// off sentence says what is true instead, which is that the misses are
+/// RECORDED (the journal writes regardless of the switch) and that nothing
+/// moves them until the card is switched back on. The zero case is the same
+/// sentence either way: there is nothing waiting, so there is nothing to
+/// promise or unpromise about.
+pub fn waiting_line(contents: Option<&str>, replay_card: bool) -> String {
     let waiting = contents
         .unwrap_or_default()
         .lines()
@@ -322,15 +331,26 @@ pub fn waiting_line(contents: Option<&str>) -> String {
         .count();
     match waiting {
         0 => NONE_WAITING.to_string(),
-        1 => "pns doctor: 1 missed notification is waiting to be replayed; \
+        1 if replay_card => "pns doctor: 1 missed notification is waiting to be replayed; \
              the next event that raises a banner or a card while the operator \
              is not away delivers it."
             .to_string(),
-        many => {
+        1 => "pns doctor: 1 missed notification is recorded; the catch-up card \
+             is switched off (`[recap] replay_card = false`), so nothing delivers \
+             it until the card is switched back on."
+            .to_string(),
+        many if replay_card => {
             format!(
                 "pns doctor: {many} missed notifications are waiting to be replayed; \
                  the next event that raises a banner or a card while the operator \
                  is not away delivers them."
+            )
+        }
+        many => {
+            format!(
+                "pns doctor: {many} missed notifications are recorded; the catch-up card \
+                 is switched off (`[recap] replay_card = false`), so nothing delivers \
+                 them until the card is switched back on."
             )
         }
     }
@@ -939,16 +959,38 @@ mod tests {
         // binary now keeps: the old sentence ended "nothing replays them yet",
         // which the replay made false the moment it shipped.
         assert_eq!(
-            waiting_line(Some(&journal(3))),
+            waiting_line(Some(&journal(3)), true),
             "pns doctor: 3 missed notifications are waiting to be replayed; \
              the next event that raises a banner or a card while the operator \
              is not away delivers them."
         );
         assert_eq!(
-            waiting_line(Some(&journal(1))),
+            waiting_line(Some(&journal(1)), true),
             "pns doctor: 1 missed notification is waiting to be replayed; \
              the next event that raises a banner or a card while the operator \
              is not away delivers it."
+        );
+    }
+
+    #[test]
+    fn a_switched_off_card_says_the_misses_are_recorded_and_that_nothing_delivers_them() {
+        // THE PROMISE BELONGS TO THE SWITCH. `[recap] replay_card = false`
+        // means no event will ever deliver these, so a line that still named
+        // "the next event" would be a lie the operator's own setting makes
+        // permanent, and the doctor would be the thing telling it. It says
+        // what is true instead: the misses are recorded, the card is off, and
+        // nothing moves them until the card is back on.
+        assert_eq!(
+            waiting_line(Some(&journal(3)), false),
+            "pns doctor: 3 missed notifications are recorded; the catch-up card \
+             is switched off (`[recap] replay_card = false`), so nothing delivers \
+             them until the card is switched back on."
+        );
+        assert_eq!(
+            waiting_line(Some(&journal(1)), false),
+            "pns doctor: 1 missed notification is recorded; the catch-up card \
+             is switched off (`[recap] replay_card = false`), so nothing delivers \
+             it until the card is switched back on."
         );
     }
 
@@ -957,10 +999,18 @@ mod tests {
         // AN EMPTY JOURNAL IS AMBIGUOUS: either nothing was missed or a write
         // did not land. The line claims neither, and it never says a number.
         let none = "pns doctor: no missed notification is recorded.";
-        assert_eq!(waiting_line(None), none);
-        assert_eq!(waiting_line(Some("")), none);
-        assert_eq!(waiting_line(Some("\n")), none);
-        assert_eq!(waiting_line(Some("\n   \n\t\n")), none);
+        assert_eq!(waiting_line(None, true), none);
+        assert_eq!(waiting_line(Some(""), true), none);
+        assert_eq!(waiting_line(Some("\n"), true), none);
+        assert_eq!(waiting_line(Some("\n   \n\t\n"), true), none);
+        // AND THE CARD'S SWITCH DOES NOT REACH THIS ARM. There is nothing
+        // waiting, so there is no promise for the switch to make or unmake,
+        // and a second sentence for the same empty journal would be one more
+        // thing to keep true for no reading gained.
+        assert_eq!(waiting_line(None, false), none);
+        assert_eq!(waiting_line(Some(""), false), none);
+        assert_eq!(waiting_line(Some("\n"), false), none);
+        assert_eq!(waiting_line(Some("\n   \n\t\n"), false), none);
     }
 
     #[test]
@@ -976,11 +1026,11 @@ mod tests {
             detail: "zzthe-operators-own-private-summaryzz".to_string(),
             ..EventArgs::default()
         };
-        for count in [1, 3] {
+        for (count, replay_card) in [(1, true), (3, true), (1, false), (3, false)] {
             let contents: String = (0..count)
                 .map(|_| format!("{}\n", entry(&secret, Some(1_756_500_000))))
                 .collect();
-            let line = waiting_line(Some(&contents));
+            let line = waiting_line(Some(&contents), replay_card);
             for leaked in [
                 &secret.agent,
                 &secret.state,

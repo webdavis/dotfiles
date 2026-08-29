@@ -3,6 +3,23 @@
 # moves the light pulse from the retired bash channel to `pns pulse`.
 {{- if eq .chezmoi.os "darwin" }}
 
+# The return recap's three delivery switches, each gating only its own
+# delivery. ABSENT IS ALL ON, so a machine with this block left commented
+# behaves exactly as it did before the table existed; a misspelled key or a
+# non-boolean value is refused by name rather than half-read. NOT A PLUGIN, so
+# it sits at the top level beside `[plugins]` rather than under it.
+# [recap]
+# The catch-up card: the misses queued while you were away, put in front of you
+# on the first event you are present for. Off never cards from the journal; the
+# misses stay recorded whatever this says, the newest 25 of them, so switching
+# the card back on has something to deliver.
+# replay_card = true
+# The recap of the whole window posted to Discord, and whether it opens its own
+# thread rather than landing in the channel. THE RECAP SLICE IS WHAT SPENDS
+# THESE: they parse today and nothing reads them yet.
+# digest = true
+# digest_as_thread = true
+
 [plugins.moshi]
 enabled = true
 token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"

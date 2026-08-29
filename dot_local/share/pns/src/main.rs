@@ -320,12 +320,25 @@ fn record_missed(
 ///
 /// NOTHING IS PRINTED. The event path prints only what a reporting leg said,
 /// and this rides an event whose stdout a hook reads.
+///
+/// `replay_card` IS THE OPERATOR'S SWITCH (`[recap] replay_card = false`) and
+/// it gates THIS and nothing else. `record_missed` never learns the switch
+/// exists, so the journal still records every miss and the doctor still counts
+/// them: turning the card back on has something to deliver.
 fn replay_missed(
+    replay_card: bool,
     decision: &pns::engine::Decision,
     home: &str,
     moshi_token: Option<String>,
     hermes_key: Option<String>,
 ) {
+    // THE SWITCH GOES IN FRONT OF THE CLAIM, never after it. Claiming the
+    // journal renames it out of the way; returning after that would consume
+    // the queue and deliver nothing, which is the one outcome the four-way
+    // `Claimed` enum exists to prevent.
+    if !replay_card {
+        return;
+    }
     if !pns::missed_notifications::should_replay(decision) {
         return;
     }
@@ -1344,22 +1357,29 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     // Read off the config before selection consumes it: the pulse needs hue's
-    // settings, the plan needs moshi's card toggle, and the two network
-    // channels need their secrets.
-    let (hue_table, watch_card, moshi_token, hermes_key) = match &loaded {
+    // settings, the plan needs moshi's card toggle, the catch-up needs its own
+    // switch, and the two network channels need their secrets.
+    let (hue_table, watch_card, moshi_token, hermes_key, replay_card) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
             mobile_watch_card(config),
             plugin_settings(config, "moshi").and_then(moshi_secret),
             plugin_settings(config, "hermes").and_then(hermes_secret),
+            config.recap.replay_card,
         ),
         // A config that could not be read falls back to the DEFAULTS of all
-        // four, and deliberately disagrees with the plugin selection below,
+        // five, and deliberately disagrees with the plugin selection below,
         // which falls back to the whole roster. Selection keeps notifications
         // working through a broken config; these say what an operator asked
         // for, and an unreadable file asked for nothing: with no secrets, the
         // network channels are simply not set up.
-        _ => (None, false, None, None),
+        //
+        // THE CATCH-UP IS THE ONE THAT FALLS BACK ON, which is `[recap]`'s
+        // own rule (absent is every switch on) reaching the case where the
+        // file is unreadable rather than absent. A config nobody can parse
+        // must not silently stop delivering misses the doctor is already
+        // telling the operator are waiting.
+        _ => (None, false, None, None, true),
     };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
@@ -1452,7 +1472,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // the ordering contract stated above rather than restating it: a slow
     // replay must not cost either record, and a card the operator may be
     // waiting on outranks decoration.
-    replay_missed(&decision, &home, moshi_token, hermes_key);
+    replay_missed(replay_card, &decision, &home, moshi_token, hermes_key);
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
     // on. It is part of the PLAN rather than a second invocation (the shell
@@ -2052,13 +2072,17 @@ fn doctor_mode() -> i32 {
     let loaded = load_config(&config_path(&home));
     // The same readings `run_event` takes off the same config, before
     // selection consumes it.
-    let (hue_table, moshi_token, hermes_key) = match &loaded {
+    let (hue_table, moshi_token, hermes_key, replay_card) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
             plugin_settings(config, "moshi").and_then(moshi_secret),
             plugin_settings(config, "hermes").and_then(hermes_secret),
+            config.recap.replay_card,
         ),
-        _ => (None, None, None),
+        // THE SWITCH FALLS BACK ON, which is the fallback `run_event` takes
+        // for the same reading. The two must agree or the doctor describes a
+        // delivery the event would not make.
+        _ => (None, None, None, true),
     };
     let registry = roster();
     // THE BROKEN-CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins`
@@ -2160,7 +2184,7 @@ fn doctor_mode() -> i32 {
     // HISTORY BELOW HISTORY, and last for the reason the decision section is
     // second to last: an unreplayed journal is not a failure, so it sits under
     // the one section that already cannot move the exit code.
-    println!("{}", missed_line());
+    println!("{}", missed_line(replay_card));
     // THE DECISION SECTION DOES NOT MOVE THE EXIT CODE. It reports HISTORY,
     // not health: an empty log on a fresh machine is not a failure, and
     // neither is one nothing could read. The pairing IS health and does move
@@ -2261,14 +2285,19 @@ const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be re
 /// NOTHING HERE PARSES AN ENTRY. The contents go straight to `waiting_line`,
 /// which counts lines and has no parse at all, so the operator's own text has
 /// no path from this file to a terminal.
-fn missed_line() -> String {
+///
+/// `replay_card` REACHES THE SENTENCE because the sentence makes a promise.
+/// With the card switched off nothing will ever deliver what is counted here,
+/// and a doctor that still named "the next event" would be telling the
+/// operator a lie their own setting makes permanent.
+fn missed_line(replay_card: bool) -> String {
     match readable_ring(&state_dir().join(MISSED_NOTIFICATIONS)) {
-        Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents)),
+        Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents), replay_card),
         // ABSENT IS ITS OWN STATE, and the one the line has an honest sentence
         // for. Anything else is a directory or a permission problem, which is
         // a different thing to say.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            pns::missed_notifications::waiting_line(None)
+            pns::missed_notifications::waiting_line(None, replay_card)
         }
         Err(error) => format!("{MISSED_UNREADABLE} ({}).", error.kind()),
     }
