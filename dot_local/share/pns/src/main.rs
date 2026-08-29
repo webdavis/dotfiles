@@ -50,6 +50,12 @@ fn main() {
     if first == *"quiet" {
         std::process::exit(quiet_mode());
     }
+    // One test send through every configured channel, and one line per
+    // registered plugin about it. A MODE for the same reason the others are:
+    // it takes no decision, so nothing about an event's plan reaches it.
+    if first == *"doctor" {
+        std::process::exit(doctor_mode());
+    }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
@@ -945,12 +951,15 @@ fn fire_pulse_unless_quiet(hue_table: Option<toml::Table>, exit_code: &str) {
     }
 }
 
-/// The lights signal, from whichever mode asked for it.
-fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
+/// The lights signal, from whichever mode asked for it, and how many rooms it
+/// reached. Both notification callers discard the count; the hand-run check is
+/// what it exists for, since the bridge acknowledges no write and a room that
+/// was addressed is the last observable fact on this path.
+fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) -> usize {
     let Some(hue) = hue_table.and_then(|settings| {
         hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
     }) else {
-        return;
+        return 0;
     };
     HuePulse {
         bridge: UreqBridge {
@@ -959,7 +968,7 @@ fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) {
         },
         rooms: hue.rooms,
     }
-    .run(exit_code);
+    .run(exit_code)
 }
 
 /// The banner, which now only needs to know where to send the click.
@@ -1272,6 +1281,129 @@ fn home_mode() {
         remember_staleness(episode.as_deref());
     }
 }
+
+/// The `doctor` mode: one test send through every enabled channel, and one
+/// line per REGISTERED plugin about what happened.
+///
+/// EVERY SUPPRESSION GATE IS BYPASSED, and structurally rather than by a flag.
+/// `decide()` is never called, so the presence verdict, the viewed-pane rule
+/// and the two phone overrides have nothing to say here; the mute is read in
+/// `run_event`, which this is not on; and the pulse goes through `fire_pulse`,
+/// the hand-run path `pns pulse` uses, so the lights' quiet window never sees
+/// it either. A check that can be suppressed proves nothing about the channel
+/// it was checking, and every one of those gates exists to stop a destination
+/// receiving.
+///
+/// THE CENSUS IS THE WHOLE ROSTER, never the selection: a plugin the config
+/// left off has to be VISIBLY absent by choice, or the report answers "what is
+/// on" when the operator asked "what will reach me".
+///
+/// EVERY SEND GOES THROUGH THE ENGINE'S OWN WIRING, down to the constructors
+/// and `dispatch_legs`, so a doctor cannot report green through a path an
+/// event would not use.
+fn doctor_mode() -> i32 {
+    // ANY EXTRA WORD IS A REFUSAL, before anything is sent or printed. A
+    // doctor that quietly ignored an argument is a check the operator believes
+    // was narrower or wider than it was.
+    if std::env::args_os().nth(2).is_some() {
+        eprintln!("{DOCTOR_USAGE}");
+        return 2;
+    }
+    println!("{DOCTOR_OPENING}");
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    let loaded = load_config(&config_path(&home));
+    // The same readings `run_event` takes off the same config, before
+    // selection consumes it.
+    let (hue_table, moshi_token, hermes_key) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (
+            enabled_hue_table(config),
+            plugin_settings(config, "moshi").and_then(moshi_secret),
+            plugin_settings(config, "hermes").and_then(hermes_secret),
+        ),
+        _ => (None, None, None),
+    };
+    let registry = roster();
+    // THE BROKEN-CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins`
+    // runs every built-in and warns, and the doctor's job is to say what an
+    // event would do, not what a tidier engine would do.
+    let (selection, warning) = select_plugins(&registry, loaded);
+    if let Some(warning) = warning {
+        eprintln!("{warning}");
+    }
+    let checks = pns::doctor::checks(&registry.all(), &selection);
+
+    let event = pns::args::EventArgs {
+        agent: "pns".to_string(),
+        state: "doctor".to_string(),
+        detail: DOCTOR_DETAIL.to_string(),
+        ..Default::default()
+    };
+    let legs: Vec<pns::routing::Leg> = checks
+        .iter()
+        .filter(|check| check.kind == pns::doctor::CheckKind::Send)
+        .map(|check| pns::routing::Leg {
+            name: check.plugin,
+            // The operator is standing here waiting for the answer, which is
+            // what the reporting mode means and which deadline hermes posts
+            // under. It decides nothing about who hears the report: the doctor
+            // prints every outcome itself.
+            mode: pns::routing::ReportMode::ReportOutcome,
+        })
+        .collect();
+    // NO PANE: its only consumer is the banner's click target, and whether a
+    // click focuses the right pane cannot be verified without a human clicking
+    // it, so carrying one would add the scrub rule to a second call site to
+    // test nothing this can observe.
+    let mut delivered =
+        dispatch_legs(&legs, false, &event, &home, moshi_token, hermes_key).into_iter();
+
+    let outcomes: Vec<pns::doctor::Outcome> = checks
+        .iter()
+        .map(|check| match check.kind {
+            pns::doctor::CheckKind::Skipped(reason) => pns::doctor::Outcome::Skipped(reason),
+            pns::doctor::CheckKind::Pulse => {
+                pns::doctor::Outcome::Signalled(fire_pulse(hue_table.clone(), "0"))
+            }
+            // IN LOCK STEP, and by construction: the legs above are these
+            // checks, in this order, and `dispatch_legs` answers one outcome
+            // per leg. The absent case cannot happen and still reports a
+            // problem rather than claiming a send, which is the direction to
+            // be wrong in.
+            pns::doctor::CheckKind::Send => match delivered.next() {
+                Some((_, Delivery::Delivered(said))) => pns::doctor::Outcome::Sent(said),
+                Some((_, Delivery::Failed(said))) => pns::doctor::Outcome::Failed(said),
+                // Silent BY DESIGN, which is an executable channel: it was
+                // handed the event and has no second surface to answer on.
+                Some((_, Delivery::Silent)) => pns::doctor::Outcome::SentUnreported,
+                None => pns::doctor::Outcome::Failed("the leg was never dispatched".to_string()),
+            },
+        })
+        .collect();
+
+    for (check, outcome) in checks.iter().zip(&outcomes) {
+        println!("{}", pns::doctor::line(check, outcome));
+    }
+    println!("{}", pns::doctor::summary(&outcomes));
+    pns::doctor::exit_code(&outcomes)
+}
+
+/// What a doctor typed wrong is told. ONE WORD AND NO FLAGS: a namespace built
+/// for callers that do not exist makes the common case longer to type, and the
+/// report absorbs a new section without a new spelling.
+const DOCTOR_USAGE: &str = "pns: usage: pns doctor";
+
+/// The contract, STATED rather than measured. Whether a gate is currently in
+/// effect is the decision log's question, and reporting live gate state here
+/// would be that feature built twice, in two places, from two readings.
+const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled channel. \
+     Every suppression gate is bypassed (the operator mute, the presence gate, the \
+     viewed-pane rule, the lights' quiet hours), because a check that can be suppressed \
+     proves nothing.";
+
+/// The payload's detail, so whoever the card wakes knows at once that nothing
+/// is wrong and nothing needs doing.
+const DOCTOR_DETAIL: &str = "test send from pns doctor; nothing is wrong and nothing needs doing";
 
 /// The `quiet` mode: the operator's own mute, typed and timed.
 ///
