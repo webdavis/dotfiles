@@ -45,18 +45,40 @@ pub struct MoshiChannel<H: HttpPost> {
 }
 
 impl<H: HttpPost> MoshiChannel<H> {
-    /// Always silent: the only thing worth reporting would be the request
-    /// that carries the token.
+    /// WHETHER THE PUSH LANDED, NEVER WHAT IT CARRIED. The channel used to be
+    /// silent on the reasoning that the only thing worth reporting would be
+    /// the request holding the token; the verdict says nothing about the
+    /// request, so the secret stays where it was and a hand-run check can
+    /// finally learn that the phone leg is broken.
+    ///
+    /// NO EVENT HEARS ANY OF IT. `ReportOutcome` is produced only under
+    /// `--remote-only`, which selects durable plugins, and this one is not
+    /// durable, so these sentences are unreachable from an event's stdout.
     pub fn deliver(&self, event: &Event, _mode: ReportMode) -> Delivery {
-        if let Some(token) = &self.token {
-            self.http.post_json(
-                &self.url,
-                &webhook_body(token, &event.title, &event.preview),
-            );
+        let Some(token) = &self.token else {
+            return Delivery::Failed(NO_TOKEN_LINE.to_string());
+        };
+        if self.http.post_json(
+            &self.url,
+            &webhook_body(token, &event.title, &event.preview),
+        ) {
+            Delivery::Delivered("pushed the card".to_string())
+        } else {
+            // WHY IS NOT KNOWN, and the sentence says so rather than picking
+            // one: the seam answers a bool, so a refusal and an unreachable
+            // endpoint arrive here identically.
+            Delivery::Failed(
+                "push FAILED (the moshi endpoint refused it or could not be reached)".to_string(),
+            )
         }
-        Delivery::Silent
     }
 }
+
+/// The line for a channel that was selected and never set up. It names the
+/// config key to write, the way hermes's does, because "not set up" without an
+/// address sends the operator hunting.
+const NO_TOKEN_LINE: &str =
+    "push SKIPPED -- no moshi token in the config ([plugins.moshi] token); nothing was sent";
 
 /// The deadline one moshi post runs under. Nobody waits on the answer and
 /// nothing is retried, so this only bounds how long the process lingers.
@@ -104,7 +126,20 @@ mod tests {
     use std::cell::RefCell;
 
     struct RecordingHttp {
+        /// What the endpoint answers. Scripted, the way hermes's recorded post
+        /// already carries its outcome: a push that was refused is reachable
+        /// no other way, and it is the direction a doctor exists to find.
+        answers: bool,
         posts: RefCell<Vec<(String, String)>>,
+    }
+
+    impl RecordingHttp {
+        fn answering(answers: bool) -> Self {
+            RecordingHttp {
+                answers,
+                posts: RefCell::new(Vec::new()),
+            }
+        }
     }
 
     impl HttpPost for RecordingHttp {
@@ -112,7 +147,7 @@ mod tests {
             self.posts
                 .borrow_mut()
                 .push((url.to_string(), body.to_string()));
-            true
+            self.answers
         }
     }
 
@@ -120,9 +155,7 @@ mod tests {
     /// extracted from the `[plugins.moshi]` settings, no file anywhere near it.
     fn channel_with_settings(settings: &str) -> MoshiChannel<RecordingHttp> {
         MoshiChannel {
-            http: RecordingHttp {
-                posts: RefCell::new(Vec::new()),
-            },
+            http: RecordingHttp::answering(true),
             token: moshi_secret(&settings.parse().unwrap()),
             url: "https://example.invalid/hook".to_string(),
         }
@@ -177,13 +210,56 @@ mod tests {
     // --- delivery -----------------------------------------------------------
 
     #[test]
-    fn no_token_means_no_post_and_no_sound() {
-        let channel = channel_with_settings("other = \"x\"\n");
-        assert_eq!(
-            channel.deliver(&event(), ReportMode::Silent),
-            Delivery::Silent
-        );
-        assert!(channel.http.posts.borrow().is_empty());
+    fn a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write() {
+        // BOTH WAYS a channel arrives without a token: a settings table that
+        // provided none, and a composition root that read none at all.
+        for channel in [
+            channel_with_settings("other = \"x\"\n"),
+            MoshiChannel {
+                http: RecordingHttp::answering(true),
+                token: None,
+                url: DEFAULT_MOSHI_URL.to_string(),
+            },
+        ] {
+            assert_eq!(
+                channel.deliver(&event(), ReportMode::Silent),
+                Delivery::Failed(
+                    "push SKIPPED -- no moshi token in the config ([plugins.moshi] token); \
+                     nothing was sent"
+                        .to_string()
+                )
+            );
+            assert!(channel.http.posts.borrow().is_empty());
+        }
+    }
+
+    #[test]
+    fn a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_the_token() {
+        // THE SENTENCE IS THE WHOLE ASSERTION on the failing side: the only
+        // thing worth reporting about this channel used to be the request that
+        // carries the token, so a verdict that named one would be the leak the
+        // silence was protecting.
+        for (answered, verdict) in [
+            (true, Delivery::Delivered("pushed the card".to_string())),
+            (
+                false,
+                Delivery::Failed(
+                    "push FAILED (the moshi endpoint refused it or could not be reached)"
+                        .to_string(),
+                ),
+            ),
+        ] {
+            let channel = MoshiChannel {
+                http: RecordingHttp::answering(answered),
+                token: Some("tok-secret-9".to_string()),
+                url: "https://example.invalid/hook".to_string(),
+            };
+            assert_eq!(
+                channel.deliver(&event(), ReportMode::Silent),
+                verdict,
+                "answered: {answered}"
+            );
+        }
     }
 
     #[test]
@@ -201,22 +277,6 @@ mod tests {
             !posts[0].1.contains("longer than the preview"),
             "the phone gets the ceiling-safe preview"
         );
-    }
-
-    #[test]
-    fn no_token_at_all_is_silently_not_set_up() {
-        let channel = MoshiChannel {
-            http: RecordingHttp {
-                posts: RefCell::new(Vec::new()),
-            },
-            token: None,
-            url: DEFAULT_MOSHI_URL.to_string(),
-        };
-        assert_eq!(
-            channel.deliver(&event(), ReportMode::Silent),
-            Delivery::Silent
-        );
-        assert!(channel.http.posts.borrow().is_empty());
     }
 
     // --- the production post, against real sockets ---------------------------

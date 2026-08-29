@@ -59,20 +59,37 @@ impl Event {
 /// path: this exists so the one caller decides whether a line reaches the
 /// operator, instead of each channel deciding for itself and only one of them
 /// having an opinion.
+///
+/// THE VERDICT IS THE VARIANT, never a word inside the sentence. A caller that
+/// had to find "FAILED" in the text to learn whether a destination received
+/// anything would be a predicate keyed on English, and one of those has already
+/// cost this repo a defect.
+///
+/// THE SENTENCE CARRIES NO `pns: ` PREFIX. It is added by the one place that
+/// prints, so a caller that labels a line with the plugin's name does not have
+/// to unpick a prefix out of the middle of its own.
 #[derive(Debug, PartialEq)]
 pub enum Delivery {
     /// Nothing worth saying, which is almost always the case.
     Silent,
-    /// One operator-facing line, printed only when the leg reports.
-    Reported(String),
+    /// It arrived, and this is what the destination said about it.
+    Delivered(String),
+    /// It did not, and this is what the destination said about that.
+    Failed(String),
 }
 
 impl Delivery {
     /// The line to print for this leg, or None. REPORT MODE IS THE CALLER'S
     /// to know: a channel says what happened, never whether anyone hears it.
+    /// BOTH verdicts are printed on a reporting leg, because a failure is
+    /// exactly the outcome the log path exists to make visible.
     pub fn line_for(self, mode: ReportMode) -> Option<String> {
         match self {
-            Delivery::Reported(line) if mode == ReportMode::ReportOutcome => Some(line),
+            Delivery::Delivered(line) | Delivery::Failed(line)
+                if mode == ReportMode::ReportOutcome =>
+            {
+                Some(line)
+            }
             _ => None,
         }
     }
@@ -112,17 +129,26 @@ mod tests {
     }
 
     #[test]
-    fn only_a_reported_delivery_on_a_reporting_leg_reaches_the_operator() {
+    fn either_verdict_reaches_the_operator_on_a_reporting_leg_and_nothing_does_otherwise() {
         // The whole policy, in one place: an async leg says nothing however
         // much the channel had to say, and a silent channel says nothing
-        // however the leg reports.
+        // however the leg reports. The verdict never decides who hears it,
+        // only the mode does, so a failure is as printable as a success.
         assert_eq!(
-            Delivery::Reported("pns: posted HTTP 200".to_string())
-                .line_for(ReportMode::ReportOutcome),
-            Some("pns: posted HTTP 200".to_string())
+            Delivery::Delivered("posted HTTP 200".to_string()).line_for(ReportMode::ReportOutcome),
+            Some("posted HTTP 200".to_string())
         );
         assert_eq!(
-            Delivery::Reported("pns: posted HTTP 200".to_string()).line_for(ReportMode::Silent),
+            Delivery::Failed("post FAILED HTTP 401".to_string())
+                .line_for(ReportMode::ReportOutcome),
+            Some("post FAILED HTTP 401".to_string())
+        );
+        assert_eq!(
+            Delivery::Delivered("posted HTTP 200".to_string()).line_for(ReportMode::Silent),
+            None
+        );
+        assert_eq!(
+            Delivery::Failed("post FAILED HTTP 401".to_string()).line_for(ReportMode::Silent),
             None
         );
         assert_eq!(Delivery::Silent.line_for(ReportMode::ReportOutcome), None);

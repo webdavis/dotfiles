@@ -93,8 +93,14 @@ pub struct BannerChannel<R: CommandRunner> {
 }
 
 impl<R: CommandRunner> BannerChannel<R> {
-    /// Always silent: a banner that did not post has no second surface to
-    /// report itself on.
+    /// WHETHER THE SPAWN ANSWERED, which is the whole of what this channel can
+    /// know: a banner has no second surface to report itself on, and the
+    /// runner answers nothing for a notifier that is not installed and for one
+    /// killed at its deadline alike.
+    ///
+    /// NO EVENT HEARS IT. `ReportOutcome` is produced only under
+    /// `--remote-only`, which selects durable plugins, and this one is not
+    /// durable, so the sentence is unreachable from an event's stdout.
     pub fn deliver(&self, event: &Event, _mode: ReportMode) -> Delivery {
         let activate = if self.terminal_id.is_empty() {
             DEFAULT_TERMINAL_BUNDLE_ID
@@ -108,12 +114,17 @@ impl<R: CommandRunner> BannerChannel<R> {
             &click_command(self.herdr_path.as_deref(), &event.pane),
         );
         // By NAME, not an absolute path: parity with the bash's `command -v`
-        // guard, and a runner that cannot find it is silently fine.
-        self.runner.run(
+        // guard, and a runner that cannot find it costs the caller nothing.
+        match self.runner.run(
             "terminal-notifier",
             &args.iter().map(String::as_str).collect::<Vec<_>>(),
-        );
-        Delivery::Silent
+        ) {
+            Some(_) => Delivery::Delivered("posted the banner".to_string()),
+            // NAMED, because the remedy is installing that one binary and a
+            // line that only said "failed" would send the operator looking at
+            // the notification settings instead.
+            None => Delivery::Failed("banner FAILED (terminal-notifier did not run)".to_string()),
+        }
     }
 }
 
@@ -244,7 +255,21 @@ mod tests {
     // --- the plugin end to end, through a fake runner -----------------------
 
     struct RecordingRunner {
+        /// Whether the spawn answered. `None` is the whole of what the runner
+        /// reports about a notifier that is not installed or that outlived its
+        /// deadline, and it is scripted here for the same reason hermes's post
+        /// is: a failure no double can produce is a failure no test can see.
+        answers: bool,
         calls: RefCell<Vec<String>>,
+    }
+
+    impl RecordingRunner {
+        fn answering(answers: bool) -> Self {
+            RecordingRunner {
+                answers,
+                calls: RefCell::new(Vec::new()),
+            }
+        }
     }
 
     impl CommandRunner for RecordingRunner {
@@ -252,15 +277,13 @@ mod tests {
             self.calls
                 .borrow_mut()
                 .push(format!("{program} {}", args.join(" ")));
-            Some(String::new())
+            self.answers.then(String::new)
         }
     }
 
     fn channel(terminal_id: &str, herdr_path: Option<&str>) -> BannerChannel<RecordingRunner> {
         BannerChannel {
-            runner: RecordingRunner {
-                calls: RefCell::new(Vec::new()),
-            },
+            runner: RecordingRunner::answering(true),
             terminal_id: terminal_id.to_string(),
             herdr_path: herdr_path.map(String::from),
         }
@@ -300,6 +323,37 @@ mod tests {
         let calls = banner.runner.calls.borrow();
         assert_eq!(calls.len(), 1, "one spawn only: {calls:?}");
         assert!(calls[0].starts_with("terminal-notifier"));
+    }
+
+    #[test]
+    fn a_spawn_that_answered_is_delivered_and_one_that_never_ran_names_the_notifier() {
+        // The banner has no second surface to report itself on, so the ONLY
+        // evidence that it posted is that the spawn answered at all. A runner
+        // answering nothing is terminal-notifier missing from PATH or killed
+        // at its deadline, and the sentence names the binary to install.
+        for (answered, verdict) in [
+            (
+                true,
+                crate::channels::Delivery::Delivered("posted the banner".to_string()),
+            ),
+            (
+                false,
+                crate::channels::Delivery::Failed(
+                    "banner FAILED (terminal-notifier did not run)".to_string(),
+                ),
+            ),
+        ] {
+            let banner = BannerChannel {
+                runner: RecordingRunner::answering(answered),
+                terminal_id: "com.term".to_string(),
+                herdr_path: None,
+            };
+            assert_eq!(
+                banner.deliver(&event_with_pane("wW:p1"), ReportMode::Silent),
+                verdict,
+                "answered: {answered}"
+            );
+        }
     }
 
     #[test]

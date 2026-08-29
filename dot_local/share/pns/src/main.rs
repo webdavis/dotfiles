@@ -739,7 +739,23 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
             );
         }
     } else {
-        dispatch_legs(&decision, event, &home, moshi_token, hermes_key);
+        for (leg, delivered) in dispatch_legs(
+            &decision.legs,
+            decision.pane_dropped,
+            event,
+            &home,
+            moshi_token,
+            hermes_key,
+        ) {
+            // THE ONE PLACE a delivery reaches the operator, and the one place
+            // the `pns: ` prefix is written. A channel says WHAT happened; the
+            // leg's mode says whether anyone hears it, and this says how it is
+            // labelled, so a second caller that labels its lines by plugin
+            // name does not have to unpick a prefix out of the middle of one.
+            if let Some(line) = delivered.line_for(leg.mode) {
+                println!("pns: {line}");
+            }
+        }
     }
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
@@ -756,18 +772,28 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     }
 }
 
-/// Every leg to its destination, in the registry's delivery order.
+/// Every leg to its destination, in the registry's delivery order, each
+/// paired with what its channel had to say for itself.
+///
+/// IT RETURNS ITS OUTCOMES RATHER THAN PRINTING THEM. An event prints only what
+/// a reporting leg said; a hand-run check labels every outcome with its
+/// plugin's name and prints the lot. Two callers spelling one report two ways
+/// is exactly what a returned value is for.
+///
+/// THE LEGS AND THE SCRUB ARRIVE AS VALUES, not as a `Decision`: a caller that
+/// took no decision has none to hand over.
 fn dispatch_legs(
-    decision: &pns::engine::Decision,
+    legs: &[pns::routing::Leg],
+    pane_dropped: bool,
     event: &pns::args::EventArgs,
     home: &str,
     moshi_token: Option<String>,
     hermes_key: Option<String>,
-) {
+) -> Vec<(pns::routing::Leg, Delivery)> {
     // Sanitized ONCE here rather than per channel: a channel may be written in
     // any language and cannot be expected to share the guard. Warned about
     // only now, because a scrub nobody was going to receive is not news.
-    let pane = if decision.pane_dropped {
+    let pane = if pane_dropped {
         eprintln!("pns: dropped a pane id with shell metacharacters; no channel will focus a pane");
         ""
     } else {
@@ -786,23 +812,25 @@ fn dispatch_legs(
     let moshi = moshi_channel(moshi_token);
     let hermes = hermes_channel(hermes_key, hermes_url_for(&event.channel));
 
-    for leg in &decision.legs {
-        let delivered = deliver_leg(
-            leg,
-            &rendered,
-            &banner,
-            &moshi,
-            &hermes,
-            native_first(channels_dir_override.is_some()),
-            &channels_dir,
-        );
-        // THE ONE PLACE a delivery reaches the operator. A channel says what
-        // happened; whether anyone hears it is the leg's reporting mode, and
-        // that rule lives here rather than in three channels.
-        if let Some(line) = delivered.line_for(leg.mode) {
-            println!("{line}");
-        }
-    }
+    // NO `?` AND NO EARLY RETURN: one channel's failure costs the others
+    // nothing, and every channel above was constructed before the first
+    // delivery, so a leg cannot be lost to a sibling's refusal.
+    legs.iter()
+        .map(|leg| {
+            (
+                *leg,
+                deliver_leg(
+                    leg,
+                    &rendered,
+                    &banner,
+                    &moshi,
+                    &hermes,
+                    native_first(channels_dir_override.is_some()),
+                    &channels_dir,
+                ),
+            )
+        })
+        .collect()
 }
 
 /// Every override the engine reads, out of the process environment.

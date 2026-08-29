@@ -219,19 +219,28 @@ pub struct HuePulse<B: Bridge> {
 }
 
 impl<B: Bridge> HuePulse<B> {
-    pub fn run(&self, exit_code: &str) {
+    /// Signal every wanted room, and answer with HOW MANY were signalled.
+    ///
+    /// THE COUNT IS THE ONLY OBSERVABLE FACT ON THIS PATH. `put` is fire and
+    /// forget, so a write the bridge refused is invisible; what a caller can
+    /// still learn is whether anything was addressed at all, and zero is the
+    /// shape both likely misconfigurations take (a bridge that answered no
+    /// listing, and a listing in which no configured room name appears).
+    pub fn run(&self, exit_code: &str) -> usize {
         let Some(rooms_json) = self.bridge.get("room") else {
-            return;
+            return 0;
         };
         let body = signal_body(crate::pulse::pulse_color(exit_code));
+        let grouped = grouped_light_ids_for_rooms(&rooms_json, &self.rooms);
         // INDEPENDENT per group, and every outcome ignored: there is no shared
         // choreography left for a refused write to corrupt, so one room's
         // failure must not cost another its signal, and a failed pulse still
         // never fails the caller.
-        for grouped_id in grouped_light_ids_for_rooms(&rooms_json, &self.rooms) {
+        for grouped_id in &grouped {
             self.bridge
                 .put(&format!("grouped_light/{grouped_id}"), &body);
         }
+        grouped.len()
     }
 }
 
@@ -322,7 +331,9 @@ mod tests {
     // --- the sequence -------------------------------------------------------
 
     struct ScriptedBridge {
-        rooms: &'static str,
+        /// The room listing, or None for a bridge that answered nothing: an
+        /// unreachable address, a key it refuses, a body that never arrived.
+        rooms: Option<&'static str>,
         gets: RefCell<Vec<String>>,
         puts: RefCell<Vec<(String, String)>>,
     }
@@ -330,7 +341,7 @@ mod tests {
     impl Bridge for ScriptedBridge {
         fn get(&self, path: &str) -> Option<String> {
             self.gets.borrow_mut().push(path.to_string());
-            Some(self.rooms.to_string())
+            self.rooms.map(String::from)
         }
         fn put(&self, path: &str, body: &str) {
             self.puts
@@ -339,12 +350,16 @@ mod tests {
         }
     }
 
-    fn bridge() -> ScriptedBridge {
+    fn scripted(rooms: Option<&'static str>) -> ScriptedBridge {
         ScriptedBridge {
-            rooms: ROOMS_JSON,
+            rooms,
             gets: RefCell::new(Vec::new()),
             puts: RefCell::new(Vec::new()),
         }
+    }
+
+    fn bridge() -> ScriptedBridge {
+        scripted(Some(ROOMS_JSON))
     }
 
     fn pulse() -> HuePulse<ScriptedBridge> {
@@ -409,15 +424,38 @@ mod tests {
     #[test]
     fn no_matching_rooms_or_no_lights_is_a_silent_no_op() {
         let hue = HuePulse {
-            bridge: ScriptedBridge {
-                rooms: r#"{"data":[]}"#,
-                gets: RefCell::new(Vec::new()),
-                puts: RefCell::new(Vec::new()),
-            },
+            bridge: scripted(Some(r#"{"data":[]}"#)),
             rooms: wanted(&["3F - Studio"]),
         };
         hue.run("0");
         assert!(hue.bridge.puts.borrow().is_empty());
+    }
+
+    #[test]
+    fn the_pulse_reports_how_many_rooms_it_signalled() {
+        // THE ONLY THING ABOUT THE LIGHTS ANYONE CAN CHECK. The bridge owns
+        // the whole effect and acknowledges no write, so the count of rooms
+        // that were signalled is the last observable fact on this path; zero
+        // is the shape every hue misconfiguration takes.
+        assert_eq!(pulse().run("0"), 2, "one signal per matched room");
+        assert_eq!(
+            HuePulse {
+                bridge: scripted(None),
+                rooms: wanted(&["3F - Studio"]),
+            }
+            .run("0"),
+            0,
+            "a bridge that answered no listing signalled nothing"
+        );
+        assert_eq!(
+            HuePulse {
+                bridge: bridge(),
+                rooms: wanted(&["1F - Renamed Away"]),
+            }
+            .run("0"),
+            0,
+            "and neither did a listing in which no configured name matched"
+        );
     }
 
     // --- the quiet window ---------------------------------------------------

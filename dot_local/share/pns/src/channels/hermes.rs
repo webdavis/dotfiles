@@ -152,18 +152,26 @@ mod channel_url_tests {
     }
 }
 
-/// The line sync mode prints for one outcome, exactly as the bash spells it.
+/// The status codes that mean the record reached the gateway. WRITTEN ONCE:
+/// both the sentence and the verdict read it, so the rule cannot be moved for
+/// one and left standing for the other, which would have a doctor call a post
+/// good while the printed line called it FAILED.
+const DELIVERED_STATUS: std::ops::Range<u16> = 200..300;
+
+/// Whether one answer means the record arrived.
+pub fn delivered(outcome: PostOutcome) -> bool {
+    matches!(outcome, PostOutcome::Status(code) if DELIVERED_STATUS.contains(&code))
+}
+
+/// The line sync mode prints for one outcome, exactly as the bash spells it
+/// minus the `pns: ` prefix, which the one print site adds.
 pub fn outcome_line(outcome: PostOutcome) -> String {
     match outcome {
-        PostOutcome::Status(code) if (200..300).contains(&code) => {
-            format!("pns: posted HTTP {code}")
-        }
-        PostOutcome::Status(code) => format!("pns: post FAILED HTTP {code}"),
-        PostOutcome::NoStatus => {
-            "pns: post FAILED (curl reported no HTTP status at all)".to_string()
-        }
+        PostOutcome::Status(code) if delivered(outcome) => format!("posted HTTP {code}"),
+        PostOutcome::Status(code) => format!("post FAILED HTTP {code}"),
+        PostOutcome::NoStatus => "post FAILED (curl reported no HTTP status at all)".to_string(),
         PostOutcome::NoResponse => {
-            "pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)".to_string()
+            "post FAILED HTTP 000 (no response; is the hermes gateway up?)".to_string()
         }
     }
 }
@@ -172,7 +180,7 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
 /// config key to write, because "not set up" without an address sends the
 /// operator hunting.
 pub fn skipped_line() -> String {
-    "pns: post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
+    "post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
         .to_string()
 }
 
@@ -217,18 +225,24 @@ impl<P: SignedPost> HermesChannel<P> {
     pub fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery {
         let body = hermes_body(event);
         let Some(signature) = self.key.as_deref().and_then(|key| sign(key, &body)) else {
-            // No key is unavailable, not a failure. Reported because an
-            // empty Discord channel looks like the jobs stopped.
-            return Delivery::Reported(skipped_line());
+            // NOT SET UP IS A FAILED VERDICT, because from the record's point
+            // of view it reads the same as a refusal: the entry is not there.
+            // The sentence still says which of the two it was, and an empty
+            // Discord channel otherwise looks like the jobs stopped.
+            return Delivery::Failed(skipped_line());
         };
 
         let deadline = match mode {
             ReportMode::ReportOutcome => self.sync_deadline,
             ReportMode::Silent => Some(ASYNC_DEADLINE),
         };
-        Delivery::Reported(outcome_line(
-            self.post.post(&self.url, &body, &signature, deadline),
-        ))
+        let outcome = self.post.post(&self.url, &body, &signature, deadline);
+        let line = outcome_line(outcome);
+        if delivered(outcome) {
+            Delivery::Delivered(line)
+        } else {
+            Delivery::Failed(line)
+        }
     }
 }
 
@@ -377,21 +391,18 @@ mod tests {
 
     #[test]
     fn sync_outcomes_are_spelled_exactly_as_the_bash_spells_them() {
-        assert_eq!(
-            outcome_line(PostOutcome::Status(200)),
-            "pns: posted HTTP 200"
-        );
-        assert_eq!(
-            outcome_line(PostOutcome::Status(204)),
-            "pns: posted HTTP 204"
-        );
+        // Minus the `pns: ` prefix, which now belongs to the print site: the
+        // PRINTED line is still byte for byte the bash's, and
+        // `tests/native.rs` plus the dispatch suite pin that end of it.
+        assert_eq!(outcome_line(PostOutcome::Status(200)), "posted HTTP 200");
+        assert_eq!(outcome_line(PostOutcome::Status(204)), "posted HTTP 204");
         assert_eq!(
             outcome_line(PostOutcome::Status(404)),
-            "pns: post FAILED HTTP 404"
+            "post FAILED HTTP 404"
         );
         assert_eq!(
             outcome_line(PostOutcome::NoResponse),
-            "pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)"
+            "post FAILED HTTP 000 (no response; is the hermes gateway up?)"
         );
     }
 
@@ -399,7 +410,7 @@ mod tests {
     fn the_no_key_line_names_the_config_key_the_operator_must_fix() {
         assert_eq!(
             skipped_line(),
-            "pns: post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
+            "post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
         );
     }
 
@@ -433,7 +444,7 @@ mod tests {
     fn a_redirect_is_the_final_answer_so_3xx_reads_failed() {
         assert_eq!(
             outcome_line(PostOutcome::Status(301)),
-            "pns: post FAILED HTTP 301"
+            "post FAILED HTTP 301"
         );
     }
 
@@ -441,7 +452,7 @@ mod tests {
     fn the_never_attempted_case_has_its_own_bash_wording() {
         assert_eq!(
             outcome_line(PostOutcome::NoStatus),
-            "pns: post FAILED (curl reported no HTTP status at all)"
+            "post FAILED (curl reported no HTTP status at all)"
         );
     }
 
@@ -560,7 +571,7 @@ mod tests {
         let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(200));
         assert_eq!(
             channel.deliver(&event(), ReportMode::Silent),
-            Delivery::Reported("pns: posted HTTP 200".to_string()),
+            Delivery::Delivered("posted HTTP 200".to_string()),
             "the channel reports what happened; the leg's mode decides who hears it"
         );
         let posts = channel.post.posts.borrow();
@@ -589,12 +600,12 @@ mod tests {
     }
 
     #[test]
-    fn no_key_means_no_post_in_either_mode() {
+    fn no_key_means_no_post_in_either_mode_and_the_verdict_is_a_failure() {
         for mode in [ReportMode::Silent, ReportMode::ReportOutcome] {
             let channel = channel_with_settings("", PostOutcome::Status(200));
             assert_eq!(
                 channel.deliver(&event(), mode),
-                Delivery::Reported(super::skipped_line()),
+                Delivery::Failed(super::skipped_line()),
                 "not set up is reported in both modes; only sync prints it"
             );
             assert!(channel.post.posts.borrow().is_empty());
@@ -604,5 +615,51 @@ mod tests {
     #[test]
     fn the_default_url_is_the_local_gateway_route() {
         assert_eq!(DEFAULT_HERMES_URL, "http://127.0.0.1:8644/webhooks/pns");
+    }
+
+    // --- the verdict ---------------------------------------------------------
+
+    #[test]
+    fn a_2xx_is_delivered_and_every_other_answer_is_failed_carrying_its_own_sentence() {
+        // THE VERDICT IS READABLE WITHOUT READING ENGLISH. A caller that had to
+        // decide "did this work" by looking for the word FAILED inside the
+        // sentence is a predicate keyed on message text, which is a defect this
+        // repo has already paid for once.
+        for (outcome, expected) in [
+            (
+                PostOutcome::Status(200),
+                Delivery::Delivered("posted HTTP 200".to_string()),
+            ),
+            (
+                PostOutcome::Status(204),
+                Delivery::Delivered("posted HTTP 204".to_string()),
+            ),
+            (
+                PostOutcome::Status(401),
+                Delivery::Failed("post FAILED HTTP 401".to_string()),
+            ),
+            (
+                // A redirect is the final answer here, so it is not a delivery.
+                PostOutcome::Status(301),
+                Delivery::Failed("post FAILED HTTP 301".to_string()),
+            ),
+            (
+                PostOutcome::NoResponse,
+                Delivery::Failed(
+                    "post FAILED HTTP 000 (no response; is the hermes gateway up?)".to_string(),
+                ),
+            ),
+            (
+                PostOutcome::NoStatus,
+                Delivery::Failed("post FAILED (curl reported no HTTP status at all)".to_string()),
+            ),
+        ] {
+            let channel = channel_with_settings("key = \"key\"\n", outcome);
+            assert_eq!(
+                channel.deliver(&event(), ReportMode::ReportOutcome),
+                expected,
+                "case: {outcome:?}"
+            );
+        }
     }
 }
