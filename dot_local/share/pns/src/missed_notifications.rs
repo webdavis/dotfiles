@@ -114,6 +114,26 @@ pub fn should_replay(decision: &Decision) -> bool {
     decision.inputs.surface != Surface::Away && (decision.plan.banner || decision.plan.phone_card)
 }
 
+/// Whether this event PROVES the operator was here, and so moves the recap
+/// window's near edge forward.
+///
+/// AWAY IS THE ONLY THING THAT DOES NOT COUNT. Desk and Mobile are both a
+/// human within reach of a screen; Away is the state the whole recap exists to
+/// bracket, and the window it brackets runs from the last event that was not
+/// one to now.
+///
+/// VISIBILITY IS DELIBERATELY NOT READ, unlike `was_missed`'s watching clause.
+/// An operator at the desk looking at a different pane is still present, and
+/// reading visibility here would make the window's near edge depend on which
+/// pane happened to fire.
+///
+/// IT READS A VALUE THE DECISION ALREADY HOLDS, so it is no new probe and no
+/// second reading, exactly as `was_missed` and `should_replay` are argued
+/// above.
+pub fn is_present(decision: &Decision) -> bool {
+    decision.inputs.surface != Surface::Away
+}
+
 /// One journal entry: a single JSON object, on one line.
 ///
 /// IT CARRIES THE FIVE VALUES `render::title` and `render::message` consume,
@@ -138,7 +158,16 @@ pub fn should_replay(decision: &Decision) -> bool {
 /// the record site, for the reason the decision log takes its epoch from
 /// there: two readings of one moment can disagree. An unreadable clock writes
 /// `null`, which is honest and which a reader can tell from an absent field.
-pub fn entry(event: &EventArgs, at: Option<u64>) -> String {
+///
+/// `max_chars` IS THE CALLER'S, because two files now hold this shape and they
+/// hold it for different readers. The journal passes the card's own cap, since
+/// what a card renders without a cut is exactly what a replay needs; the
+/// activity ring passes a timeline's cap, which is much shorter, because a
+/// recap line is one line among a hundred and the full text of every event
+/// already reached the durable log the recap points at. Neither number lives
+/// here: this writes what it is given.
+pub fn entry(event: &EventArgs, at: Option<u64>, max_chars: usize) -> String {
+    let capped = |text: &str| crate::render::flatten_reply(text, max_chars);
     serde_json::json!({
         "at": at,
         "agent": capped(&event.agent),
@@ -252,6 +281,127 @@ pub fn summary(waiting: &[Entry]) -> String {
     body
 }
 
+/// The states that mean an agent is WAITING ON THE OPERATOR rather than
+/// reporting to them.
+///
+/// ONE LIST, TWO READERS. The phone card's needs-you line and the recap's own
+/// NEEDS YOU section are the same question asked at two sizes, and two copies
+/// of this list would drift the day a sixth state joins. The first four are the
+/// mid-turn arm's own words in the composition root; `failed` is a turn that
+/// died, which needs the operator every bit as much as one that asked.
+pub const NEEDS_YOU: [&str; 5] = ["asked", "blocked", "denied", "failed", "plan-ready"];
+
+/// The entries in a window that still need the operator, in the order they
+/// arrived.
+pub fn needing_you(entries: &[Entry]) -> Vec<Entry> {
+    entries
+        .iter()
+        .filter(|entry| NEEDS_YOU.contains(&entry.state.as_str()))
+        .cloned()
+        .collect()
+}
+
+/// The phone layer of the return recap: what still needs the operator, then
+/// the true counts, then where the rest is.
+///
+/// NEEDS YOU FIRST AND NEVER SUMMARIZED AWAY, which is why it is composed here
+/// and not by any model: the urgent line is the one a hallucination would cost
+/// the most, and it is the one thing on this card that cannot wait for the
+/// Discord recap to be read.
+///
+/// EVERY NUMBER IS A LENGTH, never a claim. `counted` is the window's own
+/// length and `missed` is the claimed journal's, so a card that ran out of room
+/// still names totals it can back. That is `summary`'s count-never-lies rule
+/// applied to a second card.
+///
+/// THE COUNTS AND THE POINTER ARE RESERVED, and the urgent items are fitted
+/// into whatever room is left. MEASURED as the reason this is not a stop rule
+/// alone: a 120-character agent and a 120-character project compose a
+/// 253-character title, the first urgent item used to go in whatever its
+/// length, and the card reached 289 characters. `render::preview` is what the
+/// phone is actually handed, and it cuts at the last SENTENCE END that fits,
+/// which is the full stop before the counts: the delivered preview was
+/// 254 characters of title with the event count, the missed count and the
+/// pointer all gone. So the newest urgent item is CUT to the room rather than
+/// dropped (a card without the one thing waiting on the operator is the
+/// notification it exists to deliver) and the card never exceeds the cap at
+/// all, which is what makes the preview a no-op.
+///
+/// TWO INDEPENDENT READS OF ONE RING, STATED. `counted` is this process's read
+/// of the window and the Discord header is the child's, so the two can differ
+/// by an event written between them. Each is honest about what it read; see
+/// `spawn_recap`'s own comment for why nothing reconciles them.
+///
+/// "recap in #pns" IS ONLY SAID WHEN THERE IS ONE. `digest_posted` is whether a
+/// child was really started, not whether one was wanted, so the card never
+/// points at a recap that was never going to arrive.
+pub fn recap_card(
+    needs_you: &[Entry],
+    counted: usize,
+    missed: usize,
+    digest_posted: bool,
+) -> String {
+    let mut counts = event_count(counted);
+    if missed > 0 {
+        counts.push_str(&format!(", {missed} missed"));
+    }
+    if digest_posted {
+        counts.push_str(". recap in #pns");
+    }
+    // THE ROOM THE COUNTS LEFT, separator included, which is what every urgent
+    // item is fitted into. A count so long that nothing is left is an empty
+    // room, and the card is then the counts alone.
+    let room = crate::render::PREVIEW_MAX_CHARS.saturating_sub(counts.chars().count() + SEPARATOR);
+    let mut urgent: Vec<String> = Vec::new();
+    for entry in needs_you.iter().rev() {
+        let mut extended = urgent.clone();
+        extended.push(crate::render::clipped(
+            &crate::render::title(&entry.agent, &entry.state, &entry.project),
+            room,
+        ));
+        // STOPPED RATHER THAN SKIPPED, and never before the first: `summary`'s
+        // own two rules, for its own two reasons. The first item is already
+        // inside the room by the clip above, so "never before the first" costs
+        // the cap nothing here.
+        if !urgent.is_empty() && joined(&extended).chars().count() > room {
+            break;
+        }
+        urgent = extended;
+    }
+    with_counts(&urgent, &counts)
+}
+
+/// The window's own count, said ONCE so the phone card and the Discord header
+/// cannot disagree about it. A one-event window read "1 events" on the phone
+/// and "1 event" in Discord while this was two sentences.
+pub fn event_count(counted: usize) -> String {
+    if counted == 1 {
+        "1 event".to_string()
+    } else {
+        format!("{counted} events")
+    }
+}
+
+/// What separates the urgent items from the counts, counted rather than
+/// guessed at, so the reservation above and the composition below cannot
+/// disagree about its width.
+const SEPARATOR: usize = ". ".len();
+
+/// The urgent items in front of the counts, or the counts alone.
+fn with_counts(urgent: &[String], counts: &str) -> String {
+    if urgent.is_empty() {
+        counts.to_string()
+    } else {
+        format!("{}. {counts}", joined(urgent))
+    }
+}
+
+/// The urgent items as one run of text, which is the thing the room is
+/// measured against.
+fn joined(urgent: &[String]) -> String {
+    urgent.join("; ")
+}
+
 /// One entry as a line of the summary: the card's own title, and its text
 /// where there is any.
 ///
@@ -274,19 +424,6 @@ fn text(fields: &serde_json::Map<String, serde_json::Value>, key: &str) -> Strin
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default()
         .to_string()
-}
-
-/// One text field as the journal holds it.
-///
-/// THE CAP IS THE CARD'S OWN, reused rather than invented a second time: the
-/// journal holds what a card would have shown, so what a card renders without
-/// a cut is exactly what a replay needs. It costs nothing, because the
-/// durable hermes log is not gated by the plan and is exempt from the mute,
-/// so every journaled event already reached the full-text record. The TAIL is
-/// what survives, following `flatten_reply`'s own reasoning: a turn states its
-/// conclusion at the end.
-fn capped(text: &str) -> String {
-    crate::render::flatten_reply(text, crate::render::PREVIEW_MAX_CHARS)
 }
 
 /// The doctor's one line about the journal, from the file's contents.
@@ -363,7 +500,10 @@ const NONE_WAITING: &str = "pns doctor: no missed notification is recorded.";
 
 #[cfg(test)]
 mod tests {
-    use super::{Entry, entries, entry, should_replay, summary, waiting_line, was_missed};
+    use super::{
+        Entry, entries, entry, is_present, needing_you, recap_card, should_replay, summary,
+        waiting_line, was_missed,
+    };
     use crate::args::EventArgs;
     use crate::engine::{Decision, GateInputs, Overrides};
     use crate::surface::{DeliveryPlan, Surface, Visibility};
@@ -600,7 +740,45 @@ mod tests {
         }
     }
 
+    // --- the presence marker's own predicate --------------------------------
+
+    #[test]
+    fn every_surface_but_away_proves_the_operator_was_here() {
+        // AWAY IS THE ONLY THING THAT DOES NOT COUNT. Desk and Mobile are both
+        // a human within reach of a screen, and Away is the state the whole
+        // recap exists to bracket.
+        for surface in [Surface::Desk, Surface::Mobile] {
+            for visibility in [Visibility::Visible, Visibility::Hidden, Visibility::Unknown] {
+                assert!(
+                    is_present(&decided(surface, visibility, NOTHING)),
+                    "{surface:?} / {visibility:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_away_decision_never_moves_the_windows_near_edge() {
+        // VISIBILITY IS DELIBERATELY NOT READ, on either side of this. An
+        // operator at the desk looking at a different pane is still present,
+        // and reading visibility here would make the window's edge depend on
+        // which pane happened to fire.
+        for visibility in [Visibility::Visible, Visibility::Hidden, Visibility::Unknown] {
+            assert!(
+                !is_present(&decided(Surface::Away, visibility, CARD)),
+                "{visibility:?}"
+            );
+        }
+    }
+
     // --- the entry ---------------------------------------------------------
+
+    /// One entry at the JOURNAL'S own cap, which is what every test but the
+    /// cap test itself is about. The cap travels with the caller now, so the
+    /// journal's number is stated here rather than assumed inside `entry`.
+    fn journaled(event: &EventArgs, at: Option<u64>) -> String {
+        entry(event, at, crate::render::PREVIEW_MAX_CHARS)
+    }
 
     /// The five values `render::title` and `render::message` consume, as an
     /// event. Everything else on `EventArgs` defaults, because nothing else
@@ -623,7 +801,7 @@ mod tests {
         // cannot be reshaped. AND NO OTHER FIELD: the pane, the channel and
         // the tier are all deliberately absent, so the key set is asserted
         // whole rather than one key at a time.
-        let written = entry(&event("a summary"), Some(1_756_500_000));
+        let written = journaled(&event("a summary"), Some(1_756_500_000));
         let parsed: serde_json::Value = serde_json::from_str(&written).expect("one JSON object");
         let object = parsed.as_object().expect("an object");
         let mut keys: Vec<&str> = object.keys().map(String::as_str).collect();
@@ -644,7 +822,7 @@ mod tests {
     fn an_entry_written_with_no_readable_clock_records_a_null_rather_than_a_zero() {
         // A ZERO IS A CLAIM about January 1970; null is the honest reading,
         // and a reader can tell it from an absent field.
-        let written = entry(&event("a summary"), None);
+        let written = journaled(&event("a summary"), None);
         let parsed: serde_json::Value = serde_json::from_str(&written).expect("one JSON object");
         assert!(parsed["at"].is_null(), "got {written}");
         assert!(
@@ -660,7 +838,7 @@ mod tests {
         // library escaping is what prevents both; interpolating the value
         // into a JSON-shaped string is what would not.
         let hostile = "he said \"stop\"\nthen a literal \\n and an escape \u{1b}[0m";
-        let written = entry(&event(hostile), Some(1_756_500_000));
+        let written = journaled(&event(hostile), Some(1_756_500_000));
         assert_eq!(written.lines().count(), 1, "got {written:?}");
         assert!(!written.contains('\n'), "got {written:?}");
         let parsed: serde_json::Value = serde_json::from_str(&written).expect("one JSON object");
@@ -684,6 +862,7 @@ mod tests {
                 ..event(&long)
             },
             Some(1_756_500_000),
+            cap,
         );
         let parsed: serde_json::Value = serde_json::from_str(&written).expect("one JSON object");
         for field in ["detail", "project"] {
@@ -702,7 +881,7 @@ mod tests {
         // the writer and the reader can never drift apart in a fixture. BY
         // KEY and never by position, which is what makes the writer's key
         // order (`serde_json`'s business, not this module's) invisible here.
-        let written = entry(&event("a private summary"), Some(1_756_500_000));
+        let written = journaled(&event("a private summary"), Some(1_756_500_000));
         let read = entries(&format!("{written}\n"));
         assert_eq!(
             read,
@@ -717,7 +896,7 @@ mod tests {
         );
         // AND THE CLOCK'S OTHER STATE, which is the one field that is not a
         // string: a null reads back as an unknown epoch, not as 1970.
-        assert_eq!(entries(&entry(&event("x"), None))[0].at, None);
+        assert_eq!(entries(&journaled(&event("x"), None))[0].at, None);
     }
 
     #[test]
@@ -728,8 +907,8 @@ mod tests {
         // must degrade to a thinner card rather than to no card.
         let read = entries(&format!(
             "{}\nnot JSON at all\n{{\"agent\":\"codex\"}}\n\"a bare string\"\n[1,2]\n\n{}\n",
-            entry(&event("the first"), Some(1_756_500_000)),
-            entry(&event("the last"), Some(1_756_500_001)),
+            journaled(&event("the first"), Some(1_756_500_000)),
+            journaled(&event("the last"), Some(1_756_500_001)),
         ));
         assert_eq!(
             read.len(),
@@ -933,6 +1112,153 @@ mod tests {
         );
     }
 
+    // --- the recap's own card ----------------------------------------------
+
+    /// One activity entry in a state and a project, which is all the card
+    /// renders of it.
+    fn acted(state: &str, project: &str) -> Entry {
+        Entry {
+            agent: "claude".to_string(),
+            state: state.to_string(),
+            project: project.to_string(),
+            ..Entry::default()
+        }
+    }
+
+    #[test]
+    fn the_recap_card_puts_what_needs_the_operator_in_front_of_every_count() {
+        // NEEDS YOU FIRST. The counts are the reason the card is worth reading
+        // at all, but the urgent item is the reason it is worth acting on, and
+        // a card that opened with a number would bury it.
+        let card = recap_card(
+            &[acted("done", "p"), acted("blocked", "dotfiles")],
+            12,
+            2,
+            true,
+        );
+        let urgent = card
+            .find("blocked")
+            .expect("the urgent item is on the card");
+        let count = card
+            .find("12 events")
+            .expect("the window's count is on the card");
+        assert!(urgent < count, "the counts came first: {card}");
+        assert!(card.contains("2 missed"), "{card}");
+        assert!(card.ends_with("recap in #pns"), "{card}");
+    }
+
+    #[test]
+    fn a_recap_card_with_nothing_waiting_says_so_by_saying_nothing_about_it() {
+        // NO ZERO CLAUSE. "0 missed" is a sentence about nothing, and the card
+        // is 260 characters wide; the pointer is dropped for the mirror reason,
+        // because a card must never name a recap that was never started.
+        let card = recap_card(&[], 12, 0, false);
+        assert_eq!(card, "12 events", "{card}");
+    }
+
+    #[test]
+    fn the_recap_cards_counts_survive_a_needs_you_list_too_long_to_fit() {
+        // THE COUNTS ARE RESERVED, not fitted. They are what the card can
+        // always back, so they are built first and the urgent items are fitted
+        // in front of them; a build that filled the card with titles and then
+        // cut would drop the numbers instead.
+        let crowd: Vec<Entry> = (0..40)
+            .map(|which| acted("blocked", &format!("project-{which}")))
+            .collect();
+        let card = recap_card(&crowd, 80, 3, true);
+        assert!(
+            card.contains("80 events, 3 missed. recap in #pns"),
+            "the counts were cut to make room: {card}"
+        );
+        assert!(
+            card.chars().count() <= crate::render::PREVIEW_MAX_CHARS,
+            "the card ran past what a phone renders: {} chars",
+            card.chars().count()
+        );
+        assert!(
+            card.starts_with("claude · blocked · project-39"),
+            "the newest urgent item leads: {card}"
+        );
+    }
+
+    #[test]
+    fn one_urgent_item_too_long_for_the_card_is_cut_to_fit_rather_than_dropped() {
+        // `summary`'S MEASURED RULE, applied to the second card. The one thing
+        // waiting on the operator is exactly what the card is for, so the
+        // newest item is never the thing that goes; what gives is its length.
+        let huge = acted("blocked", &"x".repeat(crate::render::PREVIEW_MAX_CHARS));
+        let card = recap_card(&[huge], 9, 0, false);
+        assert!(
+            card.contains(&"x".repeat(200)),
+            "the item was dropped: {card}"
+        );
+        assert!(
+            card.ends_with("9 events"),
+            "and the count still stands: {card}"
+        );
+    }
+
+    #[test]
+    fn every_count_survives_the_preview_the_phone_is_actually_handed() {
+        // THE DELIVERED CARD IS `render::preview` OF THE CARD, never the card
+        // itself, and that is where this used to fail. MEASURED: a
+        // 120-character agent and a 120-character project (the activity ring's
+        // own field cap, twice) compose a 253-character title; the card reached
+        // 289 characters, and the preview cuts at the last SENTENCE END that
+        // fits, which is the full stop in front of the counts. The phone was
+        // handed 254 characters of title with the event count, the missed
+        // count and the pointer all gone: every number the card exists to
+        // carry, and the pointer to where the rest of it is.
+        //
+        // ASSERTED AGAINST THE PREVIEW, never the raw detail, which is the
+        // whole point: the raw detail passed the whole time.
+        let wide = Entry {
+            agent: "a".repeat(120),
+            state: "blocked".to_string(),
+            project: "p".repeat(120),
+            ..Entry::default()
+        };
+        let card = recap_card(&[wide], 13, 2, true);
+        let delivered = crate::render::preview(&card);
+
+        assert_eq!(
+            delivered, card,
+            "the card was long enough for the preview to cut it at all"
+        );
+        assert!(delivered.contains("13 events"), "{delivered}");
+        assert!(delivered.contains("2 missed"), "{delivered}");
+        assert!(delivered.contains("recap in #pns"), "{delivered}");
+        assert!(
+            delivered.contains("blocked"),
+            "and the urgent item is still what leads: {delivered}"
+        );
+    }
+
+    #[test]
+    fn only_the_states_that_wait_on_the_operator_are_needing_you() {
+        // ONE LIST, TWO READERS, so this pins the list itself rather than the
+        // card that spends it. `done` is a report and `stale` is a warning;
+        // neither is waiting on an answer.
+        let window = vec![
+            acted("done", "p"),
+            acted("blocked", "p"),
+            acted("stale", "p"),
+            acted("asked", "p"),
+            acted("plan-ready", "p"),
+            acted("denied", "p"),
+            acted("failed", "p"),
+        ];
+        let waiting: Vec<String> = needing_you(&window)
+            .into_iter()
+            .map(|entry| entry.state)
+            .collect();
+        assert_eq!(
+            waiting,
+            ["blocked", "asked", "plan-ready", "denied", "failed"],
+            "in the order they arrived"
+        );
+    }
+
     // --- the doctor's one line ---------------------------------------------
 
     /// A journal holding `count` real entries, written the way the append
@@ -940,7 +1266,7 @@ mod tests {
     fn journal(count: usize) -> String {
         (0..count)
             .map(|which| {
-                entry(
+                journaled(
                     &event(&format!("summary {which}")),
                     Some(1_756_500_000 + which as u64),
                 )
@@ -1028,7 +1354,7 @@ mod tests {
         };
         for (count, replay_card) in [(1, true), (3, true), (1, false), (3, false)] {
             let contents: String = (0..count)
-                .map(|_| format!("{}\n", entry(&secret, Some(1_756_500_000))))
+                .map(|_| format!("{}\n", journaled(&secret, Some(1_756_500_000))))
                 .collect();
             let line = waiting_line(Some(&contents), replay_card);
             for leaked in [

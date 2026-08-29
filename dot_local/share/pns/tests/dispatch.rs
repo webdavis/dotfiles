@@ -11,7 +11,7 @@ use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::FileTypeExt;
 use support::{
-    KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout, write_script,
+    KEYS_DISAGREE, RouterStub, Sandbox, poll_until, router_table, run, stderr, stdout, write_script,
 };
 
 // --- the alert path ---------------------------------------------------------
@@ -3648,7 +3648,7 @@ fn an_event_with_nothing_waiting_delivers_and_leaves_exactly_what_it_did_before(
     assert_eq!(raised[0]["state"], "done", "{raised:?}");
     assert_eq!(
         state_files(&sandbox),
-        ["decisions"],
+        ["activity", "decisions", "last-present"],
         "the run left something new in the state directory"
     );
 }
@@ -3698,7 +3698,7 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
     );
     assert_eq!(
         state_files(&delivered),
-        ["decisions"],
+        ["activity", "decisions", "last-present"],
         "a delivered replay left a claim behind"
     );
 
@@ -3740,10 +3740,22 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
     // open for as long as it sleeps; it waits on this file instead and ends
     // with the test rather than on a timer of its own.
     std::fs::write(killed.path("the.test.is.over"), "").expect("the release");
+    // AND THE MARKER IS ALREADY BACK, which is the OTHER half of what this
+    // process was killed to prove. The window's near edge is restored inside
+    // the claim, before anything is counted and long before anything is
+    // dispatched, so a run killed mid-delivery costs the one card it was
+    // holding and never the next window. A build that restored the edge after
+    // the dispatch leaves no marker here at all, and the window it consumed
+    // could never fire again.
     assert_eq!(
         state_files(&killed),
-        ["decisions"],
-        "the journal was still claimed, or its claim still on disk, mid-delivery"
+        ["activity", "decisions", "last-present"],
+        "the journal was still claimed, or the window's edge was not restored"
+    );
+    assert!(
+        last_present(&killed).is_some_and(|edge| edge > 1_700_000_000),
+        "the restored edge is this event's own clock read: {:?}",
+        last_present(&killed)
     );
 }
 
@@ -3840,7 +3852,7 @@ fn a_claim_an_earlier_run_never_finished_is_adopted_by_the_next_return() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["decisions"],
+        ["activity", "decisions", "last-present"],
         "the adopted claim outlived the delivery it rode on"
     );
 }
@@ -3910,7 +3922,7 @@ fn a_held_batch_whose_owner_is_gone_is_adopted_exactly_once() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["decisions"],
+        ["activity", "decisions", "last-present"],
         "the hold outlived the delivery it rode on"
     );
 }
@@ -4002,7 +4014,7 @@ fn a_line_nothing_can_parse_costs_the_entries_around_it_nothing() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["decisions"],
+        ["activity", "decisions", "last-present"],
         "a journal that read back whole is consumed whole"
     );
 }
@@ -4083,7 +4095,12 @@ fn a_directory_at_the_journals_path_is_put_back_exactly_where_it_was_found() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["decisions", "missed-notifications"],
+        [
+            "activity",
+            "decisions",
+            "last-present",
+            "missed-notifications"
+        ],
         "something was left standing at a claim path"
     );
     let raised = events(&sandbox, "macos-banner");
@@ -4103,6 +4120,20 @@ fn a_directory_at_the_journals_path_is_put_back_exactly_where_it_was_found() {
 /// because the standing assertion, not the mutant, is what this test is for.
 const RACERS: usize = 8;
 
+/// The three dispatched channels with the RECAP switched off, which is how a
+/// test about something else keeps a loud fixture from earning one.
+///
+/// EIGHT SIMULTANEOUS EVENTS ARE NOT A WINDOW. The racing tests below stamp
+/// every event with one second, so the last racer to run can count all eight
+/// inside a window a few milliseconds wide and earn a recap for an absence
+/// that never happened. Sequentially the marker moves on every present event
+/// and the count never leaves single figures, which is what
+/// `the_marker_advances_when_the_recap_fires_so_a_second_event_recaps_nothing`
+/// pins; here the recap is simply not what is being measured.
+fn recap_switched_off() -> String {
+    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\ndigest = false\n")
+}
+
 #[test]
 fn racing_present_events_deliver_exactly_one_replay_between_them() {
     // THE CLAIM IS A RENAME BECAUSE OF THIS. Two events firing at once is
@@ -4111,6 +4142,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
     // the operator gets the same missed notifications over and over.
     let sandbox = Sandbox::new("replay-race");
     record_every_event(&sandbox);
+    sandbox.write_config(&recap_switched_off());
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
 
     // EVERY COMMAND IS BUILT BEFORE THE FIRST SPAWN: building one WRITES the
@@ -4165,7 +4197,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["decisions"],
+        ["activity", "decisions", "last-present"],
         "the journal survived the race, or a racer left its claim behind"
     );
 }
@@ -4191,6 +4223,7 @@ fn racing_present_events_adopt_one_stranded_claim_exactly_once() {
     // whatever `take_claim` uses to decide ownership.
     let sandbox = Sandbox::new("replay-adopt-race");
     record_every_event(&sandbox);
+    sandbox.write_config(&recap_switched_off());
     let stranded = journal_path(&sandbox).with_extension("claim.999999");
     std::fs::write(&stranded, planted_journal(2)).expect("the stranded claim");
 
@@ -4229,8 +4262,976 @@ fn racing_present_events_adopt_one_stranded_claim_exactly_once() {
     }
     assert_eq!(
         state_files(&sandbox),
-        ["decisions"],
+        ["activity", "decisions", "last-present"],
         "a racer left the stranded claim behind"
+    );
+}
+
+// --- the activity window and the recap --------------------------------------
+
+/// The activity ring's own depth, stated here rather than imported: a test that
+/// read the constant it is checking would agree with any value the source held.
+const ACTIVITY_KEPT: usize = 150;
+
+/// The activity ring, oldest first, which is the order an append leaves it in.
+fn activity(sandbox: &Sandbox) -> Vec<String> {
+    std::fs::read_to_string(sandbox.path("state/activity"))
+        .map(|contents| contents.lines().map(str::to_string).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn every_event_is_recorded_in_the_activity_ring_delivered_or_not() {
+    // THE FILE THE JOURNAL CANNOT BE. The journal holds what the operator could
+    // NOT have perceived; the recap's window is the opposite question, cards
+    // that WERE delivered, glanced at and forgotten, so a delivered event has
+    // to leave a line here while leaving the journal empty.
+    let sandbox = Sandbox::new("activity-records-delivered");
+
+    run(logged_event(&sandbox)
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--project", "dotfiles", "--detail", "a delivered summary"]));
+
+    assert!(sandbox.fired("moshi"), "the away card really fired");
+    assert!(
+        !sandbox.path("state/missed-notifications").exists(),
+        "so nothing was missed and the journal stayed empty"
+    );
+    let recorded = activity(&sandbox);
+    assert_eq!(recorded.len(), 1, "exactly one entry: {recorded:?}");
+    for (name, expected) in [
+        ("agent", "claude"),
+        ("state", "done"),
+        ("project", "dotfiles"),
+        ("detail", "a delivered summary"),
+    ] {
+        assert_eq!(field(&recorded[0], name), expected, "{name}: {recorded:?}");
+    }
+}
+
+/// The activity ring's own field cap, stated here for the same reason its
+/// depth is.
+const ACTIVITY_MAX_CHARS: usize = 120;
+
+/// The shared read ceiling the decision ring and the journal use, stated here
+/// so the fixture below can prove it is exceeded.
+const SHARED_READ_MAX: u64 = 256 * 1024;
+
+/// The activity ring's path, with the state directory that holds it already
+/// made, so a test can plant something there before the first event runs.
+fn activity_path(sandbox: &Sandbox) -> std::path::PathBuf {
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    sandbox.path("state/activity")
+}
+
+/// The WORST-CASE ring the depth was sized against: every text field but the
+/// index is the full field cap of CONTROL BYTES, which the writer escapes at
+/// six bytes each. Built through `serde_json` rather than by hand, so the
+/// fixture is escaped exactly the way the engine escapes what it writes.
+fn escape_heavy_activity(count: usize) -> String {
+    let padding = "\u{1b}".repeat(ACTIVITY_MAX_CHARS);
+    (0..count)
+        .map(|which| {
+            format!(
+                "{}\n",
+                serde_json::json!({
+                    "at": 1_756_499_000_u64,
+                    "agent": padding,
+                    "state": padding,
+                    "project": format!("planted {which}"),
+                    "branch": padding,
+                    "detail": padding,
+                })
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_full_activity_ring_prunes_to_its_own_depth_instead_of_collapsing_to_one_line() {
+    // TWO FAILURES IN ONE FIXTURE, and the ring is planted at its WORST CASE
+    // because only that shows the second one. The DEPTH is the ordinary half:
+    // a ring already at its cap loses its oldest entry to this event. The READ
+    // CEILING is the silent half: a full ring of control bytes is over 400 KiB,
+    // so a reader capped at the decision ring's 256 KiB refuses it, the
+    // append's own heal fires, and the file collapses to the ONE line it just
+    // wrote, exactly when it is fullest and with nothing said.
+    let sandbox = Sandbox::new("activity-prune");
+    std::fs::write(
+        activity_path(&sandbox),
+        escape_heavy_activity(ACTIVITY_KEPT),
+    )
+    .expect("the ring");
+    let planted = std::fs::metadata(activity_path(&sandbox))
+        .expect("the ring")
+        .len();
+    assert!(
+        planted > SHARED_READ_MAX,
+        "the fixture has to be past the SHARED read cap to say anything: {planted} bytes"
+    );
+
+    run(logged_event(&sandbox)
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--detail", "the newest event"]));
+
+    let recorded = activity(&sandbox);
+    // THE APPEND REALLY RAN, asserted before the count: a ring nothing wrote is
+    // still exactly its planted depth, so the count alone would pass a build
+    // that never records anything at all.
+    assert_eq!(
+        field(recorded.last().expect("a ring"), "detail"),
+        "the newest event",
+        "the newest entry is this event's: {} lines",
+        recorded.len()
+    );
+    assert_eq!(
+        recorded.len(),
+        ACTIVITY_KEPT,
+        "the ring kept its own depth rather than collapsing or growing"
+    );
+    assert_eq!(
+        field(&recorded[0], "project"),
+        "planted 1",
+        "the oldest was the one dropped"
+    );
+}
+
+/// The epoch the marker holds, or None when there is no marker at all.
+fn last_present(sandbox: &Sandbox) -> Option<u64> {
+    std::fs::read_to_string(sandbox.path("state/last-present"))
+        .ok()
+        .and_then(|held| held.trim().parse().ok())
+}
+
+#[test]
+fn a_present_event_moves_the_last_present_marker_and_an_away_event_does_not() {
+    // THE WINDOW'S NEAR EDGE. A continuously present operator moves it on every
+    // event, so their window is seconds wide and never trips the threshold;
+    // an away operator leaves it where it was, which is what makes the window
+    // grow across an absence.
+    let away = Sandbox::new("marker-away");
+    run(logged_event(&away).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    assert!(away.fired("moshi"), "the away row really was taken");
+    assert_eq!(
+        last_present(&away),
+        None,
+        "an away event marked the operator present: {:?}",
+        state_files(&away)
+    );
+
+    let present = Sandbox::new("marker-present");
+    run(&mut present_event(&present));
+    let marked = last_present(&present).expect("a present event leaves the marker");
+    assert!(
+        marked > 1_700_000_000,
+        "the marker holds this run's own clock read: {marked}"
+    );
+}
+
+/// This machine's clock, which the fixtures below place themselves against.
+fn epoch_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+}
+
+/// The last-present marker planted `ago` seconds back, which is the only thing
+/// that opens a window at all.
+fn plant_marker(sandbox: &Sandbox, ago: u64) {
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(
+        sandbox.path("state/last-present"),
+        format!("{}\n", epoch_now() - ago),
+    )
+    .expect("the marker");
+}
+
+/// An activity ring `count` entries deep, every one of them stamped `ago`
+/// seconds back and carrying its own index. `urgent` names the index that is
+/// `blocked` rather than `done`, which is how a test plants something that
+/// still needs the operator.
+fn planted_activity(count: usize, ago: u64, urgent: Option<usize>) -> String {
+    let at = epoch_now() - ago;
+    (0..count)
+        .map(|which| {
+            let state = if urgent == Some(which) {
+                "blocked"
+            } else {
+                "done"
+            };
+            format!(
+                "{{\"at\":{at},\"agent\":\"claude\",\"state\":\"{state}\",\
+                 \"project\":\"p{which}\",\"branch\":\"b\",\"detail\":\"planted {which}\"}}\n"
+            )
+        })
+        .collect()
+}
+
+/// The engine's stated volume threshold, which every fixture below is built
+/// around. Stated rather than imported, for the reason the depths are.
+const MIN_EVENTS: usize = 8;
+
+#[test]
+fn an_activity_window_with_no_marker_to_open_it_recaps_nothing_and_still_catches_up() {
+    // A FRESH INSTALL MUST NOT RECAP ALL OF HISTORY. Without a marker there is
+    // no near edge, so there is no window, and no window is no recap however
+    // full the ring is.
+    //
+    // AND THE CATCH-UP STILL FIRES, which is the half that says WHICH no-recap
+    // this is. Reading an absent marker as epoch zero recaps the whole ring;
+    // reading it as "another event is holding the window" delivers nothing at
+    // all. Both are wrong and only the queued card tells them apart, so the
+    // journal is planted and its card is asserted.
+    let sandbox = Sandbox::new("recap-no-marker");
+    record_every_event(&sandbox);
+    std::fs::write(
+        activity_path(&sandbox),
+        planted_activity(MIN_EVENTS * 3, 1800, Some(0)),
+    )
+    .expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and the catch-up card, with no recap riding along: {raised:?}"
+    );
+    assert_eq!(raised[0]["state"], "done", "{raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "a ring nobody opened a window on was recapped: {body}"
+    );
+}
+
+#[test]
+fn a_marker_no_reader_can_parse_opens_no_window_rather_than_one_from_epoch_zero() {
+    // AN UNPARSEABLE EDGE IS NO EDGE, never an edge at epoch zero. There IS a
+    // marker here, so the claim takes one and reads it; what it reads is not a
+    // count. Reading that as zero opens a window over all of history and
+    // recaps the whole ring, which is the same failure an absent marker has
+    // its own test for and a different code path reaches it.
+    //
+    // AND THE EDGE HEALS, because the claim puts this event's own clock back
+    // in place of what it could not read: the next window is a real one.
+    let sandbox = Sandbox::new("recap-marker-unparseable");
+    record_every_event(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(sandbox.path("state/last-present"), "not-an-epoch\n").expect("the marker");
+    std::fs::write(
+        activity_path(&sandbox),
+        planted_activity(MIN_EVENTS * 3, 1800, Some(0)),
+    )
+    .expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and the catch-up card, with no recap riding along: {raised:?}"
+    );
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "a marker nobody could read was counted as epoch zero: {body}"
+    );
+    assert!(
+        last_present(&sandbox).is_some_and(|edge| edge > 1_700_000_000),
+        "the unreadable edge was not healed: {:?}",
+        last_present(&sandbox)
+    );
+}
+
+#[test]
+fn events_stamped_at_the_markers_own_second_belong_to_it_and_not_to_the_window_after() {
+    // THE NEAR EDGE IS EXCLUSIVE, and this is what that buys. The event that
+    // MOVED the marker sits at exactly its epoch, and so does everything that
+    // fired in the same second; counting those inside the next window makes a
+    // burst at the desk read as a loud window opening at the instant it closed.
+    // MEASURED with the edge inclusive: eight events in one second earned a
+    // recap of an absence that never happened, and a second recap of a window
+    // one had just been posted for.
+    let sandbox = Sandbox::new("recap-marker-second");
+    record_every_event(&sandbox);
+    plant_marker(&sandbox, 1800);
+    // THE SAME AGE AS THE MARKER, which is the whole fixture: twelve events at
+    // that instant are twelve events the operator was present for.
+    std::fs::write(activity_path(&sandbox), planted_activity(12, 1800, Some(4))).expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "the marker's own second was counted as the window after it: {body}"
+    );
+}
+
+#[test]
+fn a_window_under_the_threshold_delivers_the_catch_up_card_unchanged() {
+    // THE SLICE-13 CARD, VERBATIM. A quiet window is not a recap: the operator
+    // stepped away for two events, so what they get back is the queue they
+    // missed and nothing else. THE LIVE EVENT COUNTS ITSELF, which is why the
+    // ring is planted two under the threshold rather than one.
+    let sandbox = Sandbox::new("recap-under-threshold");
+    record_every_event(&sandbox);
+    plant_marker(&sandbox, 3600);
+    std::fs::write(
+        activity_path(&sandbox),
+        planted_activity(MIN_EVENTS - 2, 1800, Some(0)),
+    )
+    .expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and ONE catch-up card: {raised:?}"
+    );
+    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "the under-threshold card is slice 13's, unchanged: {body}"
+    );
+}
+
+#[test]
+fn a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first() {
+    // THE ONE-CARD RULE. Two layers were locked, phone and Discord, and slice
+    // 13 already cards at this same return moment; a recap that raised its own
+    // would put two cards on the phone in one moment. So the catch-up site
+    // composes at most ONE card and this is the loud shape of it.
+    let sandbox = Sandbox::new("recap-over-threshold");
+    record_every_event(&sandbox);
+    plant_marker(&sandbox, 3600);
+    std::fs::write(activity_path(&sandbox), planted_activity(12, 1800, Some(4))).expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and ONE recap card, never two cards: {raised:?}"
+    );
+    assert_eq!(raised[0]["state"], "done", "the live event goes first");
+    assert_eq!(raised[1]["agent"], "pns", "{raised:?}");
+    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    // BOTH ARE FOUND FIRST and then compared: an `Option` compare answers true
+    // for an item that is not on the card at all.
+    let urgent = body
+        .find("blocked")
+        .unwrap_or_else(|| panic!("the blocked item never reached the card: {body}"));
+    let counts = body
+        .find("13 events")
+        .unwrap_or_else(|| panic!("the window's own count never reached the card: {body}"));
+    assert!(
+        urgent < counts,
+        "the counts came before the urgent item: {body}"
+    );
+    // TWELVE PLANTED PLUS THIS EVENT'S OWN: the activity ring records every
+    // event, and the live one is inside the window it opened.
+    assert!(body.contains("13 events"), "{body}");
+    assert!(body.contains("2 missed"), "{body}");
+    assert!(body.ends_with("recap in #pns"), "{body}");
+    assert!(
+        !sandbox.path("state/missed-notifications").exists(),
+        "the journal was consumed: {:?}",
+        state_files(&sandbox)
+    );
+}
+
+/// A window loud enough to earn a recap: the marker an hour back, twelve
+/// events half an hour back with one of them blocked, and two misses queued.
+/// THE LIVE EVENT MAKES IT THIRTEEN, because the activity ring records every
+/// event and this one is inside the window it opened.
+fn loud_window(sandbox: &Sandbox) {
+    plant_marker(sandbox, 3600);
+    std::fs::write(activity_path(sandbox), planted_activity(12, 1800, Some(4))).expect("the ring");
+    std::fs::write(journal_path(sandbox), planted_journal(2)).expect("the journal");
+}
+
+#[test]
+fn the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said() {
+    // GUARD, and it is green by design. PR 2 has no summarizer at all, so this
+    // states the body a mechanical composition produces, in full, as the thing
+    // a later slice's model output must never be allowed to replace. Its teeth
+    // arrive with the summarizer: the same assertion is what catches an
+    // implementer splicing a model's answer into the phone card, which is the
+    // one layer the locked spec says the model never touches.
+    let sandbox = Sandbox::new("recap-card-mechanical");
+    record_every_event(&sandbox);
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and one recap card: {raised:?}"
+    );
+    assert_eq!(
+        raised[1]["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns",
+        "the card is composed, never summarized: {raised:?}"
+    );
+}
+
+/// The file the blocked recap stub waits on, so a test releases it rather than
+/// timing it. Named on the sandbox so a panic can still let the stub go.
+const RELEASE: &str = "the.test.is.over";
+
+/// A hermes stub that PARKS on a recap and answers everything else at once.
+///
+/// THE OBSERVATION, and the reason it is a block rather than a sleep. The old
+/// test ran the parent to completion and then polled, which a recap rendered
+/// IN the parent satisfies just as well: `poll_until` returns immediately when
+/// the answer is already there. VERIFIED by running the brief's own mutation
+/// (the child's work done in-process instead of spawned): the whole suite
+/// stayed green. A stub that will not return until this test says so cannot be
+/// satisfied that way, because the parent's own exit is what gets asserted
+/// while the recap is still parked inside the stub.
+///
+/// BOUNDED ANYWAY, at ten seconds, so a broken build fails rather than hangs.
+fn hermes_parks_on_the_recap(sandbox: &Sandbox) {
+    sandbox.stub_channel(
+        "hermes",
+        &format!(
+            "payload=$(cat)\ncase \"$payload\" in\n  *'\"state\":\"recap\"'*) \
+             for _ in $(seq 1 200); do [ -e \"{root}/{RELEASE}\" ] && break; sleep 0.05; done ;;\n\
+             esac\nprintf '%s\\n' \"$payload\" >>\"{root}/hermes.events\"",
+            root = sandbox.display()
+        ),
+    );
+}
+
+#[test]
+fn the_digest_reaches_discord_from_a_process_the_event_never_waited_for() {
+    // THE ONE TEST THAT PROVES THE ASYNC LEG EXISTS, and it only proves it
+    // because the durable channel PARKS on the recap. The engine has never
+    // spawned anything it did not wait for, and the return moment is reached
+    // from `pns hook prompt`, which the harness does not background, so a
+    // recap rendered in this process would sit in front of a human's prompt.
+    // The assertion is the parent's own exit while the recap is still stuck in
+    // a channel: a build that renders the recap in-process cannot reach it.
+    let sandbox = Sandbox::new("recap-detached-child");
+    record_every_event(&sandbox);
+    hermes_parks_on_the_recap(&sandbox);
+    loud_window(&sandbox);
+
+    let mut command = present_event(&sandbox);
+    let mut started = command
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the engine starts");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while started.try_wait().expect("the child is waitable").is_none() {
+        if std::time::Instant::now() >= deadline {
+            // RELEASED BEFORE THE PANIC, so the parked stub is not left
+            // holding a sandbox this test is about to delete.
+            let _ = started.kill();
+            let _ = started.wait();
+            std::fs::write(sandbox.path(RELEASE), "").expect("the release");
+            panic!("the event was still waiting on the recap it spawned");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let done = started.wait_with_output().expect("the child is waitable");
+    assert!(done.status.success(), "the event failed: {}", stderr(&done));
+    // AND NOTHING WAS POSTED BEFORE IT EXITED, which is what makes the exit
+    // above evidence rather than a coincidence of timing.
+    assert!(
+        events(&sandbox, "hermes")
+            .iter()
+            .all(|event| event["state"] != "recap"),
+        "the recap was already posted when the event exited: {:?}",
+        events(&sandbox, "hermes")
+    );
+    std::fs::write(sandbox.path(RELEASE), "").expect("the release");
+
+    let posted = poll_until(|| {
+        events(&sandbox, "hermes")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no recap reached the durable route: {:?}",
+            events(&sandbox, "hermes")
+        )
+    });
+    let body = posted["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("While you were away, "),
+        "the recap's own header leads, which is what titles a forum thread: {body}"
+    );
+    assert!(body.contains("· 13 events"), "{body}");
+    assert!(body.contains("NEEDS YOU"), "{body}");
+    assert!(
+        body.contains("claude/blocked p4: planted 4"),
+        "the urgent entry reached the timeline: {body}"
+    );
+    assert!(
+        body.lines().count() <= 25,
+        "the recap ran past its line budget: {} lines",
+        body.lines().count()
+    );
+}
+
+#[test]
+fn the_recap_child_runs_in_a_process_group_of_its_own() {
+    // DETACHED MEANS THE GROUP TOO, and that half used to be claimed by a doc
+    // comment rather than done. The return moment is reached from
+    // `pns hook prompt`; a harness timing that hook out kills the process
+    // GROUP, and so does SIGINT at the shell prompt the notifier runs from. A
+    // child left in the parent's group dies with it, AFTER the window's edge
+    // has already moved on, so that window can never fire again and the card
+    // in the operator's hand points at a recap nobody is writing.
+    //
+    // THE GROUP IS READ AT THE CHANNEL, which is the one place a test can see
+    // it: the channel is a grandchild and inherits whatever group its own
+    // parent had. THE KIND AND THE GROUP RIDE ONE LINE, because three
+    // processes reach this channel at one moment (the live event, the card the
+    // parent raises for it, and the recap) and two files they all append to
+    // can interleave differently from each other.
+    let sandbox = Sandbox::new("recap-process-group");
+    record_every_event(&sandbox);
+    sandbox.stub_channel(
+        "hermes",
+        &format!(
+            "payload=$(cat)\ngroup=$(ps -o pgid= -p $$ | tr -d ' ')\ncase \"$payload\" in\n  \
+             *'\"state\":\"recap\"'*) printf 'recap %s\\n' \"$group\" >>\"{root}/hermes.pgid\" ;;\n  \
+             *) printf 'event %s\\n' \"$group\" >>\"{root}/hermes.pgid\" ;;\nesac\n\
+             printf '%s\\n' \"$payload\" >>\"{root}/hermes.events\"",
+            root = sandbox.display()
+        ),
+    );
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+
+    // POLLED ON THE EVENT, which the stub writes AFTER the group, so a recap
+    // that has been recorded has already recorded the group it ran in.
+    poll_until(|| {
+        events(&sandbox, "hermes")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| panic!("no recap reached the durable route"));
+
+    let recorded = std::fs::read_to_string(sandbox.path("hermes.pgid")).expect("the groups");
+    let group_of = |kind: &str| -> Vec<&str> {
+        recorded
+            .lines()
+            .filter_map(|line| line.strip_prefix(kind))
+            .collect()
+    };
+    let recap = group_of("recap ");
+    assert_eq!(recap.len(), 1, "one recap and one group: {recorded}");
+    assert!(
+        !group_of("event ").is_empty(),
+        "nothing recorded the group the event itself ran in: {recorded}"
+    );
+    assert!(
+        !group_of("event ").contains(&recap[0]),
+        "the recap child stayed in the group that would be killed with the hook: {recorded}"
+    );
+}
+
+#[test]
+fn a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone() {
+    // EACH SWITCH GATES ONLY ITS OWN DELIVERY. With the recap off, a loud
+    // window is still a window: the marker still moves, the journal is still
+    // claimed, and what the operator gets is slice 13's card, unchanged.
+    let sandbox = Sandbox::new("recap-digest-off");
+    record_every_event(&sandbox);
+    sandbox.write_config(&recap_switched_off());
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "the card is slice 13's, not the recap's: {body}"
+    );
+    // NO CHILD WAS EVER STARTED, and the card is the witness: the recap card is
+    // the only thing that says "recap in #pns", and only a real spawn earns it.
+    assert!(!body.contains("recap in #pns"), "{body}");
+    assert!(
+        events(&sandbox, "hermes")
+            .iter()
+            .all(|event| event["state"] != "recap"),
+        "a recap was posted with the digest switched off: {:?}",
+        events(&sandbox, "hermes")
+    );
+    assert!(
+        last_present(&sandbox).is_some(),
+        "the marker stopped moving because a switch was off"
+    );
+}
+
+#[test]
+fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_carry() {
+    // "recap in #pns" IS A PROMISE, and a spawn alone cannot back it. A
+    // started child still posts nothing when there is no durable channel: the
+    // hermes leg answers Failed before it touches the network and the child
+    // exits 0, so the phone said "recap in #pns" and #pns stayed empty.
+    //
+    // ASKED OF THE SELECTION, which is what makes an absent config keep
+    // working: no config at all falls back to the whole roster, exactly as
+    // dispatch does, and only a config that NAMES the roster without hermes
+    // has said there is nowhere for a recap to go.
+    let sandbox = Sandbox::new("recap-no-durable-route");
+    record_every_event(&sandbox);
+    sandbox
+        .write_config("[plugins.moshi]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n");
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        !body.contains("recap in #pns"),
+        "the card pointed at a recap no channel could carry: {body}"
+    );
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "and what it delivered instead is slice 13's card, unchanged: {body}"
+    );
+    assert!(
+        !sandbox.fired("hermes"),
+        "a recap reached a route the config turned off: {:?}",
+        events(&sandbox, "hermes")
+    );
+}
+
+#[test]
+fn the_marker_advances_so_a_second_present_event_recaps_nothing() {
+    // IDEMPOTENCE, as locked. Without the advance the second event counts the
+    // same loud window and posts the same recap again, which is the exact
+    // failure the marker exists to prevent. The two events run back to back
+    // over ONE window, and exactly one recap may come out of it.
+    let sandbox = Sandbox::new("recap-idempotent");
+    record_every_event(&sandbox);
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        3,
+        "two live events and ONE card between them: {raised:?}"
+    );
+    assert_eq!(
+        raised
+            .iter()
+            .filter(|event| event["state"] == "missed")
+            .count(),
+        1,
+        "the second event carded the same window again: {raised:?}"
+    );
+    // AND THE DISCORD HALF IS COUNTED THE SAME WAY, polled so a second child
+    // that was slower than the first still fails this.
+    poll_until(|| {
+        events(&sandbox, "hermes")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| panic!("the first event posted no recap at all"));
+    assert_eq!(
+        events(&sandbox, "hermes")
+            .iter()
+            .filter(|event| event["state"] == "recap")
+            .count(),
+        1,
+        "the same window was recapped twice: {:?}",
+        events(&sandbox, "hermes")
+    );
+}
+
+#[test]
+fn a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing() {
+    // A MODE, NOT A HOOK, so a typo is a refusal rather than a silent exit 0:
+    // this is hand-runnable, and a recap the operator believes was posted is
+    // worse than one that said it could not be. `event_mode` is what it used to
+    // fall through to, which would have sent a notification about nothing.
+    let sandbox = Sandbox::new("recap-usage");
+    let output = logged_event(&sandbox)
+        .args(["recap", "--since", "yesterday", "--until", "1756500000"])
+        .output()
+        .expect("the engine runs");
+
+    assert_eq!(output.status.code(), Some(2), "stderr: {}", stderr(&output));
+    assert!(
+        stderr(&output).contains("pns recap --since <epoch> --until <epoch>"),
+        "the usage names both bounds: {}",
+        stderr(&output)
+    );
+    for channel in ["hermes", "moshi", "macos-banner"] {
+        assert!(
+            !sandbox.fired(channel),
+            "{channel} was handed a recap over a window nobody could read"
+        );
+    }
+}
+
+/// The window's own claim, planted by hand for an owner this test chooses.
+/// THE MARKER ITSELF IS NOT PLANTED BESIDE IT: a claim exists exactly when the
+/// marker has been renamed out of the way, and a fixture holding both would be
+/// a state the engine cannot produce.
+fn plant_window_claim(sandbox: &Sandbox, owner: u32, ago: u64) {
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(
+        sandbox.path(&format!("state/last-present.claim.{owner}")),
+        format!("{}\n", epoch_now() - ago),
+    )
+    .expect("the claim");
+}
+
+/// A process id nothing is using: a child run to completion and reaped, so the
+/// kernel has already answered for it. STATED BY THE MACHINE rather than
+/// guessed at, because a made-up number can be live.
+fn a_reaped_pid() -> u32 {
+    let mut child = std::process::Command::new("/usr/bin/true")
+        .spawn()
+        .expect("a child");
+    let gone = child.id();
+    child.wait().expect("the child is waitable");
+    gone
+}
+
+#[test]
+fn a_window_claim_whose_owner_is_gone_is_adopted_rather_than_lost_or_left_behind() {
+    // THE NEAR EDGE COMES OFF WHAT WAS CLAIMED, and this is the deterministic
+    // shape of that. There is NO marker here at all: the only place the
+    // window's near edge exists is inside a claim a killed run left behind. A
+    // build that reads `last-present` before claiming it finds nothing, calls
+    // that no window, and recaps nothing; a build that derives the window from
+    // what it claimed recovers the edge and posts.
+    //
+    // AND THE LITTER GOES WITH IT. The adoption is the same pass that sweeps
+    // the file, so a run killed between the rename and the cleanup cannot
+    // leave one in the state directory for good.
+    let sandbox = Sandbox::new("recap-adopt-claim");
+    record_every_event(&sandbox);
+    plant_window_claim(&sandbox, a_reaped_pid(), 3600);
+    std::fs::write(activity_path(&sandbox), planted_activity(12, 1800, Some(4))).expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and ONE recap card off the adopted edge: {raised:?}"
+    );
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.contains("13 events"),
+        "the window was not counted from the claimed edge: {body}"
+    );
+    assert_eq!(
+        state_files(&sandbox),
+        ["activity", "decisions", "last-present"],
+        "the adopted claim was left in the state directory"
+    );
+}
+
+#[test]
+fn an_event_inside_another_runs_return_moment_delivers_no_card_of_any_kind() {
+    // NO SECOND CARD OF ANY KIND, and this is the half a racing test can only
+    // measure. The holder of the moment is a LIVE process, so the marker is
+    // renamed out of the way and its claim names an owner that still exists.
+    // Before this, an event landing there read no window, fell through to the
+    // journal, and put its catch-up card on the phone beside the holder's
+    // recap card: MEASURED at roughly one run in three with eight racers.
+    //
+    // THE QUEUE IS UNTOUCHED, which is the assertion that says WHICH silence
+    // this is. A build that stays quiet by consuming the journal and saying
+    // nothing has lost the notifications rather than deferred them.
+    let sandbox = Sandbox::new("recap-moment-busy");
+    record_every_event(&sandbox);
+    // THE TEST'S OWN PROCESS IS THE HOLDER, which is the only id a test can
+    // name and be certain is alive for as long as the assertion needs it.
+    plant_window_claim(&sandbox, std::process::id(), 3600);
+    std::fs::write(activity_path(&sandbox), planted_activity(12, 1800, Some(4))).expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        1,
+        "an event inside another run's return moment delivered a card: {raised:?}"
+    );
+    assert_eq!(
+        raised[0]["state"], "done",
+        "the live event alone: {raised:?}"
+    );
+    assert_eq!(
+        std::fs::read(journal_path(&sandbox)).expect("the journal"),
+        before,
+        "the queue was consumed by a run that delivered nothing"
+    );
+    assert!(
+        events(&sandbox, "hermes")
+            .iter()
+            .all(|event| event["state"] != "recap"),
+        "a racer inside another run's moment posted its own recap: {:?}",
+        events(&sandbox, "hermes")
+    );
+    // AND THE EDGE IS STILL THE HOLDER'S TO PUT BACK, which is the property
+    // the silence is built on. MEASURED at one run in sixty with eight racers
+    // before this held: a run that stood down here still published the marker
+    // on its way out, out from under the holder, and the next run renamed that
+    // fresh marker and became a SECOND owner alongside the first. The two
+    // raced on the journal and delivered a card each.
+    assert!(
+        !sandbox.path("state/last-present").exists(),
+        "a run that stood down republished the edge somebody else was holding: {:?}",
+        state_files(&sandbox)
+    );
+}
+
+#[test]
+fn the_windows_near_edge_never_moves_backward_however_late_an_event_publishes() {
+    // READ, COMPARE, PUBLISH. Two events at one moment both publish the edge
+    // at the end of their own run, so a slow one that read an older clock used
+    // to land last and put the edge BACK. Everything the quick event covered
+    // then reads as absence activity on the next return, and a long enough
+    // tail of it crosses the threshold and recaps a window that never happened.
+    //
+    // A MARKER AHEAD OF NOW IS THE CONSTRUCTIBLE SHAPE of that, and the same
+    // rule answers it: the newer value stands, at both write sites, so a claim
+    // that took a future edge puts the future edge back.
+    let sandbox = Sandbox::new("recap-marker-monotonic");
+    record_every_event(&sandbox);
+    let ahead = epoch_now() + 3600;
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(sandbox.path("state/last-present"), format!("{ahead}\n")).expect("the marker");
+
+    run(&mut present_event(&sandbox));
+
+    assert_eq!(
+        last_present(&sandbox),
+        Some(ahead),
+        "this event's own older clock overwrote a newer edge"
+    );
+}
+
+#[test]
+fn racing_present_events_recap_one_loud_window_exactly_once_between_them() {
+    // THE MOMENT IS CLAIMED BY RENAME BECAUSE OF THIS. Two events firing at
+    // once is ordinary here, and every one of them counts the same loud window
+    // before any of them moves the marker, so without an arbiter each would
+    // card the phone and post its own copy of the same recap to Discord.
+    // Publishing the marker cannot arbitrate: every racer reads the old value
+    // first. Only one rename can win.
+    let sandbox = Sandbox::new("recap-race");
+    record_every_event(&sandbox);
+    loud_window(&sandbox);
+
+    // EVERY COMMAND IS BUILT BEFORE THE FIRST SPAWN, for the reason the
+    // journal's own race test states: building one WRITES the herdr stub.
+    let mut commands: Vec<std::process::Command> =
+        (0..RACERS).map(|_| present_event(&sandbox)).collect();
+    let racers: Vec<std::process::Child> = commands
+        .iter_mut()
+        .map(|command| {
+            command
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("the engine starts")
+        })
+        .collect();
+    for mut racer in racers {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while racer.try_wait().expect("the child is waitable").is_none() {
+            assert!(std::time::Instant::now() < deadline, "a racer never exited");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let done = racer.wait_with_output().expect("the child is waitable");
+        assert!(done.status.success(), "a racer failed: {}", stderr(&done));
+    }
+
+    // THE DISCORD HALF FIRST, polled because the recap is written by a process
+    // none of the racers waited for, and asserted BEFORE the card so a run
+    // that posted twice says so rather than being reported as a card problem.
+    poll_until(|| {
+        events(&sandbox, "hermes")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| panic!("no racer posted a recap at all"));
+    assert_eq!(
+        events(&sandbox, "hermes")
+            .iter()
+            .filter(|event| event["state"] == "recap")
+            .count(),
+        1,
+        "one window was recapped more than once: {:?}",
+        events(&sandbox, "hermes")
+    );
+    // AND ONE CARD OF ANY KIND, which is the assertion this test used to be
+    // unable to make. Counting only recap-shaped cards let the OTHER
+    // duplicate through: a racer that found the marker held read no window,
+    // fell through to the journal, and delivered its catch-up card beside the
+    // winner's recap card, one run in three. Eight live events plus exactly
+    // one card is the whole permitted output.
+    //
+    // AND NO SECOND RECAP IS REACHABLE HERE BY ARITHMETIC, not by luck: the
+    // winner's own activity entry is stamped at exactly the edge it restores,
+    // and the near edge is exclusive, so a later window can hold at most the
+    // seven other racers, one under the threshold.
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        RACERS + 1,
+        "eight live events and ONE card between them: {raised:?}"
+    );
+    assert_eq!(
+        raised
+            .iter()
+            .filter(|event| event["state"] == "missed")
+            .count(),
+        1,
+        "one return moment delivered more than one card: {raised:?}"
+    );
+    // AND NOTHING IS HOLDING THE WINDOW AFTERWARDS. Every racer gives the edge
+    // back inside its own claim, so a run that took one and did not put it
+    // back leaves a file here that nothing else would notice.
+    assert_eq!(
+        state_files(&sandbox),
+        ["activity", "decisions", "last-present"],
+        "a racer left the window claimed"
     );
 }
 

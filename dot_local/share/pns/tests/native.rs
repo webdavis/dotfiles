@@ -24,13 +24,20 @@ struct Capture {
 }
 
 impl Capture {
-    fn start(sandbox: &Sandbox, name: &str, status: Option<&str>) -> Self {
+    /// `requests` is how many the server serves before it exits, which only a
+    /// leg that posts more than once has any use for.
+    fn start(sandbox: &Sandbox, name: &str, status: Option<&str>, requests: Option<&str>) -> Self {
         let port_file = sandbox.path(&format!("{name}.port"));
         let captured = sandbox.path(&format!("{name}.capture"));
         let mut command = Command::new(CAPTURE);
         command.arg(&port_file).arg(&captured);
+        // The count is positional behind the status, so a caller naming one
+        // names both.
         if let Some(status) = status {
             command.arg(status);
+        }
+        if let Some(requests) = requests {
+            command.arg(requests);
         }
         let server = command.spawn().expect("the capture server starts");
 
@@ -127,7 +134,7 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
 fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output() {
     let sandbox = Sandbox::new("native-moshi");
     sandbox.write_config("[plugins.moshi]\nenabled = true\ntoken = \"tok-integration\"\n");
-    let capture = Capture::start(&sandbox, "moshi", None);
+    let capture = Capture::start(&sandbox, "moshi", None, None);
 
     let mut command = sandbox.bare();
     command
@@ -176,7 +183,7 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
 fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     let sandbox = Sandbox::new("native-hermes");
     sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
-    let capture = Capture::start(&sandbox, "hermes", None);
+    let capture = Capture::start(&sandbox, "hermes", None, None);
 
     let mut command = sandbox.bare();
     command.env("PNS_HERMES_URL", capture.url());
@@ -202,7 +209,7 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     // instead of rotating the key.
     let sandbox = Sandbox::new("hermes-401");
     sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
-    let capture = Capture::start(&sandbox, "hermes-401", Some("401"));
+    let capture = Capture::start(&sandbox, "hermes-401", Some("401"), None);
 
     let mut command = sandbox.bare();
     command.env("PNS_HERMES_URL", capture.url());
@@ -255,7 +262,7 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
 fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
     let sandbox = Sandbox::new("stale-alert-route");
     let router = RouterStub::start(KEYS_DISAGREE);
-    let capture = Capture::start(&sandbox, "stale-route", None);
+    let capture = Capture::start(&sandbox, "stale-route", None, None);
     sandbox.write_config(&format!(
         "[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n\
          {}stale_alert_channel = \"priority\"\n",
@@ -284,5 +291,101 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
         header_of(&raw, "host").as_deref(),
         Some("127.0.0.1:8644"),
         "the route swap moved the gateway too: {raw}"
+    );
+}
+
+#[test]
+fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
+    // THE HAND-RUN DRILL IS THE WHOLE REASON THIS MODE PRINTS. An operator who
+    // has just prepared a `pns-recap` route runs exactly this by hand to check
+    // it, and MEASURED against an endpoint nothing is listening on, the mode
+    // printed nothing and exited 0: indistinguishable from a recap that
+    // arrived. `ReportMode::ReportOutcome` was already on the leg; nothing was
+    // reading what it returned.
+    //
+    // AND EXIT 0 STILL, because that contract is the binary's and is not this
+    // mode's to break: what is being fixed is silence, never the code. A typo
+    // in the ARGUMENTS is the one thing that earns a 2, and its own test owns
+    // that.
+    let sandbox = Sandbox::new("recap-refused");
+    sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
+
+    let mut command = sandbox.bare();
+    command
+        .env("PNS_STATE_DIR", sandbox.path("state"))
+        // PORT 1 REFUSES IMMEDIATELY rather than hanging, so the failure this
+        // test is about is the one it measures and not a deadline.
+        .env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/pns");
+    sandbox.stub_notifier(&mut command);
+    let output = run(command.args(["recap", "--since", "1756499000", "--until", "1756500000"]));
+
+    let printed = stdout(&output);
+    let said: Vec<&str> = printed
+        .lines()
+        .filter(|line| line.starts_with("pns: ") && line.contains("FAILED"))
+        .collect();
+    assert!(
+        !said.is_empty(),
+        "the recap mode said nothing about a post that never landed: {printed}"
+    );
+    assert!(
+        said.iter().all(|line| line.contains("hermes gateway")),
+        "the line does not name what refused it: {said:?}"
+    );
+}
+
+/// THE ROUTE A RECAP TAKES, ON THE WIRE, and the fallback behind it.
+///
+/// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE, for the reason the stale
+/// alert's own route test states: `PNS_CHANNELS_DIR` leaves the native hermes
+/// channel computing a URL nothing sends, and `PNS_HERMES_URL` outranks the
+/// route, so an endpoint override cannot observe it either. So the gateway is
+/// PROXIED rather than moved, exactly as that test does it, and the capture
+/// answers 404 the way hermes answers for a route nobody prepared.
+///
+/// TWO REQUESTS TO ONE HOST AND PORT is what a fallback IS, which is why the
+/// capture serves two: the route swap changes the path alone.
+#[test]
+fn a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so() {
+    let sandbox = Sandbox::new("recap-thread-fallback");
+    sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
+    let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("2"));
+
+    let mut command = sandbox.bare();
+    command
+        .env("PNS_STATE_DIR", sandbox.path("state"))
+        .env("HTTP_PROXY", capture.url())
+        .env("http_proxy", capture.url());
+    sandbox.stub_notifier(&mut command);
+    // RUN BY HAND, which is the mode's other caller and the one a test can
+    // wait for: the event path spawns this same mode detached, and the window
+    // it would pass is exactly these two bounds.
+    run(command.args(["recap", "--since", "1756499000", "--until", "1756500000"]));
+
+    let raw = capture.finish();
+    let posted: Vec<&str> = raw
+        .lines()
+        .filter(|line| line.starts_with("POST /webhooks/"))
+        .collect();
+    assert_eq!(
+        posted,
+        [
+            "POST /webhooks/pns-recap HTTP/1.1",
+            "POST /webhooks/pns HTTP/1.1"
+        ],
+        "the thread route was tried first and the default caught it: {raw}"
+    );
+    // AND THE SECOND BODY SAYS WHY IT IS THERE. A recap that quietly landed on
+    // the default route looks exactly like a recap that was never configured
+    // for a thread at all.
+    let bodies: Vec<&str> = raw.split("\r\n\r\n").skip(1).collect();
+    let fallback = bodies.last().expect("a second body");
+    assert!(
+        fallback.contains("did not take this"),
+        "the fallback said nothing about why it landed here: {fallback}"
+    );
+    assert!(
+        fallback.contains("While you were away"),
+        "the fallback carried a different body from the one it retried: {fallback}"
     );
 }

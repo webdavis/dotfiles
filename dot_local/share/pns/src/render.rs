@@ -103,9 +103,29 @@ pub fn preview(message: &str) -> String {
         return characters[..cut].iter().collect();
     }
 
-    // No sentence end to cut at, so the text is cut short and SAID to be, one
-    // character under the cap to leave room for the mark.
-    let head: String = characters[..PREVIEW_MAX_CHARS - 1].iter().collect();
+    // No sentence end to cut at, so the text is cut short and SAID to be.
+    clipped(message, PREVIEW_MAX_CHARS)
+}
+
+/// `text` inside `max_chars`, and SAID to have been cut when it was.
+///
+/// THE HEAD IS WHAT SURVIVES, which is the opposite of `flatten_reply` and for
+/// the opposite reason: that one keeps the tail of a turn's own reply, because
+/// a turn states its conclusion at the end, and this one cuts a line somebody
+/// COMPOSED, whose beginning names what it is about.
+///
+/// THE ANSWER IS NEVER LONGER THAN THE ROOM IT WAS GIVEN, mark included, which
+/// is what lets a caller reserve space and rely on the reservation. A room of
+/// zero is an empty answer rather than a bare mark.
+pub fn clipped(text: &str, max_chars: usize) -> String {
+    let characters: Vec<char> = text.chars().collect();
+    if characters.len() <= max_chars {
+        return text.to_string();
+    }
+    if max_chars == 0 {
+        return String::new();
+    }
+    let head: String = characters[..max_chars - 1].iter().collect();
     format!("{}…", head.trim_end())
 }
 

@@ -7,9 +7,10 @@
 //! contents, and neither knows the other's plugin names.
 //!
 //! `[recap]` is the one top-level table that is not a plugin, and the second
-//! key admitted here: three booleans THIS layer reads itself. Because it reads
-//! them, it can judge them, so an unknown key inside it is refused rather than
-//! passed along the way a plugin's settings are.
+//! key admitted here: three booleans and a count THIS layer reads itself.
+//! Because it reads them, it can judge them, so an unknown key inside it, and a
+//! count that is not a threshold, are refused rather than passed along the way
+//! a plugin's settings are.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config, because a typo that turns every
@@ -41,11 +42,22 @@ pub struct PluginEntry {
 /// a bool as false, which would take every delivery away from every machine
 /// whose config was written before this table existed, and it would do it
 /// silently.
-#[derive(Debug, PartialEq)]
+///
+/// `min_events` IS THE ONE COUNT HERE, and it is a key rather than a constant
+/// because nobody can calibrate it yet: the locked volume threshold carries a
+/// tilde, and the machine it was written for has no history to measure. The
+/// recap prints the window's real count in its own header every time, so one
+/// week of real recaps settles the number without a rebuild.
+///
+/// COPY, so the composition root can read it off a borrowed config and carry
+/// it as ONE value rather than as a row of loose booleans. Four adjacent bools
+/// in one call are a swap waiting to happen; named fields are not.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Recap {
     pub replay_card: bool,
     pub digest: bool,
     pub digest_as_thread: bool,
+    pub min_events: usize,
 }
 
 impl Default for Recap {
@@ -54,9 +66,14 @@ impl Default for Recap {
             replay_card: true,
             digest: true,
             digest_as_thread: true,
+            min_events: DEFAULT_MIN_EVENTS,
         }
     }
 }
+
+/// How many events a window needs before a recap is worth the operator's
+/// attention. The operator's own stated figure; see `Recap`.
+const DEFAULT_MIN_EVENTS: usize = 8;
 
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
 #[derive(Debug, PartialEq, Default)]
@@ -171,6 +188,37 @@ fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
     };
     let mut recap = Recap::default();
     for (key, setting) in table {
+        // THE COUNT IS ITS OWN ARM, ahead of the switches, because it is the
+        // one key here that is not a boolean. A negative or fractional value is
+        // refused BY NAME rather than clamped: the operator asked for a
+        // threshold, and a silently corrected one is a threshold they believe
+        // they set.
+        if key == "min_events" {
+            let Some(count) = setting
+                .as_integer()
+                .and_then(|count| usize::try_from(count).ok())
+            else {
+                return Err(ConfigError::Invalid(format!(
+                    "`recap` key `min_events` has type `{}`, not a count",
+                    setting.type_str()
+                )));
+            };
+            // AND ZERO IS REFUSED BY NAME TOO, for the same reason a negative
+            // is. `counted.len() >= 0` is always true, so a zero threshold
+            // recaps EVERY event, including one over an empty window, which is
+            // the state `recap::NOTHING_HAPPENED` says the event path never
+            // posts. An operator calibrating the knob downward gets a card and
+            // a Discord recap on every event, each saying nothing was
+            // recorded. One is the floor: it means "any activity at all".
+            if count == 0 {
+                return Err(ConfigError::Invalid(
+                    "`recap` key `min_events` is 0, which is not a threshold; 1 is the floor"
+                        .to_string(),
+                ));
+            }
+            recap.min_events = count;
+            continue;
+        }
         let switch = match key.as_str() {
             "replay_card" => &mut recap.replay_card,
             "digest" => &mut recap.digest,
@@ -451,6 +499,70 @@ mod tests {
                 );
             }
             other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_recaps_volume_threshold_is_a_count_the_operator_can_state() {
+        // THE CALIBRATION KNOB. The locked threshold carries a tilde and has no
+        // live measurement behind it, so it ships as a key defaulted to the
+        // operator's own guess and the recap's header prints the real count
+        // every time. One week of real recaps settles it without a rebuild.
+        let config = parse_config("[recap]\nmin_events = 3\n").unwrap();
+        assert_eq!(config.recap.min_events, 3, "the stated count was read");
+        assert!(config.recap.digest, "and the switches kept their defaults");
+        assert_eq!(
+            parse_config("[plugins.hue]\nenabled = true\n")
+                .unwrap()
+                .recap
+                .min_events,
+            8,
+            "an absent key is the operator's stated eight"
+        );
+    }
+
+    #[test]
+    fn a_volume_threshold_of_zero_is_refused_by_name_rather_than_read_as_every_event() {
+        // ZERO IS NOT A THRESHOLD. `counted.len() >= 0` is always true, so it
+        // recaps every single event, including one over an EMPTY window, which
+        // is the one state the recap body says the event path never posts. An
+        // operator calibrating the knob downward would get a card and a Discord
+        // recap on every event, each saying nothing was recorded.
+        let err = parse_config("[recap]\nmin_events = 0\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => {
+                assert!(message.contains("min_events"), "{message}");
+                assert!(
+                    message.contains('1'),
+                    "the refusal names the floor rather than only the offence: {message}"
+                );
+            }
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+        assert_eq!(
+            parse_config("[recap]\nmin_events = 1\n")
+                .unwrap()
+                .recap
+                .min_events,
+            1,
+            "and one is accepted: it means any activity at all"
+        );
+    }
+
+    #[test]
+    fn a_volume_threshold_that_is_not_a_count_is_refused_naming_the_key() {
+        // A STRING, A FRACTION AND A NEGATIVE are each a threshold the operator
+        // asked for and would not get, and each has to say so rather than leave
+        // the count silently at its default.
+        for stated in ["\"eight\"", "8.5", "-1", "true"] {
+            let err = parse_config(&format!("[recap]\nmin_events = {stated}\n")).unwrap_err();
+            match err {
+                ConfigError::Invalid(message) => assert!(
+                    message.contains("min_events"),
+                    "the offender is named for {stated}: {message}"
+                ),
+                other => panic!("expected Invalid for {stated}, got {other:?}"),
+            }
         }
     }
 

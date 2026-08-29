@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -56,6 +57,13 @@ fn main() {
     // it takes no decision, so nothing about an event's plan reaches it.
     if first == *"doctor" {
         std::process::exit(doctor_mode());
+    }
+    // The return recap, rendered from the activity ring and posted to Discord.
+    // A MODE for the reason the others are: it takes no decision, so no event's
+    // plan reaches it. The event path starts it detached; an operator can also
+    // run it by hand, which is how it is drilled.
+    if first == *"recap" {
+        std::process::exit(recap_mode());
     }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
@@ -269,6 +277,7 @@ fn record_decision(record: &pns::decision_log::Record) {
         &state_dir().join(DECISIONS),
         &pns::decision_log::line(record),
         pns::decision_log::KEPT,
+        RING_READ_MAX,
     );
 }
 
@@ -298,9 +307,134 @@ fn record_missed(
     // The failure is DROPPED here and nowhere else: see the doc comment.
     let _ = append_ring_line(
         &state_dir().join(MISSED_NOTIFICATIONS),
-        &pns::missed_notifications::entry(event, decision.inputs.now_secs),
+        &pns::missed_notifications::entry(
+            event,
+            decision.inputs.now_secs,
+            render::PREVIEW_MAX_CHARS,
+        ),
         pns::missed_notifications::KEPT,
+        RING_READ_MAX,
     );
+}
+
+/// Record one event in the activity ring, WHETHER OR NOT anybody perceived it.
+///
+/// THE THIRD FILE, and it exists because the two already here answer other
+/// questions. The decision ring refuses free text by design, since a human
+/// reads it through `pns doctor`; the journal is written only for events the
+/// operator COULD NOT have perceived, which is the opposite of what a return
+/// recap is about. The recap's window is the cards that WERE delivered,
+/// glanced at and forgotten, and neither existing file can see one.
+///
+/// NEVER CLAIMED AND NEVER CONSUMED, unlike the journal. It is a rolling
+/// window pruned by depth alone, which is what lets the detached recap child
+/// re-read it safely and what makes a recap idempotent by WINDOW rather than
+/// by deletion.
+///
+/// ITS OWN CAP AND ITS OWN READ CEILING, both stated on the constants. A recap
+/// line is one of a hundred, so it is capped far shorter than a card, and the
+/// depth that covers an overnight window needs a read ceiling of its own.
+///
+/// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason: an
+/// event path whose stdout a harness hook reads must not gain a line about the
+/// state directory, and a missing entry costs one line of one recap.
+///
+/// THE PRIVACY RULE IS THE JOURNAL'S, INHERITED. This file holds the
+/// operator's own text for every event, at 0600 like every other state file,
+/// and nothing prints an entry to a terminal: `pns doctor` deliberately gains
+/// no activity line, and the only reader is the recap that delivers it to the
+/// same channels the live event reached.
+fn record_activity(event: &pns::args::EventArgs, decision: &pns::engine::Decision) {
+    // The failure is DROPPED here and nowhere else: see the doc comment.
+    let _ = append_ring_line(
+        &state_dir().join(ACTIVITY),
+        &pns::missed_notifications::entry(event, decision.inputs.now_secs, ACTIVITY_MAX_CHARS),
+        ACTIVITY_KEPT,
+        ACTIVITY_READ_MAX,
+    );
+}
+
+/// Move the recap window's near edge to this event, when this event proves the
+/// operator was here.
+///
+/// THE EVENTS THE RETURN MOMENT NEVER REACHES, and only those in practice:
+/// a muted event, an event whose plan decorated nothing because the operator
+/// was watching the pane it came from, an event that found the moment held.
+/// `claim_moment` moves the edge for every event that does reach it, at the
+/// instant it takes the claim, so the read below is already satisfied by the
+/// time this runs on those.
+///
+/// AND THROUGH THE SAME CLAIM, which is not decoration. MEASURED at one run in
+/// sixty with eight racers: a run that found the moment held republished the
+/// marker here anyway, out from under the holder, and a third run then renamed
+/// that fresh marker and became a SECOND owner alongside the first. The two
+/// then raced on the journal, and the pair of them put a recap card and a
+/// catch-up card on the phone at one moment. Nothing may publish this path
+/// while somebody holds it.
+///
+/// THE READ IN FRONT OF THE CLAIM IS AN OPTIMISATION AND ALSO THE POINT. An
+/// edge already at or past this event needs no write, so the ordinary event
+/// takes no claim at all and cannot make a racer defer its card; and a marker
+/// that is ABSENT reads as None here, which correctly falls through to the
+/// claim, where the holder is found and this run stands down.
+///
+/// AFTER THE CARD SITE, and the ordering is the whole idempotence rule. The
+/// window a recap covers ends where this event is, so moving the edge before
+/// `replay_missed` counted the window would leave every count at one and no
+/// recap could ever fire.
+///
+/// THE EPOCH IS THE DECISION'S OWN CLOCK READ, taken off the readings it
+/// decided from rather than by a second `SystemTime` call, for the reason
+/// `record_missed` states: two readings of one moment can disagree.
+fn mark_present(decision: &pns::engine::Decision) {
+    if !pns::missed_notifications::is_present(decision) {
+        return;
+    }
+    let Some(now) = decision.inputs.now_secs else {
+        return;
+    };
+    if read_epoch(&state_dir().join(LAST_PRESENT)).is_some_and(|held| held >= now) {
+        return;
+    }
+    // NOTHING IS TAKEN AND NOTHING IS DELIVERED: the claim is asked for the
+    // edge alone, and its answer is of no use here. What matters is that the
+    // write happened inside it.
+    let _ = claim_moment(Some(now), false);
+}
+
+/// The window's near edge published, and only ever FORWARD.
+///
+/// READ, COMPARE, PUBLISH. MEASURED as the reason: a slow event that read
+/// epoch 100 and a quick one that read 101 both publish at the end of their
+/// own run, so the slow one used to land last and put the edge back to 100.
+/// Everything the quick event covered then reads as absence activity on the
+/// next return, and a long enough tail of it crosses the threshold and posts a
+/// recap of a window that never happened.
+///
+/// CALLED ONLY FROM INSIDE A CLAIM, which is what makes the read and the
+/// publish safe as a pair: the caller holds the marker, so nothing else is
+/// writing this path between them.
+///
+/// FAIL-QUIET, in `record_missed`'s exact style. A marker that did not land
+/// costs one window's near edge, which the next present event moves anyway.
+fn advance_marker(now: u64) {
+    let marker = state_dir().join(LAST_PRESENT);
+    if read_epoch(&marker).is_some_and(|held| held >= now) {
+        return;
+    }
+    // The failure is DROPPED here and nowhere else: see the doc comment.
+    let _ = publish_state_line(&marker, &now.to_string());
+}
+
+/// One epoch off a state file, or None for anything this will not vouch for:
+/// nothing at the path, a file that cannot be read, or text that is not a
+/// plain count.
+///
+/// AN UNPARSEABLE MARKER IS NO EDGE AT ALL, never an edge at epoch zero. A
+/// marker some other hand rewrote is not a near edge this can trust, and
+/// reading one as zero would recap the whole ring.
+fn read_epoch(path: &Path) -> Option<u64> {
+    std::fs::read_to_string(path).ok()?.trim().parse().ok()
 }
 
 /// Put the journal in front of an operator who is here to see it, riding the
@@ -322,23 +456,33 @@ fn record_missed(
 /// and this rides an event whose stdout a hook reads.
 ///
 /// `replay_card` IS THE OPERATOR'S SWITCH (`[recap] replay_card = false`) and
-/// it gates THIS and nothing else. `record_missed` never learns the switch
+/// it gates THE CARD and nothing else. `record_missed` never learns the switch
 /// exists, so the journal still records every miss and the doctor still counts
-/// them: turning the card back on has something to deliver.
+/// them: turning the card back on has something to deliver. `digest` is its
+/// own switch over the Discord half, so card-only and recap-only are both
+/// valid and neither implies the other.
+///
+/// THE ONE CARD SITE FOR BOTH FEATURES, which is the whole reason the recap
+/// lives here rather than beside this. Two layers were locked, phone and
+/// Discord, and a recap that raised its own phone card would put TWO cards on
+/// the phone at one return moment. Worse, the case the recap exists for
+/// journals NOTHING: a five-hour loop whose cards were all delivered and
+/// forgotten leaves the queue empty, so the catch-up alone would raise no card
+/// at all and the Discord recap would land with nothing pointing at it. So one
+/// site composes at most one card, and which card it is depends on the window.
+///
+/// AND ONE CLAIM OVER BOTH, taken before anything is counted. `claim_moment`
+/// arbitrates the whole return moment rather than the recap alone, so the two
+/// halves cannot be won by two different racers; see its own comment for why
+/// a claim per file MEASURED as two cards at one moment.
 fn replay_missed(
-    replay_card: bool,
+    recap: pns::config::Recap,
     decision: &pns::engine::Decision,
     home: &str,
     moshi_token: Option<String>,
     hermes_key: Option<String>,
+    durable_route: bool,
 ) {
-    // THE SWITCH GOES IN FRONT OF THE CLAIM, never after it. Claiming the
-    // journal renames it out of the way; returning after that would consume
-    // the queue and deliver nothing, which is the one outcome the four-way
-    // `Claimed` enum exists to prevent.
-    if !replay_card {
-        return;
-    }
     if !pns::missed_notifications::should_replay(decision) {
         return;
     }
@@ -358,10 +502,77 @@ fn replay_missed(
     if !decision.legs.iter().any(|leg| leg.decorative) {
         return;
     }
-    let waiting = claim_journal(&state_dir());
-    if waiting.is_empty() {
+    // THE MOMENT IS CLAIMED BEFORE ANYTHING IS COUNTED, which is the whole
+    // ownership rule and the reverse of what this used to do. Reading the
+    // marker first and renaming it afterwards claims a DIFFERENT marker from
+    // the one that was counted, because the winner republishes inside that
+    // gap; MEASURED at roughly one run in thirty, two racers counted one loud
+    // window and both posted it.
+    //
+    // THE CARD'S OWN SWITCH RIDES INTO THE CLAIM rather than returning in
+    // front of it. Claiming the journal renames it out of the way, so a return
+    // after that would consume the queue and deliver nothing, which is the one
+    // outcome the four-way `Claimed` enum exists to prevent; handing the
+    // switch in means the journal is never claimed at all when the card is off.
+    let Moment::Owned { since, waiting } =
+        claim_moment(decision.inputs.now_secs, recap.replay_card)
+    else {
+        // A RACER INSIDE SOMEBODY ELSE'S RETURN MOMENT SAYS NOTHING AT ALL.
+        // The holder is about to deliver both halves, and this run has claimed
+        // neither the window nor the queue, so there is nothing here to lose.
+        return;
+    };
+    // THE WINDOW COMES OFF WHAT WAS CLAIMED, never off a second read: `since`
+    // is the value that was renamed out from under every other racer, so a
+    // racer holding a republished marker computes the empty window it deserves
+    // rather than the one somebody else already posted.
+    //
+    // A MARKER AHEAD OF NOW IS NO WINDOW EITHER. A clock that moved backwards
+    // is not a bracket, and the restore inside the claim kept the newer value,
+    // so nothing is lost by refusing it here.
+    let window = match (since, decision.inputs.now_secs) {
+        (Some(since), Some(until)) if since <= until => Some((since, until)),
+        _ => None,
+    };
+    let counted = window.map_or_else(Vec::new, |(since, until)| activity_in(since, until));
+    // FOUR CLAUSES AND NONE OF THEM OPTIONAL. No window means no recap at all,
+    // which is what stops a fresh install recapping the whole ring; the
+    // threshold is what stops an ordinary afternoon becoming one; `digest` is
+    // the operator's own switch over the Discord half; and a machine with no
+    // durable route has nowhere for a recap to land, so the card must not
+    // point at one.
+    let fires =
+        recap.digest && durable_route && window.is_some() && counted.len() >= recap.min_events;
+    // THE DISCORD HALF GOES FIRST AND IN ITS OWN PROCESS, before the card, so
+    // the card can say truthfully whether there is a recap to point at. The
+    // spawn is a fork and an exec, so the card is dispatched microseconds
+    // later; everything slow happens in the child.
+    let posted = match window {
+        Some((since, until)) if fires => spawn_recap(since, until),
+        _ => false,
+    };
+    // THE TWO DELIVERIES ARE INDEPENDENT: an operator who wants the recap in
+    // Discord and no card on the phone has asked for exactly that, which is
+    // why this sits BELOW the spawn.
+    if !recap.replay_card {
         return;
     }
+    // TWO CARDS, ONE SITE, AND AT MOST ONE OF THEM. Over the threshold the
+    // recap card is the delivery, whether or not anything was journaled, because
+    // the window itself is the news; under it there is no recap, so an empty
+    // queue is nothing to say and the catch-up card is unchanged.
+    let detail = if fires {
+        pns::missed_notifications::recap_card(
+            &pns::missed_notifications::needing_you(&counted),
+            counted.len(),
+            waiting.len(),
+            posted,
+        )
+    } else if waiting.is_empty() {
+        return;
+    } else {
+        pns::missed_notifications::summary(&waiting)
+    };
     // ONE SYNTHETIC EVENT, whatever the count. Empty project and branch,
     // because a batch spans both and `render::message` would otherwise prefix
     // the lot with one branch's name; empty channel, because an entry carries
@@ -373,7 +584,7 @@ fn replay_missed(
     let replay = pns::args::EventArgs {
         agent: "pns".to_string(),
         state: "missed".to_string(),
-        detail: pns::missed_notifications::summary(&waiting),
+        detail,
         ..Default::default()
     };
     // DISPATCHED DIRECTLY AND NEVER THROUGH `run_event`, which is the loop
@@ -399,6 +610,284 @@ fn replay_missed(
         hermes_key,
     );
 }
+
+/// Every activity entry inside a window, oldest first, which is the order the
+/// append leaves the ring in.
+///
+/// THE NEAR EDGE IS EXCLUSIVE and the far edge is not, which is the difference
+/// between "since you were last here" and "including the moment you were".
+/// MEASURED: with it inclusive, the event that MOVED the marker is counted
+/// inside the next window, and every event sharing that same second with it is
+/// too. Eight events in one second then read as a loud window opening at the
+/// instant it closed, so a burst at the desk earned a recap of an absence that
+/// never happened, and a second recap of the window a first one had just
+/// posted. Excluding the marker's own second costs nothing real: the event at
+/// that instant is the one that proved the operator was present.
+///
+/// AN ENTRY WITH NO CLOCK IS IN NO WINDOW. Its writer had no readable clock, so
+/// nothing can place it, and counting it would put an event of unknown age
+/// inside a bracket that is entirely about age.
+///
+/// A RING THAT CANNOT BE READ IS AN EMPTY WINDOW, which reads as no recap
+/// rather than as a recap of nothing: the count would be zero, and zero is
+/// under every threshold.
+fn activity_in(since: u64, until: u64) -> Vec<pns::missed_notifications::Entry> {
+    let Ok(contents) = readable_ring(&state_dir().join(ACTIVITY), ACTIVITY_READ_MAX) else {
+        return Vec::new();
+    };
+    pns::missed_notifications::entries(&contents)
+        .into_iter()
+        .filter(|entry| entry.at.is_some_and(|at| at > since && at <= until))
+        .collect()
+}
+
+/// What one event found when it reached for the return moment.
+///
+/// ONE ARBITRATION OVER BOTH HALVES of what a return delivers, which is the
+/// whole reason this is one value rather than a claim per file. The halves are
+/// the recap card and the catch-up card, and with a claim each the loser of one
+/// could still win the other: MEASURED at roughly one run in three with eight
+/// racers, a racer that found the marker held read no window, fell through to
+/// the journal, and put its catch-up card on the phone beside the winner's
+/// recap card.
+enum Moment {
+    /// This event OWNS the moment. `since` is the near edge the marker held,
+    /// absent when there was no marker to open a window with; `waiting` is the
+    /// journal, claimed inside the same critical section.
+    Owned {
+        since: Option<u64>,
+        waiting: Vec<pns::missed_notifications::Entry>,
+    },
+    /// A run that still exists holds the moment right now, so this event is
+    /// inside somebody else's return and has claimed nothing.
+    Busy,
+}
+
+/// The return moment claimed: the window's near edge and the journal taken
+/// together, and the edge handed straight back.
+///
+/// CLAIMED BY RENAME, which is `claim_by_rename`'s idiom for
+/// `claim_by_rename`'s reason. Two events firing at once is ordinary here (a
+/// Stop hook and the long-running notifier are a normal pair) and only one
+/// rename can win. An unlink cannot stand in: MEASURED on macOS 26.2 (APFS),
+/// eight processes unlinking one path were every one of them told they had
+/// succeeded.
+///
+/// THE NEAR EDGE COMES OFF WHAT WAS CLAIMED, and that is the ordering this
+/// whole function exists to get right. Reading the marker first and renaming
+/// it afterwards claims whatever marker is there BY THEN, which is not the one
+/// the window was counted from, because the winner republishes inside that
+/// gap. Both racers then post the same window. Claiming first means a racer
+/// that takes a republished marker counts the empty window that value opens
+/// and correctly earns nothing.
+///
+/// THE JOURNAL IS TAKEN INSIDE THE SAME CRITICAL SECTION, before the edge goes
+/// back. That is what makes a second card of ANY KIND impossible at one return
+/// moment: a racer arriving while this run holds the marker is told `Busy` and
+/// says nothing, and a racer arriving after the edge is restored finds the
+/// queue already gone and has nothing to say either.
+///
+/// THE EDGE IS RESTORED IMMEDIATELY, before the window is counted and long
+/// before anything is dispatched, so the marker's absence is bounded by two
+/// renames rather than by a delivery. A kill at any instant then costs the one
+/// in-flight recap and never a future window: the next present event finds an
+/// edge to open one with.
+///
+/// AND IT ONLY EVER MOVES FORWARD. `advance_marker` is what publishes it, so
+/// the newer of the claimed value and this event's own clock is what stands,
+/// and a claim taken with no readable clock puts back exactly what it took.
+///
+/// NOTHING IS LEFT BEHIND on any path this run completes, and a run killed
+/// mid-claim leaves ONE file that the next return adopts by name. The
+/// adoption is also the recovery: the edge that run was holding comes back
+/// with it rather than being lost.
+fn claim_moment(now: Option<u64>, take_journal: bool) -> Moment {
+    let state = state_dir();
+    let marker = state.join(LAST_PRESENT);
+    let claim = marker.with_extension(window_claim_suffix(now));
+    let taken = if std::fs::rename(&marker, &claim).is_ok() {
+        Some(claim)
+    } else {
+        match stranded_window_claim(&state, now) {
+            // A LIVE HOLDER IS THE ONLY THING THAT SILENCES AN EVENT HERE. No
+            // claim at all is a machine that has never published a marker, and
+            // that event still owes its catch-up card.
+            StrandedWindow::Live => return Moment::Busy,
+            // ADOPTED BY A SECOND RENAME, which is `take_claim`'s idiom: two
+            // runs that both reach one stranded claim still cannot both take
+            // it, because only one rename can win.
+            StrandedWindow::Abandoned(left) => std::fs::rename(&left, &claim).ok().map(|()| claim),
+            StrandedWindow::None => None,
+        }
+    };
+    let since = taken.as_deref().and_then(read_epoch);
+    let waiting = if take_journal {
+        claim_journal(&state)
+    } else {
+        Vec::new()
+    };
+    if let Some(edge) = since.max(now) {
+        advance_marker(edge);
+    }
+    if let Some(claim) = taken {
+        // The failure is dropped: what it leaves is exactly what the adoption
+        // above recovers.
+        let _ = std::fs::remove_file(claim);
+    }
+    Moment::Owned { since, waiting }
+}
+
+/// Whether another run is inside the return moment right now, and the claim it
+/// left behind when it is not.
+///
+/// MATCHED ON THE MARKER'S OWN CLAIM PREFIX and nothing looser, which is
+/// `stranded_claims`' rule: the journal and the turn marker claim themselves
+/// in this directory too, and a wider match would hand one of their values
+/// back as a window's near edge.
+///
+/// AT MOST ONE OF THESE CAN EXIST AT A TIME, because a claim is only ever made
+/// by renaming the ONE marker or by renaming an existing claim, and a run that
+/// finds one live makes none of its own. The loop still answers `Live` for the
+/// first live one it meets rather than assuming that, because the directory is
+/// a plain directory another hand can reach.
+enum StrandedWindow {
+    /// A run that still exists holds the marker.
+    Live,
+    /// A claim nobody is inside any more, and so the near edge it is holding.
+    Abandoned(std::path::PathBuf),
+    /// Nothing is holding anything: no marker was ever published here.
+    None,
+}
+
+fn stranded_window_claim(state: &Path, now: Option<u64>) -> StrandedWindow {
+    let prefix = format!("{LAST_PRESENT}.claim.");
+    let Ok(entries) = std::fs::read_dir(state) else {
+        return StrandedWindow::None;
+    };
+    let mut abandoned = None;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(owner) = name.strip_prefix(&prefix) else {
+            continue;
+        };
+        if !window_claim_is_free(owner, now) {
+            return StrandedWindow::Live;
+        }
+        abandoned = Some(entry.path());
+    }
+    abandoned.map_or(StrandedWindow::None, StrandedWindow::Abandoned)
+}
+
+/// What a window claim is named after the prefix: the id of the run that took
+/// it, and the epoch it was taken at when that run had a clock to read.
+///
+/// THE EPOCH IS THE CLAIM'S OWN AGE and cannot be taken off the file instead:
+/// a rename carries the marker's mtime, which is the time of the last PRESENT
+/// event and can be hours before the claim was made. It costs nothing to
+/// record, because the caller already holds this event's clock read.
+fn window_claim_suffix(now: Option<u64>) -> String {
+    match now {
+        Some(now) => format!("claim.{}.{now}", std::process::id()),
+        None => format!("claim.{}", std::process::id()),
+    }
+}
+
+/// Whether a window claim may be taken: nobody is inside it.
+///
+/// THREE WAYS IT IS FREE, and the first two are `claim_by_rename`'s own. It is
+/// THIS RUN'S, so nothing else can be inside it; or its owner has EXITED, so
+/// nothing is; or it is far OLDER than any run could still be holding it.
+///
+/// THE AGE TEST IS WHAT A PID CANNOT ANSWER. A claim is held for two renames
+/// and a small read, so a claim minutes old is one whose owner died mid-claim
+/// and whose id the machine has since handed to something long-lived. Without
+/// it that claim reads as live for as long as the new process runs, and every
+/// return moment on the machine stands down behind it: no card, no recap and
+/// no edge, until that process happens to exit. The bound is deliberately five
+/// minutes, four orders of magnitude past what holding one costs, so a real
+/// holder can never be stolen from and a stranded one can never wedge for long.
+fn window_claim_is_free(owner: &str, now: Option<u64>) -> bool {
+    let mut named = owner.split('.');
+    let took_it = named.next().unwrap_or_default();
+    if took_it == std::process::id().to_string() || owner_is_gone(owner) {
+        return true;
+    }
+    match (named.next().and_then(|at| at.parse::<u64>().ok()), now) {
+        (Some(taken), Some(now)) => now.saturating_sub(taken) > STALE_WINDOW_CLAIM_SECS,
+        // A CLAIM WITH NO EPOCH, or a run with no clock to compare it against,
+        // falls back on the pid alone, which is `abandoned_hold`'s own answer
+        // and its own accepted price.
+        _ => false,
+    }
+}
+
+/// How long a window claim may stand before it is taken to be stranded
+/// whatever its process id says. See `window_claim_is_free`.
+const STALE_WINDOW_CLAIM_SECS: u64 = 300;
+
+/// Start the recap in a process of its own, and say whether it really started.
+///
+/// THE DIGEST NEVER RUNS IN THIS PROCESS. `run_event` is reached from
+/// `pns hook prompt`, which the harness does NOT background, and from the
+/// bashrc notifier, where a human is watching their prompt. Rendering and
+/// posting a recap sits on neither. NEVER WAITED ON, so this process exits
+/// exactly when it would have, and the child is reparented if it goes first.
+///
+/// AND IN A PROCESS GROUP OF ITS OWN, which is the other half of detachment
+/// and used to be claimed rather than done. A hook the harness times out is
+/// killed by GROUP, and so is a shell prompt taking `SIGINT`; a child left in
+/// the parent's group goes with it, after the marker has already moved on, so
+/// the window can never fire again and the card in the operator's hand points
+/// at a recap nobody is writing.
+///
+/// `current_exe` RATHER THAN A PATH, so a test binary re-execs itself and a
+/// moved install still works. ONLY THE TWO BOUNDS CROSS: the child re-reads the
+/// ring itself, so nothing is serialized between them and nothing is lost if
+/// the child never starts.
+///
+/// TWO INDEPENDENT READS OF ONE RING, STATED. The card's count is this
+/// process's own read of the window and the recap's header is the child's, so
+/// an event landing in the shared `until` second between them, or a prune, can
+/// leave the two counts one apart. Each is honest about what IT read, which is
+/// the same rule the header's own comment states about the ring's depth;
+/// reconciling them would mean serializing a snapshot the child is deliberately
+/// free to re-read.
+///
+/// THE ANSWER IS WHETHER A CHILD EXISTS, which is what the card says out loud.
+/// A spawn that failed must never leave a card pointing at a recap nobody is
+/// writing.
+///
+/// A CHILD THAT DIES COSTS ONE RECAP AND NOTHING ELSE, which is why nothing
+/// supervises it: the activity ring is not consumed, the marker has already
+/// moved, and the card already carried the counts.
+fn spawn_recap(since: u64, until: u64) -> bool {
+    let Ok(binary) = std::env::current_exe() else {
+        return false;
+    };
+    let mut child = Command::new(binary);
+    child
+        .args(["recap", "--since", &since.to_string()])
+        .args(["--until", &until.to_string()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        // A NEW GROUP, WITH ITS OWN ID, which is what `setpgid(0, 0)` in the
+        // forked child does and what the doc above promises.
+        .process_group(0);
+    // AN UNBOUNDED DEADLINE IS A TERMINAL'S CHOICE, NEVER A BACKGROUND
+    // CHILD'S. `PNS_REMOTE_TIMEOUT=0` is curl's `-m 0`, no deadline at all,
+    // which nobody is behind to interrupt here: a wedged gateway would keep
+    // this process alive for good, and every later window would add another.
+    if remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()).is_none() {
+        child.env("PNS_REMOTE_TIMEOUT", RECAP_DEADLINE_SECS);
+    }
+    child.spawn().is_ok()
+}
+
+/// The deadline a detached recap falls back to when the environment asked for
+/// none. Generous, because nobody is waiting on this process; finite, because
+/// nobody is watching it either.
+const RECAP_DEADLINE_SECS: &str = "30";
 
 /// What became of one claim this run reached for.
 ///
@@ -528,20 +1017,28 @@ fn stranded_claims(state: &Path) -> Vec<std::path::PathBuf> {
 /// a window one rename wide. Nothing else may touch one while its owner lives,
 /// which is the whole reason the name sits outside the claim prefix: an owner
 /// that is still reading cannot have its batch taken a second time.
-///
-/// A LIVE PROCESS IS THE ONLY THING THAT DEFERS IT. `kill(pid, 0)` answers
-/// `EPERM` for a process this user may not signal, which is still a process
-/// that exists, so only `ESRCH` counts as gone. A pid the machine has reused
-/// reads as alive, and that batch waits for the first return after the process
-/// wearing its number exits, which is the same shape of price
-/// `claim_by_rename` already names for its own pid guard: a replay deferred,
-/// never a replay destroyed and never one delivered twice.
 fn abandoned_hold(name: &str) -> bool {
-    let Some(owner) = name.strip_prefix(&format!("{MISSED_NOTIFICATIONS}.held.")) else {
-        return false;
-    };
+    name.strip_prefix(&format!("{MISSED_NOTIFICATIONS}.held."))
+        .is_some_and(owner_is_gone)
+}
+
+/// Whether the process a claim is named for has exited.
+///
+/// ONE ANSWER FOR EVERY CLAIM IN THIS DIRECTORY. The journal's holds and the
+/// marker's claims both carry the id of the run that took them, and two copies
+/// of this test would drift the day one of them learns something.
+///
+/// A LIVE PROCESS IS THE ONLY THING THAT DEFERS A CLAIM. `kill(pid, 0)`
+/// answers `EPERM` for a process this user may not signal, which is still a
+/// process that exists, so only `ESRCH` counts as gone. A pid the machine has
+/// reused reads as alive, and what that costs is a batch that waits for the
+/// first return after the process wearing its number exits, which is the same
+/// shape of price `claim_by_rename` names for its own pid guard: a replay
+/// deferred, never a replay destroyed and never one delivered twice.
+fn owner_is_gone(owner: &str) -> bool {
     // THE PID IS THE SEGMENT BEFORE THE FIRST DOT (held.<pid>.<seq>); a bare
-    // held.<pid> from an older build parses the same way.
+    // held.<pid> from an older build, and the marker's claim.<pid>, both parse
+    // the same way.
     let owner = owner.split('.').next().unwrap_or_default();
     let Ok(pid) = owner.parse::<libc::pid_t>() else {
         return false;
@@ -551,8 +1048,6 @@ fn abandoned_hold(name: &str) -> bool {
     if pid <= 0 {
         return false;
     }
-    // kill() reads non-positive values as the GROUP and BROADCAST forms, so a
-    // hand-planted negative name must never reach it looking like a pid.
     // SAFETY: `kill` with signal 0 sends nothing and only reports whether the
     // process exists.
     if unsafe { libc::kill(pid, 0) } != -1 {
@@ -647,7 +1142,7 @@ fn take_claim(claim: &Path) -> Claimed {
     if std::fs::rename(claim, &held).is_err() {
         return Claimed::Nothing;
     }
-    let Ok(contents) = readable_ring(&held) else {
+    let Ok(contents) = readable_ring(&held, RING_READ_MAX) else {
         return Claimed::LeftForAdoption;
     };
     if std::fs::remove_file(&held).is_err() {
@@ -683,7 +1178,14 @@ fn take_claim(claim: &Path) -> Claimed {
 /// prune's or a heal's, is lost. It costs ONE RECORD at a rare boundary,
 /// never a card and never a torn file, because the rename is atomic and the
 /// text it publishes is always whole lines.
-fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()> {
+///
+/// `read_max` IS THE CALLER'S TOO, and it travels with `kept` because the two
+/// are one decision. The prune runs on the READ-BACK, so a ring deep enough to
+/// exceed the reader's ceiling can never be pruned again: the heal fires and
+/// the file collapses to the one line just written, silently, exactly when it
+/// is fullest. Every caller states both numbers together, and the doc comment
+/// on each depth does the arithmetic.
+fn append_ring_line(path: &Path, line: &str, kept: usize, read_max: u64) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -717,7 +1219,7 @@ fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()>
         .open(path)?
         .write_all(format!("{separator}{line}\n").as_bytes())?;
 
-    let contents = match readable_ring(path) {
+    let contents = match readable_ring(path, read_max) {
         Ok(contents) => contents,
         // THE HEAL. What could not be read back cannot be pruned either, so
         // leaving it would leave the ring unbounded from here on. The line
@@ -793,15 +1295,15 @@ fn ends_mid_line(path: &Path) -> std::io::Result<bool> {
 ///
 /// `symlink_metadata`, so the link itself is judged rather than whatever it
 /// points at, matching the append's own refusal a few lines up. The SIZE IS
-/// CHECKED FIRST for the reason above; the cap is far above anything this
-/// writes (`KEPT` lines of a few hundred bytes) and far below a size worth
-/// reading, so only a file some other hand left here can reach it.
+/// CHECKED FIRST for the reason above; `read_max` is the CALLER'S ceiling, far
+/// above anything that caller writes and far below a size worth reading, so
+/// only a file some other hand left there can reach it.
 ///
 /// THE REFUSALS ARE `io::Error`s rather than an absence, so a caller that has
 /// to tell "there is no file" from "the file could not be read" still can:
 /// the doctor says a different sentence for each, and the prune heals on
 /// either.
-fn readable_ring(path: &Path) -> std::io::Result<String> {
+fn readable_ring(path: &Path, read_max: u64) -> std::io::Result<String> {
     let found = std::fs::symlink_metadata(path)?;
     if !found.is_file() {
         return Err(std::io::Error::new(
@@ -809,7 +1311,7 @@ fn readable_ring(path: &Path) -> std::io::Result<String> {
             "the state file is not a regular file",
         ));
     }
-    if found.len() > RING_READ_MAX {
+    if found.len() > read_max {
         return Err(std::io::Error::new(
             std::io::ErrorKind::FileTooLarge,
             "the state file is larger than this reads",
@@ -818,8 +1320,23 @@ fn readable_ring(path: &Path) -> std::io::Result<String> {
     std::fs::read_to_string(path)
 }
 
-/// The most of the ring that is ever read into memory.
+/// The most of the decision ring or the journal that is ever read into memory.
+/// Their depths (5 and 25) at their field caps sit far under it; see
+/// `missed_notifications::KEPT` for that arithmetic.
 const RING_READ_MAX: u64 = 256 * 1024;
+
+/// The most of the ACTIVITY ring that is ever read into memory, which is its
+/// own number because its depth is its own.
+///
+/// THE ARITHMETIC, in `KEPT`'s style so the next person to raise either number
+/// has the ceiling in front of them. A worst-case entry is five text fields at
+/// `ACTIVITY_MAX_CHARS` characters, each character costing six bytes escaped
+/// (a control byte is written `\u001b`), plus about eighty bytes of JSON
+/// scaffolding: 5 * 120 * 6 + 80 = 3,680 bytes. At `ACTIVITY_KEPT` that
+/// MEASURES 552,000 bytes, which is 53% of this ceiling. Raising the depth or
+/// the field cap means raising this in the same change, because a ring that
+/// cannot be read back cannot be pruned and collapses to one line.
+const ACTIVITY_READ_MAX: u64 = 1024 * 1024;
 
 /// The decision ring: one line per event, `KEPT` deep, beside `quiet-until`
 /// and `home-staleness`. NOT a log stream and not rotate-logs' business: it is
@@ -831,6 +1348,33 @@ const DECISIONS: &str = "decisions";
 /// Bounded state that prunes itself, not a log stream and not rotate-logs'
 /// business.
 const MISSED_NOTIFICATIONS: &str = "missed-notifications";
+
+/// The activity ring: EVERY event, one JSON object per line in the journal's
+/// own shape, oldest first, `ACTIVITY_KEPT` deep. Bounded state that prunes
+/// itself, never claimed and never consumed.
+const ACTIVITY: &str = "activity";
+
+/// One line holding the epoch of the last event that PROVED the operator was
+/// here, which is the near edge of the window a recap covers. Absent means no
+/// window at all, so a fresh install cannot recap the whole ring.
+const LAST_PRESENT: &str = "last-present";
+
+/// How many events the activity ring keeps.
+///
+/// A HUNDRED AND FIFTY covers an overnight window at the observed working rate
+/// (ten pull requests merged in a ten-hour stretch on 2026-08-29, each spanning
+/// many turns and so many events). Past that the ring under-reports its oldest
+/// end exactly as the journal's prune does, which is why the recap's header
+/// counts the entries it READ rather than claiming a total it cannot back.
+/// Raising it means raising `ACTIVITY_READ_MAX` in the same change.
+const ACTIVITY_KEPT: usize = 150;
+
+/// How much of each text field one activity entry holds.
+///
+/// A TIMELINE LINE, NOT A CARD, which is why it is far under the card's own
+/// 260: the recap renders one line per event among a hundred, and the full text
+/// of every event already reached the durable log the recap's tail points at.
+const ACTIVITY_MAX_CHARS: usize = 120;
 
 /// The mode every file this tool creates in its state directory is born with.
 ///
@@ -1357,15 +1901,20 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     // Read off the config before selection consumes it: the pulse needs hue's
-    // settings, the plan needs moshi's card toggle, the catch-up needs its own
-    // switch, and the two network channels need their secrets.
-    let (hue_table, watch_card, moshi_token, hermes_key, replay_card) = match &loaded {
+    // settings, the plan needs moshi's card toggle, the catch-up needs the
+    // whole `[recap]` table, and the two network channels need their secrets.
+    //
+    // THE RECAP TRAVELS AS ONE NAMED VALUE, never as a row of loose booleans.
+    // Three of its four fields are bools; spread into this tuple they would sit
+    // adjacent here and in the call below, which is a swap nothing would catch,
+    // and a struct with named fields cannot be transposed.
+    let (hue_table, watch_card, moshi_token, hermes_key, recap) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
             mobile_watch_card(config),
             plugin_settings(config, "moshi").and_then(moshi_secret),
             plugin_settings(config, "hermes").and_then(hermes_secret),
-            config.recap.replay_card,
+            config.recap,
         ),
         // A config that could not be read falls back to the DEFAULTS of all
         // five, and deliberately disagrees with the plugin selection below,
@@ -1379,12 +1928,19 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         // file is unreadable rather than absent. A config nobody can parse
         // must not silently stop delivering misses the doctor is already
         // telling the operator are waiting.
-        _ => (None, false, None, None, true),
+        _ => (None, false, None, None, pns::config::Recap::default()),
     };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
+    // WHETHER A RECAP HAS ANYWHERE TO LAND, read off the SELECTION rather than
+    // off the config directly, so a missing or unreadable config falls back to
+    // the whole roster exactly as dispatch does. A machine that turned the
+    // durable channel off has said there is nowhere for a recap to go, and a
+    // card reading "recap in #pns" against an empty channel is the one thing
+    // the card's own spawn check exists to prevent.
+    let durable_route = selection.iter().any(|plugin| plugin.name == "hermes");
 
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1467,12 +2023,28 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // branches reach it, including the empty-plan branch, which is where most
     // misses live.
     record_missed(event, &decision, &overrides);
+    // AND THE ACTIVITY RING WITH IT, at the same site and under the same
+    // ordering contract and the same fail-quiet rule. It records
+    // UNCONDITIONALLY, which is the whole difference between it and the
+    // journal above: the recap's window is every event, delivered or not.
+    record_activity(event, &decision);
 
     // THE CATCH-UP GOES AFTER BOTH RECORDS AND BEFORE THE PULSE, inheriting
     // the ordering contract stated above rather than restating it: a slow
     // replay must not cost either record, and a card the operator may be
     // waiting on outranks decoration.
-    replay_missed(replay_card, &decision, &home, moshi_token, hermes_key);
+    replay_missed(
+        recap,
+        &decision,
+        &home,
+        moshi_token,
+        hermes_key,
+        durable_route,
+    );
+    // AND THE MARKER MOVES AFTER IT, never before: the catch-up above is what
+    // READS the window this closes, and moving the edge first would hand it a
+    // window one event wide on every return.
+    mark_present(&decision);
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
     // on. It is part of the PLAN rather than a second invocation (the shell
@@ -2259,7 +2831,7 @@ const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
 /// operator came to read out of the ring by the act of going to look at it.
 fn decision_section() -> Vec<String> {
     let now = now_secs();
-    match readable_ring(&state_dir().join(DECISIONS)) {
+    match readable_ring(&state_dir().join(DECISIONS), RING_READ_MAX) {
         Ok(contents) => pns::decision_log::section(Some(&contents), now),
         // ABSENT IS ITS OWN STATE, and the one the section has an honest line
         // for. Anything else is a directory or a permission problem, which is
@@ -2291,7 +2863,7 @@ const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be re
 /// and a doctor that still named "the next event" would be telling the
 /// operator a lie their own setting makes permanent.
 fn missed_line(replay_card: bool) -> String {
-    match readable_ring(&state_dir().join(MISSED_NOTIFICATIONS)) {
+    match readable_ring(&state_dir().join(MISSED_NOTIFICATIONS), RING_READ_MAX) {
         Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents), replay_card),
         // ABSENT IS ITS OWN STATE, and the one the line has an honest sentence
         // for. Anything else is a directory or a permission problem, which is
@@ -2329,6 +2901,202 @@ const NO_HUE_BRIDGE_LINE: &str = "pulse SKIPPED -- no hue bridge and key in the 
 /// The payload's detail, so whoever the card wakes knows at once that nothing
 /// is wrong and nothing needs doing.
 const DOCTOR_DETAIL: &str = "test send from pns doctor; nothing is wrong and nothing needs doing";
+
+/// The `recap` mode: one window of activity, rendered and posted, in a process
+/// nobody is waiting on.
+///
+/// IT TAKES NO DECISION, which is what makes it a mode. The decision was taken
+/// by the event that spawned it, and re-deciding here would be the second
+/// reading of one moment `GateInputs` exists to forbid.
+///
+/// IT REACHES ONE DESTINATION, the durable route, and never the phone or the
+/// banner. The phone layer was already delivered by the card that pointed here.
+///
+/// EXIT 2 FOR A MISTYPED INVOCATION, in `quiet_mode`'s style rather than the
+/// hook path's always-zero: this is hand-runnable, and a subcommand that
+/// swallows a typo is a recap the operator believes was posted. The spawner
+/// never reads the code.
+fn recap_mode() -> i32 {
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(2)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let Some((since, until)) = recap_bounds(&arguments) else {
+        eprintln!("{RECAP_USAGE}");
+        return 2;
+    };
+    let home = std::env::var("HOME").unwrap_or_default();
+    // FAIL CLOSED ON THE ROUTE AND OPEN ON THE POST, which is `pulse_mode`'s
+    // split: a config nobody can read named no route, so the recap goes to the
+    // default one rather than to a route the operator never asked for.
+    let (thread, hermes_key) = match load_config(&config_path(&home)) {
+        Ok(LoadOutcome::Loaded(config)) => (
+            config.recap.digest_as_thread,
+            plugin_settings(&config, "hermes").and_then(hermes_secret),
+        ),
+        _ => (false, None),
+    };
+    let entries = activity_in(since, until);
+    let body = pns::recap::body(
+        &entries,
+        &wall_clock(Some(since)),
+        &wall_clock(Some(until)),
+        &|at| wall_clock(at),
+    );
+    post_recap(&body, thread, &home, hermes_key)
+}
+
+/// The window bounds off argv, or None for anything this will not vouch for.
+///
+/// EVERY UNKNOWN WORD IS A REFUSAL, never a silent default: a recap over a
+/// window nobody asked for is worse than none. Both bounds are required, both
+/// are plain counts through the crate's one numeric gate, and a window that
+/// runs backwards is refused rather than read as empty.
+fn recap_bounds(arguments: &[String]) -> Option<(u64, u64)> {
+    let mut since = None;
+    let mut until = None;
+    let mut tokens = arguments.iter();
+    while let Some(token) = tokens.next() {
+        let bound = match token.as_str() {
+            "--since" => &mut since,
+            "--until" => &mut until,
+            _ => return None,
+        };
+        // A REPEATED FLAG IS A REFUSAL TOO: two windows were asked for and only
+        // one can be answered.
+        if bound.is_some() {
+            return None;
+        }
+        *bound = Some(pns::parse_count(tokens.next()?)?);
+    }
+    match (since, until) {
+        (Some(since), Some(until)) if since <= until => Some((since, until)),
+        _ => None,
+    }
+}
+
+/// One epoch as the operator's own wall clock reads it, or a placeholder of the
+/// same width when there is no readable time. ONE FUNCTION for the header's two
+/// bounds and every timeline line, so the recap cannot render two clocks.
+fn wall_clock(epoch: Option<u64>) -> String {
+    epoch
+        .and_then(local_minutes_since_midnight)
+        .map(|minutes| format!("{:02}:{:02}", minutes / 60, minutes % 60))
+        .unwrap_or_else(|| NO_WALL_CLOCK.to_string())
+}
+
+/// The recap posted, with the one fallback the locked spec names.
+///
+/// SYNCHRONOUS INSIDE THIS PROCESS, and REPORTING, which is the mode whose
+/// whole purpose is that a failure is visible. Nobody is behind this, and a
+/// silently dropped recap is the exact failure the feature exists to prevent.
+///
+/// THE FALLBACK IS A REAL MECHANISM. hermes answers 404 for a route it does not
+/// know and 502 when the target rejects the delivery, and only a 2xx is
+/// `delivered`, so a thread route the operator has not prepared refuses loudly.
+/// The same body then goes to the default route with ONE line saying why it
+/// landed there, which is the locked "falls back to a plain #pns message".
+///
+/// A VERDICT, NEVER A SENTENCE. The retry fires on `Failed` and `Unlaunched`
+/// alone; `Silent` is an executable channel that RAN and has no second surface
+/// to answer on, and reading it as a failure would post every recap twice on
+/// every machine with a shell channel installed.
+///
+/// ACCEPTED LIMIT, AND IT IS THE SAME RULE'S OTHER SIDE: on a machine running
+/// EXECUTABLE channels (`PNS_CHANNELS_DIR` set), `deliver` always answers
+/// `Silent` for a channel that ran, whatever the gateway then said. So a 404
+/// from an unprepared `pns-recap` route is invisible there and this fallback
+/// never fires; the recap goes to the thread route and stays there. Closing it
+/// would mean an executable channel reporting a per-destination outcome, which
+/// is a change to the channel contract itself and not to a recap.
+///
+/// ONE FALLBACK AND NO LOOP. A default route that refuses too is a gateway
+/// problem, and a recap is not worth a retry storm against one.
+fn post_recap(body: &str, thread: bool, home: &str, hermes_key: Option<String>) -> i32 {
+    if !thread {
+        deliver_recap(body, "", home, hermes_key);
+        return 0;
+    }
+    if !refused(&deliver_recap(body, RECAP_ROUTE, home, hermes_key.clone())) {
+        return 0;
+    }
+    deliver_recap(
+        &format!("{body}\n{THREAD_UNAVAILABLE}"),
+        "",
+        home,
+        hermes_key,
+    );
+    0
+}
+
+/// One recap posted to one route, and what the route had to say about it.
+///
+/// IT SAYS WHAT HAPPENED, which is what `ReportMode::ReportOutcome` was for
+/// and what it never actually did: `dispatch_legs` RETURNS its outcomes and
+/// prints nothing, so the mode only ever moved the deadline. MEASURED against
+/// a dead endpoint, `pns recap --since ... --until ...` printed nothing and
+/// exited 0, which is exactly the drill an operator runs by hand to check a
+/// `pns-recap` route they have just prepared, against exactly the failure it
+/// is most likely to meet.
+///
+/// THE SAME LINE `run_event` PRINTS, prefix and all, because a second spelling
+/// of one report is a second thing to keep in step. The detached child's
+/// stdout is `/dev/null`, so this costs the event path nothing.
+fn deliver_recap(
+    body: &str,
+    channel: &str,
+    home: &str,
+    hermes_key: Option<String>,
+) -> Vec<(pns::routing::Leg, Delivery)> {
+    // ONE LEG AND ONE DESTINATION, built by hand the way `doctor_mode` builds
+    // its own: no decision was taken here, so there is no plan to derive legs
+    // from. NOT DECORATIVE, because nothing about this was chosen to put
+    // something in front of the operator; the card already did that.
+    let leg = pns::routing::Leg {
+        name: "hermes",
+        mode: pns::routing::ReportMode::ReportOutcome,
+        decorative: false,
+    };
+    let event = pns::args::EventArgs {
+        agent: "pns".to_string(),
+        state: "recap".to_string(),
+        detail: body.to_string(),
+        channel: channel.to_string(),
+        ..Default::default()
+    };
+    let outcomes = dispatch_legs(&[leg], false, &event, home, None, hermes_key);
+    for (leg, delivered) in &outcomes {
+        if let Some(line) = delivered.clone().line_for(leg.mode) {
+            println!("pns: {line}");
+        }
+    }
+    outcomes
+}
+
+/// Whether a dispatch refused the recap, which is the only thing that earns
+/// the fallback. See `post_recap`.
+fn refused(outcomes: &[(pns::routing::Leg, Delivery)]) -> bool {
+    outcomes
+        .iter()
+        .any(|(_, delivered)| matches!(delivered, Delivery::Failed(_) | Delivery::Unlaunched(_)))
+}
+
+/// The hermes route a threaded recap posts to. ONE CONST rather than a key: a
+/// second machine wanting another name can have the key the day it exists, and
+/// the operator prepares this route in hermes either way.
+const RECAP_ROUTE: &str = "pns-recap";
+
+/// The line the fallback adds, so a recap in the wrong place says why it is
+/// there rather than looking like the design.
+const THREAD_UNAVAILABLE: &str =
+    "(the pns-recap route did not take this, so it landed on the default route instead)";
+
+/// What a recap typed wrong is told.
+const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>";
+
+/// What a line shows for a moment whose clock could not be read: the same width
+/// as a time, so the timeline still lines up.
+const NO_WALL_CLOCK: &str = "--:--";
 
 /// The `quiet` mode: the operator's own mute, typed and timed.
 ///
@@ -2523,7 +3291,7 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, publish_state_line, republish_after, reread_attempts_from,
+        STATE_FILE_MODE, publish_state_line, recap_bounds, republish_after, reread_attempts_from,
         reread_interval_from, resolve_path,
     };
     use std::os::unix::fs::PermissionsExt;
@@ -2652,6 +3420,61 @@ mod tests {
                 republish_after(&std::io::Error::from(kind)),
                 "a ring that answered {kind:?} was left unhealed"
             );
+        }
+    }
+
+    #[test]
+    fn a_recap_window_is_two_plain_counts_in_either_order_and_nothing_else() {
+        let bounds = |words: &[&str]| {
+            recap_bounds(
+                &words
+                    .iter()
+                    .map(|word| word.to_string())
+                    .collect::<Vec<_>>(),
+            )
+        };
+        assert_eq!(
+            bounds(&["--since", "1756499000", "--until", "1756500000"]),
+            Some((1_756_499_000, 1_756_500_000))
+        );
+        // Either order, because the spawner writes one and a hand run writes
+        // whichever it likes.
+        assert_eq!(
+            bounds(&["--until", "1756500000", "--since", "1756499000"]),
+            Some((1_756_499_000, 1_756_500_000))
+        );
+        // A window of one instant is a window: nothing happened in it, and the
+        // body says so rather than the parser refusing to describe it.
+        assert_eq!(bounds(&["--since", "5", "--until", "5"]), Some((5, 5)));
+    }
+
+    #[test]
+    fn every_recap_window_this_will_not_vouch_for_is_refused_rather_than_defaulted() {
+        // A RECAP OVER A WINDOW NOBODY ASKED FOR IS WORSE THAN NONE, so there
+        // is no default half and no silent fallthrough: a missing bound, a
+        // bound that is not a plain count, a window that runs backwards, a
+        // repeated flag and any word this does not serve are each a refusal.
+        let bounds = |words: &[&str]| {
+            recap_bounds(
+                &words
+                    .iter()
+                    .map(|word| word.to_string())
+                    .collect::<Vec<_>>(),
+            )
+        };
+        for refused in [
+            vec![],
+            vec!["--since", "1756499000"],
+            vec!["--until", "1756500000"],
+            vec!["--since", "1756500000", "--until", "1756499000"],
+            vec!["--since", "yesterday", "--until", "1756500000"],
+            vec!["--since", "-5", "--until", "1756500000"],
+            vec!["--since", "1756499000", "--since", "1756499500"],
+            vec!["--since", "1756499000", "--until", "1756500000", "--now"],
+            vec!["--since", "1756499000", "--until"],
+            vec!["1756499000", "1756500000"],
+        ] {
+            assert_eq!(bounds(&refused), None, "case: {refused:?}");
         }
     }
 

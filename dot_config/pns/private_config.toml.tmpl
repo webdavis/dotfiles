@@ -14,11 +14,33 @@
 # misses stay recorded whatever this says, the newest 25 of them, so switching
 # the card back on has something to deliver.
 # replay_card = true
-# The recap of the whole window posted to Discord, and whether it opens its own
-# thread rather than landing in the channel. THE RECAP SLICE IS WHAT SPENDS
-# THESE: they parse today and nothing reads them yet.
+# The recap of the whole window posted to Discord: the header, what still needs
+# you, the night in order, and where the full text lives. It is rendered and
+# posted by a SECOND pns process the return event starts and never waits for, so
+# nothing it does can slow the prompt you are standing at. Off records the window
+# just the same; only the posting stops.
 # digest = true
+# Whether that recap posts to the `pns-recap` route rather than to the default
+# one. THE ROUTE MUST EXIST IN HERMES FIRST, prepared with the pns signing secret
+# (`[plugins.hermes] key` below) and a prompt of bare `{detail}`, so the recap's
+# own header stays the message's first line. Two shapes work and the difference
+# is only where the thread comes from: point the route's chat_id at a Discord
+# FORUM channel and every window opens its own thread, auto-titled from that
+# first line ("While you were away, 23:04-06:15 · 37 events"); or give the route
+# a static thread_id inside #pns and every window lands in one long-lived thread
+# there. The forum gives a title per window, the static thread keeps everything
+# in #pns; pns posts the same message either way. A route that refuses the post
+# is not silent: the recap goes to the default route instead, carrying one line
+# saying why it landed there.
 # digest_as_thread = true
+# How many events a window needs before it is worth a recap rather than the
+# catch-up card alone. THE CALIBRATION KNOB: eight is a starting guess, every
+# recap's header prints the window's real count, and a week of them settles the
+# number without a rebuild. The window runs from the last event you were present
+# for to now, so a continuous stretch at the desk never reaches this. One is the
+# floor and means "any activity at all"; zero is refused, because it would recap
+# every single event, including one over a window where nothing happened.
+# min_events = 8
 
 [plugins.moshi]
 enabled = true
