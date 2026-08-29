@@ -130,7 +130,7 @@ esac"#
     }
 
     /// A stub binary of that name, first on PATH.
-    fn stub_on_path(&self, command: &mut Command, name: &str, body: &str) {
+    pub fn stub_on_path(&self, command: &mut Command, name: &str, body: &str) {
         let stub_bin = self.path("bin");
         std::fs::create_dir_all(&stub_bin).expect("stub bin");
         write_script(&stub_bin.join(name), body);

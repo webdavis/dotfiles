@@ -227,7 +227,13 @@ fn within_cap(answer: &str) -> bool {
 /// How much of an answer this check will read. Thousands of times the captured
 /// 0.3.3 answer, which is a couple of hundred bytes, and still far short of
 /// anything worth parsing by accident.
-const ANSWER_MAX: usize = 1024 * 1024;
+///
+/// THE READER IS ASKED FOR ONE BYTE MORE THAN THIS, at the `run_bounded` call
+/// in the composition root, which is the only way an over-cap answer stays
+/// DISTINGUISHABLE from one exactly at the cap: a reader that stopped at the
+/// cap itself would hand this function a truncated answer that passes, and the
+/// refusal below would never fire again.
+pub const ANSWER_MAX: usize = 1024 * 1024;
 
 /// What moshi said about the server, taken off the ONE line that begins with
 /// the label at column zero.

@@ -33,11 +33,17 @@ pub struct SystemCommandRunner;
 /// generous and still far short of a hang.
 const PROBE_DEADLINE: Duration = Duration::from_secs(5);
 
+/// One ceiling for every probe's OUTPUT. A registry dump, a process list and a
+/// herdr layout are kilobytes, so a mebibyte is generous by three orders of
+/// magnitude and still a bound: a probe that answered in gigabytes is a probe
+/// that is not answering, and the callers all read no answer as unknown.
+pub const PROBE_READ_MAX: u64 = 1024 * 1024;
+
 impl CommandRunner for SystemCommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Option<String> {
         let mut command = Command::new(program);
         command.args(args);
-        run_bounded(command, None, PROBE_DEADLINE)
+        run_bounded(command, None, PROBE_DEADLINE, PROBE_READ_MAX)
     }
 }
 
@@ -47,10 +53,20 @@ impl CommandRunner for SystemCommandRunner {
 /// `timeout(1)`, so the wait happens on a thread and the child is killed when
 /// the window closes. Every spawn on a notification path is bounded: the
 /// notification is worth less than the turn it reports on.
+///
+/// BOUNDED IN BYTES AS WELL AS IN TIME, which it was not. The read was a
+/// `read_to_end` into a growing `Vec`, so "bounded" meant a child could hand
+/// back as much as it managed to write inside the window, and the caller only
+/// found out how much AFTER it was all in memory. That was academic while every
+/// caller was a probe answering in kilobytes and stopped being academic the
+/// moment one of them became an operator-named command running a model for
+/// minutes. `max_bytes` is the reader's own ceiling: past it the pipe is closed
+/// under the child, which is also what stops it writing.
 pub fn run_bounded(
     mut command: Command,
     stdin_text: Option<&str>,
     deadline: Duration,
+    max_bytes: u64,
 ) -> Option<String> {
     let expires_at = std::time::Instant::now() + deadline;
     let mut child = command
@@ -81,8 +97,12 @@ pub fn run_bounded(
         // Bytes, then LOSSY: every reading here is judged line by line
         // downstream, so one invalid byte must cost its own line rather than
         // the whole answer, and read_to_string would refuse the lot.
+        // AND THE READ ITSELF IS CAPPED: `take` stops at the ceiling instead of
+        // growing the buffer to whatever the child felt like writing, and the
+        // pipe closing under it is what stops the child writing more.
         let mut output = Vec::new();
-        let _ = std::io::Read::read_to_end(&mut stdout, &mut output);
+        let mut capped = std::io::Read::take(&mut stdout, max_bytes);
+        let _ = std::io::Read::read_to_end(&mut capped, &mut output);
         let _ = sender.send(String::from_utf8_lossy(&output).into_owned());
     });
 
@@ -507,8 +527,32 @@ mod tests {
     use super::{
         CommandRunner, local_minutes_since_midnight, newest_terminal_atime, parse_focused_tab,
         parse_idle_nanoseconds, parse_layout, parse_pids, parse_screen_locked, parse_tty_names,
+        run_bounded,
     };
     use std::cell::RefCell;
+    use std::time::Duration;
+
+    #[test]
+    fn a_command_that_talks_past_the_cap_is_read_only_as_far_as_the_cap() {
+        // THE ONE TEST HERE THAT SPAWNS, and it has to: what it pins is the
+        // reader, and the reader only exists around a real pipe. Every other
+        // test in this module drives fixture text through a parser, because the
+        // parsers are the part a suite must not take off the live machine.
+        //
+        // WITHOUT THE BOUND THIS READS THE LOT. A `read_to_end` into a growing
+        // `Vec` is bounded by the DEADLINE alone, so a child that streams for
+        // its whole window hands back everything it wrote and the caller learns
+        // the size only once it is all in memory. The summarizer is exactly
+        // that child: an operator-named command running a model for minutes.
+        let mut command = std::process::Command::new("/bin/sh");
+        command.args(["-c", "head -c 100000 /dev/zero; exit 0"]);
+        let read = run_bounded(command, None, Duration::from_secs(5), 4096).expect("an answer");
+        assert_eq!(
+            read.len(),
+            4096,
+            "the reader kept going past its own ceiling"
+        );
+    }
 
     /// Records what it was asked to run and answers from a script, so a test
     /// pins both the parsing and the exact argv a probe uses.
