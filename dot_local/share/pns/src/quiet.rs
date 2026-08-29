@@ -26,8 +26,15 @@ pub fn parse_duration(text: &str) -> Result<u64, String> {
 }
 
 /// The epoch second a mute ends, out of the state file's contents.
+///
+/// EXACTLY ONE EPOCH LINE, and the only leniency is the ONE trailing newline
+/// the publish itself writes. A `trim()` here read `" 9223372036854775807\n"`
+/// as a live mute with 153722867251113165 minutes left on it. Padding is not
+/// something this ever wrote, so a file carrying it was edited by something
+/// else, and the fail-open rule is that anything but one plain epoch line
+/// complains rather than mutes.
 pub fn expiry_from_state(contents: &str) -> Result<u64, String> {
-    let held = contents.trim();
+    let held = contents.strip_suffix('\n').unwrap_or(contents);
     crate::parse_count(held).ok_or_else(|| {
         format!(
             "pns: state error (quiet-until is {held:?}, not an expiry time); \
@@ -153,12 +160,19 @@ mod tests {
         // to find it to fix it and a complaint about an unnamed value sends
         // them looking. Two lines is one epoch second appended to another,
         // which is what a second writer racing this one would leave.
+        // A LINE IS ONE EPOCH SECOND AND NOTHING ELSE. The padded rows are
+        // here because a lenient `trim()` read `" 9223372036854775807\n"` as a
+        // live mute rather than complaining about it.
         for (contents, named) in [
             ("later\n", "\"later\""),
             ("\n", "\"\""),
             ("", "\"\""),
             ("1800000000\n1800000060\n", "\"1800000000\\n1800000060\""),
             ("-5", "\"-5\""),
+            (" 123\n", "\" 123\""),
+            ("123 \n", "\"123 \""),
+            ("\t123\n", "\"\\t123\""),
+            (" 9223372036854775807\n", "\" 9223372036854775807\""),
         ] {
             assert_eq!(
                 expiry_from_state(contents),

@@ -494,8 +494,11 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
             .trim(),
         "claude-hook"
     );
-    // The mute was live for this run and did its own job: the paper trail is
-    // written and pns raised no card of its own.
+    // The paper trail is written. The ABSENT CARD IS NOT EVIDENCE OF THE MUTE:
+    // the unmuted control produces the same two legs, because the forward's own
+    // skip suppresses pns's phone leg either way. This line pins that no second
+    // card appeared, and nothing about what silenced it; the pins above are
+    // what carry the exemption.
     assert!(sandbox.fired("hermes"), "the durable log is never muted");
     assert!(!sandbox.fired("moshi"));
     assert!(

@@ -1333,6 +1333,26 @@ fn quiet_state(sandbox: &Sandbox) -> std::path::PathBuf {
     sandbox.path("state/quiet-until")
 }
 
+/// When the mute on disk was last written.
+fn modified_at(sandbox: &Sandbox) -> std::time::SystemTime {
+    std::fs::metadata(quiet_state(sandbox))
+        .expect("the mute is on disk")
+        .modified()
+        .expect("a modification time")
+}
+
+/// The state directory's mode, which is how a failed publish is reached
+/// without a fault-injection point in the binary. ALWAYS PUT BACK before the
+/// assertions: a directory left at 0500 is one the sandbox's own cleanup
+/// cannot remove.
+fn set_state_mode(sandbox: &Sandbox, mode: u32) {
+    std::fs::set_permissions(
+        sandbox.path("state"),
+        std::os::unix::fs::PermissionsExt::from_mode(mode),
+    )
+    .expect("the state directory's mode");
+}
+
 #[test]
 fn a_typed_duration_is_published_as_an_expiry_and_reporting_it_does_not_move_it() {
     let sandbox = Sandbox::new("quiet-set");
@@ -1358,14 +1378,20 @@ fn a_typed_duration_is_published_as_an_expiry_and_reporting_it_does_not_move_it(
 
     // THE NO-ARGUMENT FORM REPORTS AND MUTES NOTHING, which is what keeps any
     // invocation from muting by accident.
+    //
+    // THE MODIFICATION TIME IS THE PIN, not the content: a re-publish writes
+    // the same bytes in the same second, so comparing content caught it about
+    // three times in a hundred. The publish renames a fresh file into place,
+    // which moves the mtime whether or not the bytes changed.
+    let published_at = modified_at(&sandbox);
     let again = run(&mut quiet_command(&sandbox));
     assert_eq!(
         stdout(&again).trim_end(),
         "pns: quiet for another 30 minutes"
     );
     assert_eq!(
-        std::fs::read_to_string(quiet_state(&sandbox)).expect("still on disk"),
-        published,
+        modified_at(&sandbox),
+        published_at,
         "a report must not rewrite the mute it is reporting"
     );
 }
@@ -1553,4 +1579,153 @@ fn a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state
             "a refused mute writes no state: {arguments:?}"
         );
     }
+}
+
+#[test]
+fn a_state_file_that_cannot_be_read_delivers_everything_and_complains_once_per_event() {
+    // A READ ERROR IS NOT AN ABSENT FILE, and one `.ok()?` read both the same
+    // way: an unreadable quiet-until muted nothing and said nothing, so the
+    // operator had no way to learn the state file was broken. Fail open is
+    // untouched; what changes is that it is announced.
+    //
+    // A DIRECTORY IN THE FILE'S PLACE is the portable vehicle. A chmod-000
+    // file is not: a runner with enough privilege reads it anyway, and the
+    // pin becomes a flake that depends on who ran the suite.
+    let sandbox = Sandbox::new("quiet-unreadable");
+    std::fs::create_dir_all(quiet_state(&sandbox)).expect("a directory where the file goes");
+
+    let mut event = sandbox.pns();
+    event.env("PNS_STATE_DIR", sandbox.path("state"));
+    // At the desk with the pane out of sight and the card forced, the same
+    // both-decorations row the corrupt-file pin uses, so a mute reading true
+    // here would be unmissable.
+    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_FORCE_PHONE", "1");
+    sandbox.stub_herdr(&mut event, false);
+    let output = run(event
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args(["--pane", "t1:p2"]));
+
+    assert!(
+        sandbox.fired("macos-banner"),
+        "an unreadable mute mutes nothing"
+    );
+    assert!(sandbox.fired("moshi"), "including a forced card");
+    assert!(sandbox.fired("hermes"));
+    let complaints = stderr(&output)
+        .lines()
+        .filter(|line| line.starts_with("pns: state error"))
+        .map(String::from)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        complaints.len(),
+        1,
+        "one complaint per event, not one per reader: {}",
+        stderr(&output)
+    );
+    // THE ERROR IS NAMED but not quoted verbatim: the operating system owns
+    // that text, and pinning it would fail on a kernel that reworded it.
+    assert!(
+        complaints[0].starts_with("pns: state error (quiet-until could not be read: ")
+            && complaints[0].ends_with("); nothing is muted, clear it with pns quiet off"),
+        "the shape the parse complaint already uses, with the error inside: {}",
+        complaints[0]
+    );
+}
+
+#[test]
+fn a_mute_that_could_not_be_written_reports_the_mute_that_still_stands() {
+    // MEASURED: with a live mute on disk and the state directory read-only,
+    // the failed write said "nothing is muted" and a bare `pns quiet` a second
+    // later reported the old mute still on. A run that could not write knows
+    // nothing about what stands, so it reads the standing state back off the
+    // file rather than asserting the state it wanted.
+    let sandbox = Sandbox::new("quiet-write-fails-over-a-mute");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let standing = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+        + 3_600;
+    std::fs::write(quiet_state(&sandbox), format!("{standing}\n")).expect("the standing mute");
+    set_state_mode(&sandbox, 0o500);
+    let output = quiet_command(&sandbox)
+        .arg("30m")
+        .output()
+        .expect("the engine runs");
+    set_state_mode(&sandbox, 0o755);
+
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    assert!(
+        stderr(&output)
+            .lines()
+            .any(|line| line.starts_with("pns: state error (quiet-until could not be written: ")),
+        "loud about the write it could not make: {}",
+        stderr(&output)
+    );
+    assert_eq!(
+        stdout(&output).trim_end(),
+        "pns: quiet for another 60 minutes",
+        "the mute that still stands, not the one this run failed to set"
+    );
+    assert_eq!(
+        std::fs::read_to_string(quiet_state(&sandbox)).expect("the standing mute survives"),
+        format!("{standing}\n"),
+        "and the failed run moved nothing"
+    );
+}
+
+#[test]
+fn a_mute_that_could_not_be_written_exits_nonzero_and_leaves_no_state_behind() {
+    // NOTHING PINNED THE EXIT CODE: `return 1` mutated to `return 0` survived
+    // the whole suite. A caller reading a zero here treats a mute that never
+    // landed as one that did, which is the failure this subcommand exits
+    // non-zero at all to prevent.
+    let sandbox = Sandbox::new("quiet-write-fails");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    set_state_mode(&sandbox, 0o500);
+    let output = quiet_command(&sandbox)
+        .arg("30m")
+        .output()
+        .expect("the engine runs");
+    set_state_mode(&sandbox, 0o755);
+
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    assert!(
+        stderr(&output)
+            .lines()
+            .any(|line| line.starts_with("pns: state error (quiet-until could not be written: ")),
+        "loud, never silent: {}",
+        stderr(&output)
+    );
+    assert!(
+        !quiet_state(&sandbox).exists(),
+        "and no half-set mute left on disk"
+    );
+}
+
+#[test]
+fn a_publish_whose_rename_fails_leaves_no_pending_file_behind() {
+    // A DIRECTORY AT `quiet-until` fails the RENAME rather than the write, so
+    // the pending file exists by the time the publish gives up. Nothing pinned
+    // that it is unlinked, and one left behind is a state directory that grows
+    // a file per failed run for the next reader to trip over.
+    let sandbox = Sandbox::new("quiet-rename-fails");
+    std::fs::create_dir_all(quiet_state(&sandbox)).expect("a directory where the file goes");
+    let output = quiet_command(&sandbox)
+        .arg("30m")
+        .output()
+        .expect("the engine runs");
+
+    assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
+    let pending = std::fs::read_dir(sandbox.path("state"))
+        .expect("the state dir")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("quiet-until.new."))
+        .collect::<Vec<_>>();
+    assert!(
+        pending.is_empty(),
+        "left in the state directory: {pending:?}"
+    );
 }

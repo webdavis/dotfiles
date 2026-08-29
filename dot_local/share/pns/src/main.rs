@@ -1255,13 +1255,18 @@ fn home_mode() {
 ///
 /// THE REPORT IS READ BACK OFF THE FILE after whatever was asked for, rather
 /// than rendered from what this run intended, so the line cannot claim a mute
-/// that never landed.
+/// that never landed. A FAILED SET REPORTS TOO, for the mirror of the same
+/// reason: it knows only that its own write did not happen, and a previous
+/// mute may still be standing behind it.
 fn quiet_mode() -> i32 {
     let arguments: Vec<String> = std::env::args_os()
         .skip(2)
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect();
     let quiet_until = state_dir().join(QUIET_UNTIL);
+    // A SET THAT DID NOT HAPPEN, carried to the exit code rather than
+    // returned on the spot, so the report below runs on this path too.
+    let mut set_failed = false;
     match arguments.as_slice() {
         // NO ARGUMENT REPORTS and mutes nothing. There is no untimed toggle:
         // an indefinite mute the operator forgets is a notification system
@@ -1275,19 +1280,34 @@ fn quiet_mode() -> i32 {
         }
         [duration] => match pns::quiet::parse_duration(duration) {
             Ok(seconds) => {
-                let Some(expiry) = now_secs().map(|now| now.saturating_add(seconds)) else {
-                    eprintln!("pns: state error (the clock cannot be read); nothing is muted");
-                    return 1;
-                };
-                // LOUD, unlike `remember_staleness`: that one is a background
-                // warning that must never crash a diagnostic, and this is a
-                // human waiting on an answer. Reporting success for a mute
-                // that is not in effect is the worst outcome available.
-                if let Err(error) = publish_state_line(&quiet_until, &expiry.to_string()) {
-                    eprintln!(
-                        "pns: state error (quiet-until could not be written: {error}); nothing is muted"
-                    );
-                    return 1;
+                // NEITHER ARM CLAIMS "nothing is muted". A run that could not
+                // read a clock or could not write cannot see the state it is
+                // making a claim about, and a mute set an hour ago can be
+                // standing behind both: measured, the write arm said nothing
+                // was muted while `pns quiet` a second later reported sixty
+                // minutes left. They say what did not happen, and the report
+                // below says what stands.
+                match now_secs().map(|now| now.saturating_add(seconds)) {
+                    None => {
+                        eprintln!(
+                            "pns: state error (the clock cannot be read); the mute was not set"
+                        );
+                        set_failed = true;
+                    }
+                    // LOUD, unlike `remember_staleness`: that one is a
+                    // background warning that must never crash a diagnostic,
+                    // and this is a human waiting on an answer. Reporting
+                    // success for a mute that is not in effect is the worst
+                    // outcome available.
+                    Some(expiry) => {
+                        if let Err(error) = publish_state_line(&quiet_until, &expiry.to_string()) {
+                            eprintln!(
+                                "pns: state error (quiet-until could not be written: {error}); \
+                                 the mute was not set"
+                            );
+                            set_failed = true;
+                        }
+                    }
                 }
             }
             Err(refusal) => {
@@ -1308,7 +1328,7 @@ fn quiet_mode() -> i32 {
         "{}",
         pns::quiet::status_line(read_quiet_expiry(), now_secs())
     );
-    0
+    if set_failed { 1 } else { 0 }
 }
 
 /// What a mute typed wrong is told, once, on stderr. The refusal above it
@@ -1324,15 +1344,31 @@ const QUIET_UNTIL: &str = "quiet-until";
 
 /// The mute's expiry, if the operator set one.
 ///
-/// A FILE NOTHING CAN PARSE COMPLAINS AND READS AS NOT MUTED, which is the
-/// OPPOSITE of the lights window's fail-closed reading and deliberately so: a
-/// window failing closed costs one flash of a lamp, and a mute failing closed
-/// costs every notification, including the card for a tool call the operator
-/// is blocked on, with no expiry and no way for them to see it. The complaint
-/// repeats for as long as the file stays broken, which is proportional: it IS
-/// broken until someone fixes it. An ABSENT file says nothing at all.
+/// A FILE NOTHING CAN READ OR PARSE COMPLAINS AND READS AS NOT MUTED, which
+/// is the OPPOSITE of the lights window's fail-closed reading and deliberately
+/// so: a window failing closed costs one flash of a lamp, and a mute failing
+/// closed costs every notification, including the card for a tool call the
+/// operator is blocked on, with no expiry and no way for them to see it. The
+/// complaint repeats for as long as the file stays broken, which is
+/// proportional: it IS broken until someone fixes it.
+///
+/// ONLY AN ABSENT FILE IS SILENT, and it is the ordinary state. A single
+/// `.ok()?` used to cover both, so a file that could not be read at all was
+/// as quiet as one that was never there: unreadable permissions, a directory
+/// standing in its place and bytes that are not UTF-8 each muted nothing and
+/// announced nothing, which is the state nobody can discover.
 fn read_quiet_expiry() -> Option<u64> {
-    let raw = std::fs::read_to_string(state_dir().join(QUIET_UNTIL)).ok()?;
+    let raw = match std::fs::read_to_string(state_dir().join(QUIET_UNTIL)) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            eprintln!(
+                "pns: state error (quiet-until could not be read: {error}); \
+                 nothing is muted, clear it with pns quiet off"
+            );
+            return None;
+        }
+    };
     pns::quiet::expiry_from_state(&raw)
         .inspect_err(|complaint| eprintln!("{complaint}"))
         .ok()
