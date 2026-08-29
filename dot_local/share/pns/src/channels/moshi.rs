@@ -4,9 +4,11 @@
 //! `[plugins.moshi]` table, placed in the request BODY, and never touches
 //! argv, the environment of a child, or an error string: the bash put it on
 //! stdin for the same reason (the process table is world-readable), and
-//! in-process is the stronger form of the same rule. A missing or empty
-//! token is the silent-unavailable case: the channel is simply not set up,
-//! which is not an error and must not say anything.
+//! in-process is the stronger form of the same rule. A missing or empty token
+//! is the not-set-up case, and the deliver seam FAILS it by naming the config
+//! key to write: nothing is posted, and no event hears the sentence, because
+//! this channel is never handed a reporting leg. What has not changed is where
+//! the token may appear, which is the request body and nowhere else.
 
 use super::{Delivery, Event};
 use crate::routing::ReportMode;
@@ -114,9 +116,17 @@ impl HttpPost for UreqPost {
             .post(url)
             .content_type("application/json")
             .send(body)
-            .is_ok()
+            // NOT `is_ok`. With no redirects followed, a 3xx comes back as a
+            // RESPONSE rather than an error, so `is_ok` answered true for a
+            // card the endpoint bounced somewhere else and never delivered.
+            .is_ok_and(|response| DELIVERED_STATUS.contains(&response.status().as_u16()))
     }
 }
+
+/// The status codes that mean the card reached the phone. Spelled here rather
+/// than shared with hermes: the two channels answer to different endpoints and
+/// a range moved for one of them must not follow the other.
+const DELIVERED_STATUS: std::ops::Range<u16> = 200..300;
 
 #[cfg(test)]
 mod tests {
@@ -312,6 +322,42 @@ mod tests {
         let url = format!("http://{}/hook", listener.local_addr().unwrap());
         drop(listener);
         assert!(!UreqPost::default().post_json(&url, "{}"));
+    }
+
+    #[test]
+    fn a_redirect_is_not_a_delivery_however_the_endpoint_dresses_it_up() {
+        // `max_redirects(0)` hands a 3xx back as an Ok RESPONSE rather than an
+        // error, so a bare `is_ok` read one as a card that landed: the check
+        // printed Delivered for a phone that was never pushed to. THE 200 IS
+        // THE OTHER HALF, over a real socket, so the answer cannot become a
+        // blanket false and pass this by refusing everything.
+        use std::io::{Read, Write};
+        for (status, delivered) in [("302 Found", false), ("200 OK", true)] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/hook", listener.local_addr().unwrap());
+            let server = std::thread::spawn(move || {
+                if let Ok((mut stream, _)) = listener.accept() {
+                    let mut request = [0u8; 1024];
+                    let _ = stream.read(&mut request);
+                    let _ = stream.write_all(
+                        format!(
+                            "HTTP/1.1 {status}\r\nLocation: http://127.0.0.1:1/\r\n\
+                             Content-Length: 0\r\n\r\n"
+                        )
+                        .as_bytes(),
+                    );
+                }
+            });
+            let post = UreqPost {
+                timeout: Duration::from_secs(2),
+            };
+            assert_eq!(
+                post.post_json(&url, "{}"),
+                delivered,
+                "the endpoint answered {status}"
+            );
+            server.join().unwrap();
+        }
     }
 
     #[test]

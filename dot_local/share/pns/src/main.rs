@@ -823,8 +823,13 @@ fn dispatch_legs(
     // delivery, so a leg cannot be lost to a sibling's refusal.
     legs.iter()
         .map(|leg| {
-            (
-                *leg,
+            // A PANIC IS ONE LEG'S FAILURE, never the run's. Without this an
+            // unwinding channel takes the remaining legs and, in a hand-run
+            // check, the rest of the census with it, and a census that ended
+            // early is read as a report that finished. The default hook still
+            // prints its own trace to stderr, which is left alone: silencing
+            // it process-wide would hide every other panic in the binary.
+            let delivered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 deliver_leg(
                     leg,
                     &rendered,
@@ -833,8 +838,17 @@ fn dispatch_legs(
                     &hermes,
                     native_first(channels_dir_override.is_some()),
                     &channels_dir,
-                ),
-            )
+                )
+            }))
+            .unwrap_or_else(|_| {
+                // NO PAYLOAD TEXT: a panic message is written for a developer
+                // and may quote anything the channel was holding.
+                Delivery::Failed(format!(
+                    "the {} channel PANICKED; nothing was sent",
+                    leg.name
+                ))
+            });
+            (*leg, delivered)
         })
         .collect()
 }
@@ -971,6 +985,29 @@ fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) -> usize {
     .run(exit_code)
 }
 
+/// Whether the config's hue table resolves to a bridge that could be dialled:
+/// the same reading `fire_pulse` takes, taken BEFORE it, so a check can tell a
+/// bridge that listed no room from a config that names no bridge at all.
+fn hue_resolves(hue_table: Option<&toml::Table>) -> bool {
+    hue_table.is_some_and(|settings| {
+        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()).is_some()
+    })
+}
+
+/// The pulse behind the same boundary every leg gets, so a panicking bridge
+/// call costs the census the rest of its lines rather than ending the report
+/// where the operator reads it as complete.
+fn pulse_outcome(hue_table: Option<toml::Table>) -> pns::doctor::Outcome {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| fire_pulse(hue_table, "0"))) {
+        Ok(rooms) => pns::doctor::Outcome::Signalled(rooms),
+        // NO ROOM IS CLAIMED, and no panic text is quoted: the message is
+        // written for a developer and may hold anything the pulse was carrying.
+        Err(_) => {
+            pns::doctor::Outcome::Failed("the pulse PANICKED; no room was signalled".to_string())
+        }
+    }
+}
+
 /// The banner, which now only needs to know where to send the click.
 fn banner_channel() -> BannerChannel<SystemCommandRunner> {
     BannerChannel {
@@ -1098,13 +1135,23 @@ fn executable_in_path(name: &str) -> Option<String> {
 /// executable, or fails is not an error: it is simply not installed, or it
 /// declined, and neither may take down the siblings or the caller.
 ///
-/// SILENT BY DESIGN, and deliberately so now that it says so in the type: the
+/// SILENT ON THE NOTIFICATION PATH whichever verdict it answers with: the
 /// common failure here is a channel nobody installed, and reporting that on
-/// every event would be noise. The status is still dropped; what changed is
-/// that it is dropped in one visible place instead of implicitly.
+/// every event would be noise. THE TWO ARE STILL DIFFERENT VERDICTS. A channel
+/// that ran and said nothing is `Silent`; one that never started is
+/// `Unlaunched`, which prints nowhere an event can see and is what lets a
+/// hand-run check tell a delivery from a spawn that never happened. The exit
+/// status of a channel that DID run is still dropped, because a channel
+/// declining is its own business.
 fn deliver(channel: &Path, event: &str) -> Delivery {
-    let Ok(mut child) = Command::new(channel).stdin(Stdio::piped()).spawn() else {
-        return Delivery::Silent;
+    let mut child = match Command::new(channel).stdin(Stdio::piped()).spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return Delivery::Unlaunched(format!(
+                "could not launch the channel at {} ({error}); nothing was sent",
+                channel.display()
+            ));
+        }
     };
     if let Some(mut stdin) = child.stdin.take() {
         // Newline-terminated, as the bash's `jq -cn` emitted it: a channel
@@ -1355,29 +1402,45 @@ fn doctor_mode() -> i32 {
     // click focuses the right pane cannot be verified without a human clicking
     // it, so carrying one would add the scrub rule to a second call site to
     // test nothing this can observe.
-    let mut delivered =
-        dispatch_legs(&legs, false, &event, &home, moshi_token, hermes_key).into_iter();
+    let delivered = dispatch_legs(&legs, false, &event, &home, moshi_token, hermes_key);
 
     let outcomes: Vec<pns::doctor::Outcome> = checks
         .iter()
         .map(|check| match check.kind {
             pns::doctor::CheckKind::Skipped(reason) => pns::doctor::Outcome::Skipped(reason),
-            pns::doctor::CheckKind::Pulse => {
-                pns::doctor::Outcome::Signalled(fire_pulse(hue_table.clone(), "0"))
+            // NOTHING IS DIALLED FOR SETTINGS THAT RESOLVE TO NO BRIDGE.
+            // `fire_pulse` answers zero rooms for that config exactly as it
+            // does for a bridge that listed none, and the zero-rooms line
+            // blames the listing or the room names: both wrong here, and both
+            // send the operator hunting through a bridge nothing contacted.
+            pns::doctor::CheckKind::Pulse if !hue_resolves(hue_table.as_ref()) => {
+                pns::doctor::Outcome::Failed(NO_HUE_BRIDGE_LINE.to_string())
             }
-            // IN LOCK STEP, and by construction: the legs above are these
-            // checks, in this order, and `dispatch_legs` answers one outcome
-            // per leg. The absent case cannot happen and still reports a
-            // problem rather than claiming a send, which is the direction to
-            // be wrong in.
-            pns::doctor::CheckKind::Send => match delivered.next() {
-                Some((_, Delivery::Delivered(said))) => pns::doctor::Outcome::Sent(said),
-                Some((_, Delivery::Failed(said))) => pns::doctor::Outcome::Failed(said),
-                // Silent BY DESIGN, which is an executable channel: it was
-                // handed the event and has no second surface to answer on.
-                Some((_, Delivery::Silent)) => pns::doctor::Outcome::SentUnreported,
-                None => pns::doctor::Outcome::Failed("the leg was never dispatched".to_string()),
-            },
+            pns::doctor::CheckKind::Pulse => pulse_outcome(hue_table.clone()),
+            // BY NAME, never by position. The legs above are these checks in
+            // this order and `dispatch_legs` answers one outcome per leg, so
+            // the two agree today; a positional pairing that ever stopped
+            // agreeing would print one channel's verdict under another's
+            // label, which is a silent misreport rather than a visible one.
+            // The absent case cannot happen and still reports a problem rather
+            // than claiming a send, which is the direction to be wrong in.
+            pns::doctor::CheckKind::Send => {
+                match delivered.iter().find(|(leg, _)| leg.name == check.plugin) {
+                    Some((_, Delivery::Delivered(said))) => {
+                        pns::doctor::Outcome::Sent(said.clone())
+                    }
+                    Some((_, Delivery::Failed(said) | Delivery::Unlaunched(said))) => {
+                        pns::doctor::Outcome::Failed(said.clone())
+                    }
+                    // Silent BY DESIGN, which is an executable channel that
+                    // RAN: it was handed the event and has no second surface
+                    // to answer on.
+                    Some((_, Delivery::Silent)) => pns::doctor::Outcome::SentUnreported,
+                    None => {
+                        pns::doctor::Outcome::Failed("the leg was never dispatched".to_string())
+                    }
+                }
+            }
         })
         .collect();
 
@@ -1400,6 +1463,12 @@ const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled chan
      Every suppression gate is bypassed (the operator mute, the presence gate, the \
      viewed-pane rule, the lights' quiet hours), because a check that can be suppressed \
      proves nothing.";
+
+/// The line for lights that were selected and never set up. It names the
+/// settings to write, the way moshi's and hermes's do, because "no rooms"
+/// without an address sends the operator to a bridge nothing dialled.
+const NO_HUE_BRIDGE_LINE: &str = "pulse SKIPPED -- no hue bridge and key in the config \
+     ([plugins.hue] bridge, key); nothing was signalled";
 
 /// The payload's detail, so whoever the card wakes knows at once that nothing
 /// is wrong and nothing needs doing.

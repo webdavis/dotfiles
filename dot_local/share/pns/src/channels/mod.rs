@@ -76,6 +76,17 @@ pub enum Delivery {
     Delivered(String),
     /// It did not, and this is what the destination said about that.
     Failed(String),
+    /// It was never even LAUNCHED, and this says which channel and why. An
+    /// executable channel that ran and said nothing is `Silent`; a spawn that
+    /// never happened delivered nothing at all, and a caller that cannot tell
+    /// the two apart calls an empty channels directory a set of successful
+    /// sends, which is exactly what a hand-run check did before this variant
+    /// existed.
+    ///
+    /// STILL SILENT ON THE NOTIFICATION PATH, in both report modes: the common
+    /// case is a channel nobody installed, and saying so on every event is the
+    /// noise the silence was for.
+    Unlaunched(String),
 }
 
 impl Delivery {
@@ -90,6 +101,7 @@ impl Delivery {
             {
                 Some(line)
             }
+            // Silent, Unlaunched, and either verdict on a leg nobody reads.
             _ => None,
         }
     }
@@ -153,6 +165,17 @@ mod tests {
         );
         assert_eq!(Delivery::Silent.line_for(ReportMode::ReportOutcome), None);
         assert_eq!(Delivery::Silent.line_for(ReportMode::Silent), None);
+        // AND A CHANNEL THAT NEVER LAUNCHED IS SWALLOWED IN BOTH MODES. It is
+        // the uninstalled-channel case, which has never been news on the
+        // notification path; the hand-run check is the one caller that reads
+        // it, and it reads the variant rather than a printed line.
+        for mode in [ReportMode::ReportOutcome, ReportMode::Silent] {
+            assert_eq!(
+                Delivery::Unlaunched("could not launch the channel".to_string()).line_for(mode),
+                None,
+                "mode: {mode:?}"
+            );
+        }
     }
 
     #[test]
