@@ -509,6 +509,16 @@ mod tests {
         assert_eq!(inputs.marker_age, Some(600), "aged against that same read");
         assert_eq!(inputs.screen_locked, Some(false));
         assert_eq!(inputs.desk_fresh_secs, Some(DEFAULT_DESK_IDLE_SECS));
+        // THE CLOCK ITSELF, and not only the ages taken against it. The two
+        // above are aged inside the surface reading, so a decision that
+        // carried out no clock at all still reports them; the epoch every
+        // recorded line leads with comes from THIS field, and a `None` here
+        // dates every entry `-` while the ages beside it look measured.
+        assert_eq!(
+            inputs.now_secs,
+            Some(1_000_000),
+            "the one clock read, carried out on the decision it was read for"
+        );
         assert_eq!(
             inputs.surface,
             Surface::Desk,

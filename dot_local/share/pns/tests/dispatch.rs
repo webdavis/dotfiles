@@ -9,6 +9,7 @@ mod support;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::FileTypeExt;
 use support::{KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout};
 
 // --- the alert path ---------------------------------------------------------
@@ -2295,6 +2296,207 @@ fn a_state_directory_that_cannot_be_written_costs_the_event_nothing() {
         stderr(&output)
     );
 }
+/// The ring's path, with the state directory that holds it already made, so a
+/// test can plant something hostile there before the first event runs.
+fn ring_path(sandbox: &Sandbox) -> std::path::PathBuf {
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    sandbox.path("state/decisions")
+}
+
+/// One event, run to completion under a WALL-CLOCK DEADLINE.
+///
+/// `run` waits forever, which is the wrong instrument for a path whose bug is
+/// that it PARKS: a regression would hang the whole suite with no failure to
+/// read. The deadline is loose enough that a loaded machine cannot trip it,
+/// and the child is killed before the panic so nothing is left holding the
+/// fixture open.
+fn run_before_the_deadline(command: &mut std::process::Command) -> std::process::ExitStatus {
+    let mut child = command
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("the engine starts");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        if let Some(status) = child.try_wait().expect("the child is waitable") {
+            return status;
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("the event never returned: it parked on the ring's path");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_fifo_at_the_rings_path_is_never_opened_and_never_parks_the_event() {
+    // MEASURED: opening a FIFO for writing BLOCKS until something opens the
+    // read end, so an append that trusts the path parks the hook that called
+    // it, on every event, until the machine is rebooted. The ring is state
+    // this tool owns; a FIFO is not that state, and nothing that is not a
+    // regular file is opened at all.
+    let sandbox = Sandbox::new("decision-log-fifo");
+    let ring = ring_path(&sandbox);
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&ring)
+            .status()
+            .expect("mkfifo runs")
+            .success(),
+        "the fixture has to be a real FIFO"
+    );
+
+    let status = run_before_the_deadline(
+        logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]),
+    );
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "a record nobody could write costs the event nothing"
+    );
+    for channel in ["moshi", "hermes"] {
+        assert!(sandbox.fired(channel), "{channel} never fired");
+    }
+    // REFUSED, NOT REPAIRED: the path still holds what it held. Healing an
+    // irregular file would mean this tool deleting something it did not put
+    // there, on a path it only ever appends to.
+    assert!(
+        std::fs::symlink_metadata(&ring)
+            .expect("the fifo")
+            .file_type()
+            .is_fifo(),
+        "the ring's path was rewritten"
+    );
+}
+
+#[test]
+fn a_ring_holding_bytes_that_are_not_text_heals_to_a_bounded_readable_one() {
+    // MEASURED: the read-back is what the prune runs on, so one byte no
+    // reader can decode does not cost one entry, it switches the prune OFF
+    // and the ring then grows without a bound for the rest of the machine's
+    // life. The corrupt prefix is foreign and may go; what has to survive is
+    // this event's own line, on a file the next append can use.
+    let sandbox = Sandbox::new("decision-log-not-text");
+    let ring = ring_path(&sandbox);
+    std::fs::write(&ring, b"\xff\xfe not a decision\n").expect("the corrupt ring");
+
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]));
+    let healed = std::fs::read_to_string(&ring).expect("the ring reads back as text again");
+    assert_eq!(healed.lines().count(), 1, "got {healed:?}");
+    assert!(healed.contains(" claude/done "), "got {healed:?}");
+
+    // AND THE HEAL LEAVES AN ORDINARY RING: the next event appends to it
+    // rather than healing a second time.
+    run(logged_event(&sandbox).args(["--agent", "codex", "--state", "done"]));
+    let after = std::fs::read_to_string(&ring).expect("the ring");
+    assert_eq!(after.lines().count(), 2, "got {after:?}");
+    assert!(
+        after.contains(" claude/done ") && after.contains(" codex/done "),
+        "got {after:?}"
+    );
+}
+
+#[test]
+fn a_ring_that_ends_mid_line_never_fuses_the_next_record_onto_it() {
+    // MEASURED: an append lands at the last byte, so a file left without its
+    // trailing newline (a truncated write, a hand edit) WELDS the new record
+    // onto the tail of the old one, and the reader then cannot read either.
+    let sandbox = Sandbox::new("decision-log-no-newline");
+    let ring = ring_path(&sandbox);
+    std::fs::write(&ring, "1756499000 a/one surface=Desk").expect("the truncated ring");
+
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]));
+    let contents = std::fs::read_to_string(&ring).expect("the ring");
+    let lines: Vec<&str> = contents.lines().collect();
+    assert_eq!(lines.len(), 2, "got {lines:?}");
+    assert_eq!(
+        lines[0], "1756499000 a/one surface=Desk",
+        "the entry that was already there is left as it was"
+    );
+    assert!(
+        lines[1].starts_with(char::is_numeric) && lines[1].contains(" claude/done "),
+        "the new record has its own line and its own epoch: {lines:?}"
+    );
+}
+
+#[test]
+fn a_ring_too_large_to_read_back_is_replaced_rather_than_slurped() {
+    // MEASURED: the read-back is unbounded, so whatever sits at the path is
+    // pulled into memory whole on every event. A file with no line breaks in
+    // it also prunes to nothing, so once one is there it stays there.
+    let sandbox = Sandbox::new("decision-log-oversize");
+    let ring = ring_path(&sandbox);
+    let bloated = format!("{}\n", "z".repeat(400_000));
+    std::fs::write(&ring, &bloated).expect("the bloated ring");
+
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]));
+    let healed = std::fs::read_to_string(&ring).expect("the ring");
+    assert!(
+        healed.len() < bloated.len() / 100,
+        "the ring is still {} bytes",
+        healed.len()
+    );
+    assert_eq!(
+        healed.lines().count(),
+        1,
+        "healed to this event's line alone: {healed:?}"
+    );
+    assert!(healed.contains(" claude/done "), "got {healed:?}");
+}
+
+#[test]
+fn events_racing_each_other_lose_no_line_and_leave_no_pending_file() {
+    // WRITTEN BY APPEND, never read-modify-write. A Stop hook and the
+    // long-running notifier firing together is an ordinary pair, and a ring
+    // rewritten from a read taken before the other event's line landed drops
+    // that line. FEWER THAN THE CAP ON PURPOSE, so no prune runs at all and
+    // the count is exact rather than a range: every one of these has to be
+    // there, whole, with nothing half-published beside it.
+    let sandbox = Sandbox::new("decision-log-concurrent");
+    ring_path(&sandbox);
+    let racing: Vec<std::process::Child> = (1..=5)
+        .map(|turn| {
+            logged_event(&sandbox)
+                .args(["--agent", &format!("c{turn}"), "--state", "done"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("the engine starts")
+        })
+        .collect();
+    for mut child in racing {
+        assert!(
+            child.wait().expect("the child is waitable").success(),
+            "every racing event exits 0"
+        );
+    }
+
+    let contents = std::fs::read_to_string(sandbox.path("state/decisions")).expect("the ring");
+    let lines: Vec<&str> = contents.lines().collect();
+    assert_eq!(lines.len(), 5, "a line was lost: {lines:?}");
+    for turn in 1..=5 {
+        assert!(
+            contents.contains(&format!(" c{turn}/done ")),
+            "c{turn} is missing: {lines:?}"
+        );
+    }
+    for entry in &lines {
+        assert!(
+            entry.starts_with(char::is_numeric) && entry.contains(" legs="),
+            "a torn or fused line survived the race: {entry:?}"
+        );
+    }
+    let pending: Vec<String> = std::fs::read_dir(sandbox.path("state"))
+        .expect("the state dir")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("decisions.new"))
+        .collect();
+    assert!(pending.is_empty(), "a publish left {pending:?} behind");
+}
+
 /// The section's heading, whose second half is where the actionId is told
 /// honestly rather than printed as an empty field.
 const DECISION_HEADING_TAIL: &str = " newest first (why a card did or did not fire). No actionId \
@@ -2371,6 +2573,37 @@ fn the_doctors_exit_code_does_not_move_for_a_log_that_is_absent_or_unreadable() 
         output.status.code(),
         Some(0),
         "a malformed log is not a failed send: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_ring_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit_code() {
+    // ABSENT IS ITS OWN STATE, with its own honest line. This is the OTHER
+    // one: something is at the path and the read failed, which is a different
+    // thing to say and the only arm an absent file never exercises. A
+    // directory is the portable way to produce a real read error.
+    let sandbox = Sandbox::new("doctor-decision-unreadable");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    std::fs::create_dir_all(sandbox.path("state/decisions")).expect("a directory at the ring");
+
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = stdout(&output);
+    let last = printed.lines().last().unwrap_or_default();
+    let opening = "pns doctor: the decision log could not be read (";
+    assert!(last.starts_with(opening), "{printed}");
+    assert!(
+        last.ends_with(").") && last.len() > opening.len() + 2,
+        "the kind is NAMED rather than left an empty parenthesis: {printed}"
+    );
+    assert!(
+        !printed.contains(NO_DECISION_RECORDED),
+        "and it is never told as an absent log: {printed}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the sends alone own the exit code: {}",
         stderr(&output)
     );
 }

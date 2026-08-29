@@ -7,7 +7,7 @@
 //! notification must never fail the work it reports on.
 
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::io::{Read, Seek, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -249,20 +249,62 @@ fn record_decision(record: &pns::decision_log::Record) {
 /// file went over the cap, and republishes the last `KEPT` lines through the
 /// same atomic publish every other state file uses.
 ///
-/// ACCEPTED LIMIT: an append landing exactly during the prune's rename is
-/// lost. It costs ONE RECORD at a rare boundary, never a card and never a
-/// corrupted file, because the rename is atomic and the republished text is
-/// always whole lines.
+/// NOTHING ABOUT THE FILE IS TRUSTED, because none of it is this tool's word:
+/// the ring is a plain file in a directory an operator, a backup tool or
+/// another program can reach. Three states were MEASURED to cost more than
+/// the record they lost. A FIFO at the path parks the open forever, and with
+/// it the hook that called this, on every event. A byte no reader can decode
+/// fails the read-back, which is what the prune runs on, so the ring then
+/// grows without a bound. A file left without its trailing newline welds this
+/// record onto the tail of the last one and costs the reader BOTH. Each is
+/// answered here rather than defended against downstream: an irregular file
+/// is refused untouched, and a file this cannot read back whole is replaced
+/// by the one line it does have.
+///
+/// ACCEPTED LIMIT: an append landing exactly during a rename, whether the
+/// prune's or a heal's, is lost. It costs ONE RECORD at a rare boundary,
+/// never a card and never a torn file, because the rename is atomic and the
+/// text it publishes is always whole lines.
 fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
+    // BEFORE THE OPEN, and with `symlink_metadata` so the link itself is what
+    // is judged rather than whatever it points at. Refused and never
+    // repaired: deleting something this tool did not put there, on a path it
+    // only ever appends to, is a bigger action than skipping one record.
+    let already_there = match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => true,
+        Ok(_) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "the decision ring is not a regular file",
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error),
+    };
+    // The separator rides IN the same write rather than being a write of its
+    // own, so the record still lands in one append and two events racing each
+    // other still cannot interleave.
+    let separator = if already_there && ends_mid_line(path)? {
+        "\n"
+    } else {
+        ""
+    };
     std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)?
-        .write_all(format!("{line}\n").as_bytes())?;
-    let contents = std::fs::read_to_string(path)?;
+        .write_all(format!("{separator}{line}\n").as_bytes())?;
+
+    let Some(contents) = readable_ring(path) else {
+        // THE HEAL. What could not be read back cannot be pruned either, so
+        // leaving it would leave the ring unbounded from here on. The line
+        // just written is the part that is known good and known this tool's
+        // own, and it is republished alone.
+        return publish_state_line(path, line);
+    };
     let kept: Vec<&str> = contents.lines().collect();
     if kept.len() <= pns::decision_log::KEPT {
         return Ok(());
@@ -274,6 +316,42 @@ fn append_decision(path: &Path, line: &str) -> std::io::Result<()> {
         &kept[kept.len() - pns::decision_log::KEPT..].join("\n"),
     )
 }
+
+/// Whether the ring's last byte is anything other than a newline, which is
+/// what would FUSE the next record onto the entry already there.
+///
+/// READ-ONLY AND ON ITS OWN HANDLE, so the handle that writes stays
+/// write-only. The end is found by seeking rather than taken from the size
+/// the caller already read: another event can append between the two, and an
+/// offset from the stale size would sample a byte out of the middle.
+fn ends_mid_line(path: &Path) -> std::io::Result<bool> {
+    let mut ring = std::fs::File::open(path)?;
+    let end = ring.seek(std::io::SeekFrom::End(0))?;
+    if end == 0 {
+        return Ok(false);
+    }
+    ring.seek(std::io::SeekFrom::Start(end - 1))?;
+    let mut last = [0u8; 1];
+    ring.read_exact(&mut last)?;
+    Ok(last[0] != b'\n')
+}
+
+/// The ring read back for the prune, or `None` when it cannot be: too large
+/// to pull into memory, or holding bytes no reader can decode.
+///
+/// THE SIZE IS CHECKED FIRST, because the alternative is learning the file is
+/// enormous by allocating it. The cap is far above anything this writes
+/// (`KEPT` lines of a few hundred bytes) and far below a size worth reading,
+/// so only a file some other hand left here can reach it.
+fn readable_ring(path: &Path) -> Option<String> {
+    if std::fs::metadata(path).ok()?.len() > RING_READ_MAX {
+        return None;
+    }
+    std::fs::read_to_string(path).ok()
+}
+
+/// The most of the ring that is ever read into memory.
+const RING_READ_MAX: u64 = 256 * 1024;
 
 /// The decision ring: one line per event, `KEPT` deep, beside `quiet-until`
 /// and `home-staleness`. NOT a log stream and not rotate-logs' business: it is

@@ -261,9 +261,9 @@ const HEADING_TAIL: &str = " newest first (why a card did or did not fire). No a
 
 /// One entry, as its age and the rest of the line it was written as.
 ///
-/// THE BODY IS NEVER PARSED, only printed. The whole reader is the one split
-/// below, which is what keeps a format change in `line` from needing a
-/// matching change here.
+/// THE BODY IS NEVER PARSED, only ESCAPED and printed. The whole reader is
+/// the one split below, which is what keeps a format change in `line` from
+/// needing a matching change here.
 fn render(entry: &str, now: Option<u64>) -> String {
     let Some((stamp, rest)) = entry.split_once(' ') else {
         return complaint(entry);
@@ -278,7 +278,21 @@ fn render(entry: &str, now: Option<u64>) -> String {
             None => return complaint(entry),
         }
     };
-    format!("  {}: {rest}", age(recorded, now))
+    format!("  {}: {}", age(recorded, now), escaped(rest))
+}
+
+/// THE ONE ESCAPE RULE for text out of the ring, and the reason it is a
+/// function rather than two spellings: a parsed entry and an unparsable one
+/// go to the SAME terminal, so a rule applied to only one of them is a rule
+/// the other arm quietly does not have. Measured before this existed: an
+/// entry whose epoch parsed printed its ESC and BEL bytes to the terminal
+/// raw, while its unparsable neighbour on the line above was escaped.
+///
+/// Rust's own debug escaping is the rule, without the quotes `complaint`
+/// wraps its half in: nothing here writes a format, it makes a control byte
+/// visible as the characters that spell it.
+fn escaped(text: &str) -> String {
+    text.escape_debug().to_string()
 }
 
 /// How long ago, in the largest unit that still reads as a count. Absent at
@@ -296,12 +310,12 @@ fn age(recorded: Option<u64>, now: Option<u64>) -> String {
     }
 }
 
-/// An entry this cannot read, QUOTED AND TRUNCATED. The quoting is Rust's own
-/// debug escaping, which is also what keeps a control byte inside a
-/// hand-edited file from reaching the terminal this is printed to.
+/// An entry this cannot read, QUOTED AND TRUNCATED. The quotes are this arm's
+/// own, marking off a fragment of a file from the sentence around it; the
+/// escaping inside them is `escaped`, the same rule the readable arm runs.
 fn complaint(entry: &str) -> String {
     let held: String = entry.chars().take(QUOTED_MAX).collect();
-    format!("  unreadable entry: {held:?}")
+    format!("  unreadable entry: \"{}\"", escaped(&held))
 }
 
 /// How much of an unreadable entry is quoted back. Enough to recognize, short
@@ -373,7 +387,7 @@ mod tests {
         // EVERY VALUE IS A NUMBER, A BOOLEAN OR AN ENUM NAME, so the only
         // reader this file has can print it without interpreting it, and a
         // reading nobody could take stays absent instead of becoming a zero.
-        let decision = decision(inputs());
+        let plain = decision(inputs());
         let overrides = Overrides {
             skip_phone: true,
             ..Overrides::default()
@@ -381,12 +395,34 @@ mod tests {
         assert_eq!(
             line(&Record {
                 event: &event(),
-                decision: &decision,
+                decision: &plain,
                 overrides: &overrides,
                 legs: &[],
             }),
             "1756500000 claude/blocked surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=no \
+             fresh_window=120 long_running=no local_only=no remote_only=no pane=present \
+             pane_dropped=no watch_card=no muted=no skip_phone=yes force_phone=no \
+             idle_invalid=no desk_invalid=no phone_invalid=no \
+             plan=banner:no,card:no,pulse:no legs=none"
+        );
+
+        // AN UNREAD LOCK IS ITS OWN ROW, byte for byte. A `locked=no` here
+        // would be the line claiming the display was awake on a reading the
+        // decision never took, which is the one thing `tri` exists to stop.
+        let unread_lock = decision(GateInputs {
+            screen_locked: None,
+            ..inputs()
+        });
+        assert_eq!(
+            line(&Record {
+                event: &event(),
+                decision: &unread_lock,
+                overrides: &overrides,
+                legs: &[],
+            }),
+            "1756500000 claude/blocked surface=Mobile visibility=Hidden \
+             session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=none \
              fresh_window=120 long_running=no local_only=no remote_only=no pane=present \
              pane_dropped=no watch_card=no muted=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
@@ -512,6 +548,19 @@ mod tests {
         assert_eq!(
             identity(&"a".repeat(40), "done"),
             format!("{}/done", "a".repeat(32))
+        );
+        // AND THE ORDER IS JUDGE THEN TRUNCATE, never the reverse. A clean
+        // 32-character head with a newline at position 40 passes any check
+        // that runs on the cut value, and the cut value is then written as a
+        // real agent name while the forged entry rides in behind it. Cutting
+        // first is also a panic hazard the moment a cut lands mid-character.
+        assert_eq!(
+            identity(
+                &format!("{}\n1756500000 forged/entry", "a".repeat(40)),
+                "done"
+            ),
+            "unprintable/done",
+            "the tail is judged too, not only the 32 characters that survive"
         );
     }
 
@@ -724,6 +773,30 @@ mod tests {
             section(Some(&long), Some(1_756_500_000))[1],
             format!("  unreadable entry: {:?}", "z".repeat(60))
         );
+    }
+
+    #[test]
+    fn a_parsed_entrys_body_is_escaped_by_the_same_rule_an_unreadable_one_is() {
+        // ONE ESCAPE RULE FOR BOTH ARMS. The body of a PARSED entry used to be
+        // printed verbatim, so a hand-edited ring holding an escape sequence
+        // reached the terminal raw from `pns doctor` as long as its epoch
+        // parsed. The bytes are the point: what comes out is the characters
+        // that spell the escape, not the escape.
+        let rendered = section(
+            Some("1756500000 a/one \u{1b}[31mred\u{7}\tand\u{8}back\n"),
+            Some(1_756_500_000),
+        );
+        assert_eq!(
+            rendered[1],
+            "  0s ago: a/one \\u{1b}[31mred\\u{7}\\tand\\u{8}back"
+        );
+        for raw in ['\u{1b}', '\u{7}', '\u{8}', '\t'] {
+            assert!(
+                !rendered[1].contains(raw),
+                "{raw:?} reached the terminal: {:?}",
+                rendered[1]
+            );
+        }
     }
 
     #[test]
