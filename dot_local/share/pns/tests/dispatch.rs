@@ -2443,6 +2443,20 @@ fn ring_path(sandbox: &Sandbox) -> std::path::PathBuf {
     sandbox.path("state/decisions")
 }
 
+/// A real FIFO at that path, which is the fixture every parking test needs:
+/// opening one BLOCKS until the other end is opened, for reading as well as
+/// for writing.
+fn plant_fifo(path: &std::path::Path) {
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(path)
+            .status()
+            .expect("mkfifo runs")
+            .success(),
+        "the fixture has to be a real FIFO"
+    );
+}
+
 /// One event, run to completion under a WALL-CLOCK DEADLINE.
 ///
 /// `run` waits forever, which is the wrong instrument for a path whose bug is
@@ -2454,10 +2468,11 @@ fn run_before_the_deadline(command: &mut std::process::Command) -> std::process:
     output_before_the_deadline(command).status
 }
 
-/// The same wait, keeping what the event said. Piped rather than discarded
+/// The same wait, keeping what the run said. Piped rather than discarded
 /// because a caller also has to prove the event stayed SILENT about the file
-/// it could not write; the volume is a handful of lines, far inside a pipe
-/// buffer, so the poll below cannot deadlock on a full one.
+/// it could not write, and because the doctor's whole report is read back off
+/// it; the volume is a handful of lines, far inside a pipe buffer, so the poll
+/// below cannot deadlock on a full one.
 fn output_before_the_deadline(command: &mut std::process::Command) -> std::process::Output {
     let mut child = command
         .stdout(std::process::Stdio::piped())
@@ -2472,7 +2487,7 @@ fn output_before_the_deadline(command: &mut std::process::Command) -> std::proce
         if std::time::Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            panic!("the event never returned: it parked on the ring's path");
+            panic!("it never returned: it parked on a state file's path");
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
@@ -2771,6 +2786,55 @@ fn a_ring_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit_co
 }
 
 #[test]
+fn a_fifo_at_the_rings_path_never_parks_the_doctor_and_is_named_by_its_kind() {
+    // MEASURED: opening a FIFO BLOCKS until the other end is opened, for
+    // READING as much as for writing, so a doctor that read the path raw
+    // parks forever on a command a human is standing there waiting for. The
+    // append side already refuses this path; the reader is the other half of
+    // the same guard.
+    let sandbox = Sandbox::new("doctor-decision-fifo");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let ring = ring_path(&sandbox);
+    plant_fifo(&ring);
+
+    let mut command = doctor_command(&sandbox);
+    let output = output_before_the_deadline(&mut command);
+
+    let printed = stdout(&output);
+    let lines: Vec<&str> = printed.lines().collect();
+    assert_eq!(
+        lines.last(),
+        Some(&NONE_WAITING),
+        "the journal's count still comes after it: {printed}"
+    );
+    let last = lines[lines.len() - 2];
+    let opening = "pns doctor: the decision log could not be read (";
+    assert!(last.starts_with(opening), "{printed}");
+    assert!(
+        last.ends_with(").") && last.len() > opening.len() + 2,
+        "the kind is NAMED rather than left an empty parenthesis: {printed}"
+    );
+    assert!(
+        !printed.contains(NO_DECISION_RECORDED),
+        "and it is never told as an absent log: {printed}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the sends alone own the exit code: {}",
+        stderr(&output)
+    );
+    // REFUSED, NOT REPAIRED, the way the append refuses it.
+    assert!(
+        std::fs::symlink_metadata(&ring)
+            .expect("the fifo")
+            .file_type()
+            .is_fifo(),
+        "the ring's path was rewritten"
+    );
+}
+
+#[test]
 fn the_doctor_records_no_decision_of_its_own() {
     // A DOCTOR THAT RECORDED would push the decision the operator came to read
     // out of the ring by the act of going to look at it.
@@ -2989,11 +3053,11 @@ fn a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_event() 
     );
     assert!(sandbox.fired("hermes"), "the durable log still fired");
     assert_eq!(stdout(&output), "", "nothing is said about the journal");
-    assert!(
-        !stderr(&output).contains("missed"),
-        "nor on the other stream: {}",
-        stderr(&output)
-    );
+    // THE WHOLE STREAM, not a substring of it. A leaked `eprintln!("{error}")`
+    // prints the operating system's own words, which share no predictable word
+    // with "missed", so only an empty stream is evidence that the drop really
+    // is a drop.
+    assert_eq!(stderr(&output), "", "the event path gained stderr");
     // REFUSED, NOT REPAIRED: the path still holds what it held.
     assert!(
         std::fs::symlink_metadata(&path)
@@ -3024,11 +3088,11 @@ fn a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing() {
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
     assert!(sandbox.fired("hermes"), "every channel still fires");
     assert_eq!(stdout(&output), "", "nothing is said about the write");
-    assert!(
-        !stderr(&output).contains("missed") && !stderr(&output).contains("journal"),
-        "nor on the other stream: {}",
-        stderr(&output)
-    );
+    // THE WHOLE STREAM, for the reason the FIFO's test states: an unwritable
+    // state directory fails the decision record and the journal entry alike,
+    // and neither complaint would have to contain either word to be a
+    // complaint.
+    assert_eq!(stderr(&output), "", "the event path gained stderr");
     assert!(
         !sandbox.path("state/missed-notifications").exists(),
         "and nothing was written"
@@ -3138,6 +3202,47 @@ fn a_journal_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit
         Some(0),
         "the sends alone own the exit code: {}",
         stderr(&output)
+    );
+}
+
+#[test]
+fn a_fifo_at_the_journals_path_never_parks_the_doctor_and_is_named_by_its_kind() {
+    // THE SAME PARK, on the file this slice added: the count is read on the
+    // doctor's way out, so a FIFO here wedges the command after it has
+    // already sent to every channel.
+    let sandbox = Sandbox::new("doctor-journal-fifo");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let path = journal_path(&sandbox);
+    plant_fifo(&path);
+
+    let mut command = doctor_command(&sandbox);
+    let output = output_before_the_deadline(&mut command);
+
+    let printed = stdout(&output);
+    let last = printed.lines().last().unwrap_or_default();
+    let opening = "pns doctor: the missed-notification journal could not be read (";
+    assert!(last.starts_with(opening), "{printed}");
+    assert!(
+        last.ends_with(").") && last.len() > opening.len() + 2,
+        "the kind is NAMED rather than left an empty parenthesis: {printed}"
+    );
+    assert!(
+        !printed.contains(NONE_WAITING),
+        "and it is never told as an absent journal: {printed}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the sends alone own the exit code: {}",
+        stderr(&output)
+    );
+    // REFUSED, NOT REPAIRED: the path still holds what it held.
+    assert!(
+        std::fs::symlink_metadata(&path)
+            .expect("the fifo")
+            .file_type()
+            .is_fifo(),
+        "the journal's path was rewritten"
     );
 }
 

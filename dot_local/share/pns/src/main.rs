@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, Write};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -218,13 +218,20 @@ fn publish_state_line(path: &Path, line: &str) -> std::io::Result<()> {
     // THE PENDING FILE CARRIES THE MODE, because the rename is what publishes
     // it: a prune that wrote its replacement at the umask's mode would undo
     // the one the append created the file with.
-    std::fs::OpenOptions::new()
+    let mut pending_file = std::fs::OpenOptions::new()
         .create(true)
         .truncate(true)
         .write(true)
         .mode(STATE_FILE_MODE)
-        .open(&pending)?
-        .write_all(format!("{line}\n").as_bytes())?;
+        .open(&pending)?;
+    // AND AGAIN AFTER THE OPEN, because `mode` above applies only when the
+    // open CREATES the file. The pending path carries this process's own id,
+    // so a run interrupted between the open and the rename leaves one for the
+    // next run of that pid to REUSE, and a reused inode keeps whatever mode it
+    // was made with until this narrows it. Set on the open HANDLE rather than
+    // on the path, so nothing can be swapped in underneath between the two.
+    pending_file.set_permissions(std::fs::Permissions::from_mode(STATE_FILE_MODE))?;
+    pending_file.write_all(format!("{line}\n").as_bytes())?;
     if let Err(error) = std::fs::rename(&pending, path) {
         // Nothing half-written is left in the state directory for the next
         // run to trip over.
@@ -344,7 +351,7 @@ fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()>
         .open(path)?
         .write_all(format!("{separator}{line}\n").as_bytes())?;
 
-    let Some(contents) = readable_ring(path) else {
+    let Ok(contents) = readable_ring(path) else {
         // THE HEAL. What could not be read back cannot be pruned either, so
         // leaving it would leave the ring unbounded from here on. The line
         // just written is the part that is known good and known this tool's
@@ -379,18 +386,43 @@ fn ends_mid_line(path: &Path) -> std::io::Result<bool> {
     Ok(last[0] != b'\n')
 }
 
-/// The ring read back for the prune, or `None` when it cannot be: too large
-/// to pull into memory, or holding bytes no reader can decode.
+/// One of this tool's state files read back whole, or the reason it was
+/// refused: nothing at the path, something there that is not a regular file,
+/// too large to pull into memory, or bytes no reader can decode.
 ///
-/// THE SIZE IS CHECKED FIRST, because the alternative is learning the file is
-/// enormous by allocating it. The cap is far above anything this writes
-/// (`KEPT` lines of a few hundred bytes) and far below a size worth reading,
-/// so only a file some other hand left here can reach it.
-fn readable_ring(path: &Path) -> Option<String> {
-    if std::fs::metadata(path).ok()?.len() > RING_READ_MAX {
-        return None;
+/// EVERY READER OF THESE FILES GOES THROUGH IT, the prune's read-back and the
+/// doctor's two sections alike, because a raw `read_to_string` on a path an
+/// operator, a backup tool or another program can reach is the same two bugs
+/// wherever it is written. A FIFO parks the open forever, for READING as much
+/// as for writing, which wedges the hook that appended or the command a human
+/// is waiting on. A file some other hand grew to gigabytes is otherwise
+/// learned about by allocating it.
+///
+/// `symlink_metadata`, so the link itself is judged rather than whatever it
+/// points at, matching the append's own refusal a few lines up. The SIZE IS
+/// CHECKED FIRST for the reason above; the cap is far above anything this
+/// writes (`KEPT` lines of a few hundred bytes) and far below a size worth
+/// reading, so only a file some other hand left here can reach it.
+///
+/// THE REFUSALS ARE `io::Error`s rather than an absence, so a caller that has
+/// to tell "there is no file" from "the file could not be read" still can:
+/// the doctor says a different sentence for each, and the prune heals on
+/// either.
+fn readable_ring(path: &Path) -> std::io::Result<String> {
+    let found = std::fs::symlink_metadata(path)?;
+    if !found.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the state file is not a regular file",
+        ));
     }
-    std::fs::read_to_string(path).ok()
+    if found.len() > RING_READ_MAX {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::FileTooLarge,
+            "the state file is larger than this reads",
+        ));
+    }
+    std::fs::read_to_string(path)
 }
 
 /// The most of the ring that is ever read into memory.
@@ -411,10 +443,13 @@ const MISSED_NOTIFICATIONS: &str = "missed-notifications";
 ///
 /// ONE RULE FOR THE DIRECTORY'S CONTENTS rather than a knob for one caller:
 /// none of them has a reason to be world-readable, and the journal holds the
-/// operator's own text. ACCEPTED LIMIT: it applies AT CREATE, so a file an
-/// earlier build already left on disk keeps its umask mode until it is next
-/// created. Nothing here chmods a file it found, in keeping with the ring's
-/// refuse-rather-than-repair stance.
+/// operator's own text. ACCEPTED LIMIT: an APPEND applies it at create, so a
+/// ring an earlier build already left on disk keeps its umask mode until it is
+/// next created, and nothing chmods a file it found there, in keeping with the
+/// ring's refuse-rather-than-repair stance. THE PUBLISH IS THE ONE PLACE THAT
+/// CHMODS, and it is not that case: the pending file it narrows is its own,
+/// named for this process, and the rename is about to publish that file's mode
+/// over the state file.
 const STATE_FILE_MODE: u32 = 0o600;
 
 /// One line, holding the episode the operator has already been warned about,
@@ -1772,7 +1807,7 @@ const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
 /// operator came to read out of the ring by the act of going to look at it.
 fn decision_section() -> Vec<String> {
     let now = now_secs();
-    match std::fs::read_to_string(state_dir().join(DECISIONS)) {
+    match readable_ring(&state_dir().join(DECISIONS)) {
         Ok(contents) => pns::decision_log::section(Some(&contents), now),
         // ABSENT IS ITS OWN STATE, and the one the section has an honest line
         // for. Anything else is a directory or a permission problem, which is
@@ -1799,7 +1834,7 @@ const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be re
 /// which counts lines and has no parse at all, so the operator's own text has
 /// no path from this file to a terminal.
 fn missed_line() -> String {
-    match std::fs::read_to_string(state_dir().join(MISSED_NOTIFICATIONS)) {
+    match readable_ring(&state_dir().join(MISSED_NOTIFICATIONS)) {
         Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents)),
         // ABSENT IS ITS OWN STATE, and the one the line has an honest sentence
         // for. Anything else is a directory or a permission problem, which is
@@ -2031,8 +2066,10 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        reread_attempts_from, reread_interval_from, resolve_path,
+        STATE_FILE_MODE, publish_state_line, reread_attempts_from, reread_interval_from,
+        resolve_path,
     };
+    use std::os::unix::fs::PermissionsExt;
     use std::time::Duration;
 
     #[test]
@@ -2083,6 +2120,51 @@ mod tests {
         assert_eq!(reread_attempts_from(Some("2")), 2);
         assert_eq!(reread_attempts_from(Some("0")), 0);
         assert_eq!(reread_attempts_from(None), DEFAULT_REREAD_ATTEMPTS);
+    }
+
+    /// A published state file's mode, which is the only thing the test below
+    /// grades.
+    fn published_mode(path: &std::path::Path) -> u32 {
+        std::fs::metadata(path)
+            .expect("the published file")
+            .permissions()
+            .mode()
+            & 0o777
+    }
+
+    #[test]
+    fn a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it() {
+        // MEASURED: `OpenOptions::mode` applies only when the open CREATES the
+        // file, so a pending inode an earlier run left at the umask's mode
+        // keeps it, and the rename is what publishes that mode OVER the state
+        // file. The pending path carries this process's own id, which is
+        // exactly what makes a run interrupted between the open and the rename
+        // leave one for the next run of the same pid to reuse.
+        let directory =
+            std::env::temp_dir().join(format!("pns-publish-mode-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("the scratch directory");
+        let published = directory.join("missed-notifications");
+        let pending = published.with_extension(format!("new.{}", std::process::id()));
+        std::fs::write(&pending, "an interrupted run\n").expect("the pending file");
+        // STATED RATHER THAN INHERITED from the umask, so the fixture is the
+        // same wide mode on every machine and on a rerun that found its own
+        // leftovers.
+        std::fs::set_permissions(&pending, std::fs::Permissions::from_mode(0o644))
+            .expect("the wide mode");
+
+        publish_state_line(&published, "one line").expect("the publish");
+
+        // THE PUBLISH REALLY RAN, asserted before the mode: a file left from an
+        // earlier run already at 0600 would pass the mode assertion alone.
+        assert_eq!(
+            std::fs::read_to_string(&published).expect("the published file"),
+            "one line\n"
+        );
+        assert_eq!(
+            published_mode(&published),
+            STATE_FILE_MODE,
+            "the reused pending inode published its own wide mode"
+        );
     }
 
     #[test]

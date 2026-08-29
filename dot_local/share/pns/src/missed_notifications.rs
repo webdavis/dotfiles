@@ -23,14 +23,29 @@ use crate::args::EventArgs;
 use crate::engine::{Decision, Overrides};
 use crate::surface::{Surface, Visibility};
 
-/// How many missed notifications the journal keeps. Raising it is this one
-/// number.
+/// How many missed notifications the journal keeps.
 ///
 /// TWENTY FIVE RATHER THAN THE RING'S FIVE. Five is argued from one
 /// intervening Stop hook, which is a scale of seconds; this file has to
 /// survive an absence of hours, and twenty five covers an evening at a few
 /// notifiable events an hour. Unbounded is wrong for the other reason: this
 /// is state, not a log stream, and nothing rotates it.
+///
+/// RAISING IT IS THIS ONE NUMBER ONLY UP TO A CEILING, and the ceiling is
+/// near enough to state. Each of the five text fields is capped at
+/// `render::PREVIEW_MAX_CHARS` characters, and one character can cost six
+/// bytes escaped (a control byte is written `\u001b`), so a worst-case entry
+/// MEASURES 7,876 bytes and a full journal 196,900, which is 75% of the 256
+/// KiB the composition root reads any of these state files back through.
+/// Past a depth of 33 a full journal no longer reads back at all, and the
+/// append answers a file it cannot read by republishing the one line it just
+/// wrote: the journal would collapse to a single entry exactly when it is
+/// fullest, and silently. Raising this past 33 means raising that read cap in
+/// the same change.
+///
+/// ORDINARY ENTRIES ARE NOWHERE NEAR THAT, a few hundred bytes of plain text,
+/// so the ceiling is reached only by fields that are all escape bytes. It is
+/// stated because the collapse is silent, not because it is likely.
 pub const KEPT: usize = 25;
 
 /// Whether the operator COULD NOT HAVE PERCEIVED this event.
