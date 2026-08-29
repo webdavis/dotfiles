@@ -190,7 +190,7 @@ struct SurfaceReading {
     phone_input_fresh: bool,
 }
 
-/// Where the operator is, from the three readings the arbitration needs.
+/// Where the operator is, from the four readings the arbitration needs.
 ///
 /// Public because the blocking hook asks the same question for a different
 /// reason: whether the operator can answer from the phone at all.
@@ -225,9 +225,11 @@ where
         };
     };
 
-    // THE LOCK IS READ EXACTLY WHERE THE IDLE CLOCK IS, because its only job
-    // is to disqualify what that probe reported: taking it anywhere else is a
-    // spawn for an answer nothing can use. Nothing in this repo sets
+    // THE LOCK IS READ ONLY WHERE THE IDLE CLOCK ANSWERED, because its only
+    // job is to disqualify what that probe reported: a desk reading the
+    // caller stated, never took, or could not take leaves the lock a spawn
+    // for an answer nothing can use, and the blocked path an approval waits
+    // on pays that deadline serially. Nothing in this repo sets
     // `PNS_IDLE_SECS` in production (measured repo-wide 2026-08-28); a future
     // setter would silently disable the override with it.
     let (desk_input_age, screen_locked) = if overrides.idle_invalid {
@@ -235,7 +237,13 @@ where
     } else {
         match overrides.idle_secs {
             Some(secs) => (Some(secs), None),
-            None => (probes.idle_secs(), probes.screen_locked()),
+            None => {
+                let idle = probes.idle_secs();
+                (
+                    idle,
+                    idle.is_some().then(|| probes.screen_locked()).flatten(),
+                )
+            }
         }
     };
     // AGES, never timestamps, and both aged against the SAME clock read: an
@@ -710,20 +718,24 @@ mod tests {
     }
 
     #[test]
-    fn the_lock_probe_is_read_exactly_where_the_idle_probe_is_and_nowhere_else() {
+    fn the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading() {
         // The lock's only job is to disqualify what the idle probe reported,
-        // so taking it where that reading was never taken is a spawn for an
-        // answer nothing can use. The other direction is the ruling: caller
-        // intent is never overridden, and stating the desk clock states the
-        // desk's whole story, garbled value included.
+        // so taking it where that reading was never taken, or where it came
+        // back empty, is a spawn for an answer nothing can use. The other
+        // direction is the ruling: caller intent is never overridden, and
+        // stating the desk clock states the desk's whole story, garbled value
+        // included.
         let garbled = Overrides::from_env(&BTreeMap::from([(
             "PNS_IDLE_SECS".to_string(),
             "not-a-number".to_string(),
         )]));
-        let cases: [(&str, Overrides, u32); 3] = [
+        // (label, overrides, what the idle probe answers, idle reads, lock reads)
+        let cases: [(&str, Overrides, Option<u64>, u32, u32); 4] = [
             (
                 "nothing stated: the engine takes both readings",
                 Overrides::default(),
+                Some(2),
+                1,
                 1,
             ),
             (
@@ -732,19 +744,28 @@ mod tests {
                     idle_secs: Some(9_000),
                     ..Overrides::default()
                 },
+                Some(2),
+                0,
                 0,
             ),
-            ("a garbled one: neither, again", garbled, 0),
+            ("a garbled one: neither, again", garbled, Some(2), 0, 0),
+            (
+                "an unreadable idle clock: nothing arrived for the lock to disqualify",
+                Overrides::default(),
+                None,
+                1,
+                0,
+            ),
         ];
-        for (label, overrides, expected) in cases {
+        for (label, overrides, idle, idle_reads, lock_reads) in cases {
             let probes = CountingProbes {
-                idle: Some(2),
+                idle,
                 screen_locked: Some(true),
                 ..CountingProbes::default()
             };
             decide_with(&probes, &overrides, "");
-            assert_eq!(probes.idle_reads.get(), expected, "case: {label}, idle");
-            assert_eq!(probes.lock_reads.get(), expected, "case: {label}, lock");
+            assert_eq!(probes.idle_reads.get(), idle_reads, "case: {label}, idle");
+            assert_eq!(probes.lock_reads.get(), lock_reads, "case: {label}, lock");
         }
     }
 

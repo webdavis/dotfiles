@@ -633,11 +633,17 @@ mod tests {
     /// The unlocked shape carrying the same decoy: a parser reaching into the
     /// per-session array reads Yes here and reports a locked screen at a desk
     /// the operator is sitting at.
+    ///
+    /// THE DECOY LINE COMES FIRST ON PURPOSE. The parser answers from the
+    /// FIRST line carrying the key, so a search string loose enough to match
+    /// the per-session flag has to meet that flag before the aggregate for
+    /// this fixture to catch it. Put the aggregate back on top and the test
+    /// below passes for any search string at all.
     const ROOT_UNLOCKED_WITH_DECOY: &str = r#"+-o Root  <class IORegistryEntry, id 0x100000100, retain 28>
     {
       "OS Build Version" = "25C56"
-      "IOConsoleLocked" = No
       "IOConsoleUsers" = ({"kCGSSessionOnConsoleKey"=Yes,"CGSSessionScreenIsLocked"=Yes,"kCGSSessionUserNameKey"="stephen"})
+      "IOConsoleLocked" = No
     }
 "#;
 
@@ -649,9 +655,10 @@ mod tests {
     #[test]
     fn the_console_key_saying_no_is_an_unlocked_screen_whatever_the_session_array_says() {
         // THE PRECISION TEST. `CGSSessionScreenIsLocked` rides inside the
-        // `"IOConsoleUsers"` line one row below, so a parser that searches for
-        // anything less specific than the aggregate's own key answers from a
-        // per-session flag and reports a locked screen at an occupied desk.
+        // `"IOConsoleUsers"` line one row ABOVE, where the parser meets it
+        // first, so a parser that searches for anything less specific than the
+        // aggregate's own key answers from a per-session flag and reports a
+        // locked screen at an occupied desk.
         assert_eq!(parse_screen_locked(ROOT_UNLOCKED_WITH_DECOY), Some(false));
     }
 

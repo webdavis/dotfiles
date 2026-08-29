@@ -3,8 +3,8 @@
 //! Each trait is deliberately NARROW, one reading per trait, so a test
 //! substitutes exactly the reading it is about and the core never grows a path
 //! that touches the outside world. The concrete implementations (the idle
-//! counter, the marker's timestamp, the phone's pty clock, the multiplexer
-//! query) belong to the binary's composition root.
+//! counter, the marker's timestamp, the phone's pty clock, the console lock,
+//! the multiplexer query) belong to the binary's composition root.
 //!
 //! Every reading is optional, because every one of them can fail to be taken.
 //! `None` is "could not read", never a value, and each decision states its own
