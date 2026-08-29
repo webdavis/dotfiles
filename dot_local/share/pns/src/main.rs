@@ -290,6 +290,118 @@ fn record_missed(
     );
 }
 
+/// Put the journal in front of an operator who is here to see it, riding the
+/// event that proved they are.
+///
+/// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason: an
+/// event path whose stdout a harness hook reads must not gain a line about the
+/// state directory, and nothing here is worth a word to the operator anyway.
+///
+/// A LOSS ON A FAILED DELIVERY IS THE DESIGN, not an oversight. The engine's
+/// contract is fire-and-forget for every producer; every journaled event
+/// already reached the durable log in full, so nothing is lost that a human
+/// cannot recover; re-journaling against a wedged channel is an unbounded
+/// retry that grows the file every event; and `dispatch_legs`' outcomes cannot
+/// tell delivery from perception in any case, because an executable channel
+/// that ran answers `Silent` by design.
+///
+/// NOTHING IS PRINTED. The event path prints only what a reporting leg said,
+/// and this rides an event whose stdout a hook reads.
+fn replay_missed(
+    decision: &pns::engine::Decision,
+    home: &str,
+    moshi_token: Option<String>,
+    hermes_key: Option<String>,
+) {
+    if !pns::missed_notifications::should_replay(decision) {
+        return;
+    }
+    // NOWHERE TO SEND IS NOT A REPLAY. The legs are empty when the caller gave
+    // both narrowing flags, and claiming the journal for a dispatch that
+    // reaches nothing would eat the queue for a typing mistake.
+    if decision.legs.is_empty() {
+        return;
+    }
+    let waiting = claim_journal();
+    if waiting.is_empty() {
+        return;
+    }
+    // ONE SYNTHETIC EVENT, whatever the count. Empty project and branch,
+    // because a batch spans both and `render::message` would otherwise prefix
+    // the lot with one branch's name; empty channel, because an entry carries
+    // none (the durable route already had the event); empty pane, which is the
+    // call `doctor_mode` makes too, because a pane id from an hour ago may
+    // name a pane that no longer exists. The title reads `pns · missed`, which
+    // is visibly not a live agent card: a replayed card that looked live would
+    // be lying about time.
+    let replay = pns::args::EventArgs {
+        agent: "pns".to_string(),
+        state: "missed".to_string(),
+        detail: pns::missed_notifications::summary(&waiting),
+        ..Default::default()
+    };
+    // DISPATCHED DIRECTLY AND NEVER THROUGH `run_event`, which is the loop
+    // this closes. A synthetic event fed back in would take a SECOND decision
+    // (the second reading of one moment `GateInputs` exists to forbid), write
+    // a second ring line for something that is not an event, fire a second
+    // pulse, and RE-JOURNAL: under a mute the replay would journal itself and
+    // the next one would replay the replay, forever, growing by one entry each
+    // time. `doctor_mode` is the precedent in this file for the same split;
+    // what is left after a decision has been taken is dispatch alone.
+    //
+    // THE LEGS ARE THIS DECISION'S OWN, verbatim. Deciding again would be a
+    // second copy of routing's policy, which `routing` itself warns is how the
+    // two come to drift. ACCEPTED CONSEQUENCE: the durable leg is among them,
+    // so the summary is posted to a log that already holds every entry in it.
+    // That is a duplicate in content and a new fact in kind.
+    let _ = dispatch_legs(
+        &decision.legs,
+        false,
+        &replay,
+        home,
+        moshi_token,
+        hermes_key,
+    );
+}
+
+/// The journal, CLAIMED and consumed: renamed out of the way, read back
+/// through the one guarded reader, and removed before anything is delivered.
+///
+/// CLAIMED BY RENAME, which is `consume_turn_marker`'s idiom and is atomic:
+/// two events racing each other cannot both replay one batch, because only one
+/// rename can win. A read-then-remove would let both.
+///
+/// REFUSED UNTOUCHED when the path holds something other than a regular file,
+/// which is `append_ring_line`'s own guard restated over the same path. The
+/// rename is what makes the check worth having rather than leaving the
+/// refusal to the read below: renaming moves whatever is there to the claim
+/// path, where the remove would then be acting on something this tool did not
+/// put in the state directory. Refusing to touch it at all is the same call
+/// the append makes, for the same reason.
+///
+/// REMOVED BEFORE DELIVERY, never after. The entries are in memory from that
+/// point on, so a channel that hangs to its deadline and takes the process
+/// with it cannot leave an orphan claim in the state directory for the next
+/// run to trip over.
+///
+/// THE RACE, stated: an append that opened the journal path before the rename
+/// writes into the claimed inode, and is replayed or lost depending on which
+/// side of the read it lands. That is ONE entry at a rare boundary, the same
+/// bound `append_ring_line` already names and accepts.
+fn claim_journal() -> Vec<pns::missed_notifications::Entry> {
+    let journal = state_dir().join(MISSED_NOTIFICATIONS);
+    if !matches!(std::fs::symlink_metadata(&journal), Ok(found) if found.is_file()) {
+        return Vec::new();
+    }
+    let claim = journal.with_extension(format!("claim.{}", std::process::id()));
+    if std::fs::rename(&journal, &claim).is_err() {
+        return Vec::new();
+    }
+    let contents = readable_ring(&claim);
+    let _ = std::fs::remove_file(&claim);
+    pns::missed_notifications::entries(&contents.unwrap_or_default())
+}
+
 /// The append and the prune behind it, for ANY of this tool's bounded state
 /// rings. The caller names the file and its own depth; everything below is
 /// one hardening serving every one of them, because a second hand-written
@@ -989,13 +1101,16 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         }
         Vec::new()
     } else {
+        // CLONED rather than moved: the catch-up below dispatches on the
+        // same two secrets, and reading the config a second time would be a
+        // second answer to a question already asked.
         let outcomes = dispatch_legs(
             &decision.legs,
             decision.pane_dropped,
             event,
             &home,
-            moshi_token,
-            hermes_key,
+            moshi_token.clone(),
+            hermes_key.clone(),
         );
         for (leg, delivered) in &outcomes {
             // THE ONE PLACE a delivery reaches the operator, and the one place
@@ -1030,6 +1145,12 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // branches reach it, including the empty-plan branch, which is where most
     // misses live.
     record_missed(event, &decision, &overrides);
+
+    // THE CATCH-UP GOES AFTER BOTH RECORDS AND BEFORE THE PULSE, inheriting
+    // the ordering contract stated above rather than restating it: a slow
+    // replay must not cost either record, and a card the operator may be
+    // waiting on outranks decoration.
+    replay_missed(&decision, &home, moshi_token, hermes_key);
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
     // on. It is part of the PLAN rather than a second invocation (the shell
