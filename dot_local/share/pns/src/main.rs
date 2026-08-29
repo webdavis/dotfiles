@@ -771,7 +771,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // over the network under a ten-second deadline, and nothing an operator
     // reads should queue behind decoration. It still fires for a plan that
     // reached no channel at all: the lights are not a leg.
-    if decision.pulse {
+    if decision.plan.pulse {
         // The state IS the exit code here: the shell notifier derives
         // --state from `$?`, and an agent turn that did not fail succeeded.
         fire_pulse_unless_quiet(hue_table, if event.state == "failed" { "1" } else { "0" });

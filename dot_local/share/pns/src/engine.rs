@@ -91,12 +91,18 @@ impl Overrides {
 pub struct Decision {
     /// The legs to dispatch, in delivery order.
     pub legs: Vec<Leg>,
-    /// The lights signal, which rides on top of every long-running event
-    /// rather than being a leg of its own.
-    pub pulse: bool,
+    /// THE PLAN AFTER ARBITRATION, which is the verdict every caller reads.
+    /// The lights signal is `plan.pulse` and lives here rather than beside it
+    /// as a second field: one verdict with two readers is how the two come to
+    /// disagree, and the pulse is not a leg.
+    pub plan: crate::surface::DeliveryPlan,
     /// The pane was dropped from the event because it failed the safety
     /// check; the caller prints the one warning.
     pub pane_dropped: bool,
+    /// EVERY READING THIS DECISION RAN ON, carried out rather than thrown
+    /// away, so a caller can say why the plan came out the way it did without
+    /// taking a second reading that could disagree with the first.
+    pub inputs: GateInputs,
 }
 
 /// Decide the plan for one event. `now_secs` is the wall clock, taken once at
@@ -153,8 +159,9 @@ where
     };
     Decision {
         legs: crate::routing::channel_plan(selection, local_only, remote_only, delivery),
+        plan: delivery,
         pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
-        pulse: delivery.pulse,
+        inputs: world,
     }
 }
 
@@ -171,31 +178,55 @@ where
 /// So the reading is taken here, at dispatch, and NOTHING BELOW THIS POINT
 /// touches a probe: one decision cannot be split across two readings that
 /// disagree about where the operator is.
+///
+/// IT IS CARRIED OUT ON THE `Decision` rather than dropped, so a caller can
+/// say WHY the plan came out this way from the readings it actually ran on.
+/// Re-reading a probe afterwards to answer the same question would be the
+/// second reading this type exists to prevent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct WorldSnapshot {
-    surface: Surface,
-    visibility: Visibility,
+pub struct GateInputs {
+    /// How long since the desk keyboard was touched. `None` is a reading
+    /// nobody could take, which is never the same as zero.
+    pub desk_input_age: Option<u64>,
+    /// How long since the mosh client's pty was written to.
+    pub phone_input_age: Option<u64>,
+    /// How long since the Back Tap marker was touched.
+    pub marker_age: Option<u64>,
+    /// The desk display's lock, read only where the idle clock answered.
+    pub screen_locked: Option<bool>,
+    /// The window a signal counts as fresh inside. `None` means the threshold
+    /// was garbled, so nothing could be called fresh at all.
+    pub desk_fresh_secs: Option<u64>,
+    /// Where the readings above put the operator.
+    pub surface: Surface,
+    /// What the session itself reported about the origin pane.
+    pub session_visibility: Visibility,
+    /// What the plan actually ran on, which differs from the session's own
+    /// answer exactly where the Back Tap rewrite applied.
+    pub visibility: Visibility,
 }
 
 /// Take the snapshot. The only probe access on the delivery path.
-fn read_world<P>(
-    probes: &P,
-    overrides: &Overrides,
-    pane: &str,
-    now_secs: Option<u64>,
-) -> WorldSnapshot
+fn read_world<P>(probes: &P, overrides: &Overrides, pane: &str, now_secs: Option<u64>) -> GateInputs
 where
     P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + SessionViewProbe,
 {
     let reading = surface_reading(probes, overrides, now_secs);
-    WorldSnapshot {
+    let session_visibility = operator_visibility(probes, pane);
+    GateInputs {
+        desk_input_age: reading.desk_input_age,
+        phone_input_age: reading.phone_input_age,
+        marker_age: reading.marker_age,
+        screen_locked: reading.screen_locked,
+        desk_fresh_secs: reading.desk_fresh_secs,
         surface: reading.surface,
+        session_visibility,
         // The session reports one fact for every client, and a phone with
         // moshi closed is not one of them: see `surface::effective_visibility`.
         visibility: crate::surface::effective_visibility(
             reading.surface,
             reading.phone_input_fresh,
-            operator_visibility(probes, pane),
+            session_visibility,
         ),
     }
 }
@@ -212,6 +243,14 @@ struct SurfaceReading {
     /// The phone's pty clock is fresh: moshi is open and taking input. False
     /// on a Mobile surface means the Back Tap alone put the operator there.
     phone_input_fresh: bool,
+    /// THE FOUR RAW READINGS AND THE WINDOW THEY WERE JUDGED AGAINST, carried
+    /// out beside the verdict rather than dropped. Nothing downstream may
+    /// re-read them: a second reading is a second moment.
+    desk_input_age: Option<u64>,
+    phone_input_age: Option<u64>,
+    marker_age: Option<u64>,
+    screen_locked: Option<bool>,
+    desk_fresh_secs: Option<u64>,
 }
 
 /// Where the operator is, from the four readings the arbitration needs.
@@ -242,10 +281,16 @@ where
         Some(overrides.desk_idle_secs.unwrap_or(DEFAULT_DESK_IDLE_SECS))
     };
     let Some(desk_fresh_secs) = desk_fresh_secs else {
-        // With no window to measure against, nothing can be called fresh.
+        // With no window to measure against, nothing can be called fresh,
+        // and no reading below this point was ever taken.
         return SurfaceReading {
             surface: Surface::Away,
             phone_input_fresh: false,
+            desk_input_age: None,
+            phone_input_age: None,
+            marker_age: None,
+            screen_locked: None,
+            desk_fresh_secs: None,
         };
     };
 
@@ -293,6 +338,11 @@ where
             screen_locked,
         ),
         phone_input_fresh: crate::surface::is_fresh(phone_input_age, desk_fresh_secs),
+        desk_input_age,
+        phone_input_age,
+        marker_age,
+        screen_locked,
+        desk_fresh_secs: Some(desk_fresh_secs),
     }
 }
 
@@ -310,14 +360,14 @@ fn operator_visibility<P: SessionViewProbe>(probes: &P, pane: &str) -> Visibilit
 
 #[cfg(test)]
 mod tests {
-    use super::{Decision, Overrides, decide, operator_surface};
+    use super::{DEFAULT_DESK_IDLE_SECS, Decision, Overrides, decide, operator_surface};
     use crate::config::parse_config;
     use crate::probes::{
         IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ScreenLockProbe, SessionViewProbe,
     };
     use crate::registry::Selection;
     use crate::routing::{Leg, ReportMode};
-    use crate::surface::{SessionView, Surface};
+    use crate::surface::{DeliveryPlan, SessionView, Surface, Visibility};
     use std::cell::Cell;
     use std::collections::BTreeMap;
 
@@ -417,6 +467,177 @@ mod tests {
             false,
             false,
         )
+    }
+
+    // --- the readings the decision ran on ------------------------------------
+
+    #[test]
+    fn a_decision_reports_the_readings_its_surface_was_decided_from() {
+        // THE RECORD IS THE READINGS THIS DECISION RAN ON, never a second
+        // reading taken afterwards. Two readings of where the operator is can
+        // disagree, and an explanation taken from the later one belongs to a
+        // moment the decision never saw.
+        let probes = CountingProbes {
+            idle: Some(30),
+            marker_mtime: Some(999_400),
+            phone_atime: Some(999_912),
+            screen_locked: Some(false),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let inputs = decide_with(&probes, &Overrides::default(), "wW:p1").inputs;
+        assert_eq!(inputs.desk_input_age, Some(30));
+        assert_eq!(
+            inputs.phone_input_age,
+            Some(88),
+            "aged against the one clock read"
+        );
+        assert_eq!(inputs.marker_age, Some(600), "aged against that same read");
+        assert_eq!(inputs.screen_locked, Some(false));
+        assert_eq!(inputs.desk_fresh_secs, Some(DEFAULT_DESK_IDLE_SECS));
+        assert_eq!(
+            inputs.surface,
+            Surface::Desk,
+            "and the verdict those readings produced"
+        );
+    }
+
+    #[test]
+    fn a_decision_reports_both_the_sessions_visibility_and_the_one_the_plan_ran_on() {
+        // DRILL D6 THROUGH THE RECORD. A Back Tap with moshi closed rewrites a
+        // session-reported Visible to Hidden, and a record carrying only the
+        // rewritten answer says the session hid the pane when the session said
+        // the opposite. Both are kept, so the rewrite is visible as itself
+        // rather than only in the card it produced.
+        let tapped = CountingProbes {
+            idle: Some(9_000),
+            marker_mtime: Some(999_990),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let inputs = decide_with(&tapped, &Overrides::default(), "wW:p1").inputs;
+        assert_eq!(inputs.surface, Surface::Mobile);
+        assert_eq!(inputs.session_visibility, Visibility::Visible);
+        assert_eq!(inputs.visibility, Visibility::Hidden, "the D6 rewrite");
+
+        // D5: moshi open on the pane, where the rewrite must never reach, so
+        // the two answers agree and the difference above is the rewrite alone.
+        let watching_it = CountingProbes {
+            idle: Some(9_000),
+            phone_atime: Some(999_990),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let inputs = decide_with(&watching_it, &Overrides::default(), "wW:p1").inputs;
+        assert_eq!(inputs.session_visibility, Visibility::Visible);
+        assert_eq!(inputs.visibility, Visibility::Visible);
+    }
+
+    #[test]
+    fn a_decision_reports_the_plan_it_arbitrated_and_not_the_matrix_it_started_from() {
+        // THE ARBITRATED PLAN IS THE VERDICT. The matrix would banner this
+        // event and the long-running tier would pulse it; the operator's mute
+        // is applied after both, and a record carrying the matrix's answer
+        // would explain a card that never arrived by describing one that was
+        // planned.
+        let probes = || CountingProbes {
+            idle: Some(2),
+            view: Some(elsewhere("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let long_event = |overrides: &Overrides| {
+            decide(
+                &probes(),
+                &three_selection(),
+                overrides,
+                false,
+                false,
+                "wW:p1",
+                Some(1_000_000),
+                true,
+                false,
+            )
+            .plan
+        };
+        assert_eq!(
+            long_event(&Overrides::default()),
+            DeliveryPlan {
+                banner: true,
+                phone_card: false,
+                pulse: true,
+            },
+            "unmuted control: the matrix's own answer"
+        );
+        assert_eq!(
+            long_event(&Overrides {
+                muted: true,
+                ..Overrides::default()
+            }),
+            DeliveryPlan {
+                banner: false,
+                phone_card: false,
+                pulse: false,
+            }
+        );
+    }
+
+    #[test]
+    fn a_reading_nobody_could_take_is_reported_as_absent_and_never_as_a_number() {
+        // AN ABSENCE IS NOT A ZERO. Every field here is an `Option` precisely
+        // so an unread probe stays unread in the record: a `0` would read as
+        // "touched this instant" and a `false` lock would read as "the screen
+        // was awake", each of which explains a decision by an observation
+        // nobody made.
+        let all_readable = CountingProbes {
+            idle: Some(30),
+            marker_mtime: Some(999_400),
+            phone_atime: Some(999_912),
+            screen_locked: Some(true),
+            ..CountingProbes::default()
+        };
+
+        // A GARBLED THRESHOLD: there is no window, so nothing below it was
+        // measured either.
+        let garbled = Overrides::from_env(&BTreeMap::from([(
+            "PNS_DESK_IDLE_SECS".to_string(),
+            "0600".to_string(),
+        )]));
+        let inputs = decide_with(&all_readable, &garbled, "").inputs;
+        assert_eq!(inputs.desk_fresh_secs, None, "no window to measure against");
+        assert_eq!(inputs.desk_input_age, None);
+        assert_eq!(inputs.phone_input_age, None);
+        assert_eq!(inputs.marker_age, None);
+        assert_eq!(inputs.screen_locked, None);
+
+        // AN UNREADABLE CLOCK ages nothing, so neither phone signal has an
+        // age, while the desk clock, which is an age already, still does.
+        let inputs = decide(
+            &all_readable,
+            &three_selection(),
+            &Overrides::default(),
+            false,
+            false,
+            "",
+            None,
+            false,
+            false,
+        )
+        .inputs;
+        assert_eq!(inputs.phone_input_age, None, "aged against no clock");
+        assert_eq!(inputs.marker_age, None, "aged against no clock");
+        assert_eq!(inputs.desk_input_age, Some(30));
+
+        // AN UNREAD LOCK is neither locked nor unlocked. The probe is skipped
+        // wherever the idle clock answered nothing, which is exactly where a
+        // `false` would claim a display somebody was sitting at.
+        let no_idle_reading = CountingProbes {
+            idle: None,
+            screen_locked: Some(true),
+            ..CountingProbes::default()
+        };
+        let inputs = decide_with(&no_idle_reading, &Overrides::default(), "").inputs;
+        assert_eq!(inputs.screen_locked, None);
+        assert_eq!(no_idle_reading.lock_reads.get(), 0, "and never read at all");
     }
 
     // --- the plan drives the legs -------------------------------------------
@@ -569,7 +790,10 @@ mod tests {
             true,
             false,
         );
-        assert!(decision.pulse, "the lights ride on top of every long event");
+        assert!(
+            decision.plan.pulse,
+            "the lights ride on top of every long event"
+        );
         assert_eq!(
             names(&decision),
             vec!["hermes"],
@@ -661,6 +885,7 @@ mod tests {
                 true,
                 false,
             )
+            .plan
             .pulse
         };
         assert!(long_event(&Overrides::default()), "unmuted control");
@@ -778,29 +1003,29 @@ mod tests {
                 muted: false,
                 ..Overrides::default()
             };
+            let decision = decide(
+                &probes,
+                &three_selection(),
+                &unmuted,
+                false,
+                false,
+                "wW:p1",
+                Some(1_000_000),
+                long_running,
+                false,
+            );
             assert_eq!(
-                decide(
-                    &probes,
-                    &three_selection(),
-                    &unmuted,
-                    false,
-                    false,
-                    "wW:p1",
-                    Some(1_000_000),
-                    long_running,
-                    false,
-                ),
-                Decision {
-                    legs: legs
-                        .iter()
+                (decision.legs, decision.plan.pulse, decision.pane_dropped),
+                (
+                    legs.iter()
                         .map(|name| Leg {
                             name,
                             mode: ReportMode::Silent
                         })
-                        .collect(),
+                        .collect::<Vec<Leg>>(),
                     pulse,
-                    pane_dropped: false,
-                },
+                    false,
+                ),
                 "case: {label}"
             );
         }
