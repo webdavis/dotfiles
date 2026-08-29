@@ -40,9 +40,10 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         cwd: text("cwd"),
         transcript_path: text("transcript_path"),
         last_assistant_message: text("last_assistant_message"),
-        // `.message // .detail`, as the bash read it, and then the tool the
-        // request is about for the harnesses that send neither.
-        message: [text("message"), text("detail")]
+        // `.message // .detail`, as the bash read it, then the error a dead
+        // turn reports, and then the tool the request is about for the
+        // harnesses that send none of the three.
+        message: [text("message"), text("detail"), reported_error(&payload)]
             .into_iter()
             .find(|stated| !stated.is_empty())
             .unwrap_or_else(|| tool_request(&payload)),
@@ -73,6 +74,26 @@ fn tool_request(payload: &serde_json::Value) -> String {
     // request. The reply's own cap keeps the end instead, because there the
     // last thing said is the summary.
     request.chars().take(TOOL_REQUEST_MAX_CHARS).collect()
+}
+
+/// The failure a dead turn reports, normalized the way a tool request is.
+///
+/// Claude Code's StopFailure payload carries the whole provider error in
+/// `error`, and it arrives with a stack trace behind it often enough that the
+/// raw string is a wall. Flattened through `one_line`, because a newline would
+/// break the single rendered line every channel expects, and cut from the same
+/// HEAD at the same cap, because an API error states its kind first.
+fn reported_error(payload: &serde_json::Value) -> String {
+    payload
+        .get("error")
+        // A JSON null flattens to the WORD "null", which is a guess, not a
+        // reported failure.
+        .filter(|error| !error.is_null())
+        .map(one_line)
+        .unwrap_or_default()
+        .chars()
+        .take(TOOL_REQUEST_MAX_CHARS)
+        .collect()
 }
 
 /// A JSON value as one line of plain text: a string bare, an array's members
@@ -229,6 +250,30 @@ mod tests {
     }
 
     #[test]
+    fn a_dead_turns_error_becomes_the_message_when_the_payload_states_nothing_else() {
+        // Claude Code's StopFailure payload carries the failure in `error` and
+        // states neither a message nor a detail (its emitter builds the input
+        // as `{...base, error, error_details, last_assistant_message}`), so
+        // without this element the card reporting a dead turn cannot say why
+        // it died.
+        let payload = parse_payload(
+            r#"{"hook_event_name":"StopFailure","session_id":"s1","cwd":"/a/b",
+                "error":"API Error: 500 internal server error"}"#,
+        );
+        assert_eq!(payload.message, "API Error: 500 internal server error");
+    }
+
+    #[test]
+    fn a_stated_message_or_detail_still_outranks_an_error() {
+        // The error was APPENDED to the chain, not put in front of it. Every
+        // event pns handles today states a message, a detail or a tool, so an
+        // error placed higher would rewrite what an already-working event
+        // says the moment a harness starts sending both.
+        assert_eq!(parse_payload(r#"{"message":"m","error":"e"}"#).message, "m");
+        assert_eq!(parse_payload(r#"{"detail":"d","error":"e"}"#).message, "d");
+    }
+
+    #[test]
     fn a_codex_permission_request_says_which_tool_wants_what() {
         // Codex 0.147 sends tool_name and tool_input and NEITHER message nor
         // detail, so every Codex approval reached the banner and the durable
@@ -279,9 +324,37 @@ mod tests {
     }
 
     #[test]
+    fn an_error_is_kept_to_one_line_and_cut_from_the_head_like_a_tool_request() {
+        // A provider error arrives with a stack trace behind it often enough
+        // that the raw string is a wall. A newline in it would break the
+        // single rendered line every channel expects, and the cut keeps the
+        // HEAD because an API error states its kind first.
+        let payload = parse_payload(r#"{"error":"API Error: 500\n  at fetch\n  at main"}"#);
+        assert_eq!(payload.message, "API Error: 500 at fetch at main");
+
+        let long = "x".repeat(5_000);
+        let payload = parse_payload(&format!(r#"{{"error":"API Error: {long}"}}"#));
+        assert!(payload.message.starts_with("API Error: xxx"));
+        // THE CAP ITSELF, spelled out rather than read back off the constant
+        // the cut uses: an assertion phrased against `TOOL_REQUEST_MAX_CHARS`
+        // agrees with whatever that constant is moved to, which is the one
+        // thing this is here to catch.
+        assert_eq!(
+            payload.message.chars().count(),
+            320,
+            "an error is cut at the shared cap, not merely somewhere under it"
+        );
+    }
+
+    #[test]
     fn a_payload_naming_no_tool_and_no_message_still_says_nothing_rather_than_guessing() {
         assert_eq!(parse_payload(r#"{"session_id":"s1"}"#).message, "");
         assert_eq!(parse_payload(r#"{"tool_input":{}}"#).message, "");
+        // A stated-but-empty error and a null one are both nothing said. The
+        // flattener renders a JSON null as the WORD "null", which would put
+        // that word on the card as though a harness had reported it.
+        assert_eq!(parse_payload(r#"{"error":""}"#).message, "");
+        assert_eq!(parse_payload(r#"{"error":null}"#).message, "");
     }
 
     #[test]
