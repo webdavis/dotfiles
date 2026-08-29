@@ -732,6 +732,26 @@ mod tests {
     }
 
     #[test]
+    fn a_bare_entry_renders_its_title_alone_without_a_dangling_colon() {
+        // The common bare `done` turn carries no detail, and a card that read
+        // "claude \u{b7} done \u{b7} dotfiles:" would look truncated rather
+        // than complete. Pins the title-only arm of `rendered`.
+        let bare = Entry {
+            at: Some(1_000),
+            agent: "claude".to_string(),
+            state: "done".to_string(),
+            project: "dotfiles".to_string(),
+            branch: String::new(),
+            detail: String::new(),
+        };
+        let line = summary(&[bare]);
+        assert!(
+            !line.trim_end().ends_with(':') && !line.contains(": ;") && !line.contains(":;"),
+            "a bare entry must not dangle a colon: {line}"
+        );
+    }
+
+    #[test]
     fn a_summary_of_one_reads_as_a_single_notification_in_the_singular() {
         // ONE SHAPE FOR EVERY COUNT: a single entry gets the same card the
         // batch does, carrying the same values the live card would have, and
