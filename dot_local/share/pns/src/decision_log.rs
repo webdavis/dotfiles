@@ -579,11 +579,16 @@ mod tests {
             },
             ..carded
         };
+        // THE DECORATION FLAG IS THE ROSTER'S OWN: the phone and the banner
+        // show the operator something, the durable log and an unknown channel
+        // do not. Nothing in a ring line reads it, which is exactly why it is
+        // stated honestly here rather than defaulted.
         let legs = [
             (
                 Leg {
                     name: "moshi",
                     mode: ReportMode::Silent,
+                    decorative: true,
                 },
                 Delivery::Failed("the gateway answered 502 at https://example.invalid".to_string()),
             ),
@@ -591,6 +596,7 @@ mod tests {
                 Leg {
                     name: "hermes",
                     mode: ReportMode::Silent,
+                    decorative: false,
                 },
                 Delivery::Delivered("posted".to_string()),
             ),
@@ -598,6 +604,7 @@ mod tests {
                 Leg {
                     name: "macos-banner",
                     mode: ReportMode::Silent,
+                    decorative: true,
                 },
                 Delivery::Silent,
             ),
@@ -605,6 +612,7 @@ mod tests {
                 Leg {
                     name: "kitchen",
                     mode: ReportMode::Silent,
+                    decorative: false,
                 },
                 Delivery::Unlaunched("no such channel".to_string()),
             ),

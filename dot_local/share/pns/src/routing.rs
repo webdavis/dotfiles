@@ -37,12 +37,24 @@ impl ReportMode {
     }
 }
 
-/// One leg of a plan: the plugin's name, and the mode it is handed the event
-/// in.
+/// One leg of a plan: the plugin's name, the mode it is handed the event in,
+/// and whether it is there because the plan DECORATED something.
+///
+/// `decorative` IS CARRIED RATHER THAN RECOMPUTED. Only this module knows why
+/// a leg survived the plan, and the answer is in the declarations it filtered
+/// on: a presence-gated plugin is here because the plan wanted a card, a local
+/// one because it wanted a banner, and anything else is the durable log, which
+/// every event reaches whatever the operator can see. A caller that needs to
+/// know whether an operator will SEE this dispatch (the missed-notification
+/// replay is the one that does) would otherwise have to name plugins or read
+/// the declarations a second time, and `channel_plan`'s own comment says where
+/// that ends: two copies of one policy, drifting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Leg {
     pub name: &'static str,
     pub mode: ReportMode,
+    /// Whether the operator is shown something by this leg firing.
+    pub decorative: bool,
 }
 
 /// The legs that should fire, in the registry's delivery order.
@@ -94,16 +106,26 @@ pub fn channel_plan(
         // decide which plugin is which surface. A presence-gated plugin is the
         // phone, a local one is this machine's own screen, and anything else
         // is the durable log, which every event reaches.
-        .filter(|(_, routing)| {
-            if routing.presence_gated {
+        //
+        // ONE READING, TWO ANSWERS. Whether the leg survives and whether it is
+        // a DECORATION are the same two declarations asked in the same place,
+        // so the second answer rides out on the leg rather than being derived
+        // again somewhere that cannot see the declarations.
+        .filter_map(|(name, routing)| {
+            let decorative = routing.presence_gated || routing.local;
+            let wanted = if routing.presence_gated {
                 delivery.phone_card
             } else if routing.local {
                 delivery.banner
             } else {
                 true
-            }
+            };
+            wanted.then_some(Leg {
+                name,
+                mode,
+                decorative,
+            })
         })
-        .map(|(name, _)| Leg { name, mode })
         .collect()
 }
 
@@ -113,8 +135,25 @@ mod tests {
     use crate::config::parse_config;
     use crate::registry::{Registry, Routing, Selection};
 
-    fn leg(name: &'static str, mode: ReportMode) -> Leg {
-        Leg { name, mode }
+    /// A leg the operator is SHOWN something by: the phone card or this
+    /// machine's banner. Stated at the call site rather than derived, so a
+    /// plan that mislabelled one fails the test that names it.
+    fn decorative(name: &'static str, mode: ReportMode) -> Leg {
+        Leg {
+            name,
+            mode,
+            decorative: true,
+        }
+    }
+
+    /// A leg that only records: the durable log, which every event reaches
+    /// whether or not anyone is there to see it.
+    fn logged(name: &'static str, mode: ReportMode) -> Leg {
+        Leg {
+            name,
+            mode,
+            decorative: false,
+        }
     }
 
     /// A plan that reaches every surface, so a narrowing test varies one
@@ -169,9 +208,9 @@ mod tests {
         assert_eq!(
             channel_plan(&three_enabled(), false, false, reaching(true, true)),
             vec![
-                leg("moshi", ReportMode::Silent),
-                leg("macos-banner", ReportMode::Silent),
-                leg("hermes", ReportMode::Silent),
+                decorative("moshi", ReportMode::Silent),
+                decorative("macos-banner", ReportMode::Silent),
+                logged("hermes", ReportMode::Silent),
             ]
         );
     }
@@ -191,9 +230,9 @@ mod tests {
                 reaching(true, true)
             ),
             vec![
-                leg("moshi", ReportMode::Silent),
-                leg("macos-banner", ReportMode::Silent),
-                leg("hermes", ReportMode::Silent),
+                decorative("moshi", ReportMode::Silent),
+                decorative("macos-banner", ReportMode::Silent),
+                logged("hermes", ReportMode::Silent),
             ]
         );
     }
@@ -203,8 +242,8 @@ mod tests {
         assert_eq!(
             channel_plan(&three_enabled(), false, false, reaching(true, false)),
             vec![
-                leg("macos-banner", ReportMode::Silent),
-                leg("hermes", ReportMode::Silent)
+                decorative("macos-banner", ReportMode::Silent),
+                logged("hermes", ReportMode::Silent)
             ]
         );
     }
@@ -216,11 +255,11 @@ mod tests {
         // phone verdict as well still answers correctly here.
         assert_eq!(
             channel_plan(&three_enabled(), true, false, reaching(true, true)),
-            vec![leg("macos-banner", ReportMode::Silent)]
+            vec![decorative("macos-banner", ReportMode::Silent)]
         );
         assert_eq!(
             channel_plan(&three_enabled(), true, false, reaching(true, false)),
-            vec![leg("macos-banner", ReportMode::Silent)]
+            vec![decorative("macos-banner", ReportMode::Silent)]
         );
     }
 
@@ -237,7 +276,7 @@ mod tests {
                 false,
                 reaching(true, true)
             ),
-            vec![leg("macos-banner", ReportMode::Silent)]
+            vec![decorative("macos-banner", ReportMode::Silent)]
         );
         assert_eq!(
             channel_plan(
@@ -246,7 +285,7 @@ mod tests {
                 false,
                 reaching(true, false)
             ),
-            vec![leg("macos-banner", ReportMode::Silent)]
+            vec![decorative("macos-banner", ReportMode::Silent)]
         );
     }
 
@@ -258,11 +297,11 @@ mod tests {
         // entry nobody waited for is the invisible loss sync exists to stop.
         assert_eq!(
             channel_plan(&three_enabled(), false, true, reaching(true, true)),
-            vec![leg("hermes", ReportMode::ReportOutcome)]
+            vec![logged("hermes", ReportMode::ReportOutcome)]
         );
         assert_eq!(
             channel_plan(&three_enabled(), false, true, reaching(true, false)),
-            vec![leg("hermes", ReportMode::ReportOutcome)]
+            vec![logged("hermes", ReportMode::ReportOutcome)]
         );
     }
 
@@ -278,7 +317,7 @@ mod tests {
                 true,
                 reaching(true, true)
             ),
-            vec![leg("hermes", ReportMode::ReportOutcome)]
+            vec![logged("hermes", ReportMode::ReportOutcome)]
         );
         assert_eq!(
             channel_plan(
@@ -287,7 +326,7 @@ mod tests {
                 true,
                 reaching(true, false)
             ),
-            vec![leg("hermes", ReportMode::ReportOutcome)]
+            vec![logged("hermes", ReportMode::ReportOutcome)]
         );
     }
 
@@ -332,7 +371,7 @@ mod tests {
         );
         assert_eq!(
             channel_plan(&enabled, false, false, reaching(true, true)),
-            vec![leg("hermes", ReportMode::Silent)]
+            vec![logged("hermes", ReportMode::Silent)]
         );
         assert_eq!(
             channel_plan(&enabled, true, false, reaching(true, true)),
@@ -357,9 +396,9 @@ mod tests {
         assert_eq!(
             channel_plan(&all, false, false, reaching(true, true)),
             vec![
-                leg("moshi", ReportMode::Silent),
-                leg("macos-banner", ReportMode::Silent),
-                leg("hermes", ReportMode::Silent),
+                decorative("moshi", ReportMode::Silent),
+                decorative("macos-banner", ReportMode::Silent),
+                logged("hermes", ReportMode::Silent),
             ]
         );
     }
@@ -399,7 +438,7 @@ mod tests {
 
         assert_eq!(
             channel_plan(&enabled, true, false, reaching(true, true)),
-            vec![leg("buzz", ReportMode::Silent)]
+            vec![decorative("buzz", ReportMode::Silent)]
         );
         assert_eq!(
             channel_plan(&enabled, true, false, reaching(true, false)),
@@ -407,7 +446,7 @@ mod tests {
         );
         assert_eq!(
             channel_plan(&enabled, false, true, reaching(true, true)),
-            vec![leg("pager", ReportMode::ReportOutcome)]
+            vec![decorative("pager", ReportMode::ReportOutcome)]
         );
         assert_eq!(
             channel_plan(&enabled, false, true, reaching(true, false)),

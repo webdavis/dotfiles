@@ -290,6 +290,270 @@ fn record_missed(
     );
 }
 
+/// Put the journal in front of an operator who is here to see it, riding the
+/// event that proved they are.
+///
+/// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason: an
+/// event path whose stdout a harness hook reads must not gain a line about the
+/// state directory, and nothing here is worth a word to the operator anyway.
+///
+/// A LOSS ON A FAILED DELIVERY IS THE DESIGN, not an oversight. The engine's
+/// contract is fire-and-forget for every producer; every journaled event
+/// already reached the durable log in full, so nothing is lost that a human
+/// cannot recover; re-journaling against a wedged channel is an unbounded
+/// retry that grows the file every event; and `dispatch_legs`' outcomes cannot
+/// tell delivery from perception in any case, because an executable channel
+/// that ran answers `Silent` by design.
+///
+/// NOTHING IS PRINTED. The event path prints only what a reporting leg said,
+/// and this rides an event whose stdout a hook reads.
+fn replay_missed(
+    decision: &pns::engine::Decision,
+    home: &str,
+    moshi_token: Option<String>,
+    hermes_key: Option<String>,
+) {
+    if !pns::missed_notifications::should_replay(decision) {
+        return;
+    }
+    // NOWHERE THE OPERATOR WOULD SEE IT IS NOT A REPLAY, and that is a
+    // stronger test than "nowhere at all". MEASURED: an event narrowed with
+    // `--remote-only`, and every event on a machine whose config enables only
+    // a durable channel, claimed the queue, posted it into a log that already
+    // holds all of it in full, and deleted it, with nothing the operator would
+    // ever see. The empty plan (both narrowing flags, a typing mistake) is
+    // refused by the same line, because nothing in an empty list is
+    // decorative.
+    //
+    // WHICH LEGS DECORATE IS ROUTING'S ANSWER, carried out on the leg. Asking
+    // it here by name, or by re-reading the declarations, would be the second
+    // copy of a policy that then drifts, which is the mistake `run_event`
+    // states about the mute a few lines above its own decision.
+    if !decision.legs.iter().any(|leg| leg.decorative) {
+        return;
+    }
+    let waiting = claim_journal(&state_dir());
+    if waiting.is_empty() {
+        return;
+    }
+    // ONE SYNTHETIC EVENT, whatever the count. Empty project and branch,
+    // because a batch spans both and `render::message` would otherwise prefix
+    // the lot with one branch's name; empty channel, because an entry carries
+    // none (the durable route already had the event); empty pane, which is the
+    // call `doctor_mode` makes too, because a pane id from an hour ago may
+    // name a pane that no longer exists. The title reads `pns · missed`, which
+    // is visibly not a live agent card: a replayed card that looked live would
+    // be lying about time.
+    let replay = pns::args::EventArgs {
+        agent: "pns".to_string(),
+        state: "missed".to_string(),
+        detail: pns::missed_notifications::summary(&waiting),
+        ..Default::default()
+    };
+    // DISPATCHED DIRECTLY AND NEVER THROUGH `run_event`, which is the loop
+    // this closes. A synthetic event fed back in would take a SECOND decision
+    // (the second reading of one moment `GateInputs` exists to forbid), write
+    // a second ring line for something that is not an event, fire a second
+    // pulse, and RE-JOURNAL: under a mute the replay would journal itself and
+    // the next one would replay the replay, forever, growing by one entry each
+    // time. `doctor_mode` is the precedent in this file for the same split;
+    // what is left after a decision has been taken is dispatch alone.
+    //
+    // THE LEGS ARE THIS DECISION'S OWN, verbatim. Deciding again would be a
+    // second copy of routing's policy, which `routing` itself warns is how the
+    // two come to drift. ACCEPTED CONSEQUENCE: the durable leg is among them,
+    // so the summary is posted to a log that already holds every entry in it.
+    // That is a duplicate in content and a new fact in kind.
+    let _ = dispatch_legs(
+        &decision.legs,
+        false,
+        &replay,
+        home,
+        moshi_token,
+        hermes_key,
+    );
+}
+
+/// What became of one claim this run reached for.
+///
+/// FOUR OUTCOMES RATHER THAN ONE EMPTY VECTOR, because they are four different
+/// things to have happened and only one of them may destroy anything. This
+/// used to collapse into `Vec::new()`, and that is exactly how a journal whose
+/// read failed came to be deleted with nothing delivered: the failure was
+/// indistinguishable from an empty queue at the one call site that could still
+/// have put it back.
+enum Claimed {
+    /// Nothing was there to claim, or another run took it first.
+    Nothing,
+    /// The path holds something this tool never wrote. Put back where it was
+    /// found, and not read.
+    Refused,
+    /// This run OWNS these entries: it read them, and the claim they came from
+    /// is gone, so no other run can deliver them too.
+    Taken(Vec<pns::missed_notifications::Entry>),
+    /// The claim could not be read, or could not be given up. It is STILL ON
+    /// DISK under its claim name, whole, for the next return to adopt.
+    LeftForAdoption,
+}
+
+impl Claimed {
+    /// The entries this run may deliver, which is none for every outcome but
+    /// one. Nothing else may be delivered: an unread claim is still on disk,
+    /// and delivering from it as well would show the operator the same batch
+    /// twice.
+    fn entries(self) -> Vec<pns::missed_notifications::Entry> {
+        match self {
+            Claimed::Taken(entries) => entries,
+            Claimed::Nothing | Claimed::Refused | Claimed::LeftForAdoption => Vec::new(),
+        }
+    }
+}
+
+/// The journal, CLAIMED and consumed: whatever an earlier run stranded is
+/// adopted first, then the journal itself is renamed out of the way, read
+/// through the one guarded reader, and given up only once that read worked.
+///
+/// NOTHING UNDELIVERED IS EVER DESTROYED, which is the property the whole
+/// order below exists for. What this run cannot read, it leaves; what it
+/// cannot give up, it leaves; and everything left is left under a claim name,
+/// which is the name the NEXT return goes looking for.
+///
+/// CLAIMED BY RENAME, which is `consume_turn_marker`'s idiom and is atomic:
+/// two events racing each other cannot both take one journal, because only one
+/// rename can win. THE REMOVE IS THE SECOND ARBITER, for the batch a rename
+/// already moved: exactly one caller can unlink a given directory entry, so
+/// two runs that both managed to READ one stranded claim still cannot both
+/// deliver it.
+///
+/// ADOPTION IS HOW A LOST BATCH COMES BACK. A run killed between the rename
+/// and the delivery, and a run whose read failed, both leave a claim behind;
+/// before this nothing ever looked at one again, so the queue sat in the state
+/// directory for good, and the doctor's count could not even see it, because
+/// that count reads the journal's own name.
+///
+/// OLDEST FIRST: a stranded claim WAS the journal on an earlier return, so it
+/// is older than anything in the file now, and the summary renders newest
+/// first from the far end of what this returns.
+///
+/// AND ALL OF IT BEFORE ANY DELIVERY, which is unchanged. The entries are in
+/// memory from the moment this returns, so a channel that hangs to its
+/// deadline and takes the process with it leaves no claim behind; and a claim
+/// left behind some other way is now recovered rather than lost.
+///
+/// THE RACE, stated: an append that opened the journal path before the rename
+/// writes into the claimed inode, and is replayed or lost depending on which
+/// side of the read it lands. That is ONE entry at a rare boundary, the same
+/// bound `append_ring_line` already names and accepts.
+fn claim_journal(state: &Path) -> Vec<pns::missed_notifications::Entry> {
+    let mut waiting = Vec::new();
+    for stranded in stranded_claims(state) {
+        waiting.extend(take_claim(&stranded).entries());
+    }
+    waiting.extend(claim_by_rename(&state.join(MISSED_NOTIFICATIONS)).entries());
+    waiting
+}
+
+/// Every claim an earlier run left in the state directory, oldest first.
+///
+/// MATCHED ON THE JOURNAL'S OWN CLAIM PREFIX and nothing looser: the turn
+/// marker claims itself in this directory too, under its own name, and a
+/// wider match would hand a turn's start time to the replayer.
+///
+/// SORTED BY WHEN THEY WERE LAST WRITTEN, which is the journal's own
+/// timestamp: a rename does not touch it, so a claim still carries the moment
+/// its last entry was appended. A time that cannot be read sorts oldest, which
+/// costs an ordering and never a delivery.
+fn stranded_claims(state: &Path) -> Vec<std::path::PathBuf> {
+    let prefix = format!("{MISSED_NOTIFICATIONS}.claim.");
+    let Ok(held) = std::fs::read_dir(state) else {
+        return Vec::new();
+    };
+    let mut found: Vec<(Option<SystemTime>, std::path::PathBuf)> = held
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with(&prefix))
+        // `DirEntry::metadata` does not traverse a symlink, matching the
+        // append's and the reader's own refusal to judge one by its target.
+        .map(|entry| {
+            (
+                entry
+                    .metadata()
+                    .ok()
+                    .and_then(|found| found.modified().ok()),
+                entry.path(),
+            )
+        })
+        .collect();
+    found.sort();
+    found.into_iter().map(|(_, path)| path).collect()
+}
+
+/// The journal renamed out of the way, or the reason it was not.
+///
+/// VERIFIED AFTER THE RENAME AND NOT BEFORE. A check taken first is a check of
+/// a path something else is still free to change between the look and the
+/// move, and what the remove would then act on is whatever the rename actually
+/// carried. So the rename decides, and the claim it produced is what gets
+/// judged: anything that is not a regular file goes straight back to the
+/// journal's own path, untouched and unread.
+///
+/// A RENAME BACK THAT FAILS LEAVES IT AT THE CLAIM PATH, which is a state
+/// nothing here can improve on: the guarded reader refuses a non-regular file
+/// without opening it, so a later adoption leaves it alone as well. It is
+/// never read and never removed, which is the same promise the append makes
+/// about a path it did not write.
+///
+/// THE PID GUARD BELOW IS NOT PINNED BY A TEST, and cannot be: no test can
+/// plant a claim named for a process id the engine has not been given yet.
+/// What it costs if it is ever wrong is one replay deferred to the next
+/// return; what it buys is that a rename can never land on an undelivered
+/// batch.
+fn claim_by_rename(journal: &Path) -> Claimed {
+    let claim = journal.with_extension(format!("claim.{}", std::process::id()));
+    // NEVER RENAMED OVER A CLAIM THAT IS ALREADY THERE. The name carries this
+    // process's id, so the only way one exists at this point is a run of the
+    // same id whose batch the adoption above could not take (a pid the machine
+    // reused, in practice), and a rename overwrites: the journal would land on
+    // top of a batch nobody has seen. Both are left where they are, and the
+    // next return tries both again.
+    //
+    // NOT A RACE, unlike the check this replaced at the journal's own path:
+    // only the process holding this id writes this name, and it is this one.
+    if std::fs::symlink_metadata(&claim).is_ok() {
+        return Claimed::LeftForAdoption;
+    }
+    if std::fs::rename(journal, &claim).is_err() {
+        return Claimed::Nothing;
+    }
+    if !matches!(std::fs::symlink_metadata(&claim), Ok(found) if found.is_file()) {
+        let _ = std::fs::rename(&claim, journal);
+        return Claimed::Refused;
+    }
+    take_claim(&claim)
+}
+
+/// One claim read and given up, in that order.
+///
+/// THE ORDER IS THE WHOLE POINT. Removing first, or removing whatever the read
+/// answered, throws away a batch nobody has seen the moment the read fails:
+/// MEASURED as a journal with one undecodable byte in it coming back empty,
+/// with the file already gone. A read that failed leaves the claim exactly as
+/// it is.
+///
+/// THE REMOVE IS ALSO THE OWNERSHIP TEST, and it is why a failed remove
+/// declines the batch rather than delivering it. Two runs can both read one
+/// stranded claim; only one of them can unlink it, and that one is the one
+/// that delivers. The other leaves a file that is no longer there and hands
+/// over nothing.
+fn take_claim(claim: &Path) -> Claimed {
+    let Ok(contents) = readable_ring(claim) else {
+        return Claimed::LeftForAdoption;
+    };
+    if std::fs::remove_file(claim).is_err() {
+        return Claimed::LeftForAdoption;
+    }
+    Claimed::Taken(pns::missed_notifications::entries(&contents))
+}
+
 /// The append and the prune behind it, for ANY of this tool's bounded state
 /// rings. The caller names the file and its own depth; everything below is
 /// one hardening serving every one of them, because a second hand-written
@@ -351,12 +615,21 @@ fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()>
         .open(path)?
         .write_all(format!("{separator}{line}\n").as_bytes())?;
 
-    let Ok(contents) = readable_ring(path) else {
+    let contents = match readable_ring(path) {
+        Ok(contents) => contents,
         // THE HEAL. What could not be read back cannot be pruned either, so
         // leaving it would leave the ring unbounded from here on. The line
         // just written is the part that is known good and known this tool's
         // own, and it is republished alone.
-        return publish_state_line(path, line);
+        Err(error) if republish_after(&error) => return publish_state_line(path, line),
+        // AND NOT WHEN THE PATH IS SIMPLY GONE. Nothing removes one of these
+        // files except a claim, and a claim is a rename: the file this append
+        // just wrote into moved to the claim path AND TOOK THIS LINE WITH IT,
+        // on its way to being delivered. Republishing it here would put a
+        // second copy of an already-claimed record back at the path, and the
+        // operator would be shown it twice. There is nothing left to prune, so
+        // there is nothing to do.
+        Err(_) => return Ok(()),
     };
     let entries: Vec<&str> = contents.lines().collect();
     if entries.len() <= kept {
@@ -365,6 +638,24 @@ fn append_ring_line(path: &Path, line: &str, kept: usize) -> std::io::Result<()>
     // Joined with newlines, because the publish writes the one trailing
     // newline back itself.
     publish_state_line(path, &entries[entries.len() - kept..].join("\n"))
+}
+
+/// Whether an append whose read-back FAILED has to republish the line it just
+/// wrote.
+///
+/// EVERY REASON BUT ONE. A file that cannot be decoded, is too large to read,
+/// or is no longer a regular file is a ring that can never be pruned again, so
+/// the one line known to be this tool's own is republished over it. NotFound
+/// is the exception and the only one: these files are removed by nothing but a
+/// claim, and a claim is a rename, so an absent path means the line just
+/// written is already inside the claim and on its way to the operator.
+///
+/// ITS OWN FUNCTION so the distinction can be stated in a test. The wiring
+/// from a real interleaved claim into this arm is a race no test in this tree
+/// can stage deterministically; what is pinned here is the decision, and the
+/// race itself belongs to the out-of-tree probe.
+fn republish_after(error: &std::io::Error) -> bool {
+    error.kind() != std::io::ErrorKind::NotFound
 }
 
 /// Whether the ring's last byte is anything other than a newline, which is
@@ -989,13 +1280,16 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         }
         Vec::new()
     } else {
+        // CLONED rather than moved: the catch-up below dispatches on the
+        // same two secrets, and reading the config a second time would be a
+        // second answer to a question already asked.
         let outcomes = dispatch_legs(
             &decision.legs,
             decision.pane_dropped,
             event,
             &home,
-            moshi_token,
-            hermes_key,
+            moshi_token.clone(),
+            hermes_key.clone(),
         );
         for (leg, delivered) in &outcomes {
             // THE ONE PLACE a delivery reaches the operator, and the one place
@@ -1030,6 +1324,12 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // branches reach it, including the empty-plan branch, which is where most
     // misses live.
     record_missed(event, &decision, &overrides);
+
+    // THE CATCH-UP GOES AFTER BOTH RECORDS AND BEFORE THE PULSE, inheriting
+    // the ordering contract stated above rather than restating it: a slow
+    // replay must not cost either record, and a card the operator may be
+    // waiting on outranks decoration.
+    replay_missed(&decision, &home, moshi_token, hermes_key);
 
     // THE PULSE GOES LAST, after every channel the operator might be waiting
     // on. It is part of the PLAN rather than a second invocation (the shell
@@ -1663,6 +1963,11 @@ fn doctor_mode() -> i32 {
             // under. It decides nothing about who hears the report: the doctor
             // prints every outcome itself.
             mode: pns::routing::ReportMode::ReportOutcome,
+            // NOT A DECORATION, because no plan chose these: the doctor
+            // bypasses every gate and sends to whatever is enabled. The flag
+            // says a leg is there BECAUSE the operator was to be shown
+            // something, and the honest answer here is no.
+            decorative: false,
         })
         .collect();
     // NO PANE: its only consumer is the banner's click target, and whether a
@@ -2066,8 +2371,8 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, publish_state_line, reread_attempts_from, reread_interval_from,
-        resolve_path,
+        STATE_FILE_MODE, publish_state_line, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path,
     };
     use std::os::unix::fs::PermissionsExt;
     use std::time::Duration;
@@ -2165,6 +2470,37 @@ mod tests {
             STATE_FILE_MODE,
             "the reused pending inode published its own wide mode"
         );
+    }
+
+    #[test]
+    fn a_ring_that_vanished_under_the_append_is_never_republished_over() {
+        // THE ONE ERROR THAT IS NOT A DAMAGED RING. Nothing removes one of
+        // these files except a claim, and a claim is a RENAME, so a read-back
+        // that finds nothing means the line just written travelled inside the
+        // claim and is already on its way to the operator. Republishing it
+        // would put an already-claimed record back at the path and deliver it
+        // a second time.
+        //
+        // THE LIMIT, stated: this pins the DECISION, not the wiring. Staging a
+        // real claim between the append's write and its read-back is a race no
+        // test in this tree can make deterministic, and it belongs to the
+        // out-of-tree probe.
+        assert!(!republish_after(&std::io::Error::from(
+            std::io::ErrorKind::NotFound
+        )));
+        // AND EVERY OTHER REASON STILL HEALS: a ring that cannot be read is a
+        // ring that can never be pruned again, which is what the republish is
+        // for. These three are exactly what the guarded reader answers with.
+        for kind in [
+            std::io::ErrorKind::InvalidData,
+            std::io::ErrorKind::InvalidInput,
+            std::io::ErrorKind::FileTooLarge,
+        ] {
+            assert!(
+                republish_after(&std::io::Error::from(kind)),
+                "a ring that answered {kind:?} was left unhealed"
+            );
+        }
     }
 
     #[test]

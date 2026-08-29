@@ -3131,9 +3131,11 @@ fn the_journal_is_created_readable_and_writable_by_its_owner_alone() {
     assert_eq!(journal_mode(&sandbox), 0o600, "the prune republished it");
 }
 
-/// What the doctor says about a journal holding two entries.
-const TWO_WAITING: &str =
-    "pns doctor: 2 missed notifications are recorded; nothing replays them yet.";
+/// What the doctor says about a journal holding two entries. The sentence
+/// names the replayer now, because the binary has one.
+const TWO_WAITING: &str = "pns doctor: 2 missed notifications are waiting to be replayed; \
+     the next event that raises a banner or a card while the operator is not away \
+     delivers them.";
 
 /// What it says when there is none, which is deliberately about what is
 /// RECORDED: an empty journal means either nothing was missed or a write did
@@ -3273,6 +3275,671 @@ fn the_doctor_leaves_the_journal_exactly_as_it_found_it() {
         state,
         ["missed-notifications"],
         "the doctor left something else in the state directory"
+    );
+}
+
+// --- the catch-up replay ----------------------------------------------------
+
+/// An event the operator is PRESENT for: at the desk with the origin pane out
+/// of sight, which is the matrix row that earns a banner and so the row a
+/// replay rides on.
+///
+/// AWAY IS DELIBERATELY NOT IT, and away is what the bare sandbox gives:
+/// away is where misses are made and never where they are delivered, so an
+/// away event is the one row that must NOT flush the queue.
+fn present_event(sandbox: &Sandbox) -> std::process::Command {
+    let mut command = logged_event(sandbox);
+    command.env("PNS_IDLE_SECS", "0");
+    sandbox.stub_herdr(&mut command, false);
+    command
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--detail", "the live turn", "--pane", "t1:p2"]);
+    command
+}
+
+/// Channels that record EVERY event they are handed rather than only the last.
+///
+/// THE SANDBOX'S OWN STUBS TRUNCATE, which is right for a suite asking whether
+/// a channel fired at all and useless here: a replay is a SECOND notification
+/// on the same channel, and a truncating stub shows one file either way.
+fn record_every_event(sandbox: &Sandbox) {
+    for channel in ["moshi", "hermes", "macos-banner"] {
+        sandbox.stub_channel(
+            channel,
+            &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
+        );
+    }
+}
+
+/// Every event one channel was handed, in the order it got them.
+fn events(sandbox: &Sandbox, channel: &str) -> Vec<serde_json::Value> {
+    std::fs::read_to_string(sandbox.path(&format!("{channel}.events")))
+        .unwrap_or_default()
+        .lines()
+        .map(|line| {
+            serde_json::from_str(line).unwrap_or_else(|error| panic!("{channel}: {error}: {line}"))
+        })
+        .collect()
+}
+
+/// Everything the state directory holds, sorted. A claim file the run left
+/// behind shows up here and nowhere else.
+fn state_files(sandbox: &Sandbox) -> Vec<String> {
+    let mut held: Vec<String> = std::fs::read_dir(sandbox.path("state"))
+        .expect("the state dir")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    held.sort();
+    held
+}
+
+#[test]
+fn a_present_event_delivers_one_extra_notification_carrying_the_whole_journal() {
+    // THE RETURN TRANSITION IS THIS EVENT. The operator is at the desk with
+    // the origin pane out of sight, so the live turn earns a banner, and the
+    // queue rides out on the same legs that banner did.
+    let sandbox = Sandbox::new("replay-delivers");
+    record_every_event(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    let output = run(&mut present_event(&sandbox));
+
+    // NOTHING IS PRINTED. The event path prints only what a REPORTING leg
+    // said, and this rides an event whose stdout a harness hook reads.
+    assert_eq!(
+        stdout(&output),
+        "",
+        "the replay reached the hook's own stdout"
+    );
+    assert_eq!(
+        stderr(&output),
+        "",
+        "the replay reached the hook's own stderr"
+    );
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and ONE replay carrying both entries: {raised:?}"
+    );
+    assert_eq!(raised[0]["state"], "done", "the live event goes first");
+    // ONE SYNTHETIC EVENT, visibly not a live agent card: a replayed card that
+    // looked live would be lying about time.
+    assert_eq!(raised[1]["agent"], "pns", "{raised:?}");
+    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
+    assert_eq!(raised[1]["title"], "pns \u{b7} missed", "{raised:?}");
+    // EMPTY PROJECT AND BRANCH, because a batch spans both; empty pane,
+    // because an id from an hour ago may name a pane that no longer exists.
+    for empty in ["project", "branch", "pane"] {
+        assert_eq!(raised[1][empty], "", "{empty}: {raised:?}");
+    }
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "the true count leads: {body}"
+    );
+    // BOTH ARE FOUND FIRST, and then compared. An `Option` compare answers
+    // true for an entry that is not in the body at all, so the comparison
+    // alone would pass a card carrying neither.
+    let newest = body
+        .find("planted 1")
+        .expect("the newest entry is in the body");
+    let oldest = body
+        .find("planted 0")
+        .expect("the oldest entry is in the body");
+    assert!(
+        newest < oldest,
+        "newest first, because the preview cuts from the start: {body}"
+    );
+    // THE LEGS ARE THIS DECISION'S OWN, VERBATIM: the durable log is one of
+    // them, so it is handed the same synthetic event the banner was.
+    let logged = events(&sandbox, "hermes");
+    assert_eq!(
+        logged.len(),
+        2,
+        "the replay rode only the banner leg: {logged:?}"
+    );
+    assert_eq!(logged[1]["state"], "missed", "{logged:?}");
+    assert_eq!(
+        logged[1]["detail"], raised[1]["detail"],
+        "the two legs were handed different bodies"
+    );
+    assert!(
+        !sandbox.path("state/missed-notifications").exists(),
+        "the journal was consumed: {:?}",
+        state_files(&sandbox)
+    );
+}
+
+#[test]
+fn a_replay_is_never_a_second_event_in_the_ring_or_the_journal() {
+    // THE LOOP THIS CLOSES. Fed back through the one event path, the replay
+    // would take a second decision, write a second ring line for something
+    // that is not an event, fire a second pulse and RE-JOURNAL itself, so the
+    // next replay would replay the replay. One ring line, naming the live
+    // event, is what says the replay stayed a dispatch.
+    let sandbox = Sandbox::new("replay-not-an-event");
+    record_every_event(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    assert_eq!(
+        events(&sandbox, "macos-banner").len(),
+        2,
+        "the replay really was delivered, which is what makes the counts below mean anything"
+    );
+    let recorded = decisions(&sandbox);
+    assert_eq!(recorded.len(), 1, "one event, one line: {recorded:?}");
+    assert!(
+        recorded[0].contains(" claude/done "),
+        "and it is the LIVE event's: {recorded:?}"
+    );
+    assert!(
+        !recorded[0].contains("pns/missed"),
+        "the replay recorded a decision of its own: {recorded:?}"
+    );
+    assert!(
+        !sandbox.path("state/missed-notifications").exists(),
+        "the replay journaled itself: {:?}",
+        state_files(&sandbox)
+    );
+}
+
+#[test]
+fn an_away_event_delivers_no_replay_and_leaves_the_journal_byte_identical() {
+    // AWAY IS WHERE MISSES ARE MADE AND NEVER WHERE THEY ARE DELIVERED. The
+    // Away row always cards, so without the surface clause this row would
+    // flush the queue at the phone of an operator who has not come back.
+    let sandbox = Sandbox::new("replay-away");
+    record_every_event(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+
+    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+
+    let carded = events(&sandbox, "moshi");
+    assert_eq!(
+        carded.len(),
+        1,
+        "the away card fired and nothing rode along: {carded:?}"
+    );
+    assert_eq!(carded[0]["state"], "done", "{carded:?}");
+    assert_eq!(
+        std::fs::read(journal_path(&sandbox)).expect("the journal"),
+        before,
+        "the journal was touched"
+    );
+}
+
+#[test]
+fn a_muted_event_queues_its_own_miss_and_replays_nothing() {
+    // THE MUTE IS FREE, and it is exactly what the operator asked for: a mute
+    // zeroes the plan, so a muted run has no decoration and cannot flush the
+    // queue it is filling. Nothing reads `muted` on the replay path.
+    let sandbox = Sandbox::new("replay-muted");
+    record_every_event(&sandbox);
+    mute(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let waiting = journal(&sandbox);
+    assert_eq!(
+        waiting.len(),
+        3,
+        "its own miss joined the queue: {waiting:?}"
+    );
+    assert_eq!(
+        field(waiting.last().expect("a journal"), "detail"),
+        "the live turn",
+        "and it is this event's: {waiting:?}"
+    );
+    assert!(
+        events(&sandbox, "macos-banner").is_empty(),
+        "the mute swallowed the banner, so nothing carried a replay"
+    );
+    let logged = events(&sandbox, "hermes");
+    assert_eq!(
+        logged.len(),
+        1,
+        "the durable log is exempt from the mute and still saw ONE event: {logged:?}"
+    );
+    assert_eq!(logged[0]["state"], "done", "{logged:?}");
+}
+
+#[test]
+fn a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_replay() {
+    // MEASURED ON THE RING and inherited by every reader of these files:
+    // opening a FIFO BLOCKS until the other end is opened, for READING as
+    // much as for writing, so a replay that trusted the path would park the
+    // hook that called it. REFUSED RATHER THAN REPAIRED, which is what the
+    // claim's own guard is for: a rename would move the operator's FIFO to
+    // the claim path and the remove would then destroy it.
+    let sandbox = Sandbox::new("replay-fifo");
+    record_every_event(&sandbox);
+    let path = journal_path(&sandbox);
+    plant_fifo(&path);
+
+    let mut command = present_event(&sandbox);
+    let output = output_before_the_deadline(&mut command);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a journal nobody could read costs the event nothing"
+    );
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(raised.len(), 1, "the live event alone: {raised:?}");
+    assert_eq!(raised[0]["state"], "done", "{raised:?}");
+    assert_eq!(stdout(&output), "", "nothing is said about the journal");
+    // THE WHOLE STREAM, not a substring of it: a leaked error print uses the
+    // operating system's own words, which share no predictable word with
+    // anything this slice writes.
+    assert_eq!(stderr(&output), "", "the event path gained stderr");
+    assert!(
+        std::fs::symlink_metadata(&path)
+            .expect("the fifo")
+            .file_type()
+            .is_fifo(),
+        "the journal's path was rewritten"
+    );
+}
+
+#[test]
+fn an_event_with_nothing_waiting_delivers_and_leaves_exactly_what_it_did_before() {
+    // A MACHINE THAT NEVER MISSED ONE has no journal file at all, which is by
+    // far the common case, and this slice must be invisible on it: the same
+    // one notification, the same empty streams, the same exit, and nothing new
+    // in the state directory.
+    let sandbox = Sandbox::new("replay-nothing-waiting");
+    record_every_event(&sandbox);
+
+    let output = present_event(&sandbox).output().expect("the engine runs");
+
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
+    assert_eq!(stdout(&output), "", "the run gained a line");
+    assert_eq!(stderr(&output), "", "the run gained stderr");
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        1,
+        "one notification, the live one: {raised:?}"
+    );
+    assert_eq!(raised[0]["state"], "done", "{raised:?}");
+    assert_eq!(
+        state_files(&sandbox),
+        ["decisions"],
+        "the run left something new in the state directory"
+    );
+}
+
+#[test]
+fn an_event_narrowed_to_no_channel_at_all_leaves_the_journal_where_it_found_it() {
+    // NOWHERE TO SEND IS NOT A REPLAY. Both narrowing flags suppress every
+    // channel while the plan still says banner, so the replay condition is
+    // true and the dispatch would reach nothing: claiming the journal here
+    // would eat the queue for a typing mistake.
+    let sandbox = Sandbox::new("replay-no-legs");
+    record_every_event(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+
+    let output = run(present_event(&sandbox).args(["--local-only", "--remote-only"]));
+
+    assert!(
+        stdout(&output).contains("post SKIPPED"),
+        "the contradiction really was reached: {}",
+        stdout(&output)
+    );
+    assert!(
+        events(&sandbox, "macos-banner").is_empty(),
+        "nothing was delivered, replay included"
+    );
+    assert_eq!(
+        std::fs::read(journal_path(&sandbox)).expect("the journal"),
+        before,
+        "the queue was consumed with nowhere to send it"
+    );
+}
+
+#[test]
+fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
+    // THE CLAIM IS REMOVED BEFORE DELIVERY, never after, so a channel that
+    // hangs to its deadline and takes the process with it cannot leave an
+    // orphan in the state directory for the next run to trip over.
+    let delivered = Sandbox::new("replay-claim-delivered");
+    record_every_event(&delivered);
+    std::fs::write(journal_path(&delivered), planted_journal(2)).expect("the journal");
+    run(&mut present_event(&delivered));
+    assert_eq!(
+        events(&delivered, "macos-banner").len(),
+        2,
+        "the replay really was delivered"
+    );
+    assert_eq!(
+        state_files(&delivered),
+        ["decisions"],
+        "a delivered replay left a claim behind"
+    );
+
+    // AND THE RUN THAT NEVER FINISHED. The banner hangs on the replay alone,
+    // so the live event is delivered first and the process is killed while it
+    // is inside the catch-up's own dispatch. A claim removed AFTER delivery is
+    // still on disk at that moment.
+    let killed = Sandbox::new("replay-claim-killed");
+    record_every_event(&killed);
+    killed.stub_channel(
+        "macos-banner",
+        &format!(
+            "payload=$(cat)\nprintf '%s\\n' \"$payload\" >>\"{root}/macos-banner.events\"\n\
+             case \"$payload\" in\n  *'\"state\":\"missed\"'*) : >\"{root}/inside.the.replay\"; \
+             for _ in $(seq 1 200); do [ -e \"{root}/the.test.is.over\" ] && break; sleep 0.05; done ;;\nesac",
+            root = killed.display()
+        ),
+    );
+    std::fs::write(journal_path(&killed), planted_journal(2)).expect("the journal");
+    let mut command = present_event(&killed);
+    let mut child = command
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the engine starts");
+    let inside = killed.path("inside.the.replay");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !inside.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the replay never reached a channel"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    // RELEASED BEFORE THE ASSERTIONS. The channel is a CHILD OF THE ENGINE
+    // and outlives the kill, so a stub left sleeping holds a deleted sandbox
+    // open for as long as it sleeps; it waits on this file instead and ends
+    // with the test rather than on a timer of its own.
+    std::fs::write(killed.path("the.test.is.over"), "").expect("the release");
+    assert_eq!(
+        state_files(&killed),
+        ["decisions"],
+        "the journal was still claimed, or its claim still on disk, mid-delivery"
+    );
+}
+
+/// Every claim the state directory holds, which is where an undelivered batch
+/// waits when a run could not read it or did not survive to hand it over.
+fn claim_files(sandbox: &Sandbox) -> Vec<String> {
+    state_files(sandbox)
+        .into_iter()
+        .filter(|name| name.starts_with("missed-notifications.claim."))
+        .collect()
+}
+
+#[test]
+fn a_journal_this_run_could_not_read_is_left_on_disk_rather_than_consumed() {
+    // MEASURED ON THE SHIPPED BUILD: the claim was removed before the read was
+    // known to have worked, so a journal carrying one undecodable byte came
+    // back as an empty batch and the whole queue was gone. Nothing delivered,
+    // nothing left, nothing said.
+    //
+    // AN UNDELIVERED BATCH IS NEVER DESTROYED. What this run cannot read it
+    // leaves exactly as it is, under a claim name the NEXT return adopts.
+    let sandbox = Sandbox::new("replay-unreadable");
+    record_every_event(&sandbox);
+    let mut waiting = planted_journal(2).into_bytes();
+    // A BYTE NO READER CAN DECODE, which is what the guarded reader refuses:
+    // the journal is a plain file a backup tool or a hand edit can reach.
+    waiting.extend_from_slice(b"\xff\xfe not text\n");
+    std::fs::write(journal_path(&sandbox), &waiting).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        1,
+        "a batch nobody could read was delivered anyway: {raised:?}"
+    );
+    let left = claim_files(&sandbox);
+    assert_eq!(
+        left.len(),
+        1,
+        "the undelivered batch was destroyed: {:?}",
+        state_files(&sandbox)
+    );
+    assert_eq!(
+        std::fs::read(sandbox.path(&format!("state/{}", left[0]))).expect("the claim"),
+        waiting,
+        "what is left is not byte for byte what was waiting"
+    );
+}
+
+#[test]
+fn a_claim_an_earlier_run_never_finished_is_adopted_by_the_next_return() {
+    // THE STRANDED CLAIM. A run killed between the rename and the delivery,
+    // and a run that could not read what it claimed, both leave a claim file
+    // behind; before this nothing ever looked at one again, so the queue sat
+    // in the state directory for good and the doctor's count could not even
+    // see it, because that count reads the journal's own name.
+    let sandbox = Sandbox::new("replay-adopts-a-claim");
+    record_every_event(&sandbox);
+    let stranded = journal_path(&sandbox).with_extension("claim.999999");
+    std::fs::write(&stranded, planted_journal(2)).expect("the stranded claim");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the stranded batch never reached the operator: {raised:?}"
+    );
+    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "both stranded entries were adopted: {body}"
+    );
+    assert_eq!(
+        state_files(&sandbox),
+        ["decisions"],
+        "the adopted claim outlived the delivery it rode on"
+    );
+}
+
+#[test]
+fn a_line_nothing_can_parse_costs_the_entries_around_it_nothing() {
+    // A READABLE JOURNAL WITH A TORN LINE IN IT is not the same thing as a
+    // claim nobody can read, and the two must not be answered the same way:
+    // the append's own heal can republish a single line over this file, and
+    // one line nobody can parse must not cost the notifications around it.
+    let sandbox = Sandbox::new("replay-torn-line");
+    record_every_event(&sandbox);
+    std::fs::write(
+        journal_path(&sandbox),
+        format!("{}{{\"agent\":\"claude\",\n", planted_journal(2)),
+    )
+    .expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(raised.len(), 2, "{raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "the torn line is not an entry and is not counted: {body}"
+    );
+    assert_eq!(
+        state_files(&sandbox),
+        ["decisions"],
+        "a journal that read back whole is consumed whole"
+    );
+}
+
+#[test]
+fn a_present_event_narrowed_to_the_log_leaves_the_queue_for_a_surface_that_shows_it() {
+    // MEASURED: `--remote-only` keeps the durable log alone, and a log is not
+    // a surface anyone is looking at. The queue was claimed, posted into a log
+    // that already holds every one of those events in full, and deleted, with
+    // nothing the operator would ever see. A REPLAY NEEDS A DECORATIVE LEG.
+    let sandbox = Sandbox::new("replay-remote-only");
+    record_every_event(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+
+    run(present_event(&sandbox).arg("--remote-only"));
+
+    let logged = events(&sandbox, "hermes");
+    assert_eq!(
+        logged.len(),
+        1,
+        "the live event alone reached the log: {logged:?}"
+    );
+    assert_eq!(logged[0]["state"], "done", "{logged:?}");
+    assert_eq!(
+        std::fs::read(journal_path(&sandbox)).expect("the journal"),
+        before,
+        "the queue was consumed by a run that could show none of it"
+    );
+}
+
+#[test]
+fn a_machine_with_only_a_durable_channel_never_consumes_the_queue_it_cannot_show() {
+    // THE SAME HOLE WITH NO FLAG TYPED. A machine whose config enables hermes
+    // alone still plans the banner the matrix asked for, and has nothing to
+    // raise it with, so every present event would quietly eat the queue.
+    let sandbox = Sandbox::new("replay-durable-only");
+    record_every_event(&sandbox);
+    sandbox.write_config("[plugins.hermes]\nenabled = true\n");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let logged = events(&sandbox, "hermes");
+    assert_eq!(
+        logged.len(),
+        1,
+        "the live event alone reached the log: {logged:?}"
+    );
+    assert_eq!(
+        std::fs::read(journal_path(&sandbox)).expect("the journal"),
+        before,
+        "the queue was consumed on a machine with no surface to show it on"
+    );
+}
+
+#[test]
+fn a_directory_at_the_journals_path_is_put_back_exactly_where_it_was_found() {
+    // THE CLAIM'S GUARD IS THE RENAME ITSELF. A check taken BEFORE it is a
+    // check of a path something else is still free to change, so what the
+    // rename actually claimed is verified AFTER it lands: anything that is not
+    // a regular file goes back to the journal's own path untouched, and this
+    // run declines rather than removing something it never wrote.
+    let sandbox = Sandbox::new("replay-directory");
+    record_every_event(&sandbox);
+    // A MARKER INSIDE IT, so the assertion is that THIS directory came back
+    // rather than that something directory-shaped is at the path.
+    let planted = journal_path(&sandbox).join("not-a-journal");
+    std::fs::create_dir_all(&planted).expect("a directory at the journal's path");
+
+    run(&mut present_event(&sandbox));
+
+    assert!(
+        planted.is_dir(),
+        "the directory never came back: {:?}",
+        state_files(&sandbox)
+    );
+    assert_eq!(
+        state_files(&sandbox),
+        ["decisions", "missed-notifications"],
+        "something was left standing at a claim path"
+    );
+    let raised = events(&sandbox, "macos-banner");
+    assert_eq!(raised.len(), 1, "the live event alone: {raised:?}");
+}
+
+/// How many present events race for one planted journal.
+///
+/// WHAT THIS PIN IS AND IS NOT, measured rather than claimed. On the build
+/// below it is a hard assertion: every run delivers exactly one replay. As a
+/// hunt for a build that claims by READING AND THEN REMOVING it is a
+/// probability, because that mutant only loses when two runs land inside the
+/// same few microseconds: it died in one run of five here at eight racers and
+/// two of eight at twenty four, so raising the count does not buy
+/// determinism (the spawn spread grows with it, and the arrivals stay just as
+/// thin). Eight is kept because it is the cheaper of two equal odds, and
+/// because the standing assertion, not the mutant, is what this test is for.
+const RACERS: usize = 8;
+
+#[test]
+fn racing_present_events_deliver_exactly_one_replay_between_them() {
+    // THE CLAIM IS A RENAME BECAUSE OF THIS. Two events firing at once is
+    // ordinary here (a Stop hook and the long-running notifier are a normal
+    // pair), and a read-then-remove hands the same batch to every one of them:
+    // the operator gets the same missed notifications over and over.
+    let sandbox = Sandbox::new("replay-race");
+    record_every_event(&sandbox);
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    // EVERY COMMAND IS BUILT BEFORE THE FIRST SPAWN: building one WRITES the
+    // herdr stub, and rewriting a script another racer is already executing is
+    // a flake rather than the race under test.
+    let mut commands: Vec<std::process::Command> =
+        (0..RACERS).map(|_| present_event(&sandbox)).collect();
+    let racers: Vec<std::process::Child> = commands
+        .iter_mut()
+        .map(|command| {
+            command
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("the engine starts")
+        })
+        .collect();
+    for mut racer in racers {
+        // BOUNDED, so a wedged racer fails this test rather than parking the
+        // suite behind it.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while racer.try_wait().expect("the child is waitable").is_none() {
+            assert!(std::time::Instant::now() < deadline, "a racer never exited");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let done = racer.wait_with_output().expect("the child is waitable");
+        assert!(done.status.success(), "a racer failed: {}", stderr(&done));
+        assert_eq!(stdout(&done), "", "a racer printed a line");
+    }
+
+    // THE DESK ROW EARNS THE BANNER AND NOT THE CARD, so the two legs below
+    // are what every racer reached and the phone is the control.
+    for channel in ["macos-banner", "hermes"] {
+        let delivered = events(&sandbox, channel);
+        assert_eq!(
+            delivered.len(),
+            RACERS + 1,
+            "{channel} saw something other than {RACERS} live events and one replay: {delivered:?}"
+        );
+        assert_eq!(
+            delivered
+                .iter()
+                .filter(|event| event["state"] == "missed")
+                .count(),
+            1,
+            "{channel} was handed the one batch more than once: {delivered:?}"
+        );
+    }
+    assert!(
+        events(&sandbox, "moshi").is_empty(),
+        "the phone is not a leg for an operator at the desk"
+    );
+    assert_eq!(
+        state_files(&sandbox),
+        ["decisions"],
+        "the journal survived the race, or a racer left its claim behind"
     );
 }
 
