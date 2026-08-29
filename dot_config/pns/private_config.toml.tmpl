@@ -24,6 +24,11 @@ enabled = true
 bridge = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName }}"
 key = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password }}"
 rooms = ["3F - Studio", "2F - Kitchen"]
+# The hours the rooms stay dark: local wall clock, the start inclusive and the
+# end exclusive, and it may wrap midnight. ONLY the lights are quieted; cards,
+# banners and the log still fire at every hour, and a hand-run `pns pulse` is
+# exempt so a bridge and key can be checked while the window is on.
+# quiet_hours = "22:00-07:00"
 
 # The home probe: is the phone on the home wifi, answered by the UDR's client
 # list. A SENSOR rather than a channel, so it is selected here like any plugin

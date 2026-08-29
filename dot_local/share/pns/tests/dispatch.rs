@@ -1089,3 +1089,228 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
         assert_eq!(home_line(), line, "case: {config:?}");
     }
 }
+
+// --- the lights quiet window ------------------------------------------------
+
+/// The pulse's whole visible effect at this boundary is whether it dialled, so
+/// a bare loopback listener IS the bridge: nothing here speaks CLIP and
+/// nothing has to.
+fn bridge_spy() -> (std::net::TcpListener, u16) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
+    let port = listener.local_addr().expect("addr").port();
+    listener.set_nonblocking(true).expect("nonblocking");
+    (listener, port)
+}
+
+/// Whether the pulse dialled the bridge inside `limit`.
+///
+/// ACCEPTING HANGS UP AT ONCE, which is what keeps a test that expects a dial
+/// fast: the engine's TLS handshake fails on the closed socket instead of
+/// waiting out the ten-second bridge deadline.
+fn dialled_within(listener: &std::net::TcpListener, limit: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + limit;
+    loop {
+        match listener.accept() {
+            Ok(_) => return true,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(error) => panic!("the bridge spy stopped listening: {error}"),
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+/// Long enough for a dial that was going to happen to have happened: the child
+/// has already exited by the time this is asked, so the connection would be
+/// sitting in the accept queue.
+const SETTLE: std::time::Duration = std::time::Duration::from_millis(200);
+
+/// The UTC minute of the day, from the epoch alone. Every test below pins the
+/// child to `TZ=UTC`, so this is the minute the engine's own clock reads,
+/// with no local-time library on this side of the boundary.
+fn utc_minute_now() -> u16 {
+    let epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs();
+    u16::try_from((epoch % 86_400) / 60).expect("a minute of the day")
+}
+
+/// A window `radius` minutes either side of `centre`, wrapped into the day and
+/// spelled the way the config takes it. Hours wide on purpose: the child reads
+/// its own clock a moment after this one does, and a window that narrow would
+/// be timing the test rather than the gate.
+fn window_around(centre: u16, radius: u16) -> String {
+    let start = (centre + 1440 - radius) % 1440;
+    let end = (centre + radius) % 1440;
+    format!(
+        "{:02}:{:02}-{:02}:{:02}",
+        start / 60,
+        start % 60,
+        end / 60,
+        end % 60
+    )
+}
+
+#[test]
+fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg() {
+    // The window mutes the LIGHTS and nothing else: the card and the log are
+    // how a long command reports at any hour, and only the room stays dark.
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("quiet-window-mutes-the-pulse");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+         quiet_hours = \"{}\"\n[plugins.moshi]\nenabled = true\n\
+         [plugins.hermes]\nenabled = true\n",
+        window_around(utc_minute_now(), 120)
+    ));
+    let mut command = sandbox.pns();
+    command.env("TZ", "UTC");
+    sandbox.stub_herdr(&mut command, false);
+    run(command
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args(["--pane", "t1:p2", "--long-running"]));
+    assert!(
+        sandbox.fired("moshi") && sandbox.fired("hermes"),
+        "every other leg still dispatches inside the window"
+    );
+    assert!(
+        !dialled_within(&listener, SETTLE),
+        "and the room stays dark"
+    );
+}
+
+#[test]
+fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("quiet-window-malformed");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+         quiet_hours = \"10pm-7am\"\n[plugins.hermes]\nenabled = true\n"
+    ));
+
+    // An event that earned no pulse says nothing about the window: a refusal
+    // on every notification is the noise this gate sits inside the `if` to
+    // avoid.
+    let mut ordinary = sandbox.pns();
+    sandbox.stub_herdr(&mut ordinary, false);
+    let ordinary = run(ordinary.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    assert!(
+        !stderr(&ordinary).contains("quiet_hours"),
+        "a notification that was never going to light the room is not where a \
+         window is diagnosed: {}",
+        stderr(&ordinary)
+    );
+
+    let mut pulsing = sandbox.pns();
+    sandbox.stub_herdr(&mut pulsing, false);
+    let pulsing = run(pulsing
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args(["--pane", "t1:p2", "--long-running"]));
+    let said = stderr(&pulsing);
+    assert_eq!(
+        said.matches("hue.quiet_hours").count(),
+        1,
+        "one refusal, naming the key: {said}"
+    );
+    assert!(
+        said.contains("10pm-7am"),
+        "and echoing what was written: {said}"
+    );
+    assert!(
+        !dialled_within(&listener, SETTLE),
+        "a window nobody can parse leaves the room dark rather than flashing it"
+    );
+}
+
+#[test]
+fn the_hand_run_pulse_reaches_the_bridge_inside_the_quiet_window() {
+    // The drill is EXEMPT, structurally: `pns pulse` never passes the event
+    // path's gate, because gating it would make the quiet window impossible to
+    // check by hand exactly while it is on.
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("quiet-window-manual-pulse");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+         quiet_hours = \"{}\"\n",
+        window_around(utc_minute_now(), 120)
+    ));
+    let mut command = sandbox.bare();
+    command.env("TZ", "UTC");
+    let child = command
+        .args(["pulse", "0"])
+        .spawn()
+        .expect("the engine starts");
+    assert!(
+        dialled_within(&listener, std::time::Duration::from_secs(5)),
+        "the operator asked for a pulse by hand and got one"
+    );
+    assert_eq!(
+        wait_bounded(child, std::time::Duration::from_secs(5)),
+        Some(0),
+        "and it still exits zero"
+    );
+}
+
+/// The `[plugins.hue]` config the two halves below share, quiet hours apart.
+fn hue_config(port: u16, quiet_hours: &str) -> String {
+    format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+         quiet_hours = \"{quiet_hours}\"\n[plugins.hermes]\nenabled = true\n"
+    )
+}
+
+/// Asia/Tokyo: nine hours ahead of UTC, and no daylight saving since 1951, so
+/// the child's own minute of the day is arithmetic on this side and no window
+/// here can straddle a transition.
+const TOKYO_MINUTES_AHEAD: u16 = 9 * 60;
+
+#[test]
+fn the_window_is_read_in_the_zone_the_child_was_given() {
+    // THE ONE TEST PROVING THE ZONE WIRING. Both halves are built from Tokyo
+    // time, and both are placed so that a child reading the HOST's zone (or
+    // UTC, on a runner that has no other) lands on the wrong side: the quiet
+    // half would dial, and the loud half, which is the twelve hours on the far
+    // side of the clock, would go dark.
+    let tokyo_now = (utc_minute_now() + TOKYO_MINUTES_AHEAD) % 1440;
+
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("quiet-window-zone-quiet");
+    sandbox.write_config(&hue_config(port, &window_around(tokyo_now, 120)));
+    let mut quiet = sandbox.pns();
+    quiet.env("TZ", "Asia/Tokyo");
+    sandbox.stub_herdr(&mut quiet, false);
+    run(quiet
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args(["--pane", "t1:p2", "--long-running"]));
+    assert!(
+        !dialled_within(&listener, SETTLE),
+        "the child is inside a window written in ITS zone, so the room stays dark"
+    );
+
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new("quiet-window-zone-loud");
+    sandbox.write_config(&hue_config(
+        port,
+        &window_around((tokyo_now + 720) % 1440, 360),
+    ));
+    let mut loud = sandbox.pns();
+    loud.env("TZ", "Asia/Tokyo");
+    sandbox.stub_herdr(&mut loud, false);
+    let child = loud
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args(["--pane", "t1:p2", "--long-running"])
+        .spawn()
+        .expect("the engine starts");
+    assert!(
+        dialled_within(&listener, std::time::Duration::from_secs(5)),
+        "and outside one it pulses"
+    );
+    assert_eq!(
+        wait_bounded(child, std::time::Duration::from_secs(5)),
+        Some(0),
+        "on the exit-zero edge either way"
+    );
+}
