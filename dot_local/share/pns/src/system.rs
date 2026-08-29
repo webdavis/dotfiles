@@ -471,11 +471,42 @@ impl<R: CommandRunner> SystemProbes<R> {
     }
 }
 
+/// Minutes since LOCAL midnight for an epoch second, or None when the system
+/// cannot say.
+///
+/// THE ONE PLACE the local zone is read. Which hour an epoch second falls in
+/// is a system fact (a zone database, a `TZ` variable and two transitions a
+/// year), not a calculation, so it is asked of libc rather than derived here,
+/// and the answer leaves as a plain number: every rule about quiet hours is a
+/// value function over this minute, with no clock inside it.
+pub fn local_minutes_since_midnight(epoch_secs: u64) -> Option<u16> {
+    let seconds = libc::time_t::try_from(epoch_secs).ok()?;
+    let mut broken_down = std::mem::MaybeUninit::<libc::tm>::uninit();
+    // SAFETY: `localtime_r` writes the broken-down time into the `tm` it is
+    // handed and returns either that same pointer or null. `seconds` points
+    // at a live `time_t` on this frame, `broken_down` is an aligned `tm` this
+    // frame owns for the whole call and nothing else aliases, and the
+    // reentrant form writes its answer only into that buffer, which is what
+    // makes it the thread-safe one to call from here. The buffer is read ONLY
+    // after a non-null return, which is what proves it was initialized.
+    let local = unsafe {
+        if libc::localtime_r(&seconds, broken_down.as_mut_ptr()).is_null() {
+            return None;
+        }
+        broken_down.assume_init()
+    };
+    // Range-checked rather than trusted: this is an FFI boundary, and a minute
+    // of day is what every caller is promised.
+    u16::try_from(local.tm_hour.checked_mul(60)?.checked_add(local.tm_min)?)
+        .ok()
+        .filter(|minutes| *minutes < 1440)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        CommandRunner, newest_terminal_atime, parse_focused_tab, parse_idle_nanoseconds,
-        parse_layout, parse_pids, parse_screen_locked, parse_tty_names,
+        CommandRunner, local_minutes_since_midnight, newest_terminal_atime, parse_focused_tab,
+        parse_idle_nanoseconds, parse_layout, parse_pids, parse_screen_locked, parse_tty_names,
     };
     use std::cell::RefCell;
 
@@ -1273,5 +1304,27 @@ mod tests {
                 .is_none()
         );
         assert!(parse_layout(r#"{"result":{"layout":{"zoomed":false}}}"#).is_none());
+    }
+
+    /// 2025-08-24T01:46:40Z, months from the nearest daylight-saving
+    /// transition of the zones this suite runs in (2025-03-09 and 2025-11-02
+    /// on the developer's, none at all on a UTC runner), so the minute after
+    /// it is a minute later there.
+    const AUGUST_INSTANT: u64 = 1_756_000_000;
+
+    #[test]
+    fn the_local_clock_reads_a_minute_of_the_day_for_the_second_it_was_given() {
+        let minutes = local_minutes_since_midnight(AUGUST_INSTANT).expect("a readable local zone");
+        assert!(
+            minutes < 1440,
+            "a minute of the day, whatever the zone: {minutes}"
+        );
+        let later =
+            local_minutes_since_midnight(AUGUST_INSTANT + 60).expect("a readable local zone");
+        assert_eq!(
+            (later + 1440 - minutes) % 1440,
+            1,
+            "and it reads the second it was handed, not the wall clock"
+        );
     }
 }

@@ -62,6 +62,90 @@ pub fn hue_settings(settings: &toml::Table, rooms_env: Option<&str>) -> Option<H
     })
 }
 
+/// The hours the lights stay dark, in minutes since local midnight.
+#[derive(Debug, PartialEq)]
+pub struct QuietWindow {
+    start: u16,
+    end: u16,
+}
+
+/// The window the operator configured, or None for no window at all.
+///
+/// A value that is not a `HH:MM-HH:MM` string is a REFUSAL rather than a
+/// silent no-window: an operator who asked for quiet hours and mistyped them
+/// would otherwise be flashed at 3am and told nothing.
+pub fn quiet_window(settings: &toml::Table) -> Result<Option<QuietWindow>, String> {
+    let Some(stated) = settings.get("quiet_hours") else {
+        return Ok(None);
+    };
+    let Some(text) = stated.as_str() else {
+        return Err(quiet_hours_refusal(stated.type_str()));
+    };
+    // EMPTY IS ABSENT, the rule the bridge and key beside it already follow.
+    if text.is_empty() {
+        return Ok(None);
+    }
+    parse_window(text)
+        .map(Some)
+        .ok_or_else(|| quiet_hours_refusal(&format!("{text:?}")))
+}
+
+/// Whether the lights are inside the window at a given minute of the local
+/// day.
+pub fn quiet_now(window: Option<&QuietWindow>, minutes_now: Option<u16>) -> bool {
+    // NO WINDOW IS NEVER QUIET, whatever the clock says: an operator who
+    // configured no quiet hours keeps the pulse an unreadable clock would
+    // otherwise cost them.
+    let Some(window) = window else {
+        return false;
+    };
+    // A CONFIGURED window and no clock FAILS CLOSED, the direction the pulse
+    // already takes on an unreadable reading: a missed pulse costs nothing and
+    // a flash at 3am is what the window was set to prevent.
+    let Some(now) = minutes_now else {
+        return true;
+    };
+    if window.start > window.end {
+        // A window that wraps midnight is the two ends of the day joined, so
+        // the halves are an OR: past its start tonight, or before its end
+        // tomorrow.
+        return now >= window.start || now < window.end;
+    }
+    now >= window.start && now < window.end
+}
+
+/// The refusal, in the shape the config layer already refuses a setting by
+/// name: what was written, and what it cost.
+fn quiet_hours_refusal(offender: &str) -> String {
+    format!("pns: config error (hue.quiet_hours is {offender}, not a HH:MM-HH:MM window); no pulse")
+}
+
+/// `HH:MM-HH:MM` and nothing else.
+fn parse_window(text: &str) -> Option<QuietWindow> {
+    let (start, end) = text.split_once('-')?;
+    Some(QuietWindow {
+        start: minute_of_day(start)?,
+        end: minute_of_day(end)?,
+    })
+}
+
+/// `HH:MM` as minutes since midnight. Two digits each, and in range: an hour
+/// of 24 or a minute of 60 names no time of day.
+fn minute_of_day(clock: &str) -> Option<u16> {
+    let (hours, minutes) = clock.split_once(':')?;
+    let (hours, minutes) = (two_digits(hours)?, two_digits(minutes)?);
+    (hours < 24 && minutes < 60).then_some(hours * 60 + minutes)
+}
+
+/// Exactly two ASCII digits, so a sign, a space or a lone digit is not a
+/// clock reading that happens to parse.
+fn two_digits(text: &str) -> Option<u16> {
+    if text.len() != 2 || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
+}
+
 /// The `.data[]` array of a CLIP response, empty for anything unrecognized:
 /// a bridge that answers with something this does not know is a no-op, never
 /// a panic on a notification path.
@@ -153,7 +237,10 @@ impl<B: Bridge> HuePulse<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Bridge, DEFAULT_ROOMS, HuePulse, grouped_light_ids_for_rooms, hue_settings};
+    use super::{
+        Bridge, DEFAULT_ROOMS, HuePulse, QuietWindow, grouped_light_ids_for_rooms, hue_settings,
+        quiet_now, quiet_window,
+    };
     use std::cell::RefCell;
 
     const ROOMS_JSON: &str = r#"{"data":[
@@ -331,5 +418,155 @@ mod tests {
         };
         hue.run("0");
         assert!(hue.bridge.puts.borrow().is_empty());
+    }
+
+    // --- the quiet window ---------------------------------------------------
+
+    #[test]
+    fn a_table_that_names_no_quiet_hours_has_no_window() {
+        assert_eq!(
+            quiet_window(&table("bridge = \"b\"\nkey = \"k\"")),
+            Ok(None),
+            "an operator who never asked to be quieted keeps today's behavior"
+        );
+    }
+
+    #[test]
+    fn a_window_parses_to_minutes_since_local_midnight() {
+        assert_eq!(
+            quiet_window(&table("quiet_hours = \"22:00-07:00\"")),
+            Ok(Some(QuietWindow {
+                start: 1320,
+                end: 420
+            })),
+            "22:00 is 1320 minutes in and 07:00 is 420"
+        );
+    }
+
+    #[test]
+    fn a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name() {
+        for stated in [
+            "22:00",
+            "24:00-07:00",
+            "22:60-07:00",
+            "10pm-7am",
+            "2:00-07:00",
+            "22:00-07:00 ",
+            "   ",
+        ] {
+            let refusal = quiet_window(&table(&format!("quiet_hours = \"{stated}\"")))
+                .expect_err("a window this shape names no hours");
+            assert!(
+                refusal.contains("hue.quiet_hours") && refusal.contains(stated),
+                "the refusal names the key and echoes what was written: {refusal}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_quiet_hours_of_the_wrong_type_is_refused_by_name_and_by_type() {
+        for (stated, kind) in [("2200", "integer"), ("true", "boolean"), ("[]", "array")] {
+            let refusal = quiet_window(&table(&format!("quiet_hours = {stated}")))
+                .expect_err("a window that is not a string names no hours");
+            assert!(
+                refusal.contains("hue.quiet_hours") && refusal.contains(kind),
+                "the refusal names the key and what was written instead: {refusal}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_blanked_quiet_hours_is_no_window_rather_than_a_refusal() {
+        assert_eq!(
+            quiet_window(&table("quiet_hours = \"\"")),
+            Ok(None),
+            "blanking a value plainly means none, the way an empty bridge or key does"
+        );
+    }
+
+    /// 22:00 to 23:00, the plainest same-day window.
+    const EVENING: QuietWindow = QuietWindow {
+        start: 1320,
+        end: 1380,
+    };
+
+    #[test]
+    fn a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end() {
+        assert!(
+            !quiet_now(Some(&EVENING), Some(1319)),
+            "the minute before the window is loud"
+        );
+        assert!(
+            quiet_now(Some(&EVENING), Some(1320)),
+            "the start is inside the window"
+        );
+        assert!(
+            quiet_now(Some(&EVENING), Some(1379)),
+            "and so is the last minute before its end"
+        );
+        assert!(
+            !quiet_now(Some(&EVENING), Some(1380)),
+            "the end is loud on the dot, so two adjacent windows cannot overlap"
+        );
+    }
+
+    #[test]
+    fn a_window_whose_start_is_after_its_end_is_quiet_on_both_sides_of_midnight() {
+        // 22:00-07:00, the window the template documents.
+        let overnight = QuietWindow {
+            start: 1320,
+            end: 420,
+        };
+        for (minute, quiet, moment) in [
+            (1319, false, "21:59, before it opens"),
+            (1320, true, "22:00, the start"),
+            (1439, true, "23:59, the last minute of the day"),
+            (0, true, "00:00, the first minute of the next one"),
+            (419, true, "06:59, still inside"),
+            (420, false, "07:00, the end"),
+            (720, false, "noon, nowhere near it"),
+        ] {
+            assert_eq!(
+                quiet_now(Some(&overnight), Some(minute)),
+                quiet,
+                "{moment} is on the wrong side of a window that wraps"
+            );
+        }
+    }
+
+    #[test]
+    fn a_window_whose_start_equals_its_end_is_never_quiet() {
+        // An empty half-open range, and deliberately not a special case: the
+        // all-day mute already exists as `enabled = false`. Every minute of
+        // the day is checked, because "never" is the whole claim.
+        let empty = QuietWindow {
+            start: 600,
+            end: 600,
+        };
+        for minute in 0..1440 {
+            assert!(
+                !quiet_now(Some(&empty), Some(minute)),
+                "minute {minute} fell inside a window that spans no time"
+            );
+        }
+    }
+
+    #[test]
+    fn a_window_with_an_unreadable_clock_is_quiet() {
+        assert!(
+            quiet_now(Some(&EVENING), None),
+            "an operator who asked for quiet hours and a clock that cannot say \
+             whether it is one: a missed pulse costs nothing, a 3am flash does"
+        );
+    }
+
+    #[test]
+    fn no_window_and_an_unreadable_clock_mutes_nothing() {
+        assert!(
+            !quiet_now(None, None),
+            "the fail-closed direction belongs to a window that was asked for; \
+             without one there is no quiet hour to be inside"
+        );
+        assert!(!quiet_now(None, Some(180)), "nor at 3am");
     }
 }

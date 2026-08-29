@@ -17,7 +17,7 @@ use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
-use pns::channels::hue::{Bridge, HuePulse, hue_settings};
+use pns::channels::hue::{Bridge, HuePulse, hue_settings, quiet_now, quiet_window};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret};
 use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
@@ -28,7 +28,7 @@ use pns::hooks::{
 };
 use pns::registry::{roster, select_plugins};
 use pns::render;
-use pns::system::{SystemCommandRunner, SystemProbes, run_bounded};
+use pns::system::{SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded};
 
 fn main() {
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
@@ -728,7 +728,7 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     if decision.pulse {
         // The state IS the exit code here: the shell notifier derives
         // --state from `$?`, and an agent turn that did not fail succeeded.
-        fire_pulse(hue_table, if event.state == "failed" { "1" } else { "0" });
+        fire_pulse_unless_quiet(hue_table, if event.state == "failed" { "1" } else { "0" });
     }
 }
 
@@ -853,6 +853,44 @@ fn plugin_settings<'config>(
     name: &str,
 ) -> Option<&'config toml::Table> {
     config.plugins.get(name).map(|plugin| &plugin.settings)
+}
+
+/// The event path's pulse, which the lights' own quiet window may mute.
+///
+/// THE GATE LIVES HERE, at the call site, and not in `fire_pulse` below:
+/// `pns pulse` shares that function and is deliberately exempt, because the
+/// hand-run pulse is how a bridge and key are checked and gating it would make
+/// the quiet window untestable exactly while it is on. Inside the `if` that
+/// already earned a pulse, so a refusal is printed only where a room would
+/// otherwise have lit.
+fn fire_pulse_unless_quiet(hue_table: Option<toml::Table>, exit_code: &str) {
+    // No table is nothing to quiet: an operator who never enabled the lights
+    // gets the same silence `fire_pulse` would have given them.
+    let Some(settings) = hue_table else {
+        return;
+    };
+    let window = match quiet_window(&settings) {
+        Ok(window) => window,
+        // FAIL CLOSED, the direction the pulse takes on every unreadable
+        // reading: a window nobody can parse is an operator who asked for
+        // quiet hours and cannot be told which ones, so the room stays dark
+        // and the refusal says why.
+        Err(refusal) => {
+            eprintln!("{refusal}");
+            return;
+        }
+    };
+    // FRESH, not the run's start: the legs above dial the network under their
+    // own deadlines, so a run can cross into the window between starting and
+    // reaching the moment a room would actually light, and the older reading
+    // would flash it just inside quiet hours. HONEST LIMIT: no suite pins the
+    // freshness, because a test's clock does not advance mid-run.
+    if !quiet_now(
+        window.as_ref(),
+        now_secs().and_then(local_minutes_since_midnight),
+    ) {
+        fire_pulse(Some(settings), exit_code);
+    }
 }
 
 /// The lights signal, from whichever mode asked for it.
@@ -1023,7 +1061,10 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// NOTHING IN THIS REPO CALLS IT. The tiers that used to are part of the event
 /// plan now, which is what stopped the tier being decided twice; this stays as
 /// the operator's own command for signalling the lights by hand, and for
-/// checking that a bridge and key in the config actually work.
+/// checking that a bridge and key in the config actually work. It ignores
+/// `hue.quiet_hours` on purpose: the gate lives at the event path's call site
+/// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
+/// inside the window, which is what keeps the window checkable while it is on.
 fn pulse_mode() {
     let home = std::env::var("HOME").unwrap_or_default();
     // FAIL CLOSED, unlike an event. The roster fallback that keeps every

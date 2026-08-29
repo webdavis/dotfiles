@@ -31,6 +31,12 @@ edition = "2024"
 
 [dependencies]
 hmac = "0.13.0"
+# The one dependency taken for a system FACT rather than a format: which local
+# hour an epoch second falls in is a zone database, a `TZ` variable and two
+# daylight-saving transitions a year, none of which std can answer. It is
+# already compiled in this tree behind ring and getrandom, so taking it
+# directly costs no build time, and it is reached from exactly one function.
+libc = "0.2.189"
 serde_json = "1.0.151"
 sha2 = "0.11.0"
 # Parse only: the default `display` feature pulls toml_writer, and nothing here
