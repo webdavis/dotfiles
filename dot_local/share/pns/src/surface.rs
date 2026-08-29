@@ -125,11 +125,25 @@ pub fn is_fresh(age: Option<u64>, fresh_secs: u64) -> bool {
 /// A missing reading is never fresh, so every unknown falls toward Away rather
 /// than Desk: getting a card while at the desk costs a glance, missing one
 /// while away costs the event.
+///
+/// A LOCKED SCREEN DISQUALIFIES THE DESK CLOCK and nothing else. That is
+/// newest-signal-wins rather than an exception to it: locking necessarily
+/// postdates the last desk input, because typing again means unlocking first,
+/// so the lock is the newest fact about the desk. It is deliberately NOT a
+/// blanket Away, because it says nothing about the phone: locking the laptop
+/// and picking it up is the canonical case, and Away always cards while
+/// Mobile lets a watched pane suppress.
+///
+/// ONLY `Some(true)` LOCKS. `Some(false)` and `None` leave every clock exactly
+/// as it was, so a reading nobody could take costs one freshness window of the
+/// behavior that shipped before this, where inventing a lock would kill the
+/// desk banner permanently wherever the reading stops working.
 pub fn surface(
     desk_input_age: Option<u64>,
     phone_input_age: Option<u64>,
     marker_age: Option<u64>,
     desk_fresh_secs: u64,
+    screen_locked: Option<bool>,
 ) -> Surface {
     let fresh = |age: Option<u64>| fresh_age(age, desk_fresh_secs);
     // Smallest age is the most recent, and an unreadable one simply does not
@@ -138,7 +152,8 @@ pub fn surface(
         .into_iter()
         .flatten()
         .min();
-    match (fresh(desk_input_age), phone) {
+    let desk = fresh(desk_input_age).filter(|_| screen_locked != Some(true));
+    match (desk, phone) {
         // The tie goes to the desk, where the operator has to be sitting for
         // the reading to exist at all.
         (Some(desk), Some(phone)) => {
@@ -406,7 +421,13 @@ mod tests {
         ];
         for (label, desk_input_age, phone_input_age, marker_age, desk_fresh, expected) in matrix {
             assert_eq!(
-                surface(desk_input_age, phone_input_age, marker_age, desk_fresh),
+                surface(
+                    desk_input_age,
+                    phone_input_age,
+                    marker_age,
+                    desk_fresh,
+                    None
+                ),
                 expected,
                 "case: {label}"
             );
@@ -420,7 +441,7 @@ mod tests {
         // fresher of the two, and only newer desk input or full staleness
         // takes it back.
         assert_eq!(
-            surface(Some(2000), Some(30), Some(3600), 120),
+            surface(Some(2000), Some(30), Some(3600), 120, None),
             Surface::Mobile,
             "a long-open session whose pty just moved is still mobile"
         );
@@ -431,9 +452,9 @@ mod tests {
         // The discovery chain has four steps and any of them can come back
         // with nothing. Reading that as "just used" would park the operator
         // on a phone that is not in their hand and silence every banner.
-        assert_eq!(surface(Some(5), None, None, 120), Surface::Desk);
-        assert_eq!(surface(Some(600), None, None, 120), Surface::Away);
-        assert_eq!(surface(None, None, None, 120), Surface::Away);
+        assert_eq!(surface(Some(5), None, None, 120, None), Surface::Desk);
+        assert_eq!(surface(Some(600), None, None, 120, None), Surface::Away);
+        assert_eq!(surface(None, None, None, 120, None), Surface::Away);
     }
 
     #[test]
@@ -441,8 +462,92 @@ mod tests {
         // Mosh sessions outlive the attention paid to them: the client stays
         // attached for days. Presence is the pty's CLOCK, never the session's
         // existence, so an attached-but-untouched session decides nothing.
-        assert_eq!(surface(Some(5), Some(9_000), None, 120), Surface::Desk);
-        assert_eq!(surface(Some(9_000), Some(9_000), None, 120), Surface::Away);
+        assert_eq!(
+            surface(Some(5), Some(9_000), None, 120, None),
+            Surface::Desk
+        );
+        assert_eq!(
+            surface(Some(9_000), Some(9_000), None, 120, None),
+            Surface::Away
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // The screen lock disqualifies the DESK CLOCK, and nothing else.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn a_locked_screen_takes_the_desk_out_of_the_running_however_fresh_its_clock_is() {
+        // The whole point: a lock necessarily postdates the last desk input,
+        // because typing again means unlocking first. So it is the newest
+        // fact about the desk, and the freshness window under it says nothing.
+        assert_eq!(
+            surface(Some(2), None, None, 120, Some(true)),
+            Surface::Away,
+            "keyboard touched two seconds ago, then locked: nobody is there"
+        );
+    }
+
+    #[test]
+    fn a_locked_screen_with_a_fresh_pty_clock_is_still_the_phone_and_never_away() {
+        // The canonical case the blanket-Away reading gets wrong: lock the
+        // laptop, pick up the phone. Away always cards, while Mobile lets a
+        // pane the operator is already watching on moshi suppress, so the two
+        // are not interchangeable.
+        assert_eq!(
+            surface(Some(2), Some(5), None, 120, Some(true)),
+            Surface::Mobile,
+            "the lock speaks for the desk alone; the phone still answers"
+        );
+    }
+
+    #[test]
+    fn a_locked_screen_with_a_fresh_back_tap_is_still_the_phone_and_never_away() {
+        // The tap is manual phone input by another route, so it speaks for
+        // the phone on exactly the terms the pty clock does. A lock must not
+        // demote it.
+        assert_eq!(
+            surface(Some(2), None, Some(5), 120, Some(true)),
+            Surface::Mobile,
+            "tapped after locking: they reached for the phone"
+        );
+    }
+
+    #[test]
+    fn an_unlocked_or_unreadable_console_leaves_every_verdict_exactly_as_it_was() {
+        // THE FAIL DIRECTION, pinned. `None` is "nobody could read the
+        // console", and treating it as locked would kill the desk banner for
+        // good on any machine where the key is renamed or dropped, where
+        // treating it as unlocked costs one freshness window of the behavior
+        // that shipped before the override existed.
+        // (label, desk age, phone age, marker age, the verdict both readings owe)
+        type Case = (&'static str, Option<u64>, Option<u64>, Option<u64>, Surface);
+        let matrix: [Case; 3] = [
+            (
+                "fresh desk, nothing else",
+                Some(2),
+                None,
+                None,
+                Surface::Desk,
+            ),
+            ("fresher phone", Some(90), Some(5), None, Surface::Mobile),
+            (
+                "nothing fresh",
+                Some(600),
+                Some(600),
+                Some(600),
+                Surface::Away,
+            ),
+        ];
+        for (label, desk, phone, marker, expected) in matrix {
+            for reading in [None, Some(false)] {
+                assert_eq!(
+                    surface(desk, phone, marker, 120, reading),
+                    expected,
+                    "case: {label}, lock reading {reading:?}"
+                );
+            }
+        }
     }
 
     // ------------------------------------------------------------------

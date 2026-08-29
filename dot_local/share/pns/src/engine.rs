@@ -7,7 +7,8 @@
 //! PROBES RUN ONLY WHEN THEIR ANSWER COULD MATTER. Every reading is a spawn
 //! on a path that must never stall, so a caller who already stated an answer
 //! never pays for the probe underneath it: an idle override skips the idle
-//! read, and a stated phone-input age skips the process walk behind it.
+//! read and the screen-lock read that only exists to qualify it, and a stated
+//! phone-input age skips the process walk behind it.
 //!
 //! CALLER INTENT IS NEVER OVERRIDDEN. Skip beats force ("I already sent it"
 //! is more specific than an override), the narrowing flags beat both, and
@@ -15,7 +16,9 @@
 
 use std::collections::BTreeMap;
 
-use crate::probes::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
+use crate::probes::{
+    IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ScreenLockProbe, SessionViewProbe,
+};
 use crate::registry::Selection;
 use crate::routing::Leg;
 use crate::surface::{Surface, Visibility};
@@ -108,7 +111,7 @@ pub fn decide<P>(
     mobile_watch_card: bool,
 ) -> Decision
 where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + SessionViewProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + SessionViewProbe,
 {
     let world = read_world(probes, overrides, pane, now_secs);
     let delivery = crate::surface::plan(
@@ -158,7 +161,7 @@ fn read_world<P>(
     now_secs: Option<u64>,
 ) -> WorldSnapshot
 where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + SessionViewProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + SessionViewProbe,
 {
     let reading = surface_reading(probes, overrides, now_secs);
     WorldSnapshot {
@@ -187,7 +190,7 @@ struct SurfaceReading {
     phone_input_fresh: bool,
 }
 
-/// Where the operator is, from the three readings the arbitration needs.
+/// Where the operator is, from the four readings the arbitration needs.
 ///
 /// Public because the blocking hook asks the same question for a different
 /// reason: whether the operator can answer from the phone at all.
@@ -196,7 +199,7 @@ struct SurfaceReading {
 /// already stated the answer never pays for the probe underneath it.
 pub fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> Surface
 where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe,
 {
     surface_reading(probes, overrides, now_secs).surface
 }
@@ -205,7 +208,7 @@ where
 /// over the probes.
 fn surface_reading<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> SurfaceReading
 where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe,
 {
     // A garbled threshold is UNKNOWN, never the default: substituting 120
     // would read a stale desk as fresh and hold the operator at their desk.
@@ -222,12 +225,25 @@ where
         };
     };
 
-    let desk_input_age = if overrides.idle_invalid {
-        None
+    // THE LOCK IS READ ONLY WHERE THE IDLE CLOCK ANSWERED, because its only
+    // job is to disqualify what that probe reported: a desk reading the
+    // caller stated, never took, or could not take leaves the lock a spawn
+    // for an answer nothing can use, and the blocked path an approval waits
+    // on pays that deadline serially. Nothing in this repo sets
+    // `PNS_IDLE_SECS` in production (measured repo-wide 2026-08-28); a future
+    // setter would silently disable the override with it.
+    let (desk_input_age, screen_locked) = if overrides.idle_invalid {
+        (None, None)
     } else {
         match overrides.idle_secs {
-            Some(secs) => Some(secs),
-            None => probes.idle_secs(),
+            Some(secs) => (Some(secs), None),
+            None => {
+                let idle = probes.idle_secs();
+                (
+                    idle,
+                    idle.is_some().then(|| probes.screen_locked()).flatten(),
+                )
+            }
         }
     };
     // AGES, never timestamps, and both aged against the SAME clock read: an
@@ -250,6 +266,7 @@ where
             phone_input_age,
             marker_age,
             desk_fresh_secs,
+            screen_locked,
         ),
         phone_input_fresh: crate::surface::is_fresh(phone_input_age, desk_fresh_secs),
     }
@@ -269,11 +286,13 @@ fn operator_visibility<P: SessionViewProbe>(probes: &P, pane: &str) -> Visibilit
 
 #[cfg(test)]
 mod tests {
-    use super::{Decision, Overrides, decide};
+    use super::{Decision, Overrides, decide, operator_surface};
     use crate::config::parse_config;
-    use crate::probes::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
+    use crate::probes::{
+        IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ScreenLockProbe, SessionViewProbe,
+    };
     use crate::registry::Selection;
-    use crate::surface::SessionView;
+    use crate::surface::{SessionView, Surface};
     use std::cell::Cell;
     use std::collections::BTreeMap;
 
@@ -284,10 +303,12 @@ mod tests {
         idle: Option<u64>,
         marker_mtime: Option<u64>,
         phone_atime: Option<u64>,
+        screen_locked: Option<bool>,
         view: Option<SessionView>,
         idle_reads: Cell<u32>,
         marker_reads: Cell<u32>,
         phone_reads: Cell<u32>,
+        lock_reads: Cell<u32>,
         view_reads: Cell<u32>,
     }
 
@@ -307,6 +328,12 @@ mod tests {
         fn phone_input_atime_secs(&self) -> Option<u64> {
             self.phone_reads.set(self.phone_reads.get() + 1);
             self.phone_atime
+        }
+    }
+    impl ScreenLockProbe for CountingProbes {
+        fn screen_locked(&self) -> Option<bool> {
+            self.lock_reads.set(self.lock_reads.get() + 1);
+            self.screen_locked
         }
     }
     impl SessionViewProbe for CountingProbes {
@@ -646,6 +673,100 @@ mod tests {
             names(&decision).contains(&"moshi"),
             "an unknown phone reading falls toward away, which cards"
         );
+    }
+
+    #[test]
+    fn a_locked_screen_sends_a_blocked_approval_to_the_phone_rather_than_the_lock_screen() {
+        // `operator_surface` is the approval gate: Desk means the harness
+        // prompt already in front of the operator is the way to answer, and
+        // anything else means the card is. A lock screen is not a prompt they
+        // can answer, so the approval has to travel.
+        let probes = CountingProbes {
+            idle: Some(2),
+            screen_locked: Some(true),
+            ..CountingProbes::default()
+        };
+        assert_ne!(
+            operator_surface(&probes, &Overrides::default(), Some(1_000_000)),
+            Surface::Desk
+        );
+    }
+
+    #[test]
+    fn a_locked_screen_cards_the_phone_and_leaves_the_desk_banner_unraised() {
+        // THE SHIPPED BUG, end to end: a keyboard touched two seconds before
+        // the lock holds the surface at Desk for the rest of the freshness
+        // window, so the banner fires at a lock screen and no card reaches
+        // the phone. Without the lock these exact readings banner, which is
+        // what makes both halves of this test bite.
+        let probes = CountingProbes {
+            idle: Some(2),
+            screen_locked: Some(true),
+            view: Some(elsewhere("wW:p1")),
+            ..CountingProbes::default()
+        };
+        let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
+        let legs = names(&decision);
+        assert!(
+            legs.contains(&"moshi"),
+            "the card must reach them: {legs:?}"
+        );
+        assert!(
+            !legs.contains(&"macos-banner"),
+            "nobody is in front of the display: {legs:?}"
+        );
+    }
+
+    #[test]
+    fn the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading() {
+        // The lock's only job is to disqualify what the idle probe reported,
+        // so taking it where that reading was never taken, or where it came
+        // back empty, is a spawn for an answer nothing can use. The other
+        // direction is the ruling: caller intent is never overridden, and
+        // stating the desk clock states the desk's whole story, garbled value
+        // included.
+        let garbled = Overrides::from_env(&BTreeMap::from([(
+            "PNS_IDLE_SECS".to_string(),
+            "not-a-number".to_string(),
+        )]));
+        // (label, overrides, what the idle probe answers, idle reads, lock reads)
+        let cases: [(&str, Overrides, Option<u64>, u32, u32); 4] = [
+            (
+                "nothing stated: the engine takes both readings",
+                Overrides::default(),
+                Some(2),
+                1,
+                1,
+            ),
+            (
+                "a stated idle clock: it takes neither",
+                Overrides {
+                    idle_secs: Some(9_000),
+                    ..Overrides::default()
+                },
+                Some(2),
+                0,
+                0,
+            ),
+            ("a garbled one: neither, again", garbled, Some(2), 0, 0),
+            (
+                "an unreadable idle clock: nothing arrived for the lock to disqualify",
+                Overrides::default(),
+                None,
+                1,
+                0,
+            ),
+        ];
+        for (label, overrides, idle, idle_reads, lock_reads) in cases {
+            let probes = CountingProbes {
+                idle,
+                screen_locked: Some(true),
+                ..CountingProbes::default()
+            };
+            decide_with(&probes, &overrides, "");
+            assert_eq!(probes.idle_reads.get(), idle_reads, "case: {label}, idle");
+            assert_eq!(probes.lock_reads.get(), lock_reads, "case: {label}, lock");
+        }
     }
 
     #[test]

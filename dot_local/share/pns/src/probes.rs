@@ -3,8 +3,8 @@
 //! Each trait is deliberately NARROW, one reading per trait, so a test
 //! substitutes exactly the reading it is about and the core never grows a path
 //! that touches the outside world. The concrete implementations (the idle
-//! counter, the marker's timestamp, the phone's pty clock, the multiplexer
-//! query) belong to the binary's composition root.
+//! counter, the marker's timestamp, the phone's pty clock, the console lock,
+//! the multiplexer query) belong to the binary's composition root.
 //!
 //! Every reading is optional, because every one of them can fail to be taken.
 //! `None` is "could not read", never a value, and each decision states its own
@@ -29,6 +29,19 @@ pub trait PhoneMarkerProbe {
 /// value, so two signals cannot be compared across two different "now"s.
 pub trait PhoneInputProbe {
     fn phone_input_atime_secs(&self) -> Option<u64>;
+}
+
+/// Whether the console screen is locked.
+///
+/// A separate reading from the idle clock beside it even though one command
+/// answers both questions, because they are different facts: the idle clock
+/// says how long ago the keyboard was touched, and this says whether touching
+/// it again would reach the session at all.
+///
+/// `Some(true)` is locked, `Some(false)` unlocked, `None` unreadable, and the
+/// decision (`surface::surface`) treats only `Some(true)` as locked.
+pub trait ScreenLockProbe {
+    fn screen_locked(&self) -> Option<bool>;
 }
 
 /// The session's display state, as the multiplexer sees it. One reading for
@@ -60,6 +73,12 @@ impl<T: PhoneMarkerProbe> PhoneMarkerProbe for &T {
 impl<T: PhoneInputProbe> PhoneInputProbe for &T {
     fn phone_input_atime_secs(&self) -> Option<u64> {
         (*self).phone_input_atime_secs()
+    }
+}
+
+impl<T: ScreenLockProbe> ScreenLockProbe for &T {
+    fn screen_locked(&self) -> Option<bool> {
+        (*self).screen_locked()
     }
 }
 
