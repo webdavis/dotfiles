@@ -346,6 +346,14 @@ mod tests {
                         )
                         .as_bytes(),
                     );
+                    let _ = stream.flush();
+                    // HOLD the socket until the client hangs up: closing it
+                    // right after the write can reset the response out from
+                    // under a reader on a slow runner, which turns a written
+                    // status into no response at all.
+                    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                    let mut drain = [0u8; 256];
+                    while matches!(stream.read(&mut drain), Ok(read) if read > 0) {}
                 }
             });
             let post = UreqPost {
@@ -384,6 +392,14 @@ mod tests {
                     )
                     .as_bytes(),
                 );
+                let _ = stream.flush();
+                // HOLD the socket until the client hangs up: closing it
+                // right after the write can reset the response out from
+                // under a reader on a slow runner, which turns a written
+                // status into no response at all.
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                let mut drain = [0u8; 256];
+                while matches!(stream.read(&mut drain), Ok(read) if read > 0) {}
             }
         });
         let post = UreqPost {
