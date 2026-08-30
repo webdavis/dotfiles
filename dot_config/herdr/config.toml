@@ -4,7 +4,7 @@ onboarding = false
 # Declarative channel. CLI invocation in run_onchange_before_15-install-herdr.sh.tmpl
 # guarantees the runtime state, this entry documents intent.
 [update]
-channel = "preview"
+channel = "stable"
 
 [terminal]
 default_shell = "bash"
@@ -267,3 +267,43 @@ key = "prefix+k"
 type = "pane"
 command = "seshagy --ephemeral"
 description = "seshagy session manager"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Files-and-git sidebar (alexarthurs/herdr-sidebar, installed by run_after_53).
+# A VS Code-style dockable pane: file explorer plus a source-control panel.
+# Its own settings modal persists dock side, width and theming, so the only
+# host-side config is this toggle. prefix+b was free here (herdr's default
+# sidebar binding is not declared in this file, and declared bindings win).
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+b"
+type = "plugin_action"
+command = "herdr-sidebar.open-sidebar"
+description = "sidebar: toggle files and source control"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Code-review pane (persiyanov/herdr-reviewr, installed by run_after_53). Its
+# config lives at dot_config/herdr/plugins/config/persiyanov.reviewr/, chezmoi-
+# managed: auto_open off, branch scope. cmd+r reaches herdr where alt+ chords
+# get swallowed by macOS terminals, and is free here.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "cmd+r"
+type = "plugin_action"
+command = "persiyanov.reviewr.toggle"
+description = "reviewr: toggle the code-review pane"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Workflow launcher (aorumbayev/herdr-workflows, installed by run_after_53).
+# The plugin's README puts its picker on prefix+k, which seshagy above already
+# holds; this declared binding on prefix+w is the one this machine uses, and
+# prefix+k stays seshagy's.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+w"
+type = "plugin_action"
+command = "herdr-workflows.launch"
+description = "workflows: launch a declared workflow"

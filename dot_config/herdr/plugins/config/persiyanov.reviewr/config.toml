@@ -1,0 +1,6 @@
+# reviewr (persiyanov/herdr-reviewr), installed by run_after_53. auto_open off
+# because the default opens reviewr in every worktree workspace, and worktrunk
+# creates worktrees constantly here; branch scope because worktree branches
+# against main is the diff that matters in this workflow.
+default_scope = "branch"
+auto_open = false
