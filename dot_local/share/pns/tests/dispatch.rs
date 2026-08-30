@@ -2246,6 +2246,13 @@ const FOCUS_OFF_LINE: &str =
 /// defaults ON and no daemon has ever written a beat here.
 const DAEMON_NEVER_RAN_LINE: &str = "pns doctor: the daemon is enabled and has not run yet";
 
+/// And what it says about the nag on a machine whose config has no `[nag]`
+/// table, which is every machine until an operator writes one: the feature
+/// ships OFF. It sits IMMEDIATELY BELOW the daemon's line, which is the whole
+/// mitigation for the one thing it does not say (a nag with a dead daemon never
+/// fires): the two read as one paragraph.
+const NAG_OFF_LINE: &str = "pns doctor: the nag is off (no `[nag] after_secs`)";
+
 /// And what it says about the lamps on a machine whose config has no `[lights]`
 /// table, which is every machine that never wrote one.
 const LIGHTS_OFF_LINE: &str =
@@ -2313,6 +2320,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
+            NAG_OFF_LINE,
             LIGHTS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
@@ -2585,6 +2593,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
+            NAG_OFF_LINE,
             LIGHTS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
@@ -6727,12 +6736,13 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // daemon that is down is not a fault either, so it reports here rather
     // than moving the exit code.
     assert_eq!(lines[summary + 4], DAEMON_NEVER_RAN_LINE, "{printed}");
-    // AND THE LAMPS BELOW THE GATE, on that same rule: the lights section
-    // reports without grading, so it sits under the check that can move the
-    // exit code and above the history.
-    assert_eq!(lines[summary + 5], LIGHTS_OFF_LINE, "{printed}");
+    // AND THE NAG IMMEDIATELY UNDER THE CLOCK, which is the placement that
+    // carries the one fact its own sentence leaves out: a nag with a dead daemon
+    // never fires, and the line above already says whether the daemon is up.
+    assert_eq!(lines[summary + 5], NAG_OFF_LINE, "{printed}");
+    assert_eq!(lines[summary + 6], LIGHTS_OFF_LINE, "{printed}");
     assert_eq!(
-        lines[summary + 6],
+        lines[summary + 7],
         format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );

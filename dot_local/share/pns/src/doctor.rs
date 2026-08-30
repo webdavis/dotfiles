@@ -615,6 +615,55 @@ pub fn daemon_line(
     }
 }
 
+/// The nag's own line in the doctor's tail run: what the schedule is, said in
+/// the unit the card will say it in.
+///
+/// IT REPORTS THE CONFIG ONLY AND DOES NOT GRADE THE DAEMON. A nag with a dead
+/// daemon never fires, which is a true and important thing to say, but
+/// `daemon_line` one row above already says the daemon is not running, from the
+/// heartbeat, and two lines deriving one fact is how they drift apart. THE
+/// PLACEMENT IS THE WHOLE MITIGATION: the two read as one paragraph.
+///
+/// IT DOES NOT MOVE THE EXIT CODE, for `focus_line`'s reason: a nag being off
+/// is not a fault, and the doctor's exit code is what an operator's automation
+/// reads as "notifications are broken".
+///
+/// TWO STATES AND NOT THREE. No table and `after_secs = 0` are the SAME
+/// statement in this config, so telling them apart here would be the doctor
+/// inventing a distinction the parser does not carry.
+pub fn nag_line(after_secs: u64) -> String {
+    match after_secs {
+        0 => format!("{PREFIX}the nag is off (no `[nag] after_secs`)"),
+        seconds => format!(
+            "{PREFIX}an unanswered approval is carded again after {}",
+            crate::nag::waited(seconds)
+        ),
+    }
+}
+
+#[cfg(test)]
+mod nag_tests {
+    use super::nag_line;
+
+    #[test]
+    fn the_nag_line_names_the_schedule_or_says_the_feature_is_off() {
+        assert_eq!(
+            nag_line(0),
+            "pns doctor: the nag is off (no `[nag] after_secs`)"
+        );
+        assert_eq!(
+            nag_line(300),
+            "pns doctor: an unanswered approval is carded again after 5m"
+        );
+        // THE SAME UNIT THE CARD USES, so "carded again after 30s" and "still
+        // waiting 30s" are one operator reading one number twice.
+        assert_eq!(
+            nag_line(30),
+            "pns doctor: an unanswered approval is carded again after 30s"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
