@@ -23,6 +23,22 @@ pub const SUCCESS_COLOR: PulseColor = PulseColor {
 
 pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 
+/// The two colours a needs-you signal alternates between: blue, and a
+/// green-blue near it.
+///
+/// NEITHER IS APPROVED YET, and that is the honest state rather than an
+/// oversight. Green and red above passed the only test a colour can pass,
+/// which is the operator looking at the lamp; these two have never been on a
+/// bulb. They are gamut-plausible values (the studio lamps report gamut C) and
+/// the drill's last step is the operator saying yes or naming others. A change
+/// afterwards is these two constants and nothing else.
+pub const NEEDS_YOU_COLOR: PulseColor = PulseColor {
+    x: 0.1532,
+    y: 0.0475,
+};
+
+pub const NEEDS_YOU_ALT_COLOR: PulseColor = PulseColor { x: 0.17, y: 0.2 };
+
 /// True when a session ran long enough to be worth a light pulse.
 ///
 /// An unreadable elapsed time or threshold is NOT long: unlike a dropped phone
@@ -35,28 +51,72 @@ pub fn session_was_long(elapsed_secs: Option<u64>, threshold_secs: Option<u64>) 
     elapsed_secs >= threshold_secs
 }
 
-/// The colour a pulse runs at for a given exit code.
+/// What a lamp says about a given exit code.
 ///
 /// ANYTHING that is not all zeroes is a failure, garbage included. An EMPTY
 /// code is the absent one: the shell version defaulted a missing argument to
 /// zero, so absent and empty both mean success and there is no third answer to
 /// give. Unproven success would be a failure, so a caller that cannot prove one
 /// passes something that is not all zeroes.
-pub fn pulse_color(exit_code: &str) -> PulseColor {
+///
+/// AN EXIT CODE HAS NO THIRD ANSWER. `pns pulse` and the long-command notifier
+/// know a number and nothing else, so they reach two of the five behaviours;
+/// the event path knows a STATE and reaches three, through `state_behaviour`.
+pub fn exit_behaviour(exit_code: &str) -> crate::config::Behaviour {
     // An empty code has no character that is not a zero, which is the absent
     // case taking the success branch.
     if exit_code.chars().all(|character| character == '0') {
-        SUCCESS_COLOR
+        crate::config::Behaviour::Done
     } else {
-        FAILURE_COLOR
+        crate::config::Behaviour::Failed
     }
+}
+
+/// The states that put a lamp on BLUE: an agent waiting on the operator.
+///
+/// FOUR WORDS, AND `missed_notifications::NEEDS_YOU` HAS FIVE. That constant
+/// is right to carry `failed`, because a turn that died needs the operator
+/// every bit as much as one that asked. The lamps must tell them apart: red
+/// says it died, blue says it is waiting, and reusing the shared list would
+/// paint every failure blue. This is the honest divergence rather than a
+/// silent one, and a test pins the two lists as differing by exactly that word.
+pub const LAMP_NEEDS_YOU: [&str; 4] = ["blocked", "asked", "plan-ready", "denied"];
+
+/// What a lamp says about an event's state, given whether this machine has a
+/// lamp map at all.
+///
+/// THE ONE MAPPING, stated here and read nowhere else. Everything that earns a
+/// pulse and is not a failure or a wait is green, which is the shipped rule:
+/// the event path used to ask whether the state was `failed` and hand the
+/// success branch an exit code of zero for everything else.
+///
+/// `lamps_are_mapped` IS THE `[lights]` TABLE'S PRESENCE, and blue exists only
+/// behind it. Without the map there is one room-shaped pulse and two colours,
+/// which is what has shipped since the bash; a long-running turn that ends
+/// `blocked` has earned a pulse all along and flashed GREEN for it. Turning
+/// that flash blue would be a new behaviour arriving on a machine that wrote no
+/// map and asked for nothing.
+///
+/// IT IS ONE ANSWER RATHER THAN A COLOUR AND A SEPARATE OPT-IN GATE. The
+/// composition root asks this once and reads the opt-in off the answer, so
+/// "which colour" and "may it fire at all" cannot come out disagreeing.
+pub fn state_behaviour(state: &str, lamps_are_mapped: bool) -> crate::config::Behaviour {
+    if state == "failed" {
+        return crate::config::Behaviour::Failed;
+    }
+    if lamps_are_mapped && LAMP_NEEDS_YOU.contains(&state) {
+        return crate::config::Behaviour::NeedsYou;
+    }
+    crate::config::Behaviour::Done
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_LONG_SESSION_SECS, FAILURE_COLOR, SUCCESS_COLOR, pulse_color, session_was_long,
+        DEFAULT_LONG_SESSION_SECS, FAILURE_COLOR, LAMP_NEEDS_YOU, SUCCESS_COLOR, exit_behaviour,
+        session_was_long, state_behaviour,
     };
+    use crate::config::Behaviour;
 
     // --- session_was_long --------------------------------------------------
 
@@ -95,35 +155,104 @@ mod tests {
         ));
     }
 
-    // --- pulse_color -------------------------------------------------------
+    // --- state_behaviour ---------------------------------------------------
 
     #[test]
-    fn a_zero_exit_code_pulses_the_green_gamut_corner() {
-        assert_eq!(pulse_color("0"), SUCCESS_COLOR);
+    fn every_needs_you_state_says_needs_you_and_a_failure_says_failed() {
+        // THE ONE MAPPING, and the reason the lights do not reuse
+        // `missed_notifications::NEEDS_YOU`: that list holds `failed`, which
+        // must read RED here. A lamp that painted a dead turn blue would tell
+        // the operator to come and answer a question nobody asked.
+        for state in ["blocked", "asked", "plan-ready", "denied"] {
+            assert_eq!(
+                state_behaviour(state, true),
+                Behaviour::NeedsYou,
+                "state {state:?} waits on the operator"
+            );
+        }
+        assert_eq!(state_behaviour("failed", true), Behaviour::Failed);
+        assert_eq!(state_behaviour("done", true), Behaviour::Done);
+    }
+
+    #[test]
+    fn a_state_the_lamps_have_no_word_for_reports_done() {
+        // EVERY OTHER STATE THAT EARNS A PULSE IS GREEN, which is the shipped
+        // rule: today the event path asks whether the state is `failed` and
+        // takes the success branch for everything else.
+        assert_eq!(state_behaviour("asking", true), Behaviour::Done);
+        assert_eq!(state_behaviour("", true), Behaviour::Done);
+    }
+
+    #[test]
+    fn the_lamps_needs_you_list_is_the_shared_one_minus_the_failure() {
+        // THE DIVERGENCE, PINNED. The two lists are deliberately different and
+        // the difference is exactly one word, so a sixth state joining the
+        // shared list cannot quietly leave the lamps behind, and nobody can
+        // "tidy" the lamps into reusing it.
+        let shared_minus_failed: Vec<&str> = crate::missed_notifications::NEEDS_YOU
+            .iter()
+            .copied()
+            .filter(|state| *state != "failed")
+            .collect();
+        let mut lamps = LAMP_NEEDS_YOU.to_vec();
+        lamps.sort_unstable();
+        assert_eq!(lamps, shared_minus_failed);
+    }
+
+    #[test]
+    fn without_a_lamp_map_a_waiting_agent_reports_done_exactly_as_it_did_before() {
+        // THE COMPATIBILITY EDGE, and it is a real event rather than a corner:
+        // a LONG-RUNNING turn that ends `blocked` has earned a pulse since the
+        // bash, and on a machine with no `[lights]` table it flashed green,
+        // because the event path asked one question ("is this failed?") and
+        // handed everything else the success branch.
+        //
+        // BLUE IS A FEATURE OF THE MAP, not of the state word. Without the map
+        // there is no third colour to show, no lamp that means "waiting" rather
+        // than "finished", and turning that flash blue would be a new behaviour
+        // arriving on a machine that asked for nothing.
+        for state in LAMP_NEEDS_YOU {
+            assert_eq!(
+                state_behaviour(state, false),
+                Behaviour::Done,
+                "state {state:?} with no map"
+            );
+            assert_eq!(state_behaviour(state, true), Behaviour::NeedsYou);
+        }
+        // The failure keeps its colour either way: red predates the map.
+        assert_eq!(state_behaviour("failed", false), Behaviour::Failed);
+        assert_eq!(state_behaviour("failed", true), Behaviour::Failed);
+    }
+
+    // --- exit_behaviour ----------------------------------------------------
+
+    #[test]
+    fn a_zero_exit_code_is_done_and_green_is_the_colour_it_carries() {
+        assert_eq!(exit_behaviour("0"), Behaviour::Done);
         assert_eq!(SUCCESS_COLOR.x, 0.2151);
         assert_eq!(SUCCESS_COLOR.y, 0.7106);
     }
 
     #[test]
-    fn a_non_zero_exit_code_pulses_the_red_gamut_corner() {
-        assert_eq!(pulse_color("1"), FAILURE_COLOR);
+    fn a_non_zero_exit_code_is_failed_and_red_is_the_colour_it_carries() {
+        assert_eq!(exit_behaviour("1"), Behaviour::Failed);
         assert_eq!(FAILURE_COLOR.x, 0.675);
         assert_eq!(FAILURE_COLOR.y, 0.322);
     }
 
     #[test]
-    fn an_exit_code_that_is_not_a_number_pulses_red_rather_than_aborting_the_pulse() {
-        assert_eq!(pulse_color("oops"), FAILURE_COLOR);
+    fn an_exit_code_that_is_not_a_number_is_failed_rather_than_aborting_the_pulse() {
+        assert_eq!(exit_behaviour("oops"), Behaviour::Failed);
     }
 
     #[test]
     fn a_padded_zero_is_still_a_success() {
-        assert_eq!(pulse_color("00"), SUCCESS_COLOR);
+        assert_eq!(exit_behaviour("00"), Behaviour::Done);
     }
 
     #[test]
-    fn a_signed_zero_is_not_all_zeroes_so_it_pulses_red() {
-        assert_eq!(pulse_color("-0"), FAILURE_COLOR);
+    fn a_signed_zero_is_not_all_zeroes_so_it_is_failed() {
+        assert_eq!(exit_behaviour("-0"), Behaviour::Failed);
     }
 
     #[test]
@@ -131,14 +260,14 @@ mod tests {
         // Tolerating padding is the obvious kindness and it inverts the fail
         // direction: unproven success has to pulse red, so only a code that
         // reads as plainly zero earns green.
-        assert_eq!(pulse_color(" 0"), FAILURE_COLOR);
-        assert_eq!(pulse_color("0\n"), FAILURE_COLOR);
+        assert_eq!(exit_behaviour(" 0"), Behaviour::Failed);
+        assert_eq!(exit_behaviour("0\n"), Behaviour::Failed);
     }
 
     #[test]
     fn an_absent_exit_code_arrives_as_empty_and_takes_the_success_branch() {
         // The shell version reads a missing argument as zero, so absent and
         // empty are the same input and there is no third answer to give.
-        assert_eq!(pulse_color(""), SUCCESS_COLOR);
+        assert_eq!(exit_behaviour(""), Behaviour::Done);
     }
 }

@@ -68,6 +68,17 @@ pub struct Overrides {
 }
 
 impl Overrides {
+    /// The operator told everything to be quiet: their own typed mute, or a
+    /// macOS Focus they named in `[focus] silence`.
+    ///
+    /// ONE CONDITION, ONE SPELLING. The arbitration below is its first reader
+    /// and the lights' own gate at the composition root is its second, and two
+    /// copies of "is this event silenced" are how the two come to disagree
+    /// about a lamp the operator muted.
+    pub fn silenced(&self) -> bool {
+        self.muted || self.focus_active
+    }
+
     /// Parse the PNS_* and PNS_* variables out of an environment map.
     pub fn from_env(vars: &BTreeMap<String, String>) -> Self {
         // A present-but-garbled value is reported alongside the None, so the
@@ -195,7 +206,7 @@ where
     // A FULL STRUCT LITERAL WITH NO `..delivery`, deliberately: it is what
     // forces a future field of `DeliveryPlan` to state its own answer here
     // rather than inherit an unmuted one. Do not tidy it into a struct update.
-    let delivery = if overrides.muted || overrides.focus_active {
+    let delivery = if overrides.silenced() {
         crate::surface::DeliveryPlan {
             banner: false,
             phone_card: false,

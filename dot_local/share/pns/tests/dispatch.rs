@@ -1167,19 +1167,35 @@ fn window_around(centre: u16, radius: u16) -> String {
 
 #[test]
 fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
-    // A GUARD, not a red-first test, and it is the compatibility claim of this
-    // whole change: the `[lights]` table adds a config surface and a doctor
-    // section, and NOTHING about a notification moves. Its job is to keep
-    // passing, and to fail the day something starts signalling differently
-    // before the PR that means to.
+    // A GUARD, not a red-first test, and it says what it still covers rather
+    // than what it once did. With a `[lights]` table an ordinary long-running
+    // notification no longer takes the `[plugins.hue] rooms` path at all: it
+    // resolves the map on the bridge and writes per lamp, which is one or two
+    // GETs and a PUT each where it used to be one group PUT. So "nothing
+    // moves" is no longer true of the wire.
+    //
+    // WHAT IT STILL PINS, and what it fails on the day one of them moves: the
+    // stdout, the stderr, the exit code, the SET OF LEGS that fired, and that
+    // the bridge is still reached at all. The legs are here because a dial is
+    // a single boolean and a table that quietly cost the operator their card
+    // would pass a test that only asked whether a bulb was addressed.
     let outcome = |name: &str, lights: &str| {
         let (listener, port) = bridge_spy();
         let sandbox = Sandbox::new(name);
+        // BOTH REPORTING LEGS ARE ENABLED, so the comparison below runs
+        // against a baseline where something other than a bulb is live: a
+        // table that cost the operator their card would otherwise sit inside
+        // a leg nobody switched on.
         sandbox.write_config(&format!(
             "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
-             rooms = [\"3F - Studio\"]\n[plugins.hermes]\nenabled = true\n{lights}"
+             rooms = [\"3F - Studio\"]\n[plugins.moshi]\nenabled = true\n\
+             [plugins.hermes]\nenabled = true\n{lights}"
         ));
         let mut command = sandbox.pns();
+        // POINTS NOWHERE, as it does in every binary case here: the operator's
+        // own moshi daemon is a real program on this machine and no test may
+        // reach it.
+        command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
         sandbox.stub_herdr(&mut command, false);
         // ACCEPTED WHILE THE CHILD IS STILL RUNNING, which is what keeps this
         // fast: the spy hangs up the moment it accepts, so the engine's TLS
@@ -1202,14 +1218,18 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
             scrub(stderr(&output)),
             output.status.code(),
             dialled,
-            sandbox.fired("hermes"),
+            // EVERY LEG THIS EVENT COULD REACH, named rather than counted, so
+            // a table that swapped one destination for another cannot pass.
+            ["moshi", "hermes", "macos-banner"].map(|leg| sandbox.fired(leg)),
         )
     };
     let without_a_table = outcome("lights-guard-without-a-table", "");
-    assert!(
-        without_a_table.3 && without_a_table.4,
-        "the comparison only means something if this event really does light the \
-         room and really does dispatch a leg: {without_a_table:?}"
+    assert_eq!(
+        (without_a_table.3, without_a_table.4),
+        (true, [true, true, false]),
+        "the comparison only means something against a live baseline: this event \
+         really does light the room, really does reach the phone and the durable \
+         log, and really does leave the banner alone: {without_a_table:?}"
     );
     assert_eq!(
         without_a_table,
@@ -1221,7 +1241,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
              [lights.places.\"3F - Studio\"]\nskip = [\"breathing\"]\n",
         ),
         "same stdout, same stderr, same exit code, the bridge dialled either way, \
-         and every other leg untouched"
+         and the same legs fired"
     );
 }
 
@@ -1383,6 +1403,256 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
         wait_bounded(child, std::time::Duration::from_secs(5)),
         Some(0),
         "on the exit-zero edge either way"
+    );
+}
+
+// --- the lamps: which lamp, and what colour ---------------------------------
+
+/// The studio map this repo actually ships, as a config fragment: `local`
+/// holds the room minus HCL3, which the other two families take.
+const STUDIO_MAP: &str = "[lights]\nrefresh_secs = 20\n\
+     [lights.families.local]\nrooms = [\"3F - Studio\"]\n\
+     except = [\"3F - Studio - HCL3\"]\n";
+
+/// One event against a spy bridge: whether the bridge was dialled, and whether
+/// the two network legs fired.
+///
+/// `MOSHI_HOOK_BIN` POINTS NOWHERE, in every case, without exception. The
+/// operator's own moshi daemon is a real program on this machine and no test
+/// may reach it; the sandbox's channel stubs cover the leg, and this covers the
+/// native path that resolves the binary by name.
+fn lamp_run(
+    name: &str,
+    hue_extra: &str,
+    config: &str,
+    args: &[&str],
+    mute: bool,
+) -> (bool, bool, bool, Option<i32>) {
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new(name);
+    // `hue_extra` GOES INSIDE `[plugins.hue]` and the rest comes after every
+    // plugin table, because a bare key in a TOML file belongs to whichever
+    // table was opened last: appending `quiet_hours` to the end of this put it
+    // in `[plugins.hermes]`, where nothing reads it and nothing complains.
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+         rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.moshi]\nenabled = true\n\
+         [plugins.hermes]\nenabled = true\n{config}"
+    ));
+    if mute {
+        // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
+        // type rather than by writing its state file here: `HOME` is the
+        // sandbox, so the expiry lands inside it and no other test can see it.
+        let armed = run(sandbox.pns().args(["quiet", "1h"]));
+        assert_eq!(
+            armed.status.code(),
+            Some(0),
+            "the mute is armed before the event: {}",
+            stderr(&armed)
+        );
+    }
+    let mut command = sandbox.pns();
+    command.env("TZ", "UTC");
+    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    sandbox.stub_herdr(&mut command, false);
+    let mut child = command
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the engine starts");
+    // ACCEPTED WHILE THE CHILD IS STILL RUNNING, which is what keeps a dial
+    // fast: the spy hangs up the moment it accepts, so the engine's TLS
+    // handshake fails at once instead of waiting out the ten-second bridge
+    // deadline. AND IT STOPS AT THE CHILD'S EXIT rather than at a fixed
+    // deadline, so a case that expects NO dial costs the child's own runtime
+    // instead of five seconds of waiting for something that was never coming.
+    let started = std::time::Instant::now();
+    let dialled = loop {
+        if listener.accept().is_ok() {
+            break true;
+        }
+        if child.try_wait().expect("the child is waitable").is_some() {
+            // A connection opened just before the exit is sitting in the accept
+            // queue, so the answer is only settled after one more look.
+            break dialled_within(&listener, SETTLE);
+        }
+        // AND THE POLL HAS A CEILING, because its two exits are a dial and an
+        // exit: a child that manages neither would otherwise park the whole
+        // suite until somebody killed the runner by hand. The cases here
+        // finish in under a second, so nothing legitimate is anywhere near
+        // this, and a suite that reports a named failure is worth more than
+        // one that hangs.
+        if started.elapsed() >= LAMP_DEADLINE {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("{name}: the engine neither dialled nor exited within {LAMP_DEADLINE:?}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    let status = child
+        .wait_with_output()
+        .expect("the child is waitable")
+        .status;
+    (
+        dialled,
+        sandbox.fired("moshi"),
+        sandbox.fired("hermes"),
+        status.code(),
+    )
+}
+
+/// The ceiling on one lamp case, and it is a SUITE SAFETY NET rather than a
+/// measurement: these cases finish in well under a second, so a child anywhere
+/// near this has stopped making progress.
+const LAMP_DEADLINE: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// The operator's typed mute, armed or not, which is `lamp_run`'s last
+/// argument: a bare `true` at a call site says nothing about what it decides.
+const MUTED: bool = true;
+const UNMUTED: bool = false;
+
+/// A long-running `done`: the event that has earned a pulse since the bash.
+const LONG_DONE: [&str; 8] = [
+    "--agent", "claude", "--state", "done", "--detail", "x", "--pane", "t1:p2",
+];
+
+/// A `blocked` turn: an agent waiting on the operator, which earns no pulse on
+/// main at any length.
+const BLOCKED: [&str; 8] = [
+    "--agent", "claude", "--state", "blocked", "--detail", "x", "--pane", "t1:p2",
+];
+
+#[test]
+fn without_a_lights_table_nothing_new_reaches_the_bridge() {
+    // A GUARD, not a red-first test, and it is the compatibility claim of the
+    // whole PR: a machine that never wrote a `[lights]` table keeps exactly the
+    // pulse it has always had. The long-running event still lights the room,
+    // and the blocked turn, which is the new behaviour, does NOT, because the
+    // opt-in it needs is the table that is not there.
+    let long_running: Vec<&str> = LONG_DONE
+        .iter()
+        .copied()
+        .chain(["--long-running"])
+        .collect();
+    assert_eq!(
+        lamp_run("lamps-no-table-long-done", "", "", &long_running, UNMUTED),
+        (true, true, true, Some(0)),
+        "the shipped pulse: a long command lights the room and both legs fire"
+    );
+    assert_eq!(
+        lamp_run("lamps-no-table-blocked", "", "", &BLOCKED, UNMUTED),
+        (false, true, true, Some(0)),
+        "and a blocked turn reaches no bridge at all without the table"
+    );
+}
+
+#[test]
+fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
+    // THE TEST THAT PROVES THE FEATURE EXISTS END TO END. On main the only
+    // pulse gate is `plan.pulse`, which is `long_running`, so a blocked agent
+    // shows the operator nothing on a bulb however long it waits. With the map
+    // written, the blue lamp is its own gate.
+    //
+    // WHAT A DIAL CAN PROVE HERE, and the hard limit: the transport is HTTPS
+    // with verification disabled and this spy is a plain TCP listener that
+    // hangs up, so a binary test can show THAT the bridge was reached and never
+    // WHAT was written. Every body, colour and path assertion is a unit test
+    // through the `Bridge` trait.
+    assert_eq!(
+        lamp_run("lamps-map-blocked", "", STUDIO_MAP, &BLOCKED, UNMUTED),
+        (true, true, true, Some(0)),
+        "the map is written, so a waiting agent reaches the bridge"
+    );
+}
+
+#[test]
+fn an_event_whose_every_place_is_asleep_reaches_no_bridge_and_costs_no_leg() {
+    // The shipped whole-pulse property at the new granularity: the lamps are
+    // muted and NOTHING else is, so the card and the durable log still report a
+    // long command at any hour.
+    //
+    // AND IT REACHES NO NETWORK AT ALL, which is the part a per-fixture filter
+    // could have quietly lost: resolving the map costs a GET, and a house whose
+    // every window covers this minute has nothing that GET could light.
+    let asleep = window_around(utc_minute_now(), 120);
+    let long_running: Vec<&str> = LONG_DONE
+        .iter()
+        .copied()
+        .chain(["--long-running"])
+        .collect();
+    assert_eq!(
+        lamp_run(
+            "lamps-every-place-asleep",
+            &format!("quiet_hours = \"{asleep}\"\n"),
+            &format!(
+                "{STUDIO_MAP}[lights.places.\"3F - Studio\"]\n\
+                 quiet_hours = \"{asleep}\"\n"
+            ),
+            &long_running,
+            UNMUTED,
+        ),
+        (false, true, true, Some(0)),
+        "every lamp asleep: no dial, and both legs still fire"
+    );
+}
+
+#[test]
+fn a_house_window_nobody_can_parse_still_lets_a_place_with_its_own_hours_signal() {
+    // THE HOUSE WINDOW IS THE LAST RUNG OF THE CHAIN, not a gate in front of
+    // it. `[plugins.hue] quiet_hours` used to be parsed before the `[lights]`
+    // branch was reached, so one typo there took every lamp dark however
+    // carefully its own place had been written. A lamp whose room states hours
+    // it can read, and is awake inside them, never consults the house at all.
+    //
+    // THE NO-TABLE SIBLING IS ITS OWN TEST and it still holds:
+    // `a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`
+    // pins the whole-pulse refusal for a machine that wrote no `[lights]`
+    // table, which is the compatibility contract this must not move.
+    let awake = window_around((utc_minute_now() + 720) % 1440, 120);
+    assert_eq!(
+        lamp_run(
+            "lamps-house-window-unreadable",
+            "quiet_hours = \"10pm-7am\"\n",
+            &format!(
+                "{STUDIO_MAP}[lights.places.\"3F - Studio\"]\n\
+                 quiet_hours = \"{awake}\"\n"
+            ),
+            &BLOCKED,
+            UNMUTED,
+        ),
+        (true, true, true, Some(0)),
+        "the room's own window is readable and awake, so the lamp signals \
+         whatever the house key says"
+    );
+}
+
+#[test]
+fn the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else() {
+    // THE ONE NEW CONDITION `plan.pulse` DOES NOT ALREADY COVER. Arbitration
+    // zeroes the plan's pulse for a muted event, so every other lamp in this
+    // slice is muted by that alone; the blue one earns its own gate at the
+    // composition root, off the map rather than off the plan, and that gate is
+    // the only place the two answers can come out disagreeing about a lamp the
+    // operator switched off.
+    //
+    // TYPED, NOT INJECTED: the mute is armed by running `pns quiet 1h` in the
+    // same sandbox, which is the path an operator walks at bedtime.
+    assert_eq!(
+        lamp_run("lamps-map-blocked-muted", "", STUDIO_MAP, &BLOCKED, MUTED),
+        (false, false, true, Some(0)),
+        "muted: no lamp, no card, and the durable log still keeps the event"
+    );
+    assert_eq!(
+        lamp_run(
+            "lamps-map-blocked-unmuted",
+            "",
+            STUDIO_MAP,
+            &BLOCKED,
+            UNMUTED
+        ),
+        (true, true, true, Some(0)),
+        "unmuted control: the same event, the same map, and the lamp lights"
     );
 }
 
