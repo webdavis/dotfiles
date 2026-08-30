@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.pns-daemon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ .chezmoi.homeDir }}/.local/libexec/pns/pns</string>
+    <string>daemon</string>
+    <string>run</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- RESTART ONLY ON A CRASH, unlike the atuin and happy daemons' bare
+       KeepAlive true. `[daemon] enabled = false` makes this job exit 0 on
+       purpose, and under a bare true that clean exit is relaunched every ten
+       seconds forever, which is the atuin restart-loop bug (its own plist
+       records ~6000 attempts in production) reproduced deliberately. With
+       SuccessfulExit false, an exit 0 stays exited and a crash still restarts.
+       RunAtLoad has to be stated above because the implication that comes with
+       bare KeepAlive true does not survive the dictionary form. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <!-- STATED AT THE DEFAULT rather than left to it. This is the number that
+       decides how fast a crash-looping daemon burns, it is invisible when
+       omitted, and a reader of this plist should not have to know the man page
+       to see it. -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/pns-daemon.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/pns-daemon.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+    <!-- A bootstrapped job gets PATH=/usr/bin:/bin:/usr/sbin:/sbin and no
+         Homebrew, and every job this daemon runs is a re-execution of pns that
+         wants to find the same tools its hook-path self finds. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

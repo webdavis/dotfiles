@@ -418,6 +418,7 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.homebrew-weekly-upgrade`             | weekly unattended `brew upgrade`, reported to the log route |
 | `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)         |
 | `com.webdavis.report-plugin-updates`               | weekly record of what Claude Code auto-updated              |
+| `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events              |
 | `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                                     |
 | `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider                   |
 | `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                        |
