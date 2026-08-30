@@ -438,6 +438,7 @@
 {{- $merged = setValueAtPath "skillOverrides.json-canvas" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.kubernetes-specialist" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.last30days" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.lavish" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.lobster" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.media-use" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.motion-graphics" "user-invocable-only" $merged -}}

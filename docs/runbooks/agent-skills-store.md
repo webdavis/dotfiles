@@ -1,6 +1,6 @@
 # Agent skills: the cross-harness store
 
-`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code for the
+`~/.agents/skills` is the single canonical skills store (37 roster skills). It serves Claude Code for the
 roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
 `private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
 hermes for exactly the store-symlink subset of the delivery model below
@@ -14,7 +14,7 @@ ever disagree.
 ```mermaid
 flowchart LR
   subgraph provenance["Provenance lanes (dot_agents/custom-skill-lock.json)"]
-    NPX["npxTracked, 28<br/>npx skills add, GitHub"]
+    NPX["npxTracked, 29<br/>npx skills add, GitHub"]
     CLAW["clawhubTracked, 3<br/>clawhub update, ClawHub"]
     VEND["forks + vendored, 4<br/>dot_agents/skills, chezmoi apply"]
     APP["app-owned, 1<br/>cua-driver skills update"]
@@ -42,7 +42,7 @@ live in `dot_agents/custom-skill-lock.json`, which is the thing to read for any 
 
 The lock at `dot_agents/custom-skill-lock.json` records it.
 
-### npx-tracked (the `npxTracked` table, 28 skills)
+### npx-tracked (the `npxTracked` table, 29 skills)
 
 The store copy is installed and refreshed by the official npx `skills` CLI from an official GitHub
 upstream, latest from `main` (no pin).
@@ -76,6 +76,11 @@ finding-triage rubric, the LLM and Agentic AI lists, and ASVS 5.0 requirement id
 executable code. Its README installs with `npx degit` straight into `~/.claude/skills/`, which would land
 a real directory beside the symlink declarations and reach Claude Code only; the npx lane sources the
 same repo, so it goes here instead and gets a refresh path the degit copy would not have.
+
+Also includes `lavish` (from `kunchenguid/lavish-axi`): a stub that teaches the agent to run
+`npx -y lavish-axi`, which opens an agent-written HTML artifact in a browser for element and text-range
+annotation and sends the feedback back. Nothing is installed for it, the CLI is fetched per run, so the
+stub cannot go stale against a newer release.
 
 ### ClawHub-tracked (the `clawhubTracked` table, 3 skills)
 

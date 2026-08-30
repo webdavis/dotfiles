@@ -25,6 +25,7 @@
     "json-canvas": "on-demand",
     "kubernetes-specialist": "on-demand",
     "last30days": "on-demand",
+    "lavish": "on-demand",
     "lobster": "on-demand",
     "media-use": "on-demand",
     "moshi": "core",
@@ -80,6 +81,7 @@
     "last30days": [
       "concerned"
     ],
+    "lavish": [],
     "lobster": [
       "default",
       "elaine"
@@ -248,6 +250,9 @@
     },
     "last30days": {
       "repo": "mvanhorn/last30days-skill"
+    },
+    "lavish": {
+      "repo": "kunchenguid/lavish-axi"
     },
     "lobster": {
       "repo": "guwidoe/lobster-skill"
