@@ -45,6 +45,15 @@ pub struct Record<'a> {
     /// What each dispatched leg's channel had to say. Empty is a plan that
     /// reached no channel at all, which is the case this log exists for.
     pub legs: &'a [(Leg, Delivery)],
+    /// Whether this line is a NUDGE about an approval already recorded rather
+    /// than the approval's own first card.
+    ///
+    /// WITHOUT IT THE RING HOLDS TWO INDISTINGUISHABLE LINES. One prompt that
+    /// went unanswered leaves two `claude/blocked` entries differing in nothing
+    /// an operator can see, and "why did I get two cards for one prompt" is the
+    /// exact question this log exists to answer. It is a BOOLEAN and no free
+    /// text is added, so the file's privacy rule is untouched.
+    pub nag: bool,
 }
 
 /// One decision as one line: `<epoch> <key=value ...>`.
@@ -73,6 +82,7 @@ pub fn line(record: &Record) -> String {
          session_visibility={session_visibility:?} \
          desk_age={desk_age} phone_age={phone_age} tap_age={tap_age} \
          locked={locked} fresh_window={fresh_window} long_running={long_running} \
+         nag={nag} \
          local_only={local_only} remote_only={remote_only} \
          pane={pane} pane_dropped={pane_dropped} watch_card={watch_card} \
          muted={muted} focus={focus} skip_phone={skip_phone} force_phone={force_phone} \
@@ -95,6 +105,7 @@ pub fn line(record: &Record) -> String {
         locked = tri(inputs.screen_locked),
         fresh_window = count(inputs.desk_fresh_secs),
         long_running = yes_no(inputs.long_running),
+        nag = yes_no(record.nag),
         local_only = yes_no(inputs.local_only),
         remote_only = yes_no(inputs.remote_only),
         // THE PANE AS THE DECISION USED IT and no further: its value is a
@@ -403,10 +414,11 @@ mod tests {
                 decision: &plain,
                 overrides: &overrides,
                 legs: &[],
+                nag: false,
             }),
             "1756500000 claude/blocked surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=no \
-             fresh_window=120 long_running=no local_only=no remote_only=no pane=present \
+             fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
              pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
              plan=banner:no,card:no,pulse:no legs=none"
@@ -425,10 +437,11 @@ mod tests {
                 decision: &unread_lock,
                 overrides: &overrides,
                 legs: &[],
+                nag: false,
             }),
             "1756500000 claude/blocked surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=none \
-             fresh_window=120 long_running=no local_only=no remote_only=no pane=present \
+             fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
              pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
              plan=banner:no,card:no,pulse:no legs=none"
@@ -449,6 +462,7 @@ mod tests {
             decision: &decision,
             overrides: &Overrides::default(),
             legs: &[],
+            nag: false,
         });
         assert!(
             recorded.starts_with("- claude/blocked "),
@@ -485,6 +499,7 @@ mod tests {
             decision: &decision,
             overrides: &Overrides::default(),
             legs: &[],
+            nag: false,
         });
         for content in [
             "SECRETPROJECT",
@@ -523,6 +538,7 @@ mod tests {
                 decision: &decision,
                 overrides: &Overrides::default(),
                 legs: &[],
+                nag: false,
             });
             recorded
                 .split_whitespace()
@@ -627,6 +643,7 @@ mod tests {
             decision: &carded,
             overrides: &Overrides::default(),
             legs: &legs,
+            nag: false,
         });
         assert!(
             recorded.ends_with(
@@ -650,6 +667,7 @@ mod tests {
             decision: &decision(inputs()),
             overrides: &Overrides::default(),
             legs: &[],
+            nag: false,
         });
         assert!(
             recorded.ends_with(" plan=banner:no,card:no,pulse:no legs=none"),

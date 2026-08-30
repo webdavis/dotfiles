@@ -1720,6 +1720,10 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     // card and still answers it; only pns's own duplicate notification about
     // that block goes quiet.
     let sandbox = Sandbox::new("hook-blocked-muted");
+    // The three stub channels named explicitly, plus the nag scheduled: the
+    // second half of this test is the MIRROR case, and a nudge needs a schedule
+    // to exist at all.
+    sandbox.write_config(&nag_config(300));
     let mut command = with_state_dir(&sandbox);
     // Away, so the phone is the only way to answer at all.
     command.env("PNS_IDLE_SECS", "99999");
@@ -1765,6 +1769,35 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
             .trim()
             == expiry.to_string(),
         "the mute is untouched by the event it did not suppress"
+    );
+
+    // AND THE MIRROR CASE, extended here rather than written as a sibling: a
+    // NUDGE about that same approval is INFORMATIONAL, so the mute that cannot
+    // touch the approval holds the nudge's banner and phone card back
+    // completely. The nudge is gated through the same `decide` call as any other
+    // event rather than through a second rule, which is why this is one more
+    // paragraph in this test instead of a second one.
+    //
+    // A SUPPRESSED NUDGE IS LOST, deliberately: nothing here is journaled for
+    // replay, because a "still waiting" card replayed hours later about a
+    // question long since answered is worse than silence.
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "may I", "wW:p21");
+    support::run(&mut nag(&sandbox));
+    assert_eq!(
+        deliveries(&sandbox, "macos-banner"),
+        0,
+        "a muted operator gets no banner about a nudge"
+    );
+    assert_eq!(
+        deliveries(&sandbox, "moshi"),
+        0,
+        "and no phone card either: escalation is not an exemption"
+    );
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "while the durable log is never muted, for a nudge any more than for the approval"
     );
 }
 
@@ -2748,4 +2781,939 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
         marker(&sandbox, "s1").exists(),
         "the new turn's clock must survive the previous Stop finishing"
     );
+}
+
+// --- the nag ----------------------------------------------------------------
+//
+// The feature's own harness. A record is written BY HAND here rather than
+// through `pns::nag::render`, so the on-disk form is pinned by something other
+// than the writer under test, and the channel stubs COUNT their invocations,
+// because "exactly one card" is the property most of these behaviors turn on.
+
+/// The three stub channels enabled, plus the nag scheduled (or, at zero, off).
+fn nag_config(after_secs: u64) -> String {
+    format!(
+        "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n\
+         [plugins.macos-banner]\nenabled = true\n[nag]\nafter_secs = {after_secs}\n"
+    )
+}
+
+/// Channels that record the last event AND count how many arrived.
+///
+/// THE COUNT IS THE POINT. `Sandbox::new`'s stub truncates, so two deliveries
+/// leave one file and "exactly one card" is unfalsifiable through it. One byte
+/// appended per invocation answers the question the coalescing ruling asks.
+fn counted_channels(sandbox: &Sandbox) {
+    for channel in ["moshi", "hermes", "macos-banner"] {
+        sandbox.stub_channel(
+            channel,
+            &format!(
+                "printf 'x' >>\"{s}/{channel}.count\"; cat >\"{s}/{channel}.event\"",
+                s = sandbox.display()
+            ),
+        );
+    }
+}
+
+/// How many events one counted channel was handed.
+fn deliveries(sandbox: &Sandbox, channel: &str) -> usize {
+    std::fs::read_to_string(sandbox.path(&format!("{channel}.count")))
+        .unwrap_or_default()
+        .len()
+}
+
+fn nag_record(sandbox: &Sandbox, session: &str) -> std::path::PathBuf {
+    sandbox.path(&format!("state/nag/{session}.pending"))
+}
+
+fn nag_marker(sandbox: &Sandbox, session: &str) -> std::path::PathBuf {
+    sandbox.path(&format!("state/daemon-markers/nag-{session}"))
+}
+
+/// Every name the nag directory holds, which is how a test sees the working
+/// files a fire is supposed to clean up after itself.
+fn nag_directory_names(sandbox: &Sandbox) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(sandbox.path("state/nag"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+fn epoch_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+}
+
+/// One outstanding approval on disk, armed `waited` seconds ago.
+fn write_record(sandbox: &Sandbox, session: &str, waited: u64, detail: &str, pane: &str) {
+    write_record_at(sandbox, session, epoch_now() - waited, detail, pane);
+}
+
+/// The same, at an epoch the caller states, which is how a record armed in the
+/// FUTURE is written.
+fn write_record_at(sandbox: &Sandbox, session: &str, armed: u64, detail: &str, pane: &str) {
+    let path = nag_record(sandbox, session);
+    std::fs::create_dir_all(path.parent().expect("the nag directory")).expect("the nag directory");
+    std::fs::write(
+        &path,
+        serde_json::json!({
+            "agent": "claude",
+            "project": "dotfiles",
+            "branch": "",
+            "detail": detail,
+            "pane": pane,
+            "armed": armed,
+        })
+        .to_string(),
+    )
+    .expect("the record");
+}
+
+fn write_marker(sandbox: &Sandbox, session: &str) {
+    let path = nag_marker(sandbox, session);
+    std::fs::create_dir_all(path.parent().expect("the marker directory")).expect("markers");
+    std::fs::write(&path, "").expect("the marker");
+}
+
+/// `pns nag`, against this sandbox's own state directory and stubs.
+fn nag(sandbox: &Sandbox) -> Command {
+    let mut command = sandbox.pns_stateful();
+    command.arg("nag");
+    command
+}
+
+#[test]
+fn an_unanswered_approval_is_nudged_once_through_the_ordinary_paths() {
+    let sandbox = Sandbox::new("nag-one-waiting");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+
+    let output = support::run(&mut nag(&sandbox));
+
+    assert_eq!(deliveries(&sandbox, "hermes"), 1, "exactly one card");
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["state"], "blocked",
+        "the state word stays `blocked`, or the card falls out of the recap's needs-you section"
+    );
+    assert_eq!(event["agent"], "claude");
+    assert_eq!(event["project"], "dotfiles");
+    let detail = event["detail"].as_str().expect("a detail");
+    assert!(
+        detail.starts_with("still waiting ") && detail.ends_with("Bash: cargo test"),
+        "the card says how long and what was asked: {detail}"
+    );
+    assert_eq!(
+        event["pane"], "wW:p21",
+        "the recorded pane, so a banner click still lands on the waiting pane"
+    );
+    assert!(
+        !nag_record(&sandbox, "s1").exists(),
+        "the record is consumed by the fire that spent its one nudge"
+    );
+    assert!(
+        nag_marker(&sandbox, "s1").exists(),
+        "and the marker is what makes its own job drop silently"
+    );
+    // ATTEMPTED, NEVER SENT. `run_event` answers nothing about delivery, so
+    // this mode cannot know whether a leg fired: a muted operator, or one
+    // inside a named Focus, gets no banner and no phone card at all. The drill
+    // reads this line, and bug class 19 is exactly an action reported as done
+    // when it was suppressed.
+    assert!(
+        support::stdout(&output).contains("1 waiting; one card attempted"),
+        "the fire says what it did and never more: {}",
+        support::stdout(&output)
+    );
+    // AND THE FIRE CLEANS UP AFTER ITSELF. Its working files are the record
+    // claims it held and the claim on the window itself; leaving either makes
+    // one file per nudge, forever, and the accepted risk covers only what a
+    // CRASH mid-fire strands.
+    assert_eq!(
+        nag_directory_names(&sandbox),
+        Vec::<String>::new(),
+        "no record claim and no fire claim outlives the fire that took them"
+    );
+}
+
+#[test]
+fn a_second_fire_nudges_nothing() {
+    // THE ONE-NUDGE-MAXIMUM PIN: the first fire CONSUMES the record, so there
+    // is nothing left for a second fire to read.
+    //
+    // WHAT IT DOES NOT PIN, said here because the mutation record used to claim
+    // otherwise: this test does not kill the rename. A fire that read each
+    // record in place and removed it afterwards, with no claim at all, passes
+    // every test in this suite (measured by two reviewers independently). The
+    // rename is what arbitrates between processes, and a suite of
+    // single-process fires cannot see it. The property that IS pinned by a test
+    // is the fire-window claim above it, which is where two processes are
+    // actually run.
+    let sandbox = Sandbox::new("nag-second-fire");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+
+    support::run(&mut nag(&sandbox));
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+
+    let second = support::run(&mut nag(&sandbox));
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "one approval earns exactly one nudge, whatever fires afterwards"
+    );
+    assert!(support::stdout(&second).contains("nothing is waiting"));
+}
+
+#[test]
+fn three_unanswered_approvals_produce_one_card_that_says_three() {
+    // THE OPERATOR'S COALESCING RULING. A per-record loop delivers three cards,
+    // which is precisely the stacking this forbids, and the three MARKERS are
+    // what silence the two sibling jobs when their own timers come round.
+    let sandbox = Sandbox::new("nag-coalesce");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+    // 480 RATHER THAN 600, and the slack is the point twice over. The staleness
+    // cap is 2 * after_secs = 600, so a record armed at exactly the cap goes
+    // STALE if the fire's own clock read lands one second later than the
+    // fixture's, which under a loaded parallel suite it does. And 480 through
+    // 539 all read "8m", so the sentence does not turn over either.
+    write_record(&sandbox, "s2", 480, "Write: config.toml", "wW:p22");
+    write_record(&sandbox, "s3", 120, "Edit: main.rs", "wW:p23");
+    // A FOURTH RECORD THAT IS ALREADY ANSWERED, so the fire ENUMERATES four and
+    // CLAIMS three. Without it the two counts agree and a card built from the
+    // wrong one reads correctly by accident; with it, a count taken off the
+    // directory listing says four and lies to the operator about how many
+    // questions are actually waiting.
+    write_record(&sandbox, "s4", 240, "Read: secrets", "wW:p24");
+    write_marker(&sandbox, "s4");
+
+    support::run(&mut nag(&sandbox));
+
+    assert_eq!(deliveries(&sandbox, "hermes"), 1, "one card, never three");
+    let detail = sandbox.event("hermes")["detail"]
+        .as_str()
+        .expect("a detail")
+        .to_string();
+    assert_eq!(detail, "3 approvals waiting, oldest 8m");
+    for question in ["cargo test", "config.toml", "main.rs"] {
+        assert!(
+            !detail.contains(question),
+            "a coalesced card names no single question: {detail}"
+        );
+    }
+    for session in ["s1", "s2", "s3"] {
+        assert!(
+            !nag_record(&sandbox, session).exists(),
+            "{session}'s record is consumed by the one card that counted it"
+        );
+        assert!(
+            nag_marker(&sandbox, session).exists(),
+            "{session}'s marker is what makes its own job drop silently"
+        );
+    }
+    assert!(
+        !nag_record(&sandbox, "s4").exists(),
+        "and the answered one is dropped rather than counted"
+    );
+}
+
+/// How many records the racing fires are given to split between them.
+///
+/// MANY AND NOT THREE, deliberately. The split needs a second process to start
+/// INSIDE the first one's claim loop, and a loop over three records is finished
+/// before a second process has finished exec, so a three-record race reports
+/// green against a build that splits.
+const RACED_RECORDS: usize = 200;
+
+/// How many fires are started at once. Two is the case the daemon actually
+/// produces (two approvals armed in one wall-clock second, both due in one
+/// tick); four makes the pre-fix split near certain without making the test
+/// slow.
+const RACED_FIRES: usize = 4;
+
+#[test]
+fn fires_racing_over_one_directory_still_produce_exactly_one_card() {
+    // THE COALESCING RULING UNDER CONCURRENCY, which the per-record claim does
+    // NOT deliver on its own and never did. Two approvals armed inside one
+    // wall-clock second come due in one daemon tick; the daemon spawns both and
+    // waits for neither. Ownership taken PER RECORD then lets each process win
+    // a disjoint, non-empty subset and card its own true count, so the operator
+    // gets one card per fire rather than one card per fire window. Measured on
+    // this base before the fire lock: sixteen concurrent fires over one
+    // directory produced sixteen cards.
+    let sandbox = Sandbox::new("nag-racing-fires");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    for index in 0..RACED_RECORDS {
+        write_record(
+            &sandbox,
+            &format!("s{index}"),
+            300,
+            "Bash: cargo test",
+            "wW:p21",
+        );
+    }
+
+    let fires: Vec<std::process::Child> = (0..RACED_FIRES)
+        .map(|_| {
+            nag(&sandbox)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("a fire starts")
+        })
+        .collect();
+    for mut fire in fires {
+        assert!(
+            fire.wait().expect("a fire ends").success(),
+            "a fire that loses the window is not a failure: it exits 0 and says nothing"
+        );
+    }
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "one fire owns the whole window and the losers deliver nothing at all"
+    );
+    // AND EVERY RECORD IS STILL CONSUMED, so the losers standing down costs no
+    // approval its nudge: the winner enumerated the directory after it owned it.
+    assert_eq!(
+        nag_directory_names(&sandbox)
+            .iter()
+            .filter(|name| name.ends_with(".pending"))
+            .count(),
+        0,
+        "the winner counted every record, so none is left for a later fire"
+    );
+}
+
+#[test]
+fn a_record_whose_marker_appeared_is_dropped_rather_than_nudged() {
+    // THE RACE BETWEEN AN ANSWER AND A WAKING DAEMON. The marker was written
+    // while this process was starting, so the approval is already resolved and
+    // the safe direction is silence.
+    let sandbox = Sandbox::new("nag-marker-race");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+    write_marker(&sandbox, "s1");
+
+    let output = support::run(&mut nag(&sandbox));
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "never a nudge after an answer"
+    );
+    assert!(
+        !nag_record(&sandbox, "s1").exists(),
+        "and the record is cleared"
+    );
+    assert!(support::stdout(&output).contains("nothing is waiting"));
+}
+
+#[test]
+fn a_fire_with_the_feature_switched_off_drops_every_record_and_cards_nothing() {
+    // THE OPERATOR CANCELLED THE TIMER between the arming and the fire, so a
+    // card from it would be the feature ignoring them. THE RECORDS GO TOO: one
+    // left behind is a card waiting to be delivered the moment they switch the
+    // feature back on, about a prompt from whenever it was.
+    let sandbox = Sandbox::new("nag-off-drops-records");
+    sandbox.write_config(&nag_config(0));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+
+    let output = support::run(&mut nag(&sandbox));
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "a cancelled timer delivers nothing"
+    );
+    assert!(
+        support::stdout(&output).contains("the nag is off; 1 waiting approval(s) dropped"),
+        "and it says what it dropped: {}",
+        support::stdout(&output)
+    );
+    assert!(
+        !nag_record(&sandbox, "s1").exists(),
+        "the record goes with the timer that was cancelled"
+    );
+}
+
+#[test]
+fn a_record_whose_name_is_not_a_session_is_dropped_loudly_rather_than_re_read_forever() {
+    // THE UNREADABLE-CONTENT CASE IS DROPPED WITH A LINE ON STDERR, on the
+    // stated reasoning that dropping one in silence is how a file sits there
+    // being re-claimed on every fire forever. A record whose NAME cannot be a
+    // session id has exactly that property and was handled the opposite way: a
+    // bare skip, never claimed, never removed, never mentioned.
+    let sandbox = Sandbox::new("nag-unusable-name");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    // A FILE WHOSE WHOLE NAME IS THE SUFFIX. Stripping it leaves an empty
+    // session id, which is not a name a record, a marker or a job can be
+    // written for, so nothing about this file can be acted on.
+    let stray = sandbox.path("state/nag/.pending");
+    std::fs::create_dir_all(stray.parent().expect("the nag directory")).expect("the nag directory");
+    std::fs::write(&stray, "{}").expect("the stray file");
+
+    let output = support::run(&mut nag(&sandbox));
+
+    assert!(
+        support::stderr(&output).contains(".pending"),
+        "the file is NAMED, so an operator can see what was dropped: {}",
+        support::stderr(&output)
+    );
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "and nothing is carded about a record nothing can be resolved from"
+    );
+    assert_eq!(
+        nag_directory_names(&sandbox),
+        Vec::<String>::new(),
+        "dropped ONCE: it is gone rather than left to be re-read on every fire"
+    );
+}
+
+#[test]
+fn pns_nag_refuses_an_argument_rather_than_falling_through_to_a_fire() {
+    // THE HOUSE RULE: an unknown argument never falls through to help with exit
+    // 0. `pns nag <session>` is a command an operator would believe narrowed
+    // the fire to one approval, and coalescing means nothing here can honour
+    // it, so it is refused rather than silently ignored.
+    let sandbox = Sandbox::new("nag-usage");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+
+    let output = nag(&sandbox).arg("s1").output().expect("the engine runs");
+
+    assert_eq!(output.status.code(), Some(2), "a refusal, never exit 0");
+    assert!(
+        support::stderr(&output).contains("it takes no arguments"),
+        "and the usage is on stderr: {}",
+        support::stderr(&output)
+    );
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "a refused command delivers nothing"
+    );
+    assert!(
+        nag_record(&sandbox, "s1").exists(),
+        "and consumes nothing either: the approval is still waiting"
+    );
+}
+
+#[test]
+fn a_stale_record_is_dropped_rather_than_nudged() {
+    // BOTH SIDES OF THE CAP, in one fire. The first row is the card that wakes
+    // a laptop to describe last night's prompt; the second is bug class 2, a
+    // clock that moved backwards or a hand-edited epoch, which a one-sided
+    // implementation would read as fresh forever.
+    let sandbox = Sandbox::new("nag-stale");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "old", 7_200, "Bash: last night", "wW:p21");
+    write_record_at(
+        &sandbox,
+        "ahead",
+        epoch_now() + 3_600,
+        "Bash: tomorrow",
+        "wW:p22",
+    );
+
+    let output = support::run(&mut nag(&sandbox));
+
+    assert_eq!(deliveries(&sandbox, "hermes"), 0, "neither row is news");
+    for session in ["old", "ahead"] {
+        assert!(
+            !nag_record(&sandbox, session).exists(),
+            "{session}'s record is dropped rather than left to be re-claimed forever"
+        );
+    }
+    assert!(support::stdout(&output).contains("nothing is waiting"));
+}
+
+/// The daemon's spool entry for one session's nudge job, as the daemon's own
+/// on-disk form. COUPLED TO THAT FORM DELIBERATELY and named as such: if the
+/// daemon ever exposes a read helper, this is the one place to re-point.
+fn spool_entry(sandbox: &Sandbox, session: &str) -> String {
+    std::fs::read_to_string(sandbox.path(&format!("state/daemon/nag:{session}")))
+        .unwrap_or_default()
+}
+
+fn spool_entries(sandbox: &Sandbox) -> Vec<String> {
+    std::fs::read_dir(sandbox.path("state/daemon"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect()
+}
+
+#[test]
+fn an_answered_approval_is_never_nudged_by_either_clearing_signal() {
+    // THE BEHAVIOR THE WHOLE FEATURE'S PROMISE RESTS ON. Two signals clear a
+    // record and they go through ONE function, so there is one clearing rule
+    // rather than three copies of it: `PostToolBatch` (`pns hook resolved`) is
+    // the per-batch one, and Stop is the free backstop for a batch payload over
+    // the 1MB cap, an operator who escaped the prompt, and the window between
+    // this merge and the operator's apply.
+    //
+    // A STOP DELIVERS ITS OWN TURN CARD, so "delivers nothing" is asserted as
+    // "the following nag adds nothing", which is the property that matters.
+    for word in ["resolved", "stop"] {
+        let sandbox = Sandbox::new(&format!("nag-cleared-by-{word}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+        write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+
+        let output = hook_with(
+            sandbox.pns_stateful(),
+            &sandbox,
+            word,
+            r#"{"session_id":"s1","cwd":"/a/dotfiles"}"#,
+        );
+        assert_eq!(output.status.code(), Some(0), "{word}");
+        assert!(
+            !nag_record(&sandbox, "s1").exists(),
+            "{word} removes the record"
+        );
+        assert!(
+            nag_marker(&sandbox, "s1").exists(),
+            "{word} writes the marker FIRST, so a crash between the two leaves an \
+             approval that is never nudged rather than one nudged after being answered"
+        );
+
+        // `resolved` DELIVERS NOTHING OF ITS OWN: it is a clearing signal on
+        // every assistant tool batch this machine runs, and a hook word that
+        // notified would card the operator once per batch forever. `stop`
+        // legitimately reports its own turn, which is why the count is stated
+        // per word rather than asserted to be zero for both.
+        let expected = usize::from(word == "stop");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            expected,
+            "{word}: the clearing signal itself"
+        );
+        support::run(&mut nag(&sandbox));
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            expected,
+            "{word}: a fire after the answer adds nothing at all"
+        );
+    }
+}
+
+#[test]
+fn a_clear_landing_inside_the_fires_claim_window_still_writes_the_marker() {
+    // THE WINDOW BETWEEN THE CLAIM AND THE MARKER CHECK, which is the one gap
+    // the record's own presence cannot cover. The fire takes a record by
+    // renaming it out of its own name, so for the length of a read, a parse and
+    // a marker test there is NO `.pending` file for that session; a clear gated
+    // on the record being there does nothing at all in that window, and the
+    // fire then cards an approval the operator has already dealt with.
+    //
+    // THE MARKER IS WHAT CLOSES IT. Written unconditionally, it is on disk
+    // before the holder asks, and every drop the holder can make is silence.
+    let sandbox = Sandbox::new("nag-clear-inside-claim");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+    // THE FIRE'S OWN RENAME, BY HAND. The pid in the name is not read by
+    // anything, so any number stands in for the process holding the claim.
+    let record = nag_record(&sandbox, "s1");
+    let claim = sandbox.path("state/nag/s1.pending.claim.1");
+    std::fs::rename(&record, &claim).expect("the record is claimed");
+
+    let output = hook_with(
+        sandbox.pns_stateful(),
+        &sandbox,
+        "resolved",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles"}"#,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        nag_marker(&sandbox, "s1").exists(),
+        "the answer is recorded whether or not a record is at its own name"
+    );
+    // AND THE HOLDER THEN DROPS IT. The record goes back to the name the
+    // holding process is reading from, which is what a fire has in hand when it
+    // reaches its marker check.
+    std::fs::rename(&claim, &record).expect("the claim is read back");
+    support::run(&mut nag(&sandbox));
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "never a nudge after an answer, whatever the answer raced"
+    );
+    assert!(
+        !nag_record(&sandbox, "s1").exists(),
+        "and the record is dropped rather than left to be re-claimed forever"
+    );
+}
+
+#[test]
+fn arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first() {
+    let sandbox = Sandbox::new("nag-arms");
+    sandbox.write_config(&nag_config(300));
+    let mut command = sandbox.pns_stateful();
+    sandbox.stub_moshi(&mut command, 0);
+    // THE STALE MARKER IS BUG CLASS 14 wearing this feature's clothes: the
+    // marker name is constant PER SESSION, so one left by the previous approval
+    // in this session would make the NEW job drop silently and the new approval
+    // would never be nudged. Identity is not presence.
+    write_marker(&sandbox, "s1");
+
+    let output = hook_with(
+        command,
+        &sandbox,
+        "blocked",
+        "{\"message\":\"Bash: cargo test\",\"session_id\":\"s1\"}\n",
+    );
+    assert_eq!(output.status.code(), Some(0));
+
+    let record = nag_record(&sandbox, "s1");
+    let raw = std::fs::read_to_string(&record).expect("a record");
+    let parsed: serde_json::Value = serde_json::from_str(&raw).expect("the record is JSON");
+    assert_eq!(parsed["detail"], "Bash: cargo test");
+    assert_eq!(parsed["agent"], "claude");
+    assert_eq!(
+        std::os::unix::fs::PermissionsExt::mode(
+            &std::fs::metadata(&record)
+                .expect("the record")
+                .permissions()
+        ) & 0o777,
+        0o600,
+        "state is owner-only, like every other file this crate publishes"
+    );
+
+    let entry = spool_entry(&sandbox, "s1");
+    assert!(entry.contains("id=nag:s1"), "one job per approval: {entry}");
+    assert!(
+        entry.contains("marker=nag-s1"),
+        "and `unless_marker` is what silences it once the answer lands: {entry}"
+    );
+    assert!(
+        entry.contains(r#"args=["nag"]"#),
+        "the fire takes no argument, so no free text reaches the spool: {entry}"
+    );
+    // AND THE LEASE IS A WHOLE SCHEDULE PAST THE DUE SECOND. `until == due` is
+    // a zero-length lease: the daemon drops a job one second past `until`, so a
+    // busy tick or a laptop that woke a moment late loses the nudge entirely,
+    // and nothing about the card that never arrived says why.
+    let field = |key: &str| -> u64 {
+        entry
+            .split('\t')
+            .find_map(|part| part.strip_prefix(key))
+            .unwrap_or_else(|| panic!("no `{key}` in {entry}"))
+            .parse()
+            .expect("a count")
+    };
+    assert_eq!(
+        field("until=") - field("due="),
+        300,
+        "the lease runs one more schedule past the due second: {entry}"
+    );
+
+    assert!(
+        !nag_marker(&sandbox, "s1").exists(),
+        "the marker left by this session's PREVIOUS approval is cleared, or this one is \
+         silently never nudged"
+    );
+    // THE SINGLE-SUBMITTER RULE, asserted here rather than in a twentieth test:
+    // arming must not add a second round trip to moshi.
+    assert_eq!(submissions(&sandbox), vec!["claude-hook".to_string()]);
+}
+
+#[test]
+fn an_approval_whose_nudge_could_not_be_scheduled_leaves_no_record_behind() {
+    // THE STDERR LINE SAYS "this approval will not be nudged", and a record
+    // left enumerable makes that untrue: no job exists to wake a fire for it,
+    // but any SIBLING approval's fire, and the operator's own `pns nag`, counts
+    // it and cards. Bug class 19 the other way round, a stated fact the state
+    // on disk contradicts.
+    let sandbox = Sandbox::new("nag-registration-refused");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let mut command = sandbox.pns_stateful();
+    sandbox.stub_moshi(&mut command, 0);
+    // THE REGISTRATION IS MADE TO FAIL, on behavior 17's own rig: a regular
+    // file where the spool directory belongs, so the write is refused and
+    // nothing can repair it.
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(sandbox.path("state/daemon"), "not a directory").expect("the blocked spool");
+
+    let output = hook_with(
+        command,
+        &sandbox,
+        "blocked",
+        "{\"message\":\"Bash: cargo test\",\"session_id\":\"s1\",\"cwd\":\"/a/dotfiles\"}\n",
+    );
+
+    assert!(
+        support::stderr(&output).contains("will not be nudged"),
+        "the failure is said: {}",
+        support::stderr(&output)
+    );
+    assert!(
+        !nag_record(&sandbox, "s1").exists(),
+        "and the record goes with it, or the sentence above is false"
+    );
+    let delivered = deliveries(&sandbox, "hermes");
+    support::run(&mut nag(&sandbox));
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        delivered,
+        "a fire finds nothing to count, which is what `will not be nudged` means"
+    );
+}
+
+#[test]
+fn nothing_is_armed_when_nothing_should_be() {
+    // WRITTEN SECOND WITHIN ITS GROUP, DELIBERATELY. It is red only against the
+    // obvious over-implementation (arming unconditionally), which is exactly
+    // the mutation it exists to kill.
+    for (case, config, agent) in [
+        (
+            "no [nag] table at all",
+            nag_config(300).replace("[nag]\nafter_secs = 300\n", ""),
+            "claude",
+        ),
+        ("the schedule switched off", nag_config(0), "claude"),
+        // NO NAG ON CODEX. Codex wires exactly Stop and PermissionRequest, so
+        // it has a turn-end clear and no batch-level one, and a Codex nag would
+        // fire on every approval whose turn outlives the schedule. Agent turns
+        // in this repo routinely run tens of minutes, so that is the common
+        // case rather than an edge.
+        ("the agent is codex", nag_config(300), "codex"),
+    ] {
+        let sandbox = Sandbox::new(&format!("nag-unarmed-{}", case.replace(' ', "-")));
+        sandbox.write_config(&config);
+        let mut command = sandbox.pns_stateful();
+        sandbox.stub_moshi(&mut command, 0);
+        command.env("PNS_AGENT", agent);
+
+        hook_with(
+            command,
+            &sandbox,
+            "blocked",
+            "{\"message\":\"Bash: cargo test\",\"session_id\":\"s1\"}\n",
+        );
+
+        assert!(
+            !nag_record(&sandbox, "s1").exists(),
+            "{case}: no record is written"
+        );
+        assert!(
+            spool_entries(&sandbox).is_empty(),
+            "{case}: and no job is registered"
+        );
+    }
+}
+
+fn state_lines(sandbox: &Sandbox, file: &str) -> Vec<String> {
+    std::fs::read_to_string(sandbox.path(&format!("state/{file}")))
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
+#[test]
+fn a_nudge_is_not_a_new_event() {
+    // THE CONTIGUOUS TAIL OF `run_event` BELONGS TO THE FIRST DELIVERY. Each
+    // line here is a defect avoided rather than tidiness: the recap counts
+    // activity-ring lines toward `min_events`, so a nudge that rang would
+    // inflate the operator's own recap with pns's noise; a nudge is not evidence
+    // of presence, so it must not move the last-present marker; and the journal
+    // is what a catch-up replays, and a "still waiting" card replayed hours
+    // later about a question long since answered is worse than silence.
+    let sandbox = Sandbox::new("nag-not-a-new-event");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let mut command = sandbox.pns_stateful();
+    sandbox.stub_moshi(&mut command, 0);
+    hook_with(
+        command,
+        &sandbox,
+        "blocked",
+        "{\"message\":\"Bash: cargo test\",\"session_id\":\"s1\",\"cwd\":\"/a/dotfiles\"}\n",
+    );
+    let ring = state_lines(&sandbox, "activity");
+    let journal = state_lines(&sandbox, "missed-notifications");
+    let present = std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default();
+    assert_eq!(ring.len(), 1, "the approval's own card rang once");
+
+    support::run(&mut nag(&sandbox));
+
+    assert_eq!(
+        state_lines(&sandbox, "activity"),
+        ring,
+        "a nudge writes no activity-ring line, or the recap counts pns's own noise"
+    );
+    assert_eq!(
+        state_lines(&sandbox, "missed-notifications"),
+        journal,
+        "and no journal entry, so a suppressed nudge is LOST rather than replayed later"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+        present,
+        "and it never claims the return moment: a nudge is not evidence of presence"
+    );
+}
+
+#[test]
+fn arming_writes_nothing_the_harness_could_read_as_a_decision() {
+    // A GUARD, NOT A RED-FIRST BEHAVIOR: it passes on the first commit and its
+    // job is to keep passing. Included over the usual objection because the
+    // failure is SILENT and lands in somebody else's system: Claude Code parses
+    // this hook's stdout as `if (!trimmed.startsWith("{")) return { plainText }`,
+    // so one stray line in front of moshi's object turns an Allow into no
+    // decision at all, and the operator's approval simply evaporates.
+    let sandbox = Sandbox::new("nag-arm-stdout");
+    sandbox.write_config(&nag_config(300));
+    let mut command = sandbox.pns_stateful();
+    sandbox.stub_moshi(&mut command, 42);
+    // THE REGISTRATION IS MADE TO FAIL: a regular file where the spool
+    // directory belongs, so the write is refused and nothing can be repaired.
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(sandbox.path("state/daemon"), "not a directory").expect("the blocked spool");
+
+    let output = hook_with(
+        command,
+        &sandbox,
+        "blocked",
+        "{\"message\":\"Bash: cargo test\",\"session_id\":\"s1\"}\n",
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "the exit code is moshi's decision, unchanged by anything the nag did"
+    );
+    assert_eq!(
+        support::stdout(&output),
+        "",
+        "the moshi stub printed nothing, so the hook must print nothing: {output:?}"
+    );
+    assert!(
+        support::stderr(&output).contains("will not be nudged"),
+        "and the failure is SAID, on stderr: an action that suppressed its own error \
+         has only been attempted"
+    );
+}
+
+#[test]
+fn the_decision_log_says_which_line_was_the_nudge() {
+    // WITHOUT THE FIELD the ring holds two `claude/blocked` lines differing in
+    // nothing an operator can see, and "why did I get two cards for one prompt"
+    // is the exact question this log exists to answer.
+    let sandbox = Sandbox::new("nag-decision-log");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let mut command = sandbox.pns_stateful();
+    sandbox.stub_moshi(&mut command, 0);
+    hook_with(
+        command,
+        &sandbox,
+        "blocked",
+        "{\"message\":\"Bash: cargo test\",\"session_id\":\"s1\",\"cwd\":\"/a/dotfiles\"}\n",
+    );
+    support::run(&mut nag(&sandbox));
+
+    let blocked: Vec<String> = state_lines(&sandbox, "decisions")
+        .into_iter()
+        .filter(|line| line.contains("claude/blocked"))
+        .collect();
+    assert_eq!(blocked.len(), 2, "one prompt, one nudge: {blocked:?}");
+    assert!(
+        blocked[0].contains(" nag=no "),
+        "the approval's own card: {}",
+        blocked[0]
+    );
+    assert!(
+        blocked[1].contains(" nag=yes "),
+        "and the nudge about it: {}",
+        blocked[1]
+    );
+}
+
+#[test]
+fn the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there() {
+    // THE TEST THAT PROVES THE FEATURE EXISTS END TO END: a real `pns daemon
+    // run` at its fast tick, a real spool entry, a real spawned `pns nag`. The
+    // second row is the only place `unless_marker` is PROVEN rather than
+    // assumed, and it is what makes coalescing quiet: every sibling job of a
+    // coalesced card drops through exactly this path.
+    for (case, answered) in [("nobody answered", false), ("the marker is there", true)] {
+        let sandbox = Sandbox::new(&format!("nag-daemon-{}", case.replace(' ', "-")));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+        write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+        if answered {
+            write_marker(&sandbox, "s1");
+        }
+        support::run(sandbox.pns_stateful().args([
+            "daemon",
+            "schedule",
+            "--id",
+            "nag:s1",
+            "--in",
+            "0",
+            "--unless-marker",
+            "nag-s1",
+            "--",
+            "nag",
+        ]));
+
+        let daemon = support::DaemonGuard::start(&sandbox, 50);
+        let said = support::poll_until(|| {
+            let said = daemon.said();
+            said.contains("nag:s1").then_some(said)
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "{case}: the daemon never reached the job: {}",
+                daemon.said()
+            )
+        });
+
+        if answered {
+            assert!(
+                said.contains("dropped `nag:s1` because its marker was already there"),
+                "{case}: {said}"
+            );
+            assert!(
+                !said.contains("ran `nag:s1`"),
+                "{case}: the job is dropped WITHOUT spawning a nag process at all: {said}"
+            );
+            assert_eq!(deliveries(&sandbox, "hermes"), 0, "{case}");
+        } else {
+            assert!(said.contains("ran `nag:s1`"), "{case}: {said}");
+            let delivered = support::poll_until(|| {
+                (deliveries(&sandbox, "hermes") > 0).then(|| deliveries(&sandbox, "hermes"))
+            });
+            assert_eq!(delivered, Some(1), "{case}: exactly one card");
+            assert!(
+                !nag_record(&sandbox, "s1").exists(),
+                "{case}: and the record is consumed by the fire the daemon started"
+            );
+        }
+    }
 }

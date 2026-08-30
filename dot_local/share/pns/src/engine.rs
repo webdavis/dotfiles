@@ -721,6 +721,7 @@ mod tests {
                     decision: &decision,
                     overrides: &Overrides::default(),
                     legs: &[],
+                    nag: false,
                 });
             }
             [

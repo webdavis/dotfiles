@@ -160,6 +160,55 @@
 # [focus]
 # silence = ["Sleep", "Coding"]
 
+# The nag: one more card when an approval has been sitting unanswered. pns
+# raises a card the moment an agent blocks on a permission prompt, and if you do
+# not look, nothing else happens: the prompt sits, the turn sits, and the first
+# you know is a session that has been idle for half an hour. This is the answer.
+# A NUDGE IS A STATEMENT, NEVER A SECOND PROMPT. It reads "still waiting 5m:
+# Bash: cargo test" and it cannot be answered; moshi's own card, the one raised
+# when the prompt appeared, is still the one that carries Allow and Deny, and it
+# is still waiting on the phone. Answer that one.
+# IT IS INFORMATIONAL, so it respects everything the first card respects and the
+# approval itself does not: a `pns quiet` mute, a Focus named under [focus], the
+# quiet window and the visibility rules all hold a nudge back exactly as they
+# hold back any ordinary event. A nudge held back is simply LOST rather than
+# queued for the catch-up, because a "still waiting" card handed to you hours
+# later, about a question answered long ago, is worse than silence.
+# SEVERAL UNANSWERED APPROVALS ARE ONE CARD AND NEVER SEVERAL. Three waiting
+# reads "3 approvals waiting, oldest 12m" and names no single question, so the
+# most you ever get is one nudge card per `after_secs`, whatever is piling up.
+# Each approval is nudged AT MOST ONCE, ever; there is no second rung.
+# THAT COALESCING SPENDS A NEW APPROVAL'S NUDGE EARLY, which is the price of it
+# and is worth knowing: a card fired for an approval that has waited its
+# `after_secs` counts EVERY approval outstanding at that moment, including one
+# that arrived seconds ago. So a prompt you have only just been given can be
+# named in a card that goes out well before its own `after_secs`, and it is then
+# done: it will not be nudged about again. The count on the card is always true;
+# what is not guaranteed is that every approval named on it has waited the full
+# schedule.
+# NO TABLE AT ALL, AND `after_secs = 0`, ARE THE SAME STATEMENT: the feature is
+# off, which is what ships. Turning it on needs three things and `pns doctor`
+# says where you are on all three: this key, the daemon running (see [daemon]
+# above), and a `chezmoi apply` to install the PostToolBatch hook entry that
+# tells pns an approval was dealt with. Without that entry the only clearing
+# signal is the end of the turn, so an approval answered in a turn that then
+# runs on is nudged about anyway.
+# AND IT IS NUDGED ANYWAY IN ONE MORE CASE, which is worth knowing before you
+# switch this on: the signal pns gets is the tool batch RESOLVING, not you
+# answering, so a tool you approve in five seconds that then runs for longer
+# than `after_secs` produces a card saying nobody answered. That is why 300 is
+# suggested rather than 120: in this repo a `just test` is about 34 seconds and
+# a cargo build is a minute or two, so at 120 an ordinary approved build cards
+# you about itself. If it still bites, raise the number.
+# THIRTY SECONDS IS THE FLOOR and an hour is the ceiling. A negative, a
+# fraction, a string, a list and anything outside that range are each refused by
+# name. The floor is low enough to drill in half a minute and high enough that
+# an approval's OWN timer cannot put a nudge in front of you before you could
+# have reached your phone; it does not bound the coalescing case above, where a
+# fresh approval is named on an older one's card whenever it arrives.
+# [nag]
+# after_secs = 300
+
 [plugins.moshi]
 enabled = true
 token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"

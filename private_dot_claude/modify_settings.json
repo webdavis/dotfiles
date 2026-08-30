@@ -218,6 +218,28 @@
      matcher, and note that a matcher here would filter by TOOL NAME rather
      than by the reason, which is the opposite of StopFailure's error text.
 
+     PostToolBatch fires when an assistant tool batch RESOLVES, and it is the
+     nag's clearing signal: the record written when the operator was blocked on
+     a permission prompt is removed here, and an answered marker is written in
+     its place. It is the ONLY single declaration covering both operator verbs,
+     because a DENIED tool call still produces a tool_result and so resolves the
+     batch rather than skipping it, where PermissionDenied covers only the
+     classifier's own refusals. Note honestly what the signal IS, and what it
+     therefore does NOT promise: it is the BATCH RESOLVING, not the operator
+     answering. So a tool approved in ten seconds whose run outlives the
+     schedule is nudged about anyway, and an approval answered while another
+     approval's card is being built can still be named on that card, because
+     several waiting approvals coalesce into one. Both residuals are stated in
+     the [nag] block of the pns config as well. What this entry does buy is that
+     every approval is nudged at most once and that a batch which has resolved
+     stops the nudge that has not gone out yet. Async, for the simplest reason on this list: it delivers nothing and
+     nobody reads its answer, so the harness must not wait for it. Deliberately
+     NO matcher, since every batch is a clearing signal. Stop and StopFailure
+     clear the same record without any declaration at all, which is the backstop
+     for a batch payload over pns's 1MB stdin cap, for an operator who escapes
+     the prompt instead of answering it, and for the window between a merge and
+     the apply that installs this entry.
+
      Elicitation fires when a connected MCP server asks the operator for input
      and holds its tool call open waiting. It rides the `asked` word: the
      interruption is the same one AskUserQuestion raises, and it is answered at
@@ -265,6 +287,11 @@
         "type" "command"
         "async" true
         "command" (printf "%s/.local/libexec/pns/pns hook asked" $home)))))
+    "PostToolBatch" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook resolved" $home)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"
