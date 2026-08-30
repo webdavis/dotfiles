@@ -173,6 +173,11 @@
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
 {{- /* --- stable: hooks (paths use $home for portability) ---
+     SessionStart is herdr's agent-state integration: `herdr integration
+     install claude` writes exactly this entry (and owns the hook FILE at
+     ~/.claude/hooks/herdr-agent-state.sh, which is deliberately unmanaged).
+     Declared here so an apply keeps it; on a fresh machine the entry points at
+     a file the first `herdr integration install claude` creates.
 
      The blocked notification hangs off PermissionRequest, NOT off
      Notification/permission_prompt, and it is deliberately NOT async. Both
@@ -266,7 +271,13 @@
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/pns hook plan-ready" $home))))) -}}
+          "command" (printf "%s/.local/libexec/pns/pns hook plan-ready" $home)))))
+    "SessionStart" (list (dict
+      "matcher" "*"
+      "hooks" (list (dict
+        "type" "command"
+        "command" (printf "bash '%s/.claude/hooks/herdr-agent-state.sh' session" $home)
+        "timeout" 10)))) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
 {{- /* --- stable: statusLine (path uses $home) --- */ -}}
