@@ -6279,10 +6279,19 @@ fn one_recap_spends_one_summarizer_budget_however_many_questions_it_asks() {
     // the card had already said the recap was in #pns.
     //
     // COUNTED RATHER THAN TIMED, deliberately. The first call parks past the
-    // whole budget, so a shared one leaves nothing for the other two and they
-    // are never started; a per-call budget starts all three. Counting the runs
-    // says that in one assertion and costs the suite one deadline instead of
-    // three.
+    // whole budget, so a shared one leaves the other two nothing to spend and
+    // neither of them records a run; a per-call budget hands all three a full
+    // key and all three record. Counting the runs says that in one assertion
+    // and costs the suite one deadline instead of three.
+    //
+    // IT PINS THE BUDGET AND NOT THE GUARD. `summarize`'s zero-deadline return
+    // is SPAWN AVOIDANCE, and it is not what this count sees: MEASURED with
+    // that guard deleted, all three calls fork, and the two behind the parked
+    // one are killed on a zero-length window before their stub reaches its own
+    // record line, so the count is still one and this test is still green. What
+    // the guard saves is three forked-and-instantly-killed children, which is
+    // not something a non-flaky test can pin at the process boundary, so it is
+    // left to review rather than claimed here.
     let sandbox = Sandbox::new("recap-one-budget");
     record_every_event(&sandbox);
     sandbox.write_config(&recap_summarized_by(
