@@ -19,7 +19,7 @@ use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
-use pns::channels::hue::{Bridge, HuePulse, hue_settings, quiet_now, quiet_window};
+use pns::channels::hue::{Bridge, HuePulse, LOCAL_FAMILY, hue_settings, quiet_now, quiet_window};
 use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret};
 use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
@@ -2053,41 +2053,48 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // Three of its four fields are bools; spread into this tuple they would sit
     // adjacent here and in the call below, which is a swap nothing would catch,
     // and a struct with named fields cannot be transposed.
-    let (hue_table, watch_card, moshi_token, hermes_key, recap, focus_silence) = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => (
-            enabled_hue_table(config),
-            mobile_watch_card(config),
-            plugin_settings(config, "moshi").and_then(moshi_secret),
-            plugin_settings(config, "hermes").and_then(hermes_secret),
-            config.recap.clone(),
-            config.focus_silence.clone(),
-        ),
-        // A config that could not be read falls back to the DEFAULTS of all
-        // five, and deliberately disagrees with the plugin selection below,
-        // which falls back to the whole roster. Selection keeps notifications
-        // working through a broken config; these say what an operator asked
-        // for, and an unreadable file asked for nothing: with no secrets, the
-        // network channels are simply not set up.
-        //
-        // THE CATCH-UP IS THE ONE THAT FALLS BACK ON, which is `[recap]`'s
-        // own rule (absent is every switch on) reaching the case where the
-        // file is unreadable rather than absent. A config nobody can parse
-        // must not silently stop delivering misses the doctor is already
-        // telling the operator are waiting.
-        //
-        // THE FOCUS LIST FALLS BACK TO EMPTY, which is the feature off. It is
-        // the same reading as the secrets rather than the recap's: an
-        // unreadable file asked for nothing, and a Focus policy nobody could
-        // read must not silence a notification.
-        _ => (
-            None,
-            false,
-            None,
-            None,
-            pns::config::Recap::default(),
-            Vec::new(),
-        ),
-    };
+    let (hue_table, lights, watch_card, moshi_token, hermes_key, recap, focus_silence) =
+        match &loaded {
+            Ok(LoadOutcome::Loaded(config)) => (
+                enabled_hue_table(config),
+                config.lights.clone(),
+                mobile_watch_card(config),
+                plugin_settings(config, "moshi").and_then(moshi_secret),
+                plugin_settings(config, "hermes").and_then(hermes_secret),
+                config.recap.clone(),
+                config.focus_silence.clone(),
+            ),
+            // A config that could not be read falls back to the DEFAULTS of all
+            // five, and deliberately disagrees with the plugin selection below,
+            // which falls back to the whole roster. Selection keeps notifications
+            // working through a broken config; these say what an operator asked
+            // for, and an unreadable file asked for nothing: with no secrets, the
+            // network channels are simply not set up.
+            //
+            // THE CATCH-UP IS THE ONE THAT FALLS BACK ON, which is `[recap]`'s
+            // own rule (absent is every switch on) reaching the case where the
+            // file is unreadable rather than absent. A config nobody can parse
+            // must not silently stop delivering misses the doctor is already
+            // telling the operator are waiting.
+            //
+            // THE FOCUS LIST FALLS BACK TO EMPTY, which is the feature off. It is
+            // the same reading as the secrets rather than the recap's: an
+            // unreadable file asked for nothing, and a Focus policy nobody could
+            // read must not silence a notification.
+            // THE LAMPS FALL BACK TO ABSENT, which is the same reading as hue's own
+            // table beside it: a file nobody could parse named no family, and a map
+            // this could not read must not be replaced with a guess about which
+            // lamps are whose.
+            _ => (
+                None,
+                None,
+                false,
+                None,
+                None,
+                pns::config::Recap::default(),
+                Vec::new(),
+            ),
+        };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
@@ -2216,10 +2223,28 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // over the network under a ten-second deadline, and nothing an operator
     // reads should queue behind decoration. It still fires for a plan that
     // reached no channel at all: the lights are not a leg.
-    if decision.plan.pulse {
-        // The state IS the exit code here: the shell notifier derives
-        // --state from `$?`, and an agent turn that did not fail succeeded.
-        fire_pulse_unless_quiet(hue_table, if event.state == "failed" { "1" } else { "0" });
+    //
+    // THE LAMPS HAVE A SECOND GATE, beside the plan's rather than inside it.
+    // `plan.pulse` is `long_running` and it is what the decision log records;
+    // widening it would change what every card, banner and log line says about
+    // an event that earned no card. The needs-you lamp is not a delivery, it is
+    // a colour on a bulb, so it earns its own condition here: an agent waiting
+    // on the operator lights blue whether or not it ran long.
+    //
+    // IT NEEDS A `[lights]` TABLE, which is the opt-in, and the opt-in is read
+    // off the BEHAVIOUR rather than tested a second time here: `state_behaviour`
+    // only answers needs-you for a mapped machine, so the colour a lamp shows
+    // and the gate that lets it fire cannot come out disagreeing about one
+    // event. Without the map there is no blue to show, and a long-running
+    // blocked turn keeps the green it has flashed since the bash.
+    //
+    // AND IT RESPECTS THE SILENCE, through the same predicate arbitration uses
+    // rather than a second copy of it: a muted operator gets no lamp, which is
+    // the shipped rule that the lights are decoration too.
+    let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
+    let needs_you_lamp = behaviour == pns::config::Behaviour::NeedsYou && !overrides.silenced();
+    if decision.plan.pulse || needs_you_lamp {
+        fire_pulse_unless_quiet(hue_table, lights.as_deref(), behaviour);
     }
 }
 
@@ -2380,41 +2405,72 @@ fn plugin_settings<'config>(
 /// the quiet window untestable exactly while it is on. Inside the `if` that
 /// already earned a pulse, so a refusal is printed only where a room would
 /// otherwise have lit.
-fn fire_pulse_unless_quiet(hue_table: Option<toml::Table>, exit_code: &str) {
+fn fire_pulse_unless_quiet(
+    hue_table: Option<toml::Table>,
+    lights: Option<&pns::config::Lights>,
+    behaviour: pns::config::Behaviour,
+) {
     // No table is nothing to quiet: an operator who never enabled the lights
     // gets the same silence `fire_pulse` would have given them.
     let Some(settings) = hue_table else {
         return;
     };
-    let window = match quiet_window(&settings) {
-        Ok(window) => window,
-        // FAIL CLOSED, the direction the pulse takes on every unreadable
-        // reading: a window nobody can parse is an operator who asked for
-        // quiet hours and cannot be told which ones, so the room stays dark
-        // and the refusal says why.
-        Err(refusal) => {
-            eprintln!("{refusal}");
-            return;
-        }
-    };
+    // THE HOUSE WINDOW IS READ, NOT JUDGED, HERE. It is the last rung of the
+    // per-place chain below, so an unreadable one is carried down as a refusal
+    // and spent by the places that actually reach that rung. Failing the whole
+    // pulse on it, which is what this used to do, darkened a lamp whose own
+    // room stated hours it could read perfectly well.
+    let window = quiet_window(&settings);
     // FRESH, not the run's start: the legs above dial the network under their
     // own deadlines, so a run can cross into the window between starting and
     // reaching the moment a room would actually light, and the older reading
     // would flash it just inside quiet hours. HONEST LIMIT: no suite pins the
     // freshness, because a test's clock does not advance mid-run.
-    if !quiet_now(
-        window.as_ref(),
-        now_secs().and_then(local_minutes_since_midnight),
-    ) {
-        fire_pulse(Some(settings), exit_code);
+    let minutes_now = now_secs().and_then(local_minutes_since_midnight);
+    let Some(lights) = lights else {
+        // TODAY'S PATH, UNCHANGED, and it is the compatibility claim of this
+        // whole change: one window for the whole pulse, one write per room in
+        // `[plugins.hue] rooms`, and one refusal that costs the pulse when
+        // nobody can read the window. A machine that never wrote a `[lights]`
+        // table reaches nothing new.
+        match window {
+            Ok(window) => {
+                if !quiet_now(window.as_ref(), minutes_now) {
+                    fire_pulse(Some(settings), behaviour);
+                }
+            }
+            // FAIL CLOSED, the direction the pulse takes on every unreadable
+            // reading: a window nobody can parse is an operator who asked for
+            // quiet hours and cannot be told which ones, so the room stays
+            // dark and the refusal says why.
+            Err(refusal) => eprintln!("{refusal}"),
+        }
+        return;
+    };
+    let fallback = window
+        .as_ref()
+        .map(|window| window.as_ref())
+        .map_err(String::as_str);
+    // NOTHING AWAKE IS NO BRIDGE CALL. The per-fixture filter below needs the
+    // map, and the map costs a GET; a house whose every window covers this
+    // minute has nothing that GET could light, so it is not taken. That keeps
+    // the shipped "a pulse earned inside the window reaches no bridge" property
+    // at the new granularity instead of trading it for one.
+    if pns::channels::hue::any_place_loud(lights, LOCAL_FAMILY, fallback, minutes_now) {
+        fire_lights(&settings, lights, behaviour, fallback, minutes_now);
     }
 }
 
-/// The lights signal, from whichever mode asked for it, and how many rooms it
-/// reached. Both notification callers discard the count; the hand-run check is
-/// what it exists for, since the bridge acknowledges no write and a room that
-/// was addressed is the last observable fact on this path.
-fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) -> usize {
+/// The ROOM-BASED lights signal, from whichever mode asked for it, and how many
+/// rooms it reached. Both notification callers discard the count; the hand-run
+/// check is what it exists for, since the bridge acknowledges no write and a
+/// room that was addressed is the last observable fact on this path.
+///
+/// `[plugins.hue] rooms` IS THE PATH WITHOUT A `[lights]` TABLE, and it is also
+/// `pns pulse`'s path with one. That is deliberate: the hand-run pulse is the
+/// bridge-and-key check, not a feature, and keeping it room-based means it
+/// stays one write to one obvious place while the family map grows.
+fn fire_pulse(hue_table: Option<toml::Table>, behaviour: pns::config::Behaviour) -> usize {
     let Some(hue) = hue_table.and_then(|settings| {
         hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
     }) else {
@@ -2427,7 +2483,48 @@ fn fire_pulse(hue_table: Option<toml::Table>, exit_code: &str) -> usize {
         },
         rooms: hue.rooms,
     }
-    .run(exit_code)
+    .run(behaviour)
+}
+
+/// The FAMILY-BASED lights signal: resolve the map on the bridge, then write to
+/// every fixture the family holds that its own place lets through.
+///
+/// ONE FAMILY AS A PARAMETER, never a lookup. Every event on this path is
+/// `local`. `github` resolves lamps and nothing produces its events, which the
+/// doctor says out loud, and the day a GitHub feed lands it passes a different
+/// family at this same call site rather than growing a second one.
+fn fire_lights(
+    settings: &toml::Table,
+    lights: &pns::config::Lights,
+    behaviour: pns::config::Behaviour,
+    fallback: Result<Option<&pns::channels::hue::QuietWindow>, &str>,
+    minutes_now: Option<u16>,
+) {
+    let Some(hue) = hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) else {
+        return;
+    };
+    let bridge = UreqBridge {
+        base: format!("https://{}/clip/v2/resource", hue.bridge),
+        key: hue.key,
+    };
+    // A BRIDGE THAT ANSWERED NOTHING RESOLVES NOTHING, and says nothing here.
+    // The doctor is where an unreachable bridge is reported; a warning on every
+    // notification for the rest of a machine's life is the noise the gate above
+    // already sits inside an `if` to avoid.
+    let Some(map) = pns::channels::hue::resolve_on_bridge(&bridge, &lights.families) else {
+        return;
+    };
+    for refusal in pns::channels::hue::signal_family(
+        &bridge,
+        &map,
+        LOCAL_FAMILY,
+        lights,
+        behaviour,
+        fallback,
+        minutes_now,
+    ) {
+        eprintln!("{refusal}");
+    }
 }
 
 /// Whether the config's hue table resolves to a bridge that could be dialled:
@@ -2439,11 +2536,67 @@ fn hue_resolves(hue_table: Option<&toml::Table>) -> bool {
     })
 }
 
+/// What the doctor can say about the lamps, and the ONE place that decides
+/// which of its five states this machine is in.
+///
+/// THE BRIDGE IS DIALLED HERE, and only here, and only for a config that has
+/// asked for the lamps AND enabled hue AND named a bridge. A rooms-only map
+/// costs the one GET the pulse has always made; a map naming a lamp costs the
+/// device join as well, and nothing else in this binary takes either.
+///
+/// BEHIND THE PANIC BOUNDARY every other bridge call gets, for `pulse_outcome`'s
+/// reason: a panicking call must cost this section its lines rather than end
+/// the report where the operator reads it as complete. A call that panicked
+/// resolved no lamp, which is what the unreachable line says.
+///
+/// THE COST, NAMED: each GET is bounded by `BRIDGE_DEADLINE`, so a bridge that
+/// accepts and never answers adds up to ten seconds to `pns doctor`, or twenty
+/// for a map that needs the device join. That is the same order as the pairing
+/// check's own two deadlines and it is paid only by a machine that wrote the
+/// table.
+fn lights_report(
+    lights: Option<&pns::config::Lights>,
+    hue_table: Option<&toml::Table>,
+    hue_declared: bool,
+) -> pns::doctor::LightsReport {
+    let Some(lights) = lights else {
+        return pns::doctor::LightsReport::Off;
+    };
+    let Some(settings) = hue_table else {
+        // NEVER WRITTEN AND SWITCHED OFF ARE DIFFERENT CONFIGS, and the
+        // enabled table is one `None` for both, so the declaration is read
+        // separately rather than inferred from its absence.
+        return if hue_declared {
+            pns::doctor::LightsReport::HueDisabled
+        } else {
+            pns::doctor::LightsReport::HueMissing
+        };
+    };
+    let Some(hue) = hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) else {
+        return pns::doctor::LightsReport::NoBridge;
+    };
+    let resolved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        pns::channels::hue::resolve_on_bridge(
+            &UreqBridge {
+                base: format!("https://{}/clip/v2/resource", hue.bridge),
+                key: hue.key,
+            },
+            &lights.families,
+        )
+    }));
+    match resolved {
+        Ok(Some(map)) => pns::doctor::LightsReport::Resolved(map),
+        Ok(None) | Err(_) => pns::doctor::LightsReport::Unreachable,
+    }
+}
+
 /// The pulse behind the same boundary every leg gets, so a panicking bridge
 /// call costs the census the rest of its lines rather than ending the report
 /// where the operator reads it as complete.
 fn pulse_outcome(hue_table: Option<toml::Table>) -> pns::doctor::Outcome {
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| fire_pulse(hue_table, "0"))) {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        fire_pulse(hue_table, pns::config::Behaviour::Done)
+    })) {
         Ok(rooms) => pns::doctor::Outcome::Signalled(rooms),
         // NO ROOM IS CLAIMED, and no panic text is quoted: the message is
         // written for a developer and may hold anything the pulse was carrying.
@@ -2639,10 +2792,12 @@ fn pulse_mode() {
     };
     fire_pulse(
         enabled_hue_table(&config),
-        &std::env::args_os()
-            .nth(2)
-            .map(|code| code.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "0".to_string()),
+        pns::pulse::exit_behaviour(
+            &std::env::args_os()
+                .nth(2)
+                .map(|code| code.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "0".to_string()),
+        ),
     );
 }
 
@@ -2807,22 +2962,36 @@ fn doctor_mode() -> i32 {
     let loaded = load_config(&config_path(&home));
     // The same readings `run_event` takes off the same config, before
     // selection consumes it.
-    let (hue_table, moshi_token, hermes_key, replay_card, focus_silence, daemon_enabled) =
-        match &loaded {
-            Ok(LoadOutcome::Loaded(config)) => (
-                enabled_hue_table(config),
-                plugin_settings(config, "moshi").and_then(moshi_secret),
-                plugin_settings(config, "hermes").and_then(hermes_secret),
-                config.recap.replay_card,
-                config.focus_silence.clone(),
-                config.daemon_enabled,
-            ),
-            // THE SWITCH FALLS BACK ON, which is the fallback `run_event`
-            // takes for the same reading. The two must agree or the doctor
-            // describes a delivery the event would not make, and the Focus
-            // list falls back EMPTY here for the same reason it does there.
-            _ => (None, None, None, true, Vec::new(), true),
-        };
+    let (
+        hue_table,
+        moshi_token,
+        hermes_key,
+        replay_card,
+        focus_silence,
+        daemon_enabled,
+        lights,
+        hue_declared,
+    ) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (
+            enabled_hue_table(config),
+            plugin_settings(config, "moshi").and_then(moshi_secret),
+            plugin_settings(config, "hermes").and_then(hermes_secret),
+            config.recap.replay_card,
+            config.focus_silence.clone(),
+            config.daemon_enabled,
+            config.lights.clone(),
+            // WHETHER THE TABLE WAS WRITTEN AT ALL, which
+            // `enabled_hue_table` cannot say: it answers `None` both for a
+            // table nobody wrote and for one whose switch is off, and the
+            // lamps' report tells those two apart.
+            config.plugins.contains_key("hue"),
+        ),
+        // THE SWITCH FALLS BACK ON, which is the fallback `run_event` takes
+        // for the same reading. The two must agree or the doctor describes a
+        // delivery the event would not make, and the Focus list falls back
+        // EMPTY here for the same reason it does there.
+        _ => (None, None, None, true, Vec::new(), true, None, false),
+    };
     let registry = roster();
     // THE BROKEN-CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins`
     // runs every built-in and warns, and the doctor's job is to say what an
@@ -2924,6 +3093,17 @@ fn doctor_mode() -> i32 {
     // code is what an operator's automation reads as "notifications are
     // broken".
     println!("{}", daemon_line(daemon_enabled));
+    // AND THE LAMPS BELOW THE GATE, for the same reason: a dark lamp is not a
+    // broken notifier, so this section reports and never grades. It is the last
+    // thing that touches the network, so a bridge that hangs cannot delay a
+    // line above it.
+    for line in pns::doctor::lights_lines(&lights_report(
+        lights.as_deref(),
+        hue_table.as_ref(),
+        hue_declared,
+    )) {
+        println!("{line}");
+    }
     // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
     // census plus its summary is one complete thought whose line order the
     // suite already pins, and nothing below can disturb it.
@@ -4651,11 +4831,48 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, matches_glob, publish_state_line, read_note, recap_bounds,
+        STATE_FILE_MODE, lights_report, matches_glob, publish_state_line, read_note, recap_bounds,
         republish_after, reread_attempts_from, reread_interval_from, resolve_path,
     };
     use std::os::unix::fs::PermissionsExt;
     use std::time::Duration;
+
+    #[test]
+    fn a_hue_table_nobody_wrote_and_one_switched_off_are_different_reports() {
+        // NO BRIDGE IS DIALLED BY ANY ROW HERE: every case answers before the
+        // enabled-and-configured branch that makes the two GETs, which is the
+        // only branch that touches a network.
+        let lights = pns::config::Lights::default();
+        assert!(
+            matches!(
+                lights_report(None, None, false),
+                pns::doctor::LightsReport::Off
+            ),
+            "no [lights] table is off, whatever hue is doing"
+        );
+        assert!(
+            matches!(
+                lights_report(Some(&lights), None, false),
+                pns::doctor::LightsReport::HueMissing
+            ),
+            "a table and NO [plugins.hue] at all is a config that is half written"
+        );
+        assert!(
+            matches!(
+                lights_report(Some(&lights), None, true),
+                pns::doctor::LightsReport::HueDisabled
+            ),
+            "and a table beside a hue that IS written is a switch somebody turned \
+             off, which is a decision rather than an omission"
+        );
+        assert!(
+            matches!(
+                lights_report(Some(&lights), Some(&toml::Table::new()), true),
+                pns::doctor::LightsReport::NoBridge
+            ),
+            "an enabled hue naming no bridge dials nothing and says so"
+        );
+    }
 
     #[test]
     fn every_reread_interval_that_is_not_a_duration_falls_back_to_the_default() {

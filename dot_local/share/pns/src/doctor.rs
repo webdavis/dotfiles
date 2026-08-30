@@ -345,6 +345,142 @@ fn said_of(pairing: &Pairing) -> String {
 /// How every line the doctor prints for itself is addressed.
 const PREFIX: &str = "pns doctor: ";
 
+/// What the doctor found about the lamps.
+///
+/// SIX STATES AND NO GRADE. This section reports; it never moves the exit
+/// code, for the reason the decision section does not: a dark lamp is not a
+/// broken notifier, and the exit code is what the operator's automation reads
+/// as "notifications are broken".
+pub enum LightsReport {
+    /// No `[lights]` table: the state every machine was in before it existed.
+    Off,
+    /// A table, and no `[plugins.hue]` table at all. Told apart from the
+    /// switch below because they are different jobs: one config was never
+    /// finished, the other was finished and turned off, and sending an
+    /// operator to flip a switch that does not exist is a wrong direction
+    /// they will act on.
+    HueMissing,
+    /// A table, with hue's own switch off. ONE SWITCH: hue is the transport
+    /// and lights is the policy, so a policy with no transport lights nothing.
+    HueDisabled,
+    /// A table and an enabled hue, with no bridge and key to dial. Told apart
+    /// from the state below for `hue_resolves`' own reason: one is a config to
+    /// fix and the other is a network to fix.
+    NoBridge,
+    /// A bridge that answered no listing at all.
+    Unreachable,
+    Resolved(crate::channels::hue::Resolution),
+}
+
+/// The lamps' own lines: what resolved, what did not, and what two families
+/// are fighting over.
+///
+/// COUNTS AND NAMES ONLY, following the missed journal's structural privacy
+/// rule: no colours, no session ids, no detail text. A family that resolved
+/// nothing is still listed, because "the family I wrote is missing from the
+/// report" is not a state an operator should have to infer from an absence.
+pub fn lights_lines(report: &LightsReport) -> Vec<String> {
+    let map = match report {
+        LightsReport::Off => {
+            return vec![format!(
+                "{PREFIX}lights: off in the config, so the pulse uses the [plugins.hue] rooms"
+            )];
+        }
+        LightsReport::HueMissing => {
+            return vec![format!(
+                "{PREFIX}lights: configured, but there is no [plugins.hue] table to \
+                 light them through"
+            )];
+        }
+        LightsReport::HueDisabled => {
+            return vec![format!(
+                "{PREFIX}lights: configured, but [plugins.hue] enabled is false, so nothing lights"
+            )];
+        }
+        LightsReport::NoBridge => {
+            return vec![format!(
+                "{PREFIX}lights: no [plugins.hue] bridge and key, so no lamp could be resolved"
+            )];
+        }
+        LightsReport::Unreachable => {
+            return vec![format!(
+                "{PREFIX}lights: the bridge listed nothing, so no lamp resolved"
+            )];
+        }
+        LightsReport::Resolved(map) => map,
+    };
+
+    let counted: Vec<String> = map
+        .families
+        .iter()
+        .map(|(family, fixtures)| format!("{family} {}", tally(fixtures)))
+        .collect();
+    let mut lines = vec![format!(
+        "{PREFIX}lights: {}",
+        if counted.is_empty() {
+            "no family names a lamp".to_string()
+        } else {
+            counted.join(", ")
+        }
+    )];
+    // A FAMILY NOTHING ROUTES TO IS A LAMP THAT NEVER LIGHTS, and its count
+    // above reads exactly like one that works. The config layer cannot catch it
+    // (only the crate knows which families it produces), so this is the one
+    // place the operator can hear about it.
+    for family in map.families.keys() {
+        if !crate::channels::hue::KNOWN_FAMILIES.contains(&family.as_str()) {
+            lines.push(format!(
+                "{PREFIX}lights: `{family}` is not a family pns speaks, so nothing \
+                 will ever light it"
+            ));
+        }
+    }
+    for missing in &map.unresolved {
+        lines.push(match missing.kind {
+            crate::channels::hue::Missing::NotOnBridge => format!(
+                "{PREFIX}lights: `{}` ({}) is not on the bridge",
+                missing.name, missing.family
+            ),
+            // A DIFFERENT JOB, SO A DIFFERENT SENTENCE: this name IS on the
+            // bridge, and telling the operator to go find it would send them
+            // looking for something already in front of them.
+            crate::channels::hue::Missing::AddressedNothing => format!(
+                "{PREFIX}lights: `{}` ({}) is on the bridge, but that claim addressed \
+                 no lamp",
+                missing.name, missing.family
+            ),
+        });
+    }
+    for conflict in &map.state_conflicts {
+        lines.push(format!(
+            "{PREFIX}lights: `{}` is claimed for a state by {}; skip one there",
+            conflict.place,
+            conflict.families.join(" and ")
+        ));
+    }
+    lines
+}
+
+/// One family's holdings, counted by KIND rather than lumped together: a
+/// grouped fixture is a whole room in one write and a light is one lamp, and
+/// calling a room "1 lamp" would understate a claim on eight of them.
+fn tally(fixtures: &[crate::channels::hue::Fixture]) -> String {
+    let rooms = fixtures
+        .iter()
+        .filter(|fixture| matches!(fixture, crate::channels::hue::Fixture::Grouped(_)))
+        .count();
+    let lamps = fixtures.len() - rooms;
+    let counted: Vec<String> = [(rooms, "room"), (lamps, "lamp")]
+        .iter()
+        .filter(|(count, _)| *count > 0)
+        .map(|(count, noun)| format!("{count} {noun}{}", if *count == 1 { "" } else { "s" }))
+        .collect();
+    if counted.is_empty() {
+        return "nothing".to_string();
+    }
+    counted.join(" and ")
+}
+
 /// moshi's own label for the one line carrying a server verdict. A LINE
 /// PREFIX, never a substring: moshi indents its detail lines, and a substring
 /// rule would quote whichever of them said the word first.
@@ -490,9 +626,10 @@ pub fn daemon_line(
 #[cfg(test)]
 mod tests {
     use super::{
-        A_SENSOR, Check, CheckKind, NOT_ENABLED, Outcome, Pairing, PairingReport, checks,
-        exit_code, line, pairing_lines, pairing_report, summary,
+        A_SENSOR, Check, CheckKind, LightsReport, NOT_ENABLED, Outcome, Pairing, PairingReport,
+        checks, exit_code, lights_lines, line, pairing_lines, pairing_report, summary,
     };
+    use crate::channels::hue as pns_hue;
     use crate::config::parse_config;
     use crate::registry::{Registry, Selection, roster};
 
@@ -659,6 +796,176 @@ mod tests {
             outcomes.len(),
             "a check that fell into no bucket is a plugin the summary lost"
         );
+    }
+
+    // --- the lights section --------------------------------------------------
+
+    fn resolution() -> pns_hue::Resolution {
+        pns_hue::Resolution {
+            families: [
+                (
+                    "local".to_string(),
+                    vec![
+                        pns_hue::Fixture::Light("light-1".to_string()),
+                        pns_hue::Fixture::Light("light-2".to_string()),
+                    ],
+                ),
+                (
+                    "github".to_string(),
+                    vec![pns_hue::Fixture::Grouped("group-1".to_string())],
+                ),
+                ("loop".to_string(), Vec::new()),
+            ]
+            .into_iter()
+            .collect(),
+            // The doctor's own lines are counts and names off `families`,
+            // `unresolved` and `state_conflicts`; a placement is what the
+            // signal path reads, so this section states none.
+            places: std::collections::BTreeMap::new(),
+            unresolved: Vec::new(),
+            state_conflicts: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
+        assert_eq!(
+            lights_lines(&LightsReport::Off),
+            vec![
+                "pns doctor: lights: off in the config, so the pulse uses the \
+                 [plugins.hue] rooms"
+            ],
+            "no table is the state every machine was in before this table existed"
+        );
+        assert_eq!(
+            lights_lines(&LightsReport::HueMissing),
+            vec![
+                "pns doctor: lights: configured, but there is no [plugins.hue] \
+                 table to light them through"
+            ],
+            "A TABLE THAT WAS NEVER WRITTEN IS NOT A SWITCH SOMEONE TURNED OFF. \
+             One is a config that is half finished and the other is a decision, \
+             and telling an operator to go flip a switch that is not there is the \
+             kind of wrong direction they act on"
+        );
+        assert_eq!(
+            lights_lines(&LightsReport::HueDisabled),
+            vec![
+                "pns doctor: lights: configured, but [plugins.hue] enabled is false, \
+                 so nothing lights"
+            ],
+            "ONE SWITCH, and the doctor is where an operator sees it is off"
+        );
+        assert_eq!(
+            lights_lines(&LightsReport::NoBridge),
+            vec![
+                "pns doctor: lights: no [plugins.hue] bridge and key, so no lamp \
+                 could be resolved"
+            ],
+            "a config that named no bridge is not a bridge that answered nothing"
+        );
+        assert_eq!(
+            lights_lines(&LightsReport::Unreachable),
+            vec!["pns doctor: lights: the bridge listed nothing, so no lamp resolved"],
+            "a bridge that answered nothing is not a config that named nothing"
+        );
+        assert_eq!(
+            lights_lines(&LightsReport::Resolved(resolution())),
+            vec!["pns doctor: lights: github 1 room, local 2 lamps, loop nothing"],
+            "the families are listed in the order the config layer holds them, which \
+             is alphabetical, so the same map prints the same line every time. \
+             Counts and names only: a room is a room and a lamp is a lamp, and a \
+             family that resolved nothing says so rather than being left out"
+        );
+    }
+
+    #[test]
+    fn an_unresolved_name_and_a_state_conflict_each_get_their_own_line() {
+        let mut map = resolution();
+        map.unresolved = vec![
+            pns_hue::Unresolved {
+                family: "local".to_string(),
+                name: "3F - Studio - HCL9".to_string(),
+                kind: pns_hue::Missing::NotOnBridge,
+            },
+            pns_hue::Unresolved {
+                family: "local".to_string(),
+                name: "3F - Studio".to_string(),
+                kind: pns_hue::Missing::AddressedNothing,
+            },
+        ];
+        map.state_conflicts = vec![pns_hue::StateConflict {
+            place: "3F - Studio - HCL3".to_string(),
+            fixture: pns_hue::Fixture::Light("light-3".to_string()),
+            families: vec!["local".to_string(), "loop".to_string()],
+        }];
+        assert_eq!(
+            lights_lines(&LightsReport::Resolved(map)),
+            vec![
+                "pns doctor: lights: github 1 room, local 2 lamps, loop nothing",
+                "pns doctor: lights: `3F - Studio - HCL9` (local) is not on the bridge",
+                "pns doctor: lights: `3F - Studio` (local) is on the bridge, but that \
+                 claim addressed no lamp",
+                "pns doctor: lights: `3F - Studio - HCL3` is claimed for a state by \
+                 local and loop; skip one there",
+            ],
+            "every miss is named with the family that wrote it, in the words of the \
+             miss it actually was, and every contested lamp with both families \
+             fighting over it"
+        );
+    }
+
+    #[test]
+    fn a_family_name_pns_does_not_speak_is_named_rather_than_counted_in_silence() {
+        // THE SILENT-TYPO HOLE, CLOSED WHERE IT CAN BE. The config layer
+        // deliberately does not judge family names (only a running crate knows
+        // which ones it routes), so a mistyped family parses, resolves real
+        // lamps and lights none of them. That is a lamp that never lights and
+        // says nothing, which is the failure the whole judged table exists to
+        // prevent, so the doctor names it.
+        let mut map = resolution();
+        map.families.insert(
+            "locl".to_string(),
+            vec![pns_hue::Fixture::Light("light-9".to_string())],
+        );
+        assert_eq!(
+            lights_lines(&LightsReport::Resolved(map)),
+            vec![
+                "pns doctor: lights: github 1 room, local 2 lamps, locl 1 lamp, loop nothing",
+                "pns doctor: lights: `locl` is not a family pns speaks, so nothing \
+                 will ever light it",
+            ],
+            "the typo is counted like any other family AND named as one nothing \
+             routes to, because the count alone reads like it works"
+        );
+    }
+
+    #[test]
+    fn every_lights_state_says_something_rather_than_printing_nothing() {
+        // WHAT THIS PINS, and only this: a section that reports and never
+        // grades has one way to fail silently, which is a state that produces
+        // no line at all, leaving the operator to read an absence as "fine".
+        //
+        // THE EXIT CODE IS NOT PINNED HERE because it cannot be: `exit_code`
+        // takes the census and the pairing and no lights report at all, so a
+        // call to it inside this loop would answer the same number whatever
+        // this section did, which is an assertion that passes by construction.
+        // The lamps' distance from the exit code is a signature, and its real
+        // end-to-end cover is the doctor run in `tests/dispatch.rs`.
+        for report in [
+            LightsReport::Off,
+            LightsReport::HueMissing,
+            LightsReport::HueDisabled,
+            LightsReport::NoBridge,
+            LightsReport::Unreachable,
+            LightsReport::Resolved(resolution()),
+            LightsReport::Resolved(pns_hue::Resolution::default()),
+        ] {
+            assert!(
+                !lights_lines(&report).is_empty(),
+                "every state says something, the empty map included"
+            );
+        }
     }
 
     // --- the exit contract ---------------------------------------------------

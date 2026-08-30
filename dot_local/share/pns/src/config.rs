@@ -6,12 +6,13 @@
 //! free-form here: this layer proves the shape, the registry interprets the
 //! contents, and neither knows the other's plugin names.
 //!
-//! `[recap]`, `[focus]` and `[daemon]` are the three top-level tables that are
-//! not plugins: four booleans, two counts, one argument list and one list of
-//! Focus mode names THIS layer reads itself. Because it reads them, it can
-//! judge them, so an unknown key inside any of them, a count that is not a
-//! threshold, and a summarizer that is not a list of command words are refused
-//! rather than passed along the way a plugin's settings are.
+//! `[recap]`, `[focus]`, `[daemon]` and `[lights]` are the four top-level
+//! tables that are not plugins: four booleans, two counts, one argument list,
+//! one list of Focus mode names and the lamp policy's own scalars and maps,
+//! all read by THIS layer. Because it reads them, it can judge them, so an
+//! unknown key inside any of them, a count that is not a threshold, and a
+//! summarizer that is not a list of command words are refused rather than
+//! passed along the way a plugin's settings are.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config, because a typo that turns every
@@ -98,6 +99,136 @@ impl Default for Recap {
     }
 }
 
+/// The lamps' policy: how often a state is re-armed, how long a loop must have
+/// been working before its lamp breathes, and how faint a dimmed signal runs.
+///
+/// THE TABLE IS OPTIONAL AND ITS ABSENCE IS NOT ITS DEFAULT, which is why the
+/// config holds an `Option` of this rather than the struct. A machine with no
+/// `[lights]` table keeps the room-based pulse it has always had; a machine
+/// with an empty one has asked for the lamps and named no lamp yet. Those are
+/// different states and the doctor says different things about them.
+///
+/// THE DEFAULT IS WRITTEN OUT rather than derived, for `Recap`'s reason: a
+/// derived `u64` is zero, and zero is refused by every one of these keys, so a
+/// derive would make the empty table unrepresentable through its own parser.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lights {
+    pub refresh_secs: u64,
+    pub breathe_after_secs: u64,
+    pub dim_brightness: u8,
+    pub families: BTreeMap<String, Family>,
+    pub places: BTreeMap<String, Place>,
+}
+
+/// One place's own policy: the behaviours it refuses, the hours it wants
+/// quiet, what quiet means there, and whether a state suppressed by those hours
+/// is shown afterwards.
+///
+/// A PLACE IS A ROOM NAME OR A LIGHT NAME, the same vocabulary a family claims
+/// in, so an operator writes one spelling of "which lamps" rather than two.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Place {
+    pub skip: Vec<Behaviour>,
+    pub quiet_hours: Option<String>,
+    pub quiet_mode: QuietMode,
+    /// CATCH-UP DEFAULTS OFF (operator ruling): a state that was suppressed
+    /// through the night is news nobody wants at 07:00.
+    pub catch_up: bool,
+}
+
+/// What a lamp can say. A CLOSED SET, which is the whole reason `[lights]` is
+/// judged here instead of passed through as a plugin's free-form settings: a
+/// `skip` list holding a word nothing matches is a lamp that keeps signalling
+/// something the operator switched off, with no message anywhere.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Behaviour {
+    Done,
+    Failed,
+    NeedsYou,
+    Breathing,
+    Glow,
+}
+
+/// The five words, in the spelling a config uses, and the order the refusal
+/// lists them in.
+pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 5] = [
+    ("done", Behaviour::Done),
+    ("failed", Behaviour::Failed),
+    ("needs-you", Behaviour::NeedsYou),
+    ("breathing", Behaviour::Breathing),
+    ("glow", Behaviour::Glow),
+];
+
+/// What quiet hours DO to a place: take the signal away, or show it faintly.
+///
+/// `Off` IS THE SIGNAL BEING OFF, not the quiet hours being off. There is no
+/// third value meaning "no quiet hours": a place that wants none simply states
+/// no `quiet_hours`, so the two cannot disagree.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum QuietMode {
+    #[default]
+    Off,
+    Dim,
+}
+
+/// One source family's claim on the house: whole rooms, individual lights, and
+/// the lights inside a claimed room that it does not want.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Family {
+    pub rooms: Vec<String>,
+    pub lights: Vec<String>,
+    pub except: Vec<String>,
+}
+
+impl Default for Lights {
+    fn default() -> Self {
+        Lights {
+            refresh_secs: DEFAULT_REFRESH_SECS,
+            breathe_after_secs: DEFAULT_BREATHE_AFTER_SECS,
+            dim_brightness: DEFAULT_DIM_BRIGHTNESS,
+            families: BTreeMap::new(),
+            places: BTreeMap::new(),
+        }
+    }
+}
+
+/// How often a lamp holding a state is re-armed. The operator's own figure.
+const DEFAULT_REFRESH_SECS: u64 = 20;
+
+/// The floor under it, and it is the TRANSPORT DEADLINE rather than a round
+/// number: a tick makes bounded bridge calls whose own limit is ten seconds
+/// (`BRIDGE_DEADLINE`), so an interval shorter than one call can start a tick
+/// while the last one is still dialling. Below this the knob is asking for a
+/// pile of children rather than a faster lamp.
+const MIN_REFRESH_SECS: u64 = 10;
+
+/// And the ceiling. A day is not a refresh; past this the signal has expired
+/// and gone dark long before the next arm, so the lamp would be off for
+/// virtually the whole interval while the config claimed a state.
+const MAX_REFRESH_SECS: u64 = 86_400;
+
+/// How long a loop must have been working before its lamp breathes. The
+/// operator's own figure: fifteen minutes.
+const DEFAULT_BREATHE_AFTER_SECS: u64 = 900;
+
+/// The floor. Zero would breathe for every momentary reading of "working",
+/// which is what the delay exists to prevent, so one second is the floor and
+/// it means "as soon as anything is seen working".
+const MIN_BREATHE_AFTER_SECS: u64 = 1;
+
+/// The ceiling. A loop that has been working for a whole day has stalled, and
+/// a threshold past that describes a lamp that never breathes at all.
+const MAX_BREATHE_AFTER_SECS: u64 = 86_400;
+
+/// The brightness a dimmed signal runs at, in percent.
+const DEFAULT_DIM_BRIGHTNESS: u8 = 10;
+
+/// Percent, so the two ends are the two ends. ZERO IS REFUSED rather than read
+/// as off: a dark signal is a lamp that says nothing, and the way to say
+/// nothing is the place's own `skip` list.
+const MIN_DIM_BRIGHTNESS: u8 = 1;
+const MAX_DIM_BRIGHTNESS: u8 = 100;
+
 /// How many events a window needs before a recap is worth the operator's
 /// attention. The operator's own stated figure; see `Recap`.
 const DEFAULT_MIN_EVENTS: usize = 8;
@@ -178,6 +309,13 @@ pub struct Config {
     /// that rides the clock behind TWO switches, so an operator who enabled the
     /// feature and saw nothing would have to discover a second, invisible one.
     pub daemon_enabled: bool,
+    /// `[lights]`: the lamp policy, or None when no table was written.
+    ///
+    /// BOXED because it is the largest thing in here and almost no machine has
+    /// one: measured, the table is 72 of this struct's bytes and the whole
+    /// config travels by value inside `LoadOutcome`, whose empty `Missing`
+    /// variant would then be paying for a table that is usually absent.
+    pub lights: Option<Box<Lights>>,
 }
 
 impl Default for Config {
@@ -187,6 +325,7 @@ impl Default for Config {
             recap: Recap::default(),
             focus_silence: Vec::new(),
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
+            lights: None,
         }
     }
 }
@@ -248,14 +387,15 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     })?;
 
     let mut config = Config::default();
-    // FOUR ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
-    // this level, and everything that is not one of the four is still refused
+    // FIVE ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
+    // this level, and everything that is not one of the five is still refused
     // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
             "daemon" => config.daemon_enabled = parse_daemon(value)?,
+            "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
             "plugins" => {
                 let toml::Value::Table(plugins) = value else {
                     return Err(ConfigError::Invalid("`plugins` is not a table".to_string()));
@@ -401,6 +541,242 @@ fn modes(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
         ));
     }
     Ok(names)
+}
+
+/// `[lights]`, the lamp policy: three scalars, each starting at its default and
+/// moved only by a key that states it.
+///
+/// EVERY UNKNOWN KEY IS REFUSED BY NAME, and that refusal is the whole argument
+/// for parsing this table here rather than inside the hue plugin. A plugin's
+/// settings are free-form at this layer, so a mistyped key there is silently
+/// ignored; the failure that costs is a lamp that never lights and a config
+/// that looks right, which an operator standing in a dark room cannot falsify.
+fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
+    let toml::Value::Table(table) = value else {
+        return Err(ConfigError::Invalid("`lights` is not a table".to_string()));
+    };
+    let mut lights = Lights::default();
+    for (key, setting) in table {
+        match key.as_str() {
+            "refresh_secs" => {
+                lights.refresh_secs = bounded(&key, &setting, MIN_REFRESH_SECS, MAX_REFRESH_SECS)?;
+            }
+            "breathe_after_secs" => {
+                lights.breathe_after_secs = bounded(
+                    &key,
+                    &setting,
+                    MIN_BREATHE_AFTER_SECS,
+                    MAX_BREATHE_AFTER_SECS,
+                )?;
+            }
+            "families" => lights.families = parse_families(&setting)?,
+            "places" => lights.places = parse_places(&setting)?,
+            "dim_brightness" => {
+                let percent = bounded(
+                    &key,
+                    &setting,
+                    MIN_DIM_BRIGHTNESS.into(),
+                    MAX_DIM_BRIGHTNESS.into(),
+                )?;
+                // THE BOUND ABOVE ALREADY HELD, so this cannot fail and a
+                // fallback here would be a second, silent answer to a question
+                // `bounded` has already refused by name.
+                lights.dim_brightness = u8::try_from(percent)
+                    .expect("bounded at MAX_DIM_BRIGHTNESS, which is a percent and fits a u8");
+            }
+            _ => {
+                return Err(ConfigError::Invalid(format!(
+                    "unknown `lights` key `{key}`"
+                )));
+            }
+        }
+    }
+    Ok(lights)
+}
+
+/// `[lights.families]`, one table per source family.
+///
+/// THE FAMILY NAMES ARE NOT JUDGED HERE, deliberately. `local`, `github` and
+/// `loop` are the three the crate produces today, and only the crate knows
+/// that, so a name outside the set is named by `pns doctor` against
+/// `hue::KNOWN_FAMILIES` instead: a map is often half written, and a config
+/// that refuses to load is a worse answer than a line saying which family
+/// nothing routes to. What IS judged is the shape inside it, because a mistyped
+/// `room` for `rooms` is a lamp that never lights and says nothing.
+fn parse_families(setting: &toml::Value) -> Result<BTreeMap<String, Family>, ConfigError> {
+    let Some(table) = setting.as_table() else {
+        return Err(ConfigError::Invalid(format!(
+            "`lights` key `families` has type `{}`, not a table of families",
+            setting.type_str()
+        )));
+    };
+    let mut families = BTreeMap::new();
+    for (name, entry) in table {
+        let where_it_is = format!("lights.families.{name}");
+        let Some(claims) = entry.as_table() else {
+            return Err(ConfigError::Invalid(format!(
+                "`{where_it_is}` has type `{}`, not a table of claims",
+                entry.type_str()
+            )));
+        };
+        let mut family = Family::default();
+        for (key, claim) in claims {
+            let named = match key.as_str() {
+                "rooms" => &mut family.rooms,
+                "lights" => &mut family.lights,
+                "except" => &mut family.except,
+                _ => {
+                    return Err(ConfigError::Invalid(format!(
+                        "unknown `{where_it_is}` key `{key}`"
+                    )));
+                }
+            };
+            *named = places_claimed(&where_it_is, key, claim)?;
+        }
+        families.insert(name.clone(), family);
+    }
+    Ok(families)
+}
+
+/// `[lights.places]`, one table per room or light with a policy of its own.
+///
+/// A PLACE NAME IS NOT JUDGED against the bridge here, for `families`' reason:
+/// this layer reads a file, and only a bridge listing can say which names
+/// exist. The doctor is where an unresolved one is named out loud.
+fn parse_places(setting: &toml::Value) -> Result<BTreeMap<String, Place>, ConfigError> {
+    let Some(table) = setting.as_table() else {
+        return Err(ConfigError::Invalid(format!(
+            "`lights` key `places` has type `{}`, not a table of places",
+            setting.type_str()
+        )));
+    };
+    let mut places = BTreeMap::new();
+    for (name, entry) in table {
+        let where_it_is = format!("lights.places.{name}");
+        let Some(settings) = entry.as_table() else {
+            return Err(ConfigError::Invalid(format!(
+                "`{where_it_is}` has type `{}`, not a table of settings",
+                entry.type_str()
+            )));
+        };
+        let mut place = Place::default();
+        for (key, stated) in settings {
+            match key.as_str() {
+                "skip" => place.skip = behaviours(&where_it_is, stated)?,
+                "quiet_hours" => place.quiet_hours = Some(text(&where_it_is, key, stated)?),
+                "quiet_mode" => place.quiet_mode = quiet_mode(&where_it_is, stated)?,
+                "catch_up" => {
+                    place.catch_up = stated.as_bool().ok_or_else(|| {
+                        ConfigError::Invalid(format!(
+                            "`{where_it_is}` key `catch_up` has type `{}`, not boolean",
+                            stated.type_str()
+                        ))
+                    })?;
+                }
+                _ => {
+                    return Err(ConfigError::Invalid(format!(
+                        "unknown `{where_it_is}` key `{key}`"
+                    )));
+                }
+            }
+        }
+        places.insert(name.clone(), place);
+    }
+    Ok(places)
+}
+
+/// `skip`, the behaviours a place refuses, each one a word off the closed set.
+///
+/// THE REFUSAL LISTS THE WHOLE SET, which is worth the extra words here and
+/// nowhere else in this file: the failure it prevents is a lamp that goes on
+/// signalling something the operator switched off, and the operator's only
+/// evidence would be a lamp doing what they told it not to.
+fn behaviours(where_it_is: &str, stated: &toml::Value) -> Result<Vec<Behaviour>, ConfigError> {
+    let words = strings(where_it_is, "skip", "a list of behaviour names", stated)?;
+    words
+        .iter()
+        .map(|word| {
+            BEHAVIOUR_WORDS
+                .iter()
+                .find(|(spelling, _)| spelling == word)
+                .map(|(_, behaviour)| *behaviour)
+                .ok_or_else(|| {
+                    let known: Vec<&str> = BEHAVIOUR_WORDS.iter().map(|(word, _)| *word).collect();
+                    ConfigError::Invalid(format!(
+                        "`{where_it_is}` key `skip` names `{word}`, which is no behaviour; \
+                         the lamps say {}",
+                        known.join(", ")
+                    ))
+                })
+        })
+        .collect()
+}
+
+/// `quiet_mode`, and only the two words that mean something.
+fn quiet_mode(where_it_is: &str, stated: &toml::Value) -> Result<QuietMode, ConfigError> {
+    match text(where_it_is, "quiet_mode", stated)?.as_str() {
+        "off" => Ok(QuietMode::Off),
+        "dim" => Ok(QuietMode::Dim),
+        other => Err(ConfigError::Invalid(format!(
+            "`{where_it_is}` key `quiet_mode` is `{other}`, which is neither `off` nor `dim`"
+        ))),
+    }
+}
+
+/// One place setting that has to be a string, refused BY NAME and BY TYPE.
+fn text(where_it_is: &str, key: &str, stated: &toml::Value) -> Result<String, ConfigError> {
+    stated.as_str().map(str::to_string).ok_or_else(|| {
+        ConfigError::Invalid(format!(
+            "`{where_it_is}` key `{key}` has type `{}`, not a string",
+            stated.type_str()
+        ))
+    })
+}
+
+/// One claim list: names of rooms or lights as the bridge spells them.
+///
+/// AN EMPTY NAME IS REFUSED, on `focus`'s own rule rather than a new one: it
+/// names no room and no lamp, so it is a claim the operator wrote and pns can
+/// never act on. The names themselves are NOT judged here; the bridge is the
+/// authority on which exist, and `pns doctor` is where an operator learns which
+/// of theirs it does not have.
+fn places_claimed(
+    where_it_is: &str,
+    key: &str,
+    claim: &toml::Value,
+) -> Result<Vec<String>, ConfigError> {
+    let names = strings(where_it_is, key, "a list of room or light names", claim)?;
+    if names.iter().any(String::is_empty) {
+        return Err(ConfigError::Invalid(format!(
+            "`{where_it_is}` key `{key}` names a place that is the empty string, \
+             which is no room and no lamp"
+        )));
+    }
+    Ok(names)
+}
+
+/// One `[lights]` scalar, refused BY NAME outside its range.
+///
+/// BOTH ENDS, ALWAYS. A floor alone leaves a value that parses and cannot work;
+/// a ceiling alone leaves the same at the other end. Each bound is argued at
+/// the constant that holds it, and the refusal echoes both, so an operator
+/// reading it learns the range rather than only that they missed it.
+fn bounded(key: &str, setting: &toml::Value, low: u64, high: u64) -> Result<u64, ConfigError> {
+    let Some(count) = setting
+        .as_integer()
+        .and_then(|count| u64::try_from(count).ok())
+    else {
+        return Err(ConfigError::Invalid(format!(
+            "`lights` key `{key}` has type `{}`, not a count between {low} and {high}",
+            setting.type_str()
+        )));
+    };
+    if count < low || count > high {
+        return Err(ConfigError::Invalid(format!(
+            "`lights` key `{key}` is {count}, outside the {low} to {high} range"
+        )));
+    }
+    Ok(count)
 }
 
 /// One `[recap]` switch. A value of any other type is refused BY NAME rather
@@ -689,7 +1065,8 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ConfigError, LoadOutcome, config_path, load_config, parse_config, submit_deadline,
+        Behaviour, ConfigError, Family, Lights, LoadOutcome, Place, QuietMode, config_path,
+        load_config, parse_config, submit_deadline,
     };
     use std::time::Duration;
 
@@ -1497,6 +1874,235 @@ mod tests {
                 assert!(!message.is_empty(), "the path and cause are named")
             }
             other => panic!("expected Unreadable, got {other:?}"),
+        }
+    }
+
+    // --- [lights] -----------------------------------------------------------
+
+    /// The Invalid refusal's own sentence, or a panic naming what came instead.
+    fn refusal(text: &str) -> String {
+        match parse_config(text) {
+            Err(ConfigError::Invalid(message)) => message,
+            other => panic!("expected a named refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_lights_table_reads_its_three_scalars() {
+        let lights = parse_config(
+            "[lights]\nrefresh_secs = 25\nbreathe_after_secs = 600\ndim_brightness = 15\n",
+        )
+        .unwrap()
+        .lights
+        .expect("a table that was written is a table that was read");
+        assert_eq!(lights.refresh_secs, 25);
+        assert_eq!(lights.breathe_after_secs, 600);
+        assert_eq!(lights.dim_brightness, 15);
+    }
+
+    #[test]
+    fn no_lights_table_is_none_and_an_empty_one_is_every_default() {
+        assert_eq!(
+            parse_config("[plugins.hue]\nenabled = true\n")
+                .unwrap()
+                .lights,
+            None,
+            "a machine that never wrote the table is DISTINGUISHABLE from one \
+             that wrote an empty one: the doctor says different things about them"
+        );
+        assert_eq!(
+            parse_config("[lights]\n").unwrap().lights,
+            Some(Box::new(Lights::default())),
+            "and an empty table is every default, written out"
+        );
+    }
+
+    #[test]
+    fn an_unknown_lights_key_is_refused_by_name() {
+        let said = refusal("[lights]\nrefrsh_secs = 20\n");
+        assert!(
+            said.contains("lights") && said.contains("refrsh_secs"),
+            "the table and the misspelling are both named: {said}"
+        );
+    }
+
+    #[test]
+    fn a_lights_scalar_of_the_wrong_type_is_refused_by_name_and_by_type() {
+        for (written, key) in [
+            ("refresh_secs = \"20\"", "refresh_secs"),
+            ("breathe_after_secs = true", "breathe_after_secs"),
+            ("dim_brightness = 10.5", "dim_brightness"),
+        ] {
+            let said = refusal(&format!("[lights]\n{written}\n"));
+            assert!(
+                said.contains(key) && said.contains("has type"),
+                "the key and what was written instead are both named: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_lights_scalar_is_bounded_on_both_sides_and_refused_by_name_outside_them() {
+        for (key, written) in [
+            ("refresh_secs", "0"),
+            ("refresh_secs", "1"),
+            ("refresh_secs", "86401"),
+            ("breathe_after_secs", "0"),
+            ("breathe_after_secs", "604800"),
+            ("dim_brightness", "0"),
+            ("dim_brightness", "101"),
+        ] {
+            let said = refusal(&format!("[lights]\n{key} = {written}\n"));
+            assert!(
+                said.contains(key) && said.contains(written) && said.contains("range"),
+                "the refusal names the key, echoes what was written and states the \
+                 range: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn each_bound_is_inclusive_so_the_edge_itself_is_a_working_setting() {
+        let edges = parse_config(
+            "[lights]\nrefresh_secs = 10\nbreathe_after_secs = 1\ndim_brightness = 1\n",
+        )
+        .unwrap()
+        .lights
+        .expect("the floor of every range is inside it");
+        assert_eq!(
+            (
+                edges.refresh_secs,
+                edges.breathe_after_secs,
+                edges.dim_brightness
+            ),
+            (10, 1, 1)
+        );
+        let edges = parse_config(
+            "[lights]\nrefresh_secs = 86400\nbreathe_after_secs = 86400\ndim_brightness = 100\n",
+        )
+        .unwrap()
+        .lights
+        .expect("and so is the ceiling");
+        assert_eq!(
+            (
+                edges.refresh_secs,
+                edges.breathe_after_secs,
+                edges.dim_brightness
+            ),
+            (86400, 86400, 100)
+        );
+    }
+
+    #[test]
+    fn a_family_claims_rooms_lights_and_exceptions() {
+        let lights = parse_config(
+            "[lights.families.local]\nrooms = [\"3F - Studio\"]\nexcept = [\"3F - Studio - HCL3\"]\n\
+             [lights.families.github]\nlights = [\"3F - Studio - HCL3\"]\n",
+        )
+        .unwrap()
+        .lights
+        .expect("a families table is a lights table");
+        assert_eq!(
+            lights.families["local"],
+            Family {
+                rooms: vec!["3F - Studio".to_string()],
+                lights: Vec::new(),
+                except: vec!["3F - Studio - HCL3".to_string()],
+            }
+        );
+        assert_eq!(
+            lights.families["github"],
+            Family {
+                rooms: Vec::new(),
+                lights: vec!["3F - Studio - HCL3".to_string()],
+                except: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn a_family_claim_that_is_not_a_list_of_names_is_refused_by_name() {
+        for written in [
+            "rooms = \"3F - Studio\"",
+            "lights = 3",
+            "except = [true]",
+            "rooms = [\"\"]",
+        ] {
+            let said = refusal(&format!("[lights.families.local]\n{written}\n"));
+            assert!(
+                said.contains("local"),
+                "the refusal names the family that carries it: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_family_key_is_refused_by_name() {
+        let said = refusal("[lights.families.local]\nroom = [\"3F - Studio\"]\n");
+        assert!(
+            said.contains("local") && said.contains("room"),
+            "the family and the misspelled key are both named: {said}"
+        );
+    }
+
+    #[test]
+    fn a_place_parses_its_four_keys_and_defaults_the_ones_it_does_not_state() {
+        let lights = parse_config(
+            "[lights.places.\"3F - Master Bedroom\"]\nskip = [\"breathing\", \"glow\"]\n\
+             quiet_hours = \"22:00-07:00\"\nquiet_mode = \"dim\"\ncatch_up = true\n\
+             [lights.places.\"3F - Studio\"]\nskip = []\n",
+        )
+        .unwrap()
+        .lights
+        .expect("a places table is a lights table");
+        assert_eq!(
+            lights.places["3F - Master Bedroom"],
+            Place {
+                skip: vec![Behaviour::Breathing, Behaviour::Glow],
+                quiet_hours: Some("22:00-07:00".to_string()),
+                quiet_mode: QuietMode::Dim,
+                catch_up: true,
+            }
+        );
+        assert_eq!(
+            lights.places["3F - Studio"],
+            Place::default(),
+            "a place that states nothing beyond an empty skip list keeps every \
+             default, and catch-up is off among them"
+        );
+    }
+
+    #[test]
+    fn a_skip_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named() {
+        let said = refusal("[lights.places.\"3F - Studio\"]\nskip = [\"breething\"]\n");
+        assert!(
+            said.contains("3F - Studio") && said.contains("breething"),
+            "the place and the misspelling are both named: {said}"
+        );
+        for word in ["done", "failed", "needs-you", "breathing", "glow"] {
+            assert!(
+                said.contains(word),
+                "and the refusal lists the whole closed set, so the operator does \
+                 not have to find it: `{word}` is missing from {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_place_setting_of_the_wrong_type_or_value_is_refused_by_name() {
+        for (written, offender) in [
+            ("quiet_mode = \"quiet\"", "quiet"),
+            ("quiet_mode = 3", "quiet_mode"),
+            ("catch_up = \"yes\"", "catch_up"),
+            ("quiet_hours = 2200", "quiet_hours"),
+            ("skip = \"breathing\"", "skip"),
+            ("catch_ups = true", "catch_ups"),
+        ] {
+            let said = refusal(&format!("[lights.places.\"3F - Studio\"]\n{written}\n"));
+            assert!(
+                said.contains("3F - Studio") && said.contains(offender),
+                "the place and the offender are both named: {said}"
+            );
         }
     }
 

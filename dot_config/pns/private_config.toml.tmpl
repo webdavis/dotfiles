@@ -205,6 +205,60 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # exempt so a bridge and key can be checked while the window is on.
 # quiet_hours = "22:00-07:00"
 
+# The lamp map: WHICH LAMP says who, and the colour says what. A FAMILY names a
+# source (`local`, `github`, `loop`) and claims PLACES, which are room names or
+# light names; `except` carves lamps out of a claimed room, and a specific claim
+# beats a general one, so a light named by one family leaves its room to the
+# other. A room claimed whole is one write to its group; anything narrower is
+# one write per lamp.
+#
+# `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE. Hue is the
+# transport and this is the policy, so there is no second off switch that can
+# disagree with the first. With no `[lights]` table at all, the pulse is the
+# `rooms` array above and nothing else, exactly as it has always been.
+#
+# EVERY UNKNOWN KEY IS REFUSED BY NAME, at every level, and so is a `skip` word
+# outside the five behaviours (`done`, `failed`, `needs-you`, `breathing`,
+# `glow`). That is the whole reason this is a top-level table rather than more
+# keys under `[plugins.hue]`, whose settings are free-form and swallow a typo in
+# silence: the failure mode here is a lamp that never lights and no message
+# anywhere, which an operator standing in a dark room cannot tell from a lamp
+# that is behaving.
+#
+# NOT EVERY KEY BELOW DOES SOMETHING YET. `refresh_secs`, `breathe_after_secs`,
+# `catch_up` and the `breathing` and `glow` behaviours belong to the daemon that
+# re-arms a lamp's state, and `dim_brightness` with `quiet_mode = "dim"` belongs
+# to dim mode; both land in later slices. `quiet_mode` sits between the two: a
+# value outside `off` and `dim` is refused by name, and nothing reads the value
+# yet, so both of them suppress until dim mode lands. `skip` and `quiet_hours`
+# filter every signal per place today, and a `done`, `failed` or `needs-you`
+# pulse reaches the `local` family's lamps.
+# `github` resolves lamps and nothing routes to it on purpose (plumbing only).
+#
+# [lights]
+# # How often the daemon re-arms a lamp's state, in seconds.
+# refresh_secs = 20
+# # How long a loop must have been working before a lamp breathes.
+# breathe_after_secs = 900
+# # The brightness a dimmed signal runs at, in percent.
+# dim_brightness = 10
+#
+# [lights.families.local]
+# rooms = ["3F - Studio"]
+# except = ["3F - Studio - HCL3"]
+#
+# [lights.families.github]
+# lights = ["3F - Studio - HCL3"]
+#
+# [lights.families.loop]
+# lights = ["3F - Studio - HCL3"]
+#
+# [lights.places."3F - Master Bedroom"]
+# skip = ["breathing"]
+# quiet_hours = "22:00-07:00"
+# quiet_mode = "dim"
+# catch_up = true
+
 # The home probe: is the phone on the home wifi, answered by the UDR's client
 # list. A SENSOR rather than a channel, so it is selected here like any plugin
 # and no event can ever route to it; `pns home` is how it is read and drilled,
