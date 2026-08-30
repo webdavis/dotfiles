@@ -102,7 +102,10 @@ fn second_argument() -> String {
 /// EXIT 0 MEANS "NOT FORWARDED" on every path that declines (no moshi, the
 /// operator at the desk, a subcommand this will not vouch for), which is the
 /// harness's "no opinion, prompt as usual". The forwarded path is the one
-/// place a non-zero exit is correct: there it is the operator's decision.
+/// place a non-zero exit is correct: there it is MOSHI'S OWN CODE, passed
+/// through for whatever reads it, and in production it is 0 whichever way the
+/// operator answered. See `moshi_decision` for why, and `answer_within` for
+/// why the wait on it is bounded.
 fn gate_mode(subcommand: &str) -> i32 {
     if !pns::hooks::is_harness_subcommand(subcommand) || !forward_to_moshi(&system_probes()) {
         return 0;
@@ -110,7 +113,11 @@ fn gate_mode(subcommand: &str) -> i32 {
     let Some(payload) = read_payload().filter(|payload| payload_is_whole(payload)) else {
         return 0;
     };
-    spawn_moshi_hook(subcommand, &payload).map_or(0, moshi_decision)
+    // BOUNDED AT THE SHARED SEAM, not here: pi and omp reach this entry point
+    // with no pns hook in front of it, and a guard at the other caller alone
+    // would leave this one hanging.
+    spawn_moshi_hook(subcommand, &payload)
+        .map_or(0, |child| answer_within(child, submit_deadline()))
 }
 
 /// A harness event, from the payload on stdin.
@@ -118,8 +125,14 @@ fn gate_mode(subcommand: &str) -> i32 {
 /// THE EXIT CONTRACT AND ITS ONE EXCEPTION. Every path here is a notification,
 /// and a notification that cannot be delivered must never fail the turn it
 /// reports on, so every path returns 0. The forwarded blocking path is the
-/// exception: there the exit code is the OPERATOR'S DECISION, and answering it
-/// here would answer the permission prompt for them.
+/// exception: there the exit code is MOSHI'S OWN, passed through untouched for
+/// whatever reads it. It is NOT the operator's decision, which arrives by the
+/// road `moshi_decision` describes, and it is not how Claude Code answers a
+/// `PermissionRequest` either (measured: that harness reads the exit code on
+/// this event nowhere, and decides off the hook's stdout). What the code IS is
+/// a pns-side contract the gate's direct callers read, and whose reading by
+/// Codex is unverified, so inventing one here would put pns's own word into a
+/// channel that is moshi's.
 fn hook_mode(event: &str) -> i32 {
     let Some(payload_json) = read_payload() else {
         // A harness that opened the pipe and never wrote must not hold a hook
@@ -1668,7 +1681,11 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
         unsafe { std::env::set_var("PNS_SKIP_PHONE", "1") };
     }
     run_event(&event, &probes);
-    forwarded.map_or(0, moshi_decision)
+    // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
+    // immediately before the wait. Threading it out of `run_event` would
+    // change that function's signature for one duration, and a view torn
+    // between the two reads costs at most this one event's bound.
+    forwarded.map_or(0, |child| answer_within(child, submit_deadline()))
 }
 
 /// Whether the operator can answer from the phone at all. THE SURFACE decides:
@@ -1743,14 +1760,128 @@ fn moshi_hook_bin() -> String {
 /// instead of at the operator's own moshi.
 const DEFAULT_MOSHI_HOOK_BIN: &str = "/opt/homebrew/bin/moshi-hook";
 
-/// Become moshi's answer. NO deadline and NO default: this waits on a human,
-/// and the code it returns is their decision.
+/// Become moshi's answer: the code the submission exited with, and 0 when it
+/// yielded none at all.
+///
+/// THIS IS NOT THE OPERATOR'S DECISION, and the comment that said it was is
+/// what sent one whole slice of this program off designing against a wait that
+/// does not exist. MEASURED 2026-08-29 against `moshi-hook 0.3.3`: every reply
+/// shape the daemon can send ends the wait with exit 0 and empty stdout, so
+/// approve and deny are indistinguishable here. The operator's real answer
+/// travels the daemon's own tui bridge, which finds the pane, screen-reads the
+/// numbered menu and SENDS KEYS into it. The code is still passed through
+/// untouched, because the harnesses that read a gate's exit code are entitled
+/// to whatever moshi said.
 fn moshi_decision(mut child: std::process::Child) -> i32 {
     child
         .wait()
         .ok()
         .and_then(|status| status.code())
         .unwrap_or(0)
+}
+
+/// Moshi's answer if it comes inside the deadline, and NO OPINION if it does
+/// not.
+///
+/// THIS IS A REGISTRATION, NOT A HUMAN WAIT. `moshi-hook` writes one line to
+/// its daemon's socket and returns as soon as the daemon answers it; the
+/// operator's own decision arrives later and by the road `moshi_decision`
+/// describes, when the daemon types into the prompt that this hook's return is
+/// what allows to be drawn. So a wait measured in minutes is never the
+/// operator taking their time, it is a daemon that stopped answering, and
+/// holding for it keeps the prompt off their screen for as long as the harness
+/// allows: MEASURED at 90 seconds and still climbing against a listener that
+/// accepted the connection and never replied.
+///
+/// EXPIRY RETURNS 0, WHICH IS NO OPINION AND NEVER A DECISION. The harness
+/// draws the prompt and the operator answers at the pane.
+///
+/// AND EXPIRY KILLS THE SUBMISSION, WHICH IS WHAT MAKES THE BOUND REAL.
+/// Returning is not enough on its own: the harness decides a
+/// `PermissionRequest` by READING THIS HOOK'S STDOUT TO EOF, only stdin is
+/// piped to the submission, so a survivor holds that write end open and the
+/// prompt stays hidden for the survivor's whole life. MEASURED against a
+/// ten-second silent submission: a reader waiting on the process alone 0.18s,
+/// a reader waiting on stdout EOF with the child left running 10.03s, and with
+/// the kill 0.19s. THE COST is the pending action dying with the child, which
+/// is a card a daemon wedged enough to earn this expiry had almost certainly
+/// not delivered anyway.
+///
+/// THE KILL REACHES THE DIRECT CHILD ONLY. `moshi-hook` is a single binary
+/// that writes to its daemon's socket itself, so the direct child IS the
+/// process holding the pipe. A submission that forked could leave a grandchild
+/// holding it open, and that day the kill has to widen to the process group.
+///
+/// THE ANSWERED PATH IS UNTOUCHED. A submission that finishes inside the
+/// deadline reaches `moshi_decision` exactly as it did before: no pipe, no
+/// cap, stdout still inherited, which is the contract
+/// `what_moshi_says_on_stdout_reaches_the_harness_unchanged` pins.
+///
+/// NOT `run_bounded`. That helper pipes the child's stdout on its way to
+/// attaching a deadline, and this path's whole stdout contract is that moshi's
+/// stream IS the hook's stream.
+fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
+    let expires_at = std::time::Instant::now() + deadline;
+    loop {
+        match child.try_wait() {
+            // Still `moshi_decision`'s job to turn a finished child into a
+            // code; this only decides WHEN it is asked.
+            Ok(Some(_)) => return moshi_decision(child),
+            // A wait that cannot be performed yielded no code, which is
+            // `moshi_decision`'s own no-opinion case arriving by another route.
+            Err(_) => return 0,
+            Ok(None) => {}
+        }
+        if std::time::Instant::now() >= expires_at {
+            let _ = child.kill();
+            // REAPED, not merely signalled: an unreaped child is a zombie
+            // holding its slot until pns exits, and the wait is instant on a
+            // process already killed.
+            let _ = child.wait();
+            return 0;
+        }
+        std::thread::sleep(SUBMISSION_POLL_INTERVAL);
+    }
+}
+
+/// How often that wait looks. Ten milliseconds is `run_bounded`'s own tick:
+/// short enough to add no latency an operator could notice on a submission
+/// answered in roughly 150, long enough not to spin a core.
+const SUBMISSION_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+/// How long that wait may last: the test hatch, then the operator's own
+/// `[plugins.moshi] submit_deadline_secs`, then the default.
+fn submit_deadline() -> Duration {
+    // A LITERAL ZERO IS NOT A BOUND, it is this wait switched off by accident,
+    // and the config layer already refuses one by name for that reason. The
+    // refusal sits here rather than in `env_deadline`, which keeps the
+    // accepted semantics the payload hatch shares with it: a zero here falls
+    // through to the config, exactly as an unset variable would.
+    env_deadline("PNS_MOSHI_SUBMIT_DEADLINE_MS")
+        .filter(|deadline| !deadline.is_zero())
+        .unwrap_or_else(configured_submit_deadline)
+}
+
+/// The configured bound, and the DEFAULT for every way of not stating one.
+///
+/// A config that is absent or unreadable asked for nothing, which is the
+/// default; a config that states a value this layer refuses says so OUT LOUD
+/// and then takes the default too, because an operator who asked for something,
+/// did not get it and was told nothing is the defect one level down.
+fn configured_submit_deadline() -> Duration {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let config = match load_config(&config_path(&home)) {
+        Ok(LoadOutcome::Loaded(config)) => config,
+        _ => pns::config::Config::default(),
+    };
+    pns::config::submit_deadline(&config).unwrap_or_else(|error| {
+        eprintln!(
+            "pns: config error ({}); the moshi submission keeps its {}-second bound",
+            error.detail(),
+            pns::config::DEFAULT_SUBMIT_DEADLINE_SECS
+        );
+        Duration::from_secs(pns::config::DEFAULT_SUBMIT_DEADLINE_SECS)
+    })
 }
 
 /// The harness payload from stdin, bounded in SIZE and in TIME.

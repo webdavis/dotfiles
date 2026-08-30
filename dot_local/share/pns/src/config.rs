@@ -22,6 +22,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// One plugin's slice of the config: the selection flag, and its settings
 /// with the flag itself removed, because `enabled` belongs to this layer and
@@ -120,6 +121,27 @@ const DEFAULT_SUMMARIZER_DEADLINE_SECS: u64 = 240;
 /// cold load the default covers, so no honest backend on any machine meets it;
 /// see `seconds` for the two failures that live past it.
 const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
+
+/// How long pns waits for moshi to acknowledge a submission before returning
+/// no opinion.
+///
+/// FIVE SECONDS, and it is the crate's own house number for a local pipe that
+/// should have been instant: `payload_deadline` bounds the same kind of thing
+/// on the same hook with the same figure. THE WAIT IS A REGISTRATION, NOT A
+/// HUMAN WAIT (measured 2026-08-29): `moshi-hook` writes one line to its
+/// daemon's socket and returns as soon as the daemon answers, roughly a tenth
+/// of a second, and the operator's own decision arrives later and by another
+/// road. So five seconds is about thirty times the observed round trip, and a
+/// wait past it is a daemon that stopped answering rather than an operator
+/// taking their time.
+pub const DEFAULT_SUBMIT_DEADLINE_SECS: u64 = 5;
+
+/// The most that wait may be given. ONE HOUR, mirroring the summarizer's
+/// ceiling rather than the harness's own PermissionRequest limit: another
+/// tool's number is not ours to hard-code, and Codex's differs. There is no
+/// off switch, because an unbounded wait is the defect and "off" would be a
+/// key whose only function is to restore it.
+const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
 
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
 #[derive(Debug, PartialEq, Default)]
@@ -553,9 +575,58 @@ pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
     }
 }
 
+/// How long pns waits for moshi to acknowledge a submission, from
+/// `[plugins.moshi] submit_deadline_secs`, with the default when no key states
+/// one.
+///
+/// IT IS READ OFF MOSHI'S OWN TABLE and nowhere else. Plugin settings reach
+/// this layer free-form, so every plugin's table would answer a key spelled
+/// this way, and a reader that asked the wrong one would take a number the
+/// operator wrote for something else.
+///
+/// THE REFUSALS ARE LOUD AND NAMED, because the caller falls back to the
+/// default and a silent fallback is the operator asking for something, not
+/// getting it, and being told nothing.
+pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
+    let Some(stated) = config
+        .plugins
+        .get("moshi")
+        .and_then(|moshi| moshi.settings.get("submit_deadline_secs"))
+    else {
+        return Ok(Duration::from_secs(DEFAULT_SUBMIT_DEADLINE_SECS));
+    };
+    let Some(count) = stated
+        .as_integer()
+        .and_then(|count| u64::try_from(count).ok())
+    else {
+        return Err(ConfigError::Invalid(format!(
+            "`moshi` key `submit_deadline_secs` has type `{}`, not a count of seconds",
+            stated.type_str()
+        )));
+    };
+    if count == 0 {
+        return Err(ConfigError::Invalid(
+            "`moshi` key `submit_deadline_secs` is 0, which is the bound switched off by \
+             accident: a deadline that expires before the daemon can answer costs the phone \
+             card on every approval"
+                .to_string(),
+        ));
+    }
+    if count > MAX_SUBMIT_DEADLINE_SECS {
+        return Err(ConfigError::Invalid(format!(
+            "`moshi` key `submit_deadline_secs` is {count}, past the \
+             {MAX_SUBMIT_DEADLINE_SECS}-second ceiling"
+        )));
+    }
+    Ok(Duration::from_secs(count))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ConfigError, LoadOutcome, config_path, load_config, parse_config};
+    use super::{
+        ConfigError, LoadOutcome, config_path, load_config, parse_config, submit_deadline,
+    };
+    use std::time::Duration;
 
     // --- path resolution ----------------------------------------------------
 
@@ -1180,6 +1251,78 @@ mod tests {
                 );
             }
             other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    // --- the moshi submission deadline ---------------------------------------
+
+    #[test]
+    fn the_moshi_submission_deadline_is_a_count_of_seconds_defaulted_to_five() {
+        // FIVE SECONDS, the crate's own house number for a local pipe that
+        // should have been instant: it is `PNS_PAYLOAD_DEADLINE_MS`'s default,
+        // bounding the same kind of thing on the same hook. The submission is
+        // a registration with a daemon, measured at roughly a tenth of a
+        // second, so five is about thirty times the observed round trip.
+        assert_eq!(
+            submit_deadline(&parse_config("").unwrap()).unwrap(),
+            Duration::from_secs(5),
+            "no config at all is still bounded"
+        );
+        assert_eq!(
+            submit_deadline(&parse_config("[plugins.moshi]\nenabled = true\n").unwrap()).unwrap(),
+            Duration::from_secs(5),
+            "a moshi table that does not state one is the default"
+        );
+        assert_eq!(
+            submit_deadline(&parse_config("[plugins.moshi]\nsubmit_deadline_secs = 30\n").unwrap())
+                .unwrap(),
+            Duration::from_secs(30),
+            "the operator's own number is the bound"
+        );
+        // OFF MOSHI'S OWN TABLE. Every plugin's settings reach this layer in
+        // the same shape, so a reader spelled against the wrong table would
+        // take a number the operator wrote for something else, or miss the one
+        // they wrote for this.
+        assert_eq!(
+            submit_deadline(&parse_config("[plugins.hue]\nsubmit_deadline_secs = 30\n").unwrap())
+                .unwrap(),
+            Duration::from_secs(5),
+            "another plugin's key is not moshi's bound"
+        );
+    }
+
+    #[test]
+    fn a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name() {
+        // REFUSED IN BOTH DIRECTIONS, and each refusal names the key, because
+        // "config invalid" without a noun is a hunt.
+        //
+        // ZERO IS A TRAP HERE, unlike `summarizer_deadline_secs`'s zero. A
+        // deadline that fires before the daemon can possibly answer is this
+        // feature switched off by accident: every approval would lose its
+        // phone card while the operator believed they had merely tightened a
+        // bound. The ceiling mirrors `MAX_SUMMARIZER_DEADLINE_SECS` rather
+        // than the harness's own ten minutes, because another tool's number is
+        // not ours to hard-code and Codex's differs.
+        for stated in [
+            "0",
+            "-1",
+            "\"5s\"",
+            "9.5",
+            "[5]",
+            "3601",
+            "9223372036854775807",
+        ] {
+            let config = parse_config(&format!(
+                "[plugins.moshi]\nsubmit_deadline_secs = {stated}\n"
+            ))
+            .unwrap();
+            match submit_deadline(&config) {
+                Err(ConfigError::Invalid(message)) => assert!(
+                    message.contains("submit_deadline_secs"),
+                    "the offender is named for {stated}: {message}"
+                ),
+                other => panic!("expected a named refusal for {stated}, got {other:?}"),
+            }
         }
     }
 
