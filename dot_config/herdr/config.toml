@@ -217,3 +217,28 @@ key = "prefix+shift+l"
 type = "shell"
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
 description = "clear screen: send Ctrl-l to the focused pane (like bash)"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Worktree lifecycle through worktrunk (devashish2203/herdr-worktrunk, installed
+# by run_after_53). worktrunk is already the worktree tool here, invoked as `wt`
+# from a shell; the plugin puts the same `wt` behind an fzf picker inside herdr,
+# so a worktree created from these keys still runs worktrunk's lifecycle hooks.
+# prefix+shift+g deliberately shadows herdr's built-in "new worktree" (the
+# plugin README recommends exactly that), and the plugin's own config file is
+# left absent: its defaults are open_mode = "workspace" and a split picker,
+# which is what this machine wants, since dot_config/worktrunk/config.toml
+# already points worktree-path at herdr's own ~/.herdr/worktrees layout. Popup
+# placement would need herdr >= 0.7.4 and this host runs 0.7.0-preview.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+shift+g"
+type = "plugin_action"
+command = "worktrunk.open"
+description = "worktree: switch or create from the default branch"
+
+[[keys.command]]
+key = "prefix+shift+d"
+type = "plugin_action"
+command = "worktrunk.remove"
+description = "worktree: remove"
