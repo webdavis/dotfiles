@@ -6,12 +6,12 @@
 //! free-form here: this layer proves the shape, the registry interprets the
 //! contents, and neither knows the other's plugin names.
 //!
-//! `[recap]` and `[focus]` are the two top-level tables that are not plugins:
-//! three booleans, two counts, one argument list and one list of Focus mode
-//! names THIS layer reads itself. Because it reads them, it can judge them, so
-//! an unknown key inside either, a count that is not a threshold, and a
-//! summarizer that is not a list of command words are refused rather than
-//! passed along the way a plugin's settings are.
+//! `[recap]`, `[focus]` and `[daemon]` are the three top-level tables that are
+//! not plugins: four booleans, two counts, one argument list and one list of
+//! Focus mode names THIS layer reads itself. Because it reads them, it can
+//! judge them, so an unknown key inside any of them, a count that is not a
+//! threshold, and a summarizer that is not a list of command words are refused
+//! rather than passed along the way a plugin's settings are.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config, because a typo that turns every
@@ -153,7 +153,12 @@ pub const DEFAULT_SUBMIT_DEADLINE_SECS: u64 = 5;
 const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
 
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
-#[derive(Debug, PartialEq, Default)]
+///
+/// THE DEFAULT IS WRITTEN OUT rather than derived, for `Recap`'s own reason
+/// one type up: `daemon_enabled` is true when nothing says otherwise, and a
+/// derived bool would read false and take the clock away from every machine
+/// whose config was written before the table existed.
+#[derive(Debug, PartialEq)]
 pub struct Config {
     pub plugins: BTreeMap<String, PluginEntry>,
     pub recap: Recap,
@@ -165,7 +170,29 @@ pub struct Config {
     /// key: naming no mode and switching the feature off are the same
     /// statement, and a second way to say it is a second thing to disagree.
     pub focus_silence: Vec<String>,
+    /// `[daemon] enabled`: whether `pns daemon run` stays up and ticks.
+    ///
+    /// DEFAULT ON, which is the opposite of `[focus]` and of every plugin, and
+    /// the difference is that this switch delivers nothing. An idle daemon
+    /// reads one empty directory a second. Default OFF would put every feature
+    /// that rides the clock behind TWO switches, so an operator who enabled the
+    /// feature and saw nothing would have to discover a second, invisible one.
+    pub daemon_enabled: bool,
 }
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            plugins: BTreeMap::new(),
+            recap: Recap::default(),
+            focus_silence: Vec::new(),
+            daemon_enabled: DEFAULT_DAEMON_ENABLED,
+        }
+    }
+}
+
+/// See `Config::daemon_enabled`.
+const DEFAULT_DAEMON_ENABLED: bool = true;
 
 /// Why a config could not be used. Every variant carries the offender by
 /// name, because "config invalid" without a noun is a hunt.
@@ -221,13 +248,14 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     })?;
 
     let mut config = Config::default();
-    // THREE ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
-    // this level, and everything that is not one of the three is still refused
+    // FOUR ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
+    // this level, and everything that is not one of the four is still refused
     // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
+            "daemon" => config.daemon_enabled = parse_daemon(value)?,
             "plugins" => {
                 let toml::Value::Table(plugins) = value else {
                     return Err(ConfigError::Invalid("`plugins` is not a table".to_string()));
@@ -319,6 +347,34 @@ fn parse_focus(value: toml::Value) -> Result<Vec<String>, ConfigError> {
         }
     }
     Ok(silence)
+}
+
+/// `[daemon]`'s one switch, in `parse_focus`'s shape: an unknown key inside
+/// the table and a value of the wrong type are each refused BY NAME, rather
+/// than half-read into a clock the operator believes they turned off.
+fn parse_daemon(value: toml::Value) -> Result<bool, ConfigError> {
+    let toml::Value::Table(table) = value else {
+        return Err(ConfigError::Invalid("`daemon` is not a table".to_string()));
+    };
+    let mut enabled = DEFAULT_DAEMON_ENABLED;
+    for (key, setting) in table {
+        match key.as_str() {
+            "enabled" => {
+                enabled = setting.as_bool().ok_or_else(|| {
+                    ConfigError::Invalid(format!(
+                        "`daemon` key `enabled` has type `{}`, not boolean",
+                        setting.type_str()
+                    ))
+                })?;
+            }
+            _ => {
+                return Err(ConfigError::Invalid(format!(
+                    "unknown `daemon` key `{key}`"
+                )));
+            }
+        }
+    }
+    Ok(enabled)
 }
 
 /// `silence`, the Focus modes that mean it: a list of display NAMES as Control
@@ -1261,6 +1317,60 @@ mod tests {
                     "and it is the non-table arm rather than the unknown-key one: {message}"
                 );
             }
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    // --- [daemon] ------------------------------------------------------------
+
+    /// The clock's one switch, in the four states the table has.
+    ///
+    /// DEFAULT ON, unlike `[focus]` and unlike a plugin, and the reason is that
+    /// this table gates nothing an operator can see. An idle daemon reads one
+    /// empty directory a second; default OFF would put both rider features
+    /// behind two switches, so enabling a light and seeing nothing would send
+    /// the operator hunting for a second, invisible one.
+    #[test]
+    fn the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name() {
+        assert!(
+            parse_config("").unwrap().daemon_enabled,
+            "no table at all is the default, which is on"
+        );
+        assert!(
+            parse_config("[daemon]\nenabled = true\n")
+                .unwrap()
+                .daemon_enabled
+        );
+        assert!(
+            !parse_config("[daemon]\nenabled = false\n")
+                .unwrap()
+                .daemon_enabled
+        );
+
+        let err = parse_config("[daemon]\nenabled = \"yes\"\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("daemon") && message.contains("enabled"),
+                "the offender is named: {message}"
+            ),
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+
+        let err = parse_config("[daemon]\nenable = true\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("daemon") && message.contains("enable"),
+                "the offender is named: {message}"
+            ),
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+
+        let err = parse_config("daemon = 5\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("daemon") && message.contains("is not a table"),
+                "and it is the non-table arm rather than the unknown-key one: {message}"
+            ),
             other => panic!("expected Invalid, got {other:?}"),
         }
     }
