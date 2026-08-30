@@ -57,7 +57,15 @@ pub struct PluginEntry {
 /// different array. UNSET IS A WORKING SETTING, and the common one: with no
 /// summarizer the recap posts the plain mechanical lists.
 ///
-/// ONE NAMED VALUE, never a row of loose booleans. Four of the six fields are
+/// `repos` AND `review_notes` ARE THE TWO SOURCES PNS CANNOT FIND ON ITS OWN,
+/// which is why they are keys and why an absent one is the working setting.
+/// The engine knows project NAMES off a working directory and nothing about
+/// which repository they are, and the review notes are one operator's own
+/// pipeline directory. UNSET MEANS THE SOURCE IS NEVER READ AT ALL: no `gh` is
+/// spawned and no directory is opened, which is the fence that makes both
+/// sections opt-in rather than merely empty.
+///
+/// ONE NAMED VALUE, never a row of loose booleans. Four of the eight fields are
 /// bools or counts; spread through a call they would sit adjacent and a swap
 /// would go unnoticed, and named fields cannot be transposed. It is CLONE
 /// rather than Copy only because the argv is a `Vec`, and the composition root
@@ -70,6 +78,8 @@ pub struct Recap {
     pub min_events: usize,
     pub summarizer: Option<Vec<String>>,
     pub summarizer_deadline_secs: u64,
+    pub repos: Vec<String>,
+    pub review_notes: Option<String>,
 }
 
 impl Default for Recap {
@@ -81,6 +91,8 @@ impl Default for Recap {
             min_events: DEFAULT_MIN_EVENTS,
             summarizer: None,
             summarizer_deadline_secs: DEFAULT_SUMMARIZER_DEADLINE_SECS,
+            repos: Vec::new(),
+            review_notes: None,
         }
     }
 }
@@ -226,6 +238,8 @@ fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
     for (key, setting) in table {
         match key.as_str() {
             "min_events" => recap.min_events = threshold(&setting)?,
+            "repos" => recap.repos = repositories(&setting)?,
+            "review_notes" => recap.review_notes = Some(note_glob(&setting)?),
             "summarizer" => recap.summarizer = Some(argv(&setting)?),
             "summarizer_deadline_secs" => recap.summarizer_deadline_secs = seconds(&setting)?,
             "replay_card" => recap.replay_card = flag(&key, &setting)?,
@@ -333,28 +347,12 @@ fn seconds(setting: &toml::Value) -> Result<u64, ConfigError> {
 /// word is judged: an empty ARGUMENT is a real thing to pass a program, and
 /// nothing about it stops the command running.
 fn argv(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
-    let Some(words) = setting.as_array() else {
-        return Err(ConfigError::Invalid(format!(
-            "`recap` key `summarizer` has type `{}`, not a list of command words",
-            setting.type_str()
-        )));
-    };
+    let words = strings("summarizer", "a list of command words", setting)?;
     if words.is_empty() {
         return Err(ConfigError::Invalid(
             "`recap` key `summarizer` is empty, so it names no command to run".to_string(),
         ));
     }
-    let words: Vec<String> = words
-        .iter()
-        .map(|word| {
-            word.as_str().map(str::to_string).ok_or_else(|| {
-                ConfigError::Invalid(format!(
-                    "`recap` key `summarizer` has a `{}` in it, not a list of command words",
-                    word.type_str()
-                ))
-            })
-        })
-        .collect::<Result<_, _>>()?;
     if words[0].is_empty() {
         return Err(ConfigError::Invalid(
             "`recap` key `summarizer` starts with an empty word, so it names no command to run"
@@ -362,6 +360,105 @@ fn argv(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
         ));
     }
     Ok(words)
+}
+
+/// `repos`, the repositories the merged pull requests are read from: a list of
+/// names in `gh`'s own `OWNER/REPO` spelling, passed to it as one argument
+/// each.
+///
+/// EMPTINESS IS REFUSED AT BOTH LEVELS, for `summarizer`'s reason rather than a
+/// new one. A key present with no name under it, or a name that is the empty
+/// string, would leave the section reading "nothing merged in this window" over
+/// a night that merged plenty, and the operator would be looking at their
+/// repository rather than at their config.
+///
+/// THE NAME ITSELF IS NOT JUDGED BEYOND THAT, and deliberately. `gh` accepts
+/// `OWNER/REPO`, `HOST/OWNER/REPO` and a full URL, it is the authority on which
+/// of those exist, and a shape rule written here would refuse a spelling that
+/// works. It is passed as ARGV, so nothing in it can be read as syntax by
+/// anything; a name `gh` does not know costs the section one "unavailable"
+/// line, which is the same rung a missing `gh` takes.
+fn repositories(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+    let names = strings("repos", "a list of repository names", setting)?;
+    if names.is_empty() || names.iter().any(String::is_empty) {
+        return Err(ConfigError::Invalid(
+            "`recap` key `repos` names no repository to read".to_string(),
+        ));
+    }
+    Ok(names)
+}
+
+/// One `[recap]` key holding a list of plain strings, with the key and what the
+/// list is FOR named in every refusal. The emptiness rules belong to the
+/// callers, because what an empty list MEANS is theirs.
+fn strings(key: &str, noun: &str, setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+    let Some(values) = setting.as_array() else {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `{key}` has type `{}`, not {noun}",
+            setting.type_str()
+        )));
+    };
+    values
+        .iter()
+        .map(|value| {
+            value.as_str().map(str::to_string).ok_or_else(|| {
+                ConfigError::Invalid(format!(
+                    "`recap` key `{key}` has a `{}` in it, not {noun}",
+                    value.type_str()
+                ))
+            })
+        })
+        .collect()
+}
+
+/// `review_notes`, the one pattern deciding which files the recap may open.
+///
+/// THE GLOB IS THE WHOLE PERMISSION, which is why its shape is judged here
+/// rather than resolved generously at the read. Two spellings are refused by
+/// name and each would widen what pns opens beyond what the operator wrote:
+///
+/// A RELATIVE PATH resolves against the working directory, and the recap is
+/// rendered by a process started from whatever directory the return event fired
+/// in. The same key would then name a different set of files on every run, so
+/// only an absolute path and a `~/` one are admitted.
+///
+/// AND A `*` IN A DIRECTORY makes the set of DIRECTORIES a search rather than a
+/// statement: `~/.claude/*/checklist-*.md` asks pns to walk directories nobody
+/// listed. Only the file name may hold one, which keeps the read to a single
+/// directory the operator named in full.
+fn note_glob(setting: &toml::Value) -> Result<String, ConfigError> {
+    let Some(pattern) = setting.as_str() else {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `review_notes` has type `{}`, not a path with a file name in it",
+            setting.type_str()
+        )));
+    };
+    let (directory, name) = pattern.rsplit_once('/').unwrap_or(("", pattern));
+    if name.is_empty() {
+        return Err(ConfigError::Invalid(
+            "`recap` key `review_notes` names no file to read".to_string(),
+        ));
+    }
+    if !pattern.starts_with('/') && !pattern.starts_with("~/") {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `review_notes` is `{pattern}`, which is not an absolute path or a `~/` one"
+        )));
+    }
+    if directory.contains('*') {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `review_notes` is `{pattern}`, and only its file name may hold a `*`"
+        )));
+    }
+    // AND EXACTLY ONE OF THEM, because that is all the matcher reads. A second
+    // `*` is matched LITERALLY, so a pattern carrying one silently matches
+    // nothing at all, which is the outcome every refusal in this file exists to
+    // turn into a sentence the operator can act on.
+    if name.matches('*').count() > 1 {
+        return Err(ConfigError::Invalid(format!(
+            "`recap` key `review_notes` is `{pattern}`, and its file name may hold only one `*`"
+        )));
+    }
+    Ok(pattern.to_string())
 }
 
 /// The IO edge: read the file at `path` and hand its text to the parser.
@@ -801,6 +898,94 @@ mod tests {
                     message.contains("summarizer_deadline_secs"),
                     "the offender is named for {stated}: {message}"
                 ),
+                other => panic!("expected Invalid for {stated}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn the_two_external_sources_are_named_by_the_operator_or_not_read_at_all() {
+        // NEITHER SECTION HAS A SOURCE pns can find on its own: merged pull
+        // requests live in a repository nothing here knows the name of, and the
+        // review notes live wherever this operator's own pipeline puts them.
+        // Both are therefore keys, and an absent key is the working setting.
+        let config = parse_config(
+            "[recap]\nrepos = [\"webdavis/dotfiles\"]\n\
+             review_notes = \"~/.claude/pipeline/slices/checklist-*.md\"\n",
+        )
+        .unwrap();
+        assert_eq!(config.recap.repos, ["webdavis/dotfiles".to_string()]);
+        assert_eq!(
+            config.recap.review_notes.as_deref(),
+            Some("~/.claude/pipeline/slices/checklist-*.md")
+        );
+        let unconfigured = parse_config("[recap]\ndigest = true\n").unwrap().recap;
+        assert!(
+            unconfigured.repos.is_empty(),
+            "UNSET IS THE WORKING SETTING: no repo is no `gh` at all"
+        );
+        assert_eq!(
+            unconfigured.review_notes, None,
+            "and no glob is no directory read at all"
+        );
+    }
+
+    #[test]
+    fn a_repos_value_that_is_not_repository_names_is_refused_naming_the_key() {
+        // THE SAME FOUR SHAPES `summarizer` REFUSES, for the same reason: a
+        // list this layer reads itself is a list it can judge, and a repo name
+        // it silently dropped would read to the operator as a night with no
+        // merges in it rather than as a table they have to fix.
+        for (stated, expected) in [
+            ("\"webdavis/dotfiles\"", "not a list"),
+            ("[\"webdavis/dotfiles\", 3]", "not a list"),
+            ("[]", "names no repository"),
+            ("[\"\"]", "names no repository"),
+        ] {
+            let err = parse_config(&format!("[recap]\nrepos = {stated}\n")).unwrap_err();
+            match err {
+                ConfigError::Invalid(message) => {
+                    assert!(
+                        message.contains("repos"),
+                        "the offender is named for {stated}: {message}"
+                    );
+                    assert!(
+                        message.contains(expected),
+                        "the refusal says what is wrong for {stated}: {message}"
+                    );
+                }
+                other => panic!("expected Invalid for {stated}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_review_notes_glob_that_names_no_readable_file_is_refused_naming_the_key() {
+        // THE GLOB IS THE WHOLE PERMISSION. It is the only thing that decides
+        // which files pns opens, so a shape it cannot resolve exactly is
+        // refused rather than resolved generously: a RELATIVE path would
+        // resolve against whatever directory the return event happened to be
+        // in, and a `*` in a DIRECTORY would make the set of directories pns
+        // reads a search rather than a statement.
+        for (stated, expected) in [
+            ("3", "not a path"),
+            ("\"\"", "names no file"),
+            ("\"slices/checklist-*.md\"", "absolute"),
+            ("\"~/.claude/*/checklist-*.md\"", "file name may hold a"),
+            ("\"~/.claude/checklist-*-*.md\"", "only one"),
+        ] {
+            let err = parse_config(&format!("[recap]\nreview_notes = {stated}\n")).unwrap_err();
+            match err {
+                ConfigError::Invalid(message) => {
+                    assert!(
+                        message.contains("review_notes"),
+                        "the offender is named for {stated}: {message}"
+                    );
+                    assert!(
+                        message.contains(expected),
+                        "the refusal says what is wrong for {stated}: {message}"
+                    );
+                }
                 other => panic!("expected Invalid for {stated}, got {other:?}"),
             }
         }

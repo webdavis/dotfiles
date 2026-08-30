@@ -522,12 +522,46 @@ pub fn local_minutes_since_midnight(epoch_secs: u64) -> Option<u16> {
         .filter(|minutes| *minutes < 1440)
 }
 
+/// One epoch second as an RFC 3339 instant in UTC, or None when the system
+/// cannot say.
+///
+/// UTC AND NOT THE LOCAL ZONE, which is the whole reason this is a second
+/// function rather than a format applied to the first. The only caller states a
+/// window to a REMOTE search service, and a bare local time would be read there
+/// as an hour the operator did not mean, twice a year by a different amount.
+/// The `Z` is what makes the instant unambiguous wherever it is parsed.
+pub fn utc_timestamp(epoch_secs: u64) -> Option<String> {
+    let seconds = libc::time_t::try_from(epoch_secs).ok()?;
+    let mut broken_down = std::mem::MaybeUninit::<libc::tm>::uninit();
+    // SAFETY: `gmtime_r`'s contract is `localtime_r`'s above, and for the same
+    // reasons: `seconds` points at a live `time_t` on this frame, `broken_down`
+    // is an aligned `tm` this frame owns for the whole call with nothing else
+    // aliasing it, the reentrant form writes only into that buffer, and the
+    // buffer is read ONLY after a non-null return, which is what proves it was
+    // initialized.
+    let utc = unsafe {
+        if libc::gmtime_r(&seconds, broken_down.as_mut_ptr()).is_null() {
+            return None;
+        }
+        broken_down.assume_init()
+    };
+    Some(format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        utc.tm_year.checked_add(1900)?,
+        utc.tm_mon.checked_add(1)?,
+        utc.tm_mday,
+        utc.tm_hour,
+        utc.tm_min,
+        utc.tm_sec
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         CommandRunner, local_minutes_since_midnight, newest_terminal_atime, parse_focused_tab,
         parse_idle_nanoseconds, parse_layout, parse_pids, parse_screen_locked, parse_tty_names,
-        run_bounded,
+        run_bounded, utc_timestamp,
     };
     use std::cell::RefCell;
     use std::time::Duration;
@@ -1369,6 +1403,19 @@ mod tests {
             (later + 1440 - minutes) % 1440,
             1,
             "and it reads the second it was handed, not the wall clock"
+        );
+    }
+
+    #[test]
+    fn the_utc_instant_is_the_same_second_wherever_the_suite_runs() {
+        // THE ZONE IS NOT READ, which is the property: the only caller states a
+        // window to a remote search, and a local hour would be read there as an
+        // hour nobody meant. Pinned as an exact string, so a build that
+        // reached for the local zone fails on the developer's machine and on a
+        // UTC runner alike.
+        assert_eq!(
+            utc_timestamp(AUGUST_INSTANT).as_deref(),
+            Some("2025-08-24T01:46:40Z")
         );
     }
 }
