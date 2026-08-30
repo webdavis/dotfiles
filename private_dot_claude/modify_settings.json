@@ -19,7 +19,7 @@
     STABLE       overwritten from here on every apply, whatever the live file
                  says: permissions, hooks, statusLine, skillOverrides,
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
-                 effortLevel, and the four extraKnownMarketplaces entries this
+                 effortLevel, and the five extraKnownMarketplaces entries this
                  repo declares.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.
@@ -337,8 +337,8 @@
        and all five source names are in the shipped 2.1.220 binary, read
        2026-08-02).
 
-       Four of these come from marketplaces Anthropic does not ship: ponytail,
-       worktrunk, last30days and codex. An entry here only records that the
+       Five of these come from marketplaces Anthropic does not ship: ponytail,
+       worktrunk, last30days, codex and plannotator. An entry here only records that the
        plugin should be ENABLED once installed, and enabling a plugin that is
        not installed is inert, so the declaration is safe on a fresh machine.
        The marketplaces themselves are declared in the block below. --- */ -}}
@@ -354,7 +354,8 @@
     "ponytail@ponytail"
     "skill-creator@claude-plugins-official"
     "worktrunk@worktrunk"
-    "last30days@last30days-skill" -}}
+    "last30days@last30days-skill"
+    "plannotator@plannotator" -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
        `slice`, so the value test below already covers absence. Measured
@@ -390,7 +391,7 @@
        WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
        schema declares `source` REQUIRED, so writing the flag alone onto a fresh
        machine would produce an entry Claude Code rejects. The repo owns these
-       four keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       five keys and nothing else under extraKnownMarketplaces: setValueAtPath
        writes at the path, so a marketplace the operator adds through
        `claude plugin marketplace add` keeps its own entry untouched (measured
        2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
@@ -411,6 +412,9 @@
     "autoUpdate" true) $merged -}}
 {{- $merged = setValueAtPath "extraKnownMarketplaces.last30days-skill" (dict
     "source" (dict "source" "github" "repo" "mvanhorn/last30days-skill")
+    "autoUpdate" true) $merged -}}
+{{- $merged = setValueAtPath "extraKnownMarketplaces.plannotator" (dict
+    "source" (dict "source" "github" "repo" "backnotprop/plannotator")
     "autoUpdate" true) $merged -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
