@@ -2241,6 +2241,11 @@ const MOSHI_SAYS_LINE: &str = "pns doctor: moshi says: Moshi Pro attached (usage
 const FOCUS_OFF_LINE: &str =
     "pns doctor: focus awareness is off (no [focus] table names a mode to silence)";
 
+/// What the doctor says about the clock on a machine where nothing has
+/// bootstrapped the LaunchAgent, which is every sandbox in this file: the table
+/// defaults ON and no daemon has ever written a beat here.
+const DAEMON_NEVER_RAN_LINE: &str = "pns doctor: the daemon is enabled and has not run yet";
+
 /// And what it says about the lamps on a machine whose config has no `[lights]`
 /// table, which is every machine that never wrote one.
 const LIGHTS_OFF_LINE: &str =
@@ -2307,6 +2312,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "pns doctor: 3 sent, 0 failed, 2 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
+            DAEMON_NEVER_RAN_LINE,
             LIGHTS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
@@ -2578,6 +2584,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "pns doctor: 0 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
+            DAEMON_NEVER_RAN_LINE,
             LIGHTS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
@@ -6716,12 +6723,16 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // Focus being on is not a fault, so it sits below the check that can move
     // the exit code and above the history it explains.
     assert_eq!(lines[summary + 3], FOCUS_OFF_LINE, "{printed}");
+    // AND THE CLOCK BESIDE IT, for the same reason and under the same rule: a
+    // daemon that is down is not a fault either, so it reports here rather
+    // than moving the exit code.
+    assert_eq!(lines[summary + 4], DAEMON_NEVER_RAN_LINE, "{printed}");
     // AND THE LAMPS BELOW THE GATE, on that same rule: the lights section
     // reports without grading, so it sits under the check that can move the
     // exit code and above the history.
-    assert_eq!(lines[summary + 4], LIGHTS_OFF_LINE, "{printed}");
+    assert_eq!(lines[summary + 5], LIGHTS_OFF_LINE, "{printed}");
     assert_eq!(
-        lines[summary + 5],
+        lines[summary + 6],
         format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );

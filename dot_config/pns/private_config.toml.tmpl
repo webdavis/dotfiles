@@ -119,6 +119,24 @@
 # is named as one that could not be read rather than left out.
 # review_notes = "~/.claude/pipeline/slices/checklist-*.md"
 
+# The clock. pns is otherwise a set of short-lived processes: a hook fires, a
+# process starts, decides, delivers and exits, so every feature is a REACTION to
+# something that happened. The daemon is what runs BETWEEN events, for the two
+# things that are not reactions: saying something when nothing happened (an
+# approval left unanswered), and keeping an ambient effect alive while an agent
+# loop is alive (a light that breathes while work is running and goes dark when
+# it stops). It holds no state of its own; everything it knows is a file in
+# ~/.local/state/pns, so a restart loses nothing and a stopped daemon costs
+# those ambient features and never a card. Every notification you get today is
+# delivered on exactly the same path whether this is running or not.
+# ON UNLESS YOU SAY OTHERWISE, which is the opposite of every other table here,
+# because this one delivers nothing by itself: an idle daemon reads one empty
+# directory a second. Turning it off with `enabled = false` makes the launchd
+# job exit cleanly and stay exited, and takes away anything built on the clock.
+# `pns doctor` says which of the four states it is in.
+# [daemon]
+# enabled = true
+
 # The macOS Focus modes that pns treats as your own instruction not to be
 # interrupted. While one of the modes named below is active, banners, cards and
 # light pulses are held back and journaled instead, and the catch-up hands them
