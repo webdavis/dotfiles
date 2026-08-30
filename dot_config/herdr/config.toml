@@ -242,3 +242,28 @@ key = "prefix+shift+d"
 type = "plugin_action"
 command = "worktrunk.remove"
 description = "worktree: remove"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# One-keystroke session launcher (seshagy). prefix+k opens a temporary pane
+# holding one picker over three sources at once: the live herdr workspaces,
+# zoxide's frecency-ranked directories, and the project directories fd finds.
+# The quick-jump chords above reach the eight workspaces that have a chord; this
+# reaches everything else, including a project visited once and never bound.
+#
+# `type = "pane"` opens the command in a temporary pane and closes it when the
+# command exits, and `--ephemeral` makes seshagy exit on focus loss, so the
+# picker behaves like a popup on a herdr too old for real popups (those need
+# 0.7.4 and this host runs 0.7.0-preview).
+#
+# Declared HERE by hand, never by `seshagy keybind install herdr`. That command
+# writes this same block into ~/.config/herdr/config.toml, which is a chezmoi
+# target, so its edit would be erased by the next apply. The block below is
+# byte-equivalent to what it writes with --key k (captured from the tool in a
+# throwaway HOME, 2026-08-29).
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+k"
+type = "pane"
+command = "seshagy --ephemeral"
+description = "seshagy session manager"

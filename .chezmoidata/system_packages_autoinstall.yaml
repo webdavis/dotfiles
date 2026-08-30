@@ -7,6 +7,7 @@ packages:
         - cirruslabs/cli
         - eugene1g/safehouse
         - felixkratz/formulae
+        - lmilojevicc/tap
         - mediosz/tap
         - nikitabobko/tap
         - openhue/cli
@@ -31,6 +32,7 @@ packages:
         - cirruslabs/cli
         - eugene1g/safehouse
         - felixkratz/formulae
+        - lmilojevicc/tap
         - mediosz/tap
         - nikitabobko/tap
         - openhue/cli
@@ -106,6 +108,7 @@ packages:
         - jq
         - just
         - librsvg
+        - lmilojevicc/tap/seshagy
         - mas
         - mosh
         - mtr
