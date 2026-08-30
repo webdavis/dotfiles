@@ -444,6 +444,7 @@
 {{- $merged = setValueAtPath "skillOverrides.obsidian-bases" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.obsidian-cli" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.obsidian-markdown" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.owasp-security" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}

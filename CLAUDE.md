@@ -251,7 +251,7 @@ model, the plugin-state trade and the corrupt-file recovery path are in
 
 ### Agent skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (35 roster skills), serving Claude Code (chezmoi
+`~/.agents/skills` is the single canonical skills store (36 roster skills), serving Claude Code (chezmoi
 symlink declarations under `private_dot_claude/skills/`), Codex (native store scan, no declarations) and
 hermes (declared symlinks into the default profile and four specialist profiles). Provenance, tiering and
 fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces that those three agree

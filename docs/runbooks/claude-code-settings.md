@@ -34,7 +34,7 @@ Overwritten from the template on every apply, whatever the live file holds.
     dialog is shown and exit code 2 alone would decline the request outright.
   - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, calling `pns hook asked`
     and `pns hook plan-ready`.
-- `skillOverrides`, one `setValueAtPath` per on-demand skill (27 today), each set to
+- `skillOverrides`, one `setValueAtPath` per on-demand skill (28 today), each set to
   `user-invocable-only`, sourced from `dot_agents/custom-skill-lock.json` and gated by
   `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.
 - `statusLine`, `cleanupPeriodDays` (= 365, a year of session retention), `autoUpdatesChannel` (=

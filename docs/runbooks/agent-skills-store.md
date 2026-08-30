@@ -1,6 +1,6 @@
 # Agent skills: the cross-harness store
 
-`~/.agents/skills` is the single canonical skills store (35 roster skills). It serves Claude Code for the
+`~/.agents/skills` is the single canonical skills store (36 roster skills). It serves Claude Code for the
 roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
 `private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
 hermes for exactly the store-symlink subset of the delivery model below
@@ -14,7 +14,7 @@ ever disagree.
 ```mermaid
 flowchart LR
   subgraph provenance["Provenance lanes (dot_agents/custom-skill-lock.json)"]
-    NPX["npxTracked, 27<br/>npx skills add, GitHub"]
+    NPX["npxTracked, 28<br/>npx skills add, GitHub"]
     CLAW["clawhubTracked, 3<br/>clawhub update, ClawHub"]
     VEND["forks + vendored, 4<br/>dot_agents/skills, chezmoi apply"]
     APP["app-owned, 1<br/>cua-driver skills update"]
@@ -42,7 +42,7 @@ live in `dot_agents/custom-skill-lock.json`, which is the thing to read for any 
 
 The lock at `dot_agents/custom-skill-lock.json` records it.
 
-### npx-tracked (the `npxTracked` table, 27 skills)
+### npx-tracked (the `npxTracked` table, 28 skills)
 
 The store copy is installed and refreshed by the official npx `skills` CLI from an official GitHub
 upstream, latest from `main` (no pin).
@@ -70,6 +70,12 @@ demoted it never fires unless the agent is told to use it. That is deliberate, a
 committed edits, the `tiers` value in the lock and the matching `skillOverrides` line in
 `private_dot_claude/modify_settings.json`, because the roster test fails a core skill that still carries
 an override.
+
+Also includes `owasp-security` (from `agamm/claude-code-owasp`): the OWASP Top 10:2025 table, a
+finding-triage rubric, the LLM and Agentic AI lists, and ASVS 5.0 requirement ids, as markdown with no
+executable code. Its README installs with `npx degit` straight into `~/.claude/skills/`, which would land
+a real directory beside the symlink declarations and reach Claude Code only; the npx lane sources the
+same repo, so it goes here instead and gets a refresh path the degit copy would not have.
 
 ### ClawHub-tracked (the `clawhubTracked` table, 3 skills)
 

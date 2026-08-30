@@ -32,6 +32,7 @@
     "obsidian-bases": "on-demand",
     "obsidian-cli": "on-demand",
     "obsidian-markdown": "on-demand",
+    "owasp-security": "on-demand",
     "sql-toolkit": "core",
     "summarize-pro": "on-demand",
     "tiktok-crawling": "on-demand",
@@ -91,6 +92,7 @@
     "obsidian-bases": [],
     "obsidian-cli": [],
     "obsidian-markdown": [],
+    "owasp-security": [],
     "sql-toolkit": [
       "nicodemus"
     ],
@@ -264,6 +266,9 @@
     },
     "obsidian-markdown": {
       "repo": "kepano/obsidian-skills"
+    },
+    "owasp-security": {
+      "repo": "agamm/claude-code-owasp"
     },
     "todoist-cli": {
       "repo": "Doist/todoist-cli"
