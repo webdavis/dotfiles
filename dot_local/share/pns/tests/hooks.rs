@@ -527,6 +527,333 @@ fn a_harness_pns_does_not_register_for_is_never_handed_to_moshi() {
     assert!(!sandbox.path("moshi.argv").exists());
 }
 
+// --- what the submission path owes the operator ------------------------------
+//
+// THE NO-LOST-BEHAVIOR GATE. Everything below passes on today's build by
+// construction: each one pins something the submission path already does, so
+// that a later rewrite of HOW pns reaches moshi has to keep delivering it.
+//
+// MOST OF THESE GUARDS ARE MECHANISM-BOUND, AND SAYING SO IS THE POINT. A
+// test that reads the submission record is reading a file that exists only
+// because the submission is a child process running a stub, and a transport
+// change does not re-satisfy that assertion: it invalidates it. Nine of the
+// guards this gate adds are in that position, in two directions that fail
+// very differently.
+//
+// RED AT THE SWITCH, which is the safe direction, because item 25 sees the
+// failure and rewrites the assertion against whatever records an endpoint
+// submission:
+//   one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve
+//   an_approval_is_forwarded_even_when_the_moshi_channel_is_switched_off
+//   an_approval_is_forwarded_even_with_the_pane_in_plain_sight
+//   a_payload_at_the_cap_is_whole_and_is_still_submitted
+//   the_gate_submits_one_prompt_exactly_once
+//
+// VACUOUS AT THE SWITCH unless re-pointed, because ABSENCE is what they
+// assert and an absent file is absently true for every build, including one
+// that cards the operator for every finished turn:
+//   an_ordinary_stop_never_reaches_moshi
+//   a_failed_turn_never_reaches_moshi
+//   at_the_desk_the_gate_submits_nothing_and_exits_zero
+//   the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does
+//
+// Those four read through `submissions`, deliberately: item 25 re-points ONE
+// function at whatever the new transport records and all four keep guarding.
+// Spelled as a filename they would fail open, silently, on the very switch
+// this gate exists to guard.
+//
+// The rest assert something a transport change re-satisfies rather than
+// invalidates (the card and what it says, the exit code, a submission that
+// died), except the two that pin plumbing ON PURPOSE, the inherited
+// environment and the inherited stdout, because those are the design
+// questions a transport change has to answer deliberately.
+
+#[test]
+fn a_blocked_hook_cards_the_operator_as_blocked_and_says_what_was_asked() {
+    // Every sibling arm pins its own card (`failed`, `denied`, `asked`); the
+    // blocked one, the oldest, never did. The state word is asserted EXACTLY,
+    // because nothing in the crate validates one and a typo would ship
+    // silently.
+    //
+    // READ OFF THE HERMES STUB. The moshi CHANNEL (the in-process push, which
+    // is a different thing from the moshi-hook submission this section is
+    // about) is suppressed on this path, so the durable leg is the only one
+    // still carrying the card.
+    let sandbox = Sandbox::new("hook-blocked-card");
+    let mut command = sandbox.pns();
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("HERDR_PANE_ID", "wY:p4");
+    sandbox.stub_moshi(&mut command, 42);
+    let output = hook_with(
+        command,
+        &sandbox,
+        "blocked",
+        r#"{"message":"may I run this","session_id":"s1","cwd":"/a/dotfiles"}"#,
+    );
+    assert_eq!(output.status.code(), Some(42));
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "blocked");
+    assert_eq!(
+        event["detail"], "may I run this",
+        "what was asked is the question a blocked card has to answer"
+    );
+    assert_eq!(event["project"], "dotfiles");
+    // The pane rides the card so a click lands on the pane that is waiting.
+    assert_eq!(event["pane"], "wY:p4");
+}
+
+#[test]
+fn one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve() {
+    // TWO HALVES OF ONE SENTENCE: the submission really happened AND its zero
+    // came back. Either alone is weaker than the pair. A count of one is the
+    // operator's single-submitter rule made checkable, on the exact seam a
+    // second submitter would appear at; the zero is what keeps that count from
+    // being satisfied by a build that submitted nothing and defaulted.
+    //
+    // The exit code is a live contract for the harnesses that reach the gate
+    // directly and read it. Claude Code does not honor a PermissionRequest
+    // hook's exit code (the answer travels moshi's own bridge), so for THIS
+    // path it is a forward-compatibility guarantee rather than today's
+    // mechanism.
+    //
+    // MECHANISM-BOUND: the count is read off the submission record, so this
+    // goes RED at the endpoint switch and item 25's duty is to rewrite it
+    // against the endpoint's own record. Red is the duty being discharged,
+    // not a regression.
+    let sandbox = Sandbox::new("hook-blocked-single-submitter");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 0);
+    let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a zero from a submission that happened is an approve, not a default"
+    );
+    assert_eq!(
+        submissions(&sandbox),
+        ["claude-hook"],
+        "one prompt, one submission: a second card is a second answer nobody gave"
+    );
+}
+
+#[test]
+fn an_approval_is_forwarded_even_when_the_moshi_channel_is_switched_off() {
+    // The forward is independent of plugin selection AND of the push token,
+    // and neither is a coincidence worth leaving unpinned: a submission built
+    // on the moshi channel's own config would couple the two silently, and an
+    // operator who never set a token would lose approvals while every test
+    // stayed green.
+    //
+    // MECHANISM-BOUND: the submission is read off the record, so this goes
+    // RED at the endpoint switch for item 25 to rewrite.
+    let sandbox = Sandbox::new("hook-blocked-channel-off");
+    sandbox.write_config("[plugins.moshi]\nenabled = false\n[plugins.hermes]\nenabled = true\n");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    assert!(
+        sandbox.path("moshi.argv").exists(),
+        "a channel the operator turned off is not an approval they declined"
+    );
+    // THE ABSENT CARD IS NOT EVIDENCE THE CONFIG WAS READ. A forward that
+    // happened suppresses pns's own phone leg whatever the config says, and
+    // the same absence shows up with the channel enabled and with no config
+    // file at all (measured, three ways). This line pins that no second card
+    // appeared, and nothing about what silenced it; the exit code and the
+    // submission above are what carry the selection exemption.
+    assert!(!sandbox.fired("moshi"));
+    assert!(sandbox.fired("hermes"), "the paper trail is still written");
+}
+
+#[test]
+fn an_approval_is_forwarded_even_with_the_pane_in_plain_sight() {
+    // VISIBILITY GATES NOTIFICATIONS AND NEVER APPROVALS, and today that is
+    // STRUCTURAL rather than stated: `operator_surface`'s trait bound carries
+    // no session-view probe at all, so the forward cannot consult one. A
+    // refactor that routed the forward through the delivery decision would
+    // break it without editing a line anyone reviewed, which is what this
+    // catches. The mute twin exists for the same reason and this is its
+    // sibling.
+    //
+    // WHAT THIS DOES NOT PROVE: `stub_herdr` records nothing, so nothing here
+    // distinguishes "the session view answered Visible" from "it was never
+    // consulted at all". The visibility READ is exercised by some twenty
+    // tests in the dispatch suite; what this pins is the forward's
+    // INDIFFERENCE to it, which is the half those tests cannot see.
+    //
+    // MECHANISM-BOUND: the submission is read off the record, so this goes
+    // RED at the endpoint switch for item 25 to rewrite.
+    let sandbox = Sandbox::new("hook-blocked-pane-visible");
+    let mut command = sandbox.pns();
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("HERDR_PANE_ID", "t1:p1");
+    sandbox.stub_herdr(&mut command, true);
+    sandbox.stub_moshi(&mut command, 42);
+    let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    assert!(
+        sandbox.path("moshi.argv").exists(),
+        "a pane in plain sight is not an answer to the prompt on it"
+    );
+}
+
+#[test]
+fn the_submission_inherits_the_callers_environment() {
+    // MECHANISM, PINNED ON PURPOSE. moshi-hook resolves its own host identity
+    // out of the environment it inherits (HOME, and its config from there), so
+    // the whole environment crossing this seam is load-bearing today. A
+    // submission that carries no environment has to answer what carries the
+    // host identity instead, and this is the pin that makes that question
+    // unavoidable rather than implicit.
+    //
+    // `Sandbox::bare` clears the environment and puts back only HOME and PATH,
+    // so the reading is the sandbox's own rather than the developer's.
+    let sandbox = Sandbox::new("hook-blocked-env");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    write_script(
+        &bin.join("moshi-hook"),
+        &format!(
+            "printf '%s\\n' \"$HOME\" \"$MOSHI_ENV_PROBE\" >\"{sandbox}/moshi.env\"; \
+             cat >/dev/null; exit 42",
+            sandbox = sandbox.display()
+        ),
+    );
+    let mut command = sandbox.pns();
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"))
+        .env("MOSHI_ENV_PROBE", "inherited");
+    let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
+    assert_eq!(output.status.code(), Some(42));
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.env")).expect("the child's environment"),
+        format!("{}\ninherited\n", sandbox.display()),
+        "the child reads the caller's own environment, HOME included"
+    );
+}
+
+#[test]
+fn what_moshi_says_on_stdout_reaches_the_harness_unchanged() {
+    // MECHANISM, PINNED ON PURPOSE, and the SECOND design question: only stdin
+    // is piped, so the child's stdout IS the hook's stdout and pns is a plain
+    // pipe on this seam. Claude Code reads a PermissionRequest hook's stdout,
+    // so the channel from moshi back to the harness is open end to end today
+    // and a submission that carries no stream has to answer what replaces it.
+    //
+    // THIS IS ALSO THE PROXY FOR THE UNBOUNDED WAIT. Proving the absence of a
+    // deadline needs a test slower than the deadline, which this suite will
+    // not carry. The likeliest way to lose it is routing the submission
+    // through `run_bounded`, which pipes the child's stdout on its way to
+    // attaching a deadline, so the stream this reads is the half of that
+    // change an assertion can see. A deadline added WITHOUT touching the
+    // stream wiring still passes here, and that residual is stated rather than
+    // papered over.
+    let sandbox = Sandbox::new("hook-blocked-stdout");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    write_script(
+        &bin.join("moshi-hook"),
+        "cat >/dev/null; printf 'moshi answered here\\n'; exit 42",
+    );
+    let mut command = sandbox.pns();
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+    let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
+    assert_eq!(output.status.code(), Some(42));
+    let printed = String::from_utf8_lossy(&output.stdout);
+    // VERBATIM, not merely present. Moshi's line has to arrive as ITS OWN
+    // line, exactly once, with nothing added to either end: a `contains`
+    // would pass a pns that prefixed it, wrapped it or printed it twice, and
+    // each of those is a different answer by the time the harness parses it.
+    assert_eq!(
+        printed
+            .lines()
+            .filter(|line| *line == "moshi answered here")
+            .count(),
+        1,
+        "moshi's answer did not arrive unchanged and exactly once: {printed:?}"
+    );
+}
+
+#[test]
+fn a_submission_that_dies_without_answering_is_not_a_decision() {
+    // NO ANSWER IS NO OPINION. A child killed by a signal yields no exit code
+    // at all, and reading that as anything but zero would refuse a tool call
+    // the operator never refused. The analogue over any other transport is a
+    // dropped connection, so the invariant outlives the pipe.
+    let sandbox = Sandbox::new("hook-blocked-signalled");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    // THE MARKER IS WRITTEN BEFORE THE KILL, because a stub that never ran at
+    // all produces this test's exit 0 and this test's card just as well as a
+    // stub that died mid-answer, and only one of those is the behavior under
+    // test.
+    write_script(
+        &bin.join("moshi-hook"),
+        &format!(
+            "printf 'ran\\n' >\"{sandbox}/moshi.started\"; cat >/dev/null; kill -TERM $$",
+            sandbox = sandbox.display()
+        ),
+    );
+    let mut command = sandbox.pns();
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+    let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a submission that died is not the operator's decision"
+    );
+    assert!(
+        sandbox.path("moshi.started").exists(),
+        "the submission has to have STARTED for its death to be what was read"
+    );
+    // Absence alone would also be green for a build that submitted nothing.
+    assert!(
+        sandbox.fired("hermes"),
+        "and the operator still hears that something is blocked"
+    );
+}
+
+#[test]
+fn a_payload_at_the_cap_is_whole_and_is_still_submitted() {
+    // THE OTHER HALF OF THE CAP. Every cap test in this file sends 1.2MB, so
+    // all of them agree about what must NOT be submitted and none of them
+    // says what must. A reader capped one byte lower, or a comparison that
+    // turned strict, stops forwarding legitimate megabyte payloads while
+    // every one of those tests stays green and approvals quietly stop
+    // arriving. Exactly at the cap is the only place that edge is visible.
+    //
+    // MECHANISM-BOUND: the submission is read off the record, so this goes
+    // RED at the endpoint switch for item 25 to rewrite.
+    let sandbox = Sandbox::new("hook-blocked-at-cap");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    let mut child = spawn_hook(command, "blocked");
+    let payload = format!(r#"{{"message":"{}"}}"#, "x".repeat(999_986));
+    assert_eq!(payload.len(), 1_000_000, "the test's own arithmetic");
+    write_payload(&mut child, payload.as_bytes());
+    assert_eq!(
+        finished_within(child, HANG_LIMIT),
+        Some(42),
+        "a payload that arrived whole is the operator's to answer"
+    );
+    assert_eq!(
+        submissions(&sandbox),
+        ["claude-hook"],
+        "the last byte that still fits is still a whole payload"
+    );
+}
+
 // --- the tool call the harness refused --------------------------------------
 
 #[test]
@@ -698,6 +1025,81 @@ fn a_non_blocking_event_never_pays_for_the_round_trip() {
 }
 
 #[test]
+fn an_ordinary_stop_never_reaches_moshi() {
+    // THE STUB IS THE TRIPWIRE, the same one the `asked` and `denied` arms
+    // carry: it records its argv and exits 42, so a Stop swept into the
+    // submission path would leave that file behind and hand the 42 back as a
+    // decision on a path whose contract is always zero. AWAY is what arms it;
+    // at the desk the submission declines on its own and the tripwire would
+    // stay un-run for the wrong reason.
+    //
+    // Stop is the highest-volume event there is and the one a "moshi is just
+    // another channel" design sweeps in first. That would break the
+    // single-submitter rule and put an Allow/Deny card in front of an operator
+    // for a turn that has already finished.
+    //
+    // MECHANISM-BOUND, IN THE DANGEROUS DIRECTION: an absent record is
+    // absently true for a build that submits over some other transport, so
+    // the absence reads through `submissions` and item 25's duty is to
+    // RE-POINT that one function at the new record. Spelled as a filename,
+    // the guard written against this exact regression would go quiet on the
+    // switch that causes it.
+    let sandbox = Sandbox::new("hook-stop-no-round-trip");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    let output = hook_with(
+        command,
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"done here"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        submissions(&sandbox).is_empty(),
+        "a finished turn is news, not a question for the phone"
+    );
+    // Absence alone would also be green for an arm that does nothing at all.
+    assert!(
+        sandbox.fired("hermes"),
+        "and the operator still hears the turn ended"
+    );
+}
+
+#[test]
+fn a_failed_turn_never_reaches_moshi() {
+    // THE SAME TRIPWIRE ONE ARM OVER. A "moshi is just another channel" sweep
+    // takes StopFailure in the edit that takes Stop, and a dead turn is even
+    // less of a question than a finished one: no prompt is waiting on an
+    // Allow, so a card offering one asks about something nothing is listening
+    // to, and its answer would come back as an exit code on a path whose
+    // contract is always zero.
+    //
+    // MECHANISM-BOUND, IN THE DANGEROUS DIRECTION: read through `submissions`
+    // for the reason the Stop twin above states.
+    let sandbox = Sandbox::new("hook-stop-failure-no-round-trip");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    let output = hook_with(
+        command,
+        &sandbox,
+        "stop-failure",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","error":"API Error: 500"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        submissions(&sandbox).is_empty(),
+        "a turn that died is news, not a question for the phone"
+    );
+    // Absence alone would also be green for an arm that does nothing at all.
+    assert!(
+        sandbox.fired("hermes"),
+        "and the operator still hears that the turn died"
+    );
+}
+
+#[test]
 fn nothing_that_goes_wrong_building_a_notification_fails_the_harness_turn() {
     let sandbox = Sandbox::new("hook-garbage");
     for payload in ["", "not json", r#"{"session_id":null}"#] {
@@ -827,18 +1229,52 @@ impl HookStubs for Sandbox {
         command.env("PNS_CODEX_HOME", self.path("codex-home"));
     }
 
+    /// THE ARGV FILE APPENDS, one line per spawn, so a SECOND submission of the
+    /// same prompt is observable at all. A truncating record answered "what was
+    /// the last argv"; the single-submitter rule needs "how many were there".
+    /// Of the fifteen readers, FOUR compare contents and all four trim, so one
+    /// spawn still yields exactly `claude-hook`; the other eleven only ask
+    /// whether anything was recorded at all, and the ones this gate adds ask
+    /// through `submissions` below.
     fn stub_moshi(&self, command: &mut Command, exit_code: i32) {
         let bin = self.path("bin");
         std::fs::create_dir_all(&bin).expect("stub bin");
         write_script(
             &bin.join("moshi-hook"),
             &format!(
-                "printf '%s' \"$*\" >\"{sandbox}/moshi.argv\"; cat >\"{sandbox}/moshi.stdin\"; exit {exit_code}",
+                "printf '%s\\n' \"$*\" >>\"{sandbox}/moshi.argv\"; cat >\"{sandbox}/moshi.stdin\"; exit {exit_code}",
                 sandbox = self.display()
             ),
         );
         command.env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     }
+}
+
+/// Every submission `stub_moshi` recorded, one per line, in the order they
+/// were made, and EMPTY when nothing was recorded at all.
+///
+/// THE EMPTY CASE IS THE LOAD-BEARING ONE. Every "never submitted" assertion
+/// in this file reads through here rather than through the record's filename,
+/// so the day the submission stops being a child process there is ONE place
+/// to re-point at whatever the new transport records. Spelled as a filename,
+/// those guards answer "no file, so nothing was submitted" for a build that
+/// submits over something else, which is the single regression this gate
+/// exists to catch. `tests/dispatch.rs`'s `moshi_hook_argv` reads its own
+/// record the same way, for the same reason.
+///
+/// NO SETTLE, AND THE RESIDUAL IS STATED RATHER THAN SLEPT ON. Every
+/// submission the crate makes today is waited on by the process under test,
+/// so the record has landed by the time that process exits; this counts what
+/// the exiting process left behind. A duplicate that was DETACHED instead of
+/// waited on could land after the read, and no sleep short enough for this
+/// suite would close that (`tests/support/mod.rs` refuses fixed sleeps for
+/// exactly that reason, and a 100ms one here was measured to change nothing).
+fn submissions(sandbox: &Sandbox) -> Vec<String> {
+    std::fs::read_to_string(sandbox.path("moshi.argv"))
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_string)
+        .collect()
 }
 
 fn prepend_path(command: &mut Command, directory: &std::path::Path) {
@@ -1125,6 +1561,109 @@ fn a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi() {
             "word {word:?} reached moshi"
         );
     }
+}
+
+#[test]
+fn at_the_desk_the_gate_submits_nothing_and_exits_zero() {
+    // THE GATE IS PRESENCE-GATED TOO, off the same reading the hook path and
+    // the delivery plan take. Every other gate test states the away clock, so
+    // the gate's own reading has never been exercised at all: a build that
+    // dropped it would card a phone for a prompt the operator is sitting in
+    // front of, and every gate test would stay green. The Command is built
+    // here rather than through `gate_argv`, which hard-codes away, so no
+    // existing test moves.
+    //
+    // MECHANISM-BOUND, IN THE DANGEROUS DIRECTION: the absence reads through
+    // `submissions`, so item 25 re-points one function rather than leaving a
+    // desk-side submission unguarded behind a filename that no longer exists.
+    let sandbox = Sandbox::new("gate-desk");
+    let mut command = sandbox.pns();
+    command
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_PHONE_INPUT_AGE", "99999");
+    sandbox.stub_moshi(&mut command, 7);
+    let mut child = spawn_gate(command, "pi-hook");
+    // The pipe is closed rather than written through: a gate that declines
+    // never reads its stdin, so a write is allowed to go nowhere.
+    write_payload(&mut child, b"{\"ask\":1}\n");
+    assert_eq!(
+        finished_within(child, HANG_LIMIT),
+        Some(0),
+        "no opinion: the harness prompts as usual"
+    );
+    assert!(
+        submissions(&sandbox).is_empty(),
+        "the operator is right here; the card would be noise"
+    );
+    assert!(
+        !sandbox.fired("hermes"),
+        "a gate that declines raises no event of its own either"
+    );
+}
+
+#[test]
+fn the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does() {
+    // The reader caps stdin, so an over-cap payload arrives CUT MID-OBJECT,
+    // and handing that on is the empty parse the byte-for-byte contract exists
+    // to prevent. The check runs at BOTH entry points and either call site can
+    // lose it independently; only the hook's was pinned. Truncated JSON is the
+    // same empty parse over any transport, so the invariant outlives the pipe.
+    //
+    // MECHANISM-BOUND, IN THE DANGEROUS DIRECTION: the absence reads through
+    // `submissions` for the reason the desk twin above states.
+    let sandbox = Sandbox::new("gate-oversized");
+    let mut command = sandbox.pns();
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    let mut child = spawn_gate(command, "pi-hook");
+    let payload = format!(r#"{{"ask":"{}"}}"#, "x".repeat(1_200_000));
+    write_payload(&mut child, payload.as_bytes());
+    assert_eq!(
+        finished_within(child, HANG_LIMIT),
+        Some(0),
+        "an over-cap payload is not the operator's decision"
+    );
+    assert!(
+        submissions(&sandbox).is_empty(),
+        "half an object must never reach moshi"
+    );
+}
+
+#[test]
+fn the_gate_submits_one_prompt_exactly_once() {
+    // THE OTHER SUBMITTER. Single-submitter is a rule about the PROMPT rather
+    // than about one entry point, and the gate is the half pi and omp reach
+    // directly with no pns hook in front of it. A second spawn here is a
+    // second card and a second answer to one question, and until this counted
+    // them nothing in the crate would have said so.
+    //
+    // MECHANISM-BOUND: the count is read off the submission record, so this
+    // goes RED at the endpoint switch for item 25 to rewrite.
+    let sandbox = Sandbox::new("gate-single-submitter");
+    let output = gate(&sandbox, "pi-hook", "{\"ask\":1}\n");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "the decision is still the exit code"
+    );
+    assert_eq!(
+        submissions(&sandbox),
+        ["pi-hook"],
+        "one prompt, one submission: a second card is a second answer nobody gave"
+    );
+}
+
+/// The gate as a real process, reached by the bare harness word, with the
+/// payload still to be written. The twin of `spawn_hook` for the other entry
+/// point.
+fn spawn_gate(mut command: Command, word: &str) -> std::process::Child {
+    command
+        .arg(word)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the engine runs")
 }
 
 #[test]
