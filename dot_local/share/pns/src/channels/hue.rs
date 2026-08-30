@@ -8,9 +8,17 @@
 //!
 //! ONE PUT PER ROOM, and the bridge does the rest. It speaks CLIP v2 directly,
 //! and the `on_off_color` signal it takes flashes a grouped light for a
-//! duration and then restores the room itself, so nothing here snapshots a
+//! duration and then puts the lamp back itself, so nothing here snapshots a
 //! light, sequences a ramp or writes a restore. Every absence is a silent
 //! no-op, and a failed pulse must never fail the caller.
+//!
+//! THE RESTORE IS MEASURED, not assumed. This paragraph used to assert it with
+//! no source behind it, and the CLIP v2 specification says nothing either way
+//! about what happens when a signal ends. The drill of 2026-09-01 put a signal
+//! on a real lamp and read its full state back before and after, with the lamp
+//! ON and again with it OFF: both times the bridge restored it byte for byte.
+//! That is what this channel is built on, and it is why there is no snapshot
+//! here and no restore engine anywhere.
 
 /// The rooms the bash pulsed when `HUE_PULSE_ROOMS` said nothing.
 pub const DEFAULT_ROOMS: &[&str] = &["3F - Studio", "2F - Kitchen"];
@@ -63,7 +71,7 @@ pub fn hue_settings(settings: &toml::Table, rooms_env: Option<&str>) -> Option<H
 }
 
 /// The hours the lights stay dark, in minutes since local midnight.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct QuietWindow {
     start: u16,
     end: u16,
@@ -678,8 +686,17 @@ const SIGNAL_DURATION_MS: u64 = 3000;
 /// lamp dark rather than arming it wrongly.
 ///
 /// The bridge OWNS THE WHOLE EFFECT: it flashes the colour for the duration and
-/// then restores the room to whatever it was, with no snapshot, no restore
+/// then puts the lamp back exactly as it was, with no snapshot, no restore
 /// writes and no choreography from us. That is why this channel is one PUT.
+///
+/// MEASURED ON 2026-09-01, on a real lamp, in both directions: a full state
+/// read before and after a signal came back byte-identical with the lamp on
+/// and with it off. Before that drill this comment asserted the restore with
+/// nothing behind it, and the specification is silent on the question.
+///
+/// IT IS TRUE OF A SIGNAL AND OF NOTHING ELSE. `state_body`'s glow is a plain
+/// state write rather than a signal, so no restore is coming for it and it
+/// carries two explicit clears instead.
 pub fn signal_body(behaviour: crate::config::Behaviour) -> Option<String> {
     let (signal, colors) = match behaviour {
         crate::config::Behaviour::Done => ("on_off_color", vec![crate::pulse::SUCCESS_COLOR]),
@@ -728,49 +745,124 @@ pub fn place_signals(
     fallback: Result<Option<&QuietWindow>, &str>,
     minutes_now: Option<u16>,
 ) -> Result<bool, String> {
-    // SPECIFIC FIRST, and the whole chain is walked once per setting below.
-    //
-    // EACH RUNG CARRIES THE NAME IT WAS WRITTEN UNDER, because a refusal has to
-    // name the ENTRY that is wrong rather than the lamp that read it: a room's
-    // unreadable window darkens every lamp in the room, and sending the
-    // operator to a lamp's own entry to fix a typo in the room's is a message
-    // they act on and get nowhere with.
-    let chain: Vec<(&str, &crate::config::Place)> =
-        [Some(placement.name.as_str()), placement.room.as_deref()]
-            .iter()
-            .flatten()
-            .filter_map(|name| Some((*name, lights.places.get(*name)?)))
-            .collect();
-    let skip = chain
-        .iter()
-        .map(|(_, place)| &place.skip)
-        .find(|skip| !skip.is_empty());
-    if skip.is_some_and(|skip| skip.contains(&behaviour)) {
+    let chain = place_chain(lights, placement);
+    if skipped(&chain, behaviour) {
         return Ok(false);
     }
-    // THE SECOND SETTING WALKS THE SAME CHAIN AGAIN, from the start, which is
-    // what "per setting" means: a lamp that named only a skip list has said
-    // nothing about hours, so its room's window is still the one that applies.
+    Ok(!quiet_now(
+        place_window(&chain, fallback)?.as_ref(),
+        minutes_now,
+    ))
+}
+
+/// Whether one fixture shows a STATE right now, which is `place_signals`'s
+/// question plus the catch-up one.
+///
+/// THE EXTRA QUESTION ONLY A STATE CAN BE ASKED. A pulse describes a moment
+/// that is already gone, so there is nothing to catch up on; a state persists,
+/// and one that began inside a place's quiet window would otherwise appear the
+/// instant the window ended. The operator's ruling is that it does NOT, unless
+/// that place opted in.
+///
+/// ONE CHAIN WALK FOR BOTH, which is why this is a sibling of `place_signals`
+/// rather than a second call after it: two walks would parse the same window
+/// twice and refuse it twice.
+///
+/// `catch_up` IS THE FIRST RUNG THAT STATED IT, which is the same specific-first
+/// rule the window walk below follows and for the same reason: a lamp that wrote
+/// `false` is turning its room's catch-up back off, and nothing else it could
+/// have meant. Silence at a rung is not a `false` there, so writing one key at a
+/// lamp never takes the room's other settings away.
+///
+/// A START THIS MACHINE CANNOT PLACE IN THE DAY FAILS TOWARD DARK, through
+/// `quiet_now`'s own unreadable-clock rule: an unplaceable start inside a
+/// configured window is treated as having been inside it.
+pub fn place_shows_state(
+    lights: &crate::config::Lights,
+    placement: &Placement,
+    behaviour: crate::config::Behaviour,
+    fallback: Result<Option<&QuietWindow>, &str>,
+    minutes_now: Option<u16>,
+    started_minutes: Option<u16>,
+) -> Result<bool, String> {
+    let chain = place_chain(lights, placement);
+    if skipped(&chain, behaviour) {
+        return Ok(false);
+    }
+    let window = place_window(&chain, fallback)?;
+    if quiet_now(window.as_ref(), minutes_now) {
+        return Ok(false);
+    }
+    if chain
+        .iter()
+        .find_map(|(_, place)| place.catch_up)
+        .unwrap_or(false)
+    {
+        return Ok(true);
+    }
+    Ok(!quiet_now(window.as_ref(), started_minutes))
+}
+
+/// The place chain, SPECIFIC FIRST: the lamp's own entry, then its room's.
+///
+/// EACH RUNG CARRIES THE NAME IT WAS WRITTEN UNDER, because a refusal has to
+/// name the ENTRY that is wrong rather than the lamp that read it: a room's
+/// unreadable window darkens every lamp in the room, and sending the operator
+/// to a lamp's own entry to fix a typo in the room's is a message they act on
+/// and get nowhere with.
+fn place_chain<'settings>(
+    lights: &'settings crate::config::Lights,
+    placement: &'settings Placement,
+) -> Vec<(&'settings str, &'settings crate::config::Place)> {
+    [Some(placement.name.as_str()), placement.room.as_deref()]
+        .iter()
+        .flatten()
+        .filter_map(|name| Some((*name, lights.places.get(*name)?)))
+        .collect()
+}
+
+/// Whether the chain refuses this behaviour: the first rung that stated a skip
+/// list at all is the one that decides.
+fn skipped(chain: &[(&str, &crate::config::Place)], behaviour: crate::config::Behaviour) -> bool {
+    chain
+        .iter()
+        .map(|(_, place)| &place.skip)
+        .find(|skip| !skip.is_empty())
+        .is_some_and(|skip| skip.contains(&behaviour))
+}
+
+/// The quiet window that applies, walking the SAME chain from the start.
+///
+/// A SECOND WALK IS WHAT "PER SETTING" MEANS: a lamp that named only a skip
+/// list has said nothing about hours, so its room's window is still the one
+/// that applies, which an entry-shaped chain would have taken away the moment
+/// the lamp wrote one key.
+///
+/// AND `[plugins.hue] quiet_hours` IS THE LAST RUNG rather than a gate in
+/// front of the whole pulse, which is where it used to fail closed. A place
+/// that stated hours of its own never reads the house key at all, so a typo
+/// there costs exactly the places that reached this rung, and the refusal
+/// names the house key because that is the entry the operator has to fix.
+///
+/// FAIL CLOSED, FOR THIS PLACE ALONE, on an unreadable one. An operator who
+/// asked for quiet hours and mistyped them would otherwise be flashed at 3am
+/// and told nothing, which is `quiet_window`'s own argument one level down;
+/// what is new is that the cost is one lamp rather than the whole house.
+fn place_window(
+    chain: &[(&str, &crate::config::Place)],
+    fallback: Result<Option<&QuietWindow>, &str>,
+) -> Result<Option<QuietWindow>, String> {
     let Some((wrote_it, stated)) = chain
         .iter()
         .find_map(|(name, place)| Some((*name, place.quiet_hours.as_deref()?)))
     else {
-        // AND `[plugins.hue] quiet_hours` IS THE LAST RUNG OF THIS CHAIN
-        // rather than a gate in front of the whole pulse, which is where it
-        // used to fail closed. A place that stated hours of its own never
-        // reads the house key at all, so a typo there costs exactly the places
-        // that reached this rung, and the refusal names the house key because
-        // that is the entry the operator has to go and fix.
-        return Ok(!quiet_now(fallback.map_err(str::to_string)?, minutes_now));
+        return fallback
+            .map(|window| window.copied())
+            .map_err(str::to_string);
     };
-    // FAIL CLOSED, FOR THIS PLACE ALONE. An operator who asked for quiet hours
-    // and mistyped them would otherwise be flashed at 3am and told nothing,
-    // which is `quiet_window`'s own argument one level down; what is new is
-    // that the cost is one lamp rather than the whole house.
-    let Some(window) = parse_window(stated) else {
-        return Err(place_hours_refusal(wrote_it, stated));
-    };
-    Ok(!quiet_now(Some(&window), minutes_now))
+    parse_window(stated)
+        .map(Some)
+        .ok_or_else(|| place_hours_refusal(wrote_it, stated))
 }
 
 /// The refusal, in the shape `quiet_hours_refusal` already uses one level up,
@@ -910,6 +1002,294 @@ pub fn signal_family<B: Bridge>(
     refusals
 }
 
+/// The family that holds the loop lamp's two states.
+///
+/// BESIDE `LOCAL_FAMILY` AND `KNOWN_FAMILIES`, because it is the same fact:
+/// which names this crate speaks. `STATE_PRODUCING_FAMILIES` is the pair of
+/// them and is what a conflict is judged against.
+pub const LOOP_FAMILY: &str = "loop";
+
+/// Whether a family produces this behaviour as a STATE.
+///
+/// THE FAMILY IS WHERE A BEHAVIOUR LIVES, and the map is the operator's
+/// vocabulary: `local` is the agents at this desk, so a wait is theirs;
+/// `loop` is the work itself, so breathing and glowing are its. A lamp
+/// claimed by neither producer of the current state is simply dark, which is
+/// how one house state reaches three lamps saying different things.
+///
+/// A PULSE IS NOT A STATE, so `done` and `failed` answer false for every
+/// family. They fire once from the event path and nothing re-arms them; a
+/// family "producing" one would be a lamp the tick kept flashing green.
+pub fn family_produces(family: &str, behaviour: crate::config::Behaviour) -> bool {
+    producing_family(behaviour) == Some(family)
+}
+
+/// Which family produces this behaviour as a state, or None for a pulse.
+///
+/// THE ONE MAPPING, and `family_produces` is written in terms of it so the
+/// walk that arms a lamp and the gate that decides whether any lamp could be
+/// awake cannot come out disagreeing about one behaviour.
+pub fn producing_family(behaviour: crate::config::Behaviour) -> Option<&'static str> {
+    match behaviour {
+        crate::config::Behaviour::NeedsYou => Some(LOCAL_FAMILY),
+        crate::config::Behaviour::Breathing | crate::config::Behaviour::Glow => Some(LOOP_FAMILY),
+        crate::config::Behaviour::Done | crate::config::Behaviour::Failed => None,
+    }
+}
+
+/// What is wrong with one claim, in one sentence and with no prefix on it.
+///
+/// ONE WORDING, TWO READERS. The doctor prefixes it with its own name and the
+/// tick with its own, and an operator who reads the same lamp reported two
+/// different ways has to work out whether they are the same problem.
+pub fn missing_sentence(missing: &Unresolved) -> String {
+    match missing.kind {
+        Missing::NotOnBridge => format!(
+            "lights: `{}` ({}) is not on the bridge",
+            missing.name, missing.family
+        ),
+        // A DIFFERENT JOB, SO A DIFFERENT SENTENCE: this name IS on the
+        // bridge, and telling the operator to go find it would send them
+        // looking for something already in front of them.
+        Missing::AddressedNothing => format!(
+            "lights: `{}` ({}) is on the bridge, but that claim addressed no lamp",
+            missing.name, missing.family
+        ),
+    }
+}
+
+/// How much longer than one refresh interval a state's signal runs.
+///
+/// THE OVERLAP IS THE POINT. A signal that expired exactly at the refresh
+/// would leave the lamp dark for however long the next tick took to arrive,
+/// which is a flicker on every interval; a few seconds of overlap means the
+/// re-arm lands while the old signal is still running. D1 measured on
+/// 2026-09-01 that a second signalling PUT cleanly REPLACES a running one and
+/// restarts its duration, so the overlap costs nothing.
+const STATE_SLACK_SECS: u64 = 5;
+
+/// The longest duration the bridge accepts, in milliseconds
+/// (`Signaling.yaml`, verified 2026-09-01). A refresh interval near its own
+/// ceiling would otherwise compute a duration the bridge refuses, and a
+/// refused PUT is a dark lamp with nothing said anywhere.
+const MAX_SIGNAL_DURATION_MS: u64 = 65_534_000;
+
+/// The bridge's own breathe: a smooth swell it renders and ends itself.
+///
+/// THE V2 `alert` ACTION, which every light and grouped_light in the live
+/// capture exposes. It is deliberately the one thing on this path with no
+/// duration of ours on it.
+const ALERT_BREATHE: &str = "breathe";
+
+/// How bright the glow runs, in percent. Low enough to read as a glow rather
+/// than as a lamp somebody left on, and not yet approved as seen: it waits on
+/// the operator's eye exactly as the colours do.
+const GLOW_BRIGHTNESS: f64 = 25.0;
+
+/// The PUT body one STATE holds a lamp with, or None for a behaviour that is a
+/// pulse rather than a state.
+///
+/// THREE SHAPES, AND THE DRILL OF 2026-09-01 CHOSE TWO OF THEM.
+///
+/// `needs-you` alternates its two deep blues for one refresh interval plus the
+/// slack, so the daemon's next re-arm lands while it is still running.
+///
+/// `breathing` IS THE BRIDGE'S OWN BREATHE (operator decision, 2026-08-30).
+/// Every shape this crate could build out of `signalling` failed on a real
+/// lamp: a long `on_off_color` is a strobe, and a near-steady alternating pair
+/// is a turn signal. The bridge already renders what was wanted, so this asks
+/// for it and adds nothing: a smooth swell around whatever colour the lamp is
+/// currently showing, which is why no colour of ours appears in this body.
+///
+/// IT ENDS ITSELF after about fifteen seconds, so breathing keeps the
+/// fail-to-dark property the rest of this path has: a dead daemon, a dead
+/// network and a dead pns all leave the lamp where it started. The tick
+/// re-sends it every `refresh_secs` while the condition holds, which is why a
+/// refresh above that fifteen seconds leaves visible gaps between swells; the
+/// config template says so where an operator sets the number.
+///
+/// NO DURATION IS COMPUTED HERE. How long a swell runs is the bridge's
+/// business, and a duration field on this action is one the bridge ignores.
+///
+/// `glow` IS THE ONE BODY HERE THAT IS NOT A SIGNAL AT ALL. The drill found
+/// the near-steady alternating pair read as a TURN SIGNAL, so glow takes the
+/// design's own plan B: a plain state write of `on` plus `color` plus a low
+/// `dimming`, which is genuinely steady. THE PRICE, STATED WHERE IT IS PAID:
+/// this write does NOT expire, so glow alone loses the fail-to-dark property
+/// every other body on this path has. A daemon that dies holding it leaves the
+/// lamp lit. It is paid for with two explicit clears, one from the return
+/// moment on the event path (which needs no daemon) and one from any tick that
+/// sees the condition gone, and `signal_state` reports which fixtures are held
+/// so both clears have names to write to.
+pub fn state_body(behaviour: crate::config::Behaviour, refresh_secs: u64) -> Option<String> {
+    let (signal, colors, duration_ms) = match behaviour {
+        crate::config::Behaviour::NeedsYou => (
+            "alternating",
+            vec![
+                crate::pulse::NEEDS_YOU_COLOR,
+                crate::pulse::NEEDS_YOU_ALT_COLOR,
+            ],
+            refresh_secs
+                .saturating_add(STATE_SLACK_SECS)
+                .saturating_mul(1000)
+                .min(MAX_SIGNAL_DURATION_MS),
+        ),
+        crate::config::Behaviour::Breathing => {
+            return Some(serde_json::json!({"alert": {"action": ALERT_BREATHE}}).to_string());
+        }
+        crate::config::Behaviour::Glow => {
+            return Some(
+                serde_json::json!({
+                    "on": {"on": true},
+                    "color": {"xy": {"x": crate::pulse::LOOP_COLOR.x, "y": crate::pulse::LOOP_COLOR.y}},
+                    "dimming": {"brightness": GLOW_BRIGHTNESS},
+                })
+                .to_string(),
+            );
+        }
+        crate::config::Behaviour::Done | crate::config::Behaviour::Failed => return None,
+    };
+    Some(
+        serde_json::json!({
+            "signaling": {
+                "signal": signal,
+                "duration": duration_ms,
+                "colors": colors
+                    .iter()
+                    .map(|color| serde_json::json!({"xy": {"x": color.x, "y": color.y}}))
+                    .collect::<Vec<_>>(),
+            },
+        })
+        .to_string(),
+    )
+}
+
+/// What puts a steadily-held lamp out.
+///
+/// OFF, AND NOT A RESTORE. Nothing snapshotted what the lamp was doing before
+/// the glow took it, and a grouped_light GET carries no colour at all, so
+/// there is nothing honest to put back. Dark is what "the state is over" means
+/// everywhere else on this path, and the operator's own ruling is that pns
+/// animates in-use lamps.
+pub fn clear_body() -> String {
+    serde_json::json!({"on": {"on": false}}).to_string()
+}
+
+/// The state this tick is arming, and the clock readings it is judged against.
+///
+/// ONE NAMED VALUE rather than five loose arguments, three of which are
+/// clock-shaped: a transposition between two of those would be a lamp judged
+/// against the wrong minute and nothing would catch it.
+pub struct Arming<'reading> {
+    pub behaviour: crate::config::Behaviour,
+    /// How often the daemon comes back, which is what a state's own duration
+    /// is sized against.
+    pub refresh_secs: u64,
+    /// The house window, read but not judged: it is the last rung of the
+    /// per-place chain, exactly as it is on the pulse path.
+    pub fallback: Result<Option<&'reading QuietWindow>, &'reading str>,
+    pub minutes_now: Option<u16>,
+    /// The minute of the day the state BEGAN, which is the only thing the
+    /// catch-up rule reads.
+    pub started_minutes: Option<u16>,
+}
+
+/// What one tick's arming left behind.
+pub struct StateWrite {
+    /// The place refusals, deduplicated, for the caller to decide what to do
+    /// with. This module prints nothing, like every other one in this crate.
+    pub refusals: Vec<String>,
+    /// EVERY fixture path this arming wrote to, whatever the body was.
+    ///
+    /// IT IS WHAT A CLEAR HAS TO SUBTRACT. A caller putting out the paths an
+    /// earlier steady write is holding must not put out one this arming has
+    /// just written to: glow and breathing are produced by the same family, so
+    /// the breathe and the off would reach the same lamp in that order and
+    /// leave it dark. `held` below is a SUBSET of this.
+    pub signalled: Vec<String>,
+    /// The fixture paths written with a body that does NOT expire, which is
+    /// glow and only glow. The caller records these so a later clear has names
+    /// to write to; an empty list is a tick that left nothing behind.
+    pub held: Vec<String>,
+}
+
+/// The tick's writes: one state body per fixture whose family produces the
+/// state and whose own place lets it through.
+///
+/// EVERY STATE-PRODUCING FAMILY IS WALKED, and `state_fixtures` is what drops
+/// a lamp two of them are fighting over. A contested lamp holds NO state
+/// rather than going to whichever family the walk reached first.
+///
+/// PER FIXTURE, exactly as `signal_family` is and for the same reason: one
+/// lamp asleep, refusing the behaviour, or carrying an unreadable window must
+/// cost that lamp its state and no other.
+///
+/// IT PRINTS NOTHING and it reads no clock: the composition root hands in the
+/// minute and decides where the refusals go.
+pub fn signal_state<B: Bridge>(
+    bridge: &B,
+    resolution: &Resolution,
+    lights: &crate::config::Lights,
+    arming: &Arming<'_>,
+) -> StateWrite {
+    let mut written = StateWrite {
+        refusals: Vec::new(),
+        signalled: Vec::new(),
+        held: Vec::new(),
+    };
+    let Some(body) = state_body(arming.behaviour, arming.refresh_secs) else {
+        return written;
+    };
+    let holds = arming.behaviour == crate::config::Behaviour::Glow;
+    for family in STATE_PRODUCING_FAMILIES {
+        if !family_produces(family, arming.behaviour) {
+            continue;
+        }
+        for fixture in resolution.state_fixtures(family) {
+            let placement = resolution.places.get(&fixture).cloned().unwrap_or_default();
+            match place_shows_state(
+                lights,
+                &placement,
+                arming.behaviour,
+                arming.fallback,
+                arming.minutes_now,
+                arming.started_minutes,
+            ) {
+                Ok(true) => {
+                    bridge.put(&fixture.path(), &body);
+                    written.signalled.push(fixture.path());
+                    if holds {
+                        written.held.push(fixture.path());
+                    }
+                }
+                Ok(false) => {}
+                // ONE REFUSAL PER PLACE, not per lamp that reached it, which is
+                // `signal_family`'s own rule: two lamps inheriting one room's
+                // unreadable window is one typo.
+                Err(refusal) => {
+                    if !written.refusals.contains(&refusal) {
+                        written.refusals.push(refusal);
+                    }
+                }
+            }
+        }
+    }
+    written
+}
+
+/// Put out every lamp a steady write is still holding.
+///
+/// OFF THE HELD PATHS ALONE, with no listing resolved: the paths were recorded
+/// when they were written, so a clear costs no GET and cannot be defeated by a
+/// bridge that has stopped answering its `room` listing. That is what lets the
+/// EVENT path make this call with no daemon involved at all.
+pub fn clear_held<B: Bridge>(bridge: &B, held: &[String]) {
+    let body = clear_body();
+    for path in held {
+        bridge.put(path, &body);
+    }
+}
+
 /// The signal: one PUT per wanted room, and the bridge does the rest.
 pub struct HuePulse<B: Bridge> {
     pub bridge: B,
@@ -964,9 +1344,10 @@ pub fn signal_fixtures<B: Bridge>(
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, Fixture, HuePulse, LOCAL_FAMILY, Missing, QuietWindow,
-        StateConflict, Unresolved, any_place_loud, grouped_light_ids_for_rooms, hue_settings,
-        quiet_now, quiet_window, resolve, resolve_on_bridge, signal_body, signal_family,
+        Arming, Bridge, DEFAULT_ROOMS, Fixture, HuePulse, LOCAL_FAMILY, Missing, Placement,
+        QuietWindow, Resolution, StateConflict, Unresolved, any_place_loud, clear_held,
+        grouped_light_ids_for_rooms, hue_settings, place_shows_state, quiet_now, quiet_window,
+        resolve, resolve_on_bridge, signal_body, signal_family, signal_state, state_body,
     };
     use crate::config::Behaviour;
     use std::cell::RefCell;
@@ -1103,7 +1484,7 @@ mod tests {
     /// The needs-you body, which has never shipped: two colours and the
     /// `alternating` signal, so it cannot be mistaken for either of the two
     /// above at a glance.
-    const BLUE_SIGNAL: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.17,"y":0.2}}],"duration":3000,"signal":"alternating"}}"#;
+    const BLUE_SIGNAL: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":3000,"signal":"alternating"}}"#;
 
     #[test]
     fn a_failure_signals_every_wanted_room_red_and_writes_nothing_else() {
@@ -2169,5 +2550,267 @@ mod tests {
              without one there is no quiet hour to be inside"
         );
         assert!(!quiet_now(None, Some(180)), "nor at 3am");
+    }
+
+    // --- the tick: one state, per fixture ------------------------------------
+
+    /// The map this repo ships: `local` holds the studio minus HCL3, `loop`
+    /// holds HCL3.
+    const LOOP_MAP: &str = "[lights.families.local]\nrooms = [\"3F - Studio\"]\n\
+         except = [\"3F - Studio - HCL3\"]\n\
+         [lights.families.loop]\nlights = [\"3F - Studio - HCL3\"]\n";
+
+    /// The needs-you STATE body at a 20-second refresh: the same two deep blues
+    /// the pulse alternates, held for one refresh interval plus its slack so a
+    /// lamp is never dark between two re-arms.
+    const NEEDS_YOU_STATE: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":25000,"signal":"alternating"}}"#;
+    /// The breathe: the bridge's OWN alert action, which it renders as a
+    /// smooth swell around whatever colour the lamp is already showing and
+    /// ends by itself after about fifteen seconds.
+    const BREATHING_ALERT: &str = r#"{"alert":{"action":"breathe"}}"#;
+    /// The glow: a TRUE STEADY write, and the one body on this path that does
+    /// not expire on its own.
+    const GLOW_STEADY: &str =
+        r#"{"color":{"xy":{"x":0.4,"y":0.19}},"dimming":{"brightness":25.0},"on":{"on":true}}"#;
+    /// What clears it.
+    const GLOW_CLEAR: &str = r#"{"on":{"on":false}}"#;
+
+    fn armed(behaviour: Behaviour, refresh_secs: u64) -> Arming<'static> {
+        Arming {
+            behaviour,
+            refresh_secs,
+            fallback: Ok(None),
+            minutes_now: Some(720),
+            started_minutes: Some(720),
+        }
+    }
+
+    fn loop_map() -> (Resolution, crate::config::Lights) {
+        let lights = crate::config::parse_config(LOOP_MAP)
+            .expect("the test's own config parses")
+            .lights
+            .expect("and carries a lights table");
+        (
+            resolve(CLIP_ROOMS, Some(CLIP_LIGHTS), &lights.families),
+            *lights,
+        )
+    }
+
+    #[test]
+    fn a_state_reaches_only_the_fixtures_of_the_family_that_produces_it() {
+        let (map, lights) = loop_map();
+        let bridge = scripted(None);
+        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::NeedsYou, 20));
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[
+                (format!("light/{HCL1}"), NEEDS_YOU_STATE.to_string()),
+                (format!("light/{HCL2}"), NEEDS_YOU_STATE.to_string()),
+            ],
+            "the blue state is local's, so the loop lamp is dark for it: every fixture \
+             in the map is named here rather than counted"
+        );
+        assert!(written.refusals.is_empty() && written.held.is_empty());
+
+        let bridge = scripted(None);
+        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::Breathing, 20));
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[(format!("light/{HCL3}"), BREATHING_ALERT.to_string())],
+            "and breathing is the loop lamp's, so the local pair stays dark for it"
+        );
+        assert!(
+            written.held.is_empty(),
+            "the bridge ends its own swell, so there is nothing to remember"
+        );
+    }
+
+    #[test]
+    fn breathing_is_the_bridges_own_breathe_and_carries_no_signal_at_all() {
+        // THE OPERATOR'S DECISION OF 2026-08-30. Every shape this crate could
+        // build out of `signalling` was either a strobe or a turn signal, and
+        // the bridge already renders the thing that was wanted: a smooth swell
+        // around the lamp's current colour, ended by the bridge itself after
+        // about fifteen seconds.
+        assert_eq!(
+            state_body(Behaviour::Breathing, 20).as_deref(),
+            Some(BREATHING_ALERT)
+        );
+        // NO REFRESH INTERVAL REACHES THIS BODY. How long a swell lasts is the
+        // bridge's business, not ours, and a duration computed here would be a
+        // number the bridge ignores.
+        assert_eq!(
+            state_body(Behaviour::Breathing, 900).as_deref(),
+            Some(BREATHING_ALERT),
+            "a fifteen-minute refresh still asks for exactly one breathe"
+        );
+        let body = state_body(Behaviour::Breathing, 20).expect("a breathing body");
+        assert!(
+            !body.contains("signaling") && !body.contains("on_off_color") && !body.contains("xy"),
+            "no signal, no flash shape and no colour of our own: {body}"
+        );
+    }
+
+    #[test]
+    fn a_glow_is_a_steady_write_and_the_tick_clears_it_when_the_condition_goes() {
+        let (map, lights) = loop_map();
+        let bridge = scripted(None);
+        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::Glow, 20));
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[(format!("light/{HCL3}"), GLOW_STEADY.to_string())],
+            "the one body on this path that does not expire on its own"
+        );
+        assert_eq!(
+            written.held,
+            vec![format!("light/{HCL3}")],
+            "so the tick has to remember what it is holding, or nothing could put it out"
+        );
+
+        // THE SECOND OF THE TWO CLEARS the steady write is paid for with: any
+        // tick that sees the condition gone puts the lamp out by name, off the
+        // held paths alone and with no bridge listing to resolve them again.
+        let bridge = scripted(None);
+        clear_held(&bridge, &written.held);
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[(format!("light/{HCL3}"), GLOW_CLEAR.to_string())],
+        );
+        assert!(
+            bridge.gets.borrow().is_empty(),
+            "a clear takes no GET, which is what lets the EVENT path make one with no daemon"
+        );
+    }
+
+    #[test]
+    fn a_lights_own_catch_up_overrides_its_rooms_and_a_silent_lamp_inherits_it() {
+        // SPECIFIC FIRST, PER SETTING: the first rung that STATED `catch_up` is
+        // the one that decides. Read as "any rung that set it", a lamp had no
+        // spelling at all for turning its room's catch-up back off, which is the
+        // one direction an operator writing `false` can only have meant.
+        const NIGHT: &str = "22:00-07:00";
+        const EIGHT_AM: Option<u16> = Some(8 * 60);
+        const ELEVEN_PM: Option<u16> = Some(23 * 60);
+        let placement = Placement {
+            name: "3F - Studio - HCL3".to_string(),
+            room: Some("3F - Studio".to_string()),
+        };
+        let shows = |written: &str| {
+            let lights = crate::config::parse_config(written)
+                .expect("the test's own config parses")
+                .lights
+                .expect("and carries a lights table");
+            place_shows_state(
+                &lights,
+                &placement,
+                Behaviour::Glow,
+                Ok(None),
+                EIGHT_AM,
+                ELEVEN_PM,
+            )
+        };
+        let room = format!(
+            "[lights.places.\"3F - Studio\"]\nquiet_hours = \"{NIGHT}\"\ncatch_up = true\n"
+        );
+        assert_eq!(
+            shows(&format!(
+                "{room}[lights.places.\"3F - Studio - HCL3\"]\ncatch_up = false\n"
+            )),
+            Ok(false),
+            "the lamp stated false and it is the more specific rung, so the room's \
+             true loses"
+        );
+        assert_eq!(
+            shows(&room),
+            Ok(true),
+            "and the room's true still reaches a lamp that said nothing about \
+             catch-up: PER SETTING, so writing one key never takes the others away"
+        );
+        assert_eq!(
+            shows(&format!(
+                "{room}[lights.places.\"3F - Studio - HCL3\"]\nskip = [\"done\"]\n"
+            )),
+            Ok(true),
+            "including a lamp that stated some OTHER setting entirely"
+        );
+    }
+
+    #[test]
+    fn a_state_that_began_inside_the_quiet_window_is_not_shown_after_it_without_catch_up() {
+        // 22:00 to 07:00, asked at 08:00, about a state that began at 23:00.
+        const NIGHT: &str = "22:00-07:00";
+        const EIGHT_AM: Option<u16> = Some(8 * 60);
+        const ELEVEN_PM: Option<u16> = Some(23 * 60);
+        const HALF_PAST_SEVEN: Option<u16> = Some(7 * 60 + 30);
+        let place = |extra: &str| {
+            let lights = crate::config::parse_config(&format!(
+                "[lights.places.\"3F - Studio - HCL3\"]\nquiet_hours = \"{NIGHT}\"\n{extra}"
+            ))
+            .expect("the test's own config parses")
+            .lights
+            .expect("and carries a lights table");
+            *lights
+        };
+        let placement = Placement {
+            name: "3F - Studio - HCL3".to_string(),
+            room: None,
+        };
+        let shows = |lights: &crate::config::Lights, started| {
+            place_shows_state(
+                lights,
+                &placement,
+                Behaviour::Glow,
+                Ok(None),
+                EIGHT_AM,
+                started,
+            )
+        };
+        assert_eq!(
+            shows(&place(""), ELEVEN_PM),
+            Ok(false),
+            "the operator's DEFAULT: news suppressed through the night is not news at 08:00"
+        );
+        assert_eq!(
+            shows(&place("catch_up = true\n"), ELEVEN_PM),
+            Ok(true),
+            "and the opt-in is the whole difference"
+        );
+        assert_eq!(
+            shows(&place(""), HALF_PAST_SEVEN),
+            Ok(true),
+            "a state that began AFTER the window ended is not a leftover of it"
+        );
+        assert_eq!(
+            shows(&place(""), None),
+            Ok(false),
+            "a start this machine cannot place in the day fails toward dark"
+        );
+
+        // AND IT IS WIRED, not merely written: the same suppression through
+        // the tick's own walk.
+        let (map, _) = loop_map();
+        let lights = crate::config::parse_config(&format!(
+            "{LOOP_MAP}[lights.places.\"3F - Studio - HCL3\"]\nquiet_hours = \"{NIGHT}\"\n"
+        ))
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let bridge = scripted(None);
+        signal_state(
+            &bridge,
+            &map,
+            &lights,
+            &Arming {
+                behaviour: Behaviour::Glow,
+                refresh_secs: 20,
+                fallback: Ok(None),
+                minutes_now: EIGHT_AM,
+                started_minutes: ELEVEN_PM,
+            },
+        );
+        assert!(
+            bridge.puts.borrow().is_empty(),
+            "the lamp that slept through the news stays dark at 08:00"
+        );
     }
 }

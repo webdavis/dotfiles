@@ -41,9 +41,15 @@
     <string>{{ .chezmoi.homeDir }}</string>
     <!-- A bootstrapped job gets PATH=/usr/bin:/bin:/usr/sbin:/sbin and no
          Homebrew, and every job this daemon runs is a re-execution of pns that
-         wants to find the same tools its hook-path self finds. -->
+         wants to find the same tools its hook-path self finds.
+
+         ~/.local/bin IS FIRST, in the update-skills agent's own shape, because
+         herdr lives there and nowhere else: the lights tick reads `herdr
+         workspace list` for the working aggregate, and without this the
+         reading fails on every tick, the aggregate answers not-working, and
+         the loop lamp never breathes at all. -->
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 </dict>
 </plist>

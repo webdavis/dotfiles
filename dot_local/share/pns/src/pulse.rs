@@ -1,6 +1,7 @@
 //! The light pulse: whether a session earns one and what colour it runs at.
 //! Putting the light back is the BRIDGE's job now, not ours: the hue channel
-//! asks for a timed signal and the bridge restores the room when it ends.
+//! asks for a timed signal and the bridge puts the lamp back when it ends,
+//! byte for byte, measured on a real lamp on 2026-09-01.
 
 /// How long a session must run before a pulse is worth the room's attention.
 pub const DEFAULT_LONG_SESSION_SECS: u64 = 300;
@@ -23,21 +24,42 @@ pub const SUCCESS_COLOR: PulseColor = PulseColor {
 
 pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 
-/// The two colours a needs-you signal alternates between: blue, and a
-/// green-blue near it.
+/// The two colours a needs-you signal alternates between: TWO DEEP BLUES.
 ///
-/// NEITHER IS APPROVED YET, and that is the honest state rather than an
-/// oversight. Green and red above passed the only test a colour can pass,
-/// which is the operator looking at the lamp; these two have never been on a
-/// bulb. They are gamut-plausible values (the studio lamps report gamut C) and
-/// the drill's last step is the operator saying yes or naming others. A change
-/// afterwards is these two constants and nothing else.
+/// THE SECOND ONE WAS A GREEN-BLUE UNTIL THE 2026-09-01 DRILL. Alternating a
+/// blue with a colour that far from it read as a colour CHANGE rather than as
+/// one lamp saying one thing, and the operator asked for a deeper blue, so the
+/// alternate moved next door to the primary. The pair still alternates, which
+/// is what keeps a wait from being mistaken for a `done` at a glance; what it
+/// no longer does is look like two different messages.
+///
+/// NEITHER IS APPROVED AS SEEN YET, and that is the honest state rather than
+/// an oversight. Green and red above passed the only test a colour can pass,
+/// which is the operator looking at the lamp; these two have been chosen for
+/// the gamut the studio lamps report (type C) and not yet looked at. The
+/// operator's post-apply eye is the last step, and a change afterwards is
+/// THESE TWO CONSTANTS and nothing else.
 pub const NEEDS_YOU_COLOR: PulseColor = PulseColor {
     x: 0.1532,
     y: 0.0475,
 };
 
-pub const NEEDS_YOU_ALT_COLOR: PulseColor = PulseColor { x: 0.17, y: 0.2 };
+pub const NEEDS_YOU_ALT_COLOR: PulseColor = PulseColor { x: 0.15, y: 0.06 };
+
+/// The loop lamp's GLOW colour: magenta.
+///
+/// THE GLOW'S ALONE, and breathing has no colour of its own by design. The
+/// bridge's native breathe swells around whatever the lamp is already showing,
+/// so a colour here would be one this crate never gets to state. That is the
+/// operator's decision of 2026-08-30 read backwards: the two states are one
+/// lamp saying one thing, and only the steady one has to pick a hue.
+///
+/// IN GAMUT AND NOT YET APPROVED AS SEEN, exactly like the two blues above: it
+/// sits inside the type C triangle the studio lamps report, between their red
+/// and blue primaries and pulled off that edge toward white, and the
+/// operator's post-apply eye is what settles it. A change is this one
+/// constant.
+pub const LOOP_COLOR: PulseColor = PulseColor { x: 0.40, y: 0.19 };
 
 /// True when a session ran long enough to be worth a light pulse.
 ///

@@ -435,21 +435,13 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
             ));
         }
     }
+    // THE SENTENCE ITSELF IS THE CHANNEL'S, so the tick reports an unresolved
+    // lamp in the same words this does and only the prefix differs.
     for missing in &map.unresolved {
-        lines.push(match missing.kind {
-            crate::channels::hue::Missing::NotOnBridge => format!(
-                "{PREFIX}lights: `{}` ({}) is not on the bridge",
-                missing.name, missing.family
-            ),
-            // A DIFFERENT JOB, SO A DIFFERENT SENTENCE: this name IS on the
-            // bridge, and telling the operator to go find it would send them
-            // looking for something already in front of them.
-            crate::channels::hue::Missing::AddressedNothing => format!(
-                "{PREFIX}lights: `{}` ({}) is on the bridge, but that claim addressed \
-                 no lamp",
-                missing.name, missing.family
-            ),
-        });
+        lines.push(format!(
+            "{PREFIX}{}",
+            crate::channels::hue::missing_sentence(missing)
+        ));
     }
     for conflict in &map.state_conflicts {
         lines.push(format!(
