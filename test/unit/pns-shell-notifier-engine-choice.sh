@@ -11,18 +11,18 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
-CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
-  <"$REPO_ROOT/dot_bashrc.tmpl" >"$scratch/bashrc" 2>/dev/null
-
-sed -n '/^  __cmd_notify_precmd() {$/,/^  }$/p' "$scratch/bashrc" |
-  sed 's/^  //' >"$scratch/notifier.sh"
-[[ -s $scratch/notifier.sh ]] || {
-  echo "could not extract __cmd_notify_precmd from the rendered bashrc" >&2
-  exit 1
-}
+# shellcheck source=../helpers/extract-shell-notifier.sh
+source "$REPO_ROOT/test/helpers/extract-shell-notifier.sh"
+extract_shell_notifier "$REPO_ROOT" "$scratch/notifier.sh"
 
 # A HOME with a space, because these paths are interpolated everywhere.
 home="$scratch/home dir"
+# AND A STATE DIR OF ITS OWN. The extraction now carries the lights marker, and
+# the notifier resolves its path from PNS_STATE_DIR before HOME, so an inherited
+# value points this test at the operator's real state directory and precmd's
+# `command rm -f` deletes a live shell's marker there. Silently: the test still
+# exits 0.
+state="$scratch/state dir"
 mkdir -p "$home/.local/libexec/pns"
 {
   printf '#!/usr/bin/env bash\n'
@@ -35,7 +35,7 @@ chmod +x "$home/.local/libexec/pns/pns"
 # file, with a single settle at the end: six spawns each with their own
 # settle loop put the file over the repo's one-second rule.
 run_scenarios() {
-  HOME="$home" HERDR_PANE_ID=wW:p7 bash --noprofile --norc -c "
+  HOME="$home" PNS_STATE_DIR="$state" HERDR_PANE_ID=wW:p7 bash --noprofile --norc -c "
     source '$scratch/notifier.sh'
     fire() { # <elapsed> <calls-file>
       export CALLS_FILE=\"\$2\"
@@ -62,6 +62,16 @@ fail() {
   echo "$1" >&2
   exit 1
 }
+
+# THIS SUITE'S OWN SANDBOX CHECK, asked of the code under test rather than of
+# the variable set above it, and run where its stderr is visible rather than
+# inside run_scenarios (which discards output on purpose). A notifier that
+# stopped reading PNS_STATE_DIR would put precmd's `command rm -f` back on the
+# operator's real markers, silently, with this file still exiting 0.
+resolved="$(HOME="$home" PNS_STATE_DIR="$state" bash --noprofile --norc -c \
+  "source '$scratch/notifier.sh'; printf '%s' \"\$__cmd_notify_marker_dir\"")"
+[[ $resolved == "$state"/* ]] ||
+  fail "the notifier resolved outside this test's sandbox: $resolved"
 
 run_scenarios
 
