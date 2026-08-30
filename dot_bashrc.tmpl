@@ -455,21 +455,103 @@ if [[ $- == *i* ]]; then
   # expand this at prompt time, not at assignment; and nothing references PS0
   # by name after this line.
   PS0='${__cmd_notify_ps0[__cmd_notify_start=SECONDS]}'
+  # Where the shell tells the lights that a plain command is running: ONE FILE
+  # PER INTERACTIVE SHELL, named for that shell's pid, holding ONE EPOCH, the
+  # second the command started, removed when it ends. `pns lights tick` reads
+  # the directory as a second working input beside herdr's agent statuses, so a
+  # long build breathes the loop lamp the way an agent turn does.
+  #
+  # ONE FILE PER SHELL AND NOT ONE FILE, because every pane on the machine runs
+  # these same two functions. With one shared path any other shell erases a live
+  # marker: opening a herdr pane runs bash-preexec's first precmd with nothing
+  # typed yet, and running `ls` next door publishes and removes, either of which
+  # left a running build's lamp dark for the rest of the build.
+  #
+  # The same state-dir resolution the engine uses (PNS_STATE_DIR when it is set
+  # and non-empty, else this path), so a test can point both halves at one
+  # sandbox.
+  __cmd_notify_marker_dir="${PNS_STATE_DIR:-$HOME/.local/state/pns}/lights-shell"
+  __cmd_notify_marker="$__cmd_notify_marker_dir/$$"
+
+  # The interactive TUIs neither half tracks. Agent CLIs are here because they
+  # fire their own relay hooks; the editors and pagers because an nvim left open
+  # all afternoon is not a build, and a lamp breathing about it would be lying.
+  # ONE list for both functions: two copies is a skip list that can disagree
+  # with itself about what a build is.
+  #
+  # The trailing boundary is what keeps `topaz`, `manage`, `lessc`, `sshuttle`
+  # and `codexify` builds. THE LIMIT, STATED: this still matches a PREFIX OF THE
+  # WHOLE LINE, so `true; nvim` reads as an editor and `nvim --version; sleep
+  # 60` reads as a build. Lexing bash to do better is not worth a lamp.
+  __cmd_notify_is_interactive_tui() {
+    [[ $1 =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|hermes|codex|fzf)([[:space:]]|$) ]]
+  }
+
+  # THIS SHELL'S MARKER AND NOBODY ELSE'S, which is why the path carries `$$`.
+  # `command` is load-bearing: `rm` is aliased to trash-put in this same file,
+  # and a bare `rm` in a function defined below that alias would trash the
+  # marker once per command.
+  __cmd_notify_clear_marker() {
+    command rm -f "$__cmd_notify_marker" 2>/dev/null
+  }
 
   __cmd_notify_preexec() {
     __cmd_notify_name="$1"
+    # A FILE, NEVER A PNS SPAWN. This runs before every command typed, so an
+    # engine process here would be a latency cost on `cd`. The write does fork
+    # once, for the subshell that holds the umask; the marker is a file the tick
+    # reads, so nothing has to be told about it.
+    #
+    # No clock, no marker. EPOCHSECONDS arrived in bash 5.0, and an interactive
+    # Apple /bin/bash 3.2 would publish an empty file the reader parses as
+    # nothing anyway; herdr's half of the lamp is unaffected either way.
+    if [[ -n ${EPOCHSECONDS:-} ]] && ! __cmd_notify_is_interactive_tui "$1"; then
+      # The umask rides in a subshell so the interactive shell keeps its own,
+      # and it covers the mkdir as well as the write: the directory's NAMES are
+      # the pids of this operator's shells. The whole thing is silent, because a
+      # state dir that cannot be written costs the lamp one reading, never a
+      # line of noise before a command runs.
+      (
+        umask 077
+        [[ -d $__cmd_notify_marker_dir ]] || mkdir -p "$__cmd_notify_marker_dir"
+        printf '%s\n' "$EPOCHSECONDS" >"$__cmd_notify_marker"
+      ) 2>/dev/null
+    fi
+    # ALWAYS SUCCEED. Under `shopt -s extdebug` a preexec function that returns
+    # non-zero cancels the command the operator just typed, so an unwritable
+    # state directory must not be able to eat a build.
+    return 0
   }
+
+  # `exit`, a closed tab and a killed terminal all end the shell with no further
+  # prompt, so precmd never runs and the last command's marker would outlive the
+  # shell that wrote it. This is the only EXIT trap in this file, and the shell
+  # is on its way out, so there is nothing left to chain to. The tick's pid
+  # sweep is the backstop for the ends this cannot see, SIGKILL among them.
+  trap '__cmd_notify_clear_marker' EXIT
 
   __cmd_notify_precmd() {
     local exit_code=$?
+    # BELOW THIS GUARD, and it is where the marker's removal has to sit too.
+    # bash-preexec runs precmd at a session's FIRST prompt with nothing typed
+    # yet, so a shell that has never run a command reaches here; a removal above
+    # this line would be that shell clearing a marker for a command it did not
+    # run, which with per-shell paths is nothing and with one shared path was
+    # every other pane's build.
     [[ -z $__cmd_notify_start ]] && return
     local elapsed=$((SECONDS - __cmd_notify_start))
     __cmd_notify_start=""
+    # THE MARKER GOES AFTER THE ELAPSED CAPTURE and before every return below,
+    # which is what keeps it from being left behind. After, because the removal
+    # forks and the notifier's tiers are exact second boundaries: a command that
+    # ended just under 30s or 300s must not cross into the tier above while this
+    # runs.
+    __cmd_notify_clear_marker
     # On a session's first command preexec never ran, so the name is empty;
     # fall back to history. The name only feeds the skip list and the banner.
     [[ -z $__cmd_notify_name ]] && __cmd_notify_name="$(fc -ln -0 2>/dev/null | sed 's/^[[:space:]]*//')"
-    # Skip known interactive TUIs (agent CLIs included: they fire their own relay hooks).
-    [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|hermes|codex|fzf) ]] && return
+    # Skip known interactive TUIs, off the one list both halves read.
+    __cmd_notify_is_interactive_tui "$__cmd_notify_name" && return
     local cmd="${__cmd_notify_name%% *}" state="done" dur="${elapsed}s"
     ((exit_code == 0)) || {
       state="failed"
