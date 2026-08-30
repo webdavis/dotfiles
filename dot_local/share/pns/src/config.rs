@@ -6,12 +6,12 @@
 //! free-form here: this layer proves the shape, the registry interprets the
 //! contents, and neither knows the other's plugin names.
 //!
-//! `[recap]` is the one top-level table that is not a plugin, and the second
-//! key admitted here: three booleans, two counts and one argument list THIS
-//! layer reads itself. Because it reads them, it can judge them, so an unknown
-//! key inside it, a count that is not a threshold, and a summarizer that is not
-//! a list of command words are refused rather than passed along the way a
-//! plugin's settings are.
+//! `[recap]` and `[focus]` are the two top-level tables that are not plugins:
+//! three booleans, two counts, one argument list and one list of Focus mode
+//! names THIS layer reads itself. Because it reads them, it can judge them, so
+//! an unknown key inside either, a count that is not a threshold, and a
+//! summarizer that is not a list of command words are refused rather than
+//! passed along the way a plugin's settings are.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config, because a typo that turns every
@@ -126,6 +126,14 @@ const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
 pub struct Config {
     pub plugins: BTreeMap<String, PluginEntry>,
     pub recap: Recap,
+    /// `[focus] silence`: the Focus MODE NAMES that mean it, each written
+    /// either as the name Control Center shows or as a raw `modeIdentifier`.
+    ///
+    /// EMPTY IS THE FEATURE OFF, which is what makes the table optional and
+    /// what every machine that never wrote one gets. There is no `enabled`
+    /// key: naming no mode and switching the feature off are the same
+    /// statement, and a second way to say it is a second thing to disagree.
+    pub focus_silence: Vec<String>,
 }
 
 /// Why a config could not be used. Every variant carries the offender by
@@ -182,12 +190,13 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     })?;
 
     let mut config = Config::default();
-    // TWO ADMITTED KEYS AND NO MORE. The arm below is the whole schema at this
-    // level, and everything that is not one of the two is still refused BY
-    // NAME, so a retired table and a plural typo both say what they are.
+    // THREE ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
+    // this level, and everything that is not one of the three is still refused
+    // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
             "recap" => config.recap = parse_recap(value)?,
+            "focus" => config.focus_silence = parse_focus(value)?,
             "plugins" => {
                 let toml::Value::Table(plugins) = value else {
                     return Err(ConfigError::Invalid("`plugins` is not a table".to_string()));
@@ -251,6 +260,60 @@ fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         }
     }
     Ok(recap)
+}
+
+/// `[focus]`'s one key: the Focus modes that mean it.
+///
+/// NO `enabled` KEY, deliberately. Naming no mode and switching the feature off
+/// are the same statement, so a second way to say it is a second thing that can
+/// disagree with the first: a table reading `enabled = true` with an empty
+/// `silence`, or `enabled = false` with three modes listed, would each need a
+/// rule nobody has stated.
+///
+/// AN EMPTY LIST IS NOT REFUSED, unlike `recap`'s empty `summarizer` and
+/// `repos`. Those name a thing pns would then try and fail to use; this names
+/// the modes that silence, and none of them is a working, readable setting that
+/// says exactly what it does.
+fn parse_focus(value: toml::Value) -> Result<Vec<String>, ConfigError> {
+    let toml::Value::Table(table) = value else {
+        return Err(ConfigError::Invalid("`focus` is not a table".to_string()));
+    };
+    let mut silence = Vec::new();
+    for (key, setting) in table {
+        match key.as_str() {
+            "silence" => silence = modes(&setting)?,
+            _ => {
+                return Err(ConfigError::Invalid(format!("unknown `focus` key `{key}`")));
+            }
+        }
+    }
+    Ok(silence)
+}
+
+/// `silence`, the Focus modes that mean it: a list of display NAMES as Control
+/// Center shows them, raw `modeIdentifier` strings, or a mix.
+///
+/// THE LIST MAY BE EMPTY AND AN ENTRY MAY NOT, which is not two rules but one
+/// applied to two different statements. An empty list says "no mode silences
+/// pns", which is the feature off and exactly what it reads as. An empty
+/// STRING says nothing at all: no Focus mode is named by it, so it is a policy
+/// the operator wrote and pns would never act on. That is precisely the state
+/// the misspelled-key refusal one function up exists to prevent, and `repos`
+/// refuses its own empty entry by name for the same reason.
+///
+/// THE NAME ITSELF IS NOT JUDGED BEYOND THAT. A name that matches no mode is
+/// an ordinary thing to write (a Focus you keep on another Mac), and `pns
+/// doctor` is where an operator learns whether the mode they named is the one
+/// that is on.
+fn modes(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+    let names = strings("focus", "silence", "a list of Focus mode names", setting)?;
+    if names.iter().any(String::is_empty) {
+        return Err(ConfigError::Invalid(
+            "`focus` key `silence` names a mode that is the empty string, which is no Focus at all"
+                .to_string(),
+        ));
+    }
+    Ok(names)
 }
 
 /// One `[recap]` switch. A value of any other type is refused BY NAME rather
@@ -347,7 +410,7 @@ fn seconds(setting: &toml::Value) -> Result<u64, ConfigError> {
 /// word is judged: an empty ARGUMENT is a real thing to pass a program, and
 /// nothing about it stops the command running.
 fn argv(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
-    let words = strings("summarizer", "a list of command words", setting)?;
+    let words = strings("recap", "summarizer", "a list of command words", setting)?;
     if words.is_empty() {
         return Err(ConfigError::Invalid(
             "`recap` key `summarizer` is empty, so it names no command to run".to_string(),
@@ -379,7 +442,7 @@ fn argv(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
 /// anything; a name `gh` does not know costs the section one "unavailable"
 /// line, which is the same rung a missing `gh` takes.
 fn repositories(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
-    let names = strings("repos", "a list of repository names", setting)?;
+    let names = strings("recap", "repos", "a list of repository names", setting)?;
     if names.is_empty() || names.iter().any(String::is_empty) {
         return Err(ConfigError::Invalid(
             "`recap` key `repos` names no repository to read".to_string(),
@@ -388,13 +451,22 @@ fn repositories(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
     Ok(names)
 }
 
-/// One `[recap]` key holding a list of plain strings, with the key and what the
-/// list is FOR named in every refusal. The emptiness rules belong to the
+/// One key holding a list of plain strings, with the TABLE, the key and what
+/// the list is FOR named in every refusal. The emptiness rules belong to the
 /// callers, because what an empty list MEANS is theirs.
-fn strings(key: &str, noun: &str, setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+///
+/// THE TABLE IS AN ARGUMENT because two tables now hold list keys, and a
+/// refusal that named only the key would send an operator with both a `[recap]`
+/// and a `[focus]` table looking in the wrong one.
+fn strings(
+    table: &str,
+    key: &str,
+    noun: &str,
+    setting: &toml::Value,
+) -> Result<Vec<String>, ConfigError> {
     let Some(values) = setting.as_array() else {
         return Err(ConfigError::Invalid(format!(
-            "`recap` key `{key}` has type `{}`, not {noun}",
+            "`{table}` key `{key}` has type `{}`, not {noun}",
             setting.type_str()
         )));
     };
@@ -403,7 +475,7 @@ fn strings(key: &str, noun: &str, setting: &toml::Value) -> Result<Vec<String>, 
         .map(|value| {
             value.as_str().map(str::to_string).ok_or_else(|| {
                 ConfigError::Invalid(format!(
-                    "`recap` key `{key}` has a `{}` in it, not {noun}",
+                    "`{table}` key `{key}` has a `{}` in it, not {noun}",
                     value.type_str()
                 ))
             })
@@ -988,6 +1060,126 @@ mod tests {
                 }
                 other => panic!("expected Invalid for {stated}, got {other:?}"),
             }
+        }
+    }
+
+    // --- the Focus modes that mean it ---------------------------------------
+
+    #[test]
+    fn a_focus_table_names_the_modes_that_silence_pns() {
+        let config = parse_config("[focus]\nsilence = [\"Sleep\", \"Coding\"]\n").unwrap();
+        assert_eq!(config.focus_silence, ["Sleep", "Coding"]);
+    }
+
+    #[test]
+    fn a_config_with_no_focus_table_names_no_mode_at_all() {
+        // OFF IS THE DEFAULT, and it is the whole reason there is no `enabled`
+        // key: a machine that never wrote the table behaves exactly as it did
+        // before the table existed. MEASURED on this operator's own machine, a
+        // Focus was asserted for 95% of one day, so a feature that shipped on
+        // would have silenced almost everything pns raised that day.
+        let config = parse_config("[plugins.hue]\nenabled = true\n").unwrap();
+        assert!(config.focus_silence.is_empty());
+    }
+
+    #[test]
+    fn a_silence_list_that_is_not_a_list_is_refused_naming_the_key() {
+        // `silence = "Sleep"` is what a hand writes first. Read as one name it
+        // would work by accident; read as anything else it silences nothing
+        // and says nothing, which is the state the operator cannot discover.
+        let err = parse_config("[focus]\nsilence = \"Sleep\"\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => {
+                assert!(
+                    message.contains("silence"),
+                    "the offender is named: {message}"
+                );
+                assert!(
+                    message.contains("focus"),
+                    "and so is the table it is in: {message}"
+                );
+            }
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_mode_name_that_is_not_a_string_is_refused_naming_the_key() {
+        let err = parse_config("[focus]\nsilence = [\"Sleep\", 5]\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("silence"),
+                "the offender is named: {message}"
+            ),
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_mode_name_that_is_the_empty_string_is_refused_by_name() {
+        // AN ENTRY THAT NAMES NO MODE is a policy the operator believes they
+        // wrote and pns can never act on, which is the misspelled key's own
+        // failure one level down. `[recap] repos` refuses its empty entry for
+        // this reason and this refusal is that rule, not a new one.
+        let err = parse_config("[focus]\nsilence = [\"Sleep\", \"\"]\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => {
+                assert!(
+                    message.contains("silence"),
+                    "the offender is named: {message}"
+                );
+                assert!(
+                    message.contains("focus"),
+                    "and so is the table it is in: {message}"
+                );
+            }
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off() {
+        // THE BOUNDARY OF THE REFUSAL ABOVE. An empty LIST is a working,
+        // readable setting that says exactly what it does, so a refusal that
+        // reached it would refuse the one config the template's own commented
+        // block turns into when a mode is deleted from it.
+        let config = parse_config("[focus]\nsilence = []\n").unwrap();
+        assert!(config.focus_silence.is_empty());
+    }
+
+    #[test]
+    fn a_misspelled_focus_key_is_refused_by_name_rather_than_ignored() {
+        // An unjudged key here is a Focus policy the operator believes they
+        // wrote and pns never reads.
+        let err = parse_config("[focus]\nsilenced = [\"Sleep\"]\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("silenced"),
+                "the offender is named: {message}"
+            ),
+            other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_non_table_focus_value_is_refused_naming_the_arm_rather_than_the_key() {
+        // `recap = 5`'s sibling one table over, and asserted the same way: the
+        // unknown-top-level-key refusal carries the word `focus` too, so an
+        // assertion that asked only for the name would pass for the day the
+        // admitting arm went missing entirely.
+        let err = parse_config("focus = 5\n").unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => {
+                assert!(
+                    message.contains("focus"),
+                    "the offender is named: {message}"
+                );
+                assert!(
+                    message.contains("is not a table"),
+                    "and it is the non-table arm rather than the unknown-key one: {message}"
+                );
+            }
+            other => panic!("expected Invalid, got {other:?}"),
         }
     }
 

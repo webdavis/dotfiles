@@ -47,12 +47,24 @@ pub struct Overrides {
     pub idle_invalid: bool,
     pub desk_invalid: bool,
     pub phone_invalid: bool,
-    /// The operator's own typed mute, and THE ONE FIELD HERE THAT NEVER COMES
-    /// FROM THE ENVIRONMENT: it is read off a state file by the composition
-    /// root and stated there. `from_env` must keep leaving it false, because a
-    /// variable able to set it would let any producer mute the operator, and
-    /// one able to clear it would silently end a mute they are still inside.
+    /// The operator's own typed mute, and ONE OF THE TWO FIELDS HERE THAT
+    /// NEVER COME FROM THE ENVIRONMENT: it is read off a state file by the
+    /// composition root and stated there. `from_env` must keep leaving it
+    /// false, because a variable able to set it would let any producer mute
+    /// the operator, and one able to clear it would silently end a mute they
+    /// are still inside.
     pub muted: bool,
+    /// A macOS Focus THE CONFIG NAMED is asserted right now, which is the
+    /// operating system's own mute rather than a reading about where the
+    /// operator is. It is not "a Focus is on": `[focus] silence` lists the
+    /// modes that mean it, and this is already the answer to "is one of those
+    /// the mode that is on".
+    ///
+    /// THE SECOND FIELD NEVER SET FROM THE ENVIRONMENT, for the reason above
+    /// it: the composition root reads the Do Not Disturb store and states the
+    /// verdict, and a variable able to force it either way would let any
+    /// producer silence the operator or punch through a Focus they set.
+    pub focus_active: bool,
 }
 
 impl Overrides {
@@ -80,8 +92,10 @@ impl Overrides {
             idle_invalid,
             desk_invalid,
             phone_invalid,
-            // NO VARIABLE READS INTO THIS ONE, deliberately: see the field.
+            // NO VARIABLE READS INTO EITHER OF THESE, deliberately: see the
+            // fields.
             muted: false,
+            focus_active: false,
         }
     }
 }
@@ -166,15 +180,22 @@ where
         phone_card: !overrides.skip_phone && (overrides.force_phone || delivery.phone_card),
         ..delivery
     };
-    // THE OPERATOR'S MUTE, applied LAST and therefore beating `PNS_FORCE_PHONE`
-    // above it. Force is a producer's per-event opinion set in the
-    // environment; the mute is the operator's own typed, expiring instruction,
-    // and a mute any producer can override is not a mute.
+    // THE TWO MUTES, applied LAST and therefore beating `PNS_FORCE_PHONE`
+    // above them. Force is a producer's per-event opinion set in the
+    // environment; the operator's mute is their own typed, expiring
+    // instruction, and a macOS Focus they named in `[focus] silence` is the
+    // same instruction with the operating system as its author. A mute any
+    // producer can override is not a mute.
+    //
+    // ONE CONDITION FOR BOTH, so every downstream property (the journal, the
+    // deferred replay, beating force, the decision log) follows from one rule
+    // rather than from two that could drift. The durable log is not a field of
+    // `DeliveryPlan`, so the record survives both of them structurally.
     //
     // A FULL STRUCT LITERAL WITH NO `..delivery`, deliberately: it is what
     // forces a future field of `DeliveryPlan` to state its own answer here
     // rather than inherit an unmuted one. Do not tidy it into a struct update.
-    let delivery = if overrides.muted {
+    let delivery = if overrides.muted || overrides.focus_active {
         crate::surface::DeliveryPlan {
             banner: false,
             phone_card: false,
@@ -988,6 +1009,97 @@ mod tests {
             names(&decide_with(&probes(), &forced_and_muted, "wW:p1")),
             vec!["hermes"],
             "a mute a producer can override is not a mute"
+        );
+    }
+
+    #[test]
+    fn a_focus_the_config_named_suppresses_the_mutes_three_decorations_and_beats_a_forced_phone() {
+        // THE OPERATING SYSTEM'S MUTE takes the operator's own mute's seat, so
+        // it suppresses the same three decorations, applies at the same point
+        // (after the skip-beats-force arbitration) and leaves the durable log
+        // alone for the same structural reason.
+        //
+        // A WORLD THAT PLANS ALL THREE: at the desk with the origin pane out
+        // of sight earns the banner, `force_phone` earns the card, and a long
+        // running event earns the pulse. Anything less and a passing assertion
+        // would be a plan that was empty to begin with.
+        let world = |overrides: &Overrides| {
+            decide(
+                &CountingProbes {
+                    idle: Some(2),
+                    view: Some(elsewhere("wW:p1")),
+                    ..CountingProbes::default()
+                },
+                &three_selection(),
+                overrides,
+                false,
+                false,
+                "wW:p1",
+                Some(1_000_000),
+                true,
+                false,
+            )
+            .plan
+        };
+        let forced = Overrides {
+            force_phone: true,
+            ..Overrides::default()
+        };
+        assert_eq!(
+            world(&forced),
+            crate::surface::DeliveryPlan {
+                banner: true,
+                phone_card: true,
+                pulse: true,
+            },
+            "control: unfocused and unmuted, all three decorations fire"
+        );
+        assert_eq!(
+            world(&Overrides {
+                focus_active: true,
+                muted: false,
+                force_phone: true,
+                ..Overrides::default()
+            }),
+            crate::surface::DeliveryPlan {
+                banner: false,
+                phone_card: false,
+                pulse: false,
+            },
+            "a Focus a producer can override is not a Focus"
+        );
+        // THE RECORD SURVIVES, structurally: hermes is not a field of the
+        // delivery plan, so the durable log is exempt and a Focus is lossless.
+        assert_eq!(
+            names(&decide_with(
+                &CountingProbes {
+                    idle: Some(2),
+                    view: Some(elsewhere("wW:p1")),
+                    ..CountingProbes::default()
+                },
+                &Overrides {
+                    focus_active: true,
+                    ..Overrides::default()
+                },
+                "wW:p1"
+            )),
+            vec!["hermes"]
+        );
+        // AND THE MUTE STILL WORKS ALONE, which is what stops the new clause
+        // being written as a replacement for the old one rather than beside it.
+        assert_eq!(
+            world(&Overrides {
+                focus_active: false,
+                muted: true,
+                force_phone: true,
+                ..Overrides::default()
+            }),
+            crate::surface::DeliveryPlan {
+                banner: false,
+                phone_card: false,
+                pulse: false,
+            },
+            "the operator's own typed mute is untouched by the Focus clause"
         );
     }
 

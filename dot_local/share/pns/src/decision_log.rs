@@ -75,7 +75,7 @@ pub fn line(record: &Record) -> String {
          locked={locked} fresh_window={fresh_window} long_running={long_running} \
          local_only={local_only} remote_only={remote_only} \
          pane={pane} pane_dropped={pane_dropped} watch_card={watch_card} \
-         muted={muted} skip_phone={skip_phone} force_phone={force_phone} \
+         muted={muted} focus={focus} skip_phone={skip_phone} force_phone={force_phone} \
          idle_invalid={idle_invalid} desk_invalid={desk_invalid} \
          phone_invalid={phone_invalid} \
          plan=banner:{banner},card:{card},pulse:{pulse} legs={legs}",
@@ -108,6 +108,11 @@ pub fn line(record: &Record) -> String {
         pane_dropped = yes_no(record.decision.pane_dropped),
         watch_card = yes_no(inputs.mobile_watch_card),
         muted = yes_no(overrides.muted),
+        // TWO FIELDS RATHER THAN ONE. The log exists to answer "why did no
+        // card fire", and "you have a `pns quiet` running" sends the operator
+        // somewhere completely different from "your Mac is in a Focus you told
+        // pns to respect".
+        focus = yes_no(overrides.focus_active),
         skip_phone = yes_no(overrides.skip_phone),
         force_phone = yes_no(overrides.force_phone),
         idle_invalid = yes_no(overrides.idle_invalid),
@@ -402,7 +407,7 @@ mod tests {
             "1756500000 claude/blocked surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=no \
              fresh_window=120 long_running=no local_only=no remote_only=no pane=present \
-             pane_dropped=no watch_card=no muted=no skip_phone=yes force_phone=no \
+             pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
              plan=banner:no,card:no,pulse:no legs=none"
         );
@@ -424,7 +429,7 @@ mod tests {
             "1756500000 claude/blocked surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=none \
              fresh_window=120 long_running=no local_only=no remote_only=no pane=present \
-             pane_dropped=no watch_card=no muted=no skip_phone=yes force_phone=no \
+             pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
              plan=banner:no,card:no,pulse:no legs=none"
         );

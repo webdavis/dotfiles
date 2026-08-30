@@ -19,6 +19,7 @@ pub mod config;
 pub mod decision_log;
 pub mod doctor;
 pub mod engine;
+pub mod focus;
 pub mod home;
 pub mod hooks;
 pub mod missed_notifications;
