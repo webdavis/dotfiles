@@ -9,7 +9,7 @@ mod support;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::FileTypeExt;
+use std::os::unix::fs::{FileTypeExt, PermissionsExt};
 use support::{
     KEYS_DISAGREE, RouterStub, Sandbox, poll_until, router_table, run, stderr, stdout, write_script,
 };
@@ -1426,8 +1426,9 @@ fn lamp_run(
     hue_extra: &str,
     config: &str,
     args: &[&str],
-    mute: bool,
-) -> (bool, bool, bool, Option<i32>) {
+    mute: Mute,
+    presence: Presence,
+) -> (bool, bool, bool, bool, Option<i32>) {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
     // `hue_extra` GOES INSIDE `[plugins.hue]` and the rest comes after every
@@ -1439,11 +1440,15 @@ fn lamp_run(
          rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.moshi]\nenabled = true\n\
          [plugins.hermes]\nenabled = true\n{config}"
     ));
-    if mute {
-        // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
-        // type rather than by writing its state file here: `HOME` is the
-        // sandbox, so the expiry lands inside it and no other test can see it.
-        let armed = run(sandbox.pns().args(["quiet", "1h"]));
+    // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
+    // type rather than by writing its state file here: `HOME` is the sandbox,
+    // so the expiry lands inside it and no other test can see it.
+    let armed = match mute {
+        Mute::Nothing => None,
+        Mute::Everything => Some(run(sandbox.pns().args(["quiet", "1h"]))),
+        Mute::Lights(place) => Some(run(sandbox.pns().args(["lights", "quiet", place, "1h"]))),
+    };
+    if let Some(armed) = armed {
         assert_eq!(
             armed.status.code(),
             Some(0),
@@ -1454,6 +1459,13 @@ fn lamp_run(
     let mut command = sandbox.pns();
     command.env("TZ", "UTC");
     command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env(
+        "PNS_IDLE_SECS",
+        match presence {
+            Presence::Away => "99999",
+            Presence::Desk => "0",
+        },
+    );
     sandbox.stub_herdr(&mut command, false);
     let mut child = command
         .args(args)
@@ -1498,6 +1510,7 @@ fn lamp_run(
         dialled,
         sandbox.fired("moshi"),
         sandbox.fired("hermes"),
+        sandbox.fired("macos-banner"),
         status.code(),
     )
 }
@@ -1507,10 +1520,30 @@ fn lamp_run(
 /// near this has stopped making progress.
 const LAMP_DEADLINE: std::time::Duration = std::time::Duration::from_secs(15);
 
-/// The operator's typed mute, armed or not, which is `lamp_run`'s last
-/// argument: a bare `true` at a call site says nothing about what it decides.
-const MUTED: bool = true;
-const UNMUTED: bool = false;
+/// Where the operator is when the event lands, which decides which OTHER leg
+/// fires.
+///
+/// THEY ARE MUTUALLY EXCLUSIVE BY THE SURFACE MODEL: away is a card and no
+/// banner, the desk with the pane out of sight is a banner and no card. So
+/// showing that a lights mute leaves everything else alone takes one run of
+/// each rather than one run asserting all three legs at once.
+#[derive(Debug, Clone, Copy)]
+enum Presence {
+    Away,
+    Desk,
+}
+
+/// Which mute, if any, is typed before the event, which is `lamp_run`'s mute
+/// argument: a bare `true` at a call site says nothing about what it decides,
+/// and there are now two mutes with deliberately different reaches.
+#[derive(Debug, Clone, Copy)]
+enum Mute {
+    Nothing,
+    /// `pns quiet 1h`: the whole engine, cards included.
+    Everything,
+    /// `pns lights quiet <place> 1h`: that place's lamps and nothing else.
+    Lights(&'static str),
+}
 
 /// A long-running `done`: the event that has earned a pulse since the bash.
 const LONG_DONE: [&str; 8] = [
@@ -1536,13 +1569,27 @@ fn without_a_lights_table_nothing_new_reaches_the_bridge() {
         .chain(["--long-running"])
         .collect();
     assert_eq!(
-        lamp_run("lamps-no-table-long-done", "", "", &long_running, UNMUTED),
-        (true, true, true, Some(0)),
+        lamp_run(
+            "lamps-no-table-long-done",
+            "",
+            "",
+            &long_running,
+            Mute::Nothing,
+            Presence::Away
+        ),
+        (true, true, true, false, Some(0)),
         "the shipped pulse: a long command lights the room and both legs fire"
     );
     assert_eq!(
-        lamp_run("lamps-no-table-blocked", "", "", &BLOCKED, UNMUTED),
-        (false, true, true, Some(0)),
+        lamp_run(
+            "lamps-no-table-blocked",
+            "",
+            "",
+            &BLOCKED,
+            Mute::Nothing,
+            Presence::Away
+        ),
+        (false, true, true, false, Some(0)),
         "and a blocked turn reaches no bridge at all without the table"
     );
 }
@@ -1560,8 +1607,15 @@ fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
     // WHAT was written. Every body, colour and path assertion is a unit test
     // through the `Bridge` trait.
     assert_eq!(
-        lamp_run("lamps-map-blocked", "", STUDIO_MAP, &BLOCKED, UNMUTED),
-        (true, true, true, Some(0)),
+        lamp_run(
+            "lamps-map-blocked",
+            "",
+            STUDIO_MAP,
+            &BLOCKED,
+            Mute::Nothing,
+            Presence::Away
+        ),
+        (true, true, true, false, Some(0)),
         "the map is written, so a waiting agent reaches the bridge"
     );
 }
@@ -1590,9 +1644,10 @@ fn an_event_whose_every_place_is_asleep_reaches_no_bridge_and_costs_no_leg() {
                  quiet_hours = \"{asleep}\"\n"
             ),
             &long_running,
-            UNMUTED,
+            Mute::Nothing,
+            Presence::Away,
         ),
-        (false, true, true, Some(0)),
+        (false, true, true, false, Some(0)),
         "every lamp asleep: no dial, and both legs still fire"
     );
 }
@@ -1619,9 +1674,10 @@ fn a_house_window_nobody_can_parse_still_lets_a_place_with_its_own_hours_signal(
                  quiet_hours = \"{awake}\"\n"
             ),
             &BLOCKED,
-            UNMUTED,
+            Mute::Nothing,
+            Presence::Away,
         ),
-        (true, true, true, Some(0)),
+        (true, true, true, false, Some(0)),
         "the room's own window is readable and awake, so the lamp signals \
          whatever the house key says"
     );
@@ -1639,8 +1695,15 @@ fn the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else() {
     // TYPED, NOT INJECTED: the mute is armed by running `pns quiet 1h` in the
     // same sandbox, which is the path an operator walks at bedtime.
     assert_eq!(
-        lamp_run("lamps-map-blocked-muted", "", STUDIO_MAP, &BLOCKED, MUTED),
-        (false, false, true, Some(0)),
+        lamp_run(
+            "lamps-map-blocked-muted",
+            "",
+            STUDIO_MAP,
+            &BLOCKED,
+            Mute::Everything,
+            Presence::Away
+        ),
+        (false, false, true, false, Some(0)),
         "muted: no lamp, no card, and the durable log still keeps the event"
     );
     assert_eq!(
@@ -1649,10 +1712,150 @@ fn the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else() {
             "",
             STUDIO_MAP,
             &BLOCKED,
-            UNMUTED
+            Mute::Nothing,
+            Presence::Away,
         ),
-        (true, true, true, Some(0)),
+        (true, true, true, false, Some(0)),
         "unmuted control: the same event, the same map, and the lamp lights"
+    );
+}
+
+#[test]
+fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
+    // A GUARD, and it is the operator's own scope for this command: the lights
+    // mute is LIGHTS ONLY. `pns quiet` mutes the engine, this mutes one place's
+    // lamps, and nothing reads the other's file. A mute that quietly took the
+    // card with it would be the worst version of this feature: an approval the
+    // operator is blocked on, silenced by a command about a bedroom lamp.
+    //
+    // TYPED, NOT INJECTED: the mute is armed by running the subcommand in the
+    // same sandbox, which is the path an operator walks at bedtime.
+    //
+    // AND NO BRIDGE IS DIALLED AT ALL, which the pre-resolution gate is what
+    // earns: the family holds one claim, the operator muted exactly that name,
+    // and resolving the map to discover it would be a round trip on every
+    // event for the length of the mute.
+    assert_eq!(
+        lamp_run(
+            "lamps-adhoc-quiet-away",
+            "",
+            STUDIO_MAP,
+            &BLOCKED,
+            Mute::Lights("3F - Studio"),
+            Presence::Away,
+        ),
+        (false, true, true, false, Some(0)),
+        "away: the lamps are quiet and the CARD still reaches the phone"
+    );
+    // THE BANNER IS OPT IN like every other channel, so the desk runs below
+    // switch it on: without its table the surface has nothing to raise and the
+    // assertion would pass on a channel that was never enabled.
+    let with_banner = format!("[plugins.macos-banner]\nenabled = true\n{STUDIO_MAP}");
+    assert_eq!(
+        lamp_run(
+            "lamps-adhoc-quiet-desk",
+            "",
+            &with_banner,
+            &BLOCKED,
+            Mute::Lights("3F - Studio"),
+            Presence::Desk,
+        ),
+        (false, false, true, true, Some(0)),
+        "at the desk: the lamps are quiet and the BANNER still runs, with the \
+         durable log taking the event either way"
+    );
+    assert_eq!(
+        lamp_run(
+            "lamps-adhoc-unmuted-desk",
+            "",
+            &with_banner,
+            &BLOCKED,
+            Mute::Nothing,
+            Presence::Desk,
+        ),
+        (true, false, true, true, Some(0)),
+        "the unmuted control: the same event at the same desk reaches the \
+         bridge, so the silence above is the mute and not the presence"
+    );
+}
+
+/// A port on the loopback nothing is listening on, so a bridge GET fails at
+/// once instead of waiting out its deadline. NO REAL BRIDGE IS EVER NAMED in
+/// this suite; the cases below are about what the engine SAYS, and the dial
+/// they might make has to cost nothing.
+const DEAD_BRIDGE: &str = "127.0.0.1:9";
+
+#[test]
+fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() {
+    // ONE STDERR LINE PER HOOK INVOCATION, FOREVER, is what a bare print on
+    // this path buys: the file stays corrupt until a human fixes it and the
+    // event path fires many times a session. The tick already routes the same
+    // complaint through a remembered line, and this is that mechanism with a
+    // memory of its own.
+    let sandbox = Sandbox::new("lights-quiet-say-once");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n\
+         rooms = [\"3F - Studio\"]\nquiet_hours = \"00:00-23:59\"\n\
+         [plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+    ));
+    std::fs::create_dir_all(sandbox.state()).expect("the state directory");
+    std::fs::write(sandbox.state().join("lights-quiet"), "later 3F - Studio\n")
+        .expect("a state file something else wrote");
+    let event = || {
+        let mut command = sandbox.pns_stateful();
+        command.env("TZ", "UTC");
+        sandbox.stub_herdr(&mut command, false);
+        stderr(&run(command.args(BLOCKED)))
+    };
+    let first = event();
+    let second = event();
+    assert!(
+        first.contains("lights-quiet holds"),
+        "the first event says what is wrong with the file: {first}"
+    );
+    assert!(
+        !second.contains("lights-quiet holds"),
+        "and the second says nothing, because nothing changed: {second}"
+    );
+}
+
+#[test]
+fn a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built() {
+    // THE WORST OUTCOME THIS COMMAND HAS: telling a human a mute is in effect
+    // that is not. `kept` is what the file WOULD have held, so a report printed
+    // after a failed write describes a house that does not exist, and for a
+    // failed `off` it says nothing is quiet while the old mute is still on disk
+    // and still taking the lamp.
+    let sandbox = Sandbox::new("lights-quiet-unwritable");
+    sandbox.write_config(STUDIO_MAP);
+    let state = sandbox.state();
+    std::fs::create_dir_all(&state).expect("the state directory");
+    std::fs::set_permissions(&state, std::fs::Permissions::from_mode(0o500))
+        .expect("a state directory this run cannot write");
+    let refused = sandbox
+        .pns_stateful()
+        .args(["lights", "quiet", "3F - Studio", "1h"])
+        .output()
+        .expect("the engine runs");
+    // RESTORED BEFORE THE ASSERTIONS, so a failure here still leaves a sandbox
+    // that can be removed.
+    std::fs::set_permissions(&state, std::fs::Permissions::from_mode(0o700))
+        .expect("the directory goes back");
+    assert_eq!(
+        refused.status.code(),
+        Some(1),
+        "the run failed: {}",
+        stderr(&refused)
+    );
+    assert!(
+        stderr(&refused).contains("lights-quiet could not be written"),
+        "and it says so: {}",
+        stderr(&refused)
+    );
+    assert_eq!(
+        stdout(&refused),
+        "",
+        "and reports NOTHING, because nothing on disk changed"
     );
 }
 

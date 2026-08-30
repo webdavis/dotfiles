@@ -694,10 +694,17 @@ const SIGNAL_DURATION_MS: u64 = 3000;
 /// and with it off. Before that drill this comment asserted the restore with
 /// nothing behind it, and the specification is silent on the question.
 ///
+/// THE RESTORE COVERS THE SIGNAL AND NOT A `dimming` STATED BESIDE IT, which
+/// drill D4 of 2026-08-30 measured separately: a brightness written in the same
+/// PUT PERSISTS after the signal ends. So the body is byte-identical to what
+/// shipped while `Dimming::Unstated` is what reaches here, and a config that
+/// can dim trades that restore for a brightness it states every time. Which
+/// one a caller passes is `any_place_dims`'s answer.
+///
 /// IT IS TRUE OF A SIGNAL AND OF NOTHING ELSE. `state_body`'s glow is a plain
 /// state write rather than a signal, so no restore is coming for it and it
 /// carries two explicit clears instead.
-pub fn signal_body(behaviour: crate::config::Behaviour) -> Option<String> {
+pub fn signal_body(behaviour: crate::config::Behaviour, dim: Dimming) -> Option<String> {
     let (signal, colors) = match behaviour {
         crate::config::Behaviour::Done => ("on_off_color", vec![crate::pulse::SUCCESS_COLOR]),
         crate::config::Behaviour::Failed => ("on_off_color", vec![crate::pulse::FAILURE_COLOR]),
@@ -711,18 +718,121 @@ pub fn signal_body(behaviour: crate::config::Behaviour) -> Option<String> {
         crate::config::Behaviour::Breathing | crate::config::Behaviour::Glow => return None,
     };
     Some(
-        serde_json::json!({
-            "signaling": {
-                "signal": signal,
-                "duration": SIGNAL_DURATION_MS,
-                "colors": colors
-                    .iter()
-                    .map(|color| serde_json::json!({"xy": {"x": color.x, "y": color.y}}))
-                    .collect::<Vec<_>>(),
-            },
-        })
+        stating(
+            serde_json::json!({
+                "signaling": {
+                    "signal": signal,
+                    "duration": SIGNAL_DURATION_MS,
+                    "colors": colors
+                        .iter()
+                        .map(|color| serde_json::json!({"xy": {"x": color.x, "y": color.y}}))
+                        .collect::<Vec<_>>(),
+                },
+            }),
+            brightness(dim, FULL_BRIGHTNESS),
+        )
         .to_string(),
     )
+}
+
+/// What one body says about brightness.
+///
+/// THREE ANSWERS AND NOT TWO, because "full" and "silent" are different bodies
+/// on the wire and the difference is the operator's own lamp level. A `dimming`
+/// PERSISTS after the write that carried it (drill D4, 2026-08-30), so on a
+/// config that can write a floor every body has to state a brightness or the
+/// first green after 07:00 inherits the 3am one. On a config that can NEVER
+/// write a floor there is nothing to inherit, and stating one would take the
+/// 30 percent the operator set for evening work and hold the room at 100 on
+/// every event, for good.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dimming {
+    /// No `dimming` field at all: the body that shipped, byte for byte.
+    Unstated,
+    /// The behaviour's own level, stated so a persisted floor is corrected.
+    Full,
+    /// The place's brightness floor, in percent.
+    Floor(u8),
+}
+
+/// The brightness a body states, or None where it states none at all.
+fn brightness(dim: Dimming, full: f64) -> Option<f64> {
+    match dim {
+        Dimming::Unstated => None,
+        Dimming::Full | Dimming::Floor(_) => Some(floor_or(dim, full)),
+    }
+}
+
+/// The brightness a body that ALWAYS states one runs at: the floor when it is
+/// dimmed, and its own level otherwise. The glow is the only such body.
+///
+/// THE FLOOR BEATS THE BEHAVIOUR'S OWN LEVEL, which is the operator's decision
+/// of 2026-08-30 taken literally: dim mode is the same signals at the
+/// brightness floor, so the glow's own low `GLOW_BRIGHTNESS` gives way to it
+/// inside a dim window rather than being the lower of the two.
+fn floor_or(dim: Dimming, own: f64) -> f64 {
+    match dim {
+        Dimming::Floor(percent) => f64::from(percent),
+        Dimming::Unstated | Dimming::Full => own,
+    }
+}
+
+/// One body, with the `dimming` it states or without the field entirely.
+///
+/// THE FIELD IS ADDED RATHER THAN WRITTEN AS `null`, because the body is the
+/// wire format: a `dimming` of null is a field the bridge would have to have an
+/// opinion about, and what a no-dim install needs is the request it has always
+/// sent.
+fn stating(mut body: serde_json::Value, brightness: Option<f64>) -> serde_json::Value {
+    if let Some(brightness) = brightness {
+        body["dimming"] = serde_json::json!({"brightness": brightness});
+    }
+    body
+}
+
+/// The brightness a body states when it is not dimmed, in percent.
+const FULL_BRIGHTNESS: f64 = 100.0;
+
+/// Whether this config can dim ANYWHERE: one `[lights.places]` entry stating
+/// `quiet_mode = "dim"` is enough.
+///
+/// ONE QUESTION, TWO READERS, and they must not come out disagreeing. The gate
+/// answers loud for a config that can dim, and the walks state a brightness on
+/// every body of one; both are over-approximations of the same fact, and a
+/// second spelling would let a lamp be judged awake by one rule and written a
+/// body chosen by another.
+///
+/// THE ENTRY RATHER THAN THE RESOLVED CHAIN, deliberately. Which lamp inherits
+/// which entry is a bridge GET away, and both readers are upstream of it: the
+/// gate exists to avoid that GET, and the walks need one body per behaviour
+/// rather than one per lamp. So the price of a single `quiet_mode = "dim"`
+/// anywhere is that every body in the house states its brightness, which is
+/// the correction the dim window needs and costs a house nothing that it was
+/// not already going to pay the moment that window opened.
+///
+/// THE RESIDUE, named where it is paid: on a config that can dim, pns OWNS the
+/// lamp's brightness. Every body it writes states one, so the operator's own
+/// evening 30 percent survives only until the next event, and a lamp they
+/// switch on by hand between a dim write and the next signal comes up at the
+/// floor. Putting that right would take a snapshot and a restore of the human's
+/// own lighting, which is the conditional PR the D2 measurement retired. A
+/// config with no dim place anywhere pays none of this and stays byte-identical
+/// to what shipped.
+fn any_place_dims(lights: &crate::config::Lights) -> bool {
+    lights
+        .places
+        .values()
+        .any(|place| place.quiet_mode == Some(crate::config::QuietMode::Dim))
+}
+
+/// What the walks state on a body when nothing is dimming it: the correction a
+/// config that CAN dim needs, and silence everywhere else.
+fn full_for(lights: &crate::config::Lights) -> Dimming {
+    if any_place_dims(lights) {
+        Dimming::Full
+    } else {
+        Dimming::Unstated
+    }
 }
 
 /// Whether one fixture signals this behaviour right now.
@@ -742,17 +852,98 @@ pub fn place_signals(
     lights: &crate::config::Lights,
     placement: &Placement,
     behaviour: crate::config::Behaviour,
-    fallback: Result<Option<&QuietWindow>, &str>,
-    minutes_now: Option<u16>,
-) -> Result<bool, String> {
+    reading: &Reading<'_>,
+) -> Result<Showing, String> {
     let chain = place_chain(lights, placement);
-    if skipped(&chain, behaviour) {
-        return Ok(false);
+    if skipped(&chain, behaviour) || muted_now(placement, reading.muted) {
+        return Ok(Showing::Dark);
     }
-    Ok(!quiet_now(
-        place_window(&chain, fallback)?.as_ref(),
-        minutes_now,
+    Ok(showing(
+        &chain,
+        quiet_now(
+            place_window(&chain, reading.fallback)?.as_ref(),
+            reading.minutes_now,
+        ),
     ))
+}
+
+/// What a place does with a behaviour right now.
+///
+/// THREE ANSWERS RATHER THAN A BOOLEAN, because quiet hours no longer mean one
+/// thing: a place can take the signal away or show the same signal at its
+/// brightness floor, and the caller has to know which body to write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Showing {
+    /// Nothing at all: the place skips this behaviour, or an ad-hoc quiet
+    /// covers it, or its window is on and quiet means off there.
+    Dark,
+    /// The behaviour's own body, at full brightness.
+    Full,
+    /// The same body at the place's brightness floor.
+    Dimmed,
+}
+
+/// Which of the three a place shows, given whether its window is on.
+///
+/// `quiet_mode` IS WALKED SPECIFIC FIRST, PER SETTING, exactly as `catch_up`
+/// is and for the same reason: a lamp must be able to override its room in
+/// both directions, so the first rung that STATED a mode is the one that
+/// decides and silence at a rung is not an `off` there. Absent at every rung
+/// is off, which is the shipped meaning of quiet hours.
+fn showing(chain: &[(&str, &crate::config::Place)], quiet: bool) -> Showing {
+    if !quiet {
+        return Showing::Full;
+    }
+    match quiet_mode(chain) {
+        crate::config::QuietMode::Dim => Showing::Dimmed,
+        crate::config::QuietMode::Off => Showing::Dark,
+    }
+}
+
+/// What quiet MEANS at this place: the first rung that said, and off when no
+/// rung did.
+fn quiet_mode(chain: &[(&str, &crate::config::Place)]) -> crate::config::QuietMode {
+    chain
+        .iter()
+        .find_map(|(_, place)| place.quiet_mode)
+        .unwrap_or_default()
+}
+
+/// Whether the operator's own ad-hoc quiet is covering this fixture.
+///
+/// OFF THE PLACEMENT, NOT THE CHAIN. `place_chain` visits only the rungs that
+/// have a `[lights.places]` entry, and a place the operator typed at bedtime
+/// usually has none: it is a room in a family's claim and nothing more. Reading
+/// the mute off the chain would mute exactly the places that had already been
+/// configured for something else, which is a mute that works for some names and
+/// silently does nothing for others.
+///
+/// BOTH RUNGS, in the vocabulary the families claim in: the lamp's own name and
+/// the room holding it, so `pns lights quiet "3F - Studio" 1h` reaches every
+/// lamp in the studio and `pns lights quiet "3F - Studio - HCL1" 1h` reaches
+/// one.
+fn muted_now(placement: &Placement, muted: &[String]) -> bool {
+    [Some(placement.name.as_str()), placement.room.as_deref()]
+        .iter()
+        .flatten()
+        .any(|name| muted.iter().any(|quiet| quiet == name))
+}
+
+/// What one place is judged against: the house window it falls back to, the
+/// minute it is being asked about, and the places an ad-hoc quiet is muting.
+///
+/// ONE NAMED VALUE rather than three loose arguments, for `Arming`'s reason
+/// one level down: two of these are clock-shaped and the third is a list of
+/// names, and every caller of the walk needs all three.
+pub struct Reading<'reading> {
+    /// The house window, read but not judged: it is the last rung of the
+    /// per-place chain rather than a gate in front of it.
+    pub fallback: Result<Option<&'reading QuietWindow>, &'reading str>,
+    pub minutes_now: Option<u16>,
+    /// The places the operator's own `pns lights quiet` is muting right now,
+    /// by the name they typed. EMPTY IS THE ORDINARY CASE, and a machine that
+    /// has never run the command reads an absent file as exactly that.
+    pub muted: &'reading [String],
 }
 
 /// Whether one fixture shows a STATE right now, which is `place_signals`'s
@@ -780,27 +971,41 @@ pub fn place_signals(
 pub fn place_shows_state(
     lights: &crate::config::Lights,
     placement: &Placement,
-    behaviour: crate::config::Behaviour,
-    fallback: Result<Option<&QuietWindow>, &str>,
-    minutes_now: Option<u16>,
-    started_minutes: Option<u16>,
-) -> Result<bool, String> {
+    arming: &Arming<'_>,
+) -> Result<Showing, String> {
     let chain = place_chain(lights, placement);
-    if skipped(&chain, behaviour) {
-        return Ok(false);
+    if skipped(&chain, arming.behaviour) || muted_now(placement, arming.reading.muted) {
+        return Ok(Showing::Dark);
     }
-    let window = place_window(&chain, fallback)?;
-    if quiet_now(window.as_ref(), minutes_now) {
-        return Ok(false);
+    let window = place_window(&chain, arming.reading.fallback)?;
+    let now = showing(
+        &chain,
+        quiet_now(window.as_ref(), arming.reading.minutes_now),
+    );
+    // ANYTHING BUT FULL IS THE WINDOW ANSWERING RIGHT NOW, dark or dimmed, and
+    // neither leaves a catch-up question to ask.
+    if now != Showing::Full {
+        return Ok(now);
+    }
+    // A STATE SHOWN DIM WAS NEVER SUPPRESSED, so the catch-up question does not
+    // arise for it either. Catch-up asks whether news the window HID should
+    // appear once the window ends; a dimmed place hid nothing, it showed the
+    // same state faintly all night, and taking it away at 07:00 would put out a
+    // lamp the operator had already been watching.
+    if quiet_mode(&chain) == crate::config::QuietMode::Dim {
+        return Ok(Showing::Full);
     }
     if chain
         .iter()
         .find_map(|(_, place)| place.catch_up)
         .unwrap_or(false)
     {
-        return Ok(true);
+        return Ok(Showing::Full);
     }
-    Ok(!quiet_now(window.as_ref(), started_minutes))
+    Ok(showing(
+        &chain,
+        quiet_now(window.as_ref(), arming.started_minutes),
+    ))
 }
 
 /// The place chain, SPECIFIC FIRST: the lamp's own entry, then its room's.
@@ -924,18 +1129,38 @@ pub trait Bridge {
 ///   where the walk would try its ROOM's entry first. A lamp in a sleeping room
 ///   under a loud house therefore reads awake to this gate and dark to the
 ///   walk, which costs one round trip and no wrong light.
-pub fn any_place_loud(
-    lights: &crate::config::Lights,
-    family: &str,
-    fallback: Result<Option<&QuietWindow>, &str>,
-    minutes_now: Option<u16>,
-) -> bool {
+pub fn any_place_loud(lights: &crate::config::Lights, family: &str, reading: &Reading<'_>) -> bool {
     // A FAMILY THAT CLAIMED NOTHING HOLDS NOTHING, and `signal_family` would
     // walk an empty list however awake the house is.
     let Some(claims) = lights.families.get(family) else {
         return false;
     };
+    // A CONFIG THAT CAN DIM ANYWHERE IS AWAKE AT EVERY MINUTE. A dimmed place
+    // signals fully outside its window and faintly inside it, so there is no
+    // hour at which it lights nothing, and reading a window here would skip the
+    // GET that dim mode needs to reach a lamp at all.
+    //
+    // ANY ENTRY, NOT THE CLAIM'S OWN, and the over-approximation is deliberate.
+    // `quiet_mode` is inherited specific-first, so the entry that dims a lamp
+    // claimed BY NAME is usually its ROOM's, and which room holds which lamp is
+    // the device join this gate exists to avoid asking for. Looking the claim
+    // name up instead answers a wrong FALSE, which is a lamp that never lights
+    // with nothing said anywhere; this answers a wrong TRUE at worst, which is
+    // one round trip that writes nothing, on a config that already asked for a
+    // brightness floor somewhere.
+    let dims = any_place_dims(lights);
     claims.rooms.iter().chain(&claims.lights).any(|name| {
+        // AN AD-HOC QUIET IS THE ONE THING THIS GATE CAN JUDGE OUTRIGHT: the
+        // operator typed the name a family claims in, so a claim under a mute
+        // lights nothing at any hour and needs no listing to say so. IT IS
+        // ASKED FIRST, because a muted claim lights nothing whatever the rest
+        // of the config can do.
+        if reading.muted.iter().any(|quiet| quiet == name) {
+            return false;
+        }
+        if dims {
+            return true;
+        }
         let Some(stated) = lights
             .places
             .get(name)
@@ -943,12 +1168,12 @@ pub fn any_place_loud(
         else {
             // THE SAME LAST RUNG `place_signals` walks to, and the same
             // fail-loud reading of a house key nobody can parse.
-            return match fallback {
-                Ok(window) => !quiet_now(window, minutes_now),
+            return match reading.fallback {
+                Ok(window) => !quiet_now(window, reading.minutes_now),
                 Err(_) => true,
             };
         };
-        parse_window(stated).is_none_or(|window| !quiet_now(Some(&window), minutes_now))
+        parse_window(stated).is_none_or(|window| !quiet_now(Some(&window), reading.minutes_now))
     })
 }
 
@@ -969,10 +1194,17 @@ pub fn signal_family<B: Bridge>(
     family: &str,
     lights: &crate::config::Lights,
     behaviour: crate::config::Behaviour,
-    fallback: Result<Option<&QuietWindow>, &str>,
-    minutes_now: Option<u16>,
+    reading: &Reading<'_>,
 ) -> Vec<String> {
-    let Some(body) = signal_body(behaviour) else {
+    // BOTH BODIES UP FRONT, because which one a fixture takes is its own
+    // place's answer and the walk below must not build a body per lamp. A
+    // behaviour with no body at all still writes nothing at all, which is the
+    // early exit that keeps a lamp from being armed with the nearest shape that
+    // happened to exist.
+    let (Some(full), Some(dimmed)) = (
+        signal_body(behaviour, full_for(lights)),
+        signal_body(behaviour, Dimming::Floor(lights.dim_brightness)),
+    ) else {
         return Vec::new();
     };
     let mut refusals = Vec::new();
@@ -986,9 +1218,10 @@ pub fn signal_family<B: Bridge>(
         // matches no `[lights.places]` entry and takes the fallback window,
         // which is the same treatment a lamp the operator never mentioned gets.
         let placement = resolution.places.get(fixture).cloned().unwrap_or_default();
-        match place_signals(lights, &placement, behaviour, fallback, minutes_now) {
-            Ok(true) => bridge.put(&fixture.path(), &body),
-            Ok(false) => {}
+        match place_signals(lights, &placement, behaviour, reading) {
+            Ok(Showing::Full) => bridge.put(&fixture.path(), &full),
+            Ok(Showing::Dimmed) => bridge.put(&fixture.path(), &dimmed),
+            Ok(Showing::Dark) => {}
             // ONE REFUSAL PER PLACE, not per lamp that reached it: two lamps
             // inheriting one room's unreadable window is one typo, and saying
             // it twice trains an operator to skim the line.
@@ -1035,6 +1268,50 @@ pub fn producing_family(behaviour: crate::config::Behaviour) -> Option<&'static 
         crate::config::Behaviour::Breathing | crate::config::Behaviour::Glow => Some(LOOP_FAMILY),
         crate::config::Behaviour::Done | crate::config::Behaviour::Failed => None,
     }
+}
+
+/// Every place name a FAMILY CLAIMS, sorted and deduplicated.
+///
+/// THE VOCABULARY `pns lights quiet` ACCEPTS, and it is the config's own rather
+/// than the bridge's on purpose: this answer is wanted by a typed command that
+/// must not dial a bridge to refuse a typo, and a name the config holds but the
+/// bridge does not is already reported by the doctor in its own words.
+///
+/// A NAME A MUTE CANNOT ENFORCE IS NOT IN IT, which is why a bare
+/// `[lights.places]` key is left out however carefully the operator wrote it.
+/// `muted_now` matches against a fixture's PLACEMENT, which is one lamp's own
+/// name and the room the device join put it in, and a room claimed whole
+/// resolves to one grouped light whose placement is the room itself. So a lamp
+/// named only by a place table can be a name no fixture ever carries: the
+/// command would store it, report it as in effect, and the grouped write would
+/// go on reaching that lamp all night. A refusal the operator can act on beats
+/// a mute they cannot see failing.
+///
+/// `except` NAMES ARE IN IT. A lamp carved out of a room is a lamp a family
+/// wrote down, and carving it out is what makes its room resolve lamp by lamp,
+/// which is the resolution that gives a mute a name to match.
+///
+/// THE PRICE, STATED: a lamp that some OTHER family's `except` forces to be
+/// resolved individually is refused here too. Whether a claim resolves per lamp
+/// or per group is a bridge answer, this is asked before any GET, and the
+/// operator's alternative is the room, which mutes that lamp with the rest of
+/// it.
+pub fn claimed_places(lights: &crate::config::Lights) -> Vec<String> {
+    let mut names: Vec<String> = lights
+        .families
+        .values()
+        .flat_map(|family| {
+            family
+                .rooms
+                .iter()
+                .chain(&family.lights)
+                .chain(&family.except)
+        })
+        .cloned()
+        .collect();
+    names.sort();
+    names.dedup();
+    names
 }
 
 /// What is wrong with one claim, in one sentence and with no prefix on it.
@@ -1121,7 +1398,11 @@ const GLOW_BRIGHTNESS: f64 = 25.0;
 /// moment on the event path (which needs no daemon) and one from any tick that
 /// sees the condition gone, and `signal_state` reports which fixtures are held
 /// so both clears have names to write to.
-pub fn state_body(behaviour: crate::config::Behaviour, refresh_secs: u64) -> Option<String> {
+pub fn state_body(
+    behaviour: crate::config::Behaviour,
+    refresh_secs: u64,
+    dim: Dimming,
+) -> Option<String> {
     let (signal, colors, duration_ms) = match behaviour {
         crate::config::Behaviour::NeedsYou => (
             "alternating",
@@ -1135,14 +1416,24 @@ pub fn state_body(behaviour: crate::config::Behaviour, refresh_secs: u64) -> Opt
                 .min(MAX_SIGNAL_DURATION_MS),
         ),
         crate::config::Behaviour::Breathing => {
-            return Some(serde_json::json!({"alert": {"action": ALERT_BREATHE}}).to_string());
+            return Some(
+                stating(
+                    serde_json::json!({"alert": {"action": ALERT_BREATHE}}),
+                    brightness(dim, FULL_BRIGHTNESS),
+                )
+                .to_string(),
+            );
         }
+        // THE ONE BODY THAT ALWAYS STATES A BRIGHTNESS, and it did before dim
+        // mode existed: the glow is a plain state write of its own low level
+        // rather than a signal, so there is no shipped body here that says
+        // nothing about brightness to preserve.
         crate::config::Behaviour::Glow => {
             return Some(
                 serde_json::json!({
                     "on": {"on": true},
                     "color": {"xy": {"x": crate::pulse::LOOP_COLOR.x, "y": crate::pulse::LOOP_COLOR.y}},
-                    "dimming": {"brightness": GLOW_BRIGHTNESS},
+                    "dimming": {"brightness": floor_or(dim, GLOW_BRIGHTNESS)},
                 })
                 .to_string(),
             );
@@ -1150,16 +1441,19 @@ pub fn state_body(behaviour: crate::config::Behaviour, refresh_secs: u64) -> Opt
         crate::config::Behaviour::Done | crate::config::Behaviour::Failed => return None,
     };
     Some(
-        serde_json::json!({
-            "signaling": {
-                "signal": signal,
-                "duration": duration_ms,
-                "colors": colors
-                    .iter()
-                    .map(|color| serde_json::json!({"xy": {"x": color.x, "y": color.y}}))
-                    .collect::<Vec<_>>(),
-            },
-        })
+        stating(
+            serde_json::json!({
+                "signaling": {
+                    "signal": signal,
+                    "duration": duration_ms,
+                    "colors": colors
+                        .iter()
+                        .map(|color| serde_json::json!({"xy": {"x": color.x, "y": color.y}}))
+                        .collect::<Vec<_>>(),
+                },
+            }),
+            brightness(dim, FULL_BRIGHTNESS),
+        )
         .to_string(),
     )
 }
@@ -1185,10 +1479,10 @@ pub struct Arming<'reading> {
     /// How often the daemon comes back, which is what a state's own duration
     /// is sized against.
     pub refresh_secs: u64,
-    /// The house window, read but not judged: it is the last rung of the
-    /// per-place chain, exactly as it is on the pulse path.
-    pub fallback: Result<Option<&'reading QuietWindow>, &'reading str>,
-    pub minutes_now: Option<u16>,
+    /// What the places are judged against, which is the pulse path's own
+    /// value: the tick asks the same question of the same chain and must not
+    /// grow a second spelling of the answer.
+    pub reading: Reading<'reading>,
     /// The minute of the day the state BEGAN, which is the only thing the
     /// catch-up rule reads.
     pub started_minutes: Option<u16>,
@@ -1237,7 +1531,14 @@ pub fn signal_state<B: Bridge>(
         signalled: Vec::new(),
         held: Vec::new(),
     };
-    let Some(body) = state_body(arming.behaviour, arming.refresh_secs) else {
+    let (Some(full), Some(dimmed)) = (
+        state_body(arming.behaviour, arming.refresh_secs, full_for(lights)),
+        state_body(
+            arming.behaviour,
+            arming.refresh_secs,
+            Dimming::Floor(lights.dim_brightness),
+        ),
+    ) else {
         return written;
     };
     let holds = arming.behaviour == crate::config::Behaviour::Glow;
@@ -1247,22 +1548,20 @@ pub fn signal_state<B: Bridge>(
         }
         for fixture in resolution.state_fixtures(family) {
             let placement = resolution.places.get(&fixture).cloned().unwrap_or_default();
-            match place_shows_state(
-                lights,
-                &placement,
-                arming.behaviour,
-                arming.fallback,
-                arming.minutes_now,
-                arming.started_minutes,
-            ) {
-                Ok(true) => {
-                    bridge.put(&fixture.path(), &body);
+            match place_shows_state(lights, &placement, arming) {
+                Ok(shown @ (Showing::Full | Showing::Dimmed)) => {
+                    let body = if shown == Showing::Full {
+                        &full
+                    } else {
+                        &dimmed
+                    };
+                    bridge.put(&fixture.path(), body);
                     written.signalled.push(fixture.path());
                     if holds {
                         written.held.push(fixture.path());
                     }
                 }
-                Ok(false) => {}
+                Ok(Showing::Dark) => {}
                 // ONE REFUSAL PER PLACE, not per lamp that reached it, which is
                 // `signal_family`'s own rule: two lamps inheriting one room's
                 // unreadable window is one typo.
@@ -1327,12 +1626,17 @@ impl<B: Bridge> HuePulse<B> {
 /// one that has one. A lamp asked to breathe would otherwise flash whatever
 /// shape was nearest, which is the lying lamp this whole design exists to
 /// prevent.
+///
+/// AND IT STATES NO BRIGHTNESS, ever. This is the path of a machine with no
+/// `[lights]` table and of `pns pulse` on a machine with one: there is no place
+/// table in reach to dim, so nothing here can have left a floor on a lamp and
+/// the body is the one that shipped.
 pub fn signal_fixtures<B: Bridge>(
     bridge: &B,
     fixtures: &[Fixture],
     behaviour: crate::config::Behaviour,
 ) -> usize {
-    let Some(body) = signal_body(behaviour) else {
+    let Some(body) = signal_body(behaviour, Dimming::Unstated) else {
         return 0;
     };
     for fixture in fixtures {
@@ -1344,10 +1648,11 @@ pub fn signal_fixtures<B: Bridge>(
 #[cfg(test)]
 mod tests {
     use super::{
-        Arming, Bridge, DEFAULT_ROOMS, Fixture, HuePulse, LOCAL_FAMILY, Missing, Placement,
-        QuietWindow, Resolution, StateConflict, Unresolved, any_place_loud, clear_held,
-        grouped_light_ids_for_rooms, hue_settings, place_shows_state, quiet_now, quiet_window,
-        resolve, resolve_on_bridge, signal_body, signal_family, signal_state, state_body,
+        Arming, Bridge, DEFAULT_ROOMS, Dimming, Fixture, HuePulse, LOCAL_FAMILY, Missing,
+        Placement, QuietWindow, Reading, Resolution, Showing, StateConflict, Unresolved,
+        any_place_loud, claimed_places, clear_held, grouped_light_ids_for_rooms, hue_settings,
+        place_shows_state, quiet_now, quiet_window, resolve, resolve_on_bridge, signal_body,
+        signal_family, signal_state, state_body,
     };
     use crate::config::Behaviour;
     use std::cell::RefCell;
@@ -1481,10 +1786,25 @@ mod tests {
 
     const RED_SIGNAL: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.675,"y":0.322}}],"duration":3000,"signal":"on_off_color"}}"#;
     const GREEN_SIGNAL: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.2151,"y":0.7106}}],"duration":3000,"signal":"on_off_color"}}"#;
+    /// The same green with a brightness STATED, which is what a config that can
+    /// dim somewhere writes so the next signal corrects a floor an earlier one
+    /// left on the lamp.
+    const GREEN_FULL: &str = r#"{"dimming":{"brightness":100.0},"signaling":{"colors":[{"xy":{"x":0.2151,"y":0.7106}}],"duration":3000,"signal":"on_off_color"}}"#;
+    /// The same green at a one percent floor, which is what a place inside its
+    /// own quiet window with `quiet_mode = "dim"` signals.
+    const GREEN_DIM: &str = r#"{"dimming":{"brightness":1.0},"signaling":{"colors":[{"xy":{"x":0.2151,"y":0.7106}}],"duration":3000,"signal":"on_off_color"}}"#;
+    /// And at a five percent floor, which is what a config that states
+    /// `dim_brightness` gets instead of the default.
+    const GREEN_DIM_FIVE: &str = r#"{"dimming":{"brightness":5.0},"signaling":{"colors":[{"xy":{"x":0.2151,"y":0.7106}}],"duration":3000,"signal":"on_off_color"}}"#;
     /// The needs-you body, which has never shipped: two colours and the
     /// `alternating` signal, so it cannot be mistaken for either of the two
     /// above at a glance.
     const BLUE_SIGNAL: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":3000,"signal":"alternating"}}"#;
+    /// The same blue with its brightness stated.
+    const BLUE_FULL: &str = r#"{"dimming":{"brightness":100.0},"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":3000,"signal":"alternating"}}"#;
+    /// And at a FIVE percent floor, which is what pins the number as the
+    /// configured one rather than a constant that happens to match the default.
+    const BLUE_DIM: &str = r#"{"dimming":{"brightness":5.0},"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":3000,"signal":"alternating"}}"#;
 
     #[test]
     fn a_failure_signals_every_wanted_room_red_and_writes_nothing_else() {
@@ -2124,20 +2444,171 @@ mod tests {
 
     #[test]
     fn the_green_and_red_bodies_are_byte_for_byte_what_shipped() {
-        // A GUARD, not a red-first test, and it says so here rather than in a
-        // report nobody reads beside the code. The behaviour vocabulary
-        // replaces an exit code and a colour with a five-word enum, and the two
-        // bodies an operator has been looking at since 2026-08-12 must not move
-        // one byte in the process. Its job is to keep passing.
+        // A GUARD over the colours, the pattern and the duration, which are
+        // what an operator has been looking at since 2026-08-12 and must not
+        // move. AND OVER THE FIELDS THEMSELVES: a config that never dims
+        // states no brightness at all, so the body is the shipped one to the
+        // byte and the operator's own lamp level survives every event.
         assert_eq!(
-            signal_body(Behaviour::Done).as_deref(),
+            signal_body(Behaviour::Done, Dimming::Unstated).as_deref(),
             Some(GREEN_SIGNAL),
             "done is the shipped green body"
         );
         assert_eq!(
-            signal_body(Behaviour::Failed).as_deref(),
+            signal_body(Behaviour::Failed, Dimming::Unstated).as_deref(),
             Some(RED_SIGNAL),
             "failed is the shipped red body"
+        );
+        assert_eq!(
+            state_body(Behaviour::NeedsYou, 20, Dimming::Unstated).as_deref(),
+            Some(NEEDS_YOU_STATE),
+            "and so is the needs-you state"
+        );
+        assert_eq!(
+            state_body(Behaviour::Breathing, 20, Dimming::Unstated).as_deref(),
+            Some(BREATHING_ALERT),
+            "and the breathe, which is the body a no-dim install would have \
+             been holding a lamp at 100 percent with three times a minute"
+        );
+        assert_eq!(
+            state_body(Behaviour::Glow, 20, Dimming::Unstated).as_deref(),
+            Some(GLOW_STEADY),
+            "the glow is the exception, and it is what shipped too: it stated a \
+             brightness of its own before dim mode existed because it is a \
+             steady write rather than a signal"
+        );
+    }
+
+    #[test]
+    fn a_config_that_can_dim_states_a_brightness_on_every_body() {
+        // THE OTHER SIDE OF THE GUARD ABOVE, and drill D4 of 2026-08-30 is why
+        // both exist: a `dimming` written beside a signal PERSISTS after that
+        // signal ends, and the byte-identical restore D2 measured covers the
+        // SIGNAL alone. So on a config that CAN write a floor, every body has
+        // to state a brightness or the first green after 07:00 would be as
+        // faint as the ones the operator asked for at 3am; on a config that
+        // cannot, there is no floor to inherit and stating one would take the
+        // lamp level the operator set by hand.
+        assert_eq!(
+            signal_body(Behaviour::Done, Dimming::Full).as_deref(),
+            Some(GREEN_FULL),
+            "the shipped green plus the brightness it states"
+        );
+        assert_eq!(
+            state_body(Behaviour::NeedsYou, 20, Dimming::Full).as_deref(),
+            Some(NEEDS_YOU_STATE_FULL),
+            "and the needs-you state, which the tick rewrites for hours"
+        );
+        assert_eq!(
+            state_body(Behaviour::Breathing, 20, Dimming::Full).as_deref(),
+            Some(BREATHING_ALERT_FULL),
+            "and the breathe"
+        );
+        assert_eq!(
+            state_body(Behaviour::Glow, 20, Dimming::Full).as_deref(),
+            Some(GLOW_STEADY),
+            "the glow states its own level either way: 25 percent IS its full \
+             brightness, and only a floor takes it lower"
+        );
+    }
+
+    #[test]
+    fn a_body_exists_for_the_same_behaviours_whatever_brightness_it_states() {
+        // THE PAIR THE TWO WALKS DESTRUCTURE. `signal_family` and
+        // `signal_state` each build a full body and a dimmed one up front and
+        // take both or neither: a behaviour that answered `Some` for one and
+        // `None` for the other would make every lamp in a dim config dark, or
+        // arm one with the shape that happened to exist. Nothing else pins that
+        // agreement, so this does, over the whole vocabulary.
+        for behaviour in [
+            Behaviour::Done,
+            Behaviour::Failed,
+            Behaviour::NeedsYou,
+            Behaviour::Breathing,
+            Behaviour::Glow,
+        ] {
+            for stated in [Dimming::Full, Dimming::Floor(1)] {
+                assert_eq!(
+                    signal_body(behaviour, Dimming::Unstated).is_some(),
+                    signal_body(behaviour, stated).is_some(),
+                    "signal_body disagrees about {behaviour:?} between \
+                     {:?} and {stated:?}",
+                    Dimming::Unstated
+                );
+                assert_eq!(
+                    state_body(behaviour, 20, Dimming::Unstated).is_some(),
+                    state_body(behaviour, 20, stated).is_some(),
+                    "state_body disagrees about {behaviour:?} between \
+                     {:?} and {stated:?}",
+                    Dimming::Unstated
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_dimmed_body_states_the_configured_floor_and_a_full_one_states_full() {
+        // THE SAME SIGNAL AT THE FLOOR, which is the operator's own decision of
+        // 2026-08-30: dim mode is not a different pattern, a shorter flash or a
+        // darker colour, it is the behaviour the place would have shown anyway
+        // with its brightness taken down. Drill D4 measured the mechanism on a
+        // real lamp: `dimming` and `signaling` in ONE PUT is accepted and the
+        // signal runs at the level asked for.
+        //
+        // THE COLOURS, THE PATTERN AND THE DURATION DO NOT MOVE between the
+        // two, which is what makes this a brightness and not a second
+        // vocabulary: the whole difference between the pairs below is one
+        // number.
+        assert_eq!(
+            signal_body(Behaviour::Done, Dimming::Floor(1)).as_deref(),
+            Some(GREEN_DIM),
+            "the same green, at the one percent floor"
+        );
+        assert_eq!(
+            signal_body(Behaviour::NeedsYou, Dimming::Full).as_deref(),
+            Some(BLUE_FULL),
+            "and the blue pulse states full brightness like every other body"
+        );
+        assert_eq!(
+            signal_body(Behaviour::NeedsYou, Dimming::Floor(5)).as_deref(),
+            Some(BLUE_DIM),
+            "at FIVE percent, which is what pins the number as the configured \
+             one rather than a constant that happens to match the default"
+        );
+        // AND THE STATES, all three of them, because the tick writes them for
+        // hours at a time and a state that ignored the floor would be the one
+        // lamp still shouting at 3am.
+        assert_eq!(
+            state_body(Behaviour::NeedsYou, 20, Dimming::Full).as_deref(),
+            Some(NEEDS_YOU_STATE_FULL),
+            "the needs-you state at full brightness"
+        );
+        assert_eq!(
+            state_body(Behaviour::NeedsYou, 20, Dimming::Floor(1)).as_deref(),
+            Some(NEEDS_YOU_STATE_DIM),
+            "and at the floor, with its duration untouched"
+        );
+        assert_eq!(
+            state_body(Behaviour::Breathing, 20, Dimming::Full).as_deref(),
+            Some(BREATHING_ALERT_FULL),
+            "the bridge renders the swell either way, so breathing dims by \
+             stating a brightness beside the alert rather than by changing it"
+        );
+        assert_eq!(
+            state_body(Behaviour::Breathing, 20, Dimming::Floor(2)).as_deref(),
+            Some(BREATHING_ALERT_DIM),
+            "which is what makes the swell faint"
+        );
+        assert_eq!(
+            state_body(Behaviour::Glow, 20, Dimming::Full).as_deref(),
+            Some(GLOW_STEADY),
+            "the glow already stated a brightness of its own"
+        );
+        assert_eq!(
+            state_body(Behaviour::Glow, 20, Dimming::Floor(1)).as_deref(),
+            Some(GLOW_DIM),
+            "and inside a dim window the FLOOR beats it, because dim means the \
+             same signals at the brightness floor"
         );
     }
 
@@ -2149,7 +2620,7 @@ mod tests {
         // behaviour exists to prevent: green says it finished, blue says it is
         // waiting on you.
         assert_eq!(
-            signal_body(Behaviour::NeedsYou).as_deref(),
+            signal_body(Behaviour::NeedsYou, Dimming::Unstated).as_deref(),
             Some(BLUE_SIGNAL)
         );
     }
@@ -2162,8 +2633,8 @@ mod tests {
         // twenty to sixty seconds has never been observed on a bulb (drill D3).
         // A body invented here would be a shape nobody measured, arming a lamp
         // on a schedule that does not exist yet.
-        assert_eq!(signal_body(Behaviour::Breathing), None);
-        assert_eq!(signal_body(Behaviour::Glow), None);
+        assert_eq!(signal_body(Behaviour::Breathing, Dimming::Unstated), None);
+        assert_eq!(signal_body(Behaviour::Glow, Dimming::Unstated), None);
     }
 
     #[test]
@@ -2221,23 +2692,227 @@ mod tests {
         fallback: Result<Option<&QuietWindow>, &str>,
         minutes_now: Option<u16>,
     ) -> (Vec<String>, Vec<String>) {
+        signalled_muted(written, behaviour, fallback, minutes_now, &[])
+    }
+
+    /// The same walk with an ad-hoc quiet armed over some of the places, which
+    /// is the only test that has anything to say about the muted list.
+    fn signalled_muted(
+        written: &str,
+        behaviour: Behaviour,
+        fallback: Result<Option<&QuietWindow>, &str>,
+        minutes_now: Option<u16>,
+        muted: &[&str],
+    ) -> (Vec<String>, Vec<String>) {
         let bridge = full_bridge();
         let lights = lights(written);
         let map = resolve_on_bridge(&bridge, &lights.families).expect("the bridge answered");
+        let muted: Vec<String> = muted.iter().map(|name| (*name).to_string()).collect();
         let refusals = signal_family(
             &bridge,
             &map,
             LOCAL_FAMILY,
             &lights,
             behaviour,
-            fallback,
-            minutes_now,
+            &Reading {
+                fallback,
+                minutes_now,
+                muted: &muted,
+            },
         );
         let puts = bridge.puts.borrow();
         (
             puts.iter().map(|(path, _)| path.clone()).collect(),
             refusals,
         )
+    }
+
+    #[test]
+    fn an_ad_hoc_quiet_takes_the_place_it_names_and_leaves_its_siblings_lit() {
+        // THE MUTE IS BY NAME, and the name is read off the PLACEMENT rather
+        // than off the settings chain: a place the operator typed has an
+        // entry in `[lights.places]` only if they also gave it hours or a skip
+        // list, and a mute that worked for some places and not others would be
+        // the silent mute this whole path refuses.
+        //
+        // BOTH RUNGS, because the operator types the vocabulary the families
+        // claim in: muting one LAMP leaves its sibling lit, and muting the ROOM
+        // takes every lamp in it. The unmuted control is what tells a mute that
+        // worked from a walk that wrote nothing anyway.
+        assert_eq!(
+            signalled_muted(
+                STUDIO_LOCAL,
+                Behaviour::Done,
+                Ok(None),
+                Some(720),
+                &["3F - Studio - HCL1"],
+            )
+            .0,
+            vec![format!("light/{HCL2}")],
+            "the muted lamp reaches no PUT and its sibling still signals"
+        );
+        assert_eq!(
+            signalled_muted(
+                STUDIO_LOCAL,
+                Behaviour::Done,
+                Ok(None),
+                Some(720),
+                &["3F - Studio"],
+            )
+            .0,
+            Vec::<String>::new(),
+            "and muting the ROOM takes every lamp inside it, which is the \
+             room-shaped mute the operator types at bedtime"
+        );
+        assert_eq!(
+            signalled_muted(
+                STUDIO_LOCAL,
+                Behaviour::Done,
+                Ok(None),
+                Some(720),
+                &["3F - Nowhere"],
+            )
+            .0,
+            vec![format!("light/{HCL1}"), format!("light/{HCL2}")],
+            "the unmuted control: a mute over a name this map does not hold \
+             costs no lamp its signal"
+        );
+    }
+
+    /// Every path `local` wrote to AND the body it wrote there, which is the
+    /// only question dim mode has: two lamps signalling is not the same
+    /// behaviour as two lamps signalling the same way.
+    fn bodies_written(
+        written: &str,
+        behaviour: Behaviour,
+        minutes_now: Option<u16>,
+    ) -> Vec<(String, String)> {
+        let bridge = full_bridge();
+        let lights = lights(written);
+        let map = resolve_on_bridge(&bridge, &lights.families).expect("the bridge answered");
+        signal_family(
+            &bridge,
+            &map,
+            LOCAL_FAMILY,
+            &lights,
+            behaviour,
+            &reading(Ok(None), minutes_now),
+        );
+        let puts = bridge.puts.borrow();
+        puts.clone()
+    }
+
+    #[test]
+    fn a_place_that_dims_inside_its_window_signals_at_the_floor_and_its_neighbour_stays_dark() {
+        // THE OPERATOR'S DECISION OF 2026-08-30, wired: dim mode is the SAME
+        // signal at the brightness floor, so the difference between the two
+        // lamps below is one number in one body rather than a lamp that lights
+        // and a lamp that does not.
+        //
+        // AND ITS NEIGHBOUR IS THE CONTROL. HCL2 states the same hours and no
+        // mode, which is the shipped meaning of quiet hours, so a change that
+        // dimmed everything instead of the places that asked would show up here
+        // rather than in a dark room at 3am.
+        const NIGHT: &str = "22:00-07:00";
+        let config = format!(
+            "{STUDIO_LOCAL}[lights.places.\"3F - Studio - HCL1\"]\n\
+             quiet_hours = \"{NIGHT}\"\nquiet_mode = \"dim\"\n\
+             [lights.places.\"3F - Studio - HCL2\"]\nquiet_hours = \"{NIGHT}\"\n"
+        );
+        assert_eq!(
+            bodies_written(&config, Behaviour::Done, MIDNIGHT),
+            vec![(format!("light/{HCL1}"), GREEN_DIM.to_string())],
+            "inside the window the dimmed lamp signals at the default floor and \
+             the lamp that only asked for quiet stays dark"
+        );
+        assert_eq!(
+            bodies_written(&config, Behaviour::Done, Some(720)),
+            vec![
+                (format!("light/{HCL1}"), GREEN_FULL.to_string()),
+                (format!("light/{HCL2}"), GREEN_FULL.to_string()),
+            ],
+            "and outside it both signal at full brightness, so the floor is the \
+             window's doing rather than the lamp's. THE BRIGHTNESS IS STATED \
+             here because this config can dim somewhere: without that, the \
+             lamp HCL1 was left faint by would come up at whatever floor the \
+             last dim write put on it"
+        );
+        assert_eq!(
+            bodies_written(
+                &format!("[lights]\ndim_brightness = 5\n{config}"),
+                Behaviour::Done,
+                MIDNIGHT
+            ),
+            vec![(format!("light/{HCL1}"), GREEN_DIM_FIVE.to_string())],
+            "at the brightness the config states, which is what pins the walk \
+             to `dim_brightness` rather than to a constant"
+        );
+    }
+
+    #[test]
+    fn a_config_that_never_dims_writes_the_lamps_the_body_that_shipped() {
+        // THE INSTALL THAT ASKED FOR NONE OF THIS, and what it must keep: the
+        // operator sets the studio to 30 percent for evening work, and every
+        // event for the rest of the night leaves it there. A body stating 100
+        // would take that level permanently, on a machine where no place can
+        // ever dim and no floor can ever be inherited, which is a lamp brightness
+        // pns has no business owning.
+        assert_eq!(
+            bodies_written(STUDIO_LOCAL, Behaviour::Done, Some(720)),
+            vec![
+                (format!("light/{HCL1}"), GREEN_SIGNAL.to_string()),
+                (format!("light/{HCL2}"), GREEN_SIGNAL.to_string()),
+            ],
+            "no places table at all: the shipped body, byte for byte"
+        );
+        assert_eq!(
+            bodies_written(
+                &format!(
+                    "{STUDIO_LOCAL}[lights.places.\"3F - Studio - HCL1\"]\n\
+                     quiet_hours = \"22:00-07:00\"\nquiet_mode = \"off\"\n"
+                ),
+                Behaviour::Done,
+                Some(720)
+            ),
+            vec![
+                (format!("light/{HCL1}"), GREEN_SIGNAL.to_string()),
+                (format!("light/{HCL2}"), GREEN_SIGNAL.to_string()),
+            ],
+            "and a config that configured quiet hours the shipped way is still \
+             one that can never write a floor"
+        );
+    }
+
+    #[test]
+    fn a_lamp_dimmed_by_its_room_can_state_off_and_go_dark_instead() {
+        // SPECIFIC FIRST, PER SETTING, which is `catch_up`'s own rule applied
+        // to the mode: the first rung that STATED one decides, so a lamp inside
+        // a room that dims has a spelling for going dark and a lamp inside a
+        // room that goes dark has a spelling for dimming. Silence at a rung is
+        // not an `off` there, which is why `quiet_mode` is an Option.
+        const NIGHT: &str = "22:00-07:00";
+        let room = format!(
+            "{STUDIO_LOCAL}[lights.places.\"3F - Studio\"]\n\
+             quiet_hours = \"{NIGHT}\"\nquiet_mode = \"dim\"\n"
+        );
+        assert_eq!(
+            bodies_written(&room, Behaviour::Done, MIDNIGHT),
+            vec![
+                (format!("light/{HCL1}"), GREEN_DIM.to_string()),
+                (format!("light/{HCL2}"), GREEN_DIM.to_string()),
+            ],
+            "the room dims, so every lamp in it dims"
+        );
+        assert_eq!(
+            bodies_written(
+                &format!("{room}[lights.places.\"3F - Studio - HCL1\"]\nquiet_mode = \"off\"\n"),
+                Behaviour::Done,
+                MIDNIGHT
+            ),
+            vec![(format!("light/{HCL2}"), GREEN_DIM.to_string())],
+            "and the lamp that stated `off` goes dark inside a room that dims, \
+             which a mode with no absent value could not have said"
+        );
     }
 
     #[test]
@@ -2503,11 +3178,150 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                any_place_loud(&lights(&config), LOCAL_FAMILY, fallback, MIDNIGHT),
+                any_place_loud(&lights(&config), LOCAL_FAMILY, &reading(fallback, MIDNIGHT)),
                 loud,
                 "case: {label}"
             );
         }
+    }
+
+    #[test]
+    fn the_places_a_mute_can_reach_are_the_ones_a_family_claims() {
+        // THE INPUT TO A REFUSAL, and it is the vocabulary a mute can ENFORCE
+        // rather than every name the config wrote down. A mute is matched
+        // against a fixture's placement, which is one lamp's own name and the
+        // room the device join put it in; a room claimed whole and untouched
+        // resolves to ONE grouped light whose placement is the ROOM, so the
+        // names of the lamps inside it never appear anywhere a mute is read.
+        // Accepting one would store a line the command reports as in effect
+        // while the grouped write goes on reaching that lamp all night.
+        assert_eq!(
+            claimed_places(&lights(&format!(
+                "{STUDIO_LOCAL}[lights.families.loop]\n\
+                 lights = [\"3F - Studio - HCL3\"]\n\
+                 [lights.places.\"3F - Master Bedroom\"]\nskip = [\"breathing\"]\n"
+            ))),
+            vec!["3F - Studio".to_string(), "3F - Studio - HCL3".to_string()],
+            "every claimed name once, `except` included, and HCL3 is claimed by \
+             `except` and by `loop` without appearing twice. THE BEDROOM IS NOT \
+             ONE: it configured settings and no family claims it, so nothing \
+             resolves under that name and a mute over it would reach no lamp"
+        );
+    }
+
+    #[test]
+    fn a_place_that_dims_is_awake_to_the_gate_however_deep_its_window_is() {
+        // THE GATE DECIDES WHETHER THE MAP IS RESOLVED AT ALL, so a place that
+        // signals faintly INSIDE its window has to read as awake here or dim
+        // mode is a feature that never reaches a bridge: the walk that would
+        // have written the dimmed body is never called.
+        //
+        // A DIMMED PLACE IS AWAKE AT EVERY MINUTE, which is why this asks
+        // nothing about the clock: outside its window it signals fully, inside
+        // it signals faintly, and there is no hour at which it lights nothing.
+        let claimed = format!("{STUDIO_LOCAL}[lights.places.\"3F - Studio\"]\n");
+        assert!(
+            any_place_loud(
+                &lights(&format!(
+                    "{claimed}quiet_hours = \"22:00-07:00\"\nquiet_mode = \"dim\"\n"
+                )),
+                LOCAL_FAMILY,
+                &reading(Ok(Some(&NIGHT)), MIDNIGHT),
+            ),
+            "a place that dims inside its own window, under a house window that \
+             is quiet too"
+        );
+        assert!(
+            !any_place_loud(
+                &lights(&format!(
+                    "{claimed}quiet_hours = \"22:00-07:00\"\nquiet_mode = \"off\"\n"
+                )),
+                LOCAL_FAMILY,
+                &reading(Ok(Some(&NIGHT)), MIDNIGHT),
+            ),
+            "the control: the same window where quiet means off is asleep, and \
+             the GET it would have cost is the whole point of this gate"
+        );
+    }
+
+    #[test]
+    fn a_lamp_whose_room_dims_is_awake_to_the_gate_though_its_own_claim_says_nothing() {
+        // THE JOIN THE GATE CANNOT SEE, and the one place it cannot be paid
+        // for with a wasted round trip. `quiet_mode` is inheritable
+        // specific-first, so a ROOM entry saying `dim` is what dims a lamp the
+        // family claims BY NAME, which is exactly how this repo's own map
+        // claims the loop lamp. A gate that looks the claim name up in
+        // `[lights.places]` finds nothing, falls through to the house window,
+        // and reads the whole family asleep: no map is resolved, no body is
+        // written, and dim mode never reaches a bridge for that config.
+        let config = "[lights.families.local]\nlights = [\"3F - Studio - HCL1\"]\n\
+             [lights.places.\"3F - Studio\"]\n\
+             quiet_hours = \"22:00-07:00\"\nquiet_mode = \"dim\"\n";
+        assert!(
+            any_place_loud(
+                &lights(config),
+                LOCAL_FAMILY,
+                &reading(Ok(Some(&NIGHT)), MIDNIGHT)
+            ),
+            "the lamp inherits `dim` from its room, so there is no minute at \
+             which it lights nothing, house window or not"
+        );
+        assert_eq!(
+            bodies_written(config, Behaviour::Done, MIDNIGHT),
+            vec![(format!("light/{HCL1}"), GREEN_DIM.to_string())],
+            "and this is the write the gate was hiding: the walk dims the lamp \
+             rather than leaving it dark"
+        );
+        assert!(
+            !any_place_loud(
+                &lights(
+                    "[lights.families.local]\nlights = [\"3F - Studio - HCL1\"]\n\
+                     [lights.places.\"3F - Studio\"]\n\
+                     quiet_hours = \"22:00-07:00\"\nquiet_mode = \"off\"\n"
+                ),
+                LOCAL_FAMILY,
+                &reading(Ok(Some(&NIGHT)), MIDNIGHT)
+            ),
+            "THE CONTROL, and the bound on the over-approximation: a config \
+             whose places all mean `off` still buys no round trip at 3am"
+        );
+    }
+
+    #[test]
+    fn a_family_whose_every_claim_is_ad_hoc_quiet_reaches_no_bridge_at_all() {
+        // THE POINT IS THE CALL THAT IS NOT MADE. An operator who typed
+        // `pns lights quiet` over the room this family holds has asked for
+        // nothing to happen there, and resolving the map to discover that costs
+        // a round trip on every event for the length of the mute.
+        //
+        // A MUTE OVER ONE LAMP IS NOT A MUTE OVER THE ROOM THAT HOLDS IT, and
+        // this gate cannot tell which lamps a room holds without the very GET
+        // it exists to avoid. So it answers loud, the walk resolves the map,
+        // and the mute is spent one level down where the lamp's own name is
+        // known: a wrong true costs a round trip that writes nothing, and a
+        // wrong false is a lamp that never lights with no message anywhere.
+        let muted = |names: &[&str]| {
+            let names: Vec<String> = names.iter().map(|name| (*name).to_string()).collect();
+            any_place_loud(
+                &lights(STUDIO_LOCAL),
+                LOCAL_FAMILY,
+                &Reading {
+                    fallback: Ok(None),
+                    minutes_now: Some(720),
+                    muted: &names,
+                },
+            )
+        };
+        assert!(!muted(&["3F - Studio"]), "the claimed room is muted");
+        assert!(
+            muted(&["3F - Studio - HCL1"]),
+            "a lamp inside it is muted, which this gate cannot see: the walk \
+             below spends that one and the round trip is what it costs"
+        );
+        assert!(
+            muted(&[]),
+            "the control: nothing muted, and the family is loud"
+        );
     }
 
     #[test]
@@ -2525,8 +3339,7 @@ mod tests {
                      quiet_hours = \"25:99-xx\"\n"
                 )),
                 LOCAL_FAMILY,
-                Ok(Some(&NIGHT)),
-                MIDNIGHT,
+                &reading(Ok(Some(&NIGHT)), MIDNIGHT),
             ),
             "an unreadable window on a claimed place, under a house window that \
              is quiet right now"
@@ -2564,14 +3377,31 @@ mod tests {
     /// the pulse alternates, held for one refresh interval plus its slack so a
     /// lamp is never dark between two re-arms.
     const NEEDS_YOU_STATE: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":25000,"signal":"alternating"}}"#;
+    /// The same state with its brightness stated, which is the body a config
+    /// that can dim somewhere writes.
+    const NEEDS_YOU_STATE_FULL: &str = r#"{"dimming":{"brightness":100.0},"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":25000,"signal":"alternating"}}"#;
+    /// The same state at a one percent floor.
+    const NEEDS_YOU_STATE_DIM: &str = r#"{"dimming":{"brightness":1.0},"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":25000,"signal":"alternating"}}"#;
     /// The breathe: the bridge's OWN alert action, which it renders as a
     /// smooth swell around whatever colour the lamp is already showing and
     /// ends by itself after about fifteen seconds.
     const BREATHING_ALERT: &str = r#"{"alert":{"action":"breathe"}}"#;
+    /// The breathe with its brightness stated.
+    const BREATHING_ALERT_FULL: &str =
+        r#"{"alert":{"action":"breathe"},"dimming":{"brightness":100.0}}"#;
+    /// The breathe at a two percent floor: the bridge still renders the swell,
+    /// and the persisted dimming is what makes it faint.
+    const BREATHING_ALERT_DIM: &str =
+        r#"{"alert":{"action":"breathe"},"dimming":{"brightness":2.0}}"#;
     /// The glow: a TRUE STEADY write, and the one body on this path that does
     /// not expire on its own.
     const GLOW_STEADY: &str =
         r#"{"color":{"xy":{"x":0.4,"y":0.19}},"dimming":{"brightness":25.0},"on":{"on":true}}"#;
+    /// The glow inside a dim window: the FLOOR beats its own low brightness,
+    /// which is the operator's decision that dim means the same signals at the
+    /// brightness floor.
+    const GLOW_DIM: &str =
+        r#"{"color":{"xy":{"x":0.4,"y":0.19}},"dimming":{"brightness":1.0},"on":{"on":true}}"#;
     /// What clears it.
     const GLOW_CLEAR: &str = r#"{"on":{"on":false}}"#;
 
@@ -2579,9 +3409,21 @@ mod tests {
         Arming {
             behaviour,
             refresh_secs,
-            fallback: Ok(None),
-            minutes_now: Some(720),
+            reading: reading(Ok(None), Some(720)),
             started_minutes: Some(720),
+        }
+    }
+
+    /// The readings a place is judged against, with NOTHING ad-hoc muted,
+    /// which is what every test but the mute's own is asking about.
+    fn reading<'reading>(
+        fallback: Result<Option<&'reading QuietWindow>, &'reading str>,
+        minutes_now: Option<u16>,
+    ) -> Reading<'reading> {
+        Reading {
+            fallback,
+            minutes_now,
+            muted: &[],
         }
     }
 
@@ -2633,18 +3475,19 @@ mod tests {
         // around the lamp's current colour, ended by the bridge itself after
         // about fifteen seconds.
         assert_eq!(
-            state_body(Behaviour::Breathing, 20).as_deref(),
+            state_body(Behaviour::Breathing, 20, Dimming::Unstated).as_deref(),
             Some(BREATHING_ALERT)
         );
         // NO REFRESH INTERVAL REACHES THIS BODY. How long a swell lasts is the
         // bridge's business, not ours, and a duration computed here would be a
         // number the bridge ignores.
         assert_eq!(
-            state_body(Behaviour::Breathing, 900).as_deref(),
+            state_body(Behaviour::Breathing, 900, Dimming::Unstated).as_deref(),
             Some(BREATHING_ALERT),
             "a fifteen-minute refresh still asks for exactly one breathe"
         );
-        let body = state_body(Behaviour::Breathing, 20).expect("a breathing body");
+        let body =
+            state_body(Behaviour::Breathing, 20, Dimming::Unstated).expect("a breathing body");
         assert!(
             !body.contains("signaling") && !body.contains("on_off_color") && !body.contains("xy"),
             "no signal, no flash shape and no colour of our own: {body}"
@@ -2703,10 +3546,12 @@ mod tests {
             place_shows_state(
                 &lights,
                 &placement,
-                Behaviour::Glow,
-                Ok(None),
-                EIGHT_AM,
-                ELEVEN_PM,
+                &Arming {
+                    behaviour: Behaviour::Glow,
+                    refresh_secs: 20,
+                    reading: reading(Ok(None), EIGHT_AM),
+                    started_minutes: ELEVEN_PM,
+                },
             )
         };
         let room = format!(
@@ -2716,13 +3561,13 @@ mod tests {
             shows(&format!(
                 "{room}[lights.places.\"3F - Studio - HCL3\"]\ncatch_up = false\n"
             )),
-            Ok(false),
+            Ok(Showing::Dark),
             "the lamp stated false and it is the more specific rung, so the room's \
              true loses"
         );
         assert_eq!(
             shows(&room),
-            Ok(true),
+            Ok(Showing::Full),
             "and the room's true still reaches a lamp that said nothing about \
              catch-up: PER SETTING, so writing one key never takes the others away"
         );
@@ -2730,8 +3575,60 @@ mod tests {
             shows(&format!(
                 "{room}[lights.places.\"3F - Studio - HCL3\"]\nskip = [\"done\"]\n"
             )),
-            Ok(true),
+            Ok(Showing::Full),
             "including a lamp that stated some OTHER setting entirely"
+        );
+    }
+
+    #[test]
+    fn a_state_shown_dim_through_the_window_needs_no_catch_up_to_survive_it() {
+        // THE CATCH-UP QUESTION DOES NOT ARISE FOR A DIMMED PLACE. Catch-up
+        // asks whether news the window HID should appear once the window ends.
+        // A place that dims hid nothing: it showed the same state faintly all
+        // night, the operator could see it, and taking it away at 07:00 would
+        // put out a lamp they had already been watching.
+        //
+        // WITHOUT THIS, DIM MODE WOULD FIGHT ITS OWN DEFAULT: the state began
+        // inside the window, catch-up is off unless a place opts in, and the
+        // lamp would go dark at the hour the operator came back to it.
+        const NIGHT: &str = "22:00-07:00";
+        const EIGHT_AM: Option<u16> = Some(8 * 60);
+        const ELEVEN_PM: Option<u16> = Some(23 * 60);
+        let placement = Placement {
+            name: "3F - Studio - HCL3".to_string(),
+            room: None,
+        };
+        let shows = |mode: &str, minutes_now| {
+            let lights = lights(&format!(
+                "[lights.places.\"3F - Studio - HCL3\"]\nquiet_hours = \"{NIGHT}\"\n{mode}"
+            ));
+            place_shows_state(
+                &lights,
+                &placement,
+                &Arming {
+                    behaviour: Behaviour::Glow,
+                    refresh_secs: 20,
+                    reading: reading(Ok(None), minutes_now),
+                    started_minutes: ELEVEN_PM,
+                },
+            )
+        };
+        assert_eq!(
+            shows("quiet_mode = \"dim\"\n", ELEVEN_PM),
+            Ok(Showing::Dimmed),
+            "inside the window the state is shown at the floor rather than hidden"
+        );
+        assert_eq!(
+            shows("quiet_mode = \"dim\"\n", EIGHT_AM),
+            Ok(Showing::Full),
+            "and when the window ends it simply comes up to full, with no \
+             catch-up opt-in anywhere in the config"
+        );
+        assert_eq!(
+            shows("", EIGHT_AM),
+            Ok(Showing::Dark),
+            "the control: a place where quiet means off DID hide it, so the \
+             operator's default still applies and the lamp stays dark"
         );
     }
 
@@ -2759,30 +3656,32 @@ mod tests {
             place_shows_state(
                 lights,
                 &placement,
-                Behaviour::Glow,
-                Ok(None),
-                EIGHT_AM,
-                started,
+                &Arming {
+                    behaviour: Behaviour::Glow,
+                    refresh_secs: 20,
+                    reading: reading(Ok(None), EIGHT_AM),
+                    started_minutes: started,
+                },
             )
         };
         assert_eq!(
             shows(&place(""), ELEVEN_PM),
-            Ok(false),
+            Ok(Showing::Dark),
             "the operator's DEFAULT: news suppressed through the night is not news at 08:00"
         );
         assert_eq!(
             shows(&place("catch_up = true\n"), ELEVEN_PM),
-            Ok(true),
+            Ok(Showing::Full),
             "and the opt-in is the whole difference"
         );
         assert_eq!(
             shows(&place(""), HALF_PAST_SEVEN),
-            Ok(true),
+            Ok(Showing::Full),
             "a state that began AFTER the window ended is not a leftover of it"
         );
         assert_eq!(
             shows(&place(""), None),
-            Ok(false),
+            Ok(Showing::Dark),
             "a start this machine cannot place in the day fails toward dark"
         );
 
@@ -2803,8 +3702,7 @@ mod tests {
             &Arming {
                 behaviour: Behaviour::Glow,
                 refresh_secs: 20,
-                fallback: Ok(None),
-                minutes_now: EIGHT_AM,
+                reading: reading(Ok(None), EIGHT_AM),
                 started_minutes: ELEVEN_PM,
             },
         );

@@ -69,14 +69,21 @@ pub fn is_muted(expiry: Option<u64>, now: Option<u64>) -> bool {
 pub fn status_line(expiry: Option<u64>, now: Option<u64>) -> String {
     match (is_muted(expiry, now), expiry, now) {
         (true, Some(expiry), Some(now)) => {
-            // ROUNDED UP, so a mute with forty seconds left never reports the
-            // zero minutes that reads as off.
-            let minutes = expiry.saturating_sub(now).div_ceil(60);
+            let minutes = minutes_left(expiry, Some(now));
             let unit = if minutes == 1 { "minute" } else { "minutes" };
             format!("pns: quiet for another {minutes} {unit}")
         }
         _ => "pns: not quiet".to_string(),
     }
+}
+
+/// How many whole minutes a mute has left.
+///
+/// ROUNDED UP, so a mute with forty seconds left never reports the zero minutes
+/// that reads as off. ONE ROUNDING RULE for both reports that quote one, since
+/// two would disagree at exactly the second an operator is looking.
+pub fn minutes_left(expiry: u64, now: Option<u64>) -> u64 {
+    expiry.saturating_sub(now.unwrap_or(expiry)).div_ceil(60)
 }
 
 /// The units a mute may be typed in, and what each is worth in seconds.

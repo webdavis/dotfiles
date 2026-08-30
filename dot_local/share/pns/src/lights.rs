@@ -444,12 +444,286 @@ pub fn say(lines: &[String], remembered: &str) -> Say {
     Say::Aloud(said)
 }
 
+/// One place the operator muted by hand, and the second that mute ends.
+///
+/// ONE FILE, ONE LINE PER PLACE, rather than a file per place: a room name is
+/// the operator's own text, spaces and all, and a file per place would make it
+/// a filename. Nothing in this crate turns typed text into a path unless a
+/// predicate already vouches for it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Muted {
+    pub expiry: u64,
+    pub place: String,
+}
+
+/// The entries the state file holds, or ONE complaint naming what is wrong
+/// with it.
+///
+/// FAIL OPEN, which is `quiet.rs`'s direction and the OPPOSITE of the quiet
+/// window's: a file this cannot vouch for mutes NOTHING, because a lights mute
+/// nobody can see is the dangerous state. The caller prints the complaint and
+/// carries on with every lamp loud.
+///
+/// A LINE IS `<epoch> <place>` AND NOTHING ELSE, with the only leniency the ONE
+/// trailing newline the publish itself writes. Padding is not something this
+/// ever wrote, so a file carrying it was edited by something else: a `trim()`
+/// here is exactly the leniency that read `" 9223372036854775807\n"` as a live
+/// mute one module over.
+///
+/// THE PLACE IS THE REST OF THE LINE VERBATIM, spaces and all, because a room
+/// is called `3F - Master Bedroom` and splitting on whitespace would make that
+/// four fields. What it may not be is empty, or padded at either end, since
+/// neither would ever match the name a family claims in.
+pub fn muted_entries(contents: &str) -> Result<Vec<Muted>, String> {
+    let held = contents.strip_suffix('\n').unwrap_or(contents);
+    let lines: Vec<&str> = held.split('\n').collect();
+    if lines.len() > MAX_MUTED_PLACES {
+        return Err(quiet_state_error(format!(
+            "{} lines, more than the {MAX_MUTED_PLACES} places it keeps",
+            lines.len()
+        )));
+    }
+    lines.iter().map(|line| muted_entry(line)).collect()
+}
+
+/// One line of it, or the complaint that quotes the line back.
+fn muted_entry(line: &str) -> Result<Muted, String> {
+    let refused = || quiet_state_error(format!("{line:?}, which is not an expiry and a place"));
+    let (stated, place) = line.split_once(' ').ok_or_else(refused)?;
+    if place.is_empty() || place.trim() != place {
+        return Err(refused());
+    }
+    Ok(Muted {
+        expiry: crate::parse_count(stated).ok_or_else(refused)?,
+        place: place.to_string(),
+    })
+}
+
+/// One wording for every way the file can be wrong, since the operator's move
+/// is the same for all of them and a second sentence would only make two
+/// problems look like one.
+fn quiet_state_error(what: String) -> String {
+    format!(
+        "pns: state error (lights-quiet holds {what}); nothing is quiet, and \
+         the next pns lights quiet write replaces the file"
+    )
+}
+
+/// How many places the ad-hoc quiet keeps at once.
+///
+/// MORE PLACES THAN A HOUSE HAS, and it is a guard on a file rather than a
+/// policy: the command republishes the whole file every time and drops what has
+/// expired, so reaching this at all means something else has been writing to
+/// it. Refusing the file whole is what keeps an unbounded read off the event
+/// path.
+pub const MAX_MUTED_PLACES: usize = 32;
+
+/// What the operator typed at `pns lights quiet`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuietCommand {
+    /// No argument at all: say what is quiet and mute nothing. There is no
+    /// untimed form, for `pns quiet`'s reason: a mute the operator forgets is
+    /// a lamp that has silently stopped working.
+    Report,
+    Mute {
+        place: String,
+        seconds: u64,
+    },
+    Unmute {
+        place: String,
+    },
+}
+
+/// The typed command, or the refusal that quotes back what was typed.
+///
+/// A PLACE NO CLAIM NAMES IS REFUSED RATHER THAN STORED. A mute is a line in a
+/// file that nothing will ever match, so the lamp the operator meant to quiet
+/// goes on flashing while the command reports success; the only evidence they
+/// get is the lamp itself, at the hour they were trying not to be disturbed.
+/// The vocabulary is `claimed_places`', which is the names a mute can ENFORCE
+/// rather than every name the config wrote down.
+///
+/// `off` IS ALLOWED OVER ANY NAME, because it can only remove. A place muted
+/// yesterday and dropped from the config today would otherwise be a mute
+/// nothing could clear, which is the state the refusal exists to prevent rather
+/// than to create.
+///
+/// THE DURATION IS `quiet::parse_duration`'S, refusal and all, so a second
+/// spelling of "how long" cannot exist and neither can a second set of bounds.
+pub fn quiet_command(arguments: &[String], known: &[String]) -> Result<QuietCommand, String> {
+    match arguments {
+        [] => Ok(QuietCommand::Report),
+        [place, word] if word == "off" => Ok(QuietCommand::Unmute {
+            place: place.clone(),
+        }),
+        [place, word] => {
+            if !known.iter().any(|name| name == place) {
+                return Err(unmutable(place, known));
+            }
+            Ok(QuietCommand::Mute {
+                place: place.clone(),
+                seconds: crate::quiet::parse_duration(word)?,
+            })
+        }
+        // ANY OTHER ARITY IS A REFUSAL, never a silent fallthrough to the
+        // report: a typo the operator does not see is a mute they believe is
+        // on.
+        _ => Err(
+            "pns: lights quiet takes a place and a duration, a place and \
+                  off, or nothing at all"
+                .to_string(),
+        ),
+    }
+}
+
+/// Why one name cannot be muted, and what can be instead.
+///
+/// THE ALTERNATIVES ARE LISTED, because the name refused is often one the
+/// operator is reading out of their own config file: a `[lights.places]` entry
+/// is a real name that a mute cannot enforce, and nothing on the page says
+/// which of the two vocabularies this command speaks. A refusal that only
+/// repeats what was typed sends them back to the file that misled them.
+fn unmutable(place: &str, known: &[String]) -> String {
+    let reaches = if known.is_empty() {
+        "this config claims no lamp at all, so there is nothing a mute could \
+         reach"
+            .to_string()
+    } else {
+        format!(
+            "a mute reaches {}",
+            known
+                .iter()
+                .map(|name| format!("{name:?}"))
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    };
+    format!(
+        "pns: lights quiet: {place:?} is no room or lamp a [lights.families] \
+         claim names; {reaches}"
+    )
+}
+
+/// What the file holds after one typed command: this place at a new expiry, or
+/// gone, and every other place kept as it was.
+///
+/// ONE FUNCTION FOR BOTH VERBS, because they differ by one value: `off` is an
+/// expiry that is not there. Written as two, the drop and the replace would be
+/// two spellings of the same rebuild and only one of them would learn about the
+/// pruning below.
+///
+/// EXPIRED ENTRIES ARE DROPPED AS IT GOES PAST, and that is not tidiness: this
+/// file has a line cap and a machine that mutes a different room every night
+/// would otherwise reach it and have the whole file refused, which is a corrupt
+/// state the command inflicted on itself.
+///
+/// A CLOCK NOBODY CAN READ KEEPS EVERY OTHER ENTRY. Dropping what cannot be
+/// judged would let one broken clock reading erase mutes the operator set and
+/// can still see, and the only command that reaches here without a clock is
+/// `off`, which has one place to remove and no opinion about the rest.
+///
+/// AND IT REFUSES A MUTE PAST THE CAP RATHER THAN WRITING ONE. `muted_entries`
+/// rejects a file past `MAX_MUTED_PLACES` WHOLE and mutes nothing, so a command
+/// that published one more line would cancel every mute on the machine at the
+/// next event with nothing said anywhere. A refusal beats a truncate, which
+/// would silently drop a mute the operator typed. `off` never refuses: it can
+/// only shrink the file, and so can re-muting a place already in it.
+pub fn muted_after(
+    entries: &[Muted],
+    place: &str,
+    expiry: Option<u64>,
+    now: Option<u64>,
+) -> Result<Vec<Muted>, String> {
+    let mut kept: Vec<Muted> = entries
+        .iter()
+        .filter(|entry| {
+            entry.place != place
+                && now.is_none_or(|now| crate::quiet::is_muted(Some(entry.expiry), Some(now)))
+        })
+        .cloned()
+        .collect();
+    if let Some(expiry) = expiry {
+        if kept.len() >= MAX_MUTED_PLACES {
+            return Err(format!(
+                "pns: lights quiet: {MAX_MUTED_PLACES} places are already quiet, \
+                 which is every line lights-quiet keeps; the mute was not set, \
+                 and `pns lights quiet <place> off` ends one"
+            ));
+        }
+        kept.push(Muted {
+            expiry,
+            place: place.to_string(),
+        });
+    }
+    Ok(kept)
+}
+
+/// The file's body: one line per entry, in the order they are kept.
+///
+/// NO TRAILING NEWLINE, because `publish_state_line` writes one, and the parse
+/// strips exactly that one. Two would read back as an empty last line, which
+/// the parse refuses, so the round trip is what keeps this honest.
+pub fn render_muted(entries: &[Muted]) -> String {
+    entries
+        .iter()
+        .map(|entry| format!("{} {}", entry.expiry, entry.place))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+/// The places an ad-hoc quiet covers at this second.
+///
+/// THE VERDICT IS `quiet::is_muted`'S, never re-derived here, which is that
+/// module's own rule: one property read by two readers that each decide it is
+/// how a report and a behaviour come to disagree about whether a mute is on.
+/// Half open comes with it, so a mute ends on the second it names.
+///
+/// AND FAIL OPEN comes with it too: a clock this run cannot read mutes
+/// nothing. A lights mute nobody can see is the dangerous state, which is the
+/// opposite direction to the quiet WINDOW one module over and deliberately so.
+pub fn muted_places(entries: &[Muted], now: Option<u64>) -> Vec<String> {
+    live(entries, now)
+        .map(|entry| entry.place.clone())
+        .collect()
+}
+
+/// What `pns lights quiet` prints, which is the whole file in the operator's
+/// own vocabulary.
+///
+/// THE REPORT IS THE SAME READING THE LAMPS TAKE, entry for entry, because a
+/// report that decided liveness for itself is how a command and a lamp come to
+/// disagree about whether a room is quiet.
+pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
+    let lines: Vec<String> = live(entries, now)
+        .map(|entry| {
+            let minutes = crate::quiet::minutes_left(entry.expiry, now);
+            let unit = if minutes == 1 { "minute" } else { "minutes" };
+            format!(
+                "pns lights: `{}` is quiet for another {minutes} {unit}",
+                entry.place
+            )
+        })
+        .collect();
+    if lines.is_empty() {
+        return vec!["pns lights: nothing is quiet".to_string()];
+    }
+    lines
+}
+
+/// The entries still muted at this second.
+fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
+    entries
+        .iter()
+        .filter(move |entry| crate::quiet::is_muted(Some(entry.expiry), now))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        Action, Breath, Readings, Say, State, Streak, WORKING, any_working, breathing_since,
-        glow_since, house_state, needs_marker, needs_marker_action, needs_you_at, next_streak,
-        parse_streak, render_streak, say, workspace_agent_statuses,
+        Action, Breath, MAX_MUTED_PLACES, Muted, QuietCommand, Readings, Say, State, Streak,
+        WORKING, any_working, breathing_since, glow_since, house_state, muted_after, muted_entries,
+        muted_places, muted_report, needs_marker, needs_marker_action, needs_you_at, next_streak,
+        parse_streak, quiet_command, render_muted, render_streak, say, workspace_agent_statuses,
     };
     use crate::config::{Behaviour, BreatheSource};
 
@@ -949,6 +1223,389 @@ mod tests {
             say(&lines(&["a\nb"]), ""),
             Say::Aloud("a b".to_string()),
             "and a complaint carrying a newline cannot become two remembered lines"
+        );
+    }
+
+    // --- the ad-hoc quiet ---------------------------------------------------
+
+    fn muted(entries: &[(u64, &str)]) -> Vec<Muted> {
+        entries
+            .iter()
+            .map(|(expiry, place)| Muted {
+                expiry: *expiry,
+                place: (*place).to_string(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_state_file_that_is_not_epoch_and_place_lines_complains_and_mutes_nothing() {
+        // FAIL OPEN AND SAY SO. Every row here is a file this did not write,
+        // and the outcome for all of them is the same: no lamp is muted and the
+        // operator is told what the file holds, because a mute nobody can see
+        // is the state that costs them a notification they were waiting on.
+        //
+        // THE PADDED ROWS ARE THE POINT. A `trim()` here is the exact leniency
+        // that read a padded epoch as a live mute one module over, so a line
+        // with a space anywhere it does not belong is refused rather than read.
+        for (contents, named) in [
+            ("later 3F - Studio\n", "\"later 3F - Studio\""),
+            ("-5 3F - Studio\n", "\"-5 3F - Studio\""),
+            (" 1000 3F - Studio\n", "\" 1000 3F - Studio\""),
+            ("1000  3F - Studio\n", "\"1000  3F - Studio\""),
+            ("1000 3F - Studio \n", "\"1000 3F - Studio \""),
+            ("1000\n", "\"1000\""),
+            ("1000 \n", "\"1000 \""),
+            ("1000 3F - Studio\n\n", "\"\""),
+            ("\n", "\"\""),
+            ("", "\"\""),
+        ] {
+            assert_eq!(
+                muted_entries(contents),
+                Err(format!(
+                    "pns: state error (lights-quiet holds {named}, which is not \
+                     an expiry and a place); nothing is quiet, and the next \
+                     pns lights quiet write replaces the file"
+                )),
+                "contents: {contents:?}"
+            );
+        }
+        // AND A FILE PAST THE CAP IS REFUSED WHOLE rather than truncated to it:
+        // this command republishes the file every time and drops what expired,
+        // so a file this long was written by something else and none of it can
+        // be vouched for.
+        let past_cap: String = (0..=MAX_MUTED_PLACES)
+            .map(|index| format!("1000 room-{index}\n"))
+            .collect();
+        assert_eq!(
+            muted_entries(&past_cap),
+            Err(format!(
+                "pns: state error (lights-quiet holds {} lines, more than the \
+                 {MAX_MUTED_PLACES} places it keeps); nothing is quiet, and the \
+                 next pns lights quiet write replaces the file",
+                MAX_MUTED_PLACES + 1
+            )),
+            "a file past the cap"
+        );
+        // THE ROUND TRIP, which is what makes every refusal above a refusal of
+        // something this never wrote: the place is the rest of the line
+        // verbatim, spaces and all, because that is how a room is named.
+        assert_eq!(
+            muted_entries("1000 3F - Studio\n1800 3F - Master Bedroom\n"),
+            Ok(muted(&[
+                (1_000, "3F - Studio"),
+                (1_800, "3F - Master Bedroom")
+            ])),
+            "the file this command writes reads back as what it wrote"
+        );
+        assert_eq!(
+            muted_entries("1000 3F - Studio"),
+            Ok(muted(&[(1_000, "3F - Studio")])),
+            "and the one trailing newline is the only leniency there is"
+        );
+    }
+
+    #[test]
+    fn the_report_names_every_live_place_and_says_so_when_there_are_none() {
+        // ROUNDED UP, which is `quiet::status_line`'s own rule reached through
+        // its own function: a mute with forty seconds left is still on, and "0
+        // minutes" reads as off.
+        //
+        // AND AN EXPIRED ENTRY IS NOT REPORTED, because the report and the
+        // lamps read the same list through the same predicate: a command that
+        // said a room was quiet while its lamps were signalling would be worse
+        // than saying nothing.
+        let now = 1_000;
+        assert_eq!(
+            muted_report(
+                &muted(&[
+                    (now + 40, "3F - Studio"),
+                    (now + 1_620, "3F - Master Bedroom")
+                ]),
+                Some(now)
+            ),
+            vec![
+                "pns lights: `3F - Studio` is quiet for another 1 minute".to_string(),
+                "pns lights: `3F - Master Bedroom` is quiet for another 27 minutes".to_string(),
+            ]
+        );
+        assert_eq!(
+            muted_report(&muted(&[(now, "3F - Studio")]), Some(now)),
+            vec!["pns lights: nothing is quiet".to_string()],
+            "an expired entry is not a place to report"
+        );
+        assert_eq!(
+            muted_report(&[], Some(now)),
+            vec!["pns lights: nothing is quiet".to_string()],
+            "and neither is an empty file"
+        );
+    }
+
+    #[test]
+    fn a_duration_outside_the_bounds_is_refused_by_what_was_typed() {
+        // ONE SPELLING OF "HOW LONG" IN THE WHOLE CRATE. The refusal is
+        // `parse_duration`'s own, word for word, because a second wording here
+        // would be a second set of bounds the day either one moved.
+        let known = places(&["3F - Studio"]);
+        for typed in ["0s", "25h", "1441m", "9223372036854775807h"] {
+            assert_eq!(
+                quiet_command(&typed_at("3F - Studio", typed), &known),
+                Err(format!(
+                    "pns: quiet duration {typed:?} is outside 1s to 24h"
+                )),
+                "typed: {typed:?}"
+            );
+        }
+        for typed in ["30", "", "1d", " 5m"] {
+            assert_eq!(
+                quiet_command(&typed_at("3F - Studio", typed), &known),
+                Err(format!(
+                    "pns: quiet duration {typed:?} is not <count><s|m|h>"
+                )),
+                "typed: {typed:?}"
+            );
+        }
+        assert_eq!(
+            quiet_command(&typed_at("3F - Studio", "30m"), &known),
+            Ok(QuietCommand::Mute {
+                place: "3F - Studio".to_string(),
+                seconds: 1_800,
+            }),
+            "and the two ends of the range are what the bounds let through"
+        );
+    }
+
+    #[test]
+    fn a_place_the_config_does_not_name_is_refused_rather_than_silently_stored() {
+        // A MUTE IS A LINE NOTHING WILL EVER MATCH. Stored quietly, the lamp
+        // the operator meant to quiet goes on flashing while the command
+        // reports success, and the only evidence they get is the lamp itself at
+        // the hour they were trying not to be disturbed.
+        let known = places(&["3F - Studio", "3F - Studio - HCL3"]);
+        assert_eq!(
+            quiet_command(&typed_at("3F - Nowhere", "30m"), &known),
+            Err("pns: lights quiet: \"3F - Nowhere\" is no room or lamp a \
+                 [lights.families] claim names; a mute reaches \"3F - Studio\", \
+                 \"3F - Studio - HCL3\""
+                .to_string()),
+            "a place nothing in the config names"
+        );
+        assert_eq!(
+            quiet_command(&typed_at("3f - studio", "30m"), &known),
+            Err("pns: lights quiet: \"3f - studio\" is no room or lamp a \
+                 [lights.families] claim names; a mute reaches \"3F - Studio\", \
+                 \"3F - Studio - HCL3\""
+                .to_string()),
+            "and a case-folded one is a typo rather than a name to forgive, \
+             which is how the bridge listing reads it too"
+        );
+        assert_eq!(
+            quiet_command(&typed_at("3F - Studio - HCL3", "30m"), &known),
+            Ok(QuietCommand::Mute {
+                place: "3F - Studio - HCL3".to_string(),
+                seconds: 1_800,
+            }),
+            "the control: a lamp the config names is stored"
+        );
+        assert_eq!(
+            quiet_command(&typed_at("3F - Nowhere", "off"), &known),
+            Ok(QuietCommand::Unmute {
+                place: "3F - Nowhere".to_string(),
+            }),
+            "and `off` is allowed over any name, because it can only remove: a \
+             place muted yesterday and dropped from the config today would \
+             otherwise be a mute nothing could clear"
+        );
+        assert_eq!(
+            quiet_command(&[], &known),
+            Ok(QuietCommand::Report),
+            "no argument reports and mutes nothing"
+        );
+        assert_eq!(
+            quiet_command(&typed_at("3F - Studio - HCL1", "30m"), &places(&[])),
+            Err(
+                "pns: lights quiet: \"3F - Studio - HCL1\" is no room or lamp a \
+                 [lights.families] claim names; this config claims no lamp at \
+                 all, so there is nothing a mute could reach"
+                    .to_string()
+            ),
+            "and a config that claims nothing says so rather than trailing off \
+             after `a mute reaches`"
+        );
+        for arguments in [
+            vec!["3F - Studio".to_string()],
+            vec![
+                "3F - Studio".to_string(),
+                "30m".to_string(),
+                "x".to_string(),
+            ],
+        ] {
+            assert_eq!(
+                quiet_command(&arguments, &known),
+                Err("pns: lights quiet takes a place and a duration, a place \
+                     and off, or nothing at all"
+                    .to_string()),
+                "arguments: {arguments:?}"
+            );
+        }
+    }
+
+    fn places(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| (*name).to_string()).collect()
+    }
+
+    fn typed_at(place: &str, word: &str) -> Vec<String> {
+        vec![place.to_string(), word.to_string()]
+    }
+
+    #[test]
+    fn a_mute_past_the_places_the_file_keeps_is_refused_rather_than_written() {
+        // THE COMMAND MUST NOT PUBLISH A FILE ITS OWN READER REFUSES WHOLE.
+        // `muted_entries` rejects a file past the cap and mutes NOTHING, so one
+        // line over would cancel every mute on the machine at the next event,
+        // silently, at the hour the operator was trying not to be disturbed.
+        let full: Vec<Muted> = (0..MAX_MUTED_PLACES)
+            .map(|which| Muted {
+                expiry: 9_000,
+                place: format!("3F - Room {which}"),
+            })
+            .collect();
+        assert_eq!(
+            muted_after(&full, "3F - One More", Some(9_000), Some(1_000)),
+            Err(
+                "pns: lights quiet: 32 places are already quiet, which is every \
+                 line lights-quiet keeps; the mute was not set, and `pns lights \
+                 quiet <place> off` ends one"
+                    .to_string()
+            ),
+            "a full file plus one more place is a file the reader refuses whole"
+        );
+        assert_eq!(
+            muted_after(&full, "3F - Room 0", Some(9_500), Some(1_000)).map(|kept| kept.len()),
+            Ok(MAX_MUTED_PLACES),
+            "the control: re-muting a place already in the file replaces its \
+             line and never reaches the cap"
+        );
+        assert_eq!(
+            muted_after(&full, "3F - Room 0", None, Some(1_000)).map(|kept| kept.len()),
+            Ok(MAX_MUTED_PLACES - 1),
+            "and `off` can only shrink it, so it is never refused"
+        );
+        assert_eq!(
+            muted_after(&full, "3F - One More", Some(9_500), Some(9_500)).map(|kept| kept.len()),
+            Ok(1),
+            "and a file of entries that have all expired is pruned before the \
+             cap is asked about, which is what keeps a machine muting a \
+             different room every night off this refusal"
+        );
+    }
+
+    #[test]
+    fn off_clears_one_place_and_leaves_the_others_where_they_were() {
+        // THE WHOLE FILE IS REPUBLISHED EVERY TIME, so "leaves the others" is
+        // the property that has to be pinned: a rewrite that dropped a sibling
+        // would be a mute the operator set and can no longer see, which is the
+        // silent state this path refuses everywhere else.
+        let entries = muted(&[(2_000, "3F - Studio"), (3_000, "3F - Master Bedroom")]);
+        assert_eq!(
+            muted_after(&entries, "3F - Studio", None, Some(1_000)),
+            Ok(muted(&[(3_000, "3F - Master Bedroom")])),
+            "off takes the place it names and nothing else"
+        );
+        assert_eq!(
+            muted_after(&entries, "3F - Nowhere", None, Some(1_000)),
+            Ok(entries.clone()),
+            "and off over a place the file does not hold changes nothing"
+        );
+        assert_eq!(
+            muted_after(&entries, "3F - Studio", Some(9_000), Some(1_000)),
+            Ok(muted(&[
+                (3_000, "3F - Master Bedroom"),
+                (9_000, "3F - Studio")
+            ])),
+            "a second mute over one place REPLACES its expiry rather than \
+             adding a second line for it"
+        );
+        // THE PRUNE, and it is a bug fix rather than tidiness: the file has a
+        // line cap, so a machine that mutes a different room every night would
+        // otherwise reach it and have the whole file refused.
+        assert_eq!(
+            muted_after(
+                &muted(&[(500, "3F - Studio"), (3_000, "3F - Master Bedroom")]),
+                "3F - Kitchen",
+                Some(9_000),
+                Some(1_000)
+            ),
+            Ok(muted(&[
+                (3_000, "3F - Master Bedroom"),
+                (9_000, "3F - Kitchen")
+            ])),
+            "an entry that expired is dropped as the file goes past it"
+        );
+        assert_eq!(
+            muted_after(
+                &muted(&[(500, "3F - Studio"), (3_000, "3F - Master Bedroom")]),
+                "3F - Kitchen",
+                None,
+                None
+            ),
+            Ok(muted(&[
+                (500, "3F - Studio"),
+                (3_000, "3F - Master Bedroom")
+            ])),
+            "but a clock nobody can read judges nothing, so `off` over a place \
+             the file does not hold erases none of it"
+        );
+        // AND THE ROUND TRIP: what this writes is what the reader reads.
+        let kept =
+            muted_after(&entries, "3F - Studio", Some(9_000), Some(1_000)).expect("under the cap");
+        assert_eq!(
+            muted_entries(&format!("{}\n", render_muted(&kept))),
+            Ok(kept),
+            "the file this writes parses back as the entries it wrote"
+        );
+    }
+
+    #[test]
+    fn an_ad_hoc_quiet_ends_on_the_second_it_names_and_an_expired_file_mutes_nothing() {
+        // HALF OPEN, AND THE BOUNDARY SECOND ITSELF is the assertion: a `<=`
+        // here is an off-by-one nobody sees, because both neighbours agree
+        // under either spelling. It is `quiet::is_muted`'s own edge, asked
+        // through this reader so the two cannot come out disagreeing.
+        let entries = muted(&[(1_000, "3F - Studio")]);
+        assert_eq!(
+            muted_places(&entries, Some(999)),
+            vec!["3F - Studio".to_string()],
+            "the second before the expiry is still quiet"
+        );
+        assert_eq!(
+            muted_places(&entries, Some(1_000)),
+            Vec::<String>::new(),
+            "and the expiry second itself is already over"
+        );
+        assert_eq!(
+            muted_places(&entries, Some(1_001)),
+            Vec::<String>::new(),
+            "as is every second after it"
+        );
+        // A WHOLE FILE OF EXPIRED ENTRIES MUTES NOTHING, which is the state a
+        // machine that ran the command yesterday wakes up in: the file is
+        // still there and every lamp is loud again.
+        assert_eq!(
+            muted_places(
+                &muted(&[(1_000, "3F - Studio"), (900, "3F - Master Bedroom")]),
+                Some(1_000)
+            ),
+            Vec::<String>::new(),
+            "an expired file mutes nothing at all"
+        );
+        // AND A CLOCK NOBODY CAN READ MUTES NOTHING, which is `is_muted`'s own
+        // fail-open direction: a lights mute nobody can see is the dangerous
+        // state, so an unreadable clock leaves every lamp loud.
+        assert_eq!(
+            muted_places(&entries, None),
+            Vec::<String>::new(),
+            "and a clock this run cannot read mutes nothing"
         );
     }
 }

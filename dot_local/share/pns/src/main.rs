@@ -2730,7 +2730,8 @@ fn fire_pulse_unless_quiet(
     // reaching the moment a room would actually light, and the older reading
     // would flash it just inside quiet hours. HONEST LIMIT: no suite pins the
     // freshness, because a test's clock does not advance mid-run.
-    let minutes_now = now_secs().and_then(local_minutes_since_midnight);
+    let now = now_secs();
+    let minutes_now = now.and_then(local_minutes_since_midnight);
     let Some(lights) = lights else {
         // TODAY'S PATH, UNCHANGED, and it is the compatibility claim of this
         // whole change: one window for the whole pulse, one write per room in
@@ -2760,8 +2761,28 @@ fn fire_pulse_unless_quiet(
     // minute has nothing that GET could light, so it is not taken. That keeps
     // the shipped "a pulse earned inside the window reaches no bridge" property
     // at the new granularity instead of trading it for one.
-    if pns::channels::hue::any_place_loud(lights, LOCAL_FAMILY, fallback, minutes_now) {
-        fire_lights(&settings, lights, behaviour, fallback, minutes_now);
+    // THE OPERATOR'S OWN AD-HOC QUIET, read here rather than inside the walk
+    // for the reason every reading on this path is: the modules take no files
+    // and no clock, and the composition root decides where a complaint goes.
+    // A machine that has never typed the command reads no file and pays one
+    // failed open.
+    let state = state_dir();
+    let (muted, complaints) = ad_hoc_quiet(&state, now);
+    // SAY-ONCE, NOT ONCE PER EVENT. A state file something else corrupted stays
+    // corrupt until a human fixes it, and this path fires many times a session,
+    // so a bare print here is one stderr line per hook invocation forever. It
+    // is the tick's own mechanism with a MEMORY OF ITS OWN: the tick complains
+    // about a wider set (bridge and place refusals fold into its line), and one
+    // marker shared between the two would have each path forgetting the other's
+    // complaint and saying it again on the next run.
+    say_lights_once(&state, &complaints, LIGHTS_QUIET_SAID);
+    let reading = pns::channels::hue::Reading {
+        fallback,
+        minutes_now,
+        muted: &muted,
+    };
+    if pns::channels::hue::any_place_loud(lights, LOCAL_FAMILY, &reading) {
+        fire_lights(&settings, lights, behaviour, &reading);
     }
 }
 
@@ -2801,8 +2822,7 @@ fn fire_lights(
     settings: &toml::Table,
     lights: &pns::config::Lights,
     behaviour: pns::config::Behaviour,
-    fallback: Result<Option<&pns::channels::hue::QuietWindow>, &str>,
-    minutes_now: Option<u16>,
+    reading: &pns::channels::hue::Reading<'_>,
 ) {
     let Some(hue) = hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) else {
         return;
@@ -2818,15 +2838,9 @@ fn fire_lights(
     let Some(map) = pns::channels::hue::resolve_on_bridge(&bridge, &lights.families) else {
         return;
     };
-    for refusal in pns::channels::hue::signal_family(
-        &bridge,
-        &map,
-        LOCAL_FAMILY,
-        lights,
-        behaviour,
-        fallback,
-        minutes_now,
-    ) {
+    for refusal in
+        pns::channels::hue::signal_family(&bridge, &map, LOCAL_FAMILY, lights, behaviour, reading)
+    {
         eprintln!("{refusal}");
     }
 }
@@ -4059,6 +4073,7 @@ pns daemon cancel --id <id>";
 fn lights_mode(verb: &str) -> i32 {
     match verb {
         "tick" => lights_tick(),
+        "quiet" => lights_quiet(),
         // UNKNOWN IS AN ERROR, never a silent fallthrough. Argv parsing on the
         // event path is deliberately lenient, so a bare `pns lights` reaching
         // it would skip the word it did not know and fire a notification about
@@ -4070,7 +4085,166 @@ fn lights_mode(verb: &str) -> i32 {
     }
 }
 
-const LIGHTS_USAGE: &str = "pns: usage: pns lights tick";
+const LIGHTS_USAGE: &str =
+    "pns: usage: pns lights tick | pns lights quiet [<place> <duration|off>]";
+
+/// The lamps' own mute: one place, quiet for a bounded while, by hand.
+///
+/// LIGHTS ONLY, and that is the operator's own scope: cards, banners, the
+/// durable log and `pns quiet` are untouched, so an agent that needs an answer
+/// still reaches the phone while the bedroom lamp stays out of it. The two
+/// mutes share a duration parser and nothing else, and neither reads the
+/// other's file.
+///
+/// FAIL OPEN AT EVERY TURN, which is `quiet.rs`'s direction rather than the
+/// window's: a state file nobody can parse mutes NOTHING and says so, because a
+/// lights mute the operator cannot see is worse than a lamp that flashed.
+///
+/// THE READ-MODIFY-WRITE RACE IS REAL AND ACCEPTED. This is hand-typed, so two
+/// runs racing means an operator typing two commands in the same second, and
+/// the loser is one mute they can see is missing and retype. A lock between two
+/// interactive commands would be a mechanism with no reader.
+fn lights_quiet() -> i32 {
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(3)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let home = std::env::var("HOME").unwrap_or_default();
+    let known = match load_config(&config_path(&home)) {
+        Ok(LoadOutcome::Loaded(config)) => config
+            .lights
+            .as_deref()
+            .map(pns::channels::hue::claimed_places)
+            .unwrap_or_default(),
+        // A CONFIG THIS CANNOT READ NAMES NO PLACE, so every mute is refused by
+        // name rather than stored against a map nobody could load. The report
+        // still runs, which is what an operator with a broken config needs from
+        // this command first.
+        _ => Vec::new(),
+    };
+    let command = match pns::lights::quiet_command(&arguments, &known) {
+        Ok(command) => command,
+        Err(refusal) => {
+            eprintln!("{refusal}");
+            eprintln!("{LIGHTS_USAGE}");
+            return 2;
+        }
+    };
+    let state = state_dir();
+    let now = now_secs();
+    let (entries, complaints) = muted_state(&state);
+    // SAID BEFORE ANYTHING IS WRITTEN, because the write below republishes the
+    // whole file: an operator whose file was unreadable is losing whatever it
+    // held, and that is a line they get to see rather than a silent repair.
+    for complaint in &complaints {
+        eprintln!("{complaint}");
+    }
+    let rebuilt = match &command {
+        pns::lights::QuietCommand::Report => Ok(entries.clone()),
+        pns::lights::QuietCommand::Unmute { place } => {
+            pns::lights::muted_after(&entries, place, None, now)
+        }
+        pns::lights::QuietCommand::Mute { place, seconds } => {
+            match now.map(|now| now.saturating_add(*seconds)) {
+                Some(expiry) => pns::lights::muted_after(&entries, place, Some(expiry), now),
+                // THE CLOCK IS WHAT A MUTE IS MADE OF, so a run that cannot
+                // read one says the mute was not set rather than writing an
+                // expiry it guessed. `pns quiet`'s own wording, one file over.
+                None => Err(
+                    "pns: state error (the clock cannot be read); the mute was not set".to_string(),
+                ),
+            }
+        }
+    };
+    // A REFUSED REBUILD IS A MUTE THAT WAS NOT SET, and nothing is written or
+    // reported after one: the file on disk is exactly what it was, and a report
+    // built from a list this run refused to publish would describe a house that
+    // does not exist.
+    let kept = match rebuilt {
+        Ok(kept) => kept,
+        Err(refusal) => {
+            eprintln!("{refusal}");
+            return 1;
+        }
+    };
+    if !matches!(command, pns::lights::QuietCommand::Report)
+        && let Err(error) = publish_muted(&state.join(LIGHTS_QUIET), &kept)
+    {
+        // LOUD, because a human is waiting on the answer: reporting a mute that
+        // is not in effect is the worst outcome available.
+        eprintln!(
+            "pns: state error (lights-quiet could not be written: {error}); \
+             the mute was not set"
+        );
+        // AND NO REPORT AFTER IT. `kept` is what the file WOULD have held: for
+        // a failed mute it would say the place is quiet when it is not, and for
+        // a failed `off` it would say nothing is quiet while the old mute is
+        // still on disk and still taking the lamp. The disk is the answer and
+        // this run did not change it.
+        return 1;
+    }
+    for line in pns::lights::muted_report(&kept, now) {
+        println!("{line}");
+    }
+    0
+}
+
+/// Publish the file, or remove it when nothing is muted.
+///
+/// AN EMPTY FILE IS NO FILE, which is `remember_held_glow`'s own rule and is
+/// what keeps the reader's refusal of an empty one honest: this never writes
+/// one, so a file with no lines in it was written by something else.
+fn publish_muted(state: &Path, kept: &[pns::lights::Muted]) -> std::io::Result<()> {
+    if kept.is_empty() {
+        return match std::fs::remove_file(state) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        };
+    }
+    publish_state_line(state, &pns::lights::render_muted(kept))
+}
+
+/// Everything the ad-hoc quiet file holds, and the complaint from a file this
+/// cannot vouch for.
+///
+/// ONE READER FOR BOTH READERS, which is why the command and the event path
+/// share it: they want different things out of the file (the entries to rebuild
+/// and the names that are live), and two readers is two chances for one of them
+/// to swallow a failure the other reports.
+///
+/// A MISSING FILE IS THE ORDINARY CASE and says nothing: the command has
+/// never been run, or its last mute expired and took the file with it. EVERY
+/// OTHER READ FAILURE IS A COMPLAINT, and the distinction is the point: a file
+/// that is unreadable, not UTF-8, or a directory standing where it should be
+/// mutes nothing at all, exactly as a corrupt one does, and an operator who is
+/// not told believes a mute is on while every lamp goes loud.
+fn muted_state(state: &Path) -> (Vec<pns::lights::Muted>, Vec<String>) {
+    let contents = match std::fs::read_to_string(state.join(LIGHTS_QUIET)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (Vec::new(), Vec::new());
+        }
+        Err(error) => {
+            return (
+                Vec::new(),
+                vec![format!(
+                    "pns: state error (lights-quiet could not be read: {error}); \
+                     nothing is quiet"
+                )],
+            );
+        }
+    };
+    match pns::lights::muted_entries(&contents) {
+        Ok(entries) => (entries, Vec::new()),
+        Err(complaint) => (Vec::new(), vec![complaint]),
+    }
+}
+
+/// The places an ad-hoc quiet is muting right now, and that same complaint.
+fn ad_hoc_quiet(state: &Path, now: Option<u64>) -> (Vec<String>, Vec<String>) {
+    let (entries, complaints) = muted_state(state);
+    (pns::lights::muted_places(&entries, now), complaints)
+}
 
 /// One upkeep pass: read the machine, derive the one state the house is in,
 /// and write it to every lamp that should show it.
@@ -4145,10 +4319,15 @@ fn lights_tick() -> i32 {
     // for the length of that absence. A wrong true costs a round trip that
     // writes nothing; a wrong false is a lamp that never lights with no message
     // anywhere, which is why the gate is the loose one.
+    let (muted, mut complaints) = ad_hoc_quiet(&state, Some(now));
+    let reading = pns::channels::hue::Reading {
+        fallback,
+        minutes_now,
+        muted: &muted,
+    };
     let could_light = house.as_ref().is_some_and(|house| {
-        pns::channels::hue::producing_family(house.behaviour).is_some_and(|family| {
-            pns::channels::hue::any_place_loud(lights, family, fallback, minutes_now)
-        })
+        pns::channels::hue::producing_family(house.behaviour)
+            .is_some_and(|family| pns::channels::hue::any_place_loud(lights, family, &reading))
     });
     // THE ARMING, OR NOTHING TO ARM. A house state the gate refused is the same
     // input as no house state at all: neither writes to a fixture, so both make
@@ -4158,14 +4337,13 @@ fn lights_tick() -> i32 {
         .map(|house| pns::channels::hue::Arming {
             behaviour: house.behaviour,
             refresh_secs: lights.refresh_secs,
-            fallback,
-            minutes_now,
+            reading,
             started_minutes: local_minutes_since_midnight(house.since),
         });
     // NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE AT ALL, which is
     // what keeps an idle machine off the network three times a minute.
-    let complaints = if arming.is_some() || !held.is_empty() {
-        arm_clear_and_remember(
+    if arming.is_some() || !held.is_empty() {
+        complaints.extend(arm_clear_and_remember(
             &UreqBridge {
                 base: format!("https://{}/clip/v2/resource", hue.bridge),
                 key: hue.key,
@@ -4174,17 +4352,15 @@ fn lights_tick() -> i32 {
             lights,
             arming.as_ref(),
             &held,
-        )
-    } else {
-        Vec::new()
-    };
+        ));
+    }
     // AND THE SAYING IS OUTSIDE THAT GATE, deliberately. `say` FORGETS a
     // complaint that has cleared, and a complaint clears exactly when the house
     // goes dark; leaving the bookkeeping inside the gate meant a remembered
     // complaint was never forgotten on the tick that ended it, so the same
     // complaint returning later would not read as news. It costs one failed
     // open on a machine that has never complained.
-    say_lights_once(&state, &complaints);
+    say_lights_once(&state, &complaints, LIGHTS_SAID);
     0
 }
 
@@ -4441,8 +4617,14 @@ fn remember_held_glow(state: &Path, held: &[String]) {
 }
 
 /// Say a complaint ONCE, and say it again only when it changes.
-fn say_lights_once(state: &Path, complaints: &[String]) {
-    let marker = state.join(LIGHTS_SAID);
+///
+/// THE MARKER IS A PARAMETER because two paths say things at different rates
+/// about different sets: the tick folds every refusal of a pass into one line,
+/// and the event path says only what it read off the ad-hoc quiet file. Sharing
+/// one memory would have each of them forgetting the other's line and repeating
+/// it, which is the chatter this whole mechanism exists to stop.
+fn say_lights_once(state: &Path, complaints: &[String], marker: &str) {
+    let marker = state.join(marker);
     let remembered = std::fs::read_to_string(&marker).unwrap_or_default();
     match pns::lights::say(complaints, remembered.trim_end_matches('\n')) {
         pns::lights::Say::Nothing => {}
@@ -4499,6 +4681,19 @@ const LIGHTS_GLOW_HELD: &str = "lights-glow";
 
 /// Where a tick remembers what it last complained about.
 const LIGHTS_SAID: &str = "lights-said";
+
+/// Where the EVENT path remembers the ad-hoc quiet complaint it last made,
+/// which is a file of its own for the reason `say_lights_once` states.
+const LIGHTS_QUIET_SAID: &str = "lights-quiet-said";
+
+/// Where the operator's own ad-hoc quiet lives: one line per place, each an
+/// expiry second and the name they typed.
+///
+/// ONE FILE RATHER THAN ONE PER PLACE, and that is a path-safety decision as
+/// much as a tidiness one: a place is a room name the operator typed, spaces
+/// and all, and nothing in this crate turns typed text into a filename unless a
+/// predicate already vouches for it.
+const LIGHTS_QUIET: &str = "lights-quiet";
 
 /// The loop. It sleeps, drains the spool, and reaps what it started.
 ///
@@ -6204,9 +6399,9 @@ mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LAST_PRESENT, LIGHTS_GLOW_HELD,
         MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, MISSED_NOTIFICATIONS, STATE_FILE_MODE,
-        arm_clear_and_remember, glow_reading, lights_report, matches_glob, publish_state_line,
-        read_note, recap_bounds, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, sweep_needs, update_needs_marker,
+        arm_clear_and_remember, glow_reading, lights_report, matches_glob, muted_state,
+        publish_state_line, read_note, recap_bounds, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, sweep_needs, update_needs_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::PermissionsExt;
@@ -6225,6 +6420,47 @@ mod tests {
         ));
         std::fs::create_dir_all(&directory).expect("the scratch directory");
         directory
+    }
+
+    #[test]
+    fn an_unreadable_lights_quiet_complains_and_an_absent_one_says_nothing() {
+        // THE DIFFERENCE BETWEEN "NOBODY EVER RAN THE COMMAND" AND "THIS FILE
+        // CANNOT BE READ", which both readers of the ad-hoc quiet depend on:
+        // every read failure mutes nothing, so the second one has to be said
+        // out loud or the operator believes a mute is on while every lamp goes
+        // loud at 3am.
+        let state = scratch("muted-state");
+        assert_eq!(
+            muted_state(&state),
+            (Vec::new(), Vec::new()),
+            "no file at all is the ordinary case and says nothing"
+        );
+        let file = state.join("lights-quiet");
+        std::fs::create_dir(&file).expect("a directory standing where the file goes");
+        let (entries, complaints) = muted_state(&state);
+        assert!(
+            entries.is_empty() && complaints.len() == 1,
+            "a directory mutes nothing and is complained about once: \
+             {entries:?} {complaints:?}"
+        );
+        assert!(
+            complaints[0].starts_with("pns: state error (lights-quiet could not be read:"),
+            "and the complaint names the file and what went wrong: {}",
+            complaints[0]
+        );
+        std::fs::remove_dir(&file).expect("the directory goes");
+        std::fs::write(&file, [0x66, 0xff, 0xfe]).expect("bytes that are not UTF-8");
+        let (entries, complaints) = muted_state(&state);
+        assert!(
+            entries.is_empty() && complaints.len() == 1,
+            "and so does a file that is not text: {entries:?} {complaints:?}"
+        );
+        std::fs::write(&file, "9999999999 3F - Studio\n").expect("a file it can read");
+        assert_eq!(
+            muted_state(&state).1,
+            Vec::<String>::new(),
+            "the control: a file it can read complains about nothing"
+        );
     }
 
     /// The bridge the tick's writes are driven against: one room listing,
@@ -6265,6 +6501,9 @@ mod tests {
     ]}"#;
 
     const STUDIO_GROUP: &str = "grouped_light/g1";
+    /// The breathe as it shipped, with no brightness stated: the config these
+    /// tick tests drive states no `quiet_mode = "dim"` anywhere, so nothing can
+    /// have left a floor on the lamp for a body to correct.
     const BREATHE_BODY: &str = r#"{"alert":{"action":"breathe"}}"#;
     const CLEAR_BODY: &str = r#"{"on":{"on":false}}"#;
 
@@ -6283,8 +6522,11 @@ mod tests {
         pns::channels::hue::Arming {
             behaviour,
             refresh_secs: 12,
-            fallback: Ok(None),
-            minutes_now: Some(12 * 60),
+            reading: pns::channels::hue::Reading {
+                fallback: Ok(None),
+                minutes_now: Some(12 * 60),
+                muted: &[],
+            },
             started_minutes: Some(12 * 60),
         }
     }

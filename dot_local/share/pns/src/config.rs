@@ -139,7 +139,13 @@ pub struct Lights {
 pub struct Place {
     pub skip: Vec<Behaviour>,
     pub quiet_hours: Option<String>,
-    pub quiet_mode: QuietMode,
+    /// What quiet MEANS here, and `None` IS "SAID NOTHING" for `catch_up`'s
+    /// reason: the chain is walked specific first per setting, so a lamp that
+    /// wrote `off` has to be able to turn its room's `dim` back off. With a
+    /// plain `QuietMode`, "not written" and "written off" were the same value
+    /// and the room won either way. Absent at every rung is off, which is the
+    /// shipped meaning of quiet hours.
+    pub quiet_mode: Option<QuietMode>,
     /// CATCH-UP DEFAULTS OFF (operator ruling): a state that was suppressed
     /// through the night is news nobody wants at 07:00.
     ///
@@ -295,7 +301,12 @@ const MIN_BREATHE_AFTER_SECS: u64 = 1;
 const MAX_BREATHE_AFTER_SECS: u64 = 86_400;
 
 /// The brightness a dimmed signal runs at, in percent.
-const DEFAULT_DIM_BRIGHTNESS: u8 = 10;
+///
+/// ONE, WHICH IS THE OPERATOR'S OWN FIGURE (2026-08-30: one to five percent,
+/// ideally one). Drill D4 measured a lamp asked for one percent reporting 1.19,
+/// which is its own floor rather than a rounding: the bulb cannot go lower, so
+/// this asks for the faintest thing the hardware has.
+const DEFAULT_DIM_BRIGHTNESS: u8 = 1;
 
 /// Percent, so the two ends are the two ends. ZERO IS REFUSED rather than read
 /// as off: a dark signal is a lamp that says nothing, and the way to say
@@ -847,7 +858,7 @@ fn parse_places(setting: &toml::Value) -> Result<BTreeMap<String, Place>, Config
             match key.as_str() {
                 "skip" => place.skip = behaviours(&where_it_is, stated)?,
                 "quiet_hours" => place.quiet_hours = Some(text(&where_it_is, key, stated)?),
-                "quiet_mode" => place.quiet_mode = quiet_mode(&where_it_is, stated)?,
+                "quiet_mode" => place.quiet_mode = Some(quiet_mode(&where_it_is, stated)?),
                 "catch_up" => {
                     place.catch_up = Some(stated.as_bool().ok_or_else(|| {
                         ConfigError::Invalid(format!(
@@ -2335,7 +2346,7 @@ mod tests {
             Place {
                 skip: vec![Behaviour::Breathing, Behaviour::Glow],
                 quiet_hours: Some("22:00-07:00".to_string()),
-                quiet_mode: QuietMode::Dim,
+                quiet_mode: Some(QuietMode::Dim),
                 catch_up: Some(true),
             }
         );
