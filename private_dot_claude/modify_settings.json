@@ -182,13 +182,19 @@
      The blocked notification hangs off PermissionRequest, NOT off
      Notification/permission_prompt, and it is deliberately NOT async. Both
      halves are load bearing. PermissionRequest runs BEFORE the prompt is
-     shown and its exit code decides the request, so it is the only seam
-     through which the hook can hand the payload to moshi-hook and return
-     the operator's phone answer; an async hook has its exit code discarded by
-     construction, which is the whole feature gone. And running the hook on
-     BOTH events would notify twice for one prompt (PermissionRequest fires,
-     then the prompt appears and Notification fires), so this is one seam per
-     harness, matching Codex's PermissionRequest entry in
+     shown and the harness awaits it, so it is the only seam through which the
+     hook can hand the payload to moshi-hook while the prompt is still worth
+     raising a card about; the operator's answer then comes back through
+     moshi's own bridge typing into that prompt, NOT through this hook's exit
+     code (measured 2026-08-29: approve and deny both leave moshi-hook exiting
+     0 with empty stdout). NOT async is the second half: the harness waits
+     for a non-async hook, so the card is registered before the prompt is
+     drawn instead of racing it. What an async hook would do on this event
+     is unverified, so that spelling is a deliberate choice and not a
+     measured one. And running the hook on BOTH events would notify twice
+     for one prompt (PermissionRequest fires, then the prompt appears and
+     Notification fires), so this is one seam per harness, matching Codex's
+     PermissionRequest entry in
      hooks/codex/install-hooks.sh. alerter keeps the Notification slot: it is a
      local sound, not a notification pns routes.
 

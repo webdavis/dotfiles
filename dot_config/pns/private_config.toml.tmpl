@@ -150,6 +150,24 @@ token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
 # already filling the screen is noise, and the light pulse alone marks the
 # command finishing. Uncomment to be carded anyway.
 # mobile_watch_card = false
+# How long pns waits for moshi to acknowledge a submitted permission prompt
+# before giving up on it, in seconds. FIVE when no key states one.
+# THIS BOUNDS THE PROMPT ITSELF, which is why it matters more than it looks:
+# the harness runs the hook BEFORE drawing the permission prompt and waits for
+# it to return, so every second pns spends waiting on a moshi daemon that
+# stopped answering is a second the question is off your screen. The wait is a
+# registration and not a human wait (moshi-hook returns as soon as the daemon
+# acknowledges it, measured at roughly a tenth of a second; your own answer
+# arrives later, by the daemon typing into the prompt), so five seconds is
+# about thirty times the observed round trip. On expiry pns says nothing
+# either way and the submission is killed, which is what actually lets the
+# prompt be drawn: the harness reads the hook's output to end-of-file, and a
+# surviving moshi-hook would hold that open and keep the question hidden
+# anyway. The cost is the pending card dying with it, which a daemon that
+# silent had almost certainly not sent. There is no off switch, because an
+# unbounded wait is the bug this replaces; a zero, a negative, a non-integer
+# and anything past 3600 are refused by name.
+# submit_deadline_secs = 5
 
 [plugins.hermes]
 enabled = true
