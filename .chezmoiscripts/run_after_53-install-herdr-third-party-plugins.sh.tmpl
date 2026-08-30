@@ -1,0 +1,77 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Installs the third-party herdr plugins this machine wants. `herdr plugin
+# install` writes into herdr's OWN store (~/.config/herdr/plugins/github/), which
+# is a different mechanism from the build-and-link lane this repo authors under
+# dot_local/share/herdr/plugins/ (run_onchange_after_55 and _57), so the plugin
+# content is never chezmoi-managed and never reaches the known-good manifest.
+# What this script makes reproducible is the DECLARATION: a fresh machine ends up
+# with the same plugin set without anyone remembering the command.
+#
+# run_after, not run_onchange, on purpose. Both the probe and the install talk to
+# a running herdr server, which a scripted apply frequently does not have. A
+# run_onchange script records its trigger as satisfied on ANY exit 0, so one
+# apply with the server down would consume the trigger and the plugin would never
+# be installed. Running on every apply and installing only what is missing makes
+# the failure self-healing, at the cost of one bounded socket call per apply and
+# per plugin, and it costs no retry-marker machinery
+# (.chezmoitemplates/herdr-plugin-build.sh.tmpl carries that for the build lane,
+# which cannot be converged this cheaply).
+
+command -v herdr >/dev/null 2>&1 || exit 0 # run_onchange_before_15 installs it.
+command -v jq >/dev/null 2>&1 || exit 0    # jq reads the plugin-list envelope.
+
+# Bound every herdr call. A wedged herdr socket accepts the connection and never
+# replies, which would hang the whole apply; this is the same reasoning, and the
+# same 10s bound, as the herdr-plugin-build partial. Without a timeout binary the
+# calls cannot be bounded safely, so skip and let the next apply retry.
+if command -v timeout >/dev/null 2>&1; then
+  timeout_bin="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  timeout_bin="gtimeout"
+else
+  echo "herdr plugins: no coreutils timeout binary (timeout/gtimeout absent); install skipped, the next apply retries." >&2
+  exit 0
+fi
+
+# 0 iff herdr reports exactly this plugin id registered. `herdr plugin list`
+# answers with a JSON envelope and returns exit 0 even when that envelope is an
+# error, so the exact-id count is the only trustworthy signal. An unreachable or
+# wedged server fails the call and is reported as not-registered by the caller,
+# which then declines to install rather than guessing.
+plugin_registered() {
+  local response count
+  response="$("$timeout_bin" 10 herdr plugin list --plugin "$1" --json 2>/dev/null)" || return 1
+  count="$(printf '%s' "$response" |
+    jq --arg id "$1" '[.result.plugins[]? | select(.plugin_id == $id)] | length' 2>/dev/null ||
+    printf '0')"
+  [[ $count == "1" ]]
+}
+
+# Install one plugin when it is absent. Quiet when it is already there, so a
+# no-op apply prints nothing. 300s rather than 10s because the install clones the
+# plugin repository, which is a network operation and not a socket round trip.
+install_plugin() {
+  local plugin_id=$1 source_repo=$2
+  if plugin_registered "$plugin_id"; then
+    return 0
+  fi
+  if "$timeout_bin" 300 herdr plugin install "$source_repo" --yes >/dev/null 2>&1 &&
+    plugin_registered "$plugin_id"; then
+    printf 'herdr plugin %s installed from %s\n' "$plugin_id" "$source_repo"
+  else
+    printf 'herdr plugin install %s failed or is unverified (herdr server down?); the next apply retries.\n' \
+      "$source_repo" >&2
+  fi
+}
+
+# worktrunk is the only third-party plugin this host can run today. The other
+# four surveyed ones need herdr 0.7.4 to 0.8.2 and this host is 0.7.0-preview,
+# and iurysza/herdr-tab-smart-rename needs a `herdr api snapshot` subcommand that
+# 0.7.0-preview does not have, so it crashes on every action here despite its
+# README claiming 0.7.0 support. Revisit the whole set when herdr is upgraded.
+install_plugin worktrunk devashish2203/herdr-worktrunk
+{{ end -}}

@@ -25,6 +25,7 @@
     "json-canvas": "on-demand",
     "kubernetes-specialist": "on-demand",
     "last30days": "on-demand",
+    "lavish": "on-demand",
     "lobster": "on-demand",
     "media-use": "on-demand",
     "moshi": "core",
@@ -32,6 +33,7 @@
     "obsidian-bases": "on-demand",
     "obsidian-cli": "on-demand",
     "obsidian-markdown": "on-demand",
+    "owasp-security": "on-demand",
     "sql-toolkit": "core",
     "summarize-pro": "on-demand",
     "tiktok-crawling": "on-demand",
@@ -79,6 +81,7 @@
     "last30days": [
       "concerned"
     ],
+    "lavish": [],
     "lobster": [
       "default",
       "elaine"
@@ -91,6 +94,7 @@
     "obsidian-bases": [],
     "obsidian-cli": [],
     "obsidian-markdown": [],
+    "owasp-security": [],
     "sql-toolkit": [
       "nicodemus"
     ],
@@ -247,6 +251,9 @@
     "last30days": {
       "repo": "mvanhorn/last30days-skill"
     },
+    "lavish": {
+      "repo": "kunchenguid/lavish-axi"
+    },
     "lobster": {
       "repo": "guwidoe/lobster-skill"
     },
@@ -264,6 +271,9 @@
     },
     "obsidian-markdown": {
       "repo": "kepano/obsidian-skills"
+    },
+    "owasp-security": {
+      "repo": "agamm/claude-code-owasp"
     },
     "todoist-cli": {
       "repo": "Doist/todoist-cli"

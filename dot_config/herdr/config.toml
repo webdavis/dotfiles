@@ -217,3 +217,53 @@ key = "prefix+shift+l"
 type = "shell"
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
 description = "clear screen: send Ctrl-l to the focused pane (like bash)"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Worktree lifecycle through worktrunk (devashish2203/herdr-worktrunk, installed
+# by run_after_53). worktrunk is already the worktree tool here, invoked as `wt`
+# from a shell; the plugin puts the same `wt` behind an fzf picker inside herdr,
+# so a worktree created from these keys still runs worktrunk's lifecycle hooks.
+# prefix+shift+g deliberately shadows herdr's built-in "new worktree" (the
+# plugin README recommends exactly that), and the plugin's own config file is
+# left absent: its defaults are open_mode = "workspace" and a split picker,
+# which is what this machine wants, since dot_config/worktrunk/config.toml
+# already points worktree-path at herdr's own ~/.herdr/worktrees layout. Popup
+# placement would need herdr >= 0.7.4 and this host runs 0.7.0-preview.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+shift+g"
+type = "plugin_action"
+command = "worktrunk.open"
+description = "worktree: switch or create from the default branch"
+
+[[keys.command]]
+key = "prefix+shift+d"
+type = "plugin_action"
+command = "worktrunk.remove"
+description = "worktree: remove"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# One-keystroke session launcher (seshagy). prefix+k opens a temporary pane
+# holding one picker over three sources at once: the live herdr workspaces,
+# zoxide's frecency-ranked directories, and the project directories fd finds.
+# The quick-jump chords above reach the eight workspaces that have a chord; this
+# reaches everything else, including a project visited once and never bound.
+#
+# `type = "pane"` opens the command in a temporary pane and closes it when the
+# command exits, and `--ephemeral` makes seshagy exit on focus loss, so the
+# picker behaves like a popup on a herdr too old for real popups (those need
+# 0.7.4 and this host runs 0.7.0-preview).
+#
+# Declared HERE by hand, never by `seshagy keybind install herdr`. That command
+# writes this same block into ~/.config/herdr/config.toml, which is a chezmoi
+# target, so its edit would be erased by the next apply. The block below is
+# byte-equivalent to what it writes with --key k (captured from the tool in a
+# throwaway HOME, 2026-08-29).
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+k"
+type = "pane"
+command = "seshagy --ephemeral"
+description = "seshagy session manager"
