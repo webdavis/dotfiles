@@ -754,6 +754,10 @@ mod tests {
             ]
             .into_iter()
             .collect(),
+            // The doctor's own lines are counts and names off `families`,
+            // `unresolved` and `state_conflicts`; a placement is what the
+            // signal path reads, so this section states none.
+            places: std::collections::BTreeMap::new(),
             unresolved: Vec::new(),
             state_conflicts: Vec::new(),
         }
