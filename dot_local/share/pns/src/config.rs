@@ -104,11 +104,20 @@ const DEFAULT_MIN_EVENTS: usize = 8;
 /// How long the summarizer may take before the recap gives up on it and posts
 /// the plain lists.
 ///
-/// FOUR MINUTES, and it is generous on purpose. MEASURED on this machine:
-/// `ollama run qwen3.5:4b` over the same prompt took 3m20s on a cold model load
-/// and 9.3s warm. Nobody is waiting on it, because the caller is the detached
-/// process the event path never joined; a deadline under the cold case would
-/// turn every first recap after a reboot into the fallback.
+/// FOUR MINUTES, and it is generous on purpose. WHAT IT COVERS IS GENERATION,
+/// not a model load. Measured with `ollama run qwen3.5:4b` on one machine (an
+/// M1 under load): a cold model load cost about 5.5 seconds, paid once, while
+/// a full three-call episode took about 114.6 seconds, of which roughly 113.9
+/// was tokens being generated at about eleven a second. Prefill was 185
+/// milliseconds for 2,050 tokens, so the whole bill is the LENGTH OF THE
+/// ANSWER and every other term rounds to noise. Nobody is waiting on it,
+/// because the caller is the detached process the event path never joined.
+///
+/// THE SECONDS ARE ONE MACHINE ON ONE EVENING. What is durable is the shape
+/// (prefill free, generation everything, the load small and paid once); the
+/// figures are here to be recalibrated by whoever next tunes this number, and
+/// no test encodes one. A backend that generates less is what makes this
+/// faster, and the config file's own comment carries how.
 ///
 /// ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `min_events`'s zero. A deadline
 /// of nothing simply cannot be met, so the recap falls to the plain lists and
@@ -117,8 +126,8 @@ const DEFAULT_MIN_EVENTS: usize = 8;
 const DEFAULT_SUMMARIZER_DEADLINE_SECS: u64 = 240;
 
 /// The most any summarizer may be given. ONE HOUR, which is fifteen times the
-/// cold load the default covers, so no honest backend on any machine meets it;
-/// see `seconds` for the two failures that live past it.
+/// default, so no honest backend on any machine meets it; see `seconds` for the
+/// two failures that live past it.
 const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
 
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
