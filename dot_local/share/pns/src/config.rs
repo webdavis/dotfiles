@@ -309,6 +309,20 @@ pub struct Config {
     /// that rides the clock behind TWO switches, so an operator who enabled the
     /// feature and saw nothing would have to discover a second, invisible one.
     pub daemon_enabled: bool,
+    /// `[nag] after_secs`: how long an unanswered approval waits before it is
+    /// carded a second time, in seconds. ZERO IS THE FEATURE OFF.
+    ///
+    /// ONE KEY THAT IS THE SWITCH AND THE SCHEDULE, which is `[focus]
+    /// silence`'s own precedent: naming no schedule and switching off are one
+    /// statement, so there is no second `enabled` key that can disagree with
+    /// the first.
+    ///
+    /// DEFAULT OFF, unlike `[daemon]` beside it, and the difference is that
+    /// this one INTERRUPTS. It also needs three separate operator steps before
+    /// it works (an apply for the hook declaration, the daemon running, and
+    /// this key), and a default-on feature that silently does nothing until all
+    /// three are done is a mystery rather than a default.
+    pub nag_after_secs: u64,
     /// `[lights]`: the lamp policy, or None when no table was written.
     ///
     /// BOXED because it is the largest thing in here and almost no machine has
@@ -325,6 +339,7 @@ impl Default for Config {
             recap: Recap::default(),
             focus_silence: Vec::new(),
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
+            nag_after_secs: NAG_OFF,
             lights: None,
         }
     }
@@ -332,6 +347,9 @@ impl Default for Config {
 
 /// See `Config::daemon_enabled`.
 const DEFAULT_DAEMON_ENABLED: bool = true;
+
+/// The schedule that means the nag is off. See `Config::nag_after_secs`.
+const NAG_OFF: u64 = 0;
 
 /// Why a config could not be used. Every variant carries the offender by
 /// name, because "config invalid" without a noun is a hunt.
@@ -387,14 +405,15 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     })?;
 
     let mut config = Config::default();
-    // FIVE ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
-    // this level, and everything that is not one of the five is still refused
+    // SIX ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
+    // this level, and everything that is not one of the six is still refused
     // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
             "daemon" => config.daemon_enabled = parse_daemon(value)?,
+            "nag" => config.nag_after_secs = parse_nag(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
             "plugins" => {
                 let toml::Value::Table(plugins) = value else {
@@ -516,6 +535,72 @@ fn parse_daemon(value: toml::Value) -> Result<bool, ConfigError> {
     }
     Ok(enabled)
 }
+
+/// `[nag]`'s one key, in `parse_daemon`'s shape: an unknown key inside the
+/// table and a value of the wrong shape are each refused BY NAME rather than
+/// half-read into a schedule the operator believes they set.
+fn parse_nag(value: toml::Value) -> Result<u64, ConfigError> {
+    let toml::Value::Table(table) = value else {
+        return Err(ConfigError::Invalid("`nag` is not a table".to_string()));
+    };
+    let mut after_secs = NAG_OFF;
+    for (key, setting) in table {
+        match key.as_str() {
+            "after_secs" => after_secs = nag_schedule(&setting)?,
+            _ => {
+                return Err(ConfigError::Invalid(format!("unknown `nag` key `{key}`")));
+            }
+        }
+    }
+    Ok(after_secs)
+}
+
+/// `after_secs`, in whole seconds, BOUNDED ON BOTH SIDES with zero carved out.
+///
+/// ZERO IS NOT A SCHEDULE AND IS NOT AN ERROR: it is the same statement as
+/// writing no table, which is what makes this key the switch as well as the
+/// timing. Every other value under the floor IS an error, because it is a
+/// schedule the operator meant and pns will not run.
+///
+/// THE FLOOR IS THIRTY SECONDS. A nudge arriving before the operator could
+/// plausibly have picked up their phone is the stacking this design forbids,
+/// and thirty is low enough that the feature can be drilled in half a minute.
+///
+/// THE CEILING IS AN HOUR, mirroring `MAX_SUMMARIZER_DEADLINE_SECS` rather than
+/// any harness number. It must also sit inside the daemon's own registration
+/// window (`daemon::DUE_WINDOW_SECS`, thirty days), which it does with room to
+/// spare, and it is what keeps `2 * after_secs` in the staleness cap far from
+/// any arithmetic edge.
+///
+/// REFUSED RATHER THAN CLAMPED, in `min_events`'s style: a silently corrected
+/// schedule is a schedule the operator believes they set.
+fn nag_schedule(setting: &toml::Value) -> Result<u64, ConfigError> {
+    let Some(count) = setting
+        .as_integer()
+        .and_then(|count| u64::try_from(count).ok())
+    else {
+        return Err(ConfigError::Invalid(format!(
+            "`nag` key `after_secs` has type `{}`, not a count of seconds",
+            setting.type_str()
+        )));
+    };
+    if count == NAG_OFF {
+        return Ok(NAG_OFF);
+    }
+    if !(MIN_NAG_AFTER_SECS..=MAX_NAG_AFTER_SECS).contains(&count) {
+        return Err(ConfigError::Invalid(format!(
+            "`nag` key `after_secs` is {count}, outside the {MIN_NAG_AFTER_SECS} to \
+             {MAX_NAG_AFTER_SECS} second range; 0 is the feature off"
+        )));
+    }
+    Ok(count)
+}
+
+/// The shortest nag anyone may schedule. See `nag_schedule`.
+const MIN_NAG_AFTER_SECS: u64 = 30;
+
+/// The longest. See `nag_schedule`.
+const MAX_NAG_AFTER_SECS: u64 = MAX_SUMMARIZER_DEADLINE_SECS;
 
 /// `silence`, the Focus modes that mean it: a list of display NAMES as Control
 /// Center shows them, raw `modeIdentifier` strings, or a mix.
@@ -1749,6 +1834,91 @@ mod tests {
                 "and it is the non-table arm rather than the unknown-key one: {message}"
             ),
             other => panic!("expected Invalid, got {other:?}"),
+        }
+    }
+
+    // --- [nag] ---------------------------------------------------------------
+
+    /// The nag's one key, which is the switch AND the schedule.
+    ///
+    /// `[focus] silence`'S OWN PRECEDENT: naming nothing and switching off are
+    /// one statement, so there is no second `enabled` key that can disagree
+    /// with the first. DEFAULT OFF, unlike `[daemon]` beside it, because this
+    /// table gates something that INTERRUPTS and because the feature needs a
+    /// `chezmoi apply` and a running daemon before it works at all.
+    #[test]
+    fn the_nag_table_reads_one_schedule_defaults_off_and_zero_is_off_rather_than_an_error() {
+        assert_eq!(
+            parse_config("").unwrap().nag_after_secs,
+            0,
+            "no table at all is the feature off"
+        );
+        assert_eq!(
+            parse_config("[nag]\nafter_secs = 300\n")
+                .unwrap()
+                .nag_after_secs,
+            300
+        );
+        assert_eq!(
+            parse_config("[nag]\nafter_secs = 0\n")
+                .unwrap()
+                .nag_after_secs,
+            0,
+            "zero is the same statement as no table, and it is not an error"
+        );
+        // The floor and the ceiling are admitted at their own edges.
+        assert_eq!(
+            parse_config("[nag]\nafter_secs = 30\n")
+                .unwrap()
+                .nag_after_secs,
+            30
+        );
+        assert_eq!(
+            parse_config("[nag]\nafter_secs = 3600\n")
+                .unwrap()
+                .nag_after_secs,
+            3600
+        );
+    }
+
+    /// Every way a schedule can fail to be one, each naming the offender.
+    ///
+    /// THE FLOOR EXISTS because a nudge arriving before the operator could
+    /// plausibly have reached their phone is exactly the stacking the design
+    /// forbids; THE CEILING mirrors `summarizer_deadline_secs` and must sit
+    /// inside the daemon's own registration window, which it does by three
+    /// orders of magnitude.
+    #[test]
+    fn a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name() {
+        for (case, text, named) in [
+            ("negative", "[nag]\nafter_secs = -1\n", "after_secs"),
+            (
+                "a duration string",
+                "[nag]\nafter_secs = \"5m\"\n",
+                "after_secs",
+            ),
+            ("fractional", "[nag]\nafter_secs = 300.5\n", "after_secs"),
+            ("a list", "[nag]\nafter_secs = [300]\n", "after_secs"),
+            ("under the floor", "[nag]\nafter_secs = 29\n", "after_secs"),
+            (
+                "over the ceiling",
+                "[nag]\nafter_secs = 3601\n",
+                "after_secs",
+            ),
+            (
+                "a misspelled key",
+                "[nag]\nafter_seconds = 300\n",
+                "after_seconds",
+            ),
+            ("a non-table nag", "nag = 300\n", "is not a table"),
+        ] {
+            match parse_config(text).unwrap_err() {
+                ConfigError::Invalid(message) => assert!(
+                    message.contains("nag") && message.contains(named),
+                    "{case}: the offender is named: {message}"
+                ),
+                other => panic!("{case}: expected Invalid, got {other:?}"),
+            }
         }
     }
 

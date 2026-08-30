@@ -24,6 +24,7 @@ pub mod focus;
 pub mod home;
 pub mod hooks;
 pub mod missed_notifications;
+pub mod nag;
 pub mod presence;
 pub mod probes;
 pub mod pulse;
