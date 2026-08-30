@@ -56,21 +56,27 @@
 # array.
 # THE LENGTH OF THE ANSWER IS THE WHOLE BILL, and it is tuned HERE, in the array,
 # without pns knowing anything about it. Measured on one machine: the night call
-# spent 82.7 seconds generating 761 tokens, and the recap renders at most 25
-# lines however many arrive, so most of what it paid for was discarded before it
-# was posted. A derived model caps that at the source. Run `ollama create
-# recap-qwen` over a Modelfile of
+# spent 82.7 seconds generating 761 tokens, and the night section keeps about
+# nine lines however many arrive, because the header, the NEEDS YOU list, the
+# tail and the merge and notes sections take their share of the 25-line body
+# first. Most of what that call paid for was discarded before it was posted. A
+# derived model caps the length at the source. Run `ollama create recap-qwen`
+# over a Modelfile of
 #   FROM qwen3.5:4b
 #   PARAMETER num_predict 320
 #   PARAMETER temperature 0.2
-# and the same call measured 27.0 to 30.5 seconds, still returning more lines
-# than the recap keeps; then name `recap-qwen` where `qwen3.5:4b` is below. The
-# lower temperature is a second free win: it is the setting under which the
-# merge section's `#NNN` receipts stop being a coin flip. THE PLAIN EXAMPLE
-# STAYS THE DEFAULT because the derived model does not exist until you run that
-# command. `ollama run --keepalive` is real and is deliberately NOT suggested:
-# a return moment follows an absence, so the model is always cold when the first
-# call arrives, and that first call is the only one the flag could have helped.
+# and the same call measured 30.5 seconds with `num_predict 320` alone and 27.0
+# seconds with the lower temperature as well, returning 13 to 15 lines, which is
+# about level with what the night section keeps rather than far past it; then
+# name `recap-qwen` where `qwen3.5:4b` is below. The lower temperature is
+# PROPOSED rather than settled: it is the setting the drill verifies the merge
+# section's `#NNN` receipts under, and the evidence behind it today is two runs.
+# THE PLAIN EXAMPLE STAYS THE DEFAULT because the derived model does not exist
+# until you run that command. `ollama run --keepalive` is real and is
+# deliberately NOT suggested: the flag cannot help the FIRST call of an episode,
+# which is the only cold one, because a return moment follows an absence and no
+# keepalive from the last episode outlives it; the calls behind it are already
+# warm without it.
 # summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
 # How long that command may take. FOUR MINUTES, and what it covers is GENERATION
 # rather than a model load. Measured on one machine: loading a cold model cost

@@ -934,17 +934,19 @@ mod tests {
     }
 
     #[test]
-    fn the_summarizers_deadline_is_a_count_of_seconds_defaulted_to_a_cold_model_load() {
-        // FOUR MINUTES, because a cold `ollama` load MEASURED 3m20s on this
-        // machine against 9.3s warm, and nobody is waiting: the caller is a
-        // process the event path never joined.
+    fn the_summarizers_deadline_is_a_count_of_seconds_with_a_generous_default() {
+        // FOUR MINUTES, and what it covers is GENERATION. MEASURED on one
+        // machine: a whole three-call episode took about 114.6 seconds, nearly
+        // all of it tokens arriving at about eleven a second, while the cold
+        // model load cost about 5.5 seconds and was paid once. Nobody is
+        // waiting: the caller is a process the event path never joined.
         assert_eq!(
             parse_config("[recap]\ndigest = true\n")
                 .unwrap()
                 .recap
                 .summarizer_deadline_secs,
             240,
-            "the default covers a cold model load"
+            "the default is generous against a measured episode"
         );
         assert_eq!(
             parse_config("[recap]\nsummarizer_deadline_secs = 5\n")
@@ -954,15 +956,15 @@ mod tests {
             5
         );
         // AND IT HAS A TOP END, refused by name for `min_events`'s own reason.
-        // An hour is already far past the cold load the default covers, and past
-        // it the two failures are real: nothing supervises the detached recap
-        // child, so a wedged backend holds one child and one backend process for
-        // as long as the number says, and `9223372036854775807` is a plain TOML
-        // integer that PANICS the child at `Instant::now() + deadline`
-        // (MEASURED: "overflow when adding duration to instant"). That panic
-        // lands in a process whose stderr is /dev/null and whose exit code
-        // nobody reads, so the recap vanishes with no rung of the ladder taken,
-        // after the card has already said it is coming.
+        // An hour is already far past the default, and past it the two failures
+        // are real: nothing supervises the detached recap child, so a wedged
+        // backend holds one child and one backend process for as long as the
+        // number says, and `9223372036854775807` is a plain TOML integer that
+        // PANICS the child at `Instant::now() + deadline` (MEASURED: "overflow
+        // when adding duration to instant"). That panic lands in a process
+        // whose stderr is /dev/null and whose exit code nobody reads, so the
+        // recap vanishes with no rung of the ladder taken, after the card has
+        // already said it is coming.
         assert_eq!(
             parse_config("[recap]\nsummarizer_deadline_secs = 3600\n")
                 .unwrap()
