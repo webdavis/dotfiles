@@ -1166,6 +1166,66 @@ fn window_around(centre: u16, radius: u16) -> String {
 }
 
 #[test]
+fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
+    // A GUARD, not a red-first test, and it is the compatibility claim of this
+    // whole change: the `[lights]` table adds a config surface and a doctor
+    // section, and NOTHING about a notification moves. Its job is to keep
+    // passing, and to fail the day something starts signalling differently
+    // before the PR that means to.
+    let outcome = |name: &str, lights: &str| {
+        let (listener, port) = bridge_spy();
+        let sandbox = Sandbox::new(name);
+        sandbox.write_config(&format!(
+            "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+             rooms = [\"3F - Studio\"]\n[plugins.hermes]\nenabled = true\n{lights}"
+        ));
+        let mut command = sandbox.pns();
+        sandbox.stub_herdr(&mut command, false);
+        // ACCEPTED WHILE THE CHILD IS STILL RUNNING, which is what keeps this
+        // fast: the spy hangs up the moment it accepts, so the engine's TLS
+        // handshake fails at once instead of waiting out the ten-second bridge
+        // deadline on a connection nobody answered.
+        let child = command
+            .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+            .args(["--pane", "t1:p2", "--long-running"])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("the engine starts");
+        let dialled = dialled_within(&listener, std::time::Duration::from_secs(5));
+        let output = child.wait_with_output().expect("the child is waitable");
+        // The sandbox's own path is the one thing that legitimately differs
+        // between two runs, so it is replaced rather than compared.
+        let scrub = |said: String| said.replace(&sandbox.display(), "<sandbox>");
+        (
+            scrub(stdout(&output)),
+            scrub(stderr(&output)),
+            output.status.code(),
+            dialled,
+            sandbox.fired("hermes"),
+        )
+    };
+    let without_a_table = outcome("lights-guard-without-a-table", "");
+    assert!(
+        without_a_table.3 && without_a_table.4,
+        "the comparison only means something if this event really does light the \
+         room and really does dispatch a leg: {without_a_table:?}"
+    );
+    assert_eq!(
+        without_a_table,
+        outcome(
+            "lights-guard-with-a-table",
+            "[lights]\nrefresh_secs = 20\n\
+             [lights.families.local]\nrooms = [\"3F - Studio\"]\n\
+             except = [\"3F - Studio - HCL3\"]\n\
+             [lights.places.\"3F - Studio\"]\nskip = [\"breathing\"]\n",
+        ),
+        "same stdout, same stderr, same exit code, the bridge dialled either way, \
+         and every other leg untouched"
+    );
+}
+
+#[test]
 fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg() {
     // The window mutes the LIGHTS and nothing else: the card and the log are
     // how a long command reports at any hour, and only the room stays dark.
@@ -1911,6 +1971,11 @@ const MOSHI_SAYS_LINE: &str = "pns doctor: moshi says: Moshi Pro attached (usage
 const FOCUS_OFF_LINE: &str =
     "pns doctor: focus awareness is off (no [focus] table names a mode to silence)";
 
+/// And what it says about the lamps on a machine whose config has no `[lights]`
+/// table, which is every machine that never wrote one.
+const LIGHTS_OFF_LINE: &str =
+    "pns doctor: lights: off in the config, so the pulse uses the [plugins.hue] rooms";
+
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
 const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.moshi]\nenabled = true\n\
@@ -1972,6 +2037,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "pns doctor: 3 sent, 0 failed, 2 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
+            LIGHTS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
         ],
@@ -2242,6 +2308,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "pns doctor: 0 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
+            LIGHTS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
         ],
@@ -6379,8 +6446,12 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // Focus being on is not a fault, so it sits below the check that can move
     // the exit code and above the history it explains.
     assert_eq!(lines[summary + 3], FOCUS_OFF_LINE, "{printed}");
+    // AND THE LAMPS BELOW THE GATE, on that same rule: the lights section
+    // reports without grading, so it sits under the check that can move the
+    // exit code and above the history.
+    assert_eq!(lines[summary + 4], LIGHTS_OFF_LINE, "{printed}");
     assert_eq!(
-        lines[summary + 4],
+        lines[summary + 5],
         format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );
