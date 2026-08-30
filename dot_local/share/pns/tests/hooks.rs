@@ -854,6 +854,561 @@ fn a_payload_at_the_cap_is_whole_and_is_still_submitted() {
     );
 }
 
+// --- the approval contract ---------------------------------------------------
+//
+// THE GATE THAT BOUNDS THE SECOND APPROVAL SURFACE. Everything below is green
+// on today's build by construction and each row was proved killable by a named
+// mutation of the engine, because a characterization test nobody proved can
+// fail is a line of green that guards nothing.
+//
+// WHAT IS DELIBERATELY NOT HERE, so nobody adds it back, and the test that
+// covers each. Every one was written for this gate, measured against its
+// mutation, found already killed by a test that exists, and dropped: a second
+// copy of a guard is not a second guard.
+//
+//   the single-submitter rule, hook entry point
+//     `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`
+//   the single-submitter rule, gate entry point
+//     `the_gate_submits_one_prompt_exactly_once`
+//   a submission that died without answering
+//     `a_submission_that_dies_without_answering_is_not_a_decision`
+//   the gate declining at the desk
+//     `at_the_desk_the_gate_submits_nothing_and_exits_zero`
+//   the gate refusing an over-cap payload
+//     `the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does`
+//   a watched pane is still forwarded
+//     `an_approval_is_forwarded_even_with_the_pane_in_plain_sight`
+//
+// THREE MORE WERE STRUCK AND ARE BACK, at the end of this section, because in
+// each case the test said to cover them drives a DIFFERENT arm and a
+// blocked-only regression walks past it: the desk banner and the watched pane
+// (`plan`'s matrix is a unit on the plan, and nothing composed a blocked hook
+// at the desk), a payload nobody finishes writing (the deadline test beside it
+// drives `stop`), and a presence reading nobody can parse (a unit on
+// `operator_surface`, never across the forward).
+//
+// ONE BEHAVIOR IS DROPPED ON SCOPE AND IS PINNED NOWHERE END TO END: the
+// locked screen. `screen_locked` spawns `/usr/sbin/ioreg` by absolute path, so
+// no PATH stub reaches it, and it is read only where `PNS_IDLE_SECS` is
+// unstated while every sandbox here states it. It has a unit pin on
+// `operator_surface` and buying the composition would need a production
+// override that exists for no other reason.
+//
+// THE EXIT CODE IS NOT HOW CLAUDE CODE ANSWERS, and the rows that pin one say
+// so themselves. Claude Code 2.1.241 decides a PermissionRequest from the
+// hook's STDOUT alone, off `hookSpecificOutput.decision`, and reads the exit
+// code on that event nowhere; the answer to a phone tap travels moshi's own
+// bridge, which screen-reads the pane and sends keys. What the exit code IS is
+// a pns-side contract the gate's direct callers read, and whose reading by
+// Codex is unverified. The corollary is the load-bearing one and
+// `the_blocked_hook_writes_nothing_the_harness_would_read_as_a_decision` is
+// its guard: stdout is a live channel on this event, and pns writes NOTHING to
+// it on this path (measured, a real blocked run prints zero bytes), which is
+// exactly why anything starting with `{` there is an object nobody meant to
+// print.
+
+/// A `PermissionRequest` payload, the binary's own field set (2.1.241):
+/// `tool_name` and `tool_input` required and `permission_suggestions`
+/// optional, spread over the base every event carries, in the emitter's own
+/// key order.
+///
+/// IT STATES NO `message`, WHICH IS THE WHOLE POINT. The card's detail
+/// resolves through `parse_payload`'s fallthrough to the tool request, exactly
+/// as a Codex approval does, and every approval test written before this one
+/// used a `{"message":...}` shape the harness has never sent.
+///
+/// ALL EIGHT BASE FIELDS ARE HERE (`session_id`, `transcript_path`, `cwd`,
+/// `prompt_id`, `permission_mode`, `agent_id`, `agent_type`, `effort`), and so
+/// is `permission_suggestions`, though pns reads three of the eight and none
+/// of the suggestions. They are carried because the harness carries them: the
+/// point of this fixture is that a future reader sees the real thing rather
+/// than a reduction of it, and four base fields would have been a reduction.
+/// The NAMES are the emitter's; the values of the four pns never reads are the
+/// suite's own, because nothing measured what the harness puts in them.
+const CLAUDE_APPROVAL: &str = r#"{"session_id":"s1","transcript_path":"/dev/null","cwd":"/a/dotfiles","prompt_id":"prompt_01","permission_mode":"default","agent_id":"agent_01","agent_type":"main","effort":"medium","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/x"},"permission_suggestions":[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"rm:*"}],"behavior":"allow","destination":"localSettings"}]}"#;
+
+/// A Codex `PermissionRequest`, the shape measured off 0.147: `tool_name` and
+/// `tool_input` and neither `message` nor `detail`, which is the same two keys
+/// Claude Code sends.
+const CODEX_APPROVAL: &str = r#"{"hook_event_name":"PermissionRequest","session_id":"s1","cwd":"/a/dotfiles","tool_name":"shell","tool_input":{"command":["bash","-lc","rm -rf build"]}}"#;
+
+#[test]
+fn a_two_from_moshi_comes_back_as_two_and_is_never_normalized() {
+    // TWO IS THE TEMPTING VALUE. Across the hook family 2 is the code that
+    // means "block", so a future normalizer written to keep pns from ever
+    // blocking would special-case exactly this one, and every other
+    // exit-code assertion in the crate uses 0, 7 or 42 and would stay green
+    // straight through it. Measured: mapping 2 to 0 inside `moshi_decision`
+    // passes the whole suite as it stands. The zero and the 42 are pinned by
+    // `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`
+    // and by `a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decision`,
+    // so this row is the only one of the three that was missing.
+    //
+    // THE CODE IS THE OPERATOR'S, NOT THE HARNESS'S ANSWER: see the section
+    // header. This is the contract the gate's direct callers read.
+    let sandbox = Sandbox::new("hook-blocked-two");
+    let output = hook_with(approval(&sandbox, 2), &sandbox, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "the one code a normalizer would reach for is still the operator's own"
+    );
+    assert_eq!(
+        submissions(&sandbox),
+        ["claude-hook"],
+        "a 2 nobody was asked for is a refusal pns invented, not an answer"
+    );
+}
+
+#[test]
+fn a_payload_that_is_not_utf8_drops_the_approval_and_tells_the_operator_nothing() {
+    // A KNOWN LIMIT, PINNED SO THAT CHANGING IT IS A DECISION. `read_payload`
+    // reads a STRING, so invalid UTF-8 fails the read before any arm runs and
+    // the hook returns 0 from `hook_mode` having done nothing at all. The
+    // operator gets NOTHING: no submission, and not even a card saying
+    // something is blocked, which every other refusal on this path still
+    // sends. A lossy read would forward the mangled bytes instead and hand
+    // back moshi's answer to them; both are defensible and neither is what
+    // ships, so the choice belongs in front of whoever changes it.
+    let sandbox = Sandbox::new("hook-blocked-not-utf8");
+    let mut child = spawn_hook(approval(&sandbox, 42), "blocked");
+    // A lone 0xff is invalid UTF-8 in any position, inside an otherwise
+    // well-formed object so nothing but the encoding is wrong.
+    write_payload(&mut child, b"{\"tool_name\":\"\xff\"}");
+    assert_eq!(
+        finished_within(child, HANG_LIMIT),
+        Some(0),
+        "a payload that could not be read is not the operator's decision"
+    );
+    assert!(
+        submissions(&sandbox).is_empty(),
+        "bytes pns could not read are not bytes it may hand on"
+    );
+    assert!(
+        !sandbox.fired("hermes"),
+        "and the silence is total: this is the limit the comment above states"
+    );
+}
+
+#[test]
+fn a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_run() {
+    // THE ONLY END-TO-END COVERAGE OF THE SECOND HARNESS. Codex reaches this
+    // exact path (`PNS_AGENT=codex $agent hook blocked`, from the Codex hook
+    // installer), and until now the crate proved only the negative half:
+    // `a_harness_pns_does_not_register_for_is_never_handed_to_moshi` shows an
+    // unknown word is refused, and `moshi_subcommand`'s own unit test shows
+    // the mapping is right, but nothing ran the WIRING between them. A spawn
+    // that hard-coded `claude-hook` satisfies every other test in the crate
+    // (measured), and Codex approvals would arrive at the wrong extension
+    // while the suite stayed green.
+    //
+    // AND THE CARD IS THE SAME QUESTION FROM THE OTHER SIDE: a Codex payload
+    // states no `message` either, so its detail comes through the same
+    // fallthrough the Claude fixture exercises above.
+    let sandbox = Sandbox::new("hook-blocked-codex");
+    let mut command = approval(&sandbox, 42);
+    command.env("PNS_AGENT", "codex");
+    let output = hook_with(command, &sandbox, "blocked", CODEX_APPROVAL);
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    assert_eq!(
+        submissions(&sandbox),
+        ["codex-hook"],
+        "a Codex prompt handed to the Claude extension is a card about the wrong session"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.stdin")).expect("moshi read the payload"),
+        CODEX_APPROVAL,
+        "byte for byte on this harness too"
+    );
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "blocked");
+    assert_eq!(
+        event["detail"], "shell: command=bash -lc rm -rf build",
+        "which tool wants what is the question a blocked card has to answer"
+    );
+}
+
+#[test]
+fn a_payload_pns_cannot_parse_is_still_submitted_verbatim() {
+    // PIPE, NOT INTERPRETER. moshi does the parsing, and pns forwarding only
+    // what it could parse itself would silently swallow approvals the day a
+    // harness changes its payload shape: the operator would sit in front of a
+    // prompt whose card never came, with nothing anywhere saying why. The
+    // notification still goes out carrying no detail, because something IS
+    // blocked either way.
+    let sandbox = Sandbox::new("hook-blocked-unparseable");
+    let output = hook_with(
+        approval(&sandbox, 42),
+        &sandbox,
+        "blocked",
+        "not json at all",
+    );
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.stdin")).expect("moshi read the payload"),
+        "not json at all",
+        "what pns could not read is exactly what moshi has to be given"
+    );
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "blocked");
+    assert_eq!(
+        event["detail"], "",
+        "an unreadable payload names no tool, and inventing one would be worse"
+    );
+}
+
+#[test]
+fn the_forward_reads_the_surface_and_never_the_card_overrides() {
+    // TWO OVERRIDES THAT LOOK LIKE THE SAME QUESTION AND ARE NOT. Both are
+    // applied to the delivery plan's `phone_card` and NEITHER is read by
+    // `forward_to_moshi`, which compares the surface and nothing else. The
+    // distinction is the one a second approval surface is most likely to
+    // collapse, and each direction fails differently:
+    //
+    //   FORCE buys a PUSH, not a ROUND TRIP. At the desk it cards the phone
+    //   and submits nothing, so there is no card to answer. Wiring the
+    //   override into the forward would open a round trip nobody asked for,
+    //   on the one surface where the prompt is already on screen.
+    //
+    //   SKIP suppresses PNS'S CARD, not the SUBMISSION. It is set by the
+    //   blocked path itself once a submission succeeds, so reading it in the
+    //   forward would be the forward gating on its own output; away, an
+    //   operator with the variable set would lose approvals entirely.
+    //
+    // Both mutations were measured to pass the rest of the suite.
+    let forced = Sandbox::new("hook-blocked-force-phone");
+    let mut command = approval(&forced, 42);
+    command
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_FORCE_PHONE", "1");
+    let output = hook_with(command, &forced, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(output.status.code(), Some(0), "no round trip, no decision");
+    assert!(
+        submissions(&forced).is_empty(),
+        "the override buys a card, and a card is not a question anyone can answer"
+    );
+    assert!(
+        forced.fired("moshi"),
+        "the push it does buy still has to arrive"
+    );
+
+    let skipped = Sandbox::new("hook-blocked-skip-phone");
+    let mut command = approval(&skipped, 42);
+    command.env("PNS_SKIP_PHONE", "1");
+    let output = hook_with(command, &skipped, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    assert_eq!(
+        submissions(&skipped),
+        ["claude-hook"],
+        "a suppressed card is not a suppressed prompt"
+    );
+    // THE ABSENT CARD IS NOT EVIDENCE THE VARIABLE WAS READ, the same trap
+    // the channel-off sibling documents. The forward succeeded, so the blocked
+    // path sets `PNS_SKIP_PHONE` itself and pns's phone leg is suppressed
+    // whether or not the caller's variable ever reached anything. This line
+    // pins that no second card appeared and nothing about what silenced it;
+    // the submissions line above is this row's real pin, and the one the
+    // `&& !overrides.skip_phone` mutation kills.
+    assert!(!skipped.fired("moshi"));
+}
+
+#[test]
+fn a_real_claude_approval_cards_the_tool_that_wants_to_run() {
+    // KEPT AS THE HOME OF THE FIXTURE RATHER THAN AS A NEW GUARD, and saying
+    // so is the point. `CLAUDE_APPROVAL` is the payload the harness actually
+    // sends and no approval test in the crate had ever used one: every one of
+    // them states a `message`, and a real PermissionRequest states none, so
+    // the detail resolves through the fallthrough to the tool request instead.
+    // A blocked card that names no tool asks the operator to approve something
+    // it cannot describe, and that is what shipped for Codex until the
+    // fallthrough was added.
+    //
+    // ITS NAMED MUTATION KILLS THREE TESTS, measured: dropping the
+    // `tool_request` fallthrough from `parse_payload`'s `unwrap_or_else`
+    // fails this row, and
+    // `a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_run`,
+    // and the pre-existing
+    // `a_refused_tool_call_notifies_as_denied_and_says_which_tool_was_refused`.
+    // So this row is not what stands between that fallthrough and a card that
+    // names no tool, and by the section header's own rule it qualifies for the
+    // strike the drops above got. What it is instead is the one place the real
+    // field set is driven end to end.
+    //
+    // ITS ASSERTIONS OVERLAP TWO SIBLINGS, deliberately rather than by
+    // oversight: `a_blocked_hook_cards_the_operator_as_blocked_and_says_what_was_asked`
+    // already pins the state word and the project on this arm, on a
+    // stated-message payload, and the denied row already pins a detail built
+    // by the same fallthrough. What is new here is the payload, not the
+    // question asked of it.
+    let sandbox = Sandbox::new("hook-blocked-real-payload");
+    let output = hook_with(approval(&sandbox, 42), &sandbox, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "blocked");
+    assert_eq!(
+        event["detail"], "Bash: command=rm -rf /tmp/x",
+        "the tool and what it wants to do with it is the whole decision"
+    );
+    assert_eq!(
+        event["project"], "dotfiles",
+        "read out of the payload's cwd"
+    );
+}
+
+#[test]
+fn an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed() {
+    // `skip_phone=yes` IS THE ONLY TRACE OF A FORWARD ANYWHERE IN PNS'S
+    // RECORDS. moshi mints the actionId inside itself and answers with an
+    // exit code, so nothing else about the round trip is written down: drop
+    // the record for this state and `pns doctor` can no longer say why a card
+    // did not fire on the one path where the answer is "because something
+    // else raised it". Measured: skipping the record for `blocked` alone
+    // passes the whole rest of the suite.
+    //
+    // AND THE JOURNAL MUST STAY EMPTY. A forwarded approval is not a missed
+    // notification; replaying it later would put Allow and Deny in front of an
+    // operator for a prompt that was answered hours ago. THAT HALF HAS ITS OWN
+    // MUTATION, because the record mutation above fails on the missing ring
+    // file before the journal assertion is ever reached: dropping
+    // `!overrides.skip_phone` from `was_missed` journals this forwarded
+    // approval as missed, and kills this test alone (measured).
+    let sandbox = Sandbox::new("hook-blocked-records");
+    let mut command = approval(&sandbox, 42);
+    command.env("PNS_STATE_DIR", sandbox.path("state"));
+    let output = hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(output.status.code(), Some(42));
+    let recorded =
+        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(lines.len(), 1, "one event, one line: {recorded:?}");
+    assert!(
+        lines[0].contains(" claude/blocked "),
+        "the record names the harness and the state: {recorded:?}"
+    );
+    assert!(
+        lines[0].contains(" skip_phone=yes "),
+        "the forward's only trace: {recorded:?}"
+    );
+    assert!(
+        lines[0].contains("legs=hermes:"),
+        "and what the durable leg had to say: {recorded:?}"
+    );
+    assert!(
+        !sandbox.path("state/missed-notifications").exists(),
+        "an approval the operator was handed is not one they missed"
+    );
+}
+
+#[test]
+fn an_approval_leaves_the_turn_marker_alone() {
+    // THE TURN CONTINUES PAST AN APPROVAL. The harness resumes the tool call
+    // and the turn ends later, at the Stop that follows, so consuming the
+    // clock here would restart it mid-turn: a long turn that paused once for
+    // a permission prompt would report itself short and lose the pulse and
+    // the mobile watch card its tier earns. The twin of
+    // `a_refused_tool_call_leaves_the_turn_marker_alone`, on the arm that
+    // also spawns a submission, which is the arm where a claim is easiest to
+    // add by accident.
+    let sandbox = Sandbox::new("hook-blocked-marker");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(marker(&sandbox, "s1"), "1755000000").expect("marker");
+    let mut command = approval(&sandbox, 42);
+    command.env("PNS_STATE_DIR", sandbox.path("state"));
+    hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(
+        std::fs::read_to_string(marker(&sandbox, "s1")).expect("the marker survives the approval"),
+        "1755000000",
+        "the turn an approval interrupted is still measured by the Stop that ends it"
+    );
+    // Absence alone would also be green for an arm that does nothing at all,
+    // the correction the elicitation guard carries too. Measured: a `blocked`
+    // arm short-circuited to `return 0` leaves the marker assertion above
+    // green and is killed by the line below.
+    assert_eq!(
+        submissions(&sandbox),
+        ["claude-hook"],
+        "the arm that left the marker alone is the arm that forwarded"
+    );
+}
+
+#[test]
+fn the_blocked_hook_writes_nothing_the_harness_would_read_as_a_decision() {
+    // THE LOAD-BEARING GUARD, and the reason the section header spells out
+    // what the exit code is not. STDOUT is the live channel on this event:
+    // Claude Code parses a PermissionRequest hook's stdout and
+    // `hookSpecificOutput.decision` is the only thing that decides it.
+    //
+    // AND PNS WRITES NOTHING TO IT HERE, which is the premise this row rests
+    // on. `Delivery::line_for` yields a line only under
+    // `ReportMode::ReportOutcome`; `channel_plan` selects that mode only for
+    // `--remote-only`; no hook path sets it. So every leg on this path is
+    // Silent and the `pns: ` print is never reached, and a real `hook blocked`
+    // run prints zero bytes (measured). The `pns: ` delivery lines are real,
+    // they just do not happen here.
+    //
+    // WHICH IS WHY THE ASSERTION IS EXACTLY-EMPTY rather than a
+    // first-character test. Nothing legitimate prints on this path today, so
+    // the strongest available guard is the honest one, and a build that starts
+    // printing here has to edit this test out loud instead of slipping an
+    // object in behind a prose line. It also has no trim in it to be wrong
+    // about: the harness reads through JavaScript `trim()`, which strips
+    // U+FEFF, while Rust's `trim_start` does not, so a first-character test
+    // spelled in Rust would pass a byte-order-mark in front of a valid `allow`
+    // object that Claude Code accepts.
+    //
+    // A pns that answered the prompt itself would be a SECOND SUBMITTER by
+    // another name, deciding a question moshi has already put in front of the
+    // operator, and it would be invisible: the card still arrives, the
+    // submission still happens, and the harness acts on pns's answer instead
+    // of theirs. MUTATION, measured: printing
+    // `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"pns declined"}}}`
+    // at the end of the blocked path kills this row and passes every other
+    // test in the crate. That object is one the harness's own schema accepts:
+    // a `deny` states a `message`, and without one it is rejected before any
+    // decision is read, so a mutation without it would prove nothing.
+    //
+    // The twin of
+    // `the_hook_writes_nothing_the_harness_could_read_as_an_answer_and_exits_zero`,
+    // and more load bearing than its twin, because there the channel is not
+    // even open.
+    let sandbox = Sandbox::new("hook-blocked-stdout-guard");
+    let output = hook_with(approval(&sandbox, 42), &sandbox, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(output.status.code(), Some(42));
+    let printed = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        printed, "",
+        "pns prints nothing at all on this path, so anything here is unmeant: {printed:?}"
+    );
+    assert_eq!(
+        submissions(&sandbox),
+        ["claude-hook"],
+        "and the submission that DID happen is what answers the prompt"
+    );
+}
+
+#[test]
+fn a_blocked_payload_nobody_finishes_writing_forwards_nothing_and_exits_zero() {
+    // THE DEADLINE ON THE ARM THAT SPAWNS. Its sibling
+    // `a_payload_nobody_finishes_writing_still_exits_on_the_contract` drives
+    // `stop`, where nothing is ever forwarded, so a blocked-only regression
+    // walks straight past it: a timeout that fell back to an empty payload
+    // rather than returning would hand moshi an empty stdin, mint a card whose
+    // actionId answers a prompt nobody can read, and notify the operator about
+    // an approval nobody can answer.
+    //
+    // THE PIPE IS HELD OPEN, which is what a harness that opens the hook and
+    // then stalls does. The child's stdin handle lives as long as the `Child`
+    // here, so nothing ever sends EOF and only the deadline ends it.
+    //
+    // TWO MUTATIONS, both measured. Dropping the deadline entirely
+    // (`recv()` in place of `recv_timeout(payload_deadline())`) hangs this
+    // test out to `HANG_LIMIT` and kills it, and kills the `stop` sibling
+    // with it. The one that isolates this row is the blocked-only fallback
+    // sol named: `hook_mode` answering a timed-out read with `String::new()`
+    // for `blocked` alone leaves the `stop` sibling GREEN and kills this test
+    // (with `a_payload_that_is_not_utf8_drops_the_approval...`, which reaches
+    // the same arm through the same empty read).
+    let sandbox = Sandbox::new("hook-blocked-payload-hang");
+    let mut command = approval(&sandbox, 42);
+    command.env("PNS_PAYLOAD_DEADLINE_MS", "200");
+    let child = spawn_hook(command, "blocked");
+    assert_eq!(
+        finished_within(child, HANG_LIMIT),
+        Some(0),
+        "no payload is no approval, and still exit 0"
+    );
+    assert!(
+        submissions(&sandbox).is_empty(),
+        "an empty payload forwarded is a card answering a prompt nobody read"
+    );
+    assert!(
+        !sandbox.fired("hermes"),
+        "and nobody is told about a block that described nothing"
+    );
+}
+
+#[test]
+fn a_presence_reading_nobody_can_parse_still_forwards_the_approval() {
+    // FAIL TOWARD THE PHONE, ACROSS THE FORWARD. `surface_reading` refuses a
+    // garbled `PNS_IDLE_SECS` rather than falling back to a probe or to a
+    // default, so the surface is not Desk and `forward_to_moshi` says yes.
+    // The engine unit
+    // `the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading`
+    // pins that refusal on `operator_surface` itself and nothing crossed the
+    // forward: a `forward_to_moshi` that returned false on an unreadable
+    // reading would leave every unit green while an operator whose presence
+    // could not be read lost approvals entirely. That is the failure on this
+    // path that looks exactly like being at your desk, which is why the whole
+    // section exists.
+    //
+    // MUTATION, measured: `surface_reading` reading an invalid idle override
+    // as a desk just touched (`(Some(0), None)` in place of `(None, None)`)
+    // kills this test.
+    let sandbox = Sandbox::new("hook-blocked-idle-garbled");
+    let mut command = approval(&sandbox, 42);
+    command.env("PNS_IDLE_SECS", "soup");
+    let output = hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
+    assert_eq!(output.status.code(), Some(42), "the operator's own answer");
+    assert_eq!(
+        submissions(&sandbox),
+        ["claude-hook"],
+        "a presence nobody could read is not an operator sitting at the desk"
+    );
+}
+
+#[test]
+fn at_the_desk_a_blocked_approval_banners_a_hidden_pane_and_leaves_a_watched_one_alone() {
+    // THE SURFACE SLICE 27 PUTS BUTTONS ON, composed end to end so that
+    // changing it has to be said out loud. `plan`'s own matrix pins these two
+    // rows as a unit and `tests/dispatch.rs` pins them through `--state
+    // blocked`, but nothing anywhere composed `hook blocked` with a desk
+    // reading and asked what the operator actually receives, which is the one
+    // question an approve button on the banner changes the answer to.
+    //
+    // NEITHER ROW FORWARDS, the same rule
+    // `at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual`
+    // states from the other side: the harness prompt is already in front of
+    // them, so a card is noise and a round trip asks one question twice.
+    //
+    // MUTATION, measured: `plan`'s banner condition losing `!watching`
+    // (`banner: surface == Surface::Desk`) kills the watched row here. Four
+    // unit tests die on it too (`surface`'s own confirmed matrix and three in
+    // `engine`), and that is the point rather than a duplication: those die on
+    // the PLAN, and this dies on what a blocked hook puts in front of the
+    // operator, which is the half the strike left unguarded.
+    for (slug, label, pane_watched, banner_expected) in [
+        ("hidden", "the pane is on another tab", false, true),
+        (
+            "watched",
+            "the pane is the one being looked at",
+            true,
+            false,
+        ),
+    ] {
+        let sandbox = Sandbox::new(&format!("hook-blocked-desk-{slug}"));
+        let mut command = approval(&sandbox, 42);
+        command
+            .env("PNS_IDLE_SECS", "0")
+            .env("HERDR_PANE_ID", "t1:p1");
+        sandbox.stub_herdr(&mut command, pane_watched);
+        let output = hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
+        assert_eq!(output.status.code(), Some(0), "no round trip: {label}");
+        assert!(
+            submissions(&sandbox).is_empty(),
+            "the prompt is already on their screen: {label}"
+        );
+        assert_eq!(
+            sandbox.fired("macos-banner"),
+            banner_expected,
+            "the desk banner: {label}"
+        );
+        assert!(
+            sandbox.fired("hermes"),
+            "and the durable leg carries every approval: {label}"
+        );
+    }
+}
+
 // --- the tool call the harness refused --------------------------------------
 
 #[test]
@@ -986,10 +1541,12 @@ fn the_hook_writes_nothing_the_harness_could_read_as_an_answer_and_exits_zero() 
     // stdout whose trimmed text begins with `{` is parsed as the operator's
     // answer, and exit code 2 alone declines the elicitation outright, so the
     // MCP server would report a refusal the operator never made and nothing
-    // anywhere would say why. pns writes plain `pns: ...` delivery lines and
-    // returns 0 on every notification path. The assertion mirrors the
-    // harness's own reader, which trims before it looks at the first
-    // character, so empty stdout and prose stdout are the same pass.
+    // anywhere would say why. pns returns 0 on every notification path and
+    // writes NOTHING to stdout on one: the `pns: ` delivery lines exist, but
+    // `Delivery::line_for` emits one only under `ReportMode::ReportOutcome`,
+    // which only `--remote-only` selects and no hook path does. The assertion
+    // mirrors the harness's own reader, which trims before it looks at the
+    // first character, so empty stdout and prose stdout are the same pass.
     let sandbox = Sandbox::new("hook-elicitation-answers-nothing");
     let output = hook(&sandbox, "asked", ELICITATION);
     assert_eq!(
@@ -1275,6 +1832,20 @@ fn submissions(sandbox: &Sandbox) -> Vec<String> {
         .lines()
         .map(str::to_string)
         .collect()
+}
+
+/// The engine with a moshi stub ALWAYS installed, whatever else the caller
+/// overrides afterwards.
+///
+/// Every test in the approval section spawns the blocked path, and
+/// `Sandbox::pns` points `MOSHI_HOOK_BIN` nowhere, so a test that forgets to
+/// stub reaches the OPERATOR'S OWN moshi-hook and can raise a real card on
+/// their phone. That is not hypothetical: it happened during slice 11, seven
+/// tests deep. One helper is cheaper than remembering.
+fn approval(sandbox: &Sandbox, exit_code: i32) -> Command {
+    let mut command = sandbox.pns();
+    sandbox.stub_moshi(&mut command, exit_code);
+    command
 }
 
 fn prepend_path(command: &mut Command, directory: &std::path::Path) {
