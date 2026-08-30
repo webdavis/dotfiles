@@ -16,6 +16,7 @@
 pub mod args;
 pub mod channels;
 pub mod config;
+pub mod daemon;
 pub mod decision_log;
 pub mod doctor;
 pub mod engine;

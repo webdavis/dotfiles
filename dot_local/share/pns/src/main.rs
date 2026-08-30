@@ -67,6 +67,13 @@ fn main() {
     if first == *"recap" {
         std::process::exit(recap_mode());
     }
+    // The clock. A MODE for the reason the others are: `run` takes no event
+    // and delivers nothing itself, and the two typed verbs beside it only move
+    // a file. Nothing on the event path below reaches it, and nothing here
+    // reaches the event path except by re-executing this binary.
+    if first == *"daemon" {
+        std::process::exit(daemon_mode(&second_argument()));
+    }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
@@ -2800,20 +2807,22 @@ fn doctor_mode() -> i32 {
     let loaded = load_config(&config_path(&home));
     // The same readings `run_event` takes off the same config, before
     // selection consumes it.
-    let (hue_table, moshi_token, hermes_key, replay_card, focus_silence) = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => (
-            enabled_hue_table(config),
-            plugin_settings(config, "moshi").and_then(moshi_secret),
-            plugin_settings(config, "hermes").and_then(hermes_secret),
-            config.recap.replay_card,
-            config.focus_silence.clone(),
-        ),
-        // THE SWITCH FALLS BACK ON, which is the fallback `run_event` takes
-        // for the same reading. The two must agree or the doctor describes a
-        // delivery the event would not make, and the Focus list falls back
-        // EMPTY here for the same reason it does there.
-        _ => (None, None, None, true, Vec::new()),
-    };
+    let (hue_table, moshi_token, hermes_key, replay_card, focus_silence, daemon_enabled) =
+        match &loaded {
+            Ok(LoadOutcome::Loaded(config)) => (
+                enabled_hue_table(config),
+                plugin_settings(config, "moshi").and_then(moshi_secret),
+                plugin_settings(config, "hermes").and_then(hermes_secret),
+                config.recap.replay_card,
+                config.focus_silence.clone(),
+                config.daemon_enabled,
+            ),
+            // THE SWITCH FALLS BACK ON, which is the fallback `run_event`
+            // takes for the same reading. The two must agree or the doctor
+            // describes a delivery the event would not make, and the Focus
+            // list falls back EMPTY here for the same reason it does there.
+            _ => (None, None, None, true, Vec::new(), true),
+        };
     let registry = roster();
     // THE BROKEN-CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins`
     // runs every built-in and warns, and the doctor's job is to say what an
@@ -2909,6 +2918,12 @@ fn doctor_mode() -> i32 {
     // check, which is health. It must NOT move the exit code, for the reason
     // the decision section does not: a Focus being on is not a fault.
     println!("{}", focus_line(&home, &focus_silence));
+    // BESIDE THE FOCUS LINE, which is the other line that reports state without
+    // grading it. It must NOT move the exit code in any state, including the
+    // dead one: a daemon that is down costs ambient features, and this exit
+    // code is what an operator's automation reads as "notifications are
+    // broken".
+    println!("{}", daemon_line(daemon_enabled));
     // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
     // census plus its summary is one complete thought whose line order the
     // suite already pins, and nothing below can disturb it.
@@ -2925,6 +2940,569 @@ fn doctor_mode() -> i32 {
     // it, which is why it is an argument rather than a second code combined
     // here: one decision point, decided in one place.
     pns::doctor::exit_code(&outcomes, &pairing)
+}
+
+// --- the daemon -------------------------------------------------------------
+
+/// `pns daemon <verb>`: the clock, and the two typed commands that feed it.
+///
+/// A BARE `pns daemon` IS A REFUSAL, per the house rule that an unknown
+/// argument never falls through to help with exit 0: a verb this does not serve
+/// is a command the operator believes ran.
+fn daemon_mode(verb: &str) -> i32 {
+    match verb {
+        "run" => daemon_run(),
+        "schedule" => daemon_schedule(),
+        "cancel" => daemon_cancel(),
+        _ => {
+            eprintln!("{DAEMON_USAGE}");
+            2
+        }
+    }
+}
+
+const DAEMON_USAGE: &str = "pns: usage: pns daemon run | \
+pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] \
+[--unless-marker <name>] -- <event args> | \
+pns daemon cancel --id <id>";
+
+/// The loop. It sleeps, drains the spool, and reaps what it started.
+///
+/// IT HOLDS NO DURABLE STATE. Restarting re-reads the directory, which is the
+/// whole recovery path, and reboot works the same way because the state
+/// directory survives it and the lease drops whatever went stale. There is no
+/// in-memory schedule to diverge from the disk.
+///
+/// SIGTERM NEEDS NO HANDLER. launchd stops a job with SIGTERM and the default
+/// disposition terminates the process; a loop sleeping one second dies inside
+/// the tick. A child mid-flight is orphaned rather than killed, and an orphaned
+/// nudge is at worst one extra card.
+fn daemon_run() -> i32 {
+    if std::env::args_os().nth(3).is_some() {
+        eprintln!("{DAEMON_USAGE}");
+        return 2;
+    }
+    if !daemon_enabled() {
+        // ONE LINE, ONCE, on the path that exits. `SuccessfulExit = false` in
+        // the plist is what keeps a clean exit 0 exited, so this is written at
+        // most once per bootstrap rather than once per throttle window.
+        println!("pns daemon: disabled in the config; exiting");
+        return 0;
+    }
+    let state = state_dir();
+    let spool = pns::daemon::spool_dir(&state);
+    // EXIT 0 ON A REFUSAL RETRYING CANNOT FIX. Both of them (a spool path that
+    // is not a directory, a state directory that will not take one) are
+    // permanent, and `KeepAlive { SuccessfulExit = false }` relaunches a
+    // non-zero exit every ten seconds forever: ~8,640 relaunches and ~8,640
+    // copies of this line a day, which is behavior 15's chatter arriving
+    // through the restart door. A clean exit keeps the job DOWN and the
+    // doctor's line is what tells the operator.
+    if let pns::daemon::Startup::Refused(refusal) = pns::daemon::prepare_spool(&state) {
+        eprintln!("pns daemon: {refusal}");
+        return 0;
+    }
+    let tick = daemon_tick();
+    let mut children: Vec<Bounded> = Vec::new();
+    let mut reported: std::collections::BTreeSet<std::path::PathBuf> =
+        std::collections::BTreeSet::new();
+    let mut ticks: u64 = 0;
+    loop {
+        std::thread::sleep(tick);
+        ticks = ticks.wrapping_add(1);
+        // THE SWITCH IS RE-READ, so `enabled = false` reaches a daemon that is
+        // ALREADY RUNNING. Read once at startup it was inert: nothing bounces
+        // this job on a config change (the loader's trigger is the plist hash),
+        // so the operator's off switch did nothing until a hand-typed bootout.
+        // Once every `SWITCH_TICKS` rather than every tick, which is one config
+        // read per thirty seconds at the production tick.
+        if ticks.is_multiple_of(SWITCH_TICKS) && !daemon_enabled() {
+            println!("pns daemon: disabled in the config; exiting");
+            return 0;
+        }
+        // FAIL-QUIET, in `remember_staleness`'s style: a heartbeat that did not
+        // land costs one doctor line, and complaining about it every tick is
+        // the chatter this daemon must never produce.
+        if let Some(now) = now_secs() {
+            let _ = pns::daemon::publish_heartbeat(
+                &state,
+                &pns::daemon::Heartbeat {
+                    pid: std::process::id(),
+                    at: now,
+                },
+            );
+            drain_spool(&spool, &state, now, tick, &mut children, &mut reported);
+        }
+        reap(&mut children);
+    }
+}
+
+/// One child the daemon started, and the moment it stops being allowed to run.
+struct Bounded {
+    child: std::process::Child,
+    expires_at: std::time::Instant,
+}
+
+/// One pass over the spool, under a protocol with THREE INVARIANTS.
+///
+/// 1. **A CLIENT ALWAYS WINS.** Every write this daemon makes into the spool
+///    (a re-arm, a put-back) is create-if-absent, so a registration or a
+///    refresh that landed while a record was claimed keeps its name and the
+///    daemon's older copy is discarded. An overwriting rename here would put a
+///    stale due, lease and argv back over the newest signal, which is the one
+///    guarantee the id-is-the-filename refresh rule makes.
+/// 2. **THE DAEMON ACTS ONLY ON WHAT IT OWNS.** A read-only peek decides one
+///    thing and one only: whether there is nothing to do. Everything else
+///    claims the entry by rename FIRST and re-reads the claim, so the record
+///    that fires is the record this daemon took, never one a refresh replaced
+///    between the look and the act. A `Wait` is never claimed, because a wait
+///    performs no action and renaming a waiting job out and back would be the
+///    very write invariant 1 forbids.
+/// 3. **ONE OCCURRENCE RUNS ONCE.** The rename is still the arbiter and it is
+///    now taken before the content is read, so of two daemons exactly one
+///    holds the record and the loser reads nothing at all.
+///
+/// THE RESIDUAL WINDOWS, STATED HONESTLY. A refresh that lands AFTER the claim
+/// is taken cannot stop the occurrence already claimed from running, so the
+/// operator can see one card from the record that was in flight plus the
+/// refreshed job afterwards. Nothing is LOST and nothing runs twice; the old
+/// occurrence simply ran. A refresh that lands after the claim also wins the
+/// re-arm's link, so the repeat continues on the client's terms rather than the
+/// daemon's. And a claim this process took and could not remove holds its own
+/// working name; the line naming it is printed either way, because a job that
+/// vanished with nothing in the log is the failure that costs the most to find.
+fn drain_spool(
+    spool: &Path,
+    state: &Path,
+    now: u64,
+    tick: Duration,
+    children: &mut Vec<Bounded>,
+    reported: &mut std::collections::BTreeSet<std::path::PathBuf>,
+) {
+    for entry in pns::daemon::spool_entries(spool) {
+        let Some(id) = entry
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+        else {
+            continue;
+        };
+        match pns::daemon::peek(&entry, &id) {
+            // SAID ONCE, never once a tick: the file is left where it is, so
+            // the alternative is one line a second about a thing nobody is
+            // going to fix while the daemon is watching.
+            pns::daemon::Peeked::Irregular => {
+                if reported.insert(entry.clone()) {
+                    eprintln!(
+                        "pns daemon: {} is not a regular file; left alone and never opened",
+                        entry.display()
+                    );
+                }
+            }
+            // NOTHING TO DO, DECIDED WITHOUT TOUCHING IT. This is the only
+            // verdict a peek is allowed to be the last word on.
+            pns::daemon::Peeked::Job(job)
+                if pns::daemon::decide(&job, now, pns::daemon::marker_exists(state, &job))
+                    == pns::daemon::Verdict::Wait => {}
+            // Anything else is an ACTION, so the record is taken first and read
+            // again afterwards. A failed claim means another run got there,
+            // which is exactly what the rename is for.
+            _ => {
+                if let Some(claim) = pns::daemon::claim(&entry) {
+                    act(&claim, &id, spool, state, now, tick, children);
+                }
+            }
+        }
+    }
+}
+
+/// One CLAIMED record, re-read and acted on.
+///
+/// THE RE-READ IS THE POINT. Between the peek that decided to act and the
+/// rename that took the record, a client can have replaced it with a refresh
+/// carrying a new due, a new lease and new arguments. Acting on the peek would
+/// fire the old argv and then delete the new record on the way out; acting on
+/// the claim fires whatever this daemon actually holds.
+fn act(
+    claim: &Path,
+    id: &str,
+    spool: &Path,
+    state: &Path,
+    now: u64,
+    tick: Duration,
+    children: &mut Vec<Bounded>,
+) {
+    match pns::daemon::peek(claim, id) {
+        // A RENAME MOVES A REGULAR FILE AS A REGULAR FILE, so this is not
+        // reachable by the paths above; it is still answered rather than
+        // ignored, because the alternative is a claim held forever.
+        pns::daemon::Peeked::Irregular => {
+            println!("pns daemon: dropped `{id}`: it is not a regular file");
+            release(claim);
+        }
+        pns::daemon::Peeked::Unusable(refusal) => {
+            println!("pns daemon: dropped `{id}`: {refusal}");
+            release(claim);
+        }
+        pns::daemon::Peeked::Job(job) => {
+            match pns::daemon::decide(&job, now, pns::daemon::marker_exists(state, &job)) {
+                // The refresh this daemon claimed is not due yet, so it goes
+                // back CREATE-IF-ABSENT: a client that registered again in the
+                // meantime keeps its own record and this copy is dropped.
+                pns::daemon::Verdict::Wait => match pns::daemon::hand_back(spool, &job) {
+                    Ok(_) => release(claim),
+                    Err(error) => {
+                        eprintln!("pns daemon: `{id}` could not be put back ({error})");
+                        release(claim);
+                    }
+                },
+                pns::daemon::Verdict::Drop(reason) => {
+                    println!("pns daemon: dropped `{id}` because {}", reason.said());
+                    release(claim);
+                }
+                pns::daemon::Verdict::Fire => fire(&job, spool, now, tick, claim, children),
+            }
+        }
+    }
+}
+
+/// A working file this daemon is done with, removed and NAMED IF IT SURVIVES.
+///
+/// A CLAIM THAT COULD NOT BE REMOVED IS A LEAK, not a nothing: it is invisible
+/// to the scan (the working prefix is outside the id charset), so it sits there
+/// until a hand removes it, and `claim` refuses to reuse a name already taken,
+/// which can wedge that one id after a pid is reused. One line naming the file
+/// is the whole remedy, and it costs nothing on the path where the remove
+/// works.
+fn release(claim: &Path) {
+    if let Err(error) = std::fs::remove_file(claim) {
+        eprintln!(
+            "pns daemon: the working file {} could not be removed ({error}); it is left behind",
+            claim.display()
+        );
+    }
+}
+
+/// One claimed job re-armed and started, in that order.
+///
+/// THE RE-ARM IS DURABLE BEFORE THE SPAWN. Written the other way round, a
+/// daemon killed between the two loses the repeat with the job already run,
+/// which is the lamp going dark on a loop that is still alive.
+///
+/// AND THE RE-ARM IS CREATE-IF-ABSENT. A client that refreshed this id while
+/// the occurrence was claimed published the newer signal, and a rename here
+/// would overwrite it with the due and lease this daemon computed from the
+/// record it had already taken.
+fn fire(
+    job: &pns::daemon::Job,
+    spool: &Path,
+    now: u64,
+    tick: Duration,
+    claim: &Path,
+    children: &mut Vec<Bounded>,
+) {
+    if let Some(next) = pns::daemon::rearm(job, now) {
+        match pns::daemon::hand_back(spool, &next) {
+            Ok(true) => {}
+            Ok(false) => println!(
+                "pns daemon: `{}` was registered again while it ran, so its repeat stands down",
+                job.id
+            ),
+            Err(error) => eprintln!("pns daemon: `{}` will not repeat ({error})", job.id),
+        }
+    }
+    release(claim);
+    // AN ACTION THAT SUPPRESSED ITS OWN ERROR HAS NOT BEEN PERFORMED: a spawn
+    // that failed is said out loud, because the alternative is a job that
+    // reports as run and delivered nothing.
+    match spawn_job(job) {
+        Ok(child) => {
+            children.push(Bounded {
+                child,
+                expires_at: std::time::Instant::now() + tick * CHILD_TICKS,
+            });
+            println!("pns daemon: ran `{}`", job.id);
+        }
+        Err(error) => eprintln!("pns daemon: `{}` could not start ({error})", job.id),
+    }
+}
+
+/// The job's argv handed to THIS binary, detached.
+///
+/// `current_exe` AND NEVER A STORED PATH, exactly as `spawn_recap` does: the
+/// record carries arguments, so nothing in the spool can name another program.
+/// Anyone who can write a 0600 file in this directory can already run `pns`, so
+/// this is a blast-radius limit rather than a security boundary, and it costs
+/// nothing.
+///
+/// ALL THREE STREAMS NULL, so a child's own output never reaches the daemon's
+/// log, and IN A GROUP OF ITS OWN, so launchd stopping the daemon orphans a
+/// child in flight rather than killing it mid-delivery.
+fn spawn_job(job: &pns::daemon::Job) -> std::io::Result<std::process::Child> {
+    let mut child = Command::new(std::env::current_exe()?);
+    child
+        .args(&job.args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0);
+    child.spawn()
+}
+
+/// Every child looked at once, and any that outlived its bound killed.
+///
+/// `try_wait` AND NEVER `wait`. A blocking wait on a child that hangs holds the
+/// whole loop, so one wedged delivery stops every later job: the clock would
+/// pass every other test here and stop in production. The `wait` below runs
+/// only on a child that has ALREADY been killed, which returns at once and is
+/// what stops a zombie.
+fn reap(children: &mut Vec<Bounded>) {
+    children.retain_mut(|bounded| match bounded.child.try_wait() {
+        Ok(Some(_)) | Err(_) => false,
+        Ok(None) if std::time::Instant::now() >= bounded.expires_at => {
+            kill_group(bounded.child.id());
+            // The direct child again, in case the group could not be signalled
+            // at all, and then the wait that turns a killed child into a reaped
+            // one rather than a zombie held for the daemon's lifetime.
+            let _ = bounded.child.kill();
+            let _ = bounded.child.wait();
+            false
+        }
+        Ok(None) => true,
+    });
+}
+
+/// Every process in a bounded child's group, killed.
+///
+/// THE GROUP AND NOT THE CHILD, which is the difference between a bound and a
+/// bound that holds. `spawn_job` puts each job in a group of its own, and the
+/// job is a `pns` that spawns a delivery of its own and waits on it: killing
+/// the direct child alone leaves that delivery running, MEASURED still alive
+/// 750ms past a 300ms bound, and a repeating job that hangs then accumulates
+/// them. A negative pid names the group, which is the only reason
+/// `process_group(0)` is set in the first place.
+fn kill_group(pid: u32) {
+    // NEVER 0 AND NEVER 1. `kill(0, ...)` signals THIS process's own group and
+    // `kill(-1, ...)` signals every process the user owns, so a pid that is
+    // neither a real child nor representable is refused rather than trusted.
+    let Ok(pid) = libc::pid_t::try_from(pid) else {
+        return;
+    };
+    if pid <= 1 {
+        return;
+    }
+    // SAFE: `kill` takes two integers by value, reads and writes no memory this
+    // process owns, and the only outcomes are a signal delivered or an errno
+    // nothing here reads.
+    unsafe { libc::kill(-pid, libc::SIGKILL) };
+}
+
+/// How many ticks a spawned job may run before it is killed.
+///
+/// THIRTY, so the bound moves with the tick and there is ONE knob rather than
+/// two. In production that is thirty seconds, which is generous for the event
+/// dispatch these children are: every channel inside one already carries its
+/// own deadline, so a child still alive at this point is wedged rather than
+/// slow.
+const CHILD_TICKS: u32 = 30;
+
+/// How many ticks pass between two reads of the config's own switch.
+///
+/// THIRTY, so the cost is one config read per thirty seconds at the production
+/// tick, and the switch still takes effect within half a minute of being
+/// flipped. Counted in TICKS rather than seconds for `CHILD_TICKS`'s reason:
+/// one knob moves with the clock instead of two disagreeing about it.
+const SWITCH_TICKS: u64 = 30;
+
+/// Whether the clock is switched on.
+///
+/// THE BROKEN-CONFIG FALLBACK IS ON, inherited from `select_plugins`' own: a
+/// file that will not parse must not silently stop a service the operator
+/// enabled, and the warning says which it was.
+fn daemon_enabled() -> bool {
+    match load_config(&config_path(&std::env::var("HOME").unwrap_or_default())) {
+        Ok(LoadOutcome::Loaded(config)) => config.daemon_enabled,
+        Ok(LoadOutcome::Missing) => true,
+        Err(error) => {
+            eprintln!(
+                "pns daemon: the config could not be read ({}); carrying on enabled",
+                error.detail()
+            );
+            true
+        }
+    }
+}
+
+/// How long the loop sleeps between passes.
+///
+/// A CONSTANT WITH A TEST HATCH rather than a config key, following
+/// `PNS_PAYLOAD_DEADLINE_MS`: the only party who has ever needed a different
+/// tick is a test, and a knob nobody turns is a knob that only ever holds a
+/// wrong value.
+///
+/// STRICTLY PARSED, FLOORED AND CAPPED, and anything else falls back to the
+/// constant rather than being clamped towards it. A stray `1` in a launchd
+/// environment would spin the loop a thousand times a second, and clamping
+/// would honour a value nobody meant to write.
+fn daemon_tick() -> Duration {
+    let milliseconds = std::env::var("PNS_DAEMON_TICK_MS")
+        .ok()
+        .and_then(|raw| pns::parse_count(&raw))
+        .filter(|milliseconds| (MIN_TICK_MS..=MAX_TICK_MS).contains(milliseconds))
+        .unwrap_or(DEFAULT_TICK_MS);
+    Duration::from_millis(milliseconds)
+}
+
+/// One second: fast enough that a nag is on time and a light re-arms before it
+/// lapses, slow enough that the idle cost is one `read_dir` of an empty
+/// directory per second.
+const DEFAULT_TICK_MS: u64 = 1000;
+
+/// The floor, so no environment can spin the loop.
+const MIN_TICK_MS: u64 = 10;
+
+/// The ceiling, so no environment can park it.
+const MAX_TICK_MS: u64 = 60_000;
+
+/// `pns daemon schedule`: one registration, typed.
+///
+/// FOR DRILLS AND FOR TESTS. The library function beneath it is what a rider
+/// will call, in-process, so nothing ever spawns a process to talk to the
+/// daemon.
+fn daemon_schedule() -> i32 {
+    let argv: Vec<String> = std::env::args_os()
+        .skip(3)
+        .map(|word| word.to_string_lossy().into_owned())
+        .collect();
+    let Some(request) = parse_schedule(&argv) else {
+        eprintln!("{DAEMON_USAGE}");
+        return 2;
+    };
+    let Some(now) = now_secs() else {
+        eprintln!("pns daemon: this machine has no clock to schedule against");
+        return 1;
+    };
+    let due = now.saturating_add(request.in_secs);
+    let job = pns::daemon::Job {
+        id: request.id,
+        due,
+        until: match request.until {
+            Some(Until::Epoch(epoch)) => epoch,
+            Some(Until::FromNow(seconds)) => now.saturating_add(seconds),
+            // A LEASE IS NEVER ABSENT, only unstated: a job with no expiry is
+            // the parked job the whole design refuses, so an unstated one gets
+            // a small slack past its due second.
+            None => due.saturating_add(DEFAULT_LEASE_SLACK_SECS),
+        },
+        every: request.every,
+        unless_marker: request.marker,
+        args: request.args,
+    };
+    match pns::daemon::schedule(&state_dir(), &job, now) {
+        Ok(()) => 0,
+        Err(refusal) => {
+            eprintln!("pns daemon: {refusal}");
+            1
+        }
+    }
+}
+
+/// How long past its due second an unstated lease runs. A minute: long enough
+/// that a busy tick or a slow boot still delivers, short enough that a machine
+/// asleep through the moment wakes to a job whose point has passed.
+const DEFAULT_LEASE_SLACK_SECS: u64 = 60;
+
+/// `--until` in its two spellings.
+enum Until {
+    Epoch(u64),
+    FromNow(u64),
+}
+
+/// Everything `schedule` was asked for, before a clock is read.
+struct ScheduleRequest {
+    id: String,
+    in_secs: u64,
+    every: Option<u64>,
+    until: Option<Until>,
+    marker: Option<String>,
+    args: Vec<String>,
+}
+
+/// The typed request, or None for anything this will not run.
+///
+/// UNKNOWN IS AN ERROR, never a silent skip: `pns`'s own event parser is
+/// lenient because it sits on a notification path that must not fail, and this
+/// one sits in front of an operator who typed a command and will believe it
+/// did what they wrote.
+fn parse_schedule(argv: &[String]) -> Option<ScheduleRequest> {
+    let mut id = None;
+    let mut in_secs = 0;
+    let mut every = None;
+    let mut until = None;
+    let mut marker = None;
+    let mut args = Vec::new();
+    let mut words = argv.iter();
+    while let Some(word) = words.next() {
+        match word.as_str() {
+            // Everything past the separator is the event, untouched.
+            "--" => {
+                args = words.cloned().collect();
+                break;
+            }
+            "--id" => id = Some(words.next()?.clone()),
+            "--in" => in_secs = pns::parse_count(words.next()?)?,
+            "--every" => every = Some(pns::parse_count(words.next()?)?),
+            "--unless-marker" => marker = Some(words.next()?.clone()),
+            "--until" => {
+                let raw = words.next()?;
+                until = Some(match raw.strip_prefix('+') {
+                    Some(seconds) => Until::FromNow(pns::parse_count(seconds)?),
+                    None => Until::Epoch(pns::parse_count(raw)?),
+                });
+            }
+            _ => return None,
+        }
+    }
+    (!args.is_empty()).then_some(ScheduleRequest {
+        id: id?,
+        in_secs,
+        every,
+        until,
+        marker,
+        args,
+    })
+}
+
+/// `pns daemon cancel --id <id>`: forget one job.
+fn daemon_cancel() -> i32 {
+    let argv: Vec<String> = std::env::args_os()
+        .skip(3)
+        .map(|word| word.to_string_lossy().into_owned())
+        .collect();
+    let [flag, id] = argv.as_slice() else {
+        eprintln!("{DAEMON_USAGE}");
+        return 2;
+    };
+    if flag != "--id" {
+        eprintln!("{DAEMON_USAGE}");
+        return 2;
+    }
+    match pns::daemon::cancel(&state_dir(), id) {
+        Ok(true) => {
+            println!("pns daemon: cancelled `{id}`");
+            0
+        }
+        // NOT AN ERROR. The end state the operator asked for is the one they
+        // already have, and a non-zero exit here would make a drill's cleanup
+        // step fail the second time it ran.
+        Ok(false) => {
+            println!("pns daemon: no job named `{id}` was scheduled");
+            0
+        }
+        Err(refusal) => {
+            eprintln!("pns daemon: {refusal}");
+            1
+        }
+    }
 }
 
 /// What moshi-hook says about this host's pairing, in TWO BOUNDED SPAWNS of
@@ -3111,6 +3689,30 @@ fn focus_line(home: &str, silence: &[String]) -> String {
         }
         Err(error) => format!("{FOCUS_UNREADABLE} ({}).", error.kind()),
     }
+}
+
+/// Whether the clock is running, said in one line that grades nothing.
+///
+/// TWO READS THAT COST NOTHING: the heartbeat file, and a count of the spool.
+/// IT DOES NOT SIGNAL THE PID, because a pid can be reused and the age of a
+/// file the daemon rewrites every second answers the same question honestly.
+/// `enabled` COMES FROM THE ONE CONFIG READ the doctor already took, never a
+/// second one: a report assembled from two reads of one file can describe a
+/// switch the run itself never saw. Its broken-config fallback is ON, the same
+/// one `daemon_run` takes, so the report and the service cannot disagree.
+fn daemon_line(enabled: bool) -> String {
+    let state = state_dir();
+    let path = pns::daemon::heartbeat_path(&state);
+    // A NON-REGULAR FILE IS NOT A BEAT AND IS NEVER OPENED, the same refusal
+    // the spool takes and for a worse reason: `open` on a FIFO blocks until a
+    // writer arrives, so a doctor that read whatever it found there would hang
+    // instead of printing any of its four states, with the pairing check and
+    // the exit code never reached.
+    let beat = matches!(std::fs::symlink_metadata(&path), Ok(found) if found.is_file())
+        .then(|| std::fs::read_to_string(&path).ok())
+        .flatten()
+        .and_then(|line| pns::daemon::parse_heartbeat(&line));
+    pns::doctor::daemon_line(enabled, beat, now_secs(), pns::daemon::job_count(&state))
 }
 
 /// A Focus store that is there and cannot be read. Said HERE rather than in

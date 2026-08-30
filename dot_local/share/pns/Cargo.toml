@@ -46,7 +46,9 @@ hmac = "0.13.0"
 # `gmtime_r`; whether a process id still exists is `kill(pid, 0)`; and refusing
 # to follow a symlink on the way in is an open flag (`O_NOFOLLOW`). It is
 # already compiled in this tree behind ring and getrandom, so taking it directly
-# costs no build time, and it is reached from exactly those four places.
+# costs no build time. The daemon's bound adds the fifth reading, and it is the
+# same call in its other spelling: a NEGATIVE pid signals a process GROUP, which
+# is how a job that spawned a delivery of its own is stopped whole.
 libc = "0.2.189"
 serde_json = "1.0.151"
 sha2 = "0.11.0"
