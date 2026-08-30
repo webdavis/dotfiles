@@ -23,6 +23,7 @@ pub mod engine;
 pub mod focus;
 pub mod home;
 pub mod hooks;
+pub mod lights;
 pub mod missed_notifications;
 pub mod nag;
 pub mod presence;

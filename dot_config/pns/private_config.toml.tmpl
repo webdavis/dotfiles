@@ -274,21 +274,55 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # anywhere, which an operator standing in a dark room cannot tell from a lamp
 # that is behaving.
 #
-# NOT EVERY KEY BELOW DOES SOMETHING YET. `refresh_secs`, `breathe_after_secs`,
-# `catch_up` and the `breathing` and `glow` behaviours belong to the daemon that
-# re-arms a lamp's state, and `dim_brightness` with `quiet_mode = "dim"` belongs
-# to dim mode; both land in later slices. `quiet_mode` sits between the two: a
-# value outside `off` and `dim` is refused by name, and nothing reads the value
-# yet, so both of them suppress until dim mode lands. `skip` and `quiet_hours`
-# filter every signal per place today, and a `done`, `failed` or `needs-you`
-# pulse reaches the `local` family's lamps.
-# `github` resolves lamps and nothing routes to it on purpose (plumbing only).
+# NOT EVERY KEY BELOW DOES SOMETHING YET. `dim_brightness` and
+# `quiet_mode = "dim"` belong to dim mode, which lands in a later slice: a
+# `quiet_mode` outside `off` and `dim` is refused by name, and nothing reads the
+# value yet, so both of them suppress until then. THE TWO COMMAND SOURCES ARE
+# WIRED BUT NOT YET FED: `commands` and `long-commands` read a marker the
+# interactive shell writes while a tracked command runs, and the shell side of
+# that lands with the bashrc slice. Until it does, naming either of them
+# breathes about nothing. Everything else is live. `github` resolves lamps and
+# nothing routes to it on purpose (plumbing only).
+#
+# DISABLING HUE WHILE A GLOW IS HELD LEAVES THAT LAMP TO THE WALL SWITCH. The
+# steady glow write is the one body on this path that does not expire, and
+# putting it out takes a bridge; with `enabled = false` above there is no bridge
+# to reach, so nothing puts it out and the record is kept for the tick after the
+# switch goes back on. Removing `[lights]` while hue stays enabled is the safe
+# way round: the next tick clears that lamp by name and forgets it.
 #
 # [lights]
 # # How often the daemon re-arms a lamp's state, in seconds.
-# refresh_secs = 20
-# # How long a loop must have been working before a lamp breathes.
+# #
+# # KEEP THIS AT 12 OR LOWER IF YOU WANT SMOOTH BREATHING. Breathing asks the
+# # bridge for its own breathe, which is a swell the BRIDGE ends by itself after
+# # about fifteen seconds; the daemon just asks again every refresh. Set this
+# # above ~15 and the lamp finishes its swell and sits dark until the next tick,
+# # which reads as a slow blink rather than as breathing. Every other state
+# # holds its lamp for a full interval and does not care.
+# #
+# # 12 IS ALSO THE DEFAULT, so leaving this out gets smooth breathing. The range
+# # is 10 to 300, and the ceiling is the tick's own ordinary lease: an interval
+# # longer than the lease would have the lease run out before the tick came back
+# # round, so anything above it is refused by name at load.
+# refresh_secs = 12
+# # How long an agent must have been working before `agent-loops` calls it a
+# # loop. Only that one source reads this.
 # breathe_after_secs = 900
+# # WHICH activities breathe. Absent means the three that WAIT for something,
+# # which is the line written below; an empty list means breathing off; a word
+# # outside the four is refused by name at load.
+# #   "agent-work"    an agent is working right now, however briefly
+# #   "agent-loops"   an agent has been working for breathe_after_secs
+# #   "commands"      a tracked shell command is running
+# #   "long-commands" one that has been running past the long-command tier
+# # A source left out contributes nothing; the ones named still do.
+# #
+# # `agent-work` IS THE ONE LEFT OUT OF THE DEFAULT. It breathes on any working
+# # workspace with no duration test at all, and an eager source wins every time,
+# # so switching it on leaves `breathe_after_secs` governing nothing. Name it
+# # here for a lamp that should breathe the moment an agent starts.
+# breathe_on = ["agent-loops", "commands", "long-commands"]
 # # The brightness a dimmed signal runs at, in percent.
 # dim_brightness = 10
 #

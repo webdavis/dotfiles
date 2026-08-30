@@ -74,6 +74,12 @@ fn main() {
     if first == *"daemon" {
         std::process::exit(daemon_mode(&second_argument()));
     }
+    // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
+    // takes no decision and delivers nothing, and the daemon is what runs it.
+    // It reaches the event path through nothing at all.
+    if first == *"lights" {
+        std::process::exit(lights_mode(&second_argument()));
+    }
     // The nudge about an approval nobody answered. A MODE for the reason the
     // others are: it takes no decision from an event and reads no stdin. It
     // takes NO SESSION ARGUMENT either, because coalescing means it looks at
@@ -193,6 +199,7 @@ fn hook_mode(event: &str) -> i32 {
                 ..Default::default()
             },
             &system_probes(),
+            &payload.session_id,
             Attempt::First,
         ),
         // An event this binary does not serve is not an error the harness
@@ -217,6 +224,22 @@ fn start_of_turn(payload: &HookPayload) {
         let _ = std::fs::write(&marker, now_secs().unwrap_or_default().to_string());
     }
 }
+
+/// The spool name the tick job is registered under. ONE JOB FOR THE WHOLE
+/// HOUSE, not one per lamp: the tick derives every state from scratch and
+/// writes every fixture, so a second job would be a second writer of the same
+/// bulbs.
+const LIGHTS_JOB: &str = "lights";
+
+/// How long the tick runs on after an ordinary event. A working loop emits
+/// events constantly, so five minutes covers an agent's thinking gap without
+/// covering a stall.
+const ORDINARY_LEASE_SECS: u64 = 300;
+
+/// And after a journalled one, which is an operator who is away or muted. The
+/// glow has to survive the whole absence, and the absence is precisely when no
+/// further event arrives to refresh this.
+const JOURNALLED_LEASE_SECS: u64 = 12 * 60 * 60;
 
 /// The turn's marker path, or None for a session id that cannot become a
 /// filename. The id arrives in the harness payload, and `..` in it would
@@ -355,6 +378,65 @@ fn record_missed(
         pns::missed_notifications::KEPT,
         RING_READ_MAX,
     );
+}
+
+/// Start or end this session's wait on the operator, which is what the blue
+/// lamp is derived from.
+///
+/// ONE FILE PER WAITING SESSION, named by the session id through
+/// `lights::needs_marker`, so a harness id that cannot be a filename writes
+/// nothing at all rather than escaping the state directory.
+///
+/// EVERY EVENT ENDS A WAIT EXCEPT THE FOUR THAT START ONE, which is
+/// `needs_marker_action`'s rule and not a second copy of it here.
+///
+/// THE LAG, NAMED RATHER THAN HIDDEN: the marker clears at the NEXT event from
+/// that session, which for an answered approval is the Stop hook at the end of
+/// the turn and not the instant the operator answered. So a lamp can hold blue
+/// through one long tool call. The tick's own bound is what stops an abandoned
+/// session holding it forever, and the day item 21's rebuild wires a real
+/// answered signal this consumes it at the same call site.
+///
+/// STARTING ONE RIDES BEHIND THE `[lights]` TABLE, and ENDING ONE DOES NOT. A
+/// machine that never asked for the lamps must not start accumulating files
+/// about them, and nothing would ever sweep them there: the tick is the only
+/// sweeper and it does not run without the table. Removal is one unlink with
+/// nothing to accumulate, and gating it too meant a wait that ended while the
+/// lamps were off kept its marker: switching hue back on inside the thirty
+/// minute bound then put needs-you on a lamp for a session nobody was waiting
+/// on.
+///
+/// THE OLDER STOP CAN REMOVE THE NEWER WAIT'S MARKER, and that is a stated
+/// limit rather than a rule. One file per SESSION carries no generation, so a
+/// blocked event that publishes a new wait while the previous Stop is still
+/// condensing loses it when that Stop reaches this line. Unlink cannot
+/// arbitrate on this filesystem (concurrent unlink reports success to every
+/// caller on APFS), so telling the two apart would need a generation IN the
+/// marker and a compare-and-swap publish over it. The damage is bounded by the
+/// thirty minute expiry above and closed by the session's next event, which
+/// re-publishes the wait it is still in.
+///
+/// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason.
+fn update_needs_marker(state_dir: &Path, session_id: &str, event_state: &str, lamps_live: bool) {
+    let Some(marker) = pns::lights::needs_marker(state_dir, session_id) else {
+        return;
+    };
+    match pns::lights::needs_marker_action(event_state) {
+        pns::lights::Action::Start if !lamps_live => {}
+        pns::lights::Action::Start => {
+            // NO CLOCK IS NO MARKER, never a marker at epoch zero: the bound
+            // that expires an abandoned wait is measured against this number,
+            // and a zero would be expired the moment it was written or, read
+            // the other way, would be a wait nobody could age out.
+            if let Some(now) = now_secs() {
+                let _ = publish_state_line(&marker, &now.to_string());
+            }
+        }
+        // The failure is DROPPED here and nowhere else: see the doc comment.
+        pns::lights::Action::End => {
+            let _ = std::fs::remove_file(&marker);
+        }
+    }
 }
 
 /// Record one event in the activity ring, WHETHER OR NOT anybody perceived it.
@@ -1490,6 +1572,7 @@ fn end_of_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
+        &payload.session_id,
         Attempt::First,
     );
 }
@@ -1528,6 +1611,7 @@ fn failed_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
+        &payload.session_id,
         Attempt::First,
     );
 }
@@ -1732,7 +1816,7 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     // routing around: threading one view through would change three signatures
     // for a value each caller reads at the moment it needs it.
     arm_nag(&payload.session_id, &event);
-    run_event(&event, &probes, Attempt::First);
+    run_event(&event, &probes, &payload.session_id, Attempt::First);
     // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
     // immediately before the wait. Threading it out of `run_event` would
     // change that function's signature for one duration, and a view torn
@@ -2082,7 +2166,8 @@ fn event_mode() {
     for warning in &warnings {
         eprintln!("pns: {warning}");
     }
-    run_event(&event, &system_probes(), Attempt::First);
+    // ARGV CARRIES NO SESSION, which is the honest no-identity case.
+    run_event(&event, &system_probes(), "", Attempt::First);
 }
 
 /// Whether this is the event's FIRST delivery or a NUDGE about one already
@@ -2101,9 +2186,17 @@ enum Attempt {
 
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
+///
+/// THE SESSION ID RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split
+/// is the point: `EventArgs` is the ARGV contract, and argv has no spelling for
+/// a session id. It arrives in a harness payload or not at all, so the hook
+/// arms pass what they were given and every other caller passes an empty
+/// string, which is honestly no identity rather than a field nothing can fill.
+/// The lamps' needs marker is its one reader.
 fn run_event(
     event: &pns::args::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
+    session_id: &str,
     attempt: Attempt,
 ) {
     let home = std::env::var("HOME").unwrap_or_default();
@@ -2276,6 +2369,15 @@ fn run_event(
     // branches reach it, including the empty-plan branch, which is where most
     // misses live.
     record_missed(event, &decision, &overrides);
+    // AND THE LAMPS' NEEDS MARKER BESIDE IT, under the same ordering contract
+    // and the same fail-quiet rule: a marker that did not land costs one lamp
+    // its colour and never a card.
+    // THE LAMPS ARE LIVE ONLY WITH BOTH SWITCHES: a map, and the transport
+    // enabled. `[lights]` is policy and `[plugins.hue]` is how it reaches a
+    // bulb, so a table with hue switched off lights nothing, runs no tick, and
+    // must not accumulate markers nothing will ever sweep.
+    let lamps_live = lights.is_some() && hue_table.is_some();
+    update_needs_marker(&state_dir(), session_id, &event.state, lamps_live);
     // AND THE ACTIVITY RING WITH IT, at the same site and under the same
     // ordering contract and the same fail-quiet rule. It records
     // UNCONDITIONALLY, which is the whole difference between it and the
@@ -2327,8 +2429,127 @@ fn run_event(
     let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
     let needs_you_lamp = behaviour == pns::config::Behaviour::NeedsYou && !overrides.silenced();
     if decision.plan.pulse || needs_you_lamp {
-        fire_pulse_unless_quiet(hue_table, lights.as_deref(), behaviour);
+        fire_pulse_unless_quiet(hue_table.clone(), lights.as_deref(), behaviour);
     }
+    // AND THE OPERATOR'S RETURN PUTS OUT WHATEVER A GLOW IS STILL HOLDING.
+    // The steady write is the one body on this path that does not expire, so
+    // something has to put it out, and this is where the condition behind it
+    // stops being true: `is_present` is the same predicate that advances the
+    // return edge the glow is derived from, so the lamp and the marker cannot
+    // disagree about whether the operator came back.
+    //
+    // NO DAEMON IS INVOLVED, which is half of what pays for the steady write.
+    // The held paths were recorded when they were written, so this is one PUT
+    // each with no listing to resolve, and it works on a machine where the
+    // tick has not run for hours.
+    if lamps_live && pns::missed_notifications::is_present(&decision) {
+        clear_held_glow(hue_table.as_ref());
+    }
+    // AND THE TICK'S LEASE IS REFRESHED LAST, by every event, which is what
+    // makes a stalled loop go dark for free: nothing renews its own lease, so
+    // a machine that stopped producing events stops re-arming its lamps.
+    if lamps_live {
+        register_lights_tick(lights.as_deref(), &decision, &overrides);
+    }
+}
+
+/// Put out whatever a steady glow write is still holding, and forget it.
+///
+/// THE FILE IS THE FENCE. An ordinary event reads whether it exists and stops
+/// there, so every event that is not a return from an absence costs one failed
+/// open and no network at all.
+///
+/// IT FORGETS EVEN THOUGH THE WRITE MIGHT HAVE FAILED, and the cost is stated
+/// rather than coded around: `put` is fire and forget, so a refused clear is
+/// invisible and the lamp stays lit with nothing recorded to put it out. That
+/// is the same exposure the steady write already carries by not expiring, and
+/// the alternative is worse: a record kept until somebody proved the write
+/// landed would have every later event re-clearing a lamp that is already
+/// dark, forever, on a machine whose daemon is down.
+fn clear_held_glow(settings: Option<&toml::Table>) {
+    let state = state_dir();
+    let held = held_glow(&state);
+    if held.is_empty() {
+        return;
+    }
+    let Some(hue) = settings.and_then(|settings| {
+        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
+    }) else {
+        return;
+    };
+    pns::channels::hue::clear_held(
+        &UreqBridge {
+            base: format!("https://{}/clip/v2/resource", hue.bridge),
+            key: hue.key,
+        },
+        &held,
+    );
+    remember_held_glow(&state, &[]);
+}
+
+/// Register the repeating tick, or drop the refusal.
+///
+/// THE FAILURE IS DROPPED, exactly as `record_decision`'s is and for the same
+/// reason: a lamp that did not re-arm must never cost a card, a line of stdout
+/// or an exit code. `daemon::schedule` returns its error rather than printing
+/// it precisely so each caller can state its own direction, and this one drops
+/// it.
+///
+/// IT CANNOT BLOCK. The registration is one file written by rename into a
+/// directory; there is no connection, no handshake and nothing to wait on, so
+/// a daemon that is dead, wedged or mid-restart changes nothing about this
+/// call.
+///
+/// TWO LEASE LENGTHS, off ONE question: was this event journalled. An ordinary
+/// event means the operator is here and a working loop emits events
+/// constantly, so five minutes covers an agent's thinking gap without covering
+/// a stall. A journalled one means they are away or muted, which is exactly
+/// when no further event will arrive to refresh this, and the glow has to
+/// survive the whole absence.
+///
+/// THE DUE SECOND IS KEPT WHEN ONE IS ALREADY PENDING, and that is not
+/// decoration: re-registering replaces the job by name, so an event storm that
+/// pushed `due` out to `now + refresh` every time would keep moving the tick
+/// away from itself and a busy machine's lamps would never be re-armed at all.
+/// The lease is what every event refreshes; the schedule is left where the
+/// last tick put it.
+fn register_lights_tick(
+    lights: Option<&pns::config::Lights>,
+    decision: &pns::engine::Decision,
+    overrides: &Overrides,
+) {
+    let (Some(lights), Some(now)) = (lights, now_secs()) else {
+        return;
+    };
+    let state = state_dir();
+    let pending =
+        match pns::daemon::peek(&pns::daemon::spool_dir(&state).join(LIGHTS_JOB), LIGHTS_JOB) {
+            pns::daemon::Peeked::Job(job) => Some(job.due),
+            _ => None,
+        };
+    let due = pending
+        .filter(|due| *due > now)
+        .unwrap_or_else(|| now.saturating_add(lights.refresh_secs));
+    let lease = if pns::missed_notifications::was_missed(decision, overrides) {
+        JOURNALLED_LEASE_SECS
+    } else {
+        ORDINARY_LEASE_SECS
+    };
+    let job = pns::daemon::Job {
+        id: LIGHTS_JOB.to_string(),
+        due,
+        // AT LEAST AS FAR AS THE DUE SECOND, because a lease that ended before
+        // its own job's first run is a record `validate_shape` refuses, and a
+        // refused registration is a lamp that never re-arms with nothing said
+        // anywhere. It bites for any refresh interval longer than the ordinary
+        // lease, which the config permits up to a day.
+        until: due.max(now.saturating_add(lease)),
+        every: Some(lights.refresh_secs),
+        unless_marker: None,
+        args: vec!["lights".to_string(), "tick".to_string()],
+    };
+    // The failure is DROPPED here and nowhere else: see the doc comment.
+    let _ = pns::daemon::schedule(&state, &job, now);
 }
 
 /// Every leg to its destination, in the registry's delivery order, each
@@ -2998,6 +3219,7 @@ fn home_mode() {
                 ..Default::default()
             },
             &system_probes(),
+            "",
             Attempt::First,
         );
     }
@@ -3392,6 +3614,12 @@ fn nag_mode() -> i32 {
             ..Default::default()
         },
         &system_probes(),
+        // NO SESSION, and coalescing is why: one card stands for every record
+        // in `held`, so naming one of their sessions would be inventing an
+        // identity the card does not have. A nudge returns before the lamps'
+        // needs marker is touched at all, so this is the honest empty string
+        // rather than a value chosen to be ignored.
+        "",
         Attempt::Nudge,
     );
     for (claim, _, _) in &held {
@@ -3828,6 +4056,450 @@ pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<e
 [--unless-marker <name>] -- <event args> | \
 pns daemon cancel --id <id>";
 
+fn lights_mode(verb: &str) -> i32 {
+    match verb {
+        "tick" => lights_tick(),
+        // UNKNOWN IS AN ERROR, never a silent fallthrough. Argv parsing on the
+        // event path is deliberately lenient, so a bare `pns lights` reaching
+        // it would skip the word it did not know and fire a notification about
+        // an empty event.
+        _ => {
+            eprintln!("{LIGHTS_USAGE}");
+            2
+        }
+    }
+}
+
+const LIGHTS_USAGE: &str = "pns: usage: pns lights tick";
+
+/// One upkeep pass: read the machine, derive the one state the house is in,
+/// and write it to every lamp that should show it.
+///
+/// EXIT 0 ON EVERY PATH, and SILENT on every happy one. This runs three times
+/// a minute forever under a daemon nobody is watching, so a line per tick is a
+/// log the rotation job then rotates a real log out of.
+///
+/// EVERY STATE IS RE-DERIVED FROM SCRATCH. Nothing is carried between runs
+/// except what is on disk, which is the daemon's own rule: this process exists
+/// for a fraction of a second and the next one is a different process
+/// entirely.
+///
+/// THE JOURNAL IS READ AND NEVER CLAIMED. `claim_journal` is how the replay
+/// CONSUMES a queue; a tick that claimed it would delete the misses the
+/// operator has not seen yet, which is the opposite of what the glow is for.
+fn lights_tick() -> i32 {
+    let home = std::env::var("HOME").unwrap_or_default();
+    // AN UNREADABLE CONFIG ASKED FOR NOTHING, which is the same reading the
+    // event path takes of the lamps one function over: a file nobody could
+    // parse named no family, and a map this could not read must not be
+    // replaced with a guess about which lamps are whose.
+    let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
+        return 0;
+    };
+    // NO BRIDGE NAMED IS NO CLEAR EITHER, so a held glow KEEPS its record here.
+    // Hue switched off, or absent, is a machine this process cannot reach a
+    // lamp on at all; forgetting the record would leave the lamp lit with
+    // nothing in the system that knows about it, and the operator with the wall
+    // switch. Keeping it means the tick that follows the switch going back on
+    // still has a name to write the clear to.
+    let Some(settings) = enabled_hue_table(&config) else {
+        return 0;
+    };
+    // THE FEATURE BEING OFF STILL PUTS A GLOW OUT. `[lights]` removed, or a
+    // clock this machine cannot read, is a tick that can arm nothing; the
+    // bridge above is still named, so the one thing it can still do is put out
+    // what the last tick was holding and forget it. `clear_held_glow` is the
+    // event path's own clear, reused whole rather than spelled a second way:
+    // it costs one failed open on a machine holding nothing.
+    let (Some(lights), Some(now)) = (config.lights.as_deref(), now_secs()) else {
+        clear_held_glow(Some(&settings));
+        return 0;
+    };
+    // AND CREDENTIALS THAT ARE GONE KEEP THE RECORD for the reason the hue
+    // switch does: nothing here can address a lamp.
+    let Some(hue) = hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
+    else {
+        return 0;
+    };
+    let state = state_dir();
+    let readings = lights_readings(&state, lights, now);
+    let held = held_glow(&state);
+    let house = pns::lights::house_state(&readings);
+    let window = quiet_window(&settings);
+    let fallback = window
+        .as_ref()
+        .map(|window| window.as_ref())
+        .map_err(String::as_str);
+    let minutes_now = local_minutes_since_midnight(now);
+    // NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE CALL AT ALL, which
+    // is what keeps an idle machine off the network three times a minute. The
+    // gate is the pulse path's own, asked of the family that produces this
+    // state: a `loop` lamp awake at 3am says nothing about whether a wait on
+    // the `local` lamps can light anything.
+    //
+    // THE LIMIT, STATED: this reads the quiet-hours chain and nothing else. A
+    // place's `skip` list and its catch-up rule are judged per fixture, further
+    // in, so a state every fixture will refuse still resolves the whole listing
+    // off the bridge and writes nothing. A glow that began inside a quiet
+    // window with catch-up off, held through an absence, is one GET per refresh
+    // for the length of that absence. A wrong true costs a round trip that
+    // writes nothing; a wrong false is a lamp that never lights with no message
+    // anywhere, which is why the gate is the loose one.
+    let could_light = house.as_ref().is_some_and(|house| {
+        pns::channels::hue::producing_family(house.behaviour).is_some_and(|family| {
+            pns::channels::hue::any_place_loud(lights, family, fallback, minutes_now)
+        })
+    });
+    // THE ARMING, OR NOTHING TO ARM. A house state the gate refused is the same
+    // input as no house state at all: neither writes to a fixture, so both make
+    // every held path stale.
+    let arming = house
+        .filter(|_| could_light)
+        .map(|house| pns::channels::hue::Arming {
+            behaviour: house.behaviour,
+            refresh_secs: lights.refresh_secs,
+            fallback,
+            minutes_now,
+            started_minutes: local_minutes_since_midnight(house.since),
+        });
+    // NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE AT ALL, which is
+    // what keeps an idle machine off the network three times a minute.
+    let complaints = if arming.is_some() || !held.is_empty() {
+        arm_clear_and_remember(
+            &UreqBridge {
+                base: format!("https://{}/clip/v2/resource", hue.bridge),
+                key: hue.key,
+            },
+            &state,
+            lights,
+            arming.as_ref(),
+            &held,
+        )
+    } else {
+        Vec::new()
+    };
+    // AND THE SAYING IS OUTSIDE THAT GATE, deliberately. `say` FORGETS a
+    // complaint that has cleared, and a complaint clears exactly when the house
+    // goes dark; leaving the bookkeeping inside the gate meant a remembered
+    // complaint was never forgotten on the tick that ended it, so the same
+    // complaint returning later would not read as news. It costs one failed
+    // open on a machine that has never complained.
+    say_lights_once(&state, &complaints);
+    0
+}
+
+/// The tick's writes, in the ONE ORDER that cannot leave a lamp lit and
+/// unaccounted for: arm the state, clear only what the arm did not write to,
+/// then record what a non-expiring write is still holding.
+///
+/// THE ORDER IS THE BEHAVIOUR, which is why the three steps are one function
+/// rather than three lines at the bottom of the tick. Glow and breathing are
+/// produced by the same family and resolve to the same fixture, so a clear
+/// computed as "everything held that is not held now" makes every glow path
+/// stale the moment the house turns to breathing: the tick PUTs the breathe and
+/// then the off to one lamp, the bridge's breathe has nothing lit to swell
+/// around, and breathing is dead until the house returns to glow.
+///
+/// SO THE CLEAR SUBTRACTS EVERY PATH THIS ARM WROTE TO, not just the ones it is
+/// holding. A path an earlier steady write is holding and this arm wrote to
+/// again still carries that steady body underneath, so it stays in the record.
+///
+/// A BRIDGE THAT ANSWERED NO LISTING CHANGES NOTHING AT ALL. It is direct
+/// evidence the transport is down, and both halves of acting on it are wrong: a
+/// clear it refused is invisible, and forgetting the paths after it leaves the
+/// lamp lit with nothing in the system that knows about it. The record is kept
+/// and the next reachable tick decides.
+///
+/// IT PRINTS NOTHING. The complaints are answered for the caller to say once.
+fn arm_clear_and_remember<B: pns::channels::hue::Bridge>(
+    bridge: &B,
+    state: &Path,
+    lights: &pns::config::Lights,
+    arming: Option<&pns::channels::hue::Arming<'_>>,
+    held_before: &[String],
+) -> Vec<String> {
+    let mut complaints = Vec::new();
+    let mut signalled = Vec::new();
+    let mut held_now = Vec::new();
+    if let Some(arming) = arming {
+        // The doctor is where an unreachable bridge is REPORTED; this process
+        // runs unattended and has no reader for that sentence.
+        let Some(map) = pns::channels::hue::resolve_on_bridge(bridge, &lights.families) else {
+            return complaints;
+        };
+        complaints.extend(map.unresolved.iter().map(|missing| {
+            format!(
+                "pns lights: {}",
+                pns::channels::hue::missing_sentence(missing)
+            )
+        }));
+        let written = pns::channels::hue::signal_state(bridge, &map, lights, arming);
+        complaints.extend(written.refusals);
+        signalled = written.signalled;
+        held_now = written.held;
+    }
+    // WHATEVER WAS HELD AND WAS NOT WRITTEN TO GETS PUT OUT BY NAME. Written as
+    // a difference rather than as a special case, so a lamp dropped by a quiet
+    // window, a skip list, a config edit or the condition simply ending is
+    // covered by one line rather than four.
+    let stale: Vec<String> = held_before
+        .iter()
+        .filter(|path| !signalled.contains(path))
+        .cloned()
+        .collect();
+    pns::channels::hue::clear_held(bridge, &stale);
+    // AND WHAT SURVIVED THE CLEAR IS STILL HELD. The steady body under a
+    // breathe was never overwritten, so the record has to carry it or nothing
+    // will ever put that lamp out.
+    for path in held_before {
+        if signalled.contains(path) && !held_now.contains(path) {
+            held_now.push(path.clone());
+        }
+    }
+    remember_held_glow(state, &held_now);
+    complaints
+}
+
+/// The three readings the states are derived from, taken off the machine.
+///
+/// THE STREAK IS ADVANCED HERE, which is the one reading that WRITES: a run
+/// of work is a duration, and a duration needs somewhere to have started.
+fn lights_readings(state: &Path, lights: &pns::config::Lights, now: u64) -> pns::lights::Readings {
+    // THE SAME CALL THE VISIBILITY MODEL MAKES, bounded the same way, and read
+    // for a different field. A herdr that is missing, wedged or answering
+    // something this cannot parse yields no working workspace, which is the
+    // fail-toward-dark direction.
+    let statuses =
+        pns::system::CommandRunner::run(&SystemCommandRunner, "herdr", &["workspace", "list"])
+            .map(|answer| pns::lights::workspace_agent_statuses(&answer))
+            .unwrap_or_default();
+    // THE SHELL'S OWN MARKER, which the interactive shell writes while a long
+    // plain command runs. Nothing in this crate writes it; a machine whose
+    // shell does not is a machine where breathing covers agent loops alone,
+    // which is exactly what it covers today.
+    let shell_since = read_epoch(&state.join(LIGHTS_SHELL_RUNNING));
+    // HERDR ALONE FEEDS THE STREAK. A streak advanced by the shell marker too
+    // would let a long build satisfy `agent-loops` on a machine where the
+    // agent sources are the only ones switched on, which is exactly the leak
+    // the per-source gate exists to prevent.
+    let agent_working = pns::lights::any_working(&statuses, None);
+    let streak = advance_streak(state, agent_working, now);
+    // GLOW ASKS THE WIDER QUESTION: whether ANYTHING is working, whatever the
+    // operator chose to breathe about. `breathe_on` says what lights a lamp,
+    // not what counts as work, so a machine with breathing switched off and an
+    // agent running stays DARK rather than glowing about unseen news.
+    let working = pns::lights::any_working(&statuses, shell_since);
+    pns::lights::Readings {
+        needs_you_at: pns::lights::needs_you_at(&sweep_needs(state, now), now, NEEDS_MAX_AGE_SECS),
+        breathing_since: pns::lights::breathing_since(&pns::lights::Breath {
+            enabled: &lights.breathe_on,
+            agent_working,
+            streak: streak.as_ref(),
+            shell_since,
+            now,
+            breathe_after_secs: lights.breathe_after_secs,
+            // THE NOTIFIER'S OWN TIER, read through the function the notifier
+            // reads, so the lamp and the card share the CODE that decides what
+            // makes a command long. They do not share the ENVIRONMENT it reads:
+            // `pulse_threshold_secs` takes `PNS_PULSE_THRESHOLD_SECS`, the
+            // notifier runs from the interactive shell and sees a bashrc
+            // override, and this runs from the LaunchAgent, whose environment is
+            // the plist's. With an override set the two disagree by exactly that
+            // override, and the plist is where to put one that both must read.
+            long_command_secs: pulse_threshold_secs(),
+        }),
+        glow_since: glow_reading(state, working),
+    }
+}
+
+/// The glow condition, off the two files that answer it.
+///
+/// THE EDGE IS READ HERE, at the one place that knows where it lives, so the
+/// wiring between `LAST_PRESENT` and the rule is a seam a test can hold.
+/// `glow_since` is pure and total and has no clock of its own, which means an
+/// edge invented at the call site would leave every one of its unit tests green
+/// while the glow never fired on a real machine: nothing in the journal is ever
+/// newer than this second.
+fn glow_reading(state: &Path, working: bool) -> Option<u64> {
+    pns::lights::glow_since(
+        &journalled_misses(state),
+        read_epoch(&state.join(LAST_PRESENT)),
+        working,
+    )
+}
+
+/// Every live wait's epoch, with the ones past the bound REMOVED on the way
+/// through.
+///
+/// THE SWEEP LIVES WITH THE READ because the tick is the only process that
+/// ever looks in this directory: a session that ends without another event
+/// leaves a marker nothing else would ever remove, and one file per abandoned
+/// session for the life of a machine is unbounded growth.
+fn sweep_needs(state: &Path, now: u64) -> Vec<u64> {
+    let mut live = Vec::new();
+    for entry in std::fs::read_dir(pns::lights::needs_dir(state))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        let path = entry.path();
+        // A PENDING PUBLISH IS NOT A MARKER. `publish_state_line` writes
+        // `<name>.new.<pid>` INTO THIS DIRECTORY and renames it over the
+        // marker, so a file caught between that open and that rename is an
+        // ordinary entry here with no epoch in it yet. Unlinking it wins the
+        // race against the rename, which then publishes nothing, and the wait
+        // is lost with the agent still waiting.
+        //
+        // BY NAME, which also means a session id spelling `.new.` is never
+        // swept. Session ids are the harness's own opaque words and that
+        // collision costs one abandoned marker; deleting a live publish costs a
+        // wait the operator is being asked about.
+        if path
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().contains(".new."))
+        {
+            continue;
+        }
+        match read_epoch(&path) {
+            Some(at) if pns::lights::needs_is_live(at, now, NEEDS_MAX_AGE_SECS) => live.push(at),
+            // AN UNREADABLE MARKER IS SWEPT TOO, and it is not the same as an
+            // expired one only in how it got here: nothing can age out a file
+            // whose epoch cannot be read, so leaving it would be the same
+            // unbounded growth through a different door.
+            _ => {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+    live
+}
+
+/// The working streak after this tick's reading, published or removed.
+fn advance_streak(state: &Path, working: bool, now: u64) -> Option<pns::lights::Streak> {
+    let marker = state.join(LIGHTS_WORKING_SINCE);
+    let held = std::fs::read_to_string(&marker)
+        .ok()
+        .and_then(|line| pns::lights::parse_streak(&line));
+    let next = pns::lights::next_streak(held, working, now, WORKING_GRACE_SECS);
+    // FAIL-QUIET, in `record_missed`'s style: a streak that did not land costs
+    // one lamp its breathing, and this process has no reader for a complaint.
+    match &next {
+        Some(streak) => {
+            let _ = publish_state_line(&marker, &pns::lights::render_streak(streak));
+        }
+        None => {
+            let _ = std::fs::remove_file(&marker);
+        }
+    }
+    next
+}
+
+/// The journal as entries, READ and never claimed.
+fn journalled_misses(state: &Path) -> Vec<pns::missed_notifications::Entry> {
+    readable_ring(&state.join(MISSED_NOTIFICATIONS), RING_READ_MAX)
+        .map(|contents| pns::missed_notifications::entries(&contents))
+        .unwrap_or_default()
+}
+
+/// The fixture paths a steady glow write is currently holding.
+fn held_glow(state: &Path) -> Vec<String> {
+    std::fs::read_to_string(state.join(LIGHTS_GLOW_HELD))
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(str::to_string)
+        .collect()
+}
+
+/// Record what is held now, or forget the file when nothing is.
+///
+/// ONE LINE, SPACE SEPARATED, because a fixture path is `light/<id>` or
+/// `grouped_light/<id>` and neither can carry a space. That keeps this a
+/// `publish_state_line` write like every other state file rather than a second
+/// file format.
+///
+/// A TICK CAN REPUBLISH A GLOW THE RETURN JUST CLEARED, and that is a stated
+/// limit rather than a rule. The tick reads its condition before it reaches the
+/// bridge, so a present event that advances the return edge and clears the held
+/// paths while an older tick is still resolving fixtures loses the race here:
+/// that tick writes the glow and records it again. Nothing arbitrates, because
+/// there is no lock between two processes that are deliberately independent.
+/// The next present event clears it with no daemon at all, and the next tick
+/// after it reads the advanced edge and finds no condition, so the exposure is
+/// one refresh interval. It is unbounded only for a tick that was its lease's
+/// LAST run, and there the lamp waits for the operator's return, which is the
+/// event that clears it.
+fn remember_held_glow(state: &Path, held: &[String]) {
+    let marker = state.join(LIGHTS_GLOW_HELD);
+    if held.is_empty() {
+        let _ = std::fs::remove_file(&marker);
+        return;
+    }
+    // The failure is DROPPED here: a record that did not land costs one lamp
+    // its clear, which the operator can end by hand, and this process has
+    // nobody to tell.
+    let _ = publish_state_line(&marker, &held.join(" "));
+}
+
+/// Say a complaint ONCE, and say it again only when it changes.
+fn say_lights_once(state: &Path, complaints: &[String]) {
+    let marker = state.join(LIGHTS_SAID);
+    let remembered = std::fs::read_to_string(&marker).unwrap_or_default();
+    match pns::lights::say(complaints, remembered.trim_end_matches('\n')) {
+        pns::lights::Say::Nothing => {}
+        pns::lights::Say::Aloud(said) => {
+            for complaint in complaints {
+                eprintln!("{complaint}");
+            }
+            let _ = publish_state_line(&marker, &said);
+        }
+        pns::lights::Say::Forget => {
+            let _ = std::fs::remove_file(&marker);
+        }
+    }
+}
+
+/// How long an unanswered wait may hold a lamp blue. Half an hour: long enough
+/// for the operator to come back from something, short enough that a session
+/// abandoned mid-question does not own a bulb for the rest of the day.
+const NEEDS_MAX_AGE_SECS: u64 = 30 * 60;
+
+/// How long a run of work survives readings that say nothing is working.
+///
+/// THE GAP BETWEEN A LOOP'S TURNS IS WHAT THIS COVERS, and it is why the
+/// streak is not simply "is something working right now": an agent reads idle
+/// for the seconds between one turn and the next, and a streak that reset
+/// there could never reach a threshold measured in minutes.
+const WORKING_GRACE_SECS: u64 = 120;
+
+/// Where the streak lives.
+const LIGHTS_WORKING_SINCE: &str = "lights-working-since";
+
+/// Where the shell says a tracked command is running: ONE EPOCH, the second it
+/// started. Written by the interactive shell and removed when the command
+/// ends; only read here.
+///
+/// THE LONG TIER IS DERIVED FROM THAT EPOCH AND IS NOT A SECOND FIELD, because
+/// it cannot be one. The marker is written when the command STARTS, and at
+/// that instant the command has run for zero seconds, so nothing on the shell
+/// side knows the tier yet; a flag would take a background timer rewriting the
+/// file mid-command. `now - since` against the notifier's own threshold
+/// answers the same question with one source of truth instead of two that can
+/// disagree.
+///
+/// A SHELL KILLED MID-COMMAND LEAVES IT, and the lease is the backstop rather
+/// than a bound of its own: nothing renews the tick's lease but a pns event,
+/// so a machine that stopped producing events stops re-arming its lamps within
+/// minutes whatever this file says. A bound here would instead have to be
+/// longer than the longest legitimate build, which is not a number anybody
+/// knows.
+const LIGHTS_SHELL_RUNNING: &str = "lights-shell-running";
+
+/// Where the fixture paths a steady glow is holding are recorded.
+const LIGHTS_GLOW_HELD: &str = "lights-glow";
+
+/// Where a tick remembers what it last complained about.
+const LIGHTS_SAID: &str = "lights-said";
+
 /// The loop. It sleeps, drains the spool, and reaps what it started.
 ///
 /// IT HOLDS NO DURABLE STATE. Restarting re-reads the directory, which is the
@@ -4076,13 +4748,19 @@ fn fire(
     // AN ACTION THAT SUPPRESSED ITS OWN ERROR HAS NOT BEEN PERFORMED: a spawn
     // that failed is said out loud, because the alternative is a job that
     // reports as run and delivered nothing.
+    //
+    // AND A SPAWN THAT WORKED SAYS NOTHING, which is the daemon's own
+    // no-chatter rule applied to the thing it actually does. The lights tick
+    // repeats every twelve seconds for as long as its lease holds, so a line
+    // per firing is 300 an hour in the file the log rotation then rotates a
+    // real log out of. What a job has to say, the job says itself: its stderr
+    // is the daemon's now.
     match spawn_job(job) {
         Ok(child) => {
             children.push(Bounded {
                 child,
                 expires_at: std::time::Instant::now() + tick * CHILD_TICKS,
             });
-            println!("pns daemon: ran `{}`", job.id);
         }
         Err(error) => eprintln!("pns daemon: `{}` could not start ({error})", job.id),
     }
@@ -4096,16 +4774,28 @@ fn fire(
 /// this is a blast-radius limit rather than a security boundary, and it costs
 /// nothing.
 ///
-/// ALL THREE STREAMS NULL, so a child's own output never reaches the daemon's
-/// log, and IN A GROUP OF ITS OWN, so launchd stopping the daemon orphans a
-/// child in flight rather than killing it mid-delivery.
+/// STDIN AND STDOUT NULL, STDERR INHERITED, and IN A GROUP OF ITS OWN, so
+/// launchd stopping the daemon orphans a child in flight rather than killing it
+/// mid-delivery.
+///
+/// STDERR IS THE ONE READER A JOB HAS. A job runs unattended with no terminal
+/// behind it, so a complaint it writes goes wherever this puts that stream:
+/// null sent it to `/dev/null`, and the lights tick's say-once memory then
+/// recorded the complaint as SAID, so no later tick repeated it either. A lamp
+/// renamed on the bridge was therefore reported exactly once, into nothing. The
+/// daemon's plist points both of its own streams at `~/.local/log/`, so
+/// inheriting is what puts a child's line in front of the operator.
+///
+/// STDOUT STAYS NULL, because that is where a job's ORDINARY output goes and
+/// the ordinary case here is a tick that ran three times a minute and has
+/// nothing to report. Only what could not be said anywhere else crosses.
 fn spawn_job(job: &pns::daemon::Job) -> std::io::Result<std::process::Child> {
     let mut child = Command::new(std::env::current_exe()?);
     child
         .args(&job.args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .process_group(0);
     child.spawn()
 }
@@ -5512,12 +6202,299 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, lights_report, matches_glob, publish_state_line, read_note, recap_bounds,
-        republish_after, reread_attempts_from, reread_interval_from, resolve_path,
+        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LAST_PRESENT, LIGHTS_GLOW_HELD,
+        MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, MISSED_NOTIFICATIONS, STATE_FILE_MODE,
+        arm_clear_and_remember, glow_reading, lights_report, matches_glob, publish_state_line,
+        read_note, recap_bounds, republish_after, reread_attempts_from, reread_interval_from,
+        resolve_path, sweep_needs, update_needs_marker,
     };
+    use std::cell::RefCell;
     use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
     use std::time::Duration;
+
+    /// A scratch state directory of this test's own, named so two tests and two
+    /// runs of one test never share a file.
+    fn scratch(name: &str) -> PathBuf {
+        let directory = std::env::temp_dir().join(format!(
+            "pns-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |since| since.as_nanos())
+        ));
+        std::fs::create_dir_all(&directory).expect("the scratch directory");
+        directory
+    }
+
+    /// The bridge the tick's writes are driven against: one room listing,
+    /// answered or not, and every PUT recorded IN ORDER.
+    ///
+    /// A SEQUENCE RATHER THAN A SET, because the order is the whole question
+    /// here: a breathe followed by an off is a lamp the tick put out after
+    /// telling it to breathe, and a set cannot tell that from a lamp that was
+    /// only ever breathed at.
+    struct ScriptedBridge {
+        rooms: Option<&'static str>,
+        puts: RefCell<Vec<(String, String)>>,
+    }
+
+    impl pns::channels::hue::Bridge for ScriptedBridge {
+        fn get(&self, _path: &str) -> Option<String> {
+            self.rooms.map(String::from)
+        }
+        fn put(&self, path: &str, body: &str) {
+            self.puts
+                .borrow_mut()
+                .push((path.to_string(), body.to_string()));
+        }
+    }
+
+    fn scripted(rooms: Option<&'static str>) -> ScriptedBridge {
+        ScriptedBridge {
+            rooms,
+            puts: RefCell::new(Vec::new()),
+        }
+    }
+
+    /// One room holding one grouped light, which is everything a ROOMS-ONLY
+    /// claim resolves against: the light listing is never asked for.
+    const ONE_ROOM: &str = r#"{"data":[
+      {"id":"r1","type":"room","metadata":{"name":"3F - Studio"},"children":[],
+       "services":[{"rid":"g1","rtype":"grouped_light"}]}
+    ]}"#;
+
+    const STUDIO_GROUP: &str = "grouped_light/g1";
+    const BREATHE_BODY: &str = r#"{"alert":{"action":"breathe"}}"#;
+    const CLEAR_BODY: &str = r#"{"on":{"on":false}}"#;
+
+    /// The `loop` family holding the whole studio, which is the map both of the
+    /// states below resolve through: glow and breathing are produced by the
+    /// SAME family, so they reach the same fixture.
+    fn loop_lights() -> pns::config::Lights {
+        *pns::config::parse_config("[lights.families.loop]\nrooms = [\"3F - Studio\"]\n")
+            .expect("the test's own config parses")
+            .lights
+            .expect("and carries a lights table")
+    }
+
+    /// One state armed at noon, with no quiet window anywhere.
+    fn armed(behaviour: pns::config::Behaviour) -> pns::channels::hue::Arming<'static> {
+        pns::channels::hue::Arming {
+            behaviour,
+            refresh_secs: 12,
+            fallback: Ok(None),
+            minutes_now: Some(12 * 60),
+            started_minutes: Some(12 * 60),
+        }
+    }
+
+    /// What the held record says now, or None when there is no record.
+    fn recorded(state: &std::path::Path) -> Option<String> {
+        std::fs::read_to_string(state.join(LIGHTS_GLOW_HELD))
+            .ok()
+            .map(|line| line.trim().to_string())
+    }
+
+    #[test]
+    fn breathing_over_a_held_glow_leaves_the_steady_write_alone_and_a_dark_house_puts_it_out() {
+        // THE ARM AND THE CLEAR ARE ONE ORDERED PAIR, and this is that pair.
+        // Glow and breathing are produced by the same family, so they resolve
+        // to the SAME fixture; a clear computed as "everything held that is not
+        // held now" makes every glow path stale the moment the house turns to
+        // breathing, and the tick then PUTs the breathe and the off to one lamp
+        // in that order. The lamp ends up dark, the record is forgotten, and
+        // breathing is dead for the rest of the run.
+        //
+        // Glow to breathing is the ORDINARY way into breathing: glow needs
+        // nothing working and breathing needs something working, so the
+        // transition happens the moment work resumes during an absence.
+        let state = scratch("breathing-over-glow");
+        let held = vec![STUDIO_GROUP.to_string()];
+        std::fs::write(state.join(LIGHTS_GLOW_HELD), format!("{STUDIO_GROUP}\n"))
+            .expect("the held record");
+
+        let bridge = scripted(Some(ONE_ROOM));
+        let complaints = arm_clear_and_remember(
+            &bridge,
+            &state,
+            &loop_lights(),
+            Some(&armed(pns::config::Behaviour::Breathing)),
+            &held,
+        );
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[(STUDIO_GROUP.to_string(), BREATHE_BODY.to_string())],
+            "the breathe and NOTHING after it: the bridge's breathe modulates a \
+             lit lamp, so an off behind it leaves nothing to swell"
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(
+            recorded(&state).as_deref(),
+            Some(STUDIO_GROUP),
+            "and the steady write underneath is still outstanding, so the record \
+             has to keep it or nothing will ever put that lamp out"
+        );
+
+        // THE OTHER DIRECTION, which is what the clear exists for: a house with
+        // nothing to show writes to no fixture at all, so the held path really
+        // is stale and goes out by name.
+        let bridge = scripted(Some(ONE_ROOM));
+        let complaints = arm_clear_and_remember(&bridge, &state, &loop_lights(), None, &held);
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[(STUDIO_GROUP.to_string(), CLEAR_BODY.to_string())],
+            "the lamp is put out by name"
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(
+            recorded(&state),
+            None,
+            "and the tick stops claiming to hold it"
+        );
+    }
+
+    #[test]
+    fn a_wait_that_ended_loses_its_marker_whether_or_not_the_lamps_are_live() {
+        // REMOVAL IS CHEAP AND CREATION IS NOT, which is why one gate cannot
+        // serve both. Gating the whole update on the feature switches stopped
+        // the marker being CLEARED as well: a wait that ended while hue was off
+        // stayed on disk, and re-enabling hue inside the thirty-minute bound
+        // put needs-you back on a lamp for a session nobody is waiting on.
+        let state = scratch("needs-marker-end-ungated");
+        let marker = pns::lights::needs_marker(&state, "s1").expect("a usable session id");
+        std::fs::create_dir_all(marker.parent().expect("the needs directory"))
+            .expect("the needs directory");
+        std::fs::write(&marker, "1000\n").expect("a wait in progress");
+
+        update_needs_marker(&state, "s1", "done", false);
+        assert!(
+            !marker.exists(),
+            "the wait ended, so the marker goes, lamps live or not: it is one \
+             unlink and it clears a leftover from when they were"
+        );
+
+        update_needs_marker(&state, "s1", "blocked", false);
+        assert!(
+            !marker.exists(),
+            "but STARTING one stays gated: a machine that never asked for the \
+             lamps must not accumulate files that nothing will ever sweep"
+        );
+
+        update_needs_marker(&state, "s1", "blocked", true);
+        assert!(
+            marker.exists(),
+            "and a machine with them live starts the wait, which is what makes \
+             the two assertions above a difference rather than a dead path"
+        );
+    }
+
+    #[test]
+    fn the_sweep_leaves_a_marker_that_is_mid_publish_alone() {
+        // `publish_state_line` writes `<name>.new.<pid>` INTO THIS DIRECTORY
+        // and renames it over the marker, so a pending file is an ordinary
+        // entry the sweep walks. Between the open and the rename there is no
+        // epoch in it to read, and an unreadable-means-delete rule unlinks it
+        // there: the racing rename then publishes nothing and the wait is lost
+        // with the agent still waiting on the operator.
+        let state = scratch("sweep-skips-pending");
+        let needs = pns::lights::needs_dir(&state);
+        std::fs::create_dir_all(&needs).expect("the needs directory");
+        std::fs::write(needs.join("s1"), "1000\n").expect("a live wait");
+        let pending = needs.join(format!("s2.new.{}", std::process::id()));
+        std::fs::write(&pending, "").expect("a marker caught mid-publish");
+        std::fs::write(needs.join("s3"), "not an epoch\n").expect("an unreadable marker");
+
+        assert_eq!(
+            sweep_needs(&state, 1000),
+            vec![1000],
+            "the live wait is still what the sweep answers with"
+        );
+        assert!(
+            pending.exists(),
+            "and the pending file is left for its own rename to publish"
+        );
+        assert!(
+            !needs.join("s3").exists(),
+            "while a marker that really is unreadable is still swept: nothing \
+             else ages out a file whose epoch cannot be read"
+        );
+    }
+
+    #[test]
+    fn the_glow_reads_its_return_edge_off_the_marker_and_the_news_off_the_journal() {
+        // THE WIRING, not the rule. `glow_since` is pure and total and has no
+        // clock of its own, so an edge invented at the call site (`Some(now)`,
+        // say) leaves every one of its unit tests green while the glow can
+        // never fire on a real machine at all: no journal entry is ever newer
+        // than this second. This is the seam that costs the whole state, and it
+        // is pinned here against real files, in both directions.
+        let state = scratch("glow-return-edge");
+        std::fs::write(
+            state.join(MISSED_NOTIFICATIONS),
+            "{\"at\":1000,\"agent\":\"claude\",\"state\":\"blocked\",\
+             \"project\":\"dotfiles\",\"branch\":\"main\",\"detail\":\"x\"}\n",
+        )
+        .expect("the journal");
+
+        std::fs::write(state.join(LAST_PRESENT), "500\n").expect("an old return edge");
+        assert_eq!(
+            glow_reading(&state, false),
+            Some(1000),
+            "news journalled AFTER the operator was last here is unseen, and the \
+             glow answers the second it landed"
+        );
+
+        std::fs::write(state.join(LAST_PRESENT), "1500\n").expect("a newer return edge");
+        assert_eq!(
+            glow_reading(&state, false),
+            None,
+            "and the edge moving past it is what puts the state out with no \
+             timeout and no second clear path"
+        );
+
+        std::fs::remove_file(state.join(LAST_PRESENT)).expect("the edge goes");
+        assert_eq!(
+            glow_reading(&state, false),
+            None,
+            "no edge at all is no glow: a machine that cannot prove the operator \
+             ever came back cannot prove this news is unseen either"
+        );
+    }
+
+    #[test]
+    fn a_tick_whose_bridge_answered_nothing_keeps_the_glow_it_was_holding() {
+        // A LISTING THAT FAILED IS DIRECT EVIDENCE THE TRANSPORT IS DOWN, and
+        // clearing off it forgets the paths after PUTs nobody can prove landed.
+        // The lamp is then lit at 25 percent magenta with nothing left in the
+        // system that knows about it: the condition ends, so no later tick has
+        // anything held to clear, and the event path reads an empty record and
+        // returns without a call.
+        let state = scratch("bridge-down-keeps-the-record");
+        std::fs::write(state.join(LIGHTS_GLOW_HELD), format!("{STUDIO_GROUP}\n"))
+            .expect("the held record");
+
+        let bridge = scripted(None);
+        let complaints = arm_clear_and_remember(
+            &bridge,
+            &state,
+            &loop_lights(),
+            Some(&armed(pns::config::Behaviour::Glow)),
+            &[STUDIO_GROUP.to_string()],
+        );
+        assert!(
+            bridge.puts.borrow().is_empty(),
+            "a bridge that answered no listing is written to for nothing: {:?}",
+            bridge.puts.borrow()
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(
+            recorded(&state).as_deref(),
+            Some(STUDIO_GROUP),
+            "and the record survives the outage, so the next reachable tick still \
+             has a name to write the clear to"
+        );
+    }
 
     #[test]
     fn a_hue_table_nobody_wrote_and_one_switched_off_are_different_reports() {

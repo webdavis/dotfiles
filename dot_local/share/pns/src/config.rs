@@ -116,6 +116,15 @@ pub struct Lights {
     pub refresh_secs: u64,
     pub breathe_after_secs: u64,
     pub dim_brightness: u8,
+    /// WHICH activities put the loop lamp on breathing. Every source not named
+    /// here contributes nothing to the condition; the ones named still do.
+    ///
+    /// AN ABSENT KEY IS RESOLVED TO THE FULL SET AT PARSE TIME, which is what
+    /// lets this be a plain `Vec`. Absent means every source and an empty list
+    /// means breathing off, and a `Vec` cannot tell those apart by itself; the
+    /// alternative is an `Option` every reader has to remember to unwrap the
+    /// right way round.
+    pub breathe_on: Vec<BreatheSource>,
     pub families: BTreeMap<String, Family>,
     pub places: BTreeMap<String, Place>,
 }
@@ -133,7 +142,13 @@ pub struct Place {
     pub quiet_mode: QuietMode,
     /// CATCH-UP DEFAULTS OFF (operator ruling): a state that was suppressed
     /// through the night is news nobody wants at 07:00.
-    pub catch_up: bool,
+    ///
+    /// `None` IS "SAID NOTHING", which is what a plain `bool` could not spell.
+    /// The chain is walked specific first per setting, so a lamp that wrote
+    /// `false` has to be able to turn its room's `true` back off; with a bool,
+    /// "not written" and "written false" were the same value and the room won
+    /// either way. Absent at every rung is off, which is the ruling above.
+    pub catch_up: Option<bool>,
 }
 
 /// What a lamp can say. A CLOSED SET, which is the whole reason `[lights]` is
@@ -157,6 +172,37 @@ pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 5] = [
     ("needs-you", Behaviour::NeedsYou),
     ("breathing", Behaviour::Breathing),
     ("glow", Behaviour::Glow),
+];
+
+/// One kind of work that can put the loop lamp on breathing.
+///
+/// A CLOSED SET, judged at load for `Behaviour`'s reason: a `breathe_on`
+/// holding a word nothing matches is a lamp that stays dark while the operator
+/// is sure they switched it on, with no message anywhere.
+///
+/// THE TWO AGENT SOURCES DIFFER ONLY IN PATIENCE. `AgentWork` breathes the
+/// moment herdr says a workspace is working; `AgentLoops` waits for that to
+/// have been true continuously for `breathe_after_secs`. Naming both is
+/// harmless and the eager one simply wins.
+///
+/// THE TWO COMMAND SOURCES DIFFER THE SAME WAY, over the shell's own marker:
+/// `Commands` is any tracked command, `LongCommands` only one that has been
+/// running past the notifier's long tier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BreatheSource {
+    AgentWork,
+    AgentLoops,
+    Commands,
+    LongCommands,
+}
+
+/// The four words, in the spelling a config uses, and the order the refusal
+/// lists them in.
+pub const BREATHE_SOURCE_WORDS: [(&str, BreatheSource); 4] = [
+    ("agent-work", BreatheSource::AgentWork),
+    ("agent-loops", BreatheSource::AgentLoops),
+    ("commands", BreatheSource::Commands),
+    ("long-commands", BreatheSource::LongCommands),
 ];
 
 /// What quiet hours DO to a place: take the signal away, or show it faintly.
@@ -186,14 +232,32 @@ impl Default for Lights {
             refresh_secs: DEFAULT_REFRESH_SECS,
             breathe_after_secs: DEFAULT_BREATHE_AFTER_SECS,
             dim_brightness: DEFAULT_DIM_BRIGHTNESS,
+            // EVERY SOURCE THAT WAITS, which is the breathing the design
+            // describes: an agent loop past `breathe_after_secs`, and either
+            // command tier. `AgentWork` is left OUT because it breathes on any
+            // working workspace with no duration test, and an eager source in
+            // the default set wins every time, which would leave
+            // `breathe_after_secs` governing nothing at all. It stays available
+            // by name, so this narrows the default rather than the vocabulary.
+            breathe_on: BREATHE_SOURCE_WORDS
+                .iter()
+                .map(|(_, source)| *source)
+                .filter(|source| *source != BreatheSource::AgentWork)
+                .collect(),
             families: BTreeMap::new(),
             places: BTreeMap::new(),
         }
     }
 }
 
-/// How often a lamp holding a state is re-armed. The operator's own figure.
-const DEFAULT_REFRESH_SECS: u64 = 20;
+/// How often a lamp holding a state is re-armed.
+///
+/// TWELVE, WHICH IS THE TEMPLATE'S OWN ADVICE and not a round number: breathing
+/// asks the bridge for its own breathe, a swell the BRIDGE ends by itself after
+/// about fifteen seconds, so a default above that would have the lamp finish its
+/// swell and sit dark until the next tick. An operator who writes `[lights]` and
+/// nothing else gets breathing rather than a slow blink.
+const DEFAULT_REFRESH_SECS: u64 = 12;
 
 /// The floor under it, and it is the TRANSPORT DEADLINE rather than a round
 /// number: a tick makes bounded bridge calls whose own limit is ten seconds
@@ -202,10 +266,20 @@ const DEFAULT_REFRESH_SECS: u64 = 20;
 /// pile of children rather than a faster lamp.
 const MIN_REFRESH_SECS: u64 = 10;
 
-/// And the ceiling. A day is not a refresh; past this the signal has expired
+/// And the ceiling: the ORDINARY LEASE, which is the longest interval that can
+/// still re-arm a lamp before the lease behind it runs out.
+///
+/// IT IS A LEASE BOUND RATHER THAN A ROUND NUMBER. The tick is registered with
+/// `until` at least as far as its own first due second, so a refresh longer than
+/// the ordinary lease used to EXTEND that lease to the refresh: an allowed 600
+/// seconds bought a ten-minute lease and an allowed day bought a sticky glow
+/// nothing was left to clear. Refusing the interval at load is what keeps the
+/// two lease lengths the fixed numbers they are documented as.
+///
+/// A day is not a refresh in any case: past a few minutes the signal has expired
 /// and gone dark long before the next arm, so the lamp would be off for
 /// virtually the whole interval while the config claimed a state.
-const MAX_REFRESH_SECS: u64 = 86_400;
+const MAX_REFRESH_SECS: u64 = 300;
 
 /// How long a loop must have been working before its lamp breathes. The
 /// operator's own figure: fifteen minutes.
@@ -654,6 +728,7 @@ fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
                     MAX_BREATHE_AFTER_SECS,
                 )?;
             }
+            "breathe_on" => lights.breathe_on = breathe_sources(&setting)?,
             "families" => lights.families = parse_families(&setting)?,
             "places" => lights.places = parse_places(&setting)?,
             "dim_brightness" => {
@@ -677,6 +752,29 @@ fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
         }
     }
     Ok(lights)
+}
+
+/// `breathe_on`, refused BY NAME for anything outside the closed set.
+fn breathe_sources(stated: &toml::Value) -> Result<Vec<BreatheSource>, ConfigError> {
+    let words = strings("lights", "breathe_on", "a list of activity names", stated)?;
+    words
+        .iter()
+        .map(|word| {
+            BREATHE_SOURCE_WORDS
+                .iter()
+                .find(|(spelling, _)| spelling == word)
+                .map(|(_, source)| *source)
+                .ok_or_else(|| {
+                    let known: Vec<&str> =
+                        BREATHE_SOURCE_WORDS.iter().map(|(word, _)| *word).collect();
+                    ConfigError::Invalid(format!(
+                        "`lights` key `breathe_on` names `{word}`, which is nothing the lamps \
+                         watch; they watch {}",
+                        known.join(", ")
+                    ))
+                })
+        })
+        .collect()
 }
 
 /// `[lights.families]`, one table per source family.
@@ -751,12 +849,12 @@ fn parse_places(setting: &toml::Value) -> Result<BTreeMap<String, Place>, Config
                 "quiet_hours" => place.quiet_hours = Some(text(&where_it_is, key, stated)?),
                 "quiet_mode" => place.quiet_mode = quiet_mode(&where_it_is, stated)?,
                 "catch_up" => {
-                    place.catch_up = stated.as_bool().ok_or_else(|| {
+                    place.catch_up = Some(stated.as_bool().ok_or_else(|| {
                         ConfigError::Invalid(format!(
                             "`{where_it_is}` key `catch_up` has type `{}`, not boolean",
                             stated.type_str()
                         ))
-                    })?;
+                    })?);
                 }
                 _ => {
                     return Err(ConfigError::Invalid(format!(
@@ -1150,8 +1248,8 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Behaviour, ConfigError, Family, Lights, LoadOutcome, Place, QuietMode, config_path,
-        load_config, parse_config, submit_deadline,
+        BREATHE_SOURCE_WORDS, Behaviour, BreatheSource, ConfigError, Family, Lights, LoadOutcome,
+        Place, QuietMode, config_path, load_config, parse_config, submit_deadline,
     };
     use std::time::Duration;
 
@@ -2085,6 +2183,13 @@ mod tests {
             Some(Box::new(Lights::default())),
             "and an empty table is every default, written out"
         );
+        assert_eq!(
+            Lights::default().refresh_secs,
+            12,
+            "and the refresh an operator gets by writing `[lights]` alone is \
+             inside the ceiling the template states for smooth breathing, not \
+             above it: the bridge ends its own swell at about fifteen seconds"
+        );
     }
 
     #[test]
@@ -2116,7 +2221,7 @@ mod tests {
         for (key, written) in [
             ("refresh_secs", "0"),
             ("refresh_secs", "1"),
-            ("refresh_secs", "86401"),
+            ("refresh_secs", "301"),
             ("breathe_after_secs", "0"),
             ("breathe_after_secs", "604800"),
             ("dim_brightness", "0"),
@@ -2148,7 +2253,7 @@ mod tests {
             (10, 1, 1)
         );
         let edges = parse_config(
-            "[lights]\nrefresh_secs = 86400\nbreathe_after_secs = 86400\ndim_brightness = 100\n",
+            "[lights]\nrefresh_secs = 300\nbreathe_after_secs = 86400\ndim_brightness = 100\n",
         )
         .unwrap()
         .lights
@@ -2159,7 +2264,7 @@ mod tests {
                 edges.breathe_after_secs,
                 edges.dim_brightness
             ),
-            (86400, 86400, 100)
+            (300, 86400, 100)
         );
     }
 
@@ -2231,7 +2336,7 @@ mod tests {
                 skip: vec![Behaviour::Breathing, Behaviour::Glow],
                 quiet_hours: Some("22:00-07:00".to_string()),
                 quiet_mode: QuietMode::Dim,
-                catch_up: true,
+                catch_up: Some(true),
             }
         );
         assert_eq!(
@@ -2284,5 +2389,76 @@ mod tests {
         let outcome = load_config(&path);
         std::fs::remove_file(&path).ok();
         assert!(matches!(outcome, Err(ConfigError::Malformed(_))));
+    }
+
+    #[test]
+    fn breathe_on_names_which_activities_breathe_and_absent_is_the_thresholded_default() {
+        assert_eq!(
+            parse_config("[lights]\n")
+                .unwrap()
+                .lights
+                .unwrap()
+                .breathe_on,
+            vec![
+                BreatheSource::AgentLoops,
+                BreatheSource::Commands,
+                BreatheSource::LongCommands
+            ],
+            "an operator who said nothing gets breathing that WAITS. `agent-work` \
+             breathes on any working workspace with no duration test at all, so \
+             defaulting it on would leave `breathe_after_secs` governing nothing \
+             while the template beside it says that key is what calls a run a loop"
+        );
+        assert_eq!(
+            parse_config("[lights]\nbreathe_on = [\"agent-work\"]\n")
+                .unwrap()
+                .lights
+                .unwrap()
+                .breathe_on,
+            vec![BreatheSource::AgentWork],
+            "and it is still there for an operator who names it: the default \
+             narrows the set, it does not take a source out of the vocabulary"
+        );
+        assert_eq!(
+            parse_config("[lights]\nbreathe_on = [\"agent-loops\", \"long-commands\"]\n")
+                .unwrap()
+                .lights
+                .unwrap()
+                .breathe_on,
+            vec![BreatheSource::AgentLoops, BreatheSource::LongCommands],
+        );
+        // AN EMPTY LIST IS BREATHING OFF, and it is a different config from an
+        // absent key. A `Vec` cannot tell those apart on its own, which is why
+        // the default is resolved to the full set at PARSE time rather than
+        // left for a reader to guess at.
+        assert!(
+            parse_config("[lights]\nbreathe_on = []\n")
+                .unwrap()
+                .lights
+                .unwrap()
+                .breathe_on
+                .is_empty(),
+            "an operator who named no source asked for no breathing"
+        );
+    }
+
+    #[test]
+    fn a_breathe_on_value_outside_the_closed_set_is_refused_at_load_by_name() {
+        let said = refusal("[lights]\nbreathe_on = [\"agent-work\", \"agent-loop\"]\n");
+        assert!(
+            said.contains("breathe_on") && said.contains("agent-loop"),
+            "the key and the value are both named: {said}"
+        );
+        for known in BREATHE_SOURCE_WORDS.iter().map(|(word, _)| *word) {
+            assert!(
+                said.contains(known),
+                "and the closed set is spelled out, or an operator cannot fix it: {said}"
+            );
+        }
+        let said = refusal("[lights]\nbreathe_on = \"agent-work\"\n");
+        assert!(
+            said.contains("breathe_on"),
+            "a bare string is not a list of sources: {said}"
+        );
     }
 }

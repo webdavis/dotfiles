@@ -2783,6 +2783,96 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
     );
 }
 
+// --- the lamps' needs markers -----------------------------------------------
+
+/// The lamps switched on: a map, and the transport enabled. BOTH, because a
+/// `[lights]` table with hue disabled lights nothing and runs no tick, so
+/// there would be nothing to sweep the markers it wrote.
+const LAMPS_ON: &str = "[plugins.hue]\nenabled = true\n\
+     [lights]\nrefresh_secs = 20\n[lights.families.local]\nrooms = [\"3F - Studio\"]\n";
+
+/// Every session the lamps currently believe is waiting on the operator.
+fn waiting_sessions(sandbox: &Sandbox) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(sandbox.path("state/lights-needs"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn a_waiting_agent_leaves_a_marker_and_the_next_event_from_that_session_removes_it() {
+    let sandbox = Sandbox::new("lights-needs-marker");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "asked",
+        r#"{"session_id":"s2","message":"and I"}"#,
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string(), "s2".to_string()],
+        "two waiting sessions, two markers"
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s1"}"#,
+    );
+    // COMPLETENESS OVER COUNTS: the survivor is named, so a clear that took
+    // the wrong session's marker cannot pass by leaving the right number of
+    // files behind.
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s2".to_string()],
+        "the answered session's marker is gone and the other one is untouched"
+    );
+}
+
+#[test]
+fn an_event_with_no_session_id_behind_it_holds_no_lamp() {
+    // THE HONEST LIMIT, pinned so a later build cannot quietly invent an
+    // identity: an event that arrives on argv rather than through a harness
+    // hook has nothing that could later say the wait ended, so it gets the
+    // flash and cannot hold the lamp.
+    let sandbox = Sandbox::new("lights-needs-no-session");
+    sandbox.write_config(LAMPS_ON);
+    let mut command = with_state_dir(&sandbox);
+    sandbox.stub_herdr(&mut command, false);
+    let output = command
+        .args(["--agent", "claude", "--state", "blocked", "--detail", "x"])
+        .output()
+        .expect("the engine runs");
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "no identity, no marker"
+    );
+    // AND A HOOK PAYLOAD CARRYING AN ID THAT CANNOT BE A FILENAME is the same
+    // answer through the other door.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"../../etc/passwd","message":"may I"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "a traversal names no marker at all"
+    );
+}
+
 // --- the nag ----------------------------------------------------------------
 //
 // The feature's own harness. A record is written BY HAND here rather than
@@ -3683,33 +3773,48 @@ fn the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there(
         ]));
 
         let daemon = support::DaemonGuard::start(&sandbox, 50);
-        let said = support::poll_until(|| {
-            let said = daemon.said();
-            said.contains("nag:s1").then_some(said)
-        })
-        .unwrap_or_else(|| {
-            panic!(
-                "{case}: the daemon never reached the job: {}",
-                daemon.said()
-            )
-        });
 
         if answered {
+            // A DROP IS STILL SAID, so the daemon's own line stays the probe on
+            // this row: refusing a job is news, and it is the one thing this
+            // case exists to prove.
+            let said = support::poll_until(|| {
+                let said = daemon.said();
+                said.contains("nag:s1").then_some(said)
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "{case}: the daemon never reached the job: {}",
+                    daemon.said()
+                )
+            });
             assert!(
                 said.contains("dropped `nag:s1` because its marker was already there"),
                 "{case}: {said}"
             );
-            assert!(
-                !said.contains("ran `nag:s1`"),
-                "{case}: the job is dropped WITHOUT spawning a nag process at all: {said}"
+            // AND NOTHING WAS SPAWNED AT ALL, which the absent card is what
+            // proves: a firing that worked now says nothing, so there is no
+            // `ran` line left whose absence could stand for it.
+            assert_eq!(
+                deliveries(&sandbox, "hermes"),
+                0,
+                "{case}: the job is dropped WITHOUT spawning a nag process at all"
             );
-            assert_eq!(deliveries(&sandbox, "hermes"), 0, "{case}");
         } else {
-            assert!(said.contains("ran `nag:s1`"), "{case}: {said}");
+            // THE CARD IS THE PROBE, because a firing that WORKED says nothing.
+            // The daemon's success line went when one line per firing became
+            // 300 an hour for the lights tick, so the delivery and the consumed
+            // record carry the whole path that line used to stand for, and they
+            // carry more of it than the line did.
             let delivered = support::poll_until(|| {
                 (deliveries(&sandbox, "hermes") > 0).then(|| deliveries(&sandbox, "hermes"))
             });
-            assert_eq!(delivered, Some(1), "{case}: exactly one card");
+            assert_eq!(
+                delivered,
+                Some(1),
+                "{case}: exactly one card; the daemon said: {}",
+                daemon.said()
+            );
             assert!(
                 !nag_record(&sandbox, "s1").exists(),
                 "{case}: and the record is consumed by the fire the daemon started"
