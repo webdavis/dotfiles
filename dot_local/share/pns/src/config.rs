@@ -104,11 +104,20 @@ const DEFAULT_MIN_EVENTS: usize = 8;
 /// How long the summarizer may take before the recap gives up on it and posts
 /// the plain lists.
 ///
-/// FOUR MINUTES, and it is generous on purpose. MEASURED on this machine:
-/// `ollama run qwen3.5:4b` over the same prompt took 3m20s on a cold model load
-/// and 9.3s warm. Nobody is waiting on it, because the caller is the detached
-/// process the event path never joined; a deadline under the cold case would
-/// turn every first recap after a reboot into the fallback.
+/// FOUR MINUTES, and it is generous on purpose. WHAT IT COVERS IS GENERATION,
+/// not a model load. Measured with `ollama run qwen3.5:4b` on one machine (an
+/// M1 under load): a cold model load cost about 5.5 seconds, paid once, while
+/// a full three-call episode took about 114.6 seconds, of which roughly 113.9
+/// was tokens being generated at about eleven a second. Prefill was 185
+/// milliseconds for 2,050 tokens, so the whole bill is the LENGTH OF THE
+/// ANSWER and every other term rounds to noise. Nobody is waiting on it,
+/// because the caller is the detached process the event path never joined.
+///
+/// THE SECONDS ARE ONE MACHINE ON ONE EVENING. What is durable is the shape
+/// (prefill free, generation everything, the load small and paid once); the
+/// figures are here to be recalibrated by whoever next tunes this number, and
+/// no test encodes one. A backend that generates less is what makes this
+/// faster, and the config file's own comment carries how.
 ///
 /// ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `min_events`'s zero. A deadline
 /// of nothing simply cannot be met, so the recap falls to the plain lists and
@@ -117,8 +126,8 @@ const DEFAULT_MIN_EVENTS: usize = 8;
 const DEFAULT_SUMMARIZER_DEADLINE_SECS: u64 = 240;
 
 /// The most any summarizer may be given. ONE HOUR, which is fifteen times the
-/// cold load the default covers, so no honest backend on any machine meets it;
-/// see `seconds` for the two failures that live past it.
+/// default, so no honest backend on any machine meets it; see `seconds` for the
+/// two failures that live past it.
 const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
 
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
@@ -925,17 +934,19 @@ mod tests {
     }
 
     #[test]
-    fn the_summarizers_deadline_is_a_count_of_seconds_defaulted_to_a_cold_model_load() {
-        // FOUR MINUTES, because a cold `ollama` load MEASURED 3m20s on this
-        // machine against 9.3s warm, and nobody is waiting: the caller is a
-        // process the event path never joined.
+    fn the_summarizers_deadline_is_a_count_of_seconds_with_a_generous_default() {
+        // FOUR MINUTES, and what it covers is GENERATION. MEASURED on one
+        // machine: a whole three-call episode took about 114.6 seconds, nearly
+        // all of it tokens arriving at about eleven a second, while the cold
+        // model load cost about 5.5 seconds and was paid once. Nobody is
+        // waiting: the caller is a process the event path never joined.
         assert_eq!(
             parse_config("[recap]\ndigest = true\n")
                 .unwrap()
                 .recap
                 .summarizer_deadline_secs,
             240,
-            "the default covers a cold model load"
+            "the default is generous against a measured episode"
         );
         assert_eq!(
             parse_config("[recap]\nsummarizer_deadline_secs = 5\n")
@@ -945,15 +956,15 @@ mod tests {
             5
         );
         // AND IT HAS A TOP END, refused by name for `min_events`'s own reason.
-        // An hour is already far past the cold load the default covers, and past
-        // it the two failures are real: nothing supervises the detached recap
-        // child, so a wedged backend holds one child and one backend process for
-        // as long as the number says, and `9223372036854775807` is a plain TOML
-        // integer that PANICS the child at `Instant::now() + deadline`
-        // (MEASURED: "overflow when adding duration to instant"). That panic
-        // lands in a process whose stderr is /dev/null and whose exit code
-        // nobody reads, so the recap vanishes with no rung of the ladder taken,
-        // after the card has already said it is coming.
+        // An hour is already far past the default, and past it the two failures
+        // are real: nothing supervises the detached recap child, so a wedged
+        // backend holds one child and one backend process for as long as the
+        // number says, and `9223372036854775807` is a plain TOML integer that
+        // PANICS the child at `Instant::now() + deadline` (MEASURED: "overflow
+        // when adding duration to instant"). That panic lands in a process
+        // whose stderr is /dev/null and whose exit code nobody reads, so the
+        // recap vanishes with no rung of the ladder taken, after the card has
+        // already said it is coming.
         assert_eq!(
             parse_config("[recap]\nsummarizer_deadline_secs = 3600\n")
                 .unwrap()
