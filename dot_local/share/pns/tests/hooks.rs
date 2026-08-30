@@ -1209,6 +1209,49 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     );
 }
 
+#[test]
+fn a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
+    // A STRUCTURAL GUARD, and it says so about itself: it passes the moment
+    // the field exists, and its whole job is to keep passing. `blocking_event`
+    // decides the forward through `forward_to_moshi`, which reads the presence
+    // probes and never constructs a delivery plan, so nothing on `Overrides`
+    // can reach it. That guarantee breaks by MOVING code rather than by
+    // editing a line this feature added, which no unit test can observe.
+    //
+    // THE NEAR DUPLICATE OF THE MUTE'S OWN TEST IS DELIBERATE. That one would
+    // keep passing on the day a Focus started suppressing approvals, and this
+    // is a safety property: an operator inside a Focus who blocks on a
+    // permission prompt still gets the card and still answers it.
+    let sandbox = Sandbox::new("hook-blocked-focus");
+    let mut command = with_state_dir(&sandbox);
+    // Away, so the phone is the only way to answer at all.
+    command.env("PNS_IDLE_SECS", "99999");
+    sandbox.stub_moshi(&mut command, 42);
+    sandbox.write_focus_store("com.apple.sleep.sleep-mode", "Sleep");
+    sandbox.write_config(
+        "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n\
+         [plugins.macos-banner]\nenabled = true\n[focus]\nsilence = [\"Sleep\"]\n",
+    );
+
+    let payload = "{\"message\":\"may I\",\"session_id\":\"s1\"}\n";
+    let output = hook_with(command, &sandbox, "blocked", payload);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "the exit code IS the operator's decision, Focus or not"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("moshi.stdin")).expect("moshi read the payload"),
+        payload,
+        "byte for byte: a consumed-but-not-forwarded stream leaves moshi with an empty parse"
+    );
+    assert!(
+        sandbox.fired("hermes"),
+        "the durable log is never silenced by a Focus either"
+    );
+}
+
 /// Stubs live here rather than in the shared harness: only this suite spawns
 /// a condenser or an approval round trip.
 trait HookStubs {

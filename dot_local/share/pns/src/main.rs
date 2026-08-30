@@ -1915,13 +1915,14 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // Three of its four fields are bools; spread into this tuple they would sit
     // adjacent here and in the call below, which is a swap nothing would catch,
     // and a struct with named fields cannot be transposed.
-    let (hue_table, watch_card, moshi_token, hermes_key, recap) = match &loaded {
+    let (hue_table, watch_card, moshi_token, hermes_key, recap, focus_silence) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
             mobile_watch_card(config),
             plugin_settings(config, "moshi").and_then(moshi_secret),
             plugin_settings(config, "hermes").and_then(hermes_secret),
             config.recap.clone(),
+            config.focus_silence.clone(),
         ),
         // A config that could not be read falls back to the DEFAULTS of all
         // five, and deliberately disagrees with the plugin selection below,
@@ -1935,7 +1936,19 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
         // file is unreadable rather than absent. A config nobody can parse
         // must not silently stop delivering misses the doctor is already
         // telling the operator are waiting.
-        _ => (None, false, None, None, pns::config::Recap::default()),
+        //
+        // THE FOCUS LIST FALLS BACK TO EMPTY, which is the feature off. It is
+        // the same reading as the secrets rather than the recap's: an
+        // unreadable file asked for nothing, and a Focus policy nobody could
+        // read must not silence a notification.
+        _ => (
+            None,
+            false,
+            None,
+            None,
+            pns::config::Recap::default(),
+            Vec::new(),
+        ),
     };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
@@ -1959,8 +1972,13 @@ fn run_event(event: &pns::args::EventArgs, probes: &SystemProbes<SystemCommandRu
     // second copy of a rule that then drifts. `overrides_from_env` cannot
     // reach the field, which is what keeps a variable from ever muting the
     // operator or ending a mute they are still inside.
+    //
+    // THE OPERATING SYSTEM'S MUTE IS STATED THE SAME WAY, off the Do Not
+    // Disturb store rather than a state file pns writes. An unreadable store
+    // reads as not silenced: see `focus_now`.
     let overrides = Overrides {
         muted: muted_now(now_secs),
+        focus_active: focus_now(&home, &focus_silence).is_ok_and(|reading| reading.silenced),
         ..overrides_from_env()
     };
 
@@ -2651,17 +2669,19 @@ fn doctor_mode() -> i32 {
     let loaded = load_config(&config_path(&home));
     // The same readings `run_event` takes off the same config, before
     // selection consumes it.
-    let (hue_table, moshi_token, hermes_key, replay_card) = match &loaded {
+    let (hue_table, moshi_token, hermes_key, replay_card, focus_silence) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
             plugin_settings(config, "moshi").and_then(moshi_secret),
             plugin_settings(config, "hermes").and_then(hermes_secret),
             config.recap.replay_card,
+            config.focus_silence.clone(),
         ),
         // THE SWITCH FALLS BACK ON, which is the fallback `run_event` takes
         // for the same reading. The two must agree or the doctor describes a
-        // delivery the event would not make.
-        _ => (None, None, None, true),
+        // delivery the event would not make, and the Focus list falls back
+        // EMPTY here for the same reason it does there.
+        _ => (None, None, None, true, Vec::new()),
     };
     let registry = roster();
     // THE BROKEN-CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins`
@@ -2754,6 +2774,10 @@ fn doctor_mode() -> i32 {
     for line in pns::doctor::pairing_lines(&pairing) {
         println!("{line}");
     }
+    // GATE STATE ABOVE THE HISTORY THE GATE EXPLAINS, and below the pairing
+    // check, which is health. It must NOT move the exit code, for the reason
+    // the decision section does not: a Focus being on is not a fault.
+    println!("{}", focus_line(&home, &focus_silence));
     // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
     // census plus its summary is one complete thought whose line order the
     // suite already pins, and nothing below can disturb it.
@@ -2893,6 +2917,78 @@ fn missed_line(replay_card: bool) -> String {
 /// module, for the reason `DECISIONS_UNREADABLE` is.
 const MISSED_UNREADABLE: &str = "pns doctor: the missed-notification journal could not be read";
 
+/// What Focus is doing to this machine right now, in one sentence.
+///
+/// THE UNREADABLE STATE IS WHAT EARNS THE LINE. If the store is ever gated
+/// behind Full Disk Access, moves, or changes schema, this feature dies OPEN
+/// and SILENT: pns simply stops respecting Focus, and nothing else anywhere
+/// would ever say so.
+///
+/// THE ACCEPTED LIMIT, stated rather than designed around: the parser is
+/// TOTAL, so bytes that are not JSON at all, and a schema change that leaves
+/// the file valid JSON, both read as "no Focus" rather than as an error. Only
+/// a failed READ of the file itself reaches the last two sentences, and a
+/// store that had stopped being readable in any useful sense would still be
+/// reported as quiet. Telling those apart needs a positive assertion about a
+/// shape Apple promises nothing about.
+///
+/// FIVE SENTENCES, because ABSENT AND UNREADABLE ARE DIFFERENT THINGS TO SAY,
+/// which is the rule `decision_section` and `missed_line` already follow one
+/// screen up. A machine that has never asserted a Focus has no store, and
+/// telling that operator their database could not be read sends them after a
+/// Full Disk Access grant that was never the problem.
+fn focus_line(home: &str, silence: &[String]) -> String {
+    if silence.is_empty() {
+        return "pns doctor: focus awareness is off (no [focus] table names a mode to silence)"
+            .to_string();
+    }
+    match focus_now(home, silence) {
+        Ok(reading) => {
+            let state = if reading.silenced {
+                "pns doctor: a macOS Focus you named is ON, so banners, cards and pulses \
+                 are suppressed"
+            } else {
+                "pns doctor: no macOS Focus you named is active"
+            };
+            // A CATALOG NOBODY CAN READ RESOLVES NO NAMES, so a config written
+            // the way the template shows it silences nothing while this line
+            // otherwise reports perfect health. WHICH entries are names is not
+            // decidable without the very file that failed, so the clause is
+            // said whenever the catalog failed and the feature is on.
+            match reading.catalog {
+                None => state.to_string(),
+                Some(kind) => format!(
+                    "{state}; the mode catalog could not be read ({kind}), so no Focus NAME \
+                     can match and only a raw modeIdentifier still would"
+                ),
+            }
+        }
+        // ABSENT IS ITS OWN STATE, and the one this machine is in until macOS
+        // first writes the store. Anything else is a permission problem, a
+        // path holding something that is not a file, or a store past the read
+        // ceiling, which is a different thing to say.
+        //
+        // IT REPORTS WHAT WAS OBSERVED, "no database was found", rather than
+        // asserting there is none. Whether a Full Disk Access refusal can
+        // arrive as not-found rather than as a permission error is not
+        // provable on a machine that holds the grant, so the sentence is
+        // written to stay true either way.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            "pns doctor: no Focus database was found on this machine, so no Focus is being \
+             respected"
+                .to_string()
+        }
+        Err(error) => format!("{FOCUS_UNREADABLE} ({}).", error.kind()),
+    }
+}
+
+/// A Focus store that is there and cannot be read. Said HERE rather than in
+/// the module, for the reason `DECISIONS_UNREADABLE` is, and carrying the KIND
+/// for the reason its two neighbours do: gated, oversized and not-a-file are
+/// three different investigations.
+const FOCUS_UNREADABLE: &str =
+    "pns doctor: the Focus database could not be read, so Focus is being ignored";
+
 /// What a doctor typed wrong is told. ONE WORD AND NO FLAGS: a namespace built
 /// for callers that do not exist makes the common case longer to type, and the
 /// report absorbs a new section without a new spelling.
@@ -2902,9 +2998,9 @@ const DOCTOR_USAGE: &str = "pns: usage: pns doctor";
 /// effect is the decision log's question, and reporting live gate state here
 /// would be that feature built twice, in two places, from two readings.
 const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled channel. \
-     Every suppression gate is bypassed (the operator mute, the presence gate, the \
-     viewed-pane rule, the lights' quiet hours), because a check that can be suppressed \
-     proves nothing.";
+     Every suppression gate is bypassed (the operator mute, a macOS Focus you named, \
+     the presence gate, the viewed-pane rule, the lights' quiet hours), because a check \
+     that can be suppressed proves nothing.";
 
 /// The line for lights that were selected and never set up. It names the
 /// settings to write, the way moshi's and hermes's do, because "no rooms"
@@ -3694,6 +3790,76 @@ fn read_quiet_expiry() -> Option<u64> {
 /// engine's stated contract.
 fn muted_now(now_secs: Option<u64>) -> bool {
     pns::quiet::is_muted(read_quiet_expiry(), now_secs)
+}
+
+/// Where macOS keeps the Focus state, under the operator's own home.
+const FOCUS_DB: &str = "Library/DoNotDisturb/DB";
+
+/// One reading of the Focus store: the verdict the event path acts on, and
+/// what the mode catalog beside it did.
+///
+/// THE CATALOG'S FAILURE RIDES OUT ON THE ANSWER rather than being read a
+/// second time by the doctor. A second read is a second moment, and the doctor
+/// would then be reporting on a file the decision never saw.
+struct FocusReading {
+    /// Whether a mode `[focus] silence` named is asserted right now.
+    silenced: bool,
+    /// Why the mode catalog could not be read, when it could not. `Some` means
+    /// NO display name resolved, so only a raw `modeIdentifier` in the config
+    /// could have matched anything.
+    catalog: Option<std::io::ErrorKind>,
+}
+
+/// Whether a macOS Focus the config NAMED is asserted right now, or the error
+/// the assertion store's own read failed with.
+///
+/// HOME-RELATIVE AND WITH NO ENV HATCH, deliberately. A variable naming this
+/// path would let any producer force the answer in either direction, which is
+/// the objection `Overrides::muted` already states about the mute. The test
+/// seam is the sandbox's own `HOME`, which every binary test already sets.
+///
+/// NOTHING NAMED MEANS NOTHING READ. With no `[focus] silence` list there is
+/// no mode an assertion could match, so the two files are never opened and the
+/// default machine pays no IO for a feature it did not ask for.
+///
+/// `Err` IS "the store could not be read", and it exists for the doctor alone:
+/// the event path reads it as not silenced, because this is a private,
+/// undocumented Apple store that can change schema on any macOS update and a
+/// reader that failed closed would silence every banner, card and pulse on the
+/// morning after an upgrade. The doctor is the one place that says so out
+/// loud, and the ERROR ITSELF is carried out rather than flattened, because a
+/// store that is absent and a store that is gated send the operator to two
+/// different places.
+///
+/// THE CATALOG'S OWN FAILURE IS NOT ONE OF THOSE. An unreadable
+/// `ModeConfigurations.json` resolves no names, so only a raw `modeIdentifier`
+/// in the config can still match: silencing less rather than more, which is
+/// the same direction. It is reported rather than errored for exactly that
+/// reason, and the doctor says it in a clause of its own.
+///
+/// READ THROUGH `readable_ring` for the reasons that function states about
+/// this tool's own files, which hold for a foreign one just as well: a FIFO at
+/// the path would park the event forever, and a file some other hand grew is
+/// otherwise learned about by allocating it. The live store is 6 KiB against
+/// the existing 256 KiB ceiling.
+fn focus_now(home: &str, silence: &[String]) -> std::io::Result<FocusReading> {
+    if silence.is_empty() {
+        return Ok(FocusReading {
+            silenced: false,
+            catalog: None,
+        });
+    }
+    let store = Path::new(home).join(FOCUS_DB);
+    let assertions = readable_ring(&store.join("Assertions.json"), RING_READ_MAX)?;
+    let catalog = readable_ring(&store.join("ModeConfigurations.json"), RING_READ_MAX);
+    Ok(FocusReading {
+        silenced: pns::focus::silenced(
+            &pns::focus::active_modes(&assertions),
+            &pns::focus::mode_names(catalog.as_deref().unwrap_or_default()),
+            silence,
+        ),
+        catalog: catalog.as_ref().err().map(std::io::Error::kind),
+    })
 }
 
 /// The CLIP v2 bridge over ureq.

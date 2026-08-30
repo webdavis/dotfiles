@@ -91,6 +91,29 @@
 # is named as one that could not be read rather than left out.
 # review_notes = "~/.claude/pipeline/slices/checklist-*.md"
 
+# The macOS Focus modes that pns treats as your own instruction not to be
+# interrupted. While one of the modes named below is active, banners, cards and
+# light pulses are held back and journaled instead, and the catch-up hands them
+# over once the Focus ends, and that catch-up is what hands you what you missed.
+# Approvals are NEVER held back, and neither is the durable log: a written
+# record interrupts nobody, so a Focus has nothing there to hold.
+# PER MODE RATHER THAN "a Focus is on", which is the whole design: measured on
+# this machine, a Focus was active for 95% of one day (Casually Concerned runs
+# across a whole working day), so a switch that fired on any Focus at all would
+# be a mute with no expiry and nothing on screen to explain it. Name the modes
+# that really mean it and leave the always-on one out. A name is matched however
+# you capitalised it, and a mode's raw modeIdentifier works too for one the Mode
+# catalog does not name; an entry that is the empty string is refused by name.
+# NO TABLE AT ALL, and a table naming no mode, are the same statement: the
+# feature is off, and `pns doctor` says so with one sentence for both, because
+# nothing downstream can tell a list you emptied from a table you never wrote.
+# The Focus store is a private Apple file, so a read that fails is treated as no
+# Focus and never as silence: `pns doctor` is the one place an unreadable store
+# is reported, and it says whether the file is absent or unreadable rather than
+# folding the two together.
+# [focus]
+# silence = ["Sleep", "Coding"]
+
 [plugins.moshi]
 enabled = true
 token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"

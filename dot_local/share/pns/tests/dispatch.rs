@@ -1906,6 +1906,11 @@ const PAIRED_LINE: &str =
 /// The relayed line beside it, in moshi's own words.
 const MOSHI_SAYS_LINE: &str = "pns doctor: moshi says: Moshi Pro attached (usage scope: license)";
 
+/// What the doctor says about Focus on a machine whose config names no mode,
+/// which is every machine that never wrote a `[focus]` table.
+const FOCUS_OFF_LINE: &str =
+    "pns doctor: focus awareness is off (no [focus] table names a mode to silence)";
+
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
 const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.moshi]\nenabled = true\n\
@@ -1913,9 +1918,9 @@ const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.moshi]\nenabled = true\n\
 
 /// The line the doctor opens with, whatever it goes on to find.
 const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled channel. \
-     Every suppression gate is bypassed (the operator mute, the presence gate, the \
-     viewed-pane rule, the lights' quiet hours), because a check that can be suppressed \
-     proves nothing.";
+     Every suppression gate is bypassed (the operator mute, a macOS Focus you named, \
+     the presence gate, the viewed-pane rule, the lights' quiet hours), because a check \
+     that can be suppressed proves nothing.";
 
 #[test]
 fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_each_one() {
@@ -1966,6 +1971,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "hue: skipped, not enabled in the config",
             "pns doctor: 3 sent, 0 failed, 2 skipped",
             NO_MOSHI_HOOK_LINE,
+            FOCUS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
         ],
@@ -2235,6 +2241,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "hue: skipped, not enabled in the config",
             "pns doctor: 0 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
+            FOCUS_OFF_LINE,
             NO_DECISION_RECORDED,
             NONE_WAITING,
         ],
@@ -3585,6 +3592,182 @@ fn a_muted_event_queues_its_own_miss_and_replays_nothing() {
         "the durable log is exempt from the mute and still saw ONE event: {logged:?}"
     );
     assert_eq!(logged[0]["state"], "done", "{logged:?}");
+}
+
+// --- the operating system's own mute ----------------------------------------
+
+/// The mode this operator really leaves on, and the name Control Center shows
+/// for it. A CUSTOM MODE, deliberately: the identifier says nothing about the
+/// name, so a test using `Sleep` for both would pass with the catalog read
+/// deleted.
+const A_CUSTOM_FOCUS: &str = "com.apple.donotdisturb.mode.graduationcapfill";
+const ITS_NAME: &str = "Casually Concerned";
+
+/// The three stub channels plus the Focus policy, which is the only shape
+/// these two tests differ in.
+fn focus_config(silence: &str) -> String {
+    format!(
+        "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n\
+         [plugins.macos-banner]\nenabled = true\n[focus]\nsilence = [{silence}]\n"
+    )
+}
+
+/// A present event WITH ALL THREE DECORATIONS REALLY ON THE TABLE, which is
+/// what makes "the Focus held them" a claim that can fail.
+///
+/// AT THE DESK THE CARD IS OFF AND A SHORT COMMAND RAISES NO PULSE, so a bare
+/// `present_event` asserted against a silenced card and a silenced pulse is
+/// asserting what the surface had already decided: the Focus clause could be
+/// deleted outright and both would still read as held. `PNS_FORCE_PHONE` puts
+/// the card back on the plan and `--long-running` puts the pulse there, and
+/// the sibling test below shows all three firing in this same world.
+///
+/// THE FORCE IS ALSO THE POINT, not just the setup. It is a producer's opinion
+/// set in the environment, and a Focus the operator named has to beat it: that
+/// arbitration order lived only in an engine unit test until this world
+/// existed to run it through the process.
+fn focus_event(sandbox: &Sandbox) -> std::process::Command {
+    let mut command = present_event(sandbox);
+    command.env("PNS_FORCE_PHONE", "1").arg("--long-running");
+    command
+}
+
+#[test]
+fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled() {
+    // THE WHOLE FEATURE, end to end, and the only thing that proves the
+    // composition root reads the store at all: a file in the sandbox's own
+    // HOME, a mode name in the config, and an event that would otherwise
+    // banner.
+    //
+    // SUPPRESSING IS STRICTLY MORE INFORMATIVE THAN NOT. macOS was going to
+    // withhold this banner anyway, and pns posting it regardless would believe
+    // it delivered, so the event would never be journaled: no banner AND no
+    // recap entry. Held back here it becomes a miss the catch-up hands over
+    // once the Focus ends.
+    let sandbox = Sandbox::new("focus-named-mode");
+    record_every_event(&sandbox);
+    sandbox.write_focus_store(A_CUSTOM_FOCUS, ITS_NAME);
+    sandbox.write_config(&focus_config("\"Casually Concerned\""));
+
+    run(&mut focus_event(&sandbox));
+
+    assert!(
+        events(&sandbox, "macos-banner").is_empty(),
+        "the Focus swallowed the banner"
+    );
+    assert!(
+        events(&sandbox, "moshi").is_empty(),
+        "and the card PNS_FORCE_PHONE asked for with it: a mute a producer can \
+         override is not a mute"
+    );
+    let logged = events(&sandbox, "hermes");
+    assert_eq!(
+        logged.len(),
+        1,
+        "THE RECORD IS NEVER SUPPRESSED: the durable stream is what the \
+         catch-up reads to say what was missed: {logged:?}"
+    );
+    let waiting = journal(&sandbox);
+    assert_eq!(waiting.len(), 1, "exactly one miss was queued: {waiting:?}");
+    assert_eq!(
+        field(waiting.last().expect("a journal"), "detail"),
+        "the live turn",
+        "and it is this event's: {waiting:?}"
+    );
+    let ring = decisions(&sandbox);
+    assert_eq!(ring.len(), 1, "one decision was recorded: {ring:?}");
+    assert!(
+        ring[0].contains("muted=no focus=yes"),
+        "TWO FIELDS RATHER THAN ONE: `pns quiet` and a macOS Focus send the \
+         operator to completely different places: {}",
+        ring[0]
+    );
+    assert!(
+        ring[0].contains("force_phone=yes"),
+        "the force really was set, which is what makes the held card a verdict \
+         rather than a surface that never offered one: {}",
+        ring[0]
+    );
+    assert!(
+        ring[0].contains("plan=banner:no,card:no,pulse:no"),
+        "and the plan says all three were held, every one of which the sibling \
+         test shows firing in this same world: {}",
+        ring[0]
+    );
+}
+
+#[test]
+fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual() {
+    // PER-MODE POLICY IS THE WHOLE POINT, and this is the half that makes the
+    // feature usable. MEASURED on this operator's machine: a Focus was
+    // asserted for 95% of one day, so a gate that fired on ANY active Focus
+    // would be a mute with no expiry and nothing on screen to explain it.
+    let sandbox = Sandbox::new("focus-unnamed-mode");
+    record_every_event(&sandbox);
+    sandbox.write_focus_store(A_CUSTOM_FOCUS, ITS_NAME);
+    sandbox.write_config(&focus_config("\"Sleep\", \"Coding\""));
+
+    run(&mut focus_event(&sandbox));
+
+    assert_eq!(
+        events(&sandbox, "macos-banner").len(),
+        1,
+        "a Focus nobody named silences nothing"
+    );
+    assert!(
+        journal(&sandbox).is_empty(),
+        "and a delivered event is not a miss"
+    );
+    let ring = decisions(&sandbox);
+    assert!(
+        ring[0].contains("muted=no focus=no"),
+        "the log says the Focus decided nothing here: {}",
+        ring[0]
+    );
+    // THE CONTROL FOR THE TEST ABOVE, and the reason both run in one world:
+    // all three decorations really were on this plan, so the three `no`s next
+    // door are a Focus holding them and not a surface that never offered them.
+    assert_eq!(
+        events(&sandbox, "moshi").len(),
+        1,
+        "the forced card fired here"
+    );
+    assert!(
+        ring[0].contains("plan=banner:yes,card:yes,pulse:yes"),
+        "and the plan carried all three: {}",
+        ring[0]
+    );
+}
+
+#[test]
+fn a_focus_store_that_cannot_be_read_costs_no_notification_at_all() {
+    // THE FAIL DIRECTION, and the one a reviewer should attack first. This is
+    // a private, undocumented Apple store: it can be gated behind Full Disk
+    // Access, moved, or given a new schema by any macOS update. Failing closed
+    // would silence every banner, card and pulse from that morning on, with
+    // nothing on screen to say why; failing open costs one interruption the
+    // operator asked not to have, and `pns doctor` reports the unreadable
+    // store on demand.
+    for (label, plant) in [
+        ("no store at all", false),
+        ("something at the path that is not a file", true),
+    ] {
+        let sandbox = Sandbox::new(&format!("focus-unreadable-{}", plant as u8));
+        record_every_event(&sandbox);
+        sandbox.write_config(&focus_config("\"Casually Concerned\""));
+        if plant {
+            std::fs::create_dir_all(sandbox.path("Library/DoNotDisturb/DB/Assertions.json"))
+                .expect("a directory where the store should be");
+        }
+
+        run(&mut present_event(&sandbox));
+
+        assert_eq!(events(&sandbox, "macos-banner").len(), 1, "case: {label}");
+        assert!(
+            journal(&sandbox).is_empty(),
+            "and a delivered event is not a miss: {label}"
+        );
+    }
 }
 
 #[test]
@@ -6183,8 +6366,12 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
         .unwrap_or_else(|| panic!("no summary line in {printed}"));
     assert_eq!(lines[summary + 1], PAIRED_LINE, "{printed}");
     assert_eq!(lines[summary + 2], MOSHI_SAYS_LINE, "{printed}");
+    // GATE STATE BETWEEN THE TWO, which is the same rule one rung down: a
+    // Focus being on is not a fault, so it sits below the check that can move
+    // the exit code and above the history it explains.
+    assert_eq!(lines[summary + 3], FOCUS_OFF_LINE, "{printed}");
     assert_eq!(
-        lines[summary + 3],
+        lines[summary + 4],
         format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );
@@ -6458,5 +6645,111 @@ fn an_answer_over_the_byte_cap_is_refused_on_both_legs_rather_than_read() {
     assert!(
         waited < std::time::Duration::from_secs(5),
         "the doctor spent {waited:?} on an answer it refused"
+    );
+}
+
+#[test]
+fn the_doctor_tells_the_truth_about_a_named_focus_in_every_state() {
+    // THE DOCTOR'S OTHER THREE FOCUS SENTENCES, pinned. The off state is
+    // asserted by the census test through FOCUS_OFF_LINE; these three lived
+    // only in a hand-run drill script until a review probe showed the ON
+    // sentence could lie without anything going red: a doctor claiming no
+    // named Focus is active while one is ON is the exact wrong answer an
+    // operator debugging silence would be handed.
+    let sandbox = Sandbox::new("doctor-focus-on");
+    sandbox.write_config("[focus]\nsilence = [\"Coding\"]\n");
+    sandbox.write_focus_store("com.apple.donotdisturb.mode.curlybraces", "Coding");
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        printed.contains("a macOS Focus you named is ON"),
+        "the ON state never surfaced: {printed}"
+    );
+
+    let sandbox = Sandbox::new("doctor-focus-unnamed");
+    sandbox.write_config("[focus]\nsilence = [\"Sleep\"]\n");
+    sandbox.write_focus_store("com.apple.donotdisturb.mode.curlybraces", "Coding");
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        printed.contains("no macOS Focus you named is active"),
+        "the quiet state never surfaced: {printed}"
+    );
+    assert!(
+        !printed.contains("is ON"),
+        "an unnamed mode read as ON: {printed}"
+    );
+
+    // UNREADABLE means the FILE, not its contents: the parser is total, so
+    // garbage bytes read as "no mode asserted" (fail-open, the quiet
+    // sentence). Only a file the read itself refuses reaches the ignored
+    // sentence, so that is what this block builds.
+    let sandbox = Sandbox::new("doctor-focus-unreadable");
+    sandbox.write_config("[focus]\nsilence = [\"Coding\"]\n");
+    let dir = sandbox.path("Library/DoNotDisturb/DB");
+    std::fs::create_dir_all(&dir).expect("focus db dir");
+    std::fs::write(dir.join("Assertions.json"), b"{}").expect("store");
+    let mut forbidden = std::fs::metadata(dir.join("Assertions.json"))
+        .expect("meta")
+        .permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut forbidden, 0o000);
+    std::fs::set_permissions(dir.join("Assertions.json"), forbidden).expect("chmod");
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        printed.contains("could not be read, so Focus is being ignored (permission denied)."),
+        "the unreadable state never surfaced, or dropped the kind: {printed}"
+    );
+
+    // ABSENT IS A DIFFERENT SENTENCE, and this is the machine that has one: a
+    // fresh account, or a second Mac, that has never asserted a Focus has no
+    // store for macOS to have written. Told "could not be read", that operator
+    // goes after a Full Disk Access grant that was never the problem, which is
+    // exactly the reading the slice's own drill puts on that line.
+    let sandbox = Sandbox::new("doctor-focus-absent");
+    sandbox.write_config("[focus]\nsilence = [\"Coding\"]\n");
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        printed.contains(
+            "no Focus database was found on this machine, so no Focus is being respected"
+        ),
+        "the absent state never surfaced: {printed}"
+    );
+    assert!(
+        !printed.contains("could not be read"),
+        "absent was reported as a store that could not be read: {printed}"
+    );
+}
+
+#[test]
+fn a_mode_catalog_the_doctor_cannot_read_is_said_and_never_reported_as_health() {
+    // NAME MATCHING GOES INERT WITH NO CATALOG. The assertion store decides
+    // the verdict and the catalog only resolves names, so a catalog that
+    // cannot be read leaves a config written the way the template shows it
+    // (display names) matching nothing at all. Said with the healthy sentence
+    // alone, that state is indistinguishable from being right.
+    let sandbox = Sandbox::new("doctor-focus-no-catalog");
+    sandbox.write_config("[focus]\nsilence = [\"Coding\"]\n");
+    sandbox.write_focus_store("com.apple.donotdisturb.mode.curlybraces", "Coding");
+    let catalog = sandbox.path("Library/DoNotDisturb/DB/ModeConfigurations.json");
+    let mut forbidden = std::fs::metadata(&catalog).expect("meta").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut forbidden, 0o000);
+    std::fs::set_permissions(&catalog, forbidden).expect("chmod");
+
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    let printed = String::from_utf8_lossy(&output.stdout).to_string();
+    let said = "the mode catalog could not be read (permission denied), so no Focus NAME can \
+                match and only a raw modeIdentifier still would";
+    assert!(
+        printed.contains(said),
+        "the inert name matching was never said: {printed}"
+    );
+    // AND THE VERDICT IS STILL THE HONEST ONE: the mode really is not silenced,
+    // because the name it was named by resolved to nothing.
+    assert!(
+        printed.contains("no macOS Focus you named is active"),
+        "the state sentence was replaced rather than extended: {printed}"
     );
 }
