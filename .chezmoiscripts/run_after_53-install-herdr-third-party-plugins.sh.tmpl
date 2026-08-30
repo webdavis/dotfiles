@@ -68,10 +68,14 @@ install_plugin() {
   fi
 }
 
-# worktrunk is the only third-party plugin this host can run today. The other
-# four surveyed ones need herdr 0.7.4 to 0.8.2 and this host is 0.7.0-preview,
-# and iurysza/herdr-tab-smart-rename needs a `herdr api snapshot` subcommand that
-# 0.7.0-preview does not have, so it crashes on every action here despite its
-# README claiming 0.7.0 support. Revisit the whole set when herdr is upgraded.
+# The full surveyed set. herdr reached 0.8.2 on 2026-08-31 (live handoff), which
+# satisfies every version gate that had blocked all but worktrunk: sidebar needs
+# >= 0.8, reviewr >= 0.7.5, workflows >= 0.8.2, and tab-smart-rename needs the
+# `herdr api snapshot` subcommand 0.7.0-preview lacked. The sidebar source path
+# carries a subdirectory because its repository is a monorepo.
 install_plugin worktrunk devashish2203/herdr-worktrunk
+install_plugin tab-smart-rename iurysza/herdr-tab-smart-rename
+install_plugin herdr-sidebar alexarthurs/herdr-sidebar/plugins/herdr-sidebar
+install_plugin persiyanov.reviewr persiyanov/herdr-reviewr
+install_plugin herdr-workflows aorumbayev/herdr-workflows
 {{ end -}}
