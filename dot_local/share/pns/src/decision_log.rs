@@ -607,7 +607,7 @@ mod tests {
         let legs = [
             (
                 Leg {
-                    name: "moshi",
+                    name: "mobile",
                     mode: ReportMode::Silent,
                     decorative: true,
                 },
@@ -648,7 +648,7 @@ mod tests {
         assert!(
             recorded.ends_with(
                 " plan=banner:no,card:yes,pulse:no \
-                 legs=moshi:failed,hermes:delivered,macos-banner:silent,kitchen:unlaunched"
+                 legs=mobile:failed,hermes:delivered,macos-banner:silent,kitchen:unlaunched"
             ),
             "got {recorded}"
         );

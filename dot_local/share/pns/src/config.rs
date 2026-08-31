@@ -446,25 +446,26 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("plugins.macos-banner", &["enabled"]),
     (
-        "plugins.moshi",
+        "plugins.mobile",
         &[
             "enabled",
             "mobile_watch_card",
             "submit_deadline_secs",
             "token",
+            "type",
         ],
     ),
     (
         "plugins.router",
         &[
             "api_key",
-            "brand",
             "device_hostname",
             "device_ipv4",
             "device_mac",
             "enabled",
             "router_url",
             "stale_alert_channel",
+            "type",
         ],
     ),
 ];
@@ -1383,24 +1384,56 @@ pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
     }
 }
 
+/// The `[plugins.mobile]` settings, but ONLY when the table is ARMED: switched
+/// on, and naming a backend this binary answers.
+///
+/// THE ONE READER OF THAT TABLE. The push token, the watching-card toggle and
+/// the submission deadline all come through here, so a table naming a backend
+/// nothing implements contributes no settings ANYWHERE, rather than being
+/// refused on the paths that remembered to ask and honoured on the ones that
+/// did not. A `submit_deadline_secs` written under `type = "pushover"` is a
+/// number for a backend this binary has never heard of, and reading it as
+/// moshi's is exactly the misattribution `type` exists to stop.
+///
+/// `Ok(None)` IS THE INERT TABLE: absent, or present with the switch off. That
+/// is the reading `enabled_hue_table` and `home::enabled_router_table` already
+/// give their own, and it covers the table's SETTINGS too, the deadline
+/// included: one switch, one answer, rather than a per-key exception nobody
+/// could predict from the flag they set. Nothing complains about it either,
+/// because a line about a channel the operator turned off, on every event, is
+/// noise. `pns doctor` is where a switched-off table naming no backend is
+/// still made visible.
+///
+/// `Err` CARRIES THE REASON, never a bare `None`. A caller that collapsed the
+/// two reported a missing token for a fault that was the type, and sent an
+/// operator whose token was already correct to go and check it.
+pub fn armed_mobile(config: &Config) -> Result<Option<&toml::Table>, String> {
+    let Some(mobile) = config.plugins.get("mobile").filter(|mobile| mobile.enabled) else {
+        return Ok(None);
+    };
+    crate::channels::moshi::mobile_backend(&mobile.settings)?;
+    Ok(Some(&mobile.settings))
+}
+
 /// How long pns waits for moshi to acknowledge a submission, from
-/// `[plugins.moshi] submit_deadline_secs`, with the default when no key states
+/// `[plugins.mobile] submit_deadline_secs`, with the default when no key states
 /// one.
 ///
-/// IT IS READ OFF MOSHI'S OWN TABLE and nowhere else. Plugin settings reach
-/// this layer free-form, so every plugin's table would answer a key spelled
-/// this way, and a reader that asked the wrong one would take a number the
-/// operator wrote for something else.
+/// IT IS READ OFF THE ARMED MOBILE TABLE and nowhere else, through
+/// `armed_mobile`. Plugin settings reach this layer free-form, so every
+/// plugin's table would answer a key spelled this way, and a reader that asked
+/// the wrong one would take a number the operator wrote for something else.
+/// The backend is part of that same question: a deadline under a table naming
+/// no compiled-in backend is refused rather than read as moshi's.
 ///
 /// THE REFUSALS ARE LOUD AND NAMED, because the caller falls back to the
 /// default and a silent fallback is the operator asking for something, not
 /// getting it, and being told nothing.
 pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
-    let Some(stated) = config
-        .plugins
-        .get("moshi")
-        .and_then(|moshi| moshi.settings.get("submit_deadline_secs"))
-    else {
+    let Some(mobile) = armed_mobile(config).map_err(ConfigError::Invalid)? else {
+        return Ok(Duration::from_secs(DEFAULT_SUBMIT_DEADLINE_SECS));
+    };
+    let Some(stated) = mobile.get("submit_deadline_secs") else {
         return Ok(Duration::from_secs(DEFAULT_SUBMIT_DEADLINE_SECS));
     };
     let Some(count) = stated
@@ -1408,13 +1441,13 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
         .and_then(|count| u64::try_from(count).ok())
     else {
         return Err(ConfigError::Invalid(format!(
-            "`moshi` key `submit_deadline_secs` has type `{}`, not a count of seconds",
+            "`mobile` key `submit_deadline_secs` has type `{}`, not a count of seconds",
             stated.type_str()
         )));
     };
     if count == 0 {
         return Err(ConfigError::Invalid(
-            "`moshi` key `submit_deadline_secs` is 0, which is the bound switched off by \
+            "`mobile` key `submit_deadline_secs` is 0, which is the bound switched off by \
              accident: a deadline that expires before the daemon can answer costs the phone \
              card on every approval"
                 .to_string(),
@@ -1422,7 +1455,7 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
     }
     if count > MAX_SUBMIT_DEADLINE_SECS {
         return Err(ConfigError::Invalid(format!(
-            "`moshi` key `submit_deadline_secs` is {count}, past the \
+            "`mobile` key `submit_deadline_secs` is {count}, past the \
              {MAX_SUBMIT_DEADLINE_SECS}-second ceiling"
         )));
     }
@@ -1550,7 +1583,7 @@ mod tests {
     fn a_malformed_line_is_reported_without_echoing_its_value() {
         // The config carries plugin secrets, and error strings travel to
         // logs: the refusal names where and why, never the line's contents.
-        let err = parse_config("[plugins.moshi]\ntoken = \"SUPERSECRET\" trailing\n").unwrap_err();
+        let err = parse_config("[plugins.mobile]\ntoken = \"SUPERSECRET\" trailing\n").unwrap_err();
         match err {
             ConfigError::Malformed(message) => {
                 assert!(!message.is_empty(), "the cause is still named");
@@ -2204,10 +2237,10 @@ mod tests {
         }
     }
 
-    // --- the moshi submission deadline ---------------------------------------
+    // --- the mobile submission deadline --------------------------------------
 
     #[test]
-    fn the_moshi_submission_deadline_is_a_count_of_seconds_defaulted_to_five() {
+    fn the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five() {
         // FIVE SECONDS, the crate's own house number for a local pipe that
         // should have been instant: it is `PNS_PAYLOAD_DEADLINE_MS`'s default,
         // bounding the same kind of thing on the same hook. The submission is
@@ -2219,32 +2252,81 @@ mod tests {
             "no config at all is still bounded"
         );
         assert_eq!(
-            submit_deadline(&parse_config("[plugins.moshi]\nenabled = true\n").unwrap()).unwrap(),
+            submit_deadline(
+                &parse_config("[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n").unwrap()
+            )
+            .unwrap(),
             Duration::from_secs(5),
-            "a moshi table that does not state one is the default"
+            "a mobile table that does not state one is the default"
         );
+        // THE TABLE IS ARMED IN EVERY CASE BELOW, switch and backend both,
+        // because that is what `armed_mobile` reads and this key is read
+        // through it: a number under a table nobody switched on, or under one
+        // naming a backend nothing implements, is not a bound this binary owns.
         assert_eq!(
-            submit_deadline(&parse_config("[plugins.moshi]\nsubmit_deadline_secs = 30\n").unwrap())
-                .unwrap(),
+            submit_deadline(
+                &parse_config(
+                    "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+                     submit_deadline_secs = 30\n"
+                )
+                .unwrap()
+            )
+            .unwrap(),
             Duration::from_secs(30),
             "the operator's own number is the bound"
         );
-        // OFF MOSHI'S OWN TABLE. Every plugin's settings reach this layer in
+        // OFF THE MOBILE TABLE. Every plugin's settings reach this layer in
         // the same shape, so a reader spelled against the wrong table would
         // take a number the operator wrote for something else, or miss the one
         // they wrote for this. The misplacement is now refused a whole layer
         // earlier, at the load that judges each table's own vocabulary, so
         // this states both halves: the key on another table never parses, and
-        // a config carrying no moshi table at all is still the default.
+        // a config carrying no mobile table at all is still the default.
         assert!(
             parse_config("[plugins.hue]\nsubmit_deadline_secs = 30\n").is_err(),
-            "moshi's key is not part of hue's vocabulary"
+            "the mobile table's key is not part of hue's vocabulary"
         );
         assert_eq!(
             submit_deadline(&parse_config("[plugins.hue]\nenabled = true\n").unwrap()).unwrap(),
             Duration::from_secs(5),
-            "another plugin's table is not where moshi's bound is read"
+            "another plugin's table is not where the mobile bound is read"
         );
+    }
+
+    #[test]
+    fn a_mobile_table_naming_no_backend_contributes_no_settings_at_all() {
+        // THE DEADLINE INCLUDED, which is the half a reader spelled against
+        // the table directly used to miss. `type` says which backend every
+        // setting under the table belongs to, so a table naming one nothing
+        // implements has no settings this binary may read as moshi's: a
+        // `submit_deadline_secs = 1` written for some other backend must not
+        // shorten the window pns waits for a moshi submission in.
+        let refused = parse_config(
+            "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\nsubmit_deadline_secs = 1\n",
+        )
+        .unwrap();
+        match submit_deadline(&refused) {
+            Err(ConfigError::Invalid(message)) => {
+                assert!(message.contains("\"pushover\""), "quoting it: {message}");
+                assert!(message.contains("type"), "and naming the key: {message}");
+            }
+            other => panic!("expected the type refusal, got {other:?}"),
+        }
+        // THE POSITIVE CONTROL: a refusal that fired on every table would pass
+        // the assertion above and take every operator's deadline away.
+        let armed = parse_config(
+            "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\nsubmit_deadline_secs = 30\n",
+        )
+        .unwrap();
+        assert_eq!(submit_deadline(&armed).unwrap(), Duration::from_secs(30));
+        // AND A TABLE THE OPERATOR SWITCHED OFF IS INERT, its settings with
+        // it: one switch, one answer, rather than a per-key exception nobody
+        // could predict from the flag they set.
+        let off = parse_config(
+            "[plugins.mobile]\nenabled = false\ntype = \"moshi\"\nsubmit_deadline_secs = 30\n",
+        )
+        .unwrap();
+        assert_eq!(submit_deadline(&off).unwrap(), Duration::from_secs(5));
     }
 
     #[test]
@@ -2269,7 +2351,8 @@ mod tests {
             "9223372036854775807",
         ] {
             let config = parse_config(&format!(
-                "[plugins.moshi]\nsubmit_deadline_secs = {stated}\n"
+                "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+                 submit_deadline_secs = {stated}\n"
             ))
             .unwrap();
             match submit_deadline(&config) {
@@ -2694,7 +2777,7 @@ mod tests {
             ("plugins.hermes", "keys", "key"),
             ("plugins.hue", "room", "rooms"),
             ("plugins.macos-banner", "sound", "enabled"),
-            ("plugins.moshi", "tokens", "token"),
+            ("plugins.mobile", "tokens", "token"),
             ("plugins.router", "phone", "device_hostname"),
         ] {
             let said = refusal(&format!("[{table}]\nenabled = true\n{mistyped} = \"x\"\n"));
@@ -2717,7 +2800,7 @@ mod tests {
     fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
         // The positive control under the refusal above: a sweep that refused
         // the whole vocabulary would pass every assertion up there.
-        let shipped = "[plugins.hermes]\nenabled = true\nkey = \"k\"\n             [plugins.hue]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.macos-banner]\nenabled = true\n             [plugins.moshi]\nenabled = true\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.router]\nenabled = true\nbrand = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+        let shipped = "[plugins.hermes]\nenabled = true\nkey = \"k\"\n             [plugins.hue]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.macos-banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.router]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
         let config = parse_config(shipped).expect("every shipped key parses");
         assert_eq!(config.plugins.len(), 5);
     }
@@ -2754,6 +2837,29 @@ mod tests {
                 "and `{serves}` is among the tables it says the file serves: {said}"
             );
         }
+    }
+
+    #[test]
+    fn type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused() {
+        // ONE WORD FOR ONE QUESTION, under every table that has a backend to
+        // pick. `brand` was the router's alone, so an operator who had learnt
+        // it on one table had to learn a second word on the next; there is now
+        // one, and the retired spelling is refused by name with the vocabulary
+        // spelled out rather than reaching the probe as a setting it ignores.
+        let said = refusal("[plugins.router]\nenabled = true\nbrand = \"unifi\"\n");
+        assert!(said.contains("`brand`"), "the retired key is named: {said}");
+        assert!(
+            said.contains("type"),
+            "and `type` is listed instead: {said}"
+        );
+        assert!(
+            parse_config("[plugins.router]\nenabled = true\ntype = \"unifi\"\n").is_ok(),
+            "the router table serves `type`"
+        );
+        assert!(
+            parse_config("[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n").is_ok(),
+            "and so does the mobile table"
+        );
     }
 
     #[test]
@@ -2842,18 +2948,19 @@ mod tests {
         ("plugins.hue", "quiet_hours", "\"22:00-07:00\""),
         ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
         ("plugins.macos-banner", "enabled", "true"),
-        ("plugins.moshi", "enabled", "true"),
-        ("plugins.moshi", "mobile_watch_card", "false"),
-        ("plugins.moshi", "submit_deadline_secs", "5"),
-        ("plugins.moshi", "token", "\"secret\""),
+        ("plugins.mobile", "enabled", "true"),
+        ("plugins.mobile", "mobile_watch_card", "false"),
+        ("plugins.mobile", "submit_deadline_secs", "5"),
+        ("plugins.mobile", "token", "\"secret\""),
+        ("plugins.mobile", "type", "\"moshi\""),
         ("plugins.router", "api_key", "\"secret\""),
-        ("plugins.router", "brand", "\"unifi\""),
         ("plugins.router", "device_hostname", "\"mister\""),
         ("plugins.router", "device_ipv4", "\"192.168.1.9\""),
         ("plugins.router", "device_mac", "\"2e:11:ab:6d:b0:4f\""),
         ("plugins.router", "enabled", "true"),
         ("plugins.router", "router_url", "\"https://192.168.1.1\""),
         ("plugins.router", "stale_alert_channel", "\"priority\""),
+        ("plugins.router", "type", "\"unifi\""),
     ];
 
     #[test]
@@ -2944,15 +3051,16 @@ mod tests {
     fn the_shipped_config_template_still_parses_through_this_schema() {
         // THE FENCE UNDER THE SWEEP. Judging every plugin table's keys can
         // refuse a config that worked yesterday, and the only config that
-        // matters is the one this repo ships. If it stops loading, every
-        // notification on the machine falls back to the whole built-in roster
-        // with a warning nobody is standing in front of.
+        // matters is the one this repo ships. If it stops loading, the
+        // machine falls back to the CORE with a warning nobody is standing in
+        // front of: the phone and the banner keep working, and the durable
+        // paper trail, the lights and the home probe all stop.
         let rendered = rendered_template();
         let config = parse_config(&rendered)
             .unwrap_or_else(|error| panic!("the shipped template must load: {error:?}"));
         assert_eq!(
             config.plugins.keys().collect::<Vec<_>>(),
-            vec!["hermes", "hue", "macos-banner", "moshi", "router"],
+            vec!["hermes", "hue", "macos-banner", "mobile", "router"],
             "and it must still select what it selects"
         );
         // And every one of those names is a plugin that exists, which is the
@@ -3020,7 +3128,7 @@ mod tests {
     /// THE ONE EDIT THAT MOVES IT is the template documenting a key more or a
     /// key fewer, in which case this number moves with it. A change here for
     /// any other reason is the scan breaking rather than the template changing.
-    const TEMPLATE_KEY_PAIRS: usize = 41;
+    const TEMPLATE_KEY_PAIRS: usize = 42;
 
     #[test]
     fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
@@ -3042,8 +3150,8 @@ mod tests {
             (SetupFailure::ConfigError("refused".to_string()), false),
             (SetupFailure::NoRouterPlugin, false),
             (SetupFailure::RouterDisabled, true),
-            (SetupFailure::NoBrand, true),
-            (SetupFailure::UnknownBrand("asus".to_string()), true),
+            (SetupFailure::NoType, true),
+            (SetupFailure::UnknownType("asus".to_string()), true),
             (SetupFailure::InvalidRouterTable, true),
             (SetupFailure::NoDeviceIdentifier, true),
             (

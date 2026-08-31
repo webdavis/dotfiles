@@ -488,7 +488,7 @@ mod tests {
         crate::registry::roster()
             .enabled(
                 &parse_config(
-                    "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+                    "[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
                 )
                 .unwrap(),
             )
@@ -776,13 +776,13 @@ mod tests {
                 "away, pane on screen: the card still fires",
                 Some(9_000),
                 Some(watching("wW:p1")),
-                vec!["moshi", "hermes"],
+                vec!["mobile", "hermes"],
             ),
             (
                 "away, pane hidden: card, and no banner for an empty room",
                 Some(9_000),
                 Some(elsewhere("wW:p1")),
-                vec!["moshi", "hermes"],
+                vec!["mobile", "hermes"],
             ),
         ];
         for (label, idle, view, expected) in matrix {
@@ -813,7 +813,7 @@ mod tests {
         let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
         let legs = names(&decision);
         assert!(!legs.contains(&"macos-banner"), "got {legs:?}");
-        assert!(legs.contains(&"moshi"), "got {legs:?}");
+        assert!(legs.contains(&"mobile"), "got {legs:?}");
     }
 
     #[test]
@@ -829,7 +829,7 @@ mod tests {
                 "D6: tapped, moshi never opened, so nothing is being watched",
                 Some(999_990),
                 None,
-                vec!["moshi", "hermes"],
+                vec!["mobile", "hermes"],
             ),
             (
                 "D5: moshi open on the pane, which is watching it for real",
@@ -866,7 +866,7 @@ mod tests {
         };
         let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
         let legs = names(&decision);
-        assert!(legs.contains(&"moshi"), "got {legs:?}");
+        assert!(legs.contains(&"mobile"), "got {legs:?}");
         assert!(!legs.contains(&"macos-banner"), "mobile never banners");
     }
 
@@ -920,7 +920,7 @@ mod tests {
                 true,
                 on,
             );
-            decision.legs.iter().any(|leg| leg.name == "moshi")
+            decision.legs.iter().any(|leg| leg.name == "mobile")
         };
         assert!(!with_toggle(false), "default off: the pulse says it alone");
         assert!(with_toggle(true), "on: the card joins the pulse");
@@ -1009,7 +1009,7 @@ mod tests {
             ..Overrides::default()
         };
         assert!(
-            names(&decide_with(&probes(), &forced, "wW:p1")).contains(&"moshi"),
+            names(&decide_with(&probes(), &forced, "wW:p1")).contains(&"mobile"),
             "unmuted control: force still reaches the phone"
         );
         let forced_and_muted = Overrides {
@@ -1162,7 +1162,7 @@ mod tests {
                 Some(9_000),
                 Some(watching("wW:p1")),
                 false,
-                vec!["moshi", "hermes"],
+                vec!["mobile", "hermes"],
                 false,
             ),
             (
@@ -1170,7 +1170,7 @@ mod tests {
                 Some(9_000),
                 Some(elsewhere("wW:p1")),
                 false,
-                vec!["moshi", "hermes"],
+                vec!["mobile", "hermes"],
                 false,
             ),
             (
@@ -1178,7 +1178,7 @@ mod tests {
                 Some(9_000),
                 Some(elsewhere("wW:p1")),
                 true,
-                vec!["moshi", "hermes"],
+                vec!["mobile", "hermes"],
                 true,
             ),
         ];
@@ -1237,7 +1237,7 @@ mod tests {
             force_phone: true,
             ..Overrides::default()
         };
-        assert!(!names(&decide_with(&probes, &overrides, "")).contains(&"moshi"));
+        assert!(!names(&decide_with(&probes, &overrides, "")).contains(&"mobile"));
     }
 
     #[test]
@@ -1280,7 +1280,7 @@ mod tests {
             force_phone: true,
             ..Overrides::default()
         };
-        assert!(names(&decide_with(&probes, &overrides, "wW:p1")).contains(&"moshi"));
+        assert!(names(&decide_with(&probes, &overrides, "wW:p1")).contains(&"mobile"));
     }
 
     #[test]
@@ -1318,7 +1318,7 @@ mod tests {
         let decision = decide_with(&probes, &overrides, "");
         assert_eq!(probes.phone_reads.get(), 0);
         assert!(
-            names(&decision).contains(&"moshi"),
+            names(&decision).contains(&"mobile"),
             "an unknown phone reading falls toward away, which cards"
         );
     }
@@ -1356,7 +1356,7 @@ mod tests {
         let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
         let legs = names(&decision);
         assert!(
-            legs.contains(&"moshi"),
+            legs.contains(&"mobile"),
             "the card must reach them: {legs:?}"
         );
         assert!(
@@ -1446,7 +1446,7 @@ mod tests {
         let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
         let legs = names(&decision);
         assert!(legs.contains(&"macos-banner"), "got {legs:?}");
-        assert!(!legs.contains(&"moshi"), "got {legs:?}");
+        assert!(!legs.contains(&"mobile"), "got {legs:?}");
     }
 
     #[test]
@@ -1472,7 +1472,7 @@ mod tests {
             false,
         );
         assert!(
-            names(&decision).contains(&"moshi"),
+            names(&decision).contains(&"mobile"),
             "away still cards; neither phone signal decided it"
         );
     }
@@ -1498,7 +1498,7 @@ mod tests {
             false,
         );
         assert!(
-            names(&decision).contains(&"moshi"),
+            names(&decision).contains(&"mobile"),
             "away still cards; the tap simply did not decide it"
         );
     }
@@ -1539,7 +1539,7 @@ mod tests {
         let decision = decide_with(&probes, &overrides, "");
         assert_eq!(probes.idle_reads.get(), 0);
         assert!(
-            names(&decision).contains(&"moshi"),
+            names(&decision).contains(&"mobile"),
             "an unknown desk reading falls toward away, which cards"
         );
     }
@@ -1555,7 +1555,7 @@ mod tests {
             ..CountingProbes::default()
         };
         let decision = decide_with(&probes, &overrides, "");
-        assert!(names(&decision).contains(&"moshi"));
+        assert!(names(&decision).contains(&"mobile"));
     }
 
     #[test]

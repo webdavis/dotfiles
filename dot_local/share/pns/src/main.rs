@@ -20,7 +20,10 @@ use pns::channels::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
 use pns::channels::hue::{Bridge, HuePulse, LOCAL_FAMILY, hue_settings, quiet_now, quiet_window};
-use pns::channels::moshi::{DEFAULT_MOSHI_URL, MoshiChannel, UreqPost, moshi_secret};
+use pns::channels::moshi::{
+    DEFAULT_MOSHI_URL, MOSHI_TYPE, MoshiChannel, UreqPost, mobile_backend, moshi_secret,
+    refused_backend_line,
+};
 use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
@@ -601,7 +604,7 @@ fn replay_missed(
     recap: pns::config::Recap,
     decision: &pns::engine::Decision,
     home: &str,
-    moshi_token: Option<String>,
+    mobile: &Mobile,
     hermes_key: Option<String>,
     durable_route: bool,
 ) {
@@ -723,14 +726,7 @@ fn replay_missed(
     // two come to drift. ACCEPTED CONSEQUENCE: the durable leg is among them,
     // so the summary is posted to a log that already holds every entry in it.
     // That is a duplicate in content and a new fact in kind.
-    let _ = dispatch_legs(
-        &decision.legs,
-        false,
-        &replay,
-        home,
-        moshi_token,
-        hermes_key,
-    );
+    let _ = dispatch_legs(&decision.legs, false, &replay, home, mobile, hermes_key);
 }
 
 /// Every activity entry inside a window, oldest first, which is the order the
@@ -1986,7 +1982,7 @@ fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
 const SUBMISSION_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// How long that wait may last: the test hatch, then the operator's own
-/// `[plugins.moshi] submit_deadline_secs`, then the default.
+/// `[plugins.mobile] submit_deadline_secs`, then the default.
 fn submit_deadline() -> Duration {
     // A LITERAL ZERO IS NOT A BOUND, it is this wait switched off by accident,
     // and the config layer already refuses one by name for that reason. The
@@ -2202,65 +2198,71 @@ fn run_event(
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     // Read off the config before selection consumes it: the pulse needs hue's
-    // settings, the plan needs moshi's card toggle, the catch-up needs the
+    // settings, the plan needs the mobile card toggle, the catch-up needs the
     // whole `[recap]` table, and the two network channels need their secrets.
     //
     // THE RECAP TRAVELS AS ONE NAMED VALUE, never as a row of loose booleans.
     // Three of its four fields are bools; spread into this tuple they would sit
     // adjacent here and in the call below, which is a swap nothing would catch,
     // and a struct with named fields cannot be transposed.
-    let (hue_table, lights, watch_card, moshi_token, hermes_key, recap, focus_silence) =
-        match &loaded {
-            Ok(LoadOutcome::Loaded(config)) => (
-                enabled_hue_table(config),
-                config.lights.clone(),
-                mobile_watch_card(config),
-                plugin_settings(config, "moshi").and_then(moshi_secret),
-                plugin_settings(config, "hermes").and_then(hermes_secret),
-                config.recap.clone(),
-                config.focus_silence.clone(),
-            ),
-            // A config that could not be read falls back to the DEFAULTS of all
-            // five, and deliberately disagrees with the plugin selection below,
-            // which falls back to the whole roster. Selection keeps notifications
-            // working through a broken config; these say what an operator asked
-            // for, and an unreadable file asked for nothing: with no secrets, the
-            // network channels are simply not set up.
-            //
-            // THE CATCH-UP IS THE ONE THAT FALLS BACK ON, which is `[recap]`'s
-            // own rule (absent is every switch on) reaching the case where the
-            // file is unreadable rather than absent. A config nobody can parse
-            // must not silently stop delivering misses the doctor is already
-            // telling the operator are waiting.
-            //
-            // THE FOCUS LIST FALLS BACK TO EMPTY, which is the feature off. It is
-            // the same reading as the secrets rather than the recap's: an
-            // unreadable file asked for nothing, and a Focus policy nobody could
-            // read must not silence a notification.
-            // THE LAMPS FALL BACK TO ABSENT, which is the same reading as hue's own
-            // table beside it: a file nobody could parse named no family, and a map
-            // this could not read must not be replaced with a guess about which
-            // lamps are whose.
-            _ => (
-                None,
-                None,
-                false,
-                None,
-                None,
-                pns::config::Recap::default(),
-                Vec::new(),
-            ),
-        };
+    //
+    // AND THE MOBILE TABLE'S VERDICT DOES TOO, for a second reason on top of
+    // that one: its token, its toggle and its refusal are three answers to ONE
+    // question, and reading them separately is what let the refusal be dropped
+    // on the way to a leg that then delivered anyway.
+    let (hue_table, lights, mobile, hermes_key, recap, focus_silence) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (
+            enabled_hue_table(config),
+            config.lights.clone(),
+            read_mobile(config),
+            plugin_settings(config, "hermes").and_then(hermes_secret),
+            config.recap.clone(),
+            config.focus_silence.clone(),
+        ),
+        // A config that is absent or could not be read falls back to the
+        // DEFAULTS of all five, and deliberately disagrees with the plugin
+        // selection below, which falls back to the CORE. Selection keeps
+        // notifications working through a broken config; these say what an
+        // operator asked for, and a file nobody could read asked for nothing:
+        // with no secrets, the network channels are simply not set up.
+        //
+        // THE CATCH-UP IS THE ONE THAT FALLS BACK ON, which is `[recap]`'s
+        // own rule (absent is every switch on) reaching the case where the
+        // file is unreadable rather than absent. A config nobody can parse
+        // must not silently stop delivering misses the doctor is already
+        // telling the operator are waiting.
+        //
+        // THE FOCUS LIST FALLS BACK TO EMPTY, which is the feature off. It is
+        // the same reading as the secrets rather than the recap's: an
+        // unreadable file asked for nothing, and a Focus policy nobody could
+        // read must not silence a notification.
+        // THE LAMPS FALL BACK TO ABSENT, which is the same reading as hue's own
+        // table beside it: a file nobody could parse named no family, and a map
+        // this could not read must not be replaced with a guess about which
+        // lamps are whose.
+        _ => (
+            None,
+            None,
+            Mobile::default(),
+            None,
+            pns::config::Recap::default(),
+            Vec::new(),
+        ),
+    };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
     // WHETHER A RECAP HAS ANYWHERE TO LAND, read off the SELECTION rather than
-    // off the config directly, so a missing or unreadable config falls back to
-    // the whole roster exactly as dispatch does. A machine that turned the
-    // durable channel off has said there is nowhere for a recap to go, and a
-    // card reading "recap in #pns" against an empty channel is the one thing
-    // the card's own spawn check exists to prevent.
+    // off the config directly, so this and dispatch answer one question once.
+    // A machine that turned the durable channel off has said there is nowhere
+    // for a recap to go, and a card reading "recap in #pns" against an empty
+    // channel is the one thing the card's own spawn check exists to prevent.
+    //
+    // A MACHINE WITH NO CONFIG NOW HAS NO DURABLE ROUTE EITHER, and that falls
+    // straight out of the core fallback: hermes needs a key stood up before it
+    // can carry anything, so it is not in the core and no recap is promised
+    // against it.
     let durable_route = selection.iter().any(|plugin| plugin.name == "hermes");
 
     let now_secs = SystemTime::now()
@@ -2292,7 +2294,7 @@ fn run_event(
         &event.pane,
         now_secs,
         event.long_running,
-        watch_card,
+        mobile.watch_card,
     );
 
     let outcomes = if decision.legs.is_empty() {
@@ -2313,7 +2315,7 @@ fn run_event(
             decision.pane_dropped,
             event,
             &home,
-            moshi_token.clone(),
+            &mobile,
             hermes_key.clone(),
         );
         for (leg, delivered) in &outcomes {
@@ -2388,14 +2390,7 @@ fn run_event(
     // the ordering contract stated above rather than restating it: a slow
     // replay must not cost either record, and a card the operator may be
     // waiting on outranks decoration.
-    replay_missed(
-        recap,
-        &decision,
-        &home,
-        moshi_token,
-        hermes_key,
-        durable_route,
-    );
+    replay_missed(recap, &decision, &home, &mobile, hermes_key, durable_route);
     // AND THE MARKER MOVES AFTER IT, never before: the catch-up above is what
     // READS the window this closes, and moving the edge first would hand it a
     // window one event wide on every return.
@@ -2567,7 +2562,7 @@ fn dispatch_legs(
     pane_dropped: bool,
     event: &pns::args::EventArgs,
     home: &str,
-    moshi_token: Option<String>,
+    mobile: &Mobile,
     hermes_key: Option<String>,
 ) -> Vec<(pns::routing::Leg, Delivery)> {
     // Sanitized ONCE here rather than per channel: a channel may be written in
@@ -2589,7 +2584,7 @@ fn dispatch_legs(
         &format!("{home}/.local/libexec/pns/channels"),
     );
     let banner = banner_channel();
-    let moshi = moshi_channel(moshi_token);
+    let moshi = moshi_channel(mobile.token.clone());
     let hermes = hermes_channel(hermes_key, hermes_url_for(&event.channel));
 
     // NO `?` AND NO EARLY RETURN: one channel's failure costs the others
@@ -2597,6 +2592,23 @@ fn dispatch_legs(
     // delivery, so a leg cannot be lost to a sibling's refusal.
     legs.iter()
         .map(|leg| {
+            // THE MOBILE LEG IS GATED ON THE BACKEND VERDICT, ahead of the
+            // dispatch that picks a seam and so ahead of BOTH of them. The
+            // gate used to sit on the TOKEN, which only feeds the native
+            // channel: with an executable channel of the same name installed,
+            // the card went out under a backend nobody named while stderr
+            // said "no card is pushed". A sentence that is printed has to be
+            // true wherever the leg is dispatched.
+            //
+            // IT SITS HERE RATHER THAN IN `deliver_leg` because this is the
+            // one site that dispatches any leg at all, so the two are the
+            // same fence; a refused leg also runs nothing, so there is no
+            // panic to catch below and nothing to unwind.
+            if leg.name == "mobile"
+                && let Some(reason) = mobile.refusal.as_deref()
+            {
+                return (*leg, Delivery::Failed(refused_backend_line(reason)));
+            }
             // A PANIC IS ONE LEG'S FAILURE, never the run's. Without this an
             // unwinding channel takes the remaining legs and, in a hand-run
             // check, the rest of the census with it, and a census that ended
@@ -2676,21 +2688,122 @@ fn enabled_hue_table(config: &pns::config::Config) -> Option<toml::Table> {
 /// refuses a non-boolean `enabled` by name. Reading `"true"` as false is the
 /// same defect one level down: the operator asked for something, did not get
 /// it, and was told nothing.
-fn mobile_watch_card(config: &pns::config::Config) -> bool {
-    let Some(stated) = config
-        .plugins
-        .get("moshi")
-        .and_then(|moshi| moshi.settings.get("mobile_watch_card"))
-    else {
+///
+/// IT IS HANDED THE ARMED TABLE rather than the config, because every read of
+/// `[plugins.mobile]` goes through one accessor: a toggle honoured under a
+/// table whose backend was refused would be one setting of a refused table
+/// still in force.
+fn watch_card(settings: &toml::Table) -> bool {
+    let Some(stated) = settings.get("mobile_watch_card") else {
         return false;
     };
     stated.as_bool().unwrap_or_else(|| {
         eprintln!(
-            "pns: config error (moshi.mobile_watch_card is {}, not a boolean); the mobile watching card stays off",
+            "pns: config error ([plugins.mobile] mobile_watch_card is {}, not a boolean); the mobile watching card stays off",
             stated.type_str()
         );
         false
     })
+}
+
+/// What reading `[plugins.mobile]` decided, carried whole rather than
+/// collapsed into an absent token.
+///
+/// THE COMPLAINT TRAVELS WITH THE OUTCOME. A backend nobody answers and a
+/// token nobody wrote are two different edits, and folding both into `None`
+/// made the doctor name `token` for a fault that was `type`, on a machine
+/// whose token was already correct.
+#[derive(Default)]
+struct Mobile {
+    /// The push token, when the table is armed and states one. `None` is the
+    /// not-set-up case, which the deliver seam names its own config key for.
+    token: Option<String>,
+    /// Why no card can be pushed: the table is switched on and names a backend
+    /// nothing compiled in answers. The mobile leg fails with these words
+    /// wherever it is dispatched.
+    refusal: Option<String>,
+    /// Whether a card fires while the operator is watching the pane.
+    watch_card: bool,
+}
+
+/// The one read of `[plugins.mobile]`, and the one place its refusal reaches
+/// stderr.
+///
+/// THE COMPLAINT IS PRINTED HERE because this is the composition root, which is
+/// where every other returned warning becomes a line. ONCE, whatever the table
+/// is going to be read for, because the table is read once: the token, the
+/// toggle and the refusal come out of a single verdict instead of three
+/// readers that each had to remember to ask the same question.
+fn read_mobile(config: &pns::config::Config) -> Mobile {
+    let settings = match pns::config::armed_mobile(config) {
+        Ok(settings) => settings,
+        Err(reason) => {
+            eprintln!("pns: config error ({reason}); no card is pushed");
+            return Mobile {
+                refusal: Some(reason),
+                ..Mobile::default()
+            };
+        }
+    };
+    let Some(settings) = settings else {
+        return Mobile::default();
+    };
+    Mobile {
+        token: moshi_secret(settings),
+        refusal: None,
+        watch_card: watch_card(settings),
+    }
+}
+
+/// One line about a table the event path deliberately never refuses.
+///
+/// A DISABLED TABLE IS INERT (operator ruling 2026-08-31). Nothing at load and
+/// nothing on the event path enforces the `type` under a switched-off table,
+/// because a line about a channel the operator turned off, printed on every
+/// event, is noise. It is still a misconfiguration waiting for the moment the
+/// switch flips, so the DIAGNOSTIC says it, once, where diagnostics live and
+/// where the operator is standing there reading.
+///
+/// ON STDERR, with the config complaints and not with the census: the doctor's
+/// stdout is one line per registered plugin plus its summary, and this is
+/// about a table rather than about a check. It moves no exit code, which is
+/// the same rule the Focus and daemon lines keep: a switch nobody flipped is
+/// not a broken notifier.
+fn disabled_backend_warning(table: &str, only_type: &str) -> String {
+    format!(
+        "pns: [plugins.{table}] is switched off and names no backend this binary answers \
+         (the only type is {only_type:?}); nothing refuses it until it is enabled"
+    )
+}
+
+/// Every switched-off table whose `type` names no compiled-in backend, in the
+/// order the roster registers them.
+fn disabled_backend_warnings(config: &pns::config::Config) -> Vec<String> {
+    let switched_off = |name: &str| {
+        config
+            .plugins
+            .get(name)
+            .filter(|entry| !entry.enabled)
+            .map(|entry| &entry.settings)
+    };
+    let mut warnings = Vec::new();
+    // THE TYPE ALONE on both tables. `router_settings` settles the type before
+    // it reads anything else, which is why only its two type refusals count
+    // here: a switched-off table naming a backend that DOES answer, with a
+    // missing `router_url` under it, is a different edit and not this
+    // warning's business.
+    if switched_off("router").is_some_and(|settings| {
+        matches!(
+            pns::home::router_settings(settings),
+            Err(pns::home::SetupFailure::NoType | pns::home::SetupFailure::UnknownType(_))
+        )
+    }) {
+        warnings.push(disabled_backend_warning("router", pns::home::UNIFI_TYPE));
+    }
+    if switched_off("mobile").is_some_and(|settings| mobile_backend(settings).is_err()) {
+        warnings.push(disabled_backend_warning("mobile", MOSHI_TYPE));
+    }
+    warnings
 }
 
 /// One plugin's settings table, when the config carries the plugin at all.
@@ -3010,7 +3123,7 @@ fn deliver_leg(
     if native_wins {
         match leg.name {
             "macos-banner" => return banner.deliver(rendered, leg.mode),
-            "moshi" => return moshi.deliver(rendered, leg.mode),
+            "mobile" => return moshi.deliver(rendered, leg.mode),
             "hermes" => return hermes.deliver(rendered, leg.mode),
             _ => {}
         }
@@ -3152,7 +3265,7 @@ fn home_mode() {
     };
     // EVERY CAUSE IS DECIDED IN THE LIBRARY, so each line is pinned by a
     // value-in, value-out test and this stays wiring: a missing table, a
-    // disabled one, a brand nothing answers and a mistyped value each send
+    // disabled one, a `type` nothing answers and a mistyped value each send
     // the operator to a different edit, and one message covering two of them
     // sends half of them to the wrong one.
     let router_table = match pns::home::enabled_router_table(&config) {
@@ -3284,7 +3397,7 @@ fn doctor_mode() -> i32 {
     // selection consumes it.
     let (
         hue_table,
-        moshi_token,
+        mobile,
         hermes_key,
         replay_card,
         focus_silence,
@@ -3295,7 +3408,7 @@ fn doctor_mode() -> i32 {
     ) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
-            plugin_settings(config, "moshi").and_then(moshi_secret),
+            read_mobile(config),
             plugin_settings(config, "hermes").and_then(hermes_secret),
             config.recap.replay_card,
             config.focus_silence.clone(),
@@ -3317,7 +3430,7 @@ fn doctor_mode() -> i32 {
         // describes a schedule the fire would not keep.
         _ => (
             None,
-            None,
+            Mobile::default(),
             None,
             true,
             Vec::new(),
@@ -3327,15 +3440,30 @@ fn doctor_mode() -> i32 {
             false,
         ),
     };
+    // THE SWITCHED-OFF TABLES THE EVENT PATH SAYS NOTHING ABOUT, said here
+    // and only here: see `disabled_backend_warning`.
+    if let Ok(LoadOutcome::Loaded(config)) = &loaded {
+        for warning in disabled_backend_warnings(config) {
+            eprintln!("{warning}");
+        }
+    }
     let registry = roster();
-    // THE BROKEN-CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins`
-    // runs every built-in and warns, and the doctor's job is to say what an
+    // WHAT LOADING FOUND, taken BEFORE `select_plugins` consumes it: the
+    // census reports a plugin the selection left out, and which sentence is
+    // true of that depends entirely on whether there was a config to read.
+    let config_state = match &loaded {
+        Ok(LoadOutcome::Loaded(_)) => pns::doctor::ConfigState::Read,
+        Ok(LoadOutcome::Missing) => pns::doctor::ConfigState::Absent,
+        Err(_) => pns::doctor::ConfigState::Unreadable,
+    };
+    // THE CONFIG FALLBACK IS INHERITED ON PURPOSE. `select_plugins` is what an
+    // event would run and warn about, and the doctor's job is to say what an
     // event would do, not what a tidier engine would do.
     let (selection, warning) = select_plugins(&registry, loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
     }
-    let checks = pns::doctor::checks(&registry.all(), &selection);
+    let checks = pns::doctor::checks(&registry.all(), &selection, config_state);
 
     let event = pns::args::EventArgs {
         agent: "pns".to_string(),
@@ -3364,7 +3492,7 @@ fn doctor_mode() -> i32 {
     // click focuses the right pane cannot be verified without a human clicking
     // it, so carrying one would add the scrub rule to a second call site to
     // test nothing this can observe.
-    let delivered = dispatch_legs(&legs, false, &event, &home, moshi_token, hermes_key);
+    let delivered = dispatch_legs(&legs, false, &event, &home, &mobile, hermes_key);
 
     let outcomes: Vec<pns::doctor::Outcome> = checks
         .iter()
@@ -6173,7 +6301,9 @@ fn deliver_recap(
         channel: channel.to_string(),
         ..Default::default()
     };
-    let outcomes = dispatch_legs(&[leg], false, &event, home, None, hermes_key);
+    // NO MOBILE VERDICT TO CARRY: the one leg is hermes, so the mobile table
+    // was never read on this path and the default states exactly that.
+    let outcomes = dispatch_legs(&[leg], false, &event, home, &Mobile::default(), hermes_key);
     for (leg, delivered) in &outcomes {
         if let Some(line) = delivered.clone().line_for(leg.mode) {
             println!("pns: {line}");

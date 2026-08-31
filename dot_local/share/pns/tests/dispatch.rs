@@ -26,7 +26,7 @@ fn away_from_the_desk_cards_the_phone_and_logs_but_raises_no_banner() {
         .pns()
         .args(["--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
-    assert!(sandbox.fired("moshi"));
+    assert!(sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
     assert!(!sandbox.fired("macos-banner"), "away raises no banner");
 }
@@ -44,7 +44,7 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("macos-banner"));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("moshi"), "the desk gets no card");
+    assert!(!sandbox.fired("mobile"), "the desk gets no card");
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
     assert!(!sandbox.fired("macos-banner"), "the pane is in plain sight");
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
 }
 
@@ -84,7 +84,7 @@ fn a_channel_is_handed_the_rendered_event_not_the_raw_arguments() {
         .args(["--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--branch", "main"])
         .args(["--detail", "a summary"]));
-    let event = sandbox.event("moshi");
+    let event = sandbox.event("mobile");
     assert_eq!(event["agent"], "claude");
     for rendered in ["title", "message", "preview"] {
         // A MISSING key indexes to Null, and Null is != "", so the absence
@@ -109,7 +109,7 @@ fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .arg("--local-only"));
     assert!(sandbox.fired("macos-banner"));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("hermes"));
 }
 
@@ -121,7 +121,7 @@ fn remote_only_delivers_through_hermes_alone() {
         .args(["--agent", "weekly", "--state", "done"])
         .args(["--project", "skills", "--detail", "ran", "--remote-only"]));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("macos-banner"));
 }
 
@@ -142,7 +142,7 @@ fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
         .pns()
         .args(["--agent", "x", "--state", "done", "--detail", "y"])
         .args(["--local-only", "--remote-only"]));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("hermes"));
     assert!(!sandbox.fired("macos-banner"));
     assert!(stdout(&output).contains("SKIPPED"), "{output:?}");
@@ -157,7 +157,7 @@ fn at_the_desk_the_phone_is_skipped_and_only_the_phone() {
         .pns()
         .env("PNS_IDLE_SECS", "0")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("macos-banner"));
 }
@@ -173,7 +173,7 @@ fn relay_skip_phone_drops_the_phone_and_only_the_phone() {
         .env("PNS_IDLE_SECS", "0")
         .env("PNS_SKIP_PHONE", "1")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("macos-banner"));
 }
@@ -189,7 +189,7 @@ fn relay_skip_phone_beats_relay_force_phone() {
         .env("PNS_SKIP_PHONE", "1")
         .env("PNS_FORCE_PHONE", "1")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn relay_force_phone_overrides_presence() {
         .env("PNS_IDLE_SECS", "0")
         .env("PNS_FORCE_PHONE", "1")
         .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
-    assert!(sandbox.fired("moshi"));
+    assert!(sandbox.fired("mobile"));
 }
 
 // --- a channel's own failures -----------------------------------------------
@@ -208,7 +208,7 @@ fn relay_force_phone_overrides_presence() {
 #[test]
 fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
     let sandbox = Sandbox::new("channel-fails");
-    sandbox.stub_channel("moshi", "exit 9");
+    sandbox.stub_channel("mobile", "exit 9");
     run(sandbox
         .pns()
         .env("PNS_IDLE_SECS", "0")
@@ -250,7 +250,7 @@ fn a_back_tap_newer_than_the_last_desk_input_moves_the_operator_to_mobile() {
         .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
-    assert!(sandbox.fired("moshi"));
+    assert!(sandbox.fired("mobile"));
     assert!(!sandbox.fired("macos-banner"), "mobile never banners");
 }
 
@@ -269,7 +269,7 @@ fn desk_input_after_the_tap_cancels_it() {
     run(command
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
-    assert!(!sandbox.fired("moshi"), "the desk is newer than the tap");
+    assert!(!sandbox.fired("mobile"), "the desk is newer than the tap");
     assert!(sandbox.fired("macos-banner"));
 }
 
@@ -291,7 +291,7 @@ fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("moshi"), "the tap asked for the card");
+    assert!(sandbox.fired("mobile"), "the tap asked for the card");
     assert!(!sandbox.fired("macos-banner"), "mobile never banners");
 }
 
@@ -306,7 +306,7 @@ fn a_narrowing_flag_still_beats_a_fresh_tap() {
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .arg("--local-only")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
 }
 
 #[test]
@@ -320,7 +320,7 @@ fn skip_phone_still_beats_a_fresh_tap() {
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("PNS_SKIP_PHONE", "1")
         .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
 }
 
 // --- the pane the operator is looking at ------------------------------------
@@ -336,7 +336,7 @@ fn a_phone_in_hand_watching_the_pane_gets_nothing_but_the_log() {
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("macos-banner"), "mobile never banners");
     assert!(sandbox.fired("hermes"));
 }
@@ -351,7 +351,7 @@ fn a_phone_in_hand_showing_another_tab_still_cards() {
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("moshi"));
+    assert!(sandbox.fired("mobile"));
     assert!(!sandbox.fired("macos-banner"));
 }
 
@@ -379,7 +379,7 @@ fn force_phone_is_caller_intent_and_beats_the_whole_surface_model() {
     run(command
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("moshi"));
+    assert!(sandbox.fired("mobile"));
 }
 
 #[test]
@@ -448,7 +448,7 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
     std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
     std::fs::write(
         sandbox.path(".config/pns/config.toml"),
-        "[plugins.moshi]\nenabled = true\nmobile_watch_card = \"true\"\n\
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\nmobile_watch_card = \"true\"\n\
          [plugins.hermes]\nenabled = true\n",
     )
     .expect("config");
@@ -463,8 +463,45 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
         "the refusal names the setting: {output:?}"
     );
     assert!(
-        !sandbox.fired("moshi"),
+        !sandbox.fired("mobile"),
         "and the card stays off, which is the default it fell back to"
+    );
+}
+
+#[test]
+fn one_typod_table_name_costs_a_configured_machine_no_channel() {
+    // THE FILE PARSED, which is the whole distinction. Every credential in it
+    // is in hand and the composition root has already read them off it, so a
+    // single-character slip in one table NAME is loud and nothing more. The
+    // core fallback beside it is for a file nobody could read; applying it
+    // here silently stopped the durable paper trail this crate elsewhere calls
+    // never-suppressible, and took the lights with it.
+    let sandbox = Sandbox::new("typod-table-name");
+    sandbox.write_config(
+        "[plugins.hermess]\nenabled = true\n\
+         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+         [plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+    );
+    let output = run(sandbox
+        .pns()
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--project", "dotfiles", "--detail", "a summary"]));
+
+    assert!(sandbox.fired("mobile"), "stderr: {}", stderr(&output));
+    assert!(
+        sandbox.fired("hermes"),
+        "the durable route survives a typo in an unrelated table: {}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).contains("unknown plugin `hermess`"),
+        "and it is still LOUD: {}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).contains("running every built-in plugin"),
+        "the line says what still runs: {}",
+        stderr(&output)
     );
 }
 
@@ -498,7 +535,7 @@ fn a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly() {
 fn an_absent_config_stays_silent_in_pulse_mode() {
     // The other half of the rule: absent is not broken. A machine that never
     // opted into a config must not be nagged on every long command.
-    let sandbox = support::Sandbox::new("pulse-absent-config");
+    let sandbox = support::Sandbox::without_config("pulse-absent-config");
     let output = sandbox
         .bare()
         .args(["pulse", "0"])
@@ -605,7 +642,7 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
         &format!("cat >\"{}/router.event\"", sandbox.display()),
     );
     sandbox.write_config(
-        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n[plugins.hermes]\nenabled = true\n",
+        "[plugins.router]\nenabled = true\ntype = \"unifi\"\n[plugins.hermes]\nenabled = true\n",
     );
     let output = run(sandbox
         .pns()
@@ -616,7 +653,7 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
     );
     assert!(sandbox.fired("hermes"), "the selection still delivers");
     assert!(
-        !sandbox.fired("moshi"),
+        !sandbox.fired("mobile"),
         "and nothing fell back to the whole roster"
     );
     assert!(
@@ -1018,10 +1055,10 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
     // `home_mode` is the ONE place a cause becomes the line an operator
     // reads, and that wiring only runs through the binary: collapsing its two
     // failure arms onto a single message left every other test green, so a
-    // disabled probe and a brand nothing answers could both print "no
+    // disabled probe and a type nothing answers could both print "no
     // api_key" with nothing to say so. Exact lines, because a cause that
     // merely contains "home:" sends the operator to the wrong edit.
-    let sandbox = Sandbox::new("home-setup-failures");
+    let sandbox = Sandbox::without_config("home-setup-failures");
     // Every case here stops before the router is read, so none of them can
     // reach a delivery; it still runs in the safe environment, because "this
     // path happens not to dispatch today" is not a property a test should be
@@ -1049,25 +1086,25 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             "home: not configured (no [plugins.router] table)",
         ),
         (
-            "[plugins.router]\nenabled = false\nbrand = \"unifi\"\n\
+            "[plugins.router]\nenabled = false\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: [plugins.router] is present but enabled = false",
         ),
         (
             "[plugins.router]\nenabled = true\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
-            "home: no brand in [plugins.router] (the only brand is \"unifi\")",
+            "home: no type in [plugins.router] (the only type is \"unifi\")",
         ),
         (
-            "[plugins.router]\nenabled = true\nbrand = \"asus\"\n\
+            "[plugins.router]\nenabled = true\ntype = \"asus\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
-            "home: [plugins.router] has brand \"asus\", which no compiled-in backend answers \
-             (the only brand is \"unifi\")",
+            "home: [plugins.router] has type \"asus\", which no compiled-in backend answers \
+             (the only type is \"unifi\")",
         ),
         (
             // The URL is the one setting left outside the device keys, so it
             // keeps its own line, and that line no longer names them.
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
              device_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: the [plugins.router] table is present but router_url is missing, empty, \
              or not a string",
@@ -1076,7 +1113,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // A table with no device in it at all: the line names the three
             // keys to set rather than any key that went away, since there is
             // no back-compat here.
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\napi_key = \"k-123\"\n",
             "home: no device to look for in [plugins.router] \
              (set at least one of device_mac, device_hostname, device_ipv4)",
@@ -1086,20 +1123,20 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // reaches that line at all: the table's own vocabulary is judged
             // at load, so the key that went away is named where the operator
             // wrote it, with the keys that replaced it in the same sentence.
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
             "home: config error (unknown `plugins.router` key `phone`; the table serves \
-             api_key, brand, device_hostname, device_ipv4, device_mac, enabled, router_url, \
-             stale_alert_channel)",
+             api_key, device_hostname, device_ipv4, device_mac, enabled, router_url, \
+             stale_alert_channel, type)",
         ),
         (
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_ipv4 = \"192.168.1\"\napi_key = \"k-123\"\n",
             "home: device_ipv4 = \"192.168.1\" in [plugins.router] is not an IPv4 address \
              (a dotted quad, e.g. \"192.168.1.169\")",
         ),
         (
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_mac = \"2e11ab6db04f\"\napi_key = \"k-123\"\n",
             "home: device_mac = \"2e11ab6db04f\" in [plugins.router] is not a MAC address \
              (six hex pairs under one separator, e.g. \"2e:11:ab:6d:b0:4f\")",
@@ -1107,7 +1144,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
         (
             // Everything else is in order, so the key is the only thing left
             // to be missing, and the probe stops before it reaches a router.
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
             "home: no api_key in the [plugins.router] table (the probe is not set up)",
         ),
@@ -1204,7 +1241,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         // a leg nobody switched on.
         sandbox.write_config(&format!(
             "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
-             rooms = [\"3F - Studio\"]\n[plugins.moshi]\nenabled = true\n\
+             rooms = [\"3F - Studio\"]\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
              [plugins.hermes]\nenabled = true\n{lights}"
         ));
         let mut command = sandbox.pns();
@@ -1236,7 +1273,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
             dialled,
             // EVERY LEG THIS EVENT COULD REACH, named rather than counted, so
             // a table that swapped one destination for another cannot pass.
-            ["moshi", "hermes", "macos-banner"].map(|leg| sandbox.fired(leg)),
+            ["mobile", "hermes", "macos-banner"].map(|leg| sandbox.fired(leg)),
         )
     };
     let without_a_table = outcome("lights-guard-without-a-table", "");
@@ -1269,7 +1306,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
     let sandbox = Sandbox::new("quiet-window-mutes-the-pulse");
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
-         quiet_hours = \"{}\"\n[plugins.moshi]\nenabled = true\n\
+         quiet_hours = \"{}\"\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.hermes]\nenabled = true\n",
         window_around(utc_minute_now(), 120)
     ));
@@ -1280,7 +1317,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
-        sandbox.fired("moshi") && sandbox.fired("hermes"),
+        sandbox.fired("mobile") && sandbox.fired("hermes"),
         "every other leg still dispatches inside the window"
     );
     assert!(
@@ -1453,7 +1490,7 @@ fn lamp_run(
     // in `[plugins.hermes]`, where nothing reads it and nothing complains.
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
-         rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.moshi]\nenabled = true\n\
+         rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.hermes]\nenabled = true\n{config}"
     ));
     // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
@@ -1524,7 +1561,7 @@ fn lamp_run(
         .status;
     (
         dialled,
-        sandbox.fired("moshi"),
+        sandbox.fired("mobile"),
         sandbox.fired("hermes"),
         sandbox.fired("macos-banner"),
         status.code(),
@@ -1812,7 +1849,7 @@ fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() 
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n\
          rooms = [\"3F - Studio\"]\nquiet_hours = \"00:00-23:59\"\n\
-         [plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.state()).expect("the state directory");
     std::fs::write(sandbox.state().join("lights-quiet"), "later 3F - Studio\n")
@@ -1992,7 +2029,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     let away_and_long = |sandbox: &Sandbox, port: u16| {
         sandbox.write_config(&format!(
             "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
-             [plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n\
+             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
              [plugins.macos-banner]\nenabled = true\n"
         ));
         let mut event = sandbox.pns();
@@ -2017,7 +2054,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         wait_bounded(child, std::time::Duration::from_secs(5)),
         Some(0)
     );
-    assert!(loud.fired("moshi"), "unmuted control: the phone is carded");
+    assert!(loud.fired("mobile"), "unmuted control: the phone is carded");
 
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("quiet-muted-event");
@@ -2035,7 +2072,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         "THE RECORD SURVIVES THE MUTE: hermes is not a field of the delivery \
          plan, so the durable log is exempt structurally and the mute is lossless"
     );
-    assert!(!sandbox.fired("moshi"), "no card while muted");
+    assert!(!sandbox.fired("mobile"), "no card while muted");
     assert!(!sandbox.fired("macos-banner"), "no banner while muted");
     assert!(
         !dialled_within(&listener, SETTLE),
@@ -2066,7 +2103,7 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
         .args(["--pane", "t1:p2"]));
 
     assert!(sandbox.fired("macos-banner"), "a broken mute mutes nothing");
-    assert!(sandbox.fired("moshi"), "including a forced card");
+    assert!(sandbox.fired("mobile"), "including a forced card");
     assert!(sandbox.fired("hermes"));
     // ONE COMPLAINT PER EVENT, not one per reader: the file is broken until
     // someone fixes it, so it repeats on the next event, but a single run must
@@ -2170,7 +2207,7 @@ fn a_state_file_that_cannot_be_read_delivers_everything_and_complains_once_per_e
         sandbox.fired("macos-banner"),
         "an unreadable mute mutes nothing"
     );
-    assert!(sandbox.fired("moshi"), "including a forced card");
+    assert!(sandbox.fired("mobile"), "including a forced card");
     assert!(sandbox.fired("hermes"));
     let complaints = stderr(&output)
         .lines()
@@ -2479,7 +2516,7 @@ const LIGHTS_OFF_LINE: &str =
 
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
-const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.moshi]\nenabled = true\n\
+const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
      [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n";
 
 /// The line the doctor opens with, whatever it goes on to find.
@@ -2500,7 +2537,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
-    for channel in ["moshi", "macos-banner", "hermes"] {
+    for channel in ["mobile", "macos-banner", "hermes"] {
         let event = sandbox.event(channel);
         assert_eq!(event["agent"], "pns", "channel: {channel}");
         assert_eq!(event["state"], "doctor", "channel: {channel}");
@@ -2531,7 +2568,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
         &printed[1..],
         [
             "router: skipped, a sensor and never a delivery destination",
-            "moshi: sent, this channel reports no outcome",
+            "mobile: sent, this channel reports no outcome",
             "macos-banner: sent, this channel reports no outcome",
             "hermes: sent, this channel reports no outcome",
             "hue: skipped, not enabled in the config",
@@ -2551,6 +2588,136 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
 }
 
 #[test]
+fn a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_seam() {
+    // "NO CARD IS PUSHED" IS PRINTED, so it has to be true wherever the leg is
+    // dispatched. The gate used to sit on the TOKEN, which only feeds the
+    // native channel: with an executable channel of the same name installed,
+    // the card went out under a backend nobody named while stderr said it had
+    // not.
+    let sandbox = Sandbox::new("mobile-type-refused-leg");
+    sandbox.write_config(
+        "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
+         [plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+    );
+    let output = run(sandbox
+        .pns()
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--project", "dotfiles", "--detail", "a summary"]));
+
+    assert!(
+        !sandbox.fired("mobile"),
+        "the card went out under a backend nobody named: {:?}",
+        sandbox.event("mobile")
+    );
+    assert!(
+        sandbox.fired("hermes"),
+        "and one refused table costs no sibling its leg: {}",
+        stderr(&output)
+    );
+    let said = stderr(&output);
+    assert_eq!(
+        said.matches("no card is pushed").count(),
+        1,
+        "one fault, one complaint: {said}"
+    );
+    assert!(said.contains("\"pushover\""), "quoting the type: {said}");
+}
+
+#[test]
+fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
+    // ONE FAULT, ONE LINE, AND IT NAMES THE RIGHT KEY. The complaint used to
+    // be consumed at the read and the value collapsed into `None`, which is
+    // indistinguishable from a missing token by the time the leg runs: the
+    // operator with a perfectly good token in the file was sent to `token`.
+    let sandbox = Sandbox::new("doctor-type-fault");
+    sandbox.write_config(
+        "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
+         [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
+    );
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    let reported = stdout(&output);
+    let mobile = reported
+        .lines()
+        .find(|line| line.starts_with("mobile:"))
+        .unwrap_or_else(|| panic!("the census names every plugin: {reported}"));
+    assert!(
+        mobile.starts_with("mobile: FAILED,"),
+        "a card that was never pushed is not a send: {mobile}"
+    );
+    assert!(
+        mobile.contains("\"pushover\"") && mobile.contains("type"),
+        "the line names the key that is wrong: {mobile}"
+    );
+    assert!(
+        !mobile.contains("token"),
+        "and never the key that is right: {mobile}"
+    );
+    assert_eq!(
+        reported
+            .lines()
+            .filter(|line| line.starts_with("mobile:"))
+            .count(),
+        1,
+        "one plugin, one line: {reported}"
+    );
+    assert_eq!(output.status.code(), Some(1), "a failed leg is a failure");
+}
+
+#[test]
+fn the_doctor_tells_a_machine_with_no_config_that_there_is_no_config() {
+    // "NOT ENABLED IN THE CONFIG" POINTS AT A FILE THAT DOES NOT EXIST. It was
+    // unreachable in this state until the fallback narrowed to the core; it is
+    // now the ordinary report on a fresh machine, and it sends the operator to
+    // edit nothing.
+    let sandbox = Sandbox::without_config("doctor-no-config");
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    let reported = stdout(&output);
+    for plugin in ["router", "hermes", "hue"] {
+        let line = reported
+            .lines()
+            .find(|line| line.starts_with(&format!("{plugin}:")))
+            .unwrap_or_else(|| panic!("the census names every plugin: {reported}"));
+        assert_eq!(
+            line,
+            format!("{plugin}: skipped, no config file, so only the core runs"),
+            "the skip reason has to be true of this machine"
+        );
+    }
+}
+
+#[test]
+fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does() {
+    // A DISABLED TABLE IS INERT (operator ruling 2026-08-31): nothing on the
+    // event path refuses it, because complaining about a channel the operator
+    // switched off on every event is noise. It is still a misconfiguration
+    // waiting for the moment the switch flips, so the DIAGNOSTIC says it,
+    // which is where diagnostics belong.
+    let sandbox = Sandbox::new("disabled-table-type");
+    sandbox.write_config(&format!(
+        "[plugins.router]\nenabled = false\ntype = \"asus\"\n{EVERY_DISPATCHED_CHANNEL}"
+    ));
+
+    let checked = doctor_command(&sandbox).output().expect("the engine runs");
+    assert!(
+        stderr(&checked).contains("[plugins.router]") && stderr(&checked).contains("switched off"),
+        "the doctor is where a switched-off misconfiguration is visible: {}",
+        stderr(&checked)
+    );
+
+    let fired = run(sandbox
+        .pns()
+        .args(["--agent", "claude", "--state", "done"])
+        .args(["--project", "dotfiles", "--detail", "a summary"]));
+    assert!(
+        !stderr(&fired).contains("switched off"),
+        "and the event path stays silent about a table nobody switched on: {}",
+        stderr(&fired)
+    );
+}
+
+#[test]
 fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one() {
     // THE FAILING CHANNEL IS THE FIRST ONE DISPATCHED, which is the whole
     // point: failing the LAST enabled channel is a scenario a census that
@@ -2565,7 +2732,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     // command.
     let sandbox = Sandbox::new("doctor-failure");
     sandbox.write_config(
-        "[plugins.moshi]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n\
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.macos-banner]\nenabled = true\n\
          [plugins.hermes]\nenabled = true\n",
     );
     let mut command = sandbox.bare();
@@ -2584,8 +2751,8 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
         printed.contains(
-            "moshi: FAILED, push SKIPPED -- no moshi token in the config \
-             ([plugins.moshi] token); nothing was sent"
+            "mobile: FAILED, push SKIPPED -- no moshi token in the config \
+             ([plugins.mobile] token); nothing was sent"
         ),
         "the first channel's own sentence, verbatim: {printed}"
     );
@@ -2627,7 +2794,7 @@ fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_m
 
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
-    for channel in ["moshi", "macos-banner", "hermes"] {
+    for channel in ["mobile", "macos-banner", "hermes"] {
         assert!(
             printed.lines().any(|line| line.starts_with(&format!(
                 "{channel}: FAILED, could not launch the channel at"
@@ -2674,7 +2841,7 @@ fn the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrid
     let output = command.output().expect("the engine runs");
 
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
-    for channel in ["moshi", "macos-banner", "hermes"] {
+    for channel in ["mobile", "macos-banner", "hermes"] {
         assert!(
             sandbox.fired(channel),
             "{channel} was suppressed by a gate the doctor exists to bypass: {}",
@@ -2789,7 +2956,7 @@ fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_cho
 #[test]
 fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one() {
     let sandbox = Sandbox::new("doctor-nothing-enabled");
-    sandbox.write_config("[plugins.moshi]\nenabled = false\n");
+    sandbox.write_config("[plugins.mobile]\nenabled = false\n");
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     assert_eq!(
@@ -2804,7 +2971,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         printed,
         [
             "router: skipped, not enabled in the config",
-            "moshi: skipped, not enabled in the config",
+            "mobile: skipped, not enabled in the config",
             "macos-banner: skipped, not enabled in the config",
             "hermes: skipped, not enabled in the config",
             "hue: skipped, not enabled in the config",
@@ -2819,7 +2986,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         ],
         "the whole roster is still the report; only a census can say this"
     );
-    for channel in ["moshi", "macos-banner", "hermes"] {
+    for channel in ["mobile", "macos-banner", "hermes"] {
         assert!(
             !sandbox.fired(channel),
             "{channel} received a payload from a config that enabled nothing"
@@ -2868,7 +3035,7 @@ fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel()
             stderr(&output)
         );
         assert_eq!(stdout(&output), "", "arguments: {arguments:?}");
-        for channel in ["moshi", "macos-banner", "hermes"] {
+        for channel in ["mobile", "macos-banner", "hermes"] {
             assert!(
                 !sandbox.fired(channel),
                 "{channel} was sent a payload by a refused command: {arguments:?}"
@@ -2914,7 +3081,7 @@ fn an_event_appends_exactly_one_decision_carrying_what_it_decided_and_what_the_l
     run(logged_event(&sandbox)
         .args(["--agent", "claude", "--state", "done", "--long-running"])
         .args(["--project", "dotfiles", "--detail", "a private summary"]));
-    assert!(sandbox.fired("moshi"), "the channels fired");
+    assert!(sandbox.fired("mobile"), "the channels fired");
 
     let recorded = decisions(&sandbox);
     assert_eq!(recorded.len(), 1, "exactly one line: {recorded:?}");
@@ -2925,7 +3092,7 @@ fn an_event_appends_exactly_one_decision_carrying_what_it_decided_and_what_the_l
         " long_running=yes ",
         " pane=none ",
         " plan=banner:no,card:yes,pulse:yes ",
-        " legs=moshi:silent,hermes:silent",
+        " legs=mobile:silent,hermes:silent",
     ] {
         assert!(
             entry.contains(expected),
@@ -3006,7 +3173,7 @@ fn a_state_directory_that_cannot_be_written_costs_the_event_nothing() {
     command.env("PNS_STATE_DIR", &blocked);
     let output = run(command.args(["--agent", "claude", "--state", "done"]));
 
-    assert!(sandbox.fired("moshi"), "every channel still fires");
+    assert!(sandbox.fired("mobile"), "every channel still fires");
     assert!(sandbox.fired("hermes"));
     assert_eq!(stdout(&output), "", "nothing is said about the write");
     assert!(
@@ -3098,7 +3265,7 @@ fn a_fifo_at_the_rings_path_is_never_opened_and_never_parks_the_event() {
         Some(0),
         "a record nobody could write costs the event nothing"
     );
-    for channel in ["moshi", "hermes"] {
+    for channel in ["mobile", "hermes"] {
         assert!(sandbox.fired(channel), "{channel} never fired");
     }
     // REFUSED, NOT REPAIRED: the path still holds what it held. Healing an
@@ -3543,7 +3710,7 @@ fn a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_show
         sandbox.fired("hermes"),
         "the durable log is exempt from the mute and still has the event in full"
     );
-    assert!(!sandbox.fired("moshi"), "and the card the mute swallowed");
+    assert!(!sandbox.fired("mobile"), "and the card the mute swallowed");
 
     let waiting = journal(&sandbox);
     assert_eq!(waiting.len(), 1, "exactly one entry: {waiting:?}");
@@ -3570,7 +3737,7 @@ fn a_delivered_event_journals_nothing_at_all() {
     // reached the operator and there is nothing to replay.
     let sandbox = Sandbox::new("journal-delivered");
     run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
-    assert!(sandbox.fired("moshi"), "the card really fired");
+    assert!(sandbox.fired("mobile"), "the card really fired");
     assert!(
         !sandbox.path("state/missed-notifications").exists(),
         "a delivered event left a journal behind"
@@ -3882,7 +4049,7 @@ fn present_event(sandbox: &Sandbox) -> std::process::Command {
 /// a channel fired at all and useless here: a replay is a SECOND notification
 /// on the same channel, and a truncating stub shows one file either way.
 fn record_every_event(sandbox: &Sandbox) {
-    for channel in ["moshi", "hermes", "macos-banner"] {
+    for channel in ["mobile", "hermes", "macos-banner"] {
         sandbox.stub_channel(
             channel,
             &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
@@ -4038,7 +4205,7 @@ fn an_away_event_delivers_no_replay_and_leaves_the_journal_byte_identical() {
 
     run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
 
-    let carded = events(&sandbox, "moshi");
+    let carded = events(&sandbox, "mobile");
     assert_eq!(
         carded.len(),
         1,
@@ -4179,7 +4346,7 @@ const ITS_NAME: &str = "Casually Concerned";
 /// these two tests differ in.
 fn focus_config(silence: &str) -> String {
     format!(
-        "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n\
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
          [plugins.macos-banner]\nenabled = true\n[focus]\nsilence = [{silence}]\n"
     )
 }
@@ -4228,7 +4395,7 @@ fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_jour
         "the Focus swallowed the banner"
     );
     assert!(
-        events(&sandbox, "moshi").is_empty(),
+        events(&sandbox, "mobile").is_empty(),
         "and the card PNS_FORCE_PHONE asked for with it: a mute a producer can \
          override is not a mute"
     );
@@ -4300,7 +4467,7 @@ fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual()
     // all three decorations really were on this plan, so the three `no`s next
     // door are a Focus holding them and not a surface that never offered them.
     assert_eq!(
-        events(&sandbox, "moshi").len(),
+        events(&sandbox, "mobile").len(),
         1,
         "the forced card fired here"
     );
@@ -4947,7 +5114,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
         );
     }
     assert!(
-        events(&sandbox, "moshi").is_empty(),
+        events(&sandbox, "mobile").is_empty(),
         "the phone is not a leg for an operator at the desk"
     );
     assert_eq!(
@@ -5047,7 +5214,7 @@ fn every_event_is_recorded_in_the_activity_ring_delivered_or_not() {
         .args(["--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a delivered summary"]));
 
-    assert!(sandbox.fired("moshi"), "the away card really fired");
+    assert!(sandbox.fired("mobile"), "the away card really fired");
     assert!(
         !sandbox.path("state/missed-notifications").exists(),
         "so nothing was missed and the journal stayed empty"
@@ -5166,7 +5333,7 @@ fn a_present_event_moves_the_last_present_marker_and_an_away_event_does_not() {
     // grow across an absence.
     let away = Sandbox::new("marker-away");
     run(logged_event(&away).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
-    assert!(away.fired("moshi"), "the away row really was taken");
+    assert!(away.fired("mobile"), "the away row really was taken");
     assert_eq!(
         last_present(&away),
         None,
@@ -5652,14 +5819,16 @@ fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_ca
     // hermes leg answers Failed before it touches the network and the child
     // exits 0, so the phone said "recap in #pns" and #pns stayed empty.
     //
-    // ASKED OF THE SELECTION, which is what makes an absent config keep
-    // working: no config at all falls back to the whole roster, exactly as
-    // dispatch does, and only a config that NAMES the roster without hermes
-    // has said there is nowhere for a recap to go.
+    // ASKED OF THE SELECTION, which is the one reading dispatch takes too, so
+    // the promise on the card and the channel behind it cannot disagree. TWO
+    // MACHINES HAVE NOWHERE FOR A RECAP TO GO and both are honest: one whose
+    // config NAMES a roster without hermes, which is this test, and one with
+    // no usable config at all, since hermes needs a route signed for before
+    // it can carry anything and so is not in the core.
     let sandbox = Sandbox::new("recap-no-durable-route");
     record_every_event(&sandbox);
     sandbox
-        .write_config("[plugins.moshi]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n");
+        .write_config("[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.macos-banner]\nenabled = true\n");
     loud_window(&sandbox);
 
     run(&mut present_event(&sandbox));
@@ -5746,7 +5915,7 @@ fn a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing
         "the usage names both bounds: {}",
         stderr(&output)
     );
-    for channel in ["hermes", "moshi", "macos-banner"] {
+    for channel in ["hermes", "mobile", "macos-banner"] {
         assert!(
             !sandbox.fired(channel),
             "{channel} was handed a recap over a window nobody could read"
@@ -7359,7 +7528,7 @@ fn lights_job(sandbox: &Sandbox) -> pns::daemon::Job {
 fn registering_event(name: &str) -> Sandbox {
     let sandbox = Sandbox::new(name);
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\n[plugins.moshi]\nenabled = true\n\
+        "[plugins.hue]\nenabled = true\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
     ));
     sandbox
@@ -7432,7 +7601,7 @@ fn a_registration_that_cannot_be_written_costs_the_event_nothing() {
             stdout(&output).replace(&sandbox.display(), "<sandbox>"),
             stderr(&output).replace(&sandbox.display(), "<sandbox>"),
             output.status.code(),
-            ["moshi", "hermes", "macos-banner"].map(|leg| sandbox.fired(leg)),
+            ["mobile", "hermes", "macos-banner"].map(|leg| sandbox.fired(leg)),
         )
     };
     let working = outcome("lights-tick-spool-fine", false);
@@ -7526,7 +7695,7 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
     // against a config where an event really would reach one.
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{}\"\nkey = \"k\"\n\
-         [plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}",
+         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}",
         closed_port()
     ));
     plant_waiting_session(&sandbox);
@@ -7536,7 +7705,7 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
         assert!(stdout(&output).is_empty(), "run {run}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "run {run}: {}", stderr(&output));
         assert!(
-            !sandbox.fired("hermes") && !sandbox.fired("moshi"),
+            !sandbox.fired("hermes") && !sandbox.fired("mobile"),
             "run {run}: a tick is not an event and reaches no channel"
         );
     }
@@ -7574,7 +7743,7 @@ fn the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge
         assert!(stdout(&output).is_empty(), "{name}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "{name}: {}", stderr(&output));
         assert!(
-            !sandbox.fired("hermes") && !sandbox.fired("moshi"),
+            !sandbox.fired("hermes") && !sandbox.fired("mobile"),
             "{name}: a tick is not an event and reaches no channel"
         );
     }

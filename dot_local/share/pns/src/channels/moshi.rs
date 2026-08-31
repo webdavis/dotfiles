@@ -1,7 +1,10 @@
-//! The moshi channel, native: the phone push, a single HTTPS POST.
+//! The moshi backend of the `mobile` channel, native: the phone push, a single
+//! HTTPS POST. `mobile` is the plugin the config selects and `type = "moshi"`
+//! is what picks this; the module keeps the backend's name because that is what
+//! it implements.
 //!
 //! THE SECRET'S PATH IS THE POINT. The token is read from the config's
-//! `[plugins.moshi]` table, placed in the request BODY, and never touches
+//! `[plugins.mobile]` table, placed in the request BODY, and never touches
 //! argv, the environment of a child, or an error string: the bash put it on
 //! stdin for the same reason (the process table is world-readable), and
 //! in-process is the stronger form of the same rule. A missing or empty token
@@ -22,7 +25,52 @@ pub trait HttpPost {
     fn post_json(&self, url: &str, body: &str) -> bool;
 }
 
-/// The moshi token out of the `[plugins.moshi]` settings, or None for every
+/// The one `[plugins.mobile] type` a compiled-in backend answers. VALIDATED
+/// AND THEN DISCARDED, the way the router sensor's is: the enum that
+/// dispatches between two backends is worth writing the day there are two.
+pub const MOSHI_TYPE: &str = "moshi";
+
+/// Whether the mobile table names a backend this binary answers, and the
+/// REASON when it does not.
+///
+/// `mobile` IS THE PLUGIN AND `type` IS WHAT IS BEHIND IT, which is why this
+/// is settled before anything under the table is read: every setting there
+/// belongs to whichever backend the table names, and a table that names none
+/// must not be read as this one. The day a second backend compiles in, a
+/// config that never said which would otherwise keep whichever arm happened to
+/// be written first, silently.
+///
+/// PRESENT BUT EMPTY IS THE KEY LEFT BLANK, the same hole as absent and the
+/// same reading `home::router_settings` gives its own `type`. THE TWO ARE THE
+/// SAME QUESTION ASKED OF TWO TABLES and they are worded to match on purpose:
+/// name the table, quote what was written, name the one type that answers.
+/// Reword one and reword the other, or the rename that gave both tables one
+/// word leaves them two sentences.
+///
+/// THE REASON CARRIES NO PREFIX AND NO VERDICT. It is wrapped twice, by
+/// `refused_backend_line` for the leg that will not be dispatched and by the
+/// composition root for its one line on stderr, so one fault has one wording
+/// wherever it is said.
+///
+/// IT IS RETURNED, NOT PRINTED, exactly as `stale_alert_channel`'s complaint
+/// is: this stays a value function, and the composition root is where a
+/// warning becomes a line.
+pub fn mobile_backend(settings: &toml::Table) -> Result<(), String> {
+    let named = settings
+        .get("type")
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("no type in [plugins.mobile]; the only type is {MOSHI_TYPE:?}"))?;
+    if named != MOSHI_TYPE {
+        return Err(format!(
+            "[plugins.mobile] has type {named:?}, which no compiled-in backend answers; \
+             the only type is {MOSHI_TYPE:?}"
+        ));
+    }
+    Ok(())
+}
+
+/// The moshi token out of the `[plugins.mobile]` settings, or None for every
 /// way the config can fail to provide one: no `token` key, the wrong type,
 /// or an empty value. All of them mean "not set up", never an error.
 pub fn moshi_secret(settings: &toml::Table) -> Option<String> {
@@ -80,7 +128,19 @@ impl<H: HttpPost> MoshiChannel<H> {
 /// config key to write, the way hermes's does, because "not set up" without an
 /// address sends the operator hunting.
 const NO_TOKEN_LINE: &str =
-    "push SKIPPED -- no moshi token in the config ([plugins.moshi] token); nothing was sent";
+    "push SKIPPED -- no moshi token in the config ([plugins.mobile] token); nothing was sent";
+
+/// The line for a mobile leg refused before either delivery seam: the table
+/// names a backend nothing compiled in answers.
+///
+/// THE SAME SHAPE AS `NO_TOKEN_LINE` ABOVE IT, and deliberately beside it,
+/// because the two are the same news in the operator's terms: the leg was
+/// selected, nothing was sent, and here is the config to fix. What differs is
+/// only which key is wrong, and a report that named `token` for a `type` fault
+/// sends them to the one edit that is already correct.
+pub fn refused_backend_line(reason: &str) -> String {
+    format!("push SKIPPED -- {reason}; nothing was sent")
+}
 
 /// The deadline one moshi post runs under. Nobody waits on the answer and
 /// nothing is retried, so this only bounds how long the process lingers.
@@ -130,7 +190,10 @@ const DELIVERED_STATUS: std::ops::Range<u16> = 200..300;
 
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, moshi_secret, webhook_body};
+    use super::{
+        DEFAULT_MOSHI_URL, HttpPost, MOSHI_TYPE, MoshiChannel, mobile_backend, moshi_secret,
+        webhook_body,
+    };
     use crate::channels::{Delivery, Event};
     use crate::routing::ReportMode;
     use std::cell::RefCell;
@@ -162,7 +225,7 @@ mod tests {
     }
 
     /// The channel as the composition root builds it: the secret already
-    /// extracted from the `[plugins.moshi]` settings, no file anywhere near it.
+    /// extracted from the `[plugins.mobile]` settings, no file anywhere near it.
     fn channel_with_settings(settings: &str) -> MoshiChannel<RecordingHttp> {
         MoshiChannel {
             http: RecordingHttp::answering(true),
@@ -178,6 +241,48 @@ mod tests {
             message: "the full message, longer than the preview".to_string(),
             ..Event::default()
         }
+    }
+
+    // --- the backend the table names ----------------------------------------
+
+    #[test]
+    fn the_table_has_to_name_a_backend_and_the_refusal_names_the_key() {
+        // NOTHING GUESSES A BACKEND. `mobile` is the plugin and `type` is the
+        // implementation behind it, so a table that names none is refused
+        // rather than read as this one: the day a second backend compiles in,
+        // a config that never said which would silently keep whichever arm
+        // happened to be first. A non-string and an EMPTY value are the same
+        // hole as an absent key, which is the router's own reading.
+        for settings in ["", "token = \"tok-1\"\n", "type = 5\n", "type = \"\"\n"] {
+            let complaint = mobile_backend(&settings.parse().unwrap())
+                .expect_err(&format!("case: {settings:?}"));
+            assert!(complaint.contains("type"), "names the key: {complaint}");
+            assert!(
+                complaint.contains("[plugins.mobile]"),
+                "and the table: {complaint}"
+            );
+            assert!(
+                complaint.contains(MOSHI_TYPE),
+                "and the one type that answers: {complaint}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_type_no_compiled_in_backend_answers_is_refused_quoting_it() {
+        let complaint = mobile_backend(&"type = \"pushover\"\n".parse().unwrap())
+            .expect_err("no backend answers `pushover`");
+        assert!(complaint.contains("\"pushover\""), "got: {complaint}");
+        assert!(complaint.contains(MOSHI_TYPE), "got: {complaint}");
+    }
+
+    #[test]
+    fn the_one_compiled_in_type_is_accepted_and_its_token_is_read() {
+        // The positive control: a refusal that fired on every table would pass
+        // the two tests above and take the phone card away entirely.
+        let settings: toml::Table = "type = \"moshi\"\ntoken = \"tok-1\"\n".parse().unwrap();
+        assert_eq!(mobile_backend(&settings), Ok(()));
+        assert_eq!(moshi_secret(&settings), Some("tok-1".to_string()));
     }
 
     // --- the secret ---------------------------------------------------------
@@ -234,7 +339,7 @@ mod tests {
             assert_eq!(
                 channel.deliver(&event(), ReportMode::Silent),
                 Delivery::Failed(
-                    "push SKIPPED -- no moshi token in the config ([plugins.moshi] token); \
+                    "push SKIPPED -- no moshi token in the config ([plugins.mobile] token); \
                      nothing was sent"
                         .to_string()
                 )

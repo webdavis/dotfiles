@@ -395,7 +395,7 @@ pub fn is_new_staleness(remembered: Option<&str>, current: Option<&str>) -> bool
 /// reaches a terminal as its escape and the nameless case reads as prose.
 ///
 /// PRESENT BUT EMPTY IS NOT IDENTIFYING, the same filter `router_settings`
-/// puts on a blank `brand`: the router lists a field it has no answer for as
+/// puts on a blank `type`: the router lists a field it has no answer for as
 /// `""` as readily as it omits it, and `matched a different client ""` names
 /// nothing the operator can act on.
 ///
@@ -437,26 +437,37 @@ pub fn enabled_router_table(config: &crate::config::Config) -> Result<&toml::Tab
     Ok(&entry.settings)
 }
 
-/// The one brand a compiled-in backend answers. It is VALIDATED and then
+/// The one type a compiled-in backend answers. It is VALIDATED and then
 /// discarded: `trait Router` is the seam a second backend enters through, and
 /// the enum that dispatches between two of them is worth writing the day
 /// there are two.
-const UNIFI_BRAND: &str = "unifi";
+///
+/// PUBLIC FOR THE DIAGNOSTIC ALONE. `pns doctor` names it when it warns about
+/// a router table that is switched off and names no backend, which is the one
+/// place that misconfiguration is visible at all.
+pub const UNIFI_TYPE: &str = "unifi";
 
 /// The settings out of the router sensor's table, or the cause they could not
-/// be had. The BRAND is settled first, because every setting under it belongs
+/// be had. The TYPE is settled first, because every setting under it belongs
 /// to whichever router it names.
+///
+/// THE SAME QUESTION `channels::moshi::mobile_backend` ASKS OF THE MOBILE
+/// TABLE, and the two refusals are worded to match on purpose: name the table,
+/// quote what was written, name the one type that answers. Reword one and
+/// reword the other, or the rename that gave both tables one word leaves them
+/// two sentences. THAT THE TYPE IS SETTLED FIRST is also what lets the doctor
+/// read its two type refusals off this function rather than re-deriving them.
 pub fn router_settings(router: &toml::Table) -> Result<RouterSettings, SetupFailure> {
     // Present but EMPTY is the key left blank, the same hole as absent: the
-    // filter is what keeps `brand = ""` from being quoted back as a brand no
+    // filter is what keeps `type = ""` from being quoted back as a type no
     // backend answers, which names a value the operator never typed.
-    let brand = router
-        .get("brand")
+    let named = router
+        .get("type")
         .and_then(toml::Value::as_str)
         .filter(|value| !value.is_empty())
-        .ok_or(SetupFailure::NoBrand)?;
-    if brand != UNIFI_BRAND {
-        return Err(SetupFailure::UnknownBrand(brand.to_string()));
+        .ok_or(SetupFailure::NoType)?;
+    if named != UNIFI_TYPE {
+        return Err(SetupFailure::UnknownType(named.to_string()));
     }
     // Present but empty is a hole, not a value, and present but the wrong
     // type is refused rather than coerced: both are one line for the operator
@@ -824,8 +835,8 @@ pub enum SetupFailure {
     ConfigError(String),
     NoRouterPlugin,
     RouterDisabled,
-    NoBrand,
-    UnknownBrand(String),
+    NoType,
+    UnknownType(String),
     InvalidRouterTable,
     NoDeviceIdentifier,
     InvalidDeviceKey { key: DeviceKey, found: String },
@@ -843,12 +854,12 @@ pub fn setup_report(failure: &SetupFailure) -> String {
         SetupFailure::RouterDisabled => {
             "home: [plugins.router] is present but enabled = false".to_string()
         }
-        SetupFailure::NoBrand => {
-            format!("home: no brand in [plugins.router] (the only brand is \"{UNIFI_BRAND}\")")
+        SetupFailure::NoType => {
+            format!("home: no type in [plugins.router] (the only type is \"{UNIFI_TYPE}\")")
         }
-        SetupFailure::UnknownBrand(brand) => format!(
-            "home: [plugins.router] has brand {brand:?}, which no compiled-in backend \
-             answers (the only brand is \"{UNIFI_BRAND}\")"
+        SetupFailure::UnknownType(named) => format!(
+            "home: [plugins.router] has type {named:?}, which no compiled-in backend \
+             answers (the only type is \"{UNIFI_TYPE}\")"
         ),
         SetupFailure::InvalidRouterTable => {
             "home: the [plugins.router] table is present but router_url is missing, empty, \
@@ -1437,7 +1448,7 @@ mod tests {
         // read as one they never wrote: the first is fixed by flipping a flag
         // they are looking at, the second by writing a table.
         let config = crate::config::parse_config(
-            "[plugins.router]\nenabled = false\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
+            "[plugins.router]\nenabled = false\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
         )
         .unwrap();
         assert_eq!(
@@ -1451,42 +1462,60 @@ mod tests {
     }
 
     #[test]
-    fn a_router_table_with_no_brand_names_the_key_and_the_one_brand_that_answers() {
+    fn the_router_names_its_backend_with_type_and_no_longer_with_brand() {
+        // ONE WORD ACROSS THE FILE. `type` is what selects a backend under
+        // every table that has one to select, so the router's old `brand` is
+        // not a second spelling of it: it names no backend, and a table
+        // carrying it is refused exactly as an empty one is.
+        let typed = table(
+            "type = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
+        );
+        assert!(router_settings(&typed).is_ok(), "`type` names the backend");
+        let branded =
+            table("brand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n");
+        assert!(
+            router_settings(&branded).is_err(),
+            "`brand` no longer names one"
+        );
+    }
+
+    #[test]
+    fn a_router_table_with_no_type_names_the_key_and_the_one_type_that_answers() {
         // WHICH ROUTER answers is the first question the table has to settle,
         // because every setting under it belongs to that one. A non-string
-        // brand and an EMPTY one are the same hole: there is no name to match
-        // a backend by, and the empty one used to be quoted back as a brand
+        // type and an EMPTY one are the same hole: there is no name to match
+        // a backend by, and the empty one used to be quoted back as a type
         // nothing implements, which points at a value the operator never
         // typed instead of at the key they left blank.
         for text in [
             "router_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
-            "brand = 5\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
-            "brand = \"\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "type = 5\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "type = \"\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
         ] {
             assert_eq!(
                 router_settings(&table(text)),
-                Err(SetupFailure::NoBrand),
+                Err(SetupFailure::NoType),
                 "case: {text:?}"
             );
         }
-        let line = setup_report(&SetupFailure::NoBrand);
-        assert!(line.contains("brand"), "got: {line}");
+        let line = setup_report(&SetupFailure::NoType);
+        assert!(line.contains("type"), "got: {line}");
         assert!(line.contains("[plugins.router]"), "got: {line}");
         assert!(line.contains("\"unifi\""), "got: {line}");
     }
 
     #[test]
-    fn a_brand_no_compiled_in_backend_answers_is_refused_quoting_it() {
+    fn a_type_no_compiled_in_backend_answers_is_refused_quoting_it() {
         // Silently probing a UniFi endpoint on a router that is not one would
         // read Unknown forever with nothing to look at; the refusal quotes
         // what was asked for and says what this binary can answer.
         let asus =
-            table("brand = \"asus\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n");
+            table("type = \"asus\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n");
         assert_eq!(
             router_settings(&asus),
-            Err(SetupFailure::UnknownBrand("asus".to_string()))
+            Err(SetupFailure::UnknownType("asus".to_string()))
         );
-        let line = setup_report(&SetupFailure::UnknownBrand("asus".to_string()));
+        let line = setup_report(&SetupFailure::UnknownType("asus".to_string()));
         assert!(line.contains("\"asus\""), "got: {line}");
         assert!(line.contains("\"unifi\""), "got: {line}");
         assert!(line.contains("[plugins.router]"), "got: {line}");
@@ -1497,7 +1526,7 @@ mod tests {
         // The whole value path in one: the config's `[plugins.router]` table,
         // through the selection gate, into the two settings the probe runs on.
         let config = crate::config::parse_config(
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
         )
         .unwrap();
         let router = enabled_router_table(&config).expect("the enabled table");
@@ -1515,14 +1544,14 @@ mod tests {
         // A present-but-wrong VALUE is fixed by editing one line; a missing
         // TABLE is fixed by writing one. `router_url = 5` reported as "no
         // table" used to send the operator to write a table they already had.
-        let brand = "brand = \"unifi\"\n";
+        let named = "type = \"unifi\"\n";
         for text in [
             "device_hostname = \"mister\"\n",
             "router_url = \"\"\ndevice_hostname = \"mister\"\n",
             "router_url = 5\ndevice_hostname = \"mister\"\n",
         ] {
             assert_eq!(
-                router_settings(&table(&format!("{brand}{text}"))),
+                router_settings(&table(&format!("{named}{text}"))),
                 Err(SetupFailure::InvalidRouterTable),
                 "case: {text:?}"
             );
@@ -1547,7 +1576,7 @@ mod tests {
         // find out what one is called.
         assert_eq!(
             device_identity(&table(
-                "brand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\n"
+                "type = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\n"
             )),
             Err(SetupFailure::NoDeviceIdentifier)
         );
@@ -1711,7 +1740,7 @@ mod tests {
         // only how: a table lifted from anywhere else would pass a bare-table
         // assertion just as well.
         let config = crate::config::parse_config(
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
+            "[plugins.router]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
         )
         .unwrap();
         let router = enabled_router_table(&config).expect("the enabled table");
@@ -1748,7 +1777,7 @@ mod tests {
         // (`/webhooks/pns`). Complaining here would put a config error in
         // front of every operator who never asked to route the alert anywhere.
         assert_eq!(
-            stale_alert_channel(&table("brand = \"unifi\"\n")),
+            stale_alert_channel(&table("type = \"unifi\"\n")),
             (String::new(), None)
         );
     }
@@ -2227,8 +2256,8 @@ mod tests {
             ),
             (SetupFailure::NoRouterPlugin, "[plugins.router]"),
             (SetupFailure::RouterDisabled, "[plugins.router]"),
-            (SetupFailure::NoBrand, "brand"),
-            (SetupFailure::UnknownBrand("asus".to_string()), "asus"),
+            (SetupFailure::NoType, "type"),
+            (SetupFailure::UnknownType("asus".to_string()), "asus"),
             (SetupFailure::InvalidRouterTable, "router_url"),
             (SetupFailure::NoDeviceIdentifier, "device_hostname"),
             (
@@ -2441,8 +2470,8 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_brand_with_control_bytes_is_escaped_like_every_other_spelled_value() {
-        let line = setup_report(&SetupFailure::UnknownBrand("a\u{1b}[31mz".to_string()));
+    fn an_unknown_type_with_control_bytes_is_escaped_like_every_other_spelled_value() {
+        let line = setup_report(&SetupFailure::UnknownType("a\u{1b}[31mz".to_string()));
         assert!(
             !line.contains('\u{1b}'),
             "raw ESC must not reach stdout: {line}"

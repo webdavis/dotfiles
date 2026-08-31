@@ -141,12 +141,37 @@ impl Registry {
         self.registrations.iter().map(|entry| entry.name).collect()
     }
 
-    /// Every registration, for the machine with NO config file: the built-in
-    /// roster is the default, so the cutover from the bash engine changes
-    /// nothing until an operator writes a config, and a config that EXISTS
-    /// is authoritative precisely because writing one is the opt-in.
+    /// Every registration, whatever the config says. The census the doctor
+    /// reports against, which has to name a plugin the config declined or a
+    /// short report reads as a complete one.
     pub fn all(&self) -> Selection {
         Selection(self.registrations.clone())
+    }
+
+    /// What runs with NO usable config: the core, in registration order.
+    ///
+    /// NOT THE WHOLE ROSTER (operator ruling 2026-08-31). Three of the five
+    /// plugins cannot do anything until a credential is stood up for them (a
+    /// hue bridge and key, a hermes route to sign for, a router API key), so a
+    /// default that switched them on delivered nothing and reported three
+    /// failures on a machine whose operator had asked for none of it.
+    ///
+    /// THE TWO LEFT ARE NOT CREDENTIAL-FREE, and the split is not the line it
+    /// looks like: the banner needs nothing, and the phone needs a `token` in
+    /// the very same file. The phone is core BY RULING rather than by that
+    /// test. What it buys is that the leg is PLANNED and ARMS the moment a
+    /// token appears, and what it costs is one honest failure line on a
+    /// machine that has written no config at all, naming the key to write. The
+    /// other three would each cost the same line for a destination the
+    /// operator has given no sign of wanting.
+    pub fn core(&self) -> Selection {
+        Selection(
+            self.registrations
+                .iter()
+                .filter(|entry| CORE.contains(&entry.name))
+                .copied()
+                .collect(),
+        )
     }
 
     /// The registrations the config enables, in REGISTRATION order whatever
@@ -221,7 +246,11 @@ pub const ROSTER: [Registration; 5] = [
         kind: PluginKind::Sensor,
     },
     Registration {
-        name: "moshi",
+        // The phone. NAMED FOR THE DESTINATION, not for the service behind it:
+        // `[plugins.mobile] type` names which backend carries the card (moshi
+        // today), so a second one is a value the operator writes rather than a
+        // second plugin name and a second table to move settings into.
+        name: "mobile",
         kind: PluginKind::Channel(Routing {
             local: false,
             presence_gated: true,
@@ -266,16 +295,37 @@ pub const ROSTER: [Registration; 5] = [
     },
 ];
 
+/// THE CORE: what a machine with no usable config runs. Names rather than a
+/// flag on the declaration, because this is a selection policy and the roster
+/// states what a plugin IS; a name here that nothing registers simply selects
+/// nothing, which is what `the_core_is_two_registered_plugins_and_the_config_
+/// still_beats_it` is for. IN REGISTRATION ORDER, so the warning that lists it
+/// reads in the order the legs run.
+pub const CORE: [&str; 2] = ["mobile", "macos-banner"];
+
 /// Which plugins run, given what loading the config found. The composition
-/// policy in one place:
+/// policy in one place, and it turns on ONE question: did the file parse?
 ///
-/// A LOADED config is authoritative. A MISSING config selects every built-in,
-/// so the cutover from the bash engine changes nothing until an operator
-/// opts in by writing one. A BROKEN config (unreadable, malformed, invalid,
-/// or naming an unknown plugin) is LOUD, the returned warning, but still
-/// selects every built-in: on an always-exit-0 notification path, a config
-/// error that silently turned every notification off would be the exact
-/// failure the config layer exists to refuse.
+/// A LOADED config is authoritative, and that holds even when it names a
+/// plugin nothing registered. The typo is LOUD, the returned warning, and the
+/// selection is the WHOLE ROSTER: the file parsed, so every credential in it
+/// is in hand and the composition root has already read hue's table, hermes's
+/// key and the recap off it. Narrowing here would let one mistyped table name
+/// cost a fully configured machine its durable paper trail and its lights,
+/// which is not what a spelling mistake asked for.
+///
+/// A MISSING config selects the CORE, which is what a machine nobody has
+/// configured gets. A config that could not be READ (unreadable, malformed,
+/// invalid) is loud and selects the core too: on an always-exit-0 notification
+/// path, a config error that silently turned every notification off would be
+/// the exact failure the config layer exists to refuse, and the three it
+/// leaves out could not have delivered anything anyway, since their
+/// credentials are in the file nobody could read.
+///
+/// SELECTING ONLY THE KNOWN NAMES out of a config with one typo in it is a
+/// third answer, narrower than either of these. It is not built: it would
+/// have to decide what a half-honoured config means for every reader that
+/// already took a value off the same file, and nothing has asked for it yet.
 pub fn select_plugins(
     registry: &Registry,
     loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
@@ -291,18 +341,27 @@ pub fn select_plugins(
                     RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
                     RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
                 };
-                (registry.all(), Some(roster_warning(&detail)))
+                (registry.all(), Some(every_plugin_warning(&detail)))
             }
         },
-        Ok(LoadOutcome::Missing) => (registry.all(), None),
-        Err(error) => (registry.all(), Some(roster_warning(error.detail()))),
+        Ok(LoadOutcome::Missing) => (registry.core(), None),
+        Err(error) => (registry.core(), Some(core_warning(error.detail()))),
     }
 }
 
-/// The one line a broken config prints: what was wrong, and that nothing was
-/// turned off because of it.
-fn roster_warning(detail: &str) -> String {
+/// The line a config that PARSED prints when it names a plugin nothing
+/// registered: what was wrong, and that nothing was turned off because of it.
+fn every_plugin_warning(detail: &str) -> String {
     format!("pns: config error ({detail}); running every built-in plugin")
+}
+
+/// The line a config nobody could read prints: what was wrong, and which two
+/// plugins carry the machine until it is fixed.
+fn core_warning(detail: &str) -> String {
+    format!(
+        "pns: config error ({detail}); running the core plugins ({})",
+        CORE.join(", ")
+    )
 }
 
 #[cfg(test)]
@@ -332,7 +391,7 @@ mod tests {
 
     fn three_plugin_registry() -> Registry {
         let mut registry = Registry::new();
-        registry.register_channel("moshi", REMOTE_GATED).unwrap();
+        registry.register_channel("mobile", REMOTE_GATED).unwrap();
         registry.register_channel("hermes", DURABLE).unwrap();
         registry.register_channel("macos-banner", LOCAL).unwrap();
         registry
@@ -343,16 +402,16 @@ mod tests {
     #[test]
     fn registration_order_is_kept_because_it_is_delivery_order() {
         let registry = three_plugin_registry();
-        assert_eq!(registry.names(), vec!["moshi", "hermes", "macos-banner"]);
+        assert_eq!(registry.names(), vec!["mobile", "hermes", "macos-banner"]);
     }
 
     #[test]
     fn a_name_already_taken_is_refused_naming_it() {
         let mut registry = Registry::new();
-        registry.register_channel("moshi", REMOTE_GATED).unwrap();
+        registry.register_channel("mobile", REMOTE_GATED).unwrap();
         assert_eq!(
-            registry.register_channel("moshi", LOCAL),
-            Err(RegistryError::Duplicate("moshi".to_string()))
+            registry.register_channel("mobile", LOCAL),
+            Err(RegistryError::Duplicate("mobile".to_string()))
         );
     }
 
@@ -468,7 +527,7 @@ mod tests {
             declared,
             vec![
                 ("router", true),
-                ("moshi", false),
+                ("mobile", false),
                 ("macos-banner", false),
                 ("hermes", false),
                 ("hue", false),
@@ -476,7 +535,7 @@ mod tests {
         );
         assert_eq!(
             super::roster().names(),
-            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
+            vec!["router", "mobile", "macos-banner", "hermes", "hue"]
         );
     }
 
@@ -484,25 +543,25 @@ mod tests {
 
     #[test]
     fn the_config_selects_and_registration_order_beats_config_order() {
-        // The config lists banner before moshi; the plan order is still the
+        // The config lists banner before mobile; the plan order is still the
         // registered one, because delivery order is policy, not preference.
         let config = parse_config(
-            "[plugins.macos-banner]\nenabled = true\n[plugins.moshi]\nenabled = true\n",
+            "[plugins.macos-banner]\nenabled = true\n[plugins.mobile]\nenabled = true\n",
         )
         .unwrap();
         let enabled = three_plugin_registry().enabled(&config).unwrap();
         let names: Vec<&str> = enabled.iter().map(|r| r.name).collect();
-        assert_eq!(names, vec!["moshi", "macos-banner"]);
+        assert_eq!(names, vec!["mobile", "macos-banner"]);
     }
 
     #[test]
     fn a_disabled_or_omitted_plugin_is_simply_not_selected() {
         let config =
-            parse_config("[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = false\n")
+            parse_config("[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = false\n")
                 .unwrap();
         let enabled = three_plugin_registry().enabled(&config).unwrap();
         let names: Vec<&str> = enabled.iter().map(|r| r.name).collect();
-        assert_eq!(names, vec!["moshi"]);
+        assert_eq!(names, vec!["mobile"]);
     }
 
     #[test]
@@ -557,10 +616,10 @@ mod tests {
     }
 
     #[test]
-    fn all_selects_every_registration_for_the_unconfigured_machine() {
+    fn all_selects_every_registration_which_is_what_the_census_reports_against() {
         let selection = three_plugin_registry().all();
         let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
-        assert_eq!(names, vec!["moshi", "hermes", "macos-banner"]);
+        assert_eq!(names, vec!["mobile", "hermes", "macos-banner"]);
     }
 
     #[test]
@@ -577,15 +636,37 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_config_selects_every_builtin_so_the_cutover_changes_nothing() {
+    fn a_machine_with_no_config_runs_the_core_and_nothing_that_needs_arming() {
+        // THE FALLBACK IS THE CORE, not the whole roster (operator ruling
+        // 2026-08-31). A machine with no config gets the two destinations that
+        // are useful the moment the binary lands; hue, hermes and router each
+        // need a bridge, a route or an API key stood up before they can do
+        // anything at all, so defaulting them on delivers nothing and reports
+        // three failures.
         use crate::config::LoadOutcome;
         let (selection, warning) =
             super::select_plugins(&super::roster(), Ok(LoadOutcome::Missing));
-        assert_eq!(
-            selection_names(&selection),
-            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
-        );
+        assert_eq!(selection_names(&selection), vec!["mobile", "macos-banner"]);
         assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn the_core_is_two_registered_plugins_and_the_config_still_beats_it() {
+        // THE NAME LIST IS THE DRIFT RISK: a misspelling in `CORE` selects
+        // nothing rather than failing to compile, and the machine with no
+        // config would go quiet with nothing to look at. So the core is
+        // asserted against the REAL roster, both members named.
+        assert_eq!(
+            selection_names(&super::roster().core()),
+            vec!["mobile", "macos-banner"],
+            "every core name is a registered plugin"
+        );
+        // AND IT IS ONLY A FALLBACK. A config that exists says what runs, so
+        // writing one that omits a core plugin turns that plugin off; nothing
+        // is quietly always-on.
+        let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+        let selection = super::roster().enabled(&config).unwrap();
+        assert_eq!(selection_names(&selection), vec!["hermes"]);
     }
 
     #[test]
@@ -600,6 +681,9 @@ mod tests {
 
     #[test]
     fn a_broken_config_is_loud_but_never_turns_notifications_off() {
+        // THE CORE, not the whole roster: the three left out keep their
+        // credentials in the very file nobody could read, so running them
+        // would report three failures about a config error already on stderr.
         use crate::config::ConfigError;
         let (selection, warning) = super::select_plugins(
             &super::roster(),
@@ -607,26 +691,37 @@ mod tests {
                 "key with no value at line 1".to_string(),
             )),
         );
-        assert_eq!(
-            selection_names(&selection),
-            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
-        );
+        assert_eq!(selection_names(&selection), vec!["mobile", "macos-banner"]);
         let warning = warning.expect("a broken config must be said aloud");
         assert!(warning.contains("key with no value"));
     }
 
     #[test]
     fn a_config_naming_an_unknown_plugin_is_loud_and_falls_back_to_the_roster() {
+        // THE WHOLE ROSTER, and the arm is the reason. This config PARSED, so
+        // every credential in it is in hand and the composition root has
+        // already read hue's table, hermes's key and the recap off it before
+        // selection runs. The core fallback exists for a file nobody could
+        // read; applying it here lets one mistyped table name cost a fully
+        // configured machine its durable paper trail and its lights, which is
+        // a blast radius no ruling asked for.
         use crate::config::LoadOutcome;
-        let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
+        let config =
+            parse_config("[plugins.mosih]\nenabled = true\n[plugins.hermes]\nenabled = true\n")
+                .unwrap();
         let (selection, warning) =
             super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(config)));
         assert_eq!(
             selection_names(&selection),
-            vec!["router", "moshi", "macos-banner", "hermes", "hue"]
+            super::roster().names(),
+            "a config-present machine keeps every plugin; the typo is loud, not fatal"
         );
         let warning = warning.expect("the typo'd name must be said aloud");
         assert!(warning.contains("mosih"));
+        assert!(
+            warning.contains("running every built-in plugin"),
+            "and the line says what still runs: {warning}"
+        );
     }
 
     #[test]
@@ -642,6 +737,32 @@ mod tests {
             super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(config)));
         assert_eq!(selection_names(&selection), vec!["hermes", "hue"]);
         assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn the_old_moshi_table_name_is_refused_and_the_mobile_one_is_served() {
+        // THE RENAME HAS NO BACK ROAD, and it needs none: the template is the
+        // only pns config anyone has and it regenerates at apply. So
+        // `[plugins.moshi]` is not a second spelling of the phone plugin, it
+        // is a name nothing registered, and it gets the refusal every typo
+        // gets rather than quietly selecting the plugin it used to name.
+        use crate::config::LoadOutcome;
+        let old = parse_config("[plugins.moshi]\nenabled = true\n").unwrap();
+        assert_eq!(
+            super::roster().enabled(&old),
+            Err(RegistryError::UnknownPlugin("moshi".to_string()))
+        );
+        let (_, warning) = super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(old)));
+        assert!(
+            warning
+                .expect("the retired name is said aloud")
+                .contains("moshi"),
+            "the operator is told which name stopped working"
+        );
+
+        let new = parse_config("[plugins.mobile]\nenabled = true\n").unwrap();
+        let selection = super::roster().enabled(&new).unwrap();
+        assert_eq!(selection_names(&selection), vec!["mobile"]);
     }
 
     #[test]
