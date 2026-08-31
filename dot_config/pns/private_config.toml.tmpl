@@ -4,22 +4,23 @@
 {{- if eq .chezmoi.os "darwin" }}
 
 # The return recap's three delivery switches, each gating only its own
-# delivery. ABSENT IS ALL ON, so a machine with this block left commented
-# behaves exactly as it did before the table existed; a misspelled key or a
-# non-boolean value is refused by name rather than half-read. NOT A PLUGIN, so
-# it sits at the top level beside `[plugins]` rather than under it.
-# [recap]
+# delivery. THE UNCOMMENTED LINES BELOW ARE THE DEFAULTS, written out so they
+# can be seen; deleting the whole table gets exactly the same behaviour, and a
+# misspelled key or a non-boolean value is refused by name rather than
+# half-read. NOT A PLUGIN, so it sits at the top level beside `[plugins]`
+# rather than under it.
+[recap]
 # The catch-up card: the misses queued while you were away, put in front of you
 # on the first event you are present for. Off never cards from the journal; the
 # misses stay recorded whatever this says, the newest 25 of them, so switching
 # the card back on has something to deliver.
-# replay_card = true
+replay_card = true
 # The recap of the whole window posted to Discord: the header, what still needs
 # you, the night in order, and where the full text lives. It is rendered and
 # posted by a SECOND pns process the return event starts and never waits for, so
 # nothing it does can slow the prompt you are standing at. Off records the window
 # just the same; only the posting stops.
-# digest = true
+digest = true
 # Whether that recap posts to the `pns-recap` route rather than to the default
 # one. THE ROUTE MUST EXIST IN HERMES FIRST, prepared with the pns signing secret
 # (`[plugins.hermes] key` below) and a prompt of bare `{detail}`, so the recap's
@@ -32,7 +33,7 @@
 # in #pns; pns posts the same message either way. A route that refuses the post
 # is not silent: the recap goes to the default route instead, carrying one line
 # saying why it landed there.
-# digest_as_thread = true
+digest_as_thread = true
 # How many events a window needs before it is worth a recap rather than the
 # catch-up card alone. THE CALIBRATION KNOB: eight is a starting guess, every
 # recap's header prints the window's real count, and a week of them settles the
@@ -40,7 +41,7 @@
 # for to now, so a continuous stretch at the desk never reaches this. One is the
 # floor and means "any activity at all"; zero is refused, because it would recap
 # every single event, including one over a window where nothing happened.
-# min_events = 8
+min_events = 8
 # The command that turns the window into the night-in-order lines. ARGV, NEVER A
 # SHELL STRING: the words are passed to the program as they are written here, so
 # nothing is interpreted and there is no quoting rule to get wrong. It is handed
@@ -93,7 +94,7 @@
 # also set, one recap asks up to three (the night, the merges, the notes) and
 # each is bounded by what is left of this number, so the recap arrives within it
 # however many sources are configured.
-# summarizer_deadline_secs = 240
+summarizer_deadline_secs = 240
 # The repositories whose merged pull requests become the recap's "what it does
 # now" section. UNSET IS THE WORKING SETTING and it is a fence: with no repo
 # named, no `gh` process is started at all. Named, the recap runs one read-only
@@ -133,9 +134,10 @@
 # because this one delivers nothing by itself: an idle daemon reads one empty
 # directory a second. Turning it off with `enabled = false` makes the launchd
 # job exit cleanly and stay exited, and takes away anything built on the clock.
-# `pns doctor` says which of the four states it is in.
-# [daemon]
-# enabled = true
+# `pns doctor` says which of the four states it is in. WRITTEN OUT AT ITS
+# DEFAULT so the switch can be seen; deleting the table is the same statement.
+[daemon]
+enabled = true
 
 # The macOS Focus modes that pns treats as your own instruction not to be
 # interrupted. While one of the modes named below is active, banners, cards and
@@ -230,8 +232,8 @@ token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
 # Whether a long command's card still fires while you are watching that pane
 # on the phone. OFF by operator ruling 2026-08-12: a card describing the pane
 # already filling the screen is noise, and the light pulse alone marks the
-# command finishing. Uncomment to be carded anyway.
-# mobile_watch_card = false
+# command finishing. Written out at its default; set true to be carded anyway.
+mobile_watch_card = false
 # How long pns waits for moshi to acknowledge a submitted permission prompt
 # before giving up on it, in seconds. FIVE when no key states one.
 # THIS BOUNDS THE PROMPT ITSELF, which is why it matters more than it looks:
@@ -248,8 +250,8 @@ token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
 # anyway. The cost is the pending card dying with it, which a daemon that
 # silent had almost certainly not sent. There is no off switch, because an
 # unbounded wait is the bug this replaces; a zero, a negative, a non-integer
-# and anything past 3600 are refused by name.
-# submit_deadline_secs = 5
+# and anything past 3600 are refused by name. Written out at its default.
+submit_deadline_secs = 5
 
 [plugins.hermes]
 enabled = true
