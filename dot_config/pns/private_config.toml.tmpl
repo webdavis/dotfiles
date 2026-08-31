@@ -312,8 +312,8 @@ summarizer_deadline_secs = 240
 # an approval's OWN timer cannot put a nudge in front of you before you could
 # have reached your phone; it does not bound the coalescing case above, where a
 # fresh approval is named on an older one's card whenever it arrives.
-# [nag]
-# after_secs = 300
+[nag]
+after_secs = 300
 
 # The lamp map: WHICH LAMP says who, and the colour says what. A FAMILY names a
 # source (`local`, `github`, `loop`) and claims PLACES, which are room names or
@@ -371,61 +371,61 @@ summarizer_deadline_secs = 240
 # switch goes back on. Removing `[lights]` while hue stays enabled is the safe
 # way round: the next tick clears that lamp by name and forgets it.
 #
-# [lights]
-# # How often the daemon re-arms a lamp's state, in seconds.
-# #
-# # KEEP THIS AT 12 OR LOWER IF YOU WANT SMOOTH BREATHING. Breathing asks the
-# # bridge for its own breathe, which is a swell the BRIDGE ends by itself after
-# # about fifteen seconds; the daemon just asks again every refresh. Set this
-# # above ~15 and the lamp finishes its swell and sits dark until the next tick,
-# # which reads as a slow blink rather than as breathing. Every other state
-# # holds its lamp for a full interval and does not care.
-# #
-# # 12 IS ALSO THE DEFAULT, so leaving this out gets smooth breathing. The range
-# # is 10 to 300, and the ceiling is the tick's own ordinary lease: an interval
-# # longer than the lease would have the lease run out before the tick came back
-# # round, so anything above it is refused by name at load.
-# refresh_secs = 12
-# # How long an agent must have been working before `agent-loops` calls it a
-# # loop. Only that one source reads this.
-# breathe_after_secs = 900
-# # WHICH activities breathe. Absent means the three that WAIT for something,
-# # which is the line written below; an empty list means breathing off; a word
-# # outside the four is refused by name at load.
-# #   "agent-work"    an agent is working right now, however briefly
-# #   "agent-loops"   an agent has been working for breathe_after_secs
-# #   "commands"      a tracked shell command is running
-# #   "long-commands" one that has been running past the long-command tier
-# # A source left out contributes nothing; the ones named still do.
-# #
-# # `agent-work` IS THE ONE LEFT OUT OF THE DEFAULT. It breathes on any working
-# # workspace with no duration test at all, and an eager source wins every time,
-# # so switching it on leaves `breathe_after_secs` governing nothing. Name it
-# # here for a lamp that should breathe the moment an agent starts.
-# breathe_on = ["agent-loops", "commands", "long-commands"]
-# # The brightness a dimmed signal runs at, in percent. The range is 1 to 100,
-# # and zero is refused rather than read as off: a dark signal is a lamp saying
-# # nothing, and the way to say nothing is that place's own `skip` list.
-# #
-# # ONE IS THE DEFAULT and it is as faint as the hardware goes: a studio lamp
-# # asked for one percent measured 1.19, which is its own floor.
-# dim_brightness = 1
+[lights]
+# How often the daemon re-arms a lamp's state, in seconds.
 #
-# [lights.families.local]
-# rooms = ["3F - Studio"]
-# except = ["3F - Studio - HCL3"]
+# KEEP THIS AT 12 OR LOWER IF YOU WANT SMOOTH BREATHING. Breathing asks the
+# bridge for its own breathe, which is a swell the BRIDGE ends by itself after
+# about fifteen seconds; the daemon just asks again every refresh. Set this
+# above ~15 and the lamp finishes its swell and sits dark until the next tick,
+# which reads as a slow blink rather than as breathing. Every other state
+# holds its lamp for a full interval and does not care.
 #
-# [lights.families.github]
-# lights = ["3F - Studio - HCL3"]
+# 12 IS ALSO THE DEFAULT, so leaving this out gets smooth breathing. The range
+# is 10 to 300, and the ceiling is the tick's own ordinary lease: an interval
+# longer than the lease would have the lease run out before the tick came back
+# round, so anything above it is refused by name at load.
+refresh_secs = 12
+# How long an agent must have been working before `agent-loops` calls it a
+# loop. Only that one source reads this.
+breathe_after_secs = 900
+# WHICH activities breathe. Absent means the three that WAIT for something,
+# which is the line written below; an empty list means breathing off; a word
+# outside the four is refused by name at load.
+#   "agent-work"    an agent is working right now, however briefly
+#   "agent-loops"   an agent has been working for breathe_after_secs
+#   "commands"      a tracked shell command is running
+#   "long-commands" one that has been running past the long-command tier
+# A source left out contributes nothing; the ones named still do.
 #
-# [lights.families.loop]
-# lights = ["3F - Studio - HCL3"]
+# `agent-work` IS THE ONE LEFT OUT OF THE DEFAULT. It breathes on any working
+# workspace with no duration test at all, and an eager source wins every time,
+# so switching it on leaves `breathe_after_secs` governing nothing. Name it
+# here for a lamp that should breathe the moment an agent starts.
+breathe_on = ["agent-loops", "commands", "long-commands"]
+# The brightness a dimmed signal runs at, in percent. The range is 1 to 100,
+# and zero is refused rather than read as off: a dark signal is a lamp saying
+# nothing, and the way to say nothing is that place's own `skip` list.
 #
-# [lights.places."3F - Master Bedroom"]
-# skip = ["breathing"]
-# quiet_hours = "22:00-07:00"
-# quiet_mode = "dim"
-# catch_up = true
+# ONE IS THE DEFAULT and it is as faint as the hardware goes: a studio lamp
+# asked for one percent measured 1.19, which is its own floor.
+dim_brightness = 1
+
+[lights.families.local]
+rooms = ["3F - Studio"]
+except = ["3F - Studio - HCL3"]
+
+[lights.families.github]
+lights = ["3F - Studio - HCL3"]
+
+[lights.families.loop]
+lights = ["3F - Studio - HCL3"]
+
+[lights.places."3F - Master Bedroom"]
+skip = ["breathing"]
+quiet_hours = "22:00-07:00"
+quiet_mode = "dim"
+catch_up = true
 
 # ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:
 #
