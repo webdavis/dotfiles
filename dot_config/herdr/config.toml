@@ -283,6 +283,17 @@ command = "herdr-sidebar.open-sidebar"
 description = "sidebar: toggle files and source control"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Command bar (jeffarese/herdr-bar, installed by run_after_53). A Cmd+K-style
+# fuzzy switcher over tabs, panes and agents. prefix+space was free here.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+space"
+type = "plugin_action"
+command = "herdr-bar.open"
+description = "command bar: fuzzy jump to any tab, pane or agent"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Code-review pane (persiyanov/herdr-reviewr, installed by run_after_53). Its
 # config lives at dot_config/herdr/plugins/config/persiyanov.reviewr/, chezmoi-
 # managed: auto_open off, branch scope. cmd+r reaches herdr where alt+ chords
