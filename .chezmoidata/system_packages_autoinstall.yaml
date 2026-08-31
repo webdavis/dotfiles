@@ -211,7 +211,6 @@ packages:
         - openemu
         - osquery
         - oversight
-        - paseo
         - proton-drive
         - proton-mail
         - proton-mail-bridge
