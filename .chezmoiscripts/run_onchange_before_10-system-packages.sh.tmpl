@@ -132,8 +132,18 @@ fi
 # now its own command, `brew bundle cleanup --force`. So write the Brewfile to a
 # temp file once, install from it, then (unless the legacy multiplexer is still
 # installed, per the withhold rationale above) run the cleanup command.
+# THE MAS ENTRIES RUN SEPARATELY AND UNDER A BOUND. `mas` talks to the App
+# Store and hangs indefinitely when that auth wedges (measured 2026-08-31: an
+# apply sat mute for ten minutes right after the last cask). The full Brewfile
+# still declares everything, because the cleanup below judges against it; the
+# install is split so the unbounded half never contains a mas line, and the
+# mas half runs under the same gtimeout the npm installs already use. A mas
+# step that times out or fails WARNS, names the apps it covers, and the apply
+# carries on: an App Store app is never load-bearing for this machine's setup.
 brewfile=$(mktemp)
-trap 'rm -f "$brewfile"' EXIT
+brewfile_main=$(mktemp)
+brewfile_mas=$(mktemp)
+trap 'rm -f "$brewfile" "$brewfile_main" "$brewfile_mas"' EXIT
 cat >"$brewfile" <<EOF
 {{ $trusted := .packages.macos.homebrew.trusted_taps -}}
 {{ range .packages.macos.homebrew.taps -}}
@@ -149,8 +159,18 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
+grep -v '^mas ' "$brewfile" >"$brewfile_main"
+grep '^mas ' "$brewfile" >"$brewfile_mas" || true
 report_section "homebrew" "bundle sync"
-"$brew_bin" bundle --file="$brewfile"
+"$brew_bin" bundle --file="$brewfile_main"
+if [[ -s $brewfile_mas ]]; then
+  report_section "homebrew" "app store apps (bounded)"
+  mas_rc=0
+  gtimeout 180 "$brew_bin" bundle --file="$brewfile_mas" || mas_rc=$?
+  if ((mas_rc != 0)); then
+    report_line "mas sync exited ${mas_rc} (124 is the 180s bound; anything else is mas itself). The App Store apps declared in the data file were NOT synced this run; sign into the App Store and re-apply, or run: brew bundle --file=<a file of the mas lines>" >&2
+  fi
+fi
 trust_checkpoint '20-after-brew-bundle'
 {{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
 if [[ $multiplexer_present == false ]]; then
