@@ -29,6 +29,10 @@ set -uo pipefail
 
 BREW="${HOMEBREW_WEEKLY_BREW:-/opt/homebrew/bin/brew}"
 MAS="${HOMEBREW_WEEKLY_MAS:-/opt/homebrew/bin/mas}"
+GTIMEOUT="${HOMEBREW_WEEKLY_GTIMEOUT:-/opt/homebrew/bin/gtimeout}"
+# The mas declarations the APPLY publishes and deliberately does not run: the
+# App Store wedges interactive runs, so new declarations install here instead.
+MAS_MANIFEST="${HOMEBREW_WEEKLY_MAS_MANIFEST:-$HOME/.local/state/homebrew/mas.Brewfile}"
 TS="${HOMEBREW_WEEKLY_TAILSCALED:-/opt/homebrew/opt/tailscale/bin/tailscaled}"
 # The osquery converge tool, run right after the upgrade group below. The
 # osquery CASK reinstalls the vendor package and wipes our config, packs and
@@ -432,6 +436,24 @@ if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
   fi
 fi
 
+# mas_declarations -- install newly declared App Store apps from the manifest
+# the apply publishes. BOUNDED, because mas hangs indefinitely on a wedged
+# store session, and an unbounded hang here is a silent week; a missing
+# gtimeout SKIPS rather than running unbounded, and counts as the failure it
+# is so the weekly record names it.
+# shellcheck disable=SC2329,SC2317 # invoked indirectly, as an argument to run()
+mas_declarations() {
+  if [[ ! -s $MAS_MANIFEST ]]; then
+    printf 'no mas manifest published; nothing to install\n'
+    return 0
+  fi
+  if [[ ! -x $GTIMEOUT ]]; then
+    printf 'gtimeout is missing at %s; skipping the mas declaration sync rather than running it unbounded\n' "$GTIMEOUT" >&2
+    return 1
+  fi
+  "$GTIMEOUT" 180 "$BREW" bundle --no-upgrade --file="$MAS_MANIFEST"
+}
+
 run "brew update" "$BREW" update
 run "brew outdated" "$BREW" outdated
 run "mas outdated" "$MAS" outdated
@@ -444,6 +466,7 @@ run "tailscaled refresh (if upgraded)" refresh_tailscaled
 # ordering allows.
 run "osquery config converge (after upgrade)" converge_osquery
 run "mas upgrade" "$MAS" upgrade
+run "mas declarations (bounded)" mas_declarations
 run "brew cleanup" "$BREW" cleanup
 
 printf '=== done %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
