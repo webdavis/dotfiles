@@ -294,6 +294,25 @@ command = "herdr-bar.open"
 description = "command bar: fuzzy jump to any tab, pane or agent"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Embedded nvim workspace (ChmaraX/herdr-nvim, installed by run_after_53).
+# A persistent per-tab nvim sidebar plus a picker over agent-touched files;
+# annotations flow back to agents. prefix+a and prefix+i were free (the
+# README's e/o suggestions shadow edit_scrollback and notification-target).
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.toggle"
+description = "nvim sidebar: toggle"
+
+[[keys.command]]
+key = "prefix+i"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.pick-file"
+description = "nvim sidebar: open file from agent output"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Code-review pane (persiyanov/herdr-reviewr, installed by run_after_53). Its
 # config lives at dot_config/herdr/plugins/config/persiyanov.reviewr/, chezmoi-
 # managed: auto_open off, branch scope. cmd+r reaches herdr where alt+ chords
