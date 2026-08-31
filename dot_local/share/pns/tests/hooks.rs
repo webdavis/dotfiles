@@ -400,7 +400,7 @@ fn the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_pho
     hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert!(sandbox.fired("hermes"), "the paper trail is still written");
     assert!(
-        !sandbox.fired("moshi"),
+        !sandbox.fired("mobile"),
         "moshi is raising the card itself; pns pushing too is the same event twice"
     );
 }
@@ -450,7 +450,7 @@ fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
     assert_eq!(output.status.code(), Some(0));
     assert!(sandbox.fired("hermes"), "the notification still goes out");
     assert!(
-        sandbox.fired("moshi"),
+        sandbox.fired("mobile"),
         "a forward that never spawned suppresses nothing"
     );
 }
@@ -639,17 +639,17 @@ fn one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve(
 }
 
 #[test]
-fn an_approval_is_forwarded_even_when_the_moshi_channel_is_switched_off() {
+fn an_approval_is_forwarded_even_when_the_mobile_channel_is_switched_off() {
     // The forward is independent of plugin selection AND of the push token,
     // and neither is a coincidence worth leaving unpinned: a submission built
-    // on the moshi channel's own config would couple the two silently, and an
+    // on the mobile channel's own config would couple the two silently, and an
     // operator who never set a token would lose approvals while every test
     // stayed green.
     //
     // MECHANISM-BOUND: the submission is read off the record, so this goes
     // RED at the endpoint switch for item 25 to rewrite.
     let sandbox = Sandbox::new("hook-blocked-channel-off");
-    sandbox.write_config("[plugins.moshi]\nenabled = false\n[plugins.hermes]\nenabled = true\n");
+    sandbox.write_config("[plugins.mobile]\nenabled = false\n[plugins.hermes]\nenabled = true\n");
     let mut command = sandbox.pns();
     command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 42);
@@ -665,7 +665,7 @@ fn an_approval_is_forwarded_even_when_the_moshi_channel_is_switched_off() {
     // file at all (measured, three ways). This line pins that no second card
     // appeared, and nothing about what silenced it; the exit code and the
     // submission above are what carry the selection exemption.
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"), "the paper trail is still written");
 }
 
@@ -1090,7 +1090,7 @@ fn the_forward_reads_the_surface_and_never_the_card_overrides() {
         "the override buys a card, and a card is not a question anyone can answer"
     );
     assert!(
-        forced.fired("moshi"),
+        forced.fired("mobile"),
         "the push it does buy still has to arrive"
     );
 
@@ -1111,7 +1111,7 @@ fn the_forward_reads_the_surface_and_never_the_card_overrides() {
     // pins that no second card appeared and nothing about what silenced it;
     // the submissions line above is this row's real pin, and the one the
     // `&& !overrides.skip_phone` mutation kills.
-    assert!(!skipped.fired("moshi"));
+    assert!(!skipped.fired("mobile"));
 }
 
 #[test]
@@ -1762,7 +1762,7 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     // card appeared, and nothing about what silenced it; the pins above are
     // what carry the exemption.
     assert!(sandbox.fired("hermes"), "the durable log is never muted");
-    assert!(!sandbox.fired("moshi"));
+    assert!(!sandbox.fired("mobile"));
     assert!(
         std::fs::read_to_string(&quiet_until)
             .expect("the mute survives")
@@ -1790,7 +1790,7 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
         "a muted operator gets no banner about a nudge"
     );
     assert_eq!(
-        deliveries(&sandbox, "moshi"),
+        deliveries(&sandbox, "mobile"),
         0,
         "and no phone card either: escalation is not an exemption"
     );
@@ -1821,7 +1821,7 @@ fn a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() 
     sandbox.stub_moshi(&mut command, 42);
     sandbox.write_focus_store("com.apple.sleep.sleep-mode", "Sleep");
     sandbox.write_config(
-        "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n\
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
          [plugins.macos-banner]\nenabled = true\n[focus]\nsilence = [\"Sleep\"]\n",
     );
 
@@ -2538,7 +2538,7 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
         "the banner belongs to the desk the operator went back to"
     );
     assert!(
-        !sandbox.fired("moshi"),
+        !sandbox.fired("mobile"),
         "and the tap that started this turn is no longer where they are"
     );
 }
@@ -2883,7 +2883,7 @@ fn an_event_with_no_session_id_behind_it_holds_no_lamp() {
 /// The three stub channels enabled, plus the nag scheduled (or, at zero, off).
 fn nag_config(after_secs: u64) -> String {
     format!(
-        "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n\
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
          [plugins.macos-banner]\nenabled = true\n[nag]\nafter_secs = {after_secs}\n"
     )
 }
@@ -2894,7 +2894,7 @@ fn nag_config(after_secs: u64) -> String {
 /// leave one file and "exactly one card" is unfalsifiable through it. One byte
 /// appended per invocation answers the question the coalescing ruling asks.
 fn counted_channels(sandbox: &Sandbox) {
-    for channel in ["moshi", "hermes", "macos-banner"] {
+    for channel in ["mobile", "hermes", "macos-banner"] {
         sandbox.stub_channel(
             channel,
             &format!(

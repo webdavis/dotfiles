@@ -32,8 +32,36 @@ pub enum CheckKind {
     Skipped(&'static str),
 }
 
+/// What loading the config found, as far as the census is concerned.
+///
+/// IT DECIDES ONE SENTENCE: what a registered plugin the selection left out is
+/// reported with. The three states are three different edits, and one wording
+/// covering them sends two thirds of the operators to the wrong one. "Not
+/// enabled in the config" used to be the only one, which was harmless while a
+/// machine with no config ran the whole roster and nothing was ever skipped on
+/// it; the core fallback made that sentence the ORDINARY report on a fresh
+/// machine, pointing the operator at a file that does not exist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigState {
+    /// A config was read, so a plugin outside the selection is one it did not
+    /// switch on.
+    Read,
+    /// There is no config file, so the core is all that runs.
+    Absent,
+    /// A config file exists and could not be read, so the core is all that
+    /// runs. It is told apart from `Absent` because one is fixed by writing a
+    /// file and the other by repairing one.
+    Unreadable,
+}
+
 /// Why a registered plugin was not checked: the config never switched it on.
 const NOT_ENABLED: &str = "not enabled in the config";
+
+/// Why it was not checked on a machine that has no config at all.
+const NO_CONFIG: &str = "no config file, so only the core runs";
+
+/// And why on one whose config could not be read.
+const UNREADABLE_CONFIG: &str = "the config could not be read, so only the core runs";
 
 /// Why a selected plugin was not checked: it is an input, and no leg can reach
 /// it whatever the config says.
@@ -58,23 +86,33 @@ pub enum Outcome {
 
 /// One check per registration, in registration order, whatever the config
 /// selected.
-pub fn checks(registered: &Selection, selected: &Selection) -> Vec<Check> {
+pub fn checks(registered: &Selection, selected: &Selection, config: ConfigState) -> Vec<Check> {
     registered
         .iter()
         .map(|entry| Check {
             plugin: entry.name,
-            kind: kind_of(entry, selected),
+            kind: kind_of(entry, selected, config),
         })
         .collect()
 }
 
+/// Why a plugin outside the selection was left out, in the words that are true
+/// of THIS machine.
+fn not_selected(config: ConfigState) -> &'static str {
+    match config {
+        ConfigState::Read => NOT_ENABLED,
+        ConfigState::Absent => NO_CONFIG,
+        ConfigState::Unreadable => UNREADABLE_CONFIG,
+    }
+}
+
 /// What checking one registration means, given what the config selected.
 ///
-/// NOT ENABLED IS ASKED FIRST, so a sensor the config never switched on reads
+/// NOT SELECTED IS ASKED FIRST, so a sensor the config never switched on reads
 /// as absent by choice rather than as the kind it would have been.
-fn kind_of(entry: &Registration, selected: &Selection) -> CheckKind {
+fn kind_of(entry: &Registration, selected: &Selection, config: ConfigState) -> CheckKind {
     if !selected.iter().any(|chosen| chosen.name == entry.name) {
-        return CheckKind::Skipped(NOT_ENABLED);
+        return CheckKind::Skipped(not_selected(config));
     }
     match entry.kind {
         PluginKind::Sensor => CheckKind::Skipped(A_SENSOR),
@@ -142,7 +180,7 @@ pub fn exit_code(outcomes: &[Outcome], pairing: &PairingReport) -> i32 {
     // AN UNPAIRED HOST IS A DEAD APPROVAL PATH, and it is the one pairing
     // state that moves this: the check only reaches it on a machine where
     // moshi-hook is installed and answering, and there an unregistered host
-    // means every card is going nowhere while the census reports the moshi
+    // means every card is going nowhere while the census reports the mobile
     // channel green over its webhook. The other three states could not check
     // and are inert, so a machine that does not use moshi still exits 0.
     if pairing.pairing == Pairing::Unpaired {
@@ -674,8 +712,9 @@ mod nag_tests {
 #[cfg(test)]
 mod tests {
     use super::{
-        A_SENSOR, Check, CheckKind, LightsReport, NOT_ENABLED, Outcome, Pairing, PairingReport,
-        checks, exit_code, lights_lines, line, pairing_lines, pairing_report, summary,
+        A_SENSOR, Check, CheckKind, ConfigState, LightsReport, NO_CONFIG, NOT_ENABLED, Outcome,
+        Pairing, PairingReport, UNREADABLE_CONFIG, checks, exit_code, lights_lines, line,
+        pairing_lines, pairing_report, summary,
     };
     use crate::channels::hue as pns_hue;
     use crate::config::parse_config;
@@ -693,7 +732,7 @@ mod tests {
 
     fn kind_for(config_text: &str, plugin: &str) -> CheckKind {
         let (_, registered, selected) = census(config_text);
-        checks(&registered, &selected)
+        checks(&registered, &selected, ConfigState::Read)
             .into_iter()
             .find(|check| check.plugin == plugin)
             .unwrap_or_else(|| panic!("{plugin} is registered"))
@@ -709,7 +748,7 @@ mod tests {
         // order is delivery order, and the report is read against the config.
         let (registry, registered, selected) = census("");
         assert_eq!(
-            checks(&registered, &selected)
+            checks(&registered, &selected, ConfigState::Read)
                 .iter()
                 .map(|check| check.plugin)
                 .collect::<Vec<_>>(),
@@ -724,12 +763,48 @@ mod tests {
         // switched off. Neither is an error and both have to be visible, or
         // the operator reads a short report as a complete one.
         assert_eq!(
-            kind_for("[plugins.hermes]\nenabled = true\n", "moshi"),
+            kind_for("[plugins.hermes]\nenabled = true\n", "mobile"),
             CheckKind::Skipped(NOT_ENABLED)
         );
         assert_eq!(
-            kind_for("[plugins.moshi]\nenabled = false\n", "moshi"),
+            kind_for("[plugins.mobile]\nenabled = false\n", "mobile"),
             CheckKind::Skipped(NOT_ENABLED)
+        );
+    }
+
+    #[test]
+    fn a_plugin_the_selection_left_out_is_skipped_in_words_true_of_this_machine() {
+        // THREE STATES, THREE EDITS. "Not enabled in the config" is a lie on a
+        // machine with no config: it points the operator at a file that does
+        // not exist, and it became the ORDINARY report there the moment the
+        // fallback narrowed from the whole roster to the core. The unreadable
+        // config is its own state again, because one is fixed by writing a
+        // file and the other by repairing one.
+        let registry = roster();
+        let registered = registry.all();
+        let core = registry.core();
+        let reason = |config| {
+            checks(&registered, &core, config)
+                .into_iter()
+                .find(|check| check.plugin == "hermes")
+                .expect("hermes is registered")
+                .kind
+        };
+        assert_eq!(reason(ConfigState::Read), CheckKind::Skipped(NOT_ENABLED));
+        assert_eq!(reason(ConfigState::Absent), CheckKind::Skipped(NO_CONFIG));
+        assert_eq!(
+            reason(ConfigState::Unreadable),
+            CheckKind::Skipped(UNREADABLE_CONFIG)
+        );
+        // AND THE THREE ARE DIFFERENT SENTENCES, which is the whole point: a
+        // constant accidentally pointed at another would pass every equality
+        // above and report one state as another.
+        assert_eq!(
+            [NOT_ENABLED, NO_CONFIG, UNREADABLE_CONFIG]
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            3
         );
     }
 
@@ -751,10 +826,10 @@ mod tests {
 
     #[test]
     fn a_selected_event_dispatched_channel_is_a_send() {
-        for plugin in ["moshi", "macos-banner", "hermes"] {
+        for plugin in ["mobile", "macos-banner", "hermes"] {
             assert_eq!(
                 kind_for(
-                    "[plugins.moshi]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n\
+                    "[plugins.mobile]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n\
                      [plugins.hermes]\nenabled = true\n",
                     plugin
                 ),

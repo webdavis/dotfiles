@@ -176,13 +176,13 @@ mod tests {
             .unwrap()
     }
 
-    const ALL_THREE_ON: &str = "[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
+    const ALL_THREE_ON: &str = "[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
 
     fn three_enabled() -> Selection {
         select(&crate::registry::roster(), ALL_THREE_ON)
     }
 
-    const SENSOR_AND_THREE_ON: &str = "[plugins.router]\nenabled = true\n[plugins.moshi]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
+    const SENSOR_AND_THREE_ON: &str = "[plugins.router]\nenabled = true\n[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
 
     /// A selection holding an enabled sensor AND the three enabled channels,
     /// so every sensor assertion carries its own positive control. The real
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(
             channel_plan(&three_enabled(), false, false, reaching(true, true)),
             vec![
-                decorative("moshi", ReportMode::Silent),
+                decorative("mobile", ReportMode::Silent),
                 decorative("macos-banner", ReportMode::Silent),
                 logged("hermes", ReportMode::Silent),
             ]
@@ -230,7 +230,7 @@ mod tests {
                 reaching(true, true)
             ),
             vec![
-                decorative("moshi", ReportMode::Silent),
+                decorative("mobile", ReportMode::Silent),
                 decorative("macos-banner", ReportMode::Silent),
                 logged("hermes", ReportMode::Silent),
             ]
@@ -396,7 +396,7 @@ mod tests {
         assert_eq!(
             channel_plan(&all, false, false, reaching(true, true)),
             vec![
-                decorative("moshi", ReportMode::Silent),
+                decorative("mobile", ReportMode::Silent),
                 decorative("macos-banner", ReportMode::Silent),
                 logged("hermes", ReportMode::Silent),
             ]
@@ -486,7 +486,7 @@ mod tests {
                         );
                         for planned in plan {
                             assert!(
-                                !(matches!(planned.name, "moshi" | "macos-banner")
+                                !(matches!(planned.name, "mobile" | "macos-banner")
                                     && planned.mode == ReportMode::ReportOutcome),
                                 "the plan handed {} a reporting leg with local_only={local_only}, \
                                  remote_only={remote_only}, banner={banner}, card={card}: its \

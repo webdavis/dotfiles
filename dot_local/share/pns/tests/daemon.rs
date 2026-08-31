@@ -440,7 +440,7 @@ fn the_daemon_changes_nothing_about_a_hook() {
 
 /// The channels this sandbox's stubs recorded a delivery on, cleared first so
 /// the answer belongs to ONE hook run rather than to every run before it.
-const RECORDING: [&str; 3] = ["moshi", "hermes", "macos-banner"];
+const RECORDING: [&str; 3] = ["mobile", "hermes", "macos-banner"];
 
 fn run_hook(sandbox: &Sandbox, event: &str) -> (std::process::Output, Vec<&'static str>) {
     for channel in RECORDING {

@@ -17,9 +17,25 @@
 # A TABLE FOR A PLUGIN THAT DOES NOT SHIP keeps free-form settings, because
 # nothing here has a vocabulary for a plugin that does not exist. Its NAME is
 # what gets refused, one layer on.
+#
+# WITH NO FILE AT ALL pns runs the CORE: the macOS banner and the phone card.
+# Those two are what a notification engine has to do on a machine nobody has
+# configured yet. The other three are OPT-INS you arm with a credential first:
+# hue needs a bridge and key, hermes needs a signed route, and the home probe
+# needs a router API key, so switching them on by default would deliver nothing
+# and report three failures. This file enables all five, because this machine
+# has all five armed.
+#
+# A PLUGIN NAMES ITS BACKEND WITH `type`, under every table that has one to
+# pick, and the key is required: nothing guesses which implementation a table
+# meant.
 
-[plugins.moshi]
+[plugins.mobile]
 enabled = true
+# Which compiled-in backend carries the card. "moshi" is the only one today,
+# and a table naming none, or naming one nothing answers, is refused out loud
+# rather than read as this one.
+type = "moshi"
 token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
 # Whether a long command's card still fires while you are watching that pane
 # on the phone. OFF by operator ruling 2026-08-12: a card describing the pane
@@ -72,11 +88,12 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # reads home, and on disagreement the strongest (that order) names the match.
 # The phone is matched by NAME because iOS private wifi addresses make its MAC
 # rotate per network; `device_mac` is the key for a device whose MAC is stable.
-# `brand` names which compiled-in backend answers; "unifi" is the only one
-# today, and an unknown brand is refused out loud.
+# `type` names which compiled-in backend answers; "unifi" is the only one
+# today, and a table naming none, or naming one nothing answers, is refused out
+# loud.
 [plugins.router]
 enabled = true
-brand = "unifi"
+type = "unifi"
 router_url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = "{{ (keepassxc "UniFi :: API Key (dresden-udr)").Password }}"

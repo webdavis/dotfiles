@@ -16,6 +16,13 @@ use std::sync::{Arc, Mutex};
 pub const ENGINE: &str = env!("CARGO_BIN_EXE_pns");
 pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
 
+/// The config every sandbox starts with: the three stub channels switched on,
+/// and the mobile table naming the one backend compiled in. A test that needs
+/// something else writes over it with `write_config`.
+pub const STUB_CHANNELS: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+                                 [plugins.hermes]\nenabled = true\n\
+                                 [plugins.macos-banner]\nenabled = true\n";
+
 /// Everything one test owns: a private HOME, its stub channels, and the
 /// event files those stubs record into. Removed on drop.
 pub struct Sandbox {
@@ -25,12 +32,27 @@ pub struct Sandbox {
 impl Sandbox {
     /// Named for its test, so parallel tests cannot collide and a failure
     /// leaves an identifiable directory behind.
+    ///
+    /// IT ARRIVES WITH A CONFIG, `STUB_CHANNELS`, because a machine with NO
+    /// config runs the CORE alone (`registry::CORE`) and a test that wrote
+    /// nothing would be measuring that fallback rather than the routing it was
+    /// written for. It is the shape the template ships: every stub channel
+    /// enabled, and the mobile table naming its backend. `without_config` is
+    /// how the absence itself is tested.
     pub fn new(name: &str) -> Self {
+        let sandbox = Sandbox::without_config(name);
+        sandbox.write_config(STUB_CHANNELS);
+        sandbox
+    }
+
+    /// A sandbox with NO config file, for the one question that is about the
+    /// absence of one.
+    pub fn without_config(name: &str) -> Self {
         let root = std::env::temp_dir().join(format!("pns-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("channels")).expect("sandbox");
         let sandbox = Sandbox { root };
-        for channel in ["moshi", "hermes", "macos-banner"] {
+        for channel in ["mobile", "hermes", "macos-banner"] {
             sandbox.stub_channel(
                 channel,
                 &format!("cat >\"{}/{channel}.event\"", sandbox.display()),
@@ -251,7 +273,7 @@ pub const KEYS_DISAGREE: &str = r#"{"data":[
 /// router setting by writing one more line.
 pub fn router_table(router_url: &str) -> String {
     format!(
-        "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"{router_url}\"\n\
+        "[plugins.router]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"{router_url}\"\n\
          device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
          device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n"
     )
