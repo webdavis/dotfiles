@@ -4449,11 +4449,11 @@ fn lights_readings(state: &Path, lights: &pns::config::Lights, now: u64) -> pns:
         pns::system::CommandRunner::run(&SystemCommandRunner, "herdr", &["workspace", "list"])
             .map(|answer| pns::lights::workspace_agent_statuses(&answer))
             .unwrap_or_default();
-    // THE SHELL'S OWN MARKER, which the interactive shell writes while a long
-    // plain command runs. Nothing in this crate writes it; a machine whose
-    // shell does not is a machine where breathing covers agent loops alone,
-    // which is exactly what it covers today.
-    let shell_since = read_epoch(&state.join(LIGHTS_SHELL_RUNNING));
+    // THE SHELL'S OWN MARKERS, which each interactive shell writes while a
+    // plain command runs in it. Nothing in this crate writes them; a machine
+    // whose shell does not is a machine where breathing covers agent loops
+    // alone, which is exactly what it covers today.
+    let shell_since = sweep_shell_markers(state);
     // HERDR ALONE FEEDS THE STREAK. A streak advanced by the shell marker too
     // would let a long build satisfy `agent-loops` on a machine where the
     // agent sources are the only ones switched on, which is exactly the leak
@@ -4502,6 +4502,52 @@ fn glow_reading(state: &Path, working: bool) -> Option<u64> {
         read_epoch(&state.join(LAST_PRESENT)),
         working,
     )
+}
+
+/// The oldest epoch a LIVE shell is holding, with the markers whose shells are
+/// gone REMOVED on the way through.
+///
+/// THE SWEEP LIVES WITH THE READ, for `sweep_needs`' reason: the tick is the
+/// only process that ever looks in this directory, and a shell killed
+/// mid-command leaves a file its own precmd will never run to remove.
+///
+/// THE OLDEST AND NOT THE FRESHEST. Several panes hold markers at once, and
+/// the reader's one question is how long work has been going: the freshest
+/// would restart the breathe clock every time any pane ran anything, so a
+/// build running for an hour beside a prompt somebody keeps typing at would
+/// never reach a threshold measured in minutes.
+///
+/// AN EPOCH THAT CANNOT BE READ IS NOT SWEPT WHILE ITS SHELL IS ALIVE, which
+/// is the one place this differs from `sweep_needs`. The shell publishes with a
+/// truncating redirect, so a tick landing between that open and the write sees
+/// an empty file for a command that is genuinely starting; unlinking it there
+/// wins the race and the build then runs to completion with no marker at all.
+/// Nothing accumulates by leaving it: the pid in the name collects the file
+/// when that shell ends.
+fn sweep_shell_markers(state: &Path) -> Option<u64> {
+    let mut oldest: Option<u64> = None;
+    for entry in std::fs::read_dir(state.join(LIGHTS_SHELL_DIR))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        // THE SAME LIVENESS ANSWER THE CLAIMS USE, so this binary has one
+        // reading of "that process is gone" rather than two that can drift.
+        // The positive-pid test comes first because `kill()` reads 0 as this
+        // process's own group and -1 as every process the user owns, and
+        // because a name that is not a pid at all is litter nothing else here
+        // would ever age out.
+        if !name.parse::<libc::pid_t>().is_ok_and(|pid| pid > 0) || owner_is_gone(&name) {
+            let _ = std::fs::remove_file(entry.path());
+            continue;
+        }
+        if let Some(at) = read_epoch(&entry.path()) {
+            oldest = Some(at.min(oldest.unwrap_or(at)));
+        }
+    }
+    oldest
 }
 
 /// Every live wait's epoch, with the ones past the bound REMOVED on the way
@@ -4656,9 +4702,17 @@ const WORKING_GRACE_SECS: u64 = 120;
 /// Where the streak lives.
 const LIGHTS_WORKING_SINCE: &str = "lights-working-since";
 
-/// Where the shell says a tracked command is running: ONE EPOCH, the second it
-/// started. Written by the interactive shell and removed when the command
-/// ends; only read here.
+/// Where the shell says a tracked command is running: ONE FILE PER INTERACTIVE
+/// SHELL, named for that shell's pid, holding ONE EPOCH, the second the
+/// command started. Written by the interactive shell and removed when the
+/// command ends; only read here.
+///
+/// ONE FILE PER SHELL AND NOT ONE FILE. Every interactive shell on the machine
+/// runs the same two bash-preexec functions, so a single shared path is a
+/// marker any other pane erases: opening a tab, or running `ls` next door,
+/// would delete a running build's evidence and leave this lamp dark for the
+/// rest of that build. A directory makes each shell the only writer and the
+/// only ordinary remover of its own file.
 ///
 /// THE LONG TIER IS DERIVED FROM THAT EPOCH AND IS NOT A SECOND FIELD, because
 /// it cannot be one. The marker is written when the command STARTS, and at
@@ -4668,13 +4722,13 @@ const LIGHTS_WORKING_SINCE: &str = "lights-working-since";
 /// answers the same question with one source of truth instead of two that can
 /// disagree.
 ///
-/// A SHELL KILLED MID-COMMAND LEAVES IT, and the lease is the backstop rather
-/// than a bound of its own: nothing renews the tick's lease but a pns event,
-/// so a machine that stopped producing events stops re-arming its lamps within
-/// minutes whatever this file says. A bound here would instead have to be
-/// longer than the longest legitimate build, which is not a number anybody
-/// knows.
-const LIGHTS_SHELL_RUNNING: &str = "lights-shell-running";
+/// A SHELL KILLED MID-COMMAND LEAVES ITS FILE, and the pid in the NAME is what
+/// collects it: the tick sweeps a marker whose process is gone, so a killed
+/// terminal costs one tick's reading rather than a lamp breathing forever. The
+/// lease stays the backstop for the case the pid cannot answer, a marker whose
+/// shell is alive and whose command is not, because nothing renews the tick's
+/// lease but a pns event.
+const LIGHTS_SHELL_DIR: &str = "lights-shell";
 
 /// Where the fixture paths a steady glow is holding are recorded.
 const LIGHTS_GLOW_HELD: &str = "lights-glow";
@@ -6398,10 +6452,11 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LAST_PRESENT, LIGHTS_GLOW_HELD,
-        MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, MISSED_NOTIFICATIONS, STATE_FILE_MODE,
-        arm_clear_and_remember, glow_reading, lights_report, matches_glob, muted_state,
-        publish_state_line, read_note, recap_bounds, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, sweep_needs, update_needs_marker,
+        LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, MISSED_NOTIFICATIONS,
+        STATE_FILE_MODE, arm_clear_and_remember, glow_reading, lights_report, matches_glob,
+        muted_state, publish_state_line, read_note, recap_bounds, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, sweep_needs, sweep_shell_markers,
+        update_needs_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::PermissionsExt;
@@ -6628,6 +6683,152 @@ mod tests {
             marker.exists(),
             "and a machine with them live starts the wait, which is what makes \
              the two assertions above a difference rather than a dead path"
+        );
+    }
+
+    /// A process id nothing is using: a child run to completion and reaped, so
+    /// the kernel has already answered for it. STATED BY THE MACHINE rather
+    /// than guessed at, because a made-up number can be live.
+    fn a_reaped_pid() -> u32 {
+        let mut child = std::process::Command::new("/usr/bin/true")
+            .spawn()
+            .expect("a child");
+        let gone = child.id();
+        child.wait().expect("the child is waitable");
+        gone
+    }
+
+    /// One shell's marker planted by hand: the pid it is named for, and the
+    /// second its command started.
+    fn plant_shell_marker(state: &std::path::Path, pid: &str, body: &str) -> PathBuf {
+        let shell = state.join(LIGHTS_SHELL_DIR);
+        std::fs::create_dir_all(&shell).expect("the shell marker directory");
+        let path = shell.join(pid);
+        std::fs::write(&path, body).expect("the shell marker");
+        path
+    }
+
+    #[test]
+    fn the_shell_reading_is_the_oldest_marker_a_live_shell_is_holding() {
+        // THE LONGEST-RUNNING COMMAND IS WHAT THE THRESHOLDS MEASURE. One
+        // shell per pane means several markers at once, and the freshest of
+        // them would restart the breathe clock every time any pane ran
+        // anything, so a build running for an hour beside a prompt someone
+        // keeps typing at would never reach a threshold measured in minutes.
+        //
+        // TWO KINDS OF LIVE SHELL, because `kill(pid, 0)` has two ways of
+        // saying the process is there: this test's own process answers
+        // success, and pid 1 is launchd, which this user may not signal and
+        // which answers EPERM. Only ESRCH is gone.
+        let state = scratch("lights-shell-oldest");
+        plant_shell_marker(&state, &std::process::id().to_string(), "2000\n");
+        plant_shell_marker(&state, "1", "1000\n");
+
+        assert_eq!(
+            sweep_shell_markers(&state),
+            Some(1000),
+            "the reading must be the oldest live marker, not the newest and \
+             not whichever the directory happened to list first"
+        );
+    }
+
+    #[test]
+    fn a_marker_whose_shell_is_gone_is_swept_and_never_read() {
+        // A SHELL KILLED MID-COMMAND is the case the pid in the name exists
+        // for. Nothing else would ever remove that file: its own precmd never
+        // runs again and its EXIT trap never fired, so without this sweep it
+        // is both a lamp breathing forever about a command nobody is running
+        // and one file per killed terminal for the life of the machine.
+        let state = scratch("lights-shell-dead-pid");
+        let dead = a_reaped_pid().to_string();
+        let dead_marker = plant_shell_marker(&state, &dead, "1000\n");
+        plant_shell_marker(&state, &std::process::id().to_string(), "2000\n");
+
+        assert_eq!(
+            sweep_shell_markers(&state),
+            Some(2000),
+            "a dead shell's epoch was still being read as work in progress"
+        );
+        assert!(
+            !dead_marker.exists(),
+            "and the file it left behind is gone: nothing else ever collects it"
+        );
+    }
+
+    #[test]
+    fn a_name_that_is_not_a_shell_pid_is_swept() {
+        // Nothing this crate or the bashrc writes lands here under a name that
+        // is not a pid, so anything else is litter no liveness test can ever
+        // age out. A NON-POSITIVE NUMBER IS LITTER TOO, and it matters more
+        // than it looks: `kill()` reads 0 as this process's own group and -1 as
+        // every process the user owns, so a hand-planted `0` or `-1` must never
+        // reach the liveness test looking like a pid.
+        let state = scratch("lights-shell-bad-name");
+        let junk = plant_shell_marker(&state, "not-a-pid", "1000\n");
+        let zero = plant_shell_marker(&state, "0", "1000\n");
+        let live = plant_shell_marker(&state, &std::process::id().to_string(), "2000\n");
+
+        assert_eq!(
+            sweep_shell_markers(&state),
+            Some(2000),
+            "only a marker a live shell is named by may feed the reading"
+        );
+        assert!(
+            !junk.exists(),
+            "the unparseable name was left to accumulate"
+        );
+        assert!(!zero.exists(), "a non-positive pid was left to accumulate");
+        assert!(
+            live.exists(),
+            "and the sweep took the live shell's marker with it, which would \
+             darken the lamp under every build"
+        );
+    }
+
+    #[test]
+    fn a_live_shell_whose_marker_holds_no_epoch_yet_is_left_alone() {
+        // THE WRITE IS A TRUNCATING REDIRECT. `printf ... >"$marker"` empties
+        // the file at open and fills it a moment later, so a tick landing in
+        // that window reads an empty file for a command that is genuinely
+        // starting. Unlinking it there wins the race against the write, which
+        // then fills a file nothing will ever look at, and the build runs to
+        // completion with no marker at all: exactly the dark lamp this whole
+        // slice exists to fix. The pid is what collects the file when that
+        // shell ends, so nothing accumulates by leaving it.
+        let state = scratch("lights-shell-mid-write");
+        let starting = plant_shell_marker(&state, &std::process::id().to_string(), "");
+        plant_shell_marker(&state, "1", "1000\n");
+
+        assert_eq!(
+            sweep_shell_markers(&state),
+            Some(1000),
+            "an epoch that cannot be read is not an epoch: it must not become \
+             a reading of its own"
+        );
+        assert!(
+            starting.exists(),
+            "a live shell's marker was unlinked out from under its own write"
+        );
+    }
+
+    #[test]
+    fn no_directory_and_an_empty_one_both_read_as_nothing() {
+        // A MACHINE WHOSE SHELL NEVER PUBLISHED is the ordinary case on a host
+        // that has not applied this bashrc yet, and it must read as no shell
+        // work rather than as an error or a zero epoch: a zero would be a
+        // command that started in 1970 and would pass every threshold there is.
+        let state = scratch("lights-shell-empty");
+        assert_eq!(
+            sweep_shell_markers(&state),
+            None,
+            "a state directory with no shell directory in it read as work"
+        );
+
+        std::fs::create_dir_all(state.join(LIGHTS_SHELL_DIR)).expect("the shell directory");
+        assert_eq!(
+            sweep_shell_markers(&state),
+            None,
+            "an empty shell directory read as work"
         );
     }
 
