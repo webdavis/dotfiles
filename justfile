@@ -75,7 +75,7 @@ diff:
   chezmoi diff
 
 apply:
-  chezmoi apply
+  chezmoi apply -v
 
 # Test suites: test/unit (single component, stub-driven, fast), then
 # test/integration and test/e2e. Rust tests live in each plugin's own crate,
