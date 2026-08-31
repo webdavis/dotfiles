@@ -2,9 +2,11 @@
 ; global install otherwise. These are the declared globals (and their native-addon
 ; dependencies) whose postinstall steps are genuinely needed: native builds
 ; (better-sqlite3, tree-sitter*, onnxruntime-node, esbuild) and tool unpacking
-; (happy). Allowlisting named packages keeps the block-by-default posture;
-; operator-approved 2026-08-05.
-allow-scripts=@mistweaverco/tree-sitter-graphql,@mistweaverco/tree-sitter-kulala,better-sqlite3,esbuild,node-llama-cpp,onnxruntime-node,tree-sitter,tree-sitter-go,tree-sitter-javascript,tree-sitter-python,tree-sitter-rust,tree-sitter-typescript
+; (happy, node-pty, keytar, protobufjs). Allowlisting named packages keeps the
+; block-by-default posture; operator-approved 2026-08-05, extended 2026-08-31
+; after the fnm stage warned on six blocked scripts (happy had been named here
+; but never listed).
+allow-scripts=@doist/todoist-cli,@github/keytar,@google/genai,@mistweaverco/tree-sitter-graphql,@mistweaverco/tree-sitter-kulala,better-sqlite3,esbuild,happy,node-llama-cpp,node-pty,onnxruntime-node,protobufjs,tree-sitter,tree-sitter-go,tree-sitter-javascript,tree-sitter-python,tree-sitter-rust,tree-sitter-typescript
 
 ; npm prints a funding nag after most installs; the operator asked for quiet output (2026-08-05).
 fund=false
