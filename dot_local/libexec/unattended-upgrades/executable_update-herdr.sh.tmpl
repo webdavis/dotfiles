@@ -1,0 +1,46 @@
+#!/opt/homebrew/bin/bash
+# update-herdr.sh - weekly unattended refresh of the herdr binary and every
+# GitHub-sourced plugin. herdr has no `plugin update`, so a refresh is an
+# uninstall followed by a fresh install, which re-pins at the source's tip; a
+# failed install RETRIES ONCE and a plugin that still failed is named loudly,
+# so the log for the week says exactly what is missing. The running server
+# keeps its loaded plugins until restart, so a mid-week failure costs the next
+# restart, not the current session. Local plugins (built from the dotfiles by
+# their own apply script) are not touched here. This stays log-only on
+# purpose; the planned uu tool absorbs record delivery later.
+{{- if eq .chezmoi.os "darwin" }}
+set -euo pipefail
+
+HERDR="${UPDATE_HERDR_BIN:-$HOME/.local/bin/herdr}"
+failures=0
+
+printf '=== update-herdr %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+if "$HERDR" update; then
+  printf 'herdr self-update: ok (%s)\n' "$("$HERDR" --version 2>/dev/null | head -1)"
+else
+  printf 'herdr self-update FAILED (exit %d); plugins still refresh below\n' "$?" >&2
+  failures=$((failures + 1))
+fi
+
+refresh_plugin() {
+  local id=$1 repo=$2
+  "$HERDR" plugin uninstall "$id" || {
+    printf 'plugin %s: uninstall failed; leaving the installed copy alone\n' "$id" >&2
+    return 1
+  }
+  if "$HERDR" plugin install "$repo" --yes || "$HERDR" plugin install "$repo" --yes; then
+    printf 'plugin %s: refreshed\n' "$id"
+  else
+    printf 'plugin %s: REINSTALL FAILED twice; it is now MISSING until the next apply or run\n' "$id" >&2
+    return 1
+  fi
+}
+
+{{ range .packages.herdr_plugins -}}
+refresh_plugin {{ .id | quote }} {{ .repo | quote }} || failures=$((failures + 1))
+{{ end -}}
+
+printf '=== done, %d failure(s) ===\n' "$failures"
+exit 0
+{{- end }}

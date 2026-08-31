@@ -1,4 +1,24 @@
 packages:
+  herdr_plugins:
+    # One roster, two consumers: run_after_53 installs missing plugins at apply,
+    # update-herdr.sh refreshes them weekly. Local plugins (smart-nav,
+    # last-workspace) are built from this repo by their own script, not listed.
+    - id: worktrunk
+      repo: devashish2203/herdr-worktrunk
+    - id: tab-smart-rename
+      repo: iurysza/herdr-tab-smart-rename
+    - id: herdr-sidebar
+      repo: alexarthurs/herdr-sidebar/plugins/herdr-sidebar
+    - id: persiyanov.reviewr
+      repo: persiyanov/herdr-reviewr
+    - id: herdr-workflows
+      repo: aorumbayev/herdr-workflows
+    - id: herdr-bar
+      repo: jeffarese/herdr-bar
+    - id: chmarax.herdr-nvim
+      repo: ChmaraX/herdr-nvim
+    - id: herdr-file-viewer
+      repo: smarzban/herdr-file-viewer
   macos:
     homebrew:
       taps:
