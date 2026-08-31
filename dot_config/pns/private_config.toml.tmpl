@@ -215,7 +215,7 @@
 # A TYPO THEREFORE BLOCKS THE WHOLE FILE until it is fixed, which is by design
 # and is the loud half of a deliberate trade: pns falls back to its built-in
 # plugin roster, every secret in here goes unread, and the phone card, the
-# Discord post and the lamps stop together, with a refusal on stdout naming the
+# Discord post and the lamps stop together, with a refusal on stderr naming the
 # key. The quiet half is what it replaced: `room` for `rooms` used to reach the
 # hue plugin as a setting it did not recognize, and `tokens` for `token` a phone
 # card that never left the machine, each costing one destination and saying
@@ -312,11 +312,11 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # can be inherited, so no body states a brightness at all: the requests are the
 # ones that shipped, byte for byte, and a level set by hand is left alone.
 #
-# THE TWO COMMAND SOURCES ARE WIRED BUT NOT YET FED: `commands` and `long-commands` read a marker the
-# interactive shell writes while a tracked command runs, and the shell side of
-# that lands with the bashrc slice. Until it does, naming either of them
-# breathes about nothing. Everything else is live. `github` resolves lamps and
-# nothing routes to it on purpose (plumbing only).
+# THE TWO COMMAND SOURCES READ THE SHELL'S OWN MARKERS: `commands` and
+# `long-commands` see a file the interactive shell writes per pane while a
+# tracked command runs, so both are live from the same apply that installs the
+# bashrc. Everything else is live too. `github` resolves lamps and nothing
+# routes to it on purpose (plumbing only).
 #
 # DISABLING HUE WHILE A GLOW IS HELD LEAVES THAT LAMP TO THE WALL SWITCH. The
 # steady glow write is the one body on this path that does not expire, and
