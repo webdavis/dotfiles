@@ -209,6 +209,21 @@
 # [nag]
 # after_secs = 300
 
+# EVERY SHIPPED PLUGIN'S SETTINGS ARE JUDGED, not handed through. Each table
+# below serves a fixed set of keys, and a key that is not one of them is refused
+# at load by name, in the same sentence that lists what the table does serve.
+# A TYPO THEREFORE BLOCKS THE WHOLE FILE until it is fixed, which is by design
+# and is the loud half of a deliberate trade: pns falls back to its built-in
+# plugin roster, every secret in here goes unread, and the phone card, the
+# Discord post and the lamps stop together, with a refusal on stdout naming the
+# key. The quiet half is what it replaced: `room` for `rooms` used to reach the
+# hue plugin as a setting it did not recognize, and `tokens` for `token` a phone
+# card that never left the machine, each costing one destination and saying
+# nothing anywhere.
+# A TABLE FOR A PLUGIN THAT DOES NOT SHIP keeps free-form settings, because
+# nothing here has a vocabulary for a plugin that does not exist. Its NAME is
+# what gets refused, one layer on.
+
 [plugins.moshi]
 enabled = true
 token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
@@ -268,11 +283,13 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 #
 # EVERY UNKNOWN KEY IS REFUSED BY NAME, at every level, and so is a `skip` word
 # outside the five behaviours (`done`, `failed`, `needs-you`, `breathing`,
-# `glow`). That is the whole reason this is a top-level table rather than more
-# keys under `[plugins.hue]`, whose settings are free-form and swallow a typo in
-# silence: the failure mode here is a lamp that never lights and no message
-# anywhere, which an operator standing in a dark room cannot tell from a lamp
-# that is behaving.
+# `glow`). `[plugins.hue]` judges its own keys the same way now, so the reason
+# this is a top-level table is no longer that one table swallows a typo and this
+# one does not. The reason is that hue is the TRANSPORT and this is the POLICY,
+# and the policy outgrew a plugin's settings. What has not changed is why being
+# refused matters here in particular: the failure mode is a lamp that never
+# lights and no message anywhere, which an operator standing in a dark room
+# cannot tell from a lamp that is behaving.
 #
 # QUIET HOURS COME IN TWO FLAVOURS. `quiet_mode = "off"` takes the signal away,
 # which is what quiet hours have always meant and what a place that says nothing

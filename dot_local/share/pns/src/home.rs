@@ -1437,7 +1437,7 @@ mod tests {
         // read as one they never wrote: the first is fixed by flipping a flag
         // they are looking at, the second by writing a table.
         let config = crate::config::parse_config(
-            "[plugins.router]\nenabled = false\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "[plugins.router]\nenabled = false\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
         )
         .unwrap();
         assert_eq!(
@@ -1711,7 +1711,7 @@ mod tests {
         // only how: a table lifted from anywhere else would pass a bare-table
         // assertion just as well.
         let config = crate::config::parse_config(
-            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
         )
         .unwrap();
         let router = enabled_router_table(&config).expect("the enabled table");

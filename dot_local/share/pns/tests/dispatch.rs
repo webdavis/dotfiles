@@ -1034,9 +1034,15 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
     assert_eq!(home_line(), "home: not configured (no config file)");
     for (config, line) in [
         (
-            // The retired feature table, refused by NAME rather than ignored.
+            // The retired feature table, refused by NAME rather than ignored,
+            // AND the refusal names the tables that do work. This is the one
+            // an operator actually meets: `[home]` moved under
+            // `[plugins.router]`, so a config written before that move is
+            // refused whole, which takes every plugin's secret with it, and
+            // "unknown" on its own leaves nowhere to go.
             "[home]\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
-            "home: config error (unknown top-level key `home`)",
+            "home: config error (unknown top-level key `home`; the file serves \
+             daemon, focus, lights, nag, plugins, recap)",
         ),
         (
             "[plugins.hermes]\nenabled = true\n",
@@ -1067,14 +1073,24 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
              or not a string",
         ),
         (
-            // A table with no device in it at all. A config still carrying the
-            // retired `phone` key lands here, and the line names the three keys
-            // to set rather than the key that went away: no back-compat, so
-            // nothing here mentions `phone`.
+            // A table with no device in it at all: the line names the three
+            // keys to set rather than any key that went away, since there is
+            // no back-compat here.
             "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+             router_url = \"https://192.168.1.1\"\napi_key = \"k-123\"\n",
             "home: no device to look for in [plugins.router] \
              (set at least one of device_mac, device_hostname, device_ipv4)",
+        ),
+        (
+            // And a config still carrying the retired `phone` key no longer
+            // reaches that line at all: the table's own vocabulary is judged
+            // at load, so the key that went away is named where the operator
+            // wrote it, with the keys that replaced it in the same sentence.
+            "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\
+             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+            "home: config error (unknown `plugins.router` key `phone`; the table serves \
+             api_key, brand, device_hostname, device_ipv4, device_mac, enabled, router_url, \
+             stale_alert_channel)",
         ),
         (
             "[plugins.router]\nenabled = true\nbrand = \"unifi\"\n\

@@ -44,10 +44,19 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         // .detail` as the bash read it, then the error a dead turn reports,
         // and then the tool the request is about for the harnesses that send
         // none of the three.
+        //
+        // THE TWO PLAIN READS ARE FLATTENED like the other three composers.
+        // Every entry in this chain is a candidate for the SAME rendered line,
+        // so a control byte or a newline scrubbed out of three of them and left
+        // in the other two reaches the same banner by whichever road the
+        // harness happened to use; `message` and `detail` are the common roads.
+        // The fields above are not: a path or a session id is matched and
+        // opened rather than rendered, and flattening one would rewrite a name
+        // the filesystem gave.
         message: [
             elicitation_request(&payload),
-            text("message"),
-            text("detail"),
+            flattened(&text("message")),
+            flattened(&text("detail")),
             reported_error(&payload),
         ]
         .into_iter()
@@ -108,12 +117,18 @@ fn elicitation_request(payload: &serde_json::Value) -> String {
 /// state word `blocked`. An operator deciding from a phone needs the tool and
 /// what it wants to do with it.
 fn tool_request(payload: &serde_json::Value) -> String {
-    let tool = payload
-        .get("tool_name")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default();
+    // FLATTENED LIKE THE ARGUMENTS IT IS FORMATTED IN FRONT OF. A connected
+    // Model Context Protocol server names its own tools, so this is remote
+    // text on the same rendered line as the `tool_input` beside it, and
+    // scrubbing one half of a composed string is scrubbing neither.
+    let tool = flattened(
+        payload
+            .get("tool_name")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default(),
+    );
     let arguments = payload.get("tool_input").map(one_line).unwrap_or_default();
-    let request = match (tool, arguments.as_str()) {
+    let request = match (tool.as_str(), arguments.as_str()) {
         ("", arguments) => arguments.to_string(),
         (tool, "") => tool.to_string(),
         (tool, arguments) => format!("{tool}: {arguments}"),
@@ -152,21 +167,49 @@ fn reported_error(payload: &serde_json::Value) -> String {
 /// Recursion is bounded by the parse that produced the value: serde_json
 /// refuses a document nested deeper than its own limit, so there is no depth
 /// here that was not already accepted as a payload.
+///
+/// EVERY STRING IT WALKS IS SCRUBBED, keys included. An object's key is written
+/// by whoever wrote its value, so scrubbing one and not the other leaves the
+/// same byte on the same card by a different road.
 fn one_line(value: &serde_json::Value) -> String {
     match value {
-        // Flattened, because a newline inside a command would otherwise break
-        // the single rendered line every channel expects.
-        serde_json::Value::String(text) => text.split_whitespace().collect::<Vec<_>>().join(" "),
+        serde_json::Value::String(text) => flattened(text),
         serde_json::Value::Array(members) => {
             members.iter().map(one_line).collect::<Vec<_>>().join(" ")
         }
         serde_json::Value::Object(fields) => fields
             .iter()
-            .map(|(key, value)| format!("{key}={}", one_line(value)))
+            .map(|(key, value)| format!("{}={}", flattened(key), one_line(value)))
             .collect::<Vec<_>>()
             .join(" "),
         scalar => scalar.to_string(),
     }
+}
+
+/// One string as one line: runs of whitespace AND of control characters become
+/// single spaces, and the ends are trimmed.
+///
+/// FLATTENED, because a newline inside a command would otherwise break the
+/// single rendered line every channel expects. That much this always did.
+///
+/// AND CONTROL CHARACTERS GO THE SAME WAY, which it did not. A line from here
+/// is rendered somewhere that OBEYS what it is handed: a terminal banner, a
+/// herdr pane, a Discord post. `split_whitespace` handled the six control
+/// characters that happen to be whitespace and passed the rest of C0 through
+/// untouched, so an ESC, a BEL or a NUL reached a channel verbatim. The feeder
+/// that makes this more than theory is `reported_error`: the provider's own
+/// error string, the one value on this path that nothing on this machine
+/// wrote.
+///
+/// BY CATEGORY AND NEVER BY CODEPOINT RANGE. `char::is_control` is exactly the
+/// Cc set (C0, DEL and C1), so multibyte text an operator actually wrote passes
+/// through whole; a range test written in bytes would cut a character in half
+/// and a range written in codepoints would have to restate the same set worse.
+fn flattened(text: &str) -> String {
+    text.split(|character: char| character.is_whitespace() || character.is_control())
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Enough to name a tool and the start of what it was handed, and no more: the
@@ -268,8 +311,8 @@ pub fn is_harness_subcommand(subcommand: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        HookPayload, condenser_prompt, condenser_verdict, moshi_subcommand, parse_payload,
-        transcript_reply,
+        HookPayload, condenser_prompt, condenser_verdict, moshi_subcommand, one_line,
+        parse_payload, transcript_reply,
     };
 
     #[test]
@@ -442,6 +485,132 @@ mod tests {
             payload.message
         );
         assert!(payload.message.chars().count() < 400, "an uncapped prompt");
+    }
+
+    #[test]
+    fn every_class_of_control_byte_is_scrubbed_before_a_line_reaches_a_channel() {
+        // A LINE FROM THIS FUNCTION IS RENDERED SOMEWHERE THAT OBEYS IT: a
+        // terminal banner, a herdr pane, a Discord post. C0 is not text, and
+        // the whitespace this already flattens is the only part of it that
+        // was ever handled, so ESC, BEL and NUL rode through verbatim.
+        //
+        // THE MOTIVATING FEEDER IS PROVIDER-CONTROLLED. `error` is whatever the
+        // API said, and an escape sequence in it is the one string here nobody
+        // on this machine wrote.
+        // EVERY CODEPOINT IN THE SET, not a representative of each run. The
+        // scrub is written as one category test, so the only way it can be
+        // wrong is per codepoint, and a matrix of samples cannot see a single
+        // exemption: measured, a `flattened` that let U+0002 through passed
+        // every test in this crate while leaking that byte to a banner. The set
+        // is `char::is_control` itself, which is exactly Cc: C0, DEL and C1.
+        for codepoint in (0x00..=0x1f_u32).chain([0x7f]).chain(0x80..=0x9f) {
+            let control = char::from_u32(codepoint).expect("a Cc codepoint");
+            assert!(control.is_control(), "U+{codepoint:04X} is the Cc set");
+            assert_eq!(
+                one_line(&serde_json::Value::String(format!("a{control}b"))),
+                "a b",
+                "U+{codepoint:04X} reached a channel verbatim"
+            );
+        }
+
+        // AND THE SEQUENCES THOSE BYTES ARRIVE IN, which the loop above cannot
+        // state: a scrub that removed the escape and left `[31m` or an OSC
+        // title behind would still pass every assertion up there, and what
+        // reaches the operator is the whole sequence rather than one byte.
+        for (raw, scrubbed, class) in [
+            ("a\u{1b}[31mb", "a [31mb", "a colour sequence"),
+            (
+                "a\u{1b}]0;title\u{7}b",
+                "a ]0;title b",
+                "an OSC title sequence",
+            ),
+            // AND THE WHITESPACE IT ALREADY FLATTENED still flattens the same
+            // way, which is what makes this a widening rather than a rewrite.
+            ("a\nb\tc  d", "a b c d", "the whitespace it already handled"),
+        ] {
+            assert_eq!(
+                one_line(&serde_json::Value::String(raw.to_string())),
+                scrubbed,
+                "{class} reached a channel verbatim"
+            );
+        }
+
+        // ORDINARY TEXT IS UNTOUCHED, which is the control the sweep needs:
+        // scrubbing by codepoint RANGE rather than by category would take
+        // multibyte characters with it, and an operator's own prose is full of
+        // them.
+        for kept in ["café", "日本語", "→ ✓ ×", "naïve résumé ½ ±"] {
+            assert_eq!(
+                one_line(&serde_json::Value::String(kept.to_string())),
+                kept,
+                "text that is not a control byte must pass through"
+            );
+        }
+
+        // EVERY SHAPE THE FUNCTION WALKS, because a scrub on the string arm
+        // alone leaves the same byte reaching a channel one nesting level down,
+        // and an object's KEY is provider-controlled exactly like its value.
+        assert_eq!(
+            one_line(&serde_json::json!(["a\u{1b}b", "c"])),
+            "a b c",
+            "an array member is scrubbed like a bare string"
+        );
+        assert_eq!(
+            one_line(&serde_json::json!({"k\u{7}k": "v\u{1b}v"})),
+            "k k=v v",
+            "an object's key is scrubbed beside its value"
+        );
+    }
+
+    #[test]
+    fn every_payload_string_a_card_is_built_from_is_scrubbed_and_not_the_arguments_alone() {
+        // A CARD IS COMPOSED FROM FOUR PAYLOAD STRINGS and the scrub reached
+        // one of them. `tool_input` went through `one_line` while the
+        // `tool_name` formatted in front of it on the same line did not, and
+        // `message` and `detail`, which are the first two of the chain and the
+        // ones the common harnesses actually send, went through nothing at all.
+        // The rule stated at `flattened` (a line from here is rendered
+        // somewhere that OBEYS it) holds for every string on the card or it
+        // holds for none of them: the same ESC reaches the same banner by
+        // whichever road is left open.
+
+        // ALL THREE IN ONE ASSERT, so a run names every field still riding
+        // through rather than the first one only.
+        //
+        // `tool_name` is remote text: a connected Model Context Protocol server
+        // names its own tools, and a Codex permission payload carries neither
+        // `message` nor `detail`, so that name IS the whole card, shown at the
+        // moment the operator is being asked to decide. `message` and `detail`
+        // are the first two of the chain and carry the NEWLINE half of the
+        // guarantee too, which is older than the control scrub: a second line
+        // in either breaks the single rendered line every channel expects.
+        let cards = [
+            "{\"tool_name\":\"Bash\\u001b[2J\\u0007\",\"tool_input\":{\"c\":\"ls\"}}",
+            "{\"message\":\"plan\\u001b[2J\\u0007 ready\\nsecond line\"}",
+            "{\"detail\":\"a\\u0000b\\nc\"}",
+        ]
+        .map(|payload| parse_payload(payload).message);
+        assert_eq!(
+            cards,
+            ["Bash [2J: c=ls", "plan [2J ready second line", "a b c"]
+        );
+
+        // AND A STRING THAT IS NOTHING BUT CONTROL BYTES SAYS NOTHING, so the
+        // chain moves on to the next thing that was actually stated rather than
+        // carding a blank where a message appeared to be.
+        assert_eq!(
+            parse_payload("{\"message\":\"\\u0007\",\"detail\":\"the real one\"}").message,
+            "the real one"
+        );
+    }
+
+    #[test]
+    fn a_provider_error_carrying_an_escape_sequence_cannot_dress_up_a_card() {
+        // THROUGH THE PAYLOAD, so this pins the feeder and not only the
+        // helper: the error field is the one string on this path that a remote
+        // provider writes end to end.
+        let payload = parse_payload("{\"error\":\"API Error: 500\\u001b[2J\\u0007 cleared\"}");
+        assert_eq!(payload.message, "API Error: 500 [2J cleared");
     }
 
     #[test]

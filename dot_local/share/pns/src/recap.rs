@@ -636,15 +636,13 @@ pub fn prompt(entries: &[Entry], clock: Clock) -> String {
 /// answer is somebody else's text arriving in a message pns signs its name to,
 /// and it is treated as exactly that.
 ///
-/// THE BYTE CAP IS THE ONE GUARD THE SEAM DID NOT ALREADY HAVE. `run_bounded`
-/// is bounded in TIME and not in bytes, and this is its first caller fed a
-/// model: a backend that streams for as long as the deadline allows would
-/// otherwise hand a message of any size to the composition below. ACCEPTED
-/// LIMIT: the answer has already been read into memory by the time it gets
-/// here, so this bounds what is POSTED rather than what was read. The READ is
-/// bounded a byte further out, at `system::run_bounded`'s own cap, so an answer
-/// that arrives here over the cap is one the seam stopped rather than one it
-/// buffered whole.
+/// THE BYTE CAP HERE IS THE NARROWER OF TWO. `system::run_bounded` bounds the
+/// READ, in time and in bytes both, and refuses anything past its own ceiling;
+/// this is the smaller cap on what may be POSTED, and this is the seam's first
+/// caller fed a model, which is the child that makes the difference matter. The
+/// answer has already been read into memory by the time it reaches here, so an
+/// answer that arrives over THIS cap is one the reader let through and this
+/// refuses; one over the READER's ceiling never arrives at all.
 ///
 /// AND A REPAIRED ANSWER IS REFUSED WHOLESALE, matching
 /// `system::parse_idle_nanoseconds` on the same seam's output: the runner reads

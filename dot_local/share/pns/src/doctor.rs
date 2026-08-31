@@ -212,14 +212,18 @@ pub fn pairing_report(json: Option<&str>, plain: Option<&str>) -> PairingReport 
 
 /// Whether an answer is small enough to be looked at.
 ///
-/// THE SPAWN'S DEADLINE BOUNDS TIME, NOT BYTES. Its stdout is slurped with no
-/// ceiling, so a moshi-hook that answered endlessly while staying inside its
+/// THE SPAWN'S CEILING IS NOT THIS CHECK'S CAP, and the room between them is
+/// what this function lives in. The reader bounds bytes as well as time now,
+/// but it bounds them at `PAIRING_READ_MAX`, which is deliberately wider than
+/// `ANSWER_MAX`: an answer between the two ARRIVED and is refused HERE, with
+/// "moshi-hook answered something this cannot read", while one past the
+/// reader's own ceiling never arrives and is reported as no answer at all.
+/// Without this check a moshi-hook that answered at length inside its time
 /// window would hand the whole thing to serde on one leg and have every line
-/// of it scanned on the other. This is checked BEFORE either, which is the
-/// only point where it means anything, and it is checked HERE rather than in
-/// the shared bounded spawn: every other caller of that spawn reads a
-/// different tool, and one of them is a condenser whose whole job is to answer
-/// at length.
+/// of it scanned on the other. It is checked BEFORE either, which is the only
+/// point where it means anything, and it is checked HERE rather than in the
+/// shared bounded spawn: every other caller of that spawn reads a different
+/// tool, and one of them is a condenser whose whole job is to answer at length.
 fn within_cap(answer: &str) -> bool {
     answer.len() <= ANSWER_MAX
 }
@@ -228,11 +232,14 @@ fn within_cap(answer: &str) -> bool {
 /// 0.3.3 answer, which is a couple of hundred bytes, and still far short of
 /// anything worth parsing by accident.
 ///
-/// THE READER IS ASKED FOR ONE BYTE MORE THAN THIS, at the `run_bounded` call
-/// in the composition root, which is the only way an over-cap answer stays
-/// DISTINGUISHABLE from one exactly at the cap: a reader that stopped at the
-/// cap itself would hand this function a truncated answer that passes, and the
-/// refusal below would never fire again.
+/// THE READER IS ASKED FOR TWICE THIS, at the `run_bounded` calls in the
+/// composition root (`PAIRING_READ_MAX`), which is what keeps an over-cap
+/// answer DISTINGUISHABLE from one exactly at the cap: a reader that stopped at
+/// the cap itself would hand `within_cap` a truncated answer that passes, and
+/// the refusal there would never fire again. The doubling rather than a single
+/// byte of headroom is deliberate and is argued at `PAIRING_READ_MAX` itself;
+/// what matters here is that this constant does NOT set the reader's ceiling,
+/// so moving it does not move that ceiling with it.
 pub const ANSWER_MAX: usize = 1024 * 1024;
 
 /// What moshi said about the server, taken off the ONE line that begins with

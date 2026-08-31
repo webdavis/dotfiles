@@ -368,6 +368,155 @@ pub const DEFAULT_SUBMIT_DEADLINE_SECS: u64 = 5;
 /// key whose only function is to restore it.
 const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
 
+/// EVERY KEY EVERY TABLE SERVES, table by table: the one statement of this
+/// schema's vocabulary, and the source of both the refusal that names a
+/// mistyped key and the list of what to write instead.
+///
+/// ONE ROSTER RATHER THAN A LISTING PER REFUSAL, because the failure it exists
+/// to prevent is a listing that drifted: a key added to a parse arm and not to
+/// the sentence that names the alternatives leaves an operator reading a
+/// refusal that omits the key they wanted. Every table checks this before it
+/// dispatches, so a key that is not declared here does not work at all, and a
+/// key declared here with no arm to read it is refused by that arm and caught
+/// by the walk in this module's own tests. Both drifts are red rather than
+/// quiet.
+///
+/// THE PLUGIN TABLES ARE IN IT and their settings are no longer free-form,
+/// which is the one behaviour change: a plugin's near miss (`room` for `rooms`,
+/// `tokens` for `token`) used to reach the plugin as a setting it did not
+/// recognize and cost a destination silently. A table for a plugin nothing
+/// registered is NOT here and stays free-form, because this layer has no
+/// vocabulary to judge a plugin that does not exist; the registry refuses the
+/// NAME, which is the defect in that case.
+///
+/// THE TWO NESTED ROWS ARE PREFIXES. `[lights.families.<name>]` and
+/// `[lights.places.<name>]` carry the operator's own names, so the roster holds
+/// the part that is the schema's and the refusal names the whole path.
+///
+/// THE FIRST ROW IS THE FILE'S OWN TOP LEVEL, whose vocabulary is the six TABLE
+/// names. It is a row like any other so that the refusal an operator gets for a
+/// misspelled or a MOVED table prints from the same source every other refusal
+/// prints from, and so the walks in this module's tests reach the outermost
+/// level too. It is looked up by `TOP_LEVEL` rather than by a name, because it
+/// is the one level with no heading to write.
+///
+/// NO LENGTH IS DECLARED. A row added to a fixed-size array is a two-place
+/// edit, and the count says nothing a reader needs.
+pub const TABLE_KEYS: &[(&str, &[&str])] = &[
+    (
+        TOP_LEVEL,
+        &["daemon", "focus", "lights", "nag", "plugins", "recap"],
+    ),
+    (
+        "recap",
+        &[
+            "digest",
+            "digest_as_thread",
+            "min_events",
+            "replay_card",
+            "repos",
+            "review_notes",
+            "summarizer",
+            "summarizer_deadline_secs",
+        ],
+    ),
+    ("focus", &["silence"]),
+    ("daemon", &["enabled"]),
+    ("nag", &["after_secs"]),
+    (
+        "lights",
+        &[
+            "breathe_after_secs",
+            "breathe_on",
+            "dim_brightness",
+            "families",
+            "places",
+            "refresh_secs",
+        ],
+    ),
+    ("lights.families", &["except", "lights", "rooms"]),
+    (
+        "lights.places",
+        &["catch_up", "quiet_hours", "quiet_mode", "skip"],
+    ),
+    ("plugins.hermes", &["enabled", "key"]),
+    (
+        "plugins.hue",
+        &["bridge", "enabled", "key", "quiet_hours", "rooms"],
+    ),
+    ("plugins.macos-banner", &["enabled"]),
+    (
+        "plugins.moshi",
+        &[
+            "enabled",
+            "mobile_watch_card",
+            "submit_deadline_secs",
+            "token",
+        ],
+    ),
+    (
+        "plugins.router",
+        &[
+            "api_key",
+            "brand",
+            "device_hostname",
+            "device_ipv4",
+            "device_mac",
+            "enabled",
+            "router_url",
+            "stale_alert_channel",
+        ],
+    ),
+];
+
+/// The roster row for the file's own top level. THE EMPTY NAME, because that
+/// level has no heading: an operator writes `[recap]`, never a bracket around
+/// the file itself, so there is no name a lookup could use.
+pub const TOP_LEVEL: &str = "";
+
+/// What one table serves, or `None` for a table this schema has no vocabulary
+/// for (a plugin nothing registered; see `TABLE_KEYS`).
+fn keys_of(table: &str) -> Option<&'static [&'static str]> {
+    TABLE_KEYS
+        .iter()
+        .find(|(name, _)| *name == table)
+        .map(|(_, keys)| *keys)
+}
+
+/// Whether a table admits a key, refusing it BY NAME and with the whole
+/// vocabulary spelled out when it does not.
+///
+/// THE TWO NAMES ARE DIFFERENT ARGUMENTS because a nested table's roster row
+/// is a prefix and its refusal has to name the path the operator wrote: an
+/// operator told `lights.places` has no `quiet_hour` would go looking for a
+/// table they never typed.
+fn admits(roster_table: &str, shown_table: &str, key: &str) -> Result<(), ConfigError> {
+    match keys_of(roster_table) {
+        Some(serves) if !serves.contains(&key) => Err(unknown_key(roster_table, shown_table, key)),
+        _ => Ok(()),
+    }
+}
+
+/// `admits` for a table whose refusal names the table ITSELF, which is every
+/// row but the two nested ones. The two-name form earns itself where the names
+/// differ and reads as noise where they cannot, so the call site says which
+/// case it is rather than repeating an argument.
+fn admits_flat(table: &str, key: &str) -> Result<(), ConfigError> {
+    admits(table, table, key)
+}
+
+/// The refusal itself, naming the table, the key, and the whole vocabulary.
+///
+/// THE LISTING IS THE POINT. A refusal that only says a key is unknown leaves
+/// an operator guessing at the spelling, and guessing is what produced the
+/// mistyped key; the alternatives are two words away in the same sentence.
+fn unknown_key(roster_table: &str, shown_table: &str, key: &str) -> ConfigError {
+    ConfigError::Invalid(format!(
+        "unknown `{shown_table}` key `{key}`; the table serves {}",
+        keys_of(roster_table).unwrap_or_default().join(", ")
+    ))
+}
+
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
 ///
 /// THE DEFAULT IS WRITTEN OUT rather than derived, for `Recap`'s own reason
@@ -523,14 +672,29 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                             )));
                         }
                     };
+                    // AND THE SETTINGS ARE JUDGED for a plugin that ships,
+                    // because a near miss there is a destination that quietly
+                    // never works. `enabled` is already out of the table and
+                    // still listed, since it is a key the operator writes.
+                    let table = format!("plugins.{name}");
+                    for key in settings.keys() {
+                        admits_flat(&table, key)?;
+                    }
                     config
                         .plugins
                         .insert(name, PluginEntry { enabled, settings });
                 }
             }
             _ => {
+                // AND THE SIX ARE LISTED, off the roster's own top-level row.
+                // This is the most operator-visible typo class there is (a
+                // whole table misspelled, or a table that MOVED, which refuses
+                // the file whole and takes every plugin's secret with it), and
+                // it was the last refusal in this file that named no
+                // alternatives.
                 return Err(ConfigError::Invalid(format!(
-                    "unknown top-level key `{key}`"
+                    "unknown top-level key `{key}`; the file serves {}",
+                    keys_of(TOP_LEVEL).unwrap_or_default().join(", ")
                 )));
             }
         }
@@ -548,6 +712,17 @@ fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
     // ONE ARM PER KEY, and the three that are not booleans read through a
     // function of their own, so each refusal sits with the shape it judges.
     for (key, setting) in table {
+        // BELT AND BRACES HERE, DELIBERATELY, and this is the first of the five
+        // top-level tables it reads that way. The `_` arm below refuses the
+        // same key with the same sentence for as long as the roster and the
+        // arms AGREE, so removing this line changes nothing observable today
+        // and a mutation of it survives the suite. Its whole effect is what
+        // happens when the two stop agreeing: a key added to an arm and not to
+        // the roster stops working at its own feature test instead of quietly
+        // working while every refusal listing omits it. Do not delete the five
+        // as redundant; the plugin tables have no `_` arm at all, and there the
+        // gate is the only check.
+        admits_flat("recap", &key)?;
         match key.as_str() {
             "min_events" => recap.min_events = threshold(&setting)?,
             "repos" => recap.repos = repositories(&setting)?,
@@ -558,7 +733,7 @@ fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
             "digest" => recap.digest = flag(&key, &setting)?,
             "digest_as_thread" => recap.digest_as_thread = flag(&key, &setting)?,
             _ => {
-                return Err(ConfigError::Invalid(format!("unknown `recap` key `{key}`")));
+                return Err(unknown_key("recap", "recap", &key));
             }
         }
     }
@@ -583,10 +758,11 @@ fn parse_focus(value: toml::Value) -> Result<Vec<String>, ConfigError> {
     };
     let mut silence = Vec::new();
     for (key, setting) in table {
+        admits_flat("focus", &key)?;
         match key.as_str() {
             "silence" => silence = modes(&setting)?,
             _ => {
-                return Err(ConfigError::Invalid(format!("unknown `focus` key `{key}`")));
+                return Err(unknown_key("focus", "focus", &key));
             }
         }
     }
@@ -602,6 +778,7 @@ fn parse_daemon(value: toml::Value) -> Result<bool, ConfigError> {
     };
     let mut enabled = DEFAULT_DAEMON_ENABLED;
     for (key, setting) in table {
+        admits_flat("daemon", &key)?;
         match key.as_str() {
             "enabled" => {
                 enabled = setting.as_bool().ok_or_else(|| {
@@ -612,9 +789,7 @@ fn parse_daemon(value: toml::Value) -> Result<bool, ConfigError> {
                 })?;
             }
             _ => {
-                return Err(ConfigError::Invalid(format!(
-                    "unknown `daemon` key `{key}`"
-                )));
+                return Err(unknown_key("daemon", "daemon", &key));
             }
         }
     }
@@ -630,10 +805,11 @@ fn parse_nag(value: toml::Value) -> Result<u64, ConfigError> {
     };
     let mut after_secs = NAG_OFF;
     for (key, setting) in table {
+        admits_flat("nag", &key)?;
         match key.as_str() {
             "after_secs" => after_secs = nag_schedule(&setting)?,
             _ => {
-                return Err(ConfigError::Invalid(format!("unknown `nag` key `{key}`")));
+                return Err(unknown_key("nag", "nag", &key));
             }
         }
     }
@@ -727,6 +903,7 @@ fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
     };
     let mut lights = Lights::default();
     for (key, setting) in table {
+        admits_flat("lights", &key)?;
         match key.as_str() {
             "refresh_secs" => {
                 lights.refresh_secs = bounded(&key, &setting, MIN_REFRESH_SECS, MAX_REFRESH_SECS)?;
@@ -756,9 +933,7 @@ fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
                     .expect("bounded at MAX_DIM_BRIGHTNESS, which is a percent and fits a u8");
             }
             _ => {
-                return Err(ConfigError::Invalid(format!(
-                    "unknown `lights` key `{key}`"
-                )));
+                return Err(unknown_key("lights", "lights", &key));
             }
         }
     }
@@ -815,14 +990,13 @@ fn parse_families(setting: &toml::Value) -> Result<BTreeMap<String, Family>, Con
         };
         let mut family = Family::default();
         for (key, claim) in claims {
+            admits("lights.families", &where_it_is, key)?;
             let named = match key.as_str() {
                 "rooms" => &mut family.rooms,
                 "lights" => &mut family.lights,
                 "except" => &mut family.except,
                 _ => {
-                    return Err(ConfigError::Invalid(format!(
-                        "unknown `{where_it_is}` key `{key}`"
-                    )));
+                    return Err(unknown_key("lights.families", &where_it_is, key));
                 }
             };
             *named = places_claimed(&where_it_is, key, claim)?;
@@ -855,6 +1029,7 @@ fn parse_places(setting: &toml::Value) -> Result<BTreeMap<String, Place>, Config
         };
         let mut place = Place::default();
         for (key, stated) in settings {
+            admits("lights.places", &where_it_is, key)?;
             match key.as_str() {
                 "skip" => place.skip = behaviours(&where_it_is, stated)?,
                 "quiet_hours" => place.quiet_hours = Some(text(&where_it_is, key, stated)?),
@@ -868,9 +1043,7 @@ fn parse_places(setting: &toml::Value) -> Result<BTreeMap<String, Place>, Config
                     })?);
                 }
                 _ => {
-                    return Err(ConfigError::Invalid(format!(
-                        "unknown `{where_it_is}` key `{key}`"
-                    )));
+                    return Err(unknown_key("lights.places", &where_it_is, key));
                 }
             }
         }
@@ -1278,11 +1451,11 @@ mod tests {
 
     #[test]
     fn a_plugin_table_with_enabled_true_is_selected_and_keeps_its_settings() {
-        let config = parse_config("[plugins.hue]\nenabled = true\nroom = \"office\"\n").unwrap();
+        let config = parse_config("[plugins.hue]\nenabled = true\nbridge = \"office\"\n").unwrap();
         let hue = &config.plugins["hue"];
         assert!(hue.enabled);
         assert_eq!(
-            hue.settings.get("room").and_then(|v| v.as_str()),
+            hue.settings.get("bridge").and_then(|v| v.as_str()),
             Some("office")
         );
         assert!(
@@ -1293,7 +1466,7 @@ mod tests {
 
     #[test]
     fn an_absent_enabled_flag_reads_disabled_because_selection_is_explicit() {
-        let config = parse_config("[plugins.hue]\nroom = \"office\"\n").unwrap();
+        let config = parse_config("[plugins.hue]\nbridge = \"office\"\n").unwrap();
         assert!(!config.plugins["hue"].enabled);
     }
 
@@ -2059,12 +2232,18 @@ mod tests {
         // OFF MOSHI'S OWN TABLE. Every plugin's settings reach this layer in
         // the same shape, so a reader spelled against the wrong table would
         // take a number the operator wrote for something else, or miss the one
-        // they wrote for this.
+        // they wrote for this. The misplacement is now refused a whole layer
+        // earlier, at the load that judges each table's own vocabulary, so
+        // this states both halves: the key on another table never parses, and
+        // a config carrying no moshi table at all is still the default.
+        assert!(
+            parse_config("[plugins.hue]\nsubmit_deadline_secs = 30\n").is_err(),
+            "moshi's key is not part of hue's vocabulary"
+        );
         assert_eq!(
-            submit_deadline(&parse_config("[plugins.hue]\nsubmit_deadline_secs = 30\n").unwrap())
-                .unwrap(),
+            submit_deadline(&parse_config("[plugins.hue]\nenabled = true\n").unwrap()).unwrap(),
             Duration::from_secs(5),
-            "another plugin's key is not moshi's bound"
+            "another plugin's table is not where moshi's bound is read"
         );
     }
 
@@ -2471,5 +2650,448 @@ mod tests {
             said.contains("breathe_on"),
             "a bare string is not a list of sources: {said}"
         );
+    }
+
+    // --- every table's own vocabulary ---------------------------------------
+
+    /// The header a config writes to reach one roster table. Two of the rows
+    /// name a NESTED table whose own name is the operator's, so the roster
+    /// holds the prefix and this picks a name to write under it.
+    fn header_for(table: &str) -> String {
+        match table {
+            "lights.families" => "lights.families.local".to_string(),
+            "lights.places" => "lights.places.study".to_string(),
+            other => other.to_string(),
+        }
+    }
+
+    /// A config that writes one key under one roster row. THE TOP-LEVEL ROW HAS
+    /// NO HEADING: its keys are the six table names, written bare at the start
+    /// of the file, which is the shape of every misspelled or moved table.
+    fn config_writing(table: &str, key: &str, value: &str) -> String {
+        match table {
+            super::TOP_LEVEL => format!("{key} = {value}\n"),
+            other => format!("[{}]\n{key} = {value}\n", header_for(other)),
+        }
+    }
+
+    /// How a refusal from one roster row names the level it refused: every
+    /// bracketed table by its own header, and the top level as what it is.
+    fn shown_as(table: &str) -> String {
+        match table {
+            super::TOP_LEVEL => "top-level".to_string(),
+            other => format!("`{}`", header_for(other)),
+        }
+    }
+
+    #[test]
+    fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key() {
+        // A plugin's settings used to reach the plugin free-form, so a near
+        // miss was a destination that quietly never worked: `room` for `rooms`
+        // is a pulse into a room the bridge does not have, and `tokens` for
+        // `token` is a phone card that silently never leaves the machine.
+        for (table, mistyped, near) in [
+            ("plugins.hermes", "keys", "key"),
+            ("plugins.hue", "room", "rooms"),
+            ("plugins.macos-banner", "sound", "enabled"),
+            ("plugins.moshi", "tokens", "token"),
+            ("plugins.router", "phone", "device_hostname"),
+        ] {
+            let said = refusal(&format!("[{table}]\nenabled = true\n{mistyped} = \"x\"\n"));
+            assert!(
+                said.contains(&format!("`{table}`")),
+                "the TABLE is named: {said}"
+            );
+            assert!(
+                said.contains(&format!("`{mistyped}`")),
+                "and so is the key: {said}"
+            );
+            assert!(
+                said.contains(near),
+                "and the keys it does serve are listed: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
+        // The positive control under the refusal above: a sweep that refused
+        // the whole vocabulary would pass every assertion up there.
+        let shipped = "[plugins.hermes]\nenabled = true\nkey = \"k\"\n             [plugins.hue]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.macos-banner]\nenabled = true\n             [plugins.moshi]\nenabled = true\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.router]\nenabled = true\nbrand = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+        let config = parse_config(shipped).expect("every shipped key parses");
+        assert_eq!(config.plugins.len(), 5);
+    }
+
+    #[test]
+    fn an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name() {
+        // TODAY'S BEHAVIOUR, pinned rather than changed. This layer knows the
+        // vocabulary of the plugins that ship and has none for a name nothing
+        // registered, so judging its keys would mean inventing a schema for a
+        // plugin that does not exist. The NAME is the defect and the registry
+        // is where it is refused, which is one layer later and still loud.
+        let config = parse_config("[plugins.nosuch]\nenabled = true\nwhatever = 1\n")
+            .expect("the settings of an unknown plugin are not this layer's to judge");
+        assert!(config.plugins["nosuch"].enabled);
+        assert!(config.plugins["nosuch"].settings.contains_key("whatever"));
+        assert!(
+            crate::registry::roster().enabled(&config).is_err(),
+            "and the name itself is still refused, one layer on"
+        );
+    }
+
+    #[test]
+    fn a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does() {
+        // THE MOST OPERATOR-VISIBLE TYPO CLASS: a whole table misspelled, or a
+        // table that moved. `[home]` is the real one; the router probe's
+        // settings moved under `[plugins.router]`, and a config written before
+        // that move is refused WHOLE, which takes every plugin's secret with
+        // it. Told only that `home` is unknown, an operator has nowhere to go.
+        let said = refusal("[home]\nrouter_url = \"https://192.168.1.1\"\n");
+        assert!(said.contains("`home`"), "the table is named: {said}");
+        for serves in ["daemon", "focus", "lights", "nag", "plugins", "recap"] {
+            assert!(
+                said.contains(serves),
+                "and `{serves}` is among the tables it says the file serves: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_table_refuses_an_unknown_key_by_name_and_lists_what_it_serves() {
+        // ONE TEST PER TABLE, driven by the roster rather than written out, so
+        // a table added to the schema without this treatment is a red test.
+        // THE TOP LEVEL IS ONE OF THE ROWS, so the outermost refusal is held to
+        // the same standard as the innermost.
+        for (table, serves) in super::TABLE_KEYS.iter().copied() {
+            let said = refusal(&config_writing(table, "zzz_not_a_key", "\"x\""));
+            assert!(
+                said.contains(&shown_as(table)) && said.contains("`zzz_not_a_key`"),
+                "`{table}` names the table and the key: {said}"
+            );
+            for key in serves {
+                assert!(
+                    said.contains(key),
+                    "`{table}` lists `{key}` among what it serves: {said}"
+                );
+            }
+        }
+    }
+
+    // --- the roster, the template and the doctor's wording ------------------
+
+    /// One valid value for every key the roster declares, which is what makes
+    /// the walk below a real parse rather than a name check.
+    ///
+    /// ITS KEY SET IS ASSERTED EQUAL TO THE ROSTER'S, so a key added to the
+    /// roster with no sample here is a red test rather than a key nobody ever
+    /// proved the parser reads. Written out rather than generated, `enabled`
+    /// five times included: a generator over the roster would derive this list
+    /// from the very thing it is here to check.
+    ///
+    /// THE TOP-LEVEL SAMPLES ARE INLINE TABLES, which is the same statement in
+    /// TOML as the heading each of them would otherwise be written as, and it
+    /// is what lets one walk cover a level with no heading of its own.
+    const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
+        (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
+        (super::TOP_LEVEL, "focus", "{ silence = [\"Sleep\"] }"),
+        (super::TOP_LEVEL, "lights", "{ refresh_secs = 12 }"),
+        (super::TOP_LEVEL, "nag", "{ after_secs = 300 }"),
+        (
+            super::TOP_LEVEL,
+            "plugins",
+            "{ hermes = { enabled = true } }",
+        ),
+        (super::TOP_LEVEL, "recap", "{ digest = true }"),
+        ("recap", "digest", "true"),
+        ("recap", "digest_as_thread", "true"),
+        ("recap", "min_events", "8"),
+        ("recap", "replay_card", "true"),
+        ("recap", "repos", "[\"webdavis/dotfiles\"]"),
+        ("recap", "review_notes", "\"~/.claude/checklist-*.md\""),
+        (
+            "recap",
+            "summarizer",
+            "[\"ollama\", \"run\", \"qwen3.5:4b\"]",
+        ),
+        ("recap", "summarizer_deadline_secs", "240"),
+        ("focus", "silence", "[\"Sleep\"]"),
+        ("daemon", "enabled", "true"),
+        ("nag", "after_secs", "300"),
+        ("lights", "breathe_after_secs", "900"),
+        ("lights", "breathe_on", "[\"commands\"]"),
+        ("lights", "dim_brightness", "1"),
+        (
+            "lights",
+            "families",
+            "{ local = { rooms = [\"3F - Studio\"] } }",
+        ),
+        ("lights", "places", "{ study = { catch_up = true } }"),
+        ("lights", "refresh_secs", "12"),
+        ("lights.families", "except", "[\"3F - Studio Lamp\"]"),
+        ("lights.families", "lights", "[\"3F - Studio Lamp\"]"),
+        ("lights.families", "rooms", "[\"3F - Studio\"]"),
+        ("lights.places", "catch_up", "false"),
+        ("lights.places", "quiet_hours", "\"22:00-07:00\""),
+        ("lights.places", "quiet_mode", "\"dim\""),
+        ("lights.places", "skip", "[\"done\"]"),
+        ("plugins.hermes", "enabled", "true"),
+        ("plugins.hermes", "key", "\"secret\""),
+        ("plugins.hue", "bridge", "\"192.168.1.10\""),
+        ("plugins.hue", "enabled", "true"),
+        ("plugins.hue", "key", "\"secret\""),
+        ("plugins.hue", "quiet_hours", "\"22:00-07:00\""),
+        ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
+        ("plugins.macos-banner", "enabled", "true"),
+        ("plugins.moshi", "enabled", "true"),
+        ("plugins.moshi", "mobile_watch_card", "false"),
+        ("plugins.moshi", "submit_deadline_secs", "5"),
+        ("plugins.moshi", "token", "\"secret\""),
+        ("plugins.router", "api_key", "\"secret\""),
+        ("plugins.router", "brand", "\"unifi\""),
+        ("plugins.router", "device_hostname", "\"mister\""),
+        ("plugins.router", "device_ipv4", "\"192.168.1.9\""),
+        ("plugins.router", "device_mac", "\"2e:11:ab:6d:b0:4f\""),
+        ("plugins.router", "enabled", "true"),
+        ("plugins.router", "router_url", "\"https://192.168.1.1\""),
+        ("plugins.router", "stale_alert_channel", "\"priority\""),
+    ];
+
+    #[test]
+    fn every_key_the_roster_declares_is_read_by_the_table_that_declares_it() {
+        // THE ROSTER IS THE SCHEMA'S ONE STATEMENT and this is what stops it
+        // becoming a second, drifting one. A key declared with no arm to read
+        // it is refused by that arm, which is a table whose refusal names a
+        // key it will not accept; a key an arm reads that the roster does not
+        // declare stops working, because the roster is checked first. Both are
+        // red, and this walk is the half that catches the first.
+        let mut walked: Vec<(&str, &str)> = Vec::new();
+        for (table, key, value) in SAMPLE_VALUES.iter().copied() {
+            let text = config_writing(table, key, value);
+            assert!(
+                parse_config(&text).is_ok(),
+                "{} declares `{key}` and will not parse it: {:?}",
+                shown_as(table),
+                parse_config(&text)
+            );
+            walked.push((table, key));
+        }
+
+        // AND THE TWO SETS ARE THE SAME SET, or the walk above proves only
+        // whatever half of the roster someone remembered to sample.
+        let mut declared: Vec<(&str, &str)> = super::TABLE_KEYS
+            .iter()
+            .flat_map(|(table, keys)| keys.iter().map(move |key| (*table, *key)))
+            .collect();
+        walked.sort_unstable();
+        declared.sort_unstable();
+        assert_eq!(
+            walked, declared,
+            "every declared key is walked, and no more"
+        );
+    }
+
+    /// The shipped config, which is the config OF RECORD: this repo's template
+    /// is the only pns config anyone has.
+    ///
+    /// INCLUDED AT COMPILE TIME AND ONLY UNDER `cfg(test)`, so the binary the
+    /// apply builds out of the deployed crate (which is the crate alone, no
+    /// repo around it) never asks for a file that is not there. Measured both
+    /// ways with the path pointed at a file that does not exist: `cargo build
+    /// --bin pns` exits 0 because `cfg(test)` is stripped before the macro
+    /// expands, and `cargo test --no-run` fails with "couldn't read".
+    ///
+    /// THE COST IS THAT THE TEST BUILD REACHES FOUR LEVELS OUT OF THE CRATE,
+    /// into the repo checkout around it. `cargo test` and `cargo clippy
+    /// --all-targets` therefore only work from inside this repo: run either in
+    /// the deployed `~/.local/share/pns` and the error is a "couldn't read"
+    /// naming a path, which says nothing about why. THE DAY pns MOVES TO ITS
+    /// OWN REPO, as it is planned to, this test stops compiling and the
+    /// template it reads has to arrive by another road (a copy vendored into
+    /// the crate, or a path handed in by the build). No mechanism is built for
+    /// that day here; it is written down so it is found by reading rather than
+    /// by a build breaking.
+    const SHIPPED_TEMPLATE: &str =
+        include_str!("../../../../dot_config/pns/private_config.toml.tmpl");
+
+    /// The template with its chezmoi actions taken out: a directive standing on
+    /// its own line goes with the line, and an action inside a value becomes
+    /// the string the vault would have put there.
+    ///
+    /// NOT A CHEZMOI, and it does not need to be. What this test reads is which
+    /// KEYS the file names and under which tables, and no action in it is a key
+    /// or a table; they are one conditional wrapper and six secrets.
+    fn rendered_template() -> String {
+        SHIPPED_TEMPLATE
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("{{-"))
+            .map(|line| {
+                let mut rendered = line.to_string();
+                while let Some(start) = rendered.find("{{") {
+                    let end = rendered[start..]
+                        .find("}}")
+                        .expect("a chezmoi action is closed on its own line")
+                        + start
+                        + 2;
+                    rendered.replace_range(start..end, "from-the-vault");
+                }
+                rendered
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn the_shipped_config_template_still_parses_through_this_schema() {
+        // THE FENCE UNDER THE SWEEP. Judging every plugin table's keys can
+        // refuse a config that worked yesterday, and the only config that
+        // matters is the one this repo ships. If it stops loading, every
+        // notification on the machine falls back to the whole built-in roster
+        // with a warning nobody is standing in front of.
+        let rendered = rendered_template();
+        let config = parse_config(&rendered)
+            .unwrap_or_else(|error| panic!("the shipped template must load: {error:?}"));
+        assert_eq!(
+            config.plugins.keys().collect::<Vec<_>>(),
+            vec!["hermes", "hue", "macos-banner", "moshi", "router"],
+            "and it must still select what it selects"
+        );
+        // And every one of those names is a plugin that exists, which is the
+        // refusal one layer on.
+        crate::registry::roster()
+            .enabled(&config)
+            .expect("the template names only registered plugins");
+    }
+
+    #[test]
+    fn every_key_the_template_documents_is_a_key_the_roster_serves() {
+        // THE COMMENTED KEYS TOO, which is the half the parse above cannot
+        // reach: most of the template is documentation, and a key documented
+        // there but refused by the code is a line an operator uncomments and
+        // then cannot load. The scan reads `key = value` at the start of a
+        // line, commented or not, under the table heading above it.
+        let mut table = String::new();
+        let mut found = 0;
+        for line in rendered_template().lines() {
+            let bare = line.strip_prefix("# ").unwrap_or(line);
+            if let Some(heading) = bare
+                .strip_prefix('[')
+                .and_then(|rest| rest.strip_suffix(']'))
+            {
+                table = heading.to_string();
+                continue;
+            }
+            let Some((key, _)) = bare.split_once(" = ") else {
+                continue;
+            };
+            if !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') || key.is_empty() {
+                continue;
+            }
+            // A nested table carries the operator's own name; the roster holds
+            // the prefix, the way the refusals do.
+            let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
+                ["lights", "families", ..] => "lights.families".to_string(),
+                ["lights", "places", ..] => "lights.places".to_string(),
+                _ => table.clone(),
+            };
+            let serves = super::keys_of(&roster_table).unwrap_or_else(|| {
+                panic!("the template writes `[{table}]`, which no table serves")
+            });
+            assert!(
+                serves.contains(&key),
+                "the template documents `{key}` under `[{table}]`, which does not serve it"
+            );
+            found += 1;
+        }
+        assert_eq!(
+            found, TEMPLATE_KEY_PAIRS,
+            "the scan read a different number of keys than the template documents"
+        );
+    }
+
+    /// How many `key = value` pairs the scan above finds in the shipped
+    /// template, commented lines included.
+    ///
+    /// EXACT, NOT A FLOOR. The number is here to catch a SCANNER that quietly
+    /// stopped reading, and a floor with room under it is a scanner allowed to
+    /// lose a quarter of the file and still pass: the scan is whitespace-exact
+    /// in two places (`# ` and ` = `), so a template edit writing `key= value`
+    /// on a run of lines drops exactly that run and nothing says so.
+    ///
+    /// THE ONE EDIT THAT MOVES IT is the template documenting a key more or a
+    /// key fewer, in which case this number moves with it. A change here for
+    /// any other reason is the scan breaking rather than the template changing.
+    const TEMPLATE_KEY_PAIRS: usize = 41;
+
+    #[test]
+    fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
+        // THE THIRD DOCUMENT. The template says what to write, the refusals say
+        // what is wrong with what was written, and the doctor's setup report
+        // says which key to go and set; a key renamed in two of the three is an
+        // operator sent to a spelling nothing reads.
+        //
+        // READ OFF THE REPORT ITSELF, never restated here. A test that asserts
+        // string literals against the roster's string literals agrees with
+        // itself whatever the doctor actually says, which is the exact drift it
+        // is named for: rename `router_url` to `url` in the sentence below and
+        // nothing else, and a test written that way stays green.
+        use crate::home::{DeviceKey, SetupFailure, setup_report};
+        let serves = super::keys_of("plugins.router").expect("the router table is in the roster");
+        let quoted = "\"x\"".to_string();
+        for (failure, sends_the_operator_to_a_key) in [
+            (SetupFailure::NoConfigFile, false),
+            (SetupFailure::ConfigError("refused".to_string()), false),
+            (SetupFailure::NoRouterPlugin, false),
+            (SetupFailure::RouterDisabled, true),
+            (SetupFailure::NoBrand, true),
+            (SetupFailure::UnknownBrand("asus".to_string()), true),
+            (SetupFailure::InvalidRouterTable, true),
+            (SetupFailure::NoDeviceIdentifier, true),
+            (
+                SetupFailure::InvalidDeviceKey {
+                    key: DeviceKey::Mac,
+                    found: quoted.clone(),
+                },
+                true,
+            ),
+            (
+                SetupFailure::InvalidDeviceKey {
+                    key: DeviceKey::Hostname,
+                    found: quoted.clone(),
+                },
+                true,
+            ),
+            (
+                SetupFailure::InvalidDeviceKey {
+                    key: DeviceKey::Ipv4,
+                    found: quoted.clone(),
+                },
+                true,
+            ),
+            (SetupFailure::NoApiKey, true),
+        ] {
+            let said = setup_report(&failure);
+            let words: Vec<&str> = said
+                .split(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'))
+                .collect();
+            // A WORD CARRYING AN UNDERSCORE IS A CONFIG KEY and nothing else in
+            // this vocabulary: the prose around it is English. So one that the
+            // table does not serve is a key renamed in the code and left
+            // standing here.
+            for word in words.iter().filter(|word| word.contains('_')) {
+                assert!(
+                    serves.contains(word),
+                    "the report says `{word}`, which the router table does not serve: {said}"
+                );
+            }
+            // AND THE OTHER DIRECTION, which is the half a spelling check
+            // cannot see: a line that is supposed to send the operator to a key
+            // has to still name one, or `router_url` became `url` and the
+            // sentence now points at nothing.
+            assert_eq!(
+                words.iter().any(|word| serves.contains(word)),
+                sends_the_operator_to_a_key,
+                "whether this line names a key the table serves changed: {said}"
+            );
+        }
     }
 }

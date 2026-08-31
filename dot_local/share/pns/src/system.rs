@@ -62,6 +62,16 @@ impl CommandRunner for SystemCommandRunner {
 /// moment one of them became an operator-named command running a model for
 /// minutes. `max_bytes` is the reader's own ceiling: past it the pipe is closed
 /// under the child, which is also what stops it writing.
+///
+/// AND PAST THE CEILING IS NO ANSWER, which is the DEADLINE'S OWN DIRECTION
+/// rather than a second one. A truncated answer is the dangerous shape here:
+/// a process list cut at the ceiling has lost its last rows and a JSON listing
+/// has stopped mid-object, and both arrive at a caller looking exactly like a
+/// complete short answer, so the caller acts on a reading that is missing the
+/// part that mattered. Every caller reads no answer as unknown, and unknown
+/// never suppresses. The reader is asked for one byte PAST the ceiling, which
+/// is what keeps "over the cap" and "exactly at the cap" two different
+/// answers, so the bound stays inclusive like every other bound in this crate.
 pub fn run_bounded(
     mut command: Command,
     stdin_text: Option<&str>,
@@ -94,19 +104,24 @@ pub fn run_bounded(
         // Dropping stdin closes it, which is what tells the child to stop
         // reading; without it a child waiting on EOF never exits.
         drop(stdin);
-        // Bytes, then LOSSY: every reading here is judged line by line
-        // downstream, so one invalid byte must cost its own line rather than
-        // the whole answer, and read_to_string would refuse the lot.
-        // AND THE READ ITSELF IS CAPPED: `take` stops at the ceiling instead of
-        // growing the buffer to whatever the child felt like writing, and the
-        // pipe closing under it is what stops the child writing more.
+        // THE READ IS CAPPED: `take` stops at the ceiling instead of growing
+        // the buffer to whatever the child felt like writing, and the pipe
+        // closing under it is what stops the child writing more. One byte past
+        // the ceiling is asked for so the reader downstream can tell a child
+        // that went over from one that stopped exactly on it.
         let mut output = Vec::new();
-        let mut capped = std::io::Read::take(&mut stdout, max_bytes);
+        let mut capped = std::io::Read::take(&mut stdout, max_bytes.saturating_add(1));
         let _ = std::io::Read::read_to_end(&mut capped, &mut output);
-        let _ = sender.send(String::from_utf8_lossy(&output).into_owned());
+        // The BYTES travel, not a string: the size that matters is the size on
+        // the wire, and a lossy conversion grows an invalid byte into three.
+        let _ = sender.send(output);
     });
 
-    let output = receiver.recv_timeout(deadline).ok();
+    // Over the ceiling is the same no-answer a blown deadline is; see above.
+    let output = receiver
+        .recv_timeout(deadline)
+        .ok()
+        .filter(|bytes: &Vec<u8>| bytes.len() as u64 <= max_bytes);
     // Closed stdout is not an exited process: a child can close it and sleep,
     // so the wait is polled against the SAME deadline rather than blocking.
     let status = match output.is_some() {
@@ -120,7 +135,15 @@ pub fn run_bounded(
     };
     // A command that failed has no reading to give: every caller here treats
     // no answer as unknown, which is the honest report.
-    status.success().then_some(output).flatten()
+    //
+    // LOSSY, and only now that the size has been judged: every reading here is
+    // read line by line downstream, so one invalid byte must cost its own line
+    // rather than the whole answer, and `read_to_string` would refuse the lot.
+    status
+        .success()
+        .then_some(output)
+        .flatten()
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// Poll a child to exit, up to a deadline. There is no wait-with-timeout in
@@ -566,25 +589,49 @@ mod tests {
     use std::cell::RefCell;
     use std::time::Duration;
 
+    /// One child writing `bytes` zeroes, read under a 4096-byte ceiling.
+    ///
+    /// THE ONLY TESTS HERE THAT SPAWN, and they have to: what they pin is the
+    /// reader, and the reader only exists around a real pipe. Every other test
+    /// in this module drives fixture text through a parser, because the parsers
+    /// are the part a suite must not take off the live machine.
+    fn read_under_a_4096_byte_cap(bytes: usize) -> Option<String> {
+        let mut command = std::process::Command::new("/bin/sh");
+        command.args(["-c", &format!("head -c {bytes} /dev/zero; exit 0")]);
+        run_bounded(command, None, Duration::from_secs(5), 4096)
+    }
+
     #[test]
-    fn a_command_that_talks_past_the_cap_is_read_only_as_far_as_the_cap() {
-        // THE ONE TEST HERE THAT SPAWNS, and it has to: what it pins is the
-        // reader, and the reader only exists around a real pipe. Every other
-        // test in this module drives fixture text through a parser, because the
-        // parsers are the part a suite must not take off the live machine.
-        //
+    fn a_command_that_talks_past_the_cap_is_no_answer_rather_than_a_truncated_one() {
         // WITHOUT THE BOUND THIS READS THE LOT. A `read_to_end` into a growing
         // `Vec` is bounded by the DEADLINE alone, so a child that streams for
         // its whole window hands back everything it wrote and the caller learns
         // the size only once it is all in memory. The summarizer is exactly
         // that child: an operator-named command running a model for minutes.
-        let mut command = std::process::Command::new("/bin/sh");
-        command.args(["-c", "head -c 100000 /dev/zero; exit 0"]);
-        let read = run_bounded(command, None, Duration::from_secs(5), 4096).expect("an answer");
+        //
+        // AND A TRUNCATED ANSWER IS WORSE THAN NO ANSWER, which is why the cap
+        // refuses in the DEADLINE'S OWN DIRECTION rather than handing back what
+        // it managed to read. Cut at the ceiling, a process list loses its last
+        // rows and a JSON listing stops mid-object, and both arrive looking
+        // exactly like a complete short answer. Every caller reads no answer as
+        // unknown, and unknown never suppresses.
+        assert_eq!(read_under_a_4096_byte_cap(100_000), None);
+    }
+
+    #[test]
+    fn a_short_answer_is_told_apart_from_the_cap_because_it_is_still_an_answer() {
+        // The other half of the same statement: the refusal above has to be the
+        // CAP and not the reader giving up on anything large-ish, so a child
+        // that stops on its own is read whole, and the ceiling itself is a
+        // working answer rather than the first refused one.
         assert_eq!(
-            read.len(),
-            4096,
-            "the reader kept going past its own ceiling"
+            read_under_a_4096_byte_cap(12).map(|read| read.len()),
+            Some(12)
+        );
+        assert_eq!(
+            read_under_a_4096_byte_cap(4096).map(|read| read.len()),
+            Some(4096),
+            "the ceiling is inclusive, as every other bound in this crate is"
         );
     }
 
