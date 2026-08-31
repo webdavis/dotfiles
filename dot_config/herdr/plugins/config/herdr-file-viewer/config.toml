@@ -80,7 +80,7 @@ editor = "nvim"
 # entry. Worth turning on when your paths are deeper than your pane is wide (a
 # Java/Maven layout, a nested monorepo). A startup setting -- no runtime key
 # toggles it. Default:
-#compact_dirs = false
+compact_dirs = true
 
 # Choose the automatic initial view for Git-changed files. "diff" preserves the
 # default diff-first behavior. "content" applies the normal file-type policy
@@ -94,14 +94,14 @@ editor = "nvim"
 # `update_check` governs release details and project spotlights.
 # `false` disables all remote requests and their display. When unset,
 # $HERDR_FILE_VIEWER_NO_UPDATE_CHECK also disables it. No separate spotlight setting. Default:
-#update_check = true
+update_check = true
 
 # Annotations (`a` / `A`) live only for the session, so both quitting (`q`) and
 # switching worktree (`W`) destroy them. By default either confirms first,
 # offering to copy them to the clipboard on the way out. Set false to skip the
 # confirm and discard immediately. It only appears when annotations are actually
 # held. Default:
-#confirm_discard = true
+confirm_discard = true
 
 # How many lines the mouse wheel scrolls per event (also how many items it moves
 # in the file-search list, and lines in the `?` help overlay). Can be set from 1
