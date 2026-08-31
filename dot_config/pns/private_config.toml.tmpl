@@ -402,7 +402,10 @@ breathe_after_secs = 900
 # workspace with no duration test at all, and an eager source wins every time,
 # so switching it on leaves `breathe_after_secs` governing nothing. Name it
 # here for a lamp that should breathe the moment an agent starts.
-breathe_on = ["agent-loops", "commands", "long-commands"]
+# SWITCHED OFF (operator, 2026-08-31, on first sight of the live lamp): the
+# swell is not the behaviour they want; a redesign session is pending. The
+# needs-you and glow states stay live; name sources here to re-enable.
+breathe_on = []
 # The brightness a dimmed signal runs at, in percent. The range is 1 to 100,
 # and zero is refused rather than read as off: a dark signal is a lamp saying
 # nothing, and the way to say nothing is that place's own `skip` list.
