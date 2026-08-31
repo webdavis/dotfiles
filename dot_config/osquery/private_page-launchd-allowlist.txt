@@ -43,3 +43,4 @@
 {"label":"com.webdavis.osquery-digest","path":"~/Library/LaunchAgents/com.webdavis.osquery-digest.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/digest.sh","sha256":""}
 {"label":"com.webdavis.osquery-heartbeat","path":"~/Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/heartbeat.sh","sha256":""}
 {"label":"com.webdavis.osquery-tailscale-monitor","path":"~/Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/tailscale-monitor.sh","sha256":""}
+{"label":"com.webdavis.pns-daemon","path":"~/Library/LaunchAgents/com.webdavis.pns-daemon.plist","program":"~/.local/libexec/pns/pns daemon run","sha256":""}
