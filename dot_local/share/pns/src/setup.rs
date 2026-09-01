@@ -322,8 +322,10 @@ min_events = 8
 summarizer_deadline_secs = 240
 # The command that turns the window into the night-in-order lines: ARGV, NEVER
 # A SHELL STRING, handed the timeline on stdin and answering on stdout. UNSET
-# IS A WORKING SETTING and posts the plain mechanical list.
-# summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false"]
+# IS A WORKING SETTING and posts the plain mechanical list. THE THREE OLLAMA
+# FLAGS ARE NOT OPTIONAL: without them `ollama run` interleaves terminal
+# control bytes and a preamble into its output, and those are posted verbatim.
+# summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
 # The repositories whose merged pull requests become the recap's "what it does
 # now" section. UNSET MEANS NO `gh` IS EVER STARTED.
 # repos = ["owner/name"]
