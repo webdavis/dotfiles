@@ -23,8 +23,7 @@
 # configured yet. The other three are OPT-INS you arm with a credential first:
 # hue needs a bridge and key, hermes needs a signed route, and the home probe
 # needs a router API key, so switching them on by default would deliver nothing
-# and report three failures. This file enables all five, because this machine
-# has all five armed.
+# and report three failures.
 #
 # A PLUGIN NAMES ITS BACKEND WITH `type`, under every table that has one to
 # pick, and the key is required: nothing guesses which implementation a table
@@ -49,9 +48,9 @@ mobile_watch_card = false
 # it to return, so every second pns spends waiting on a moshi daemon that
 # stopped answering is a second the question is off your screen. The wait is a
 # registration and not a human wait (moshi-hook returns as soon as the daemon
-# acknowledges it, measured at roughly a tenth of a second; your own answer
-# arrives later, by the daemon typing into the prompt), so five seconds is
-# about thirty times the observed round trip. On expiry pns says nothing
+# acknowledges it; your own answer arrives later, by the daemon typing into
+# the prompt), so five seconds bounds a machine's acknowledgement rather than
+# anybody's answer. On expiry pns says nothing
 # either way and the submission is killed, which is what actually lets the
 # prompt be drawn: the harness reads the hook's output to end-of-file, and a
 # surviving moshi-hook would hold that open and keep the question hidden
