@@ -478,24 +478,36 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
     // subcommand used to reach the lenient producer parser, which skipped the
     // word it did not know and notified about an empty event, so `pns stpo`
     // raised a banner and could card the operator's phone.
-    let (sandbox, mut command) = desk_with_a_native_banner("typo");
-    let output = command.arg("stpo").output().expect("the engine runs");
+    //
+    // THE SECOND ARGV IS THE PARSER'S OWN FLAG LIST BEING CONSULTED rather
+    // than a lookalike. A refusal that asked "does anything here start with a
+    // dash" instead of "is this a flag the parser knows" reads `--wat` as a
+    // producer invocation and delivers the empty event again: the same bug,
+    // reached by mistyping the flag as well as the word.
+    for argv in [&["stpo"][..], &["stpo", "--wat"][..]] {
+        let (sandbox, mut command) = desk_with_a_native_banner("typo");
+        let output = command.args(argv).output().expect("the engine runs");
 
-    assert_eq!(output.status.code(), Some(2), "a refusal, never exit 0");
-    assert!(
-        stderr(&output).contains("usage"),
-        "and the usage is on stderr: {output:?}"
-    );
-    assert_eq!(
-        stdout(&output),
-        "",
-        "nothing was delivered to say: {output:?}"
-    );
-    assert_eq!(sandbox.spawned(), "", "a typo spawns nothing: {output:?}");
-    assert!(
-        !sandbox.state().exists(),
-        "and writes no state either: {output:?}"
-    );
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{argv:?}: a refusal, never exit 0"
+        );
+        assert!(
+            stderr(&output).contains("usage"),
+            "and the usage is on stderr: {output:?}"
+        );
+        assert_eq!(
+            stdout(&output),
+            "",
+            "nothing was delivered to say: {output:?}"
+        );
+        assert_eq!(sandbox.spawned(), "", "a typo spawns nothing: {output:?}");
+        assert!(
+            !sandbox.state().exists(),
+            "and writes no state either: {output:?}"
+        );
+    }
 }
 
 #[test]
