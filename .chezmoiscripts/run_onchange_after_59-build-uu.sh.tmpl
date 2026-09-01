@@ -1,0 +1,93 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Builds the uu binary and installs it where launchd runs it. The crate deploys
+# as SOURCE under ~/.local/share/uu; nothing else compiles it, so without this
+# script the LaunchAgent would find nothing to run.
+#
+# BOTH CRATES ARE HASHED. uu links pns's hermes client as a library, so a change
+# to pns alone still changes the binary this installs; hashing uu's sources only
+# would leave the deployed uu carrying stale signing and transport code with
+# nothing to trigger a rebuild.
+{{ $uu := joinPath .chezmoi.sourceDir "dot_local/share/uu" -}}
+{{ $pns := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
+{{ range (glob (joinPath $uu "**/*.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- range (glob (joinPath $pns "**/*.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+#   uu/Cargo.toml {{ include (joinPath $uu "Cargo.toml") | sha256sum }}
+#   uu/Cargo.lock {{ include (joinPath $uu "Cargo.lock") | sha256sum }}
+#   pns/Cargo.toml {{ include (joinPath $pns "Cargo.toml") | sha256sum }}
+#   pns/Cargo.lock {{ include (joinPath $pns "Cargo.lock") | sha256sum }}
+#
+# Retry state, the mechanism the pns builder beside it uses: chezmoi records a
+# run_onchange script as done on ANY exit 0, so a skipped build (no toolchain)
+# must change this rendered script to re-fire on the next apply.
+#
+# The marker's MODIFICATION TIME is the trigger, never its contents: reading a
+# file at render time means an unreadable node aborts the apply and a FIFO at
+# that path hangs it forever, before any of this script's own recovery can run.
+#   retry-marker: {{ $rm := printf "%s/.cache/uu-build/uu.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+crate_dir="$HOME/.local/share/uu"
+# Beside pns, not in bin: the operator does not type this, launchd does.
+install_dir="$HOME/.local/libexec/uu"
+retry_marker="$HOME/.cache/uu-build/uu.retry"
+
+# Deterministic path, never a PATH probe: a fresh machine provisions rustup
+# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
+cargo_bin="$HOME/.cargo/bin/cargo"
+
+bump_retry_marker() {
+  local count=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if [[ -f $retry_marker ]]; then
+    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+  fi
+  printf '%d\n' "$((count + 1))" >"$retry_marker"
+}
+
+if [[ ! -x $cargo_bin ]]; then
+  report_line 'uu: cargo not found at ~/.cargo/bin/cargo; build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+if [[ ! -f "$crate_dir/Cargo.toml" ]]; then
+  report_line 'uu: crate source is not deployed yet; build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+# The path dependency resolves to the deployed pns source beside this crate, so
+# a uu without pns cannot build at all and should say which half is missing.
+if [[ ! -f "$HOME/.local/share/pns/Cargo.toml" ]]; then
+  report_line 'uu: the pns crate it links is not deployed yet; build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+report_section 'uu'
+report_line 'building the release binary'
+# A build failure exits non-zero, which chezmoi does not record, so it retries
+# on its own without touching the marker.
+# --locked: build exactly the committed lock, so a gate cannot rewrite the
+# deployed lockfile or pull a dependency the lock never recorded.
+"$cargo_bin" build --release --locked --quiet --bin uu --manifest-path "$crate_dir/Cargo.toml"
+
+mkdir -p "$install_dir"
+# install(1) replaces the target through a temporary file and a rename, so a
+# run firing mid-apply gets either the old binary or the new one and never a
+# half-written file. cp would write in place.
+/usr/bin/install -m 755 "$crate_dir/target/release/uu" "$install_dir/uu"
+report_line "installed $install_dir/uu"
+
+rm -f "$retry_marker"
+{{ end -}}

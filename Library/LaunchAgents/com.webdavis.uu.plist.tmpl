@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.uu</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ .chezmoi.homeDir }}/.local/libexec/uu/uu</string>
+    <string>run</string>
+  </array>
+  <!-- ~/.local/bin carries herdr, which the lane drives by absolute path
+       anyway; the rest is what a lane's own child processes expect to find. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <!-- Sunday 12:00, which is uu's own default schedule. launchd fires a missed
+       calendar slot once on wake, so a sleeping Sunday still updates; every
+       record states its gap since the last clean run, because a coalesced slot
+       and a dead agent otherwise read alike. THIS PLIST IS AUTHORITATIVE on
+       this machine: the [schedule] block in ~/.config/uu/config.toml feeds
+       `uu schedule render` and nothing else. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>0</integer>
+    <key>Hour</key>
+    <integer>12</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/uu/uu.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/uu/uu.log</string>
+</dict>
+</plist>

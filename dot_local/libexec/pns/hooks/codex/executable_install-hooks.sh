@@ -30,15 +30,17 @@ if [[ -f $hooks ]]; then
   fi
 fi
 
-# PRUNE, then ensure. The hooks these replaced named a script that no longer
-# exists, and appending beside them left Codex running two handlers for one
-# event: a stale one that fails and ours. An entry is ours to remove when its
-# command mentions the retired script; herdr's own entries never do.
+# PRUNE, then ensure. Two retired generations are removed: entries naming the
+# retired relay-agent.sh script, and relay-era RELAY_AGENT= duplicates of the
+# PNS_AGENT= commands this script now writes (left behind because ensure only
+# ever added). An entry is ours to remove when its command matches either;
+# herdr's own entries never do.
 merged="$(printf '%s' "$base" | jq \
   --arg d "$done_cmd" --arg b "$blocked_cmd" '
   def prune($event):
     .hooks[$event] = ((.hooks[$event] // [])
-      | map(.hooks |= map(select((.command // "") | test("relay-agent\\.sh") | not)))
+      | map(.hooks |= map(select((.command // "")
+          | (test("relay-agent\\.sh") or startswith("RELAY_AGENT=")) | not)))
       | map(select((.hooks | length) > 0)));
   def ensure($event; $cmd):
     .hooks[$event] = ((.hooks[$event] // [])

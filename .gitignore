@@ -39,6 +39,9 @@ dot_local/share/herdr/**/target/
 # rebuilt in place rather than committed.
 dot_local/share/pns/target/
 
+# Same, for the uu crate.
+dot_local/share/uu/target/
+
 # Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
 *config.yaml.bak*
 *config.yaml.corrupt*

@@ -1,8 +1,9 @@
 packages:
   herdr_plugins:
     # One roster, two consumers: run_after_53 installs missing plugins at apply,
-    # update-herdr.sh refreshes them weekly. Local plugins (smart-nav,
-    # last-workspace) are built from this repo by their own script, not listed.
+    # and uu's config template renders it into the herdr lane that refreshes
+    # them weekly. Local plugins (smart-nav, last-workspace) are built from this
+    # repo by their own script, not listed.
     - id: worktrunk
       repo: devashish2203/herdr-worktrunk
     - id: tab-smart-rename
