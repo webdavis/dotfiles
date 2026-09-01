@@ -24,9 +24,11 @@ Overwritten from the template on every apply, whatever the live file holds.
     the same pass, where a second hook used to decide the tier on its own.
   - `StopFailure` runs `pns hook stop-failure`, async for the same reason `Stop` is: it fires INSTEAD of
     `Stop` when a turn dies rather than finishing, so without it a dead pane gets no card at all.
-  - `Notification` (`permission_prompt` matcher) runs `alerter --timeout 30`; the approval itself hangs
-    off `PermissionRequest`, which runs `pns hook blocked` NOT async, because its exit code is the
-    operator's answer.
+  - `Notification` carries NO hook. The `permission_prompt` matcher used to run `alerter` directly, the
+    last notification path that reached the operator without passing the presence engine, and it
+    double-fired against the approval hook below. The approval itself hangs off `PermissionRequest`,
+    which runs `pns hook blocked` NOT async, because its exit code is the operator's answer, and an
+    approval nobody answers is carried by the nag rather than by a second banner.
   - `PermissionDenied` runs `pns hook denied` async, reporting the tool call auto-mode refused without
     ever asking; async is what keeps pns out of the retry decision the harness awaits on this hook.
   - `Elicitation` runs `pns hook asked` async, carding the MCP server that stopped mid-tool-call to ask
