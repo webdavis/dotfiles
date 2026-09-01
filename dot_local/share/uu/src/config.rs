@@ -447,12 +447,12 @@ fn parse_plugins(setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
                 fields
                     .get(key)
                     .and_then(toml::Value::as_str)
-                    .filter(|value| !value.is_empty())
+                    .filter(|value| !value.trim().is_empty())
                     .map(str::to_string)
                     .ok_or_else(|| {
                         ConfigError::Invalid(format!(
-                            "`lanes.herdr` plugin entry has no non-empty `{key}`, so it names \
-                             nothing to refresh"
+                            "`lanes.herdr` plugin entry has no usable `{key}` (missing, empty or \
+                             only whitespace), so it names nothing to refresh"
                         ))
                     })
             };
@@ -475,13 +475,15 @@ fn table_of(table: &str, value: toml::Value) -> Result<toml::Table, ConfigError>
     }
 }
 
-/// One key that has to be a non-empty string. An empty one names nothing, so
-/// it is refused rather than read as "use the default": the operator wrote a
-/// value, and silently substituting another is a setting they believe they set.
+/// One key that has to be a string with something in it. A value that is
+/// empty, or nothing but whitespace, names nothing, so it is refused rather
+/// than read as "use the default": the operator wrote a value, and silently
+/// substituting another is a setting they believe they set. A blank one is the
+/// worse of the two, because the file reads as though the setting was made.
 fn non_empty(table: &str, key: &str, setting: &toml::Value) -> Result<String, ConfigError> {
     match setting.as_str() {
-        Some("") => Err(ConfigError::Invalid(format!(
-            "`{table}` key `{key}` is empty, so it names nothing"
+        Some(blank) if blank.trim().is_empty() => Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` is empty or only whitespace, so it names nothing"
         ))),
         Some(value) => Ok(value.to_string()),
         None => Err(ConfigError::Invalid(format!(
@@ -700,6 +702,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_setting_holding_only_whitespace_is_refused_the_same_way_an_empty_one_is() {
+        // A space is not a value. `binary = " "` is a command nothing can run
+        // and `url = " "` is a route nothing can post to, and both of them
+        // LOOK set in the file, which is worse than a key that is not there:
+        // the operator reads a config that says the setting is made.
+        for (text, table, key) in [
+            ("[records]\nkey = \" \"\n", "records", "key"),
+            ("[records]\nkey = \"k\"\nurl = \" \"\n", "records", "url"),
+            ("[alerts]\nbinary = \"\t\"\n", "alerts", "binary"),
+            ("[lanes.herdr]\nbinary = \"  \"\n", "lanes.herdr", "binary"),
+            ("[schedule]\nday = \" \"\n", "schedule", "day"),
+            ("[schedule]\ntime = \"\t \"\n", "schedule", "time"),
+        ] {
+            let detail = refusal(text);
+            assert!(
+                detail.contains(&format!("`{table}` key `{key}` is empty")),
+                "{detail}"
+            );
+        }
+    }
+
     // --- alerts ---------------------------------------------------------------
 
     #[test]
@@ -756,6 +780,10 @@ mod tests {
             "[lanes.herdr]\nplugins = [{ repo = \"o/r\" }]\n",
             "[lanes.herdr]\nplugins = [{ id = \"\", repo = \"o/r\" }]\n",
             "[lanes.herdr]\nplugins = [{ id = \"a\", repo = \"\" }]\n",
+            // A blank field is the same uninstall with the same nothing to
+            // reinstall from, and it reads as a filled-in entry.
+            "[lanes.herdr]\nplugins = [{ id = \" \", repo = \"o/r\" }]\n",
+            "[lanes.herdr]\nplugins = [{ id = \"a\", repo = \"\t\" }]\n",
         ] {
             let detail = refusal(text);
             assert!(detail.contains("nothing to refresh"), "{detail}");
