@@ -312,6 +312,7 @@ mod tests {
             name: name.to_string(),
             failures,
             lines: lines.iter().map(|line| line.to_string()).collect(),
+            last_failure: None,
         }
     }
 

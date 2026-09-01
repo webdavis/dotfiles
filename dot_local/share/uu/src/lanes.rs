@@ -15,13 +15,44 @@
 
 use crate::config::{Config, HerdrLane, LANE_NAMES};
 
-/// What one lane did: how many things went wrong, and the lines the record
-/// carries about it.
+/// What one lane did: how many things went wrong, the lines the record
+/// carries about it, and the last of those lines that reported a FAILURE.
+///
+/// THE LAST FAILURE IS KEPT SEPARATELY because the lane continues past one,
+/// so the last line written is routinely a later success. The alert has room
+/// for one sentence and it has to be the one naming what to fix.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaneReport {
     pub name: String,
     pub failures: usize,
     pub lines: Vec<String>,
+    pub last_failure: Option<String>,
+}
+
+impl LaneReport {
+    /// A report for a lane that has not done anything yet.
+    pub fn new(name: &str) -> Self {
+        LaneReport {
+            name: name.to_string(),
+            failures: 0,
+            lines: Vec::new(),
+            last_failure: None,
+        }
+    }
+
+    /// One thing that went WRONG: counted, recorded and remembered, in one
+    /// place. A lane cannot count a failure it did not also make alertable,
+    /// which is the drift a second `failures += 1` beside a bare push invites.
+    pub fn failed(&mut self, line: String) {
+        self.failures += 1;
+        self.last_failure = Some(line.clone());
+        self.lines.push(line);
+    }
+
+    /// One thing that went right, or a fact the record carries.
+    pub fn noted(&mut self, line: String) {
+        self.lines.push(line);
+    }
 }
 
 /// The spawn seam. `Ok` carries the command's stdout, `Err` why it did not
@@ -66,11 +97,7 @@ pub fn run_lane(name: &str, config: &Config, runner: &dyn CommandRunner) -> Opti
 /// The herdr lane: the binary refreshes itself, then every plugin in the
 /// roster is reinstalled at its source's tip.
 pub fn run_herdr(lane: &HerdrLane, runner: &dyn CommandRunner) -> LaneReport {
-    let mut report = LaneReport {
-        name: "herdr".to_string(),
-        failures: 0,
-        lines: Vec::new(),
-    };
+    let mut report = LaneReport::new("herdr");
 
     match runner.run(&lane.binary, &["update"]) {
         Ok(_) => {
@@ -81,17 +108,14 @@ pub fn run_herdr(lane: &HerdrLane, runner: &dyn CommandRunner) -> LaneReport {
                 .ok()
                 .and_then(|out| out.lines().next().map(str::to_string))
                 .filter(|line| !line.is_empty());
-            report.lines.push(match version {
+            report.noted(match version {
                 Some(version) => format!("herdr self-update: ok ({version})"),
                 None => "herdr self-update: ok".to_string(),
             });
         }
-        Err(why) => {
-            report.failures += 1;
-            report.lines.push(format!(
-                "herdr self-update FAILED ({why}); plugins still refresh below"
-            ));
-        }
+        Err(why) => report.failed(format!(
+            "herdr self-update FAILED ({why}); plugins still refresh below"
+        )),
     }
 
     for plugin in &lane.plugins {
@@ -103,18 +127,16 @@ pub fn run_herdr(lane: &HerdrLane, runner: &dyn CommandRunner) -> LaneReport {
             .run(&lane.binary, &["plugin", "uninstall", id])
             .is_err()
         {
-            report.failures += 1;
-            report.lines.push(format!(
+            report.failed(format!(
                 "plugin {id}: uninstall failed; leaving the installed copy alone"
             ));
             continue;
         }
         let install = || runner.run(&lane.binary, &["plugin", "install", &plugin.repo, "--yes"]);
         if install().is_ok() || install().is_ok() {
-            report.lines.push(format!("plugin {id}: refreshed"));
+            report.noted(format!("plugin {id}: refreshed"));
         } else {
-            report.failures += 1;
-            report.lines.push(format!(
+            report.failed(format!(
                 "plugin {id}: REINSTALL FAILED twice; it is now MISSING until the next apply or run"
             ));
         }
@@ -385,6 +407,19 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn a_failure_followed_by_a_success_is_summarized_by_the_failure() {
+        // The lane CONTINUES after a failure, so its last line is routinely a
+        // later success. An alert reading `1 failure(s); plugin a: refreshed`
+        // is a card that names nothing to fix and reads like a lane that
+        // worked.
+        let runner = ScriptedRunner::new(&[&["herdr", "update"]]);
+        let report = run_herdr(&lane(&[("a", "o/a")]), &runner);
+        let summary = crate::alert::alert_summary(&report);
+        assert!(summary.contains("self-update FAILED"), "{summary}");
+        assert!(!summary.contains("refreshed"), "{summary}");
     }
 
     #[test]

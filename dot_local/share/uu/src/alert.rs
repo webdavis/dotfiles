@@ -36,13 +36,16 @@ pub trait Alerter {
     fn alert(&self, binary: &str, args: &[String]) -> Result<(), String>;
 }
 
-/// What one failed lane's alert says: the count, and the lane's own last word.
+/// What one failed lane's alert says: the count, and the last thing that went
+/// wrong.
 pub fn alert_summary(lane: &crate::lanes::LaneReport) -> String {
-    // THE LAST LINE, not the whole lane. The card is read on a phone, and the
-    // line a lane stopped on is the one that says what to do; the rest is in
-    // the record.
-    match lane.lines.last() {
-        Some(last) => format!("{} failure(s); {last}", lane.failures),
+    // THE LAST FAILURE, not the last line. The card is read on a phone and has
+    // room for one sentence, and a lane KEEPS GOING after a failure: its final
+    // line is routinely a later success, so `1 failure(s); plugin a:
+    // refreshed` is an alert that names nothing to fix. The rest is in the
+    // record.
+    match lane.last_failure.as_ref() {
+        Some(failure) => format!("{} failure(s); {failure}", lane.failures),
         None => format!("{} failure(s)", lane.failures),
     }
 }
@@ -93,21 +96,29 @@ mod tests {
     }
 
     #[test]
-    fn the_summary_counts_the_failures_and_carries_the_lanes_last_word() {
-        let report = LaneReport {
-            name: "herdr".to_string(),
-            failures: 2,
-            lines: vec![
-                "herdr self-update: ok".to_string(),
-                "plugin a: REINSTALL FAILED twice".to_string(),
-            ],
-        };
+    fn the_summary_counts_the_failures_and_carries_the_last_one() {
+        let mut report = LaneReport::new("herdr");
+        report.noted("herdr self-update: ok".to_string());
+        report.failed("plugin a: REINSTALL FAILED twice".to_string());
         let summary = alert_summary(&report);
-        assert!(summary.contains("2 failure(s)"), "{summary}");
+        assert!(summary.contains("1 failure(s)"), "{summary}");
         assert!(
             summary.contains("plugin a: REINSTALL FAILED twice"),
             "{summary}"
         );
+    }
+
+    #[test]
+    fn a_later_success_never_stands_in_for_the_failure_being_alerted() {
+        // The lane keeps going after a failure, so the last line it wrote is
+        // usually a later success. An alert carrying that reads like a lane
+        // that worked, on the one card the operator is paged with.
+        let mut report = LaneReport::new("herdr");
+        report.failed("herdr self-update FAILED (exit 1)".to_string());
+        report.noted("plugin a: refreshed".to_string());
+        let summary = alert_summary(&report);
+        assert!(summary.contains("herdr self-update FAILED"), "{summary}");
+        assert!(!summary.contains("refreshed"), "{summary}");
     }
 
     #[test]
@@ -116,6 +127,7 @@ mod tests {
             name: "herdr".to_string(),
             failures: 1,
             lines: Vec::new(),
+            last_failure: None,
         };
         assert_eq!(alert_summary(&report), "1 failure(s)");
     }
