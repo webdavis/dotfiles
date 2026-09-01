@@ -2954,10 +2954,23 @@ fn fire_lights(
         base: format!("https://{}/clip/v2/resource", hue.bridge),
         key: hue.key,
     };
+    run_pulse_writes(&bridge, lights, behaviour, reading, held);
+}
+
+/// The event path's routed writes: one pulse body per lamp the behaviour is
+/// routed for, with the mute and the TICK'S held record each answered at the
+/// per-lamp decision, once.
+fn run_pulse_writes<B: pns::channels::hue::Bridge>(
+    bridge: &B,
+    lights: &pns::config::Lights,
+    behaviour: pns::config::Behaviour,
+    reading: &pns::channels::hue::Reading<'_>,
+    held: &[String],
+) {
     // A BRIDGE THAT ANSWERED NOTHING RESOLVES NOTHING, and says nothing here.
     // The doctor is where an unreachable bridge is reported; a warning on every
     // notification for the rest of a machine's life is noise.
-    let Some(routing) = pns::channels::hue::resolve_on_bridge(&bridge, lights) else {
+    let Some(routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
         return;
     };
     for routed in &routing.lamps {
@@ -6862,7 +6875,7 @@ mod tests {
         LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, drive_breaths, lights_report,
         matches_glob, muted_state, publish_state_line, read_news, read_note, recap_bounds,
         record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, run_tick_writes, sweep_blocked, sweep_leases, sweep_shell_markers,
+        resolve_path, run_pulse_writes, run_tick_writes, sweep_blocked, sweep_leases, sweep_shell_markers,
         update_blocked_marker,
     };
     use std::cell::RefCell;
@@ -7205,6 +7218,69 @@ mod tests {
                 "light/a"
             ],
             "the fades interleave by their due milliseconds, not by lamp"
+        );
+    }
+
+    #[test]
+    fn a_pulse_reaches_only_a_routed_lamp_that_is_neither_muted_nor_held() {
+        // THE EVENT PATH'S TWO PER-LAMP GATES, at the seam. The TCP spy the
+        // integration tests dial can only count connections, and the resolve's
+        // GETs happen either way, so a gate dropped here is invisible to every
+        // other test in the crate.
+        let lights = *pns::config::parse_config(
+            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let free = scripted(true);
+        run_pulse_writes(
+            &free,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&[]),
+            &[],
+        );
+        let puts = free.puts.borrow();
+        assert_eq!(puts.len(), 1, "{puts:?}");
+        assert_eq!(
+            puts[0].0, LAMP_PATH,
+            "the pulse reaches the routed lamp individually"
+        );
+        assert!(
+            puts[0].1.contains("signaling"),
+            "and it is the bridge-run signal body: {}",
+            puts[0].1
+        );
+        // THE MUTE IS A RENDER FILTER AT THE PER-LAMP DECISION, on this path
+        // exactly as on the tick's.
+        let muted = scripted(true);
+        run_pulse_writes(
+            &muted,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&["3F - Studio".to_string()]),
+            &[],
+        );
+        assert!(
+            muted.puts.borrow().is_empty(),
+            "a muted lamp is not flashed: {:?}",
+            muted.puts.borrow()
+        );
+        // AND THE TICK'S HELD RECORD PREEMPTS THE PULSE on the lamp it holds,
+        // which is the dedicated-but-helps-when-free ruling's event-path half.
+        let held = scripted(true);
+        run_pulse_writes(
+            &held,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&[]),
+            &[LAMP_PATH.to_string()],
+        );
+        assert!(
+            held.puts.borrow().is_empty(),
+            "a held lamp is not flashed over: {:?}",
+            held.puts.borrow()
         );
     }
 
