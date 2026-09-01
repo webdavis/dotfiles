@@ -4854,10 +4854,10 @@ fn lights_tick() -> i32 {
     let standing = lights_house(&state, lights, now);
     let (muted, mut complaints) = ad_hoc_quiet(&state, Some(now));
     // A RECORD THIS CANNOT READ NAMES NOTHING TO CLEAR, and the tick is its
-    // only writer, so it goes on and republishes it: the pass below writes the
-    // record it derived, which is what repairs the file. The residue is stated:
-    // a lamp held under a name this run could not read stays lit until the
-    // repaired record names it again or the operator's next return clears it.
+    // only writer, so it goes on: the pass below publishes the record it
+    // derived, which is what repairs the file. The residue is stated: a lamp
+    // held under a name this run could not read stays lit until the repaired
+    // record names it again or the operator's next return clears it.
     let held_before = held_lamps(&state);
     if held_before.is_none() {
         complaints.push(HELD_RECORD_UNREADABLE.to_string());
@@ -5537,23 +5537,30 @@ const LIGHTS_NEWS: &str = "lights-news";
 const LIGHTS_SAID: &str = "lights-said";
 
 /// What a tick says about a held record it could not read at all.
+///
+/// THE TICK GOES ON, because it is the file's only writer: it names no lamp to
+/// clear, derives the states it wants and publishes a record for them, which is
+/// what repairs an unreadable file. Where the path cannot be WRITTEN either, the
+/// publish refuses and nothing is armed, which is the second sentence the
+/// operator gets.
 const HELD_RECORD_UNREADABLE: &str = "pns lights: the held record could not be read, \
-so no lamp can be put out by name; this tick republishes it";
+so no lamp can be put out by name";
 
 /// How long ONE of a tick's bridge calls may take.
 ///
-/// A QUARTER OF THE INTERVAL, so the three the resolve makes cannot outlive the
-/// child that makes them: at the transport's own ten seconds they outlive every
-/// interval the config permits, and a wedged bridge would then have tick after
-/// tick piling up, each still dialling while the next was spawned. What is left
-/// of the interval is the breath's, which is the whole point of the child
-/// staying alive.
+/// A FIFTH OF THE INTERVAL, so the three the resolve makes cannot outlive the
+/// child that makes them AND still leave a breath: at the transport's own ten
+/// seconds they outlive every interval the config permits, and a wedged bridge
+/// would then have tick after tick piling up, each still dialling while the next
+/// was spawned. A fifth is what keeps a full cycle of the shortest locked shape
+/// inside what is left even when all three calls run to their deadline, which is
+/// the whole point of the child staying alive.
 ///
-/// A SECOND AT LEAST, because a quarter of the shortest interval is already two
-/// and a half and a floor costs nothing; a bridge on the same LAN answers these
-/// in milliseconds either way.
+/// A SECOND AT LEAST, which the division cannot reach anyway inside the config's
+/// own bounds; a bridge on the same LAN answers these in milliseconds either
+/// way.
 fn tick_bridge_deadline(refresh_secs: u64) -> Duration {
-    Duration::from_secs((refresh_secs / 4).max(1))
+    Duration::from_secs((refresh_secs / 5).max(1))
 }
 
 /// Where the EVENT path remembers the ad-hoc quiet complaint it last made,
@@ -7307,7 +7314,7 @@ mod tests {
         recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
         reread_interval_from, resolve_path, run_pulse_writes, run_tick_writes, say_lights_once,
         sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
-        update_blocked_marker,
+        tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -7729,6 +7736,30 @@ mod tests {
                 .any(|said| said.contains("the held record could not be written")),
             "and the tick says so rather than carrying on quietly: {complaints:?}"
         );
+    }
+
+    #[test]
+    fn three_of_a_ticks_bridge_calls_fit_inside_its_own_interval_with_the_breath_to_spare() {
+        // THE PROPERTY, not the arithmetic. The resolve makes three calls before
+        // the first fade is issued, and at the transport's own ten seconds they
+        // outlive every interval the config permits: a wedged bridge then had
+        // tick after tick piling up, each still dialling while the next was
+        // spawned. What has to hold is that the three fit with room left for a
+        // breath, at both ends of the range the config accepts.
+        for refresh_secs in [10, 12, 20, 30] {
+            let three = tick_bridge_deadline(refresh_secs).as_millis() * 3;
+            let interval = u128::from(refresh_secs) * 1000;
+            assert!(
+                three < interval,
+                "refresh {refresh_secs}s: three calls at {three}ms do not fit"
+            );
+            let left = u64::try_from(interval - three).expect("a budget in milliseconds");
+            assert!(
+                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked)
+                    .is_empty(),
+                "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
+            );
+        }
     }
 
     #[test]
