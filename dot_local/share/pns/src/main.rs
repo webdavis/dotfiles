@@ -156,6 +156,7 @@ pns: usage:
   pns recap --since <epoch> --until <epoch>
   pns doctor                       one test send through every channel
   pns home                         one reading of the router, said out loud
+  pns --help, -h                   this text
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --channel <route>

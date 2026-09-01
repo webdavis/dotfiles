@@ -450,8 +450,11 @@ fn desk_with_a_native_banner(name: &str) -> (Sandbox, std::process::Command) {
 /// quietly, a row disappearing from the text while the command still answers.
 /// A NEW arm still has to be added here by hand; nothing catches that, and
 /// nothing can without a table `main` does not have.
-const COMMAND_ROWS: [&str; 13] = [
+const COMMAND_ROWS: [&str; 14] = [
     "pns [<producer flags>]",
+    // The help flag is an arm like any other, and the one an operator reaches
+    // for when the rest are what they are missing.
+    "pns --help, -h",
     "pns hook <event>",
     "pns gate <harness>-hook",
     "pns <harness>-hook",
