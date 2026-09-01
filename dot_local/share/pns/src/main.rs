@@ -4596,6 +4596,7 @@ fn lights_tick() -> i32 {
                 muted: &muted,
             },
             &held_before,
+            std::thread::sleep,
         ));
     }
     // AND THE SAYING IS OUTSIDE THAT GATE, deliberately. `say` FORGETS a
@@ -4644,6 +4645,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     active: &[pns::lights::Held],
     reading: &pns::channels::hue::Reading<'_>,
     held_before: &[String],
+    sleep: impl FnMut(Duration),
 ) -> Vec<String> {
     let mut complaints = Vec::new();
     let mut breathing: Vec<(String, pns::config::Breath, pns::pulse::PulseColor)> = Vec::new();
@@ -4700,7 +4702,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
         .collect();
     pns::channels::hue::clear_held(bridge, &stale);
     remember_held(state, &held_now);
-    drive_breaths(bridge, lights.refresh_secs, &breathing);
+    drive_breaths(bridge, lights.refresh_secs, &breathing, sleep);
     complaints
 }
 
@@ -4719,10 +4721,15 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
 /// different shapes share one schedule: the blocked lamp's two-second cycles run
 /// three times while the unread lamp's four-second one runs once, and the slower
 /// lamp holds its peak for the rest of the interval.
+/// THE SLEEPER IS A PARAMETER for one reason: the driver fills its whole
+/// interval BY DESIGN, so a test that let it sleep for real would live the
+/// interval too. The cadence a fake sleeper is handed is the same schedule the
+/// real one runs.
 fn drive_breaths<B: pns::channels::hue::Bridge>(
     bridge: &B,
     refresh_secs: u64,
     breathing: &[(String, pns::config::Breath, pns::pulse::PulseColor)],
+    mut sleep: impl FnMut(Duration),
 ) {
     // (due millisecond, path, body), in the order they are due.
     let mut schedule: Vec<(u64, &str, String)> = Vec::new();
@@ -4750,7 +4757,7 @@ fn drive_breaths<B: pns::channels::hue::Bridge>(
         // rather than sleeping a wrapped duration.
         let elapsed = started.elapsed();
         if due > elapsed {
-            std::thread::sleep(due - elapsed);
+            sleep(due - elapsed);
         }
         bridge.put(path, &body);
     }
@@ -6852,7 +6859,7 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD, LIGHTS_NEWS,
-        LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, lights_report,
+        LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, drive_breaths, lights_report,
         matches_glob, muted_state, publish_state_line, read_news, read_note, recap_bounds,
         record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
         resolve_path, run_tick_writes, sweep_blocked, sweep_leases, sweep_shell_markers,
@@ -7013,6 +7020,7 @@ mod tests {
             &[pns::lights::Held::Blocked],
             &noon(&[]),
             &[],
+            |_| {},
         );
         assert!(complaints.is_empty(), "{complaints:?}");
         let puts = bridge.puts.borrow();
@@ -7049,6 +7057,7 @@ mod tests {
             &[],
             &noon(&[]),
             &[LAMP_PATH.to_string()],
+            |_| {},
         );
         assert_eq!(
             bridge.puts.borrow().as_slice(),
@@ -7080,6 +7089,7 @@ mod tests {
             &[pns::lights::Held::Blocked],
             &noon(&[]),
             &[LAMP_PATH.to_string()],
+            |_| {},
         );
         assert!(
             !bridge
@@ -7111,6 +7121,7 @@ mod tests {
             &[pns::lights::Held::Blocked],
             &noon(&["3F - Studio".to_string()]),
             &[LAMP_PATH.to_string()],
+            |_| {},
         );
         assert_eq!(
             bridge.puts.borrow().as_slice(),
@@ -7139,6 +7150,7 @@ mod tests {
             &[pns::lights::Held::Blocked],
             &noon(&[]),
             &[LAMP_PATH.to_string()],
+            |_| {},
         );
         assert!(
             bridge.puts.borrow().is_empty(),
@@ -7151,6 +7163,48 @@ mod tests {
             Some(LAMP_PATH),
             "and the record survives the outage, so the next reachable tick still \
              has a name to write the clear to"
+        );
+    }
+
+    #[test]
+    fn two_breathing_lamps_share_one_schedule_rather_than_running_back_to_back() {
+        // ONE SLEEP SCHEDULE FOR EVERY LAMP, in due order ACROSS lamps. Issued
+        // per lamp instead, every fade of the second lamp would be past due by
+        // the time the first lamp's breath ended: all issued at once, late, a
+        // jump rather than a breath.
+        let bridge = scripted(true);
+        let quick = pns::config::Breath {
+            duration_ms: 2000,
+            high: 100,
+            low: 30,
+        };
+        let slow = pns::config::Breath {
+            duration_ms: 4000,
+            high: 60,
+            low: 10,
+        };
+        drive_breaths(
+            &bridge,
+            12,
+            &[
+                ("light/a".to_string(), quick, pns::pulse::BLOCKED_COLOR),
+                ("light/b".to_string(), slow, pns::pulse::LOOP_COLOR),
+            ],
+            |_| {},
+        );
+        let order: Vec<String> = bridge
+            .puts
+            .borrow()
+            .iter()
+            .map(|(path, _)| path.clone())
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "light/a", "light/b", "light/a", "light/a", "light/b", "light/a", "light/a",
+                "light/a"
+            ],
+            "the fades interleave by their due milliseconds, not by lamp"
         );
     }
 
