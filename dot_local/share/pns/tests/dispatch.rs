@@ -1461,9 +1461,20 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
 
 /// The studio map this repo actually ships, as a config fragment: the room
 /// carries the blinks and HCL3 is lifted out for the held states.
+///
+/// THE ROOM DOES NOT CARRY `blocked`, and that word being here was the whole
+/// difference between a fixture and a copy of the shipped file. With it, every
+/// lamp in the room answered for the held states, so a lamp-level override that
+/// had stopped working entirely still reached the bridge through HCL1 and HCL2
+/// and every case below stayed green.
+///
+/// THE DIM WINDOW IS THE ONE THING IT LEAVES OUT, deliberately: the shipped room
+/// states a 22:00-07:00 window, and a wall-clock window would make every case
+/// here answer differently depending on the hour the suite happened to run. The
+/// window's own behaviour is pinned by the tests that set a clock.
 const STUDIO_MAP: &str = "[lights]\nrefresh_secs = 20\n\
-     [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\", \"blocked\"]\n\
-     [lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"blocked\", \"unread\", \"loop\"]\n";
+     [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n\
+     [lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"loop\", \"blocked\", \"unread\"]\n";
 
 /// One event against a spy bridge: whether the bridge was dialled, and whether
 /// the two network legs fired.

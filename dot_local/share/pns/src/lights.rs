@@ -627,12 +627,19 @@ pub const FADE_LEAD_MS: u64 = 50;
 /// mid-flight from an unknown brightness, so the budget covers the final fade's
 /// whole duration rather than only its issue.
 ///
-/// TWO FADES ALWAYS FIT, which the config's own bounds guarantee rather than
-/// this function: `MAX_FADE_MS` is five seconds and `MIN_REFRESH_SECS` is ten,
-/// so the shortest honest breath is never longer than the shortest interval.
-/// That is what makes this total rather than optional.
-pub fn breath_fades(refresh_secs: u64, breath: &crate::config::Breath) -> Vec<Fade> {
-    let budget_ms = refresh_secs.saturating_mul(1000);
+/// THE BUDGET IS WHAT IS LEFT OF THE INTERVAL, in milliseconds, and NOT the
+/// interval itself. A tick spends part of its interval resolving the map on the
+/// bridge before the first fade is issued, and three calls under a transport
+/// deadline are not free: fitted to the whole interval instead, the breath ran
+/// past the moment the next tick started and two children issued fades to one
+/// lamp, each writing a brightness the other did not expect.
+///
+/// A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING, which is the honest answer
+/// rather than a half breath: the lamp keeps whatever the last tick left it at
+/// and the next tick, which has its whole interval, arms it. Two fades fit any
+/// ORDINARY tick, which the config's own bounds guarantee rather than this
+/// function: `MAX_FADE_MS` is five seconds and `MIN_REFRESH_SECS` is ten.
+pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath) -> Vec<Fade> {
     let step_ms = breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1);
     // How many fades fit: the first costs its whole duration, and each one after
     // it costs a step, because it is issued while its predecessor is still
@@ -1826,6 +1833,10 @@ mod tests {
 
     // --- the breath driver --------------------------------------------------
 
+    /// A whole twelve-second interval, in the milliseconds the driver budgets
+    /// in: the shipped refresh with nothing yet spent resolving the map.
+    const FULL_INTERVAL_MS: u64 = 12_000;
+
     /// The locked blocked shape: two-second fades between 100 and 30.
     const BLOCKED: crate::config::Breath = crate::config::Breath {
         duration_ms: 2000,
@@ -1842,7 +1853,7 @@ mod tests {
 
     #[test]
     fn a_breath_starts_down_alternates_and_ends_at_the_peak() {
-        let fades = breath_fades(12, &BLOCKED);
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
         assert_eq!(
             fades,
             vec![
@@ -1882,7 +1893,7 @@ mod tests {
 
     #[test]
     fn each_fade_leads_the_one_before_it_so_the_lamp_never_pauses_at_an_end() {
-        let fades = breath_fades(12, &BLOCKED);
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
         for pair in fades.windows(2) {
             assert_eq!(
                 pair[1].start_ms - pair[0].start_ms,
@@ -1899,7 +1910,7 @@ mod tests {
         // would be replaced mid-flight from a brightness nothing recorded.
         for refresh_secs in [10, 12, 20, 25, 30] {
             for breath in [BLOCKED, SLOW] {
-                let fades = breath_fades(refresh_secs, &breath);
+                let fades = breath_fades(refresh_secs * 1000, &breath);
                 let last = fades.last().expect("a breath is never empty");
                 assert!(
                     last.start_ms + breath.duration_ms <= refresh_secs * 1000,
@@ -1916,8 +1927,35 @@ mod tests {
         // two-second cycles but only ONE four-second cycle, so the slow shape
         // holds its peak for the rest of the interval. That is the accepted
         // cost of stopping at the peak.
-        assert_eq!(breath_fades(12, &SLOW).len(), 2);
-        assert_eq!(breath_fades(20, &SLOW).len(), 4);
+        assert_eq!(breath_fades(FULL_INTERVAL_MS, &SLOW).len(), 2);
+        assert_eq!(breath_fades(20_000, &SLOW).len(), 4);
+    }
+
+    #[test]
+    fn a_breath_fits_what_is_left_of_the_interval_rather_than_the_whole_of_it() {
+        // THE RESOLVE IS PART OF THE CHILD'S LIFE. A tick spends the first
+        // seconds of its interval resolving the map on the bridge, and fades
+        // fitted to the WHOLE interval therefore ran past the moment the next
+        // tick started: two children then issued fades to one lamp, each
+        // writing a brightness the other did not expect.
+        let whole = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+        let after_a_slow_resolve = breath_fades(FULL_INTERVAL_MS - 4_000, &BLOCKED);
+        assert!(
+            after_a_slow_resolve.len() < whole.len(),
+            "four seconds spent resolving has to cost fades: {} against {}",
+            after_a_slow_resolve.len(),
+            whole.len()
+        );
+        let last = after_a_slow_resolve.last().expect("a cycle still fits");
+        assert!(
+            last.start_ms + BLOCKED.duration_ms <= FULL_INTERVAL_MS - 4_000,
+            "and the last fade still finishes inside what was left: {last:?}"
+        );
+        // A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING AT ALL, which is the
+        // honest answer rather than a half breath: the lamp keeps whatever the
+        // last tick left it at, and the next tick has its whole interval.
+        assert!(breath_fades(BLOCKED.duration_ms, &BLOCKED).is_empty());
+        assert!(breath_fades(0, &BLOCKED).is_empty());
     }
 
     #[test]
@@ -1930,7 +1968,7 @@ mod tests {
             high: 7,
             low: 1,
         };
-        let fades = breath_fades(12, &dim);
+        let fades = breath_fades(FULL_INTERVAL_MS, &dim);
         assert_eq!(
             fades,
             vec![

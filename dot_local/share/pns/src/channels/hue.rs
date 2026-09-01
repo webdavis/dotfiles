@@ -2011,7 +2011,7 @@ mod tests {
             high: 100,
             low: 30,
         };
-        let fades = crate::lights::breath_fades(12, &breath);
+        let fades = crate::lights::breath_fades(12_000, &breath);
         assert_eq!(
             breath_arm_body(crate::pulse::BLOCKED_COLOR, &fades[0], breath.duration_ms),
             r#"{"color":{"xy":{"x":0.1532,"y":0.0475}},"dimming":{"brightness":30.0},"dynamics":{"duration":2000},"on":{"on":true}}"#,

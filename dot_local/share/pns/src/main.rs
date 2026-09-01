@@ -4858,13 +4858,10 @@ fn lights_tick() -> i32 {
     // record it derived, which is what repairs the file. The residue is stated:
     // a lamp held under a name this run could not read stays lit until the
     // repaired record names it again or the operator's next return clears it.
-    let (held_before, unreadable_record) = match held_lamps(&state) {
-        Some(held) => (held, false),
-        None => {
-            complaints.push(HELD_RECORD_UNREADABLE.to_string());
-            (Vec::new(), true)
-        }
-    };
+    let held_before = held_lamps(&state);
+    if held_before.is_none() {
+        complaints.push(HELD_RECORD_UNREADABLE.to_string());
+    }
     let active = pns::lights::active_held(&standing.house);
     // NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE CALL AT ALL, which
     // is what keeps an idle machine off the network several times a minute.
@@ -4876,12 +4873,19 @@ fn lights_tick() -> i32 {
     // is now a per-lamp answer that needs the listing anyway, so the cheap half
     // of that question no longer exists. A house holding nothing still costs
     // nothing, which is the case that matters.
-    if !active.is_empty() || !held_before.is_empty() || unreadable_record {
+    if !active.is_empty() || held_before.as_deref().is_none_or(|held| !held.is_empty()) {
         complaints.extend(run_tick_writes(
             &UreqBridge {
                 base: format!("https://{}/clip/v2/resource", hue.bridge),
                 key: hue.key,
-                deadline: BRIDGE_DEADLINE,
+                // THE CHILD IS BOUNDED BY ITS OWN INTERVAL, and the resolve is
+                // the part of it that is not this process's to shorten: three
+                // calls at the transport's ten seconds outlive every interval
+                // the config permits, so a wedged bridge would have tick after
+                // tick piling up, each one still dialling. A quarter of the
+                // interval apiece leaves the fades the rest of it, and a bridge
+                // on the same LAN answers these in milliseconds.
+                deadline: tick_bridge_deadline(lights.refresh_secs),
             },
             &state,
             lights,
@@ -4890,7 +4894,7 @@ fn lights_tick() -> i32 {
                 minutes_now: local_minutes_since_midnight(now),
                 muted: &muted,
             },
-            &held_before,
+            held_before.as_deref(),
             std::thread::sleep,
         ));
     }
@@ -4934,12 +4938,14 @@ fn lights_tick() -> i32 {
 /// already on disk before the first sleep, so a driver killed mid-breath costs a
 /// lamp frozen at its last brightness and never a lamp nothing can put out.
 ///
-/// AND IT IS GONE BEFORE THE NEXT TICK STARTS, which `breath_fades` guarantees
-/// and `MAX_REFRESH_SECS` is bounded by: the daemon re-arms the repeat BEFORE it
-/// spawns this child and kills a child that outlives `CHILD_TICKS`, so an
-/// interval past that would be a breath cut off part way through with nothing
-/// said. Two ticks fading one lamp at once would each be writing a brightness
-/// the other did not expect.
+/// AND IT IS GONE BEFORE THE NEXT TICK STARTS, which is measured here rather
+/// than assumed. THE WHOLE CHILD IS THE THING BOUNDED, not the fade schedule:
+/// the map is resolved on the bridge before the first fade is issued, three
+/// calls under a transport deadline are not free, and a breath fitted to the
+/// WHOLE interval therefore ran past the moment the next tick started. Two
+/// children fading one lamp at once each write a brightness the other did not
+/// expect. What is left of the interval after the resolve is what the fades get,
+/// and a budget too short for one cycle issues nothing at all.
 ///
 /// A BRIDGE THAT ANSWERED NO LISTING CHANGES NOTHING AT ALL. It is direct
 /// evidence the transport is down, and both halves of acting on it are wrong: a
@@ -4953,9 +4959,10 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     lights: &pns::config::Lights,
     active: &[pns::lights::Held],
     reading: &pns::channels::hue::Reading<'_>,
-    held_before: &[String],
+    held_before: Option<&[String]>,
     sleep: impl FnMut(Duration),
 ) -> Vec<String> {
+    let started = std::time::Instant::now();
     let mut complaints = Vec::new();
     let mut breathing: Vec<(String, pns::config::Breath, pns::pulse::PulseColor)> = Vec::new();
     if !active.is_empty() {
@@ -4988,12 +4995,24 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
             ));
         }
     }
+    // THE RECORD IS READ AGAIN BEFORE ANYTHING IS WRITTEN, and this run stands
+    // down if it moved. The states above were derived BEFORE the bridge work,
+    // which is seconds of network, and the event path clears every held lamp and
+    // empties this record the moment the operator comes back: a tick still
+    // resolving when that happened would arm the lamps again off a snapshot
+    // taken before the clear, and the operator would watch a lamp they had just
+    // put out come back on. The other writer has already done the clearing, so
+    // there is nothing left here to do.
+    if held_lamps(state).as_deref() != held_before {
+        return complaints;
+    }
     let held_now: Vec<String> = breathing.iter().map(|(path, _, _)| path.clone()).collect();
     // WHATEVER WAS HELD AND IS NOT HELD NOW GETS PUT OUT BY NAME. Written as a
     // difference rather than as a special case, so a lamp dropped by a dim
     // window, a mute, a config edit or the condition simply ending is covered by
     // one line rather than four.
     let stale: Vec<String> = held_before
+        .unwrap_or_default()
         .iter()
         .filter(|path| !held_now.contains(path))
         .cloned()
@@ -5013,7 +5032,15 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
         ));
         return complaints;
     }
-    drive_breaths(bridge, lights.refresh_secs, &breathing, sleep);
+    // WHAT IS LEFT OF THE INTERVAL, and not the interval: the resolve above is
+    // three bridge calls, and the fades have to be issued and finished inside
+    // the time this child still has.
+    let spent_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let budget_ms = lights
+        .refresh_secs
+        .saturating_mul(1000)
+        .saturating_sub(spent_ms);
+    drive_breaths(bridge, budget_ms, &breathing, sleep);
     complaints
 }
 
@@ -5024,9 +5051,11 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
 /// whose PUT took a moment does not push every later fade of every lamp out by
 /// that moment: the overshoot is absorbed rather than accumulated.
 ///
-/// IT EXITS BEFORE THE NEXT TICK, which `breath_fades` guarantees by fitting the
-/// last fade's whole duration inside the interval. Two ticks issuing fades to
-/// one lamp at once would each be writing a brightness the other did not expect.
+/// IT EXITS INSIDE THE BUDGET IT IS HANDED, which `breath_fades` guarantees by
+/// fitting the last fade's whole duration inside it. The budget is what the
+/// caller has LEFT of its interval, not the interval, because the map is
+/// resolved before the first fade is issued. Two ticks fading one lamp at once
+/// would each be writing a brightness the other did not expect.
 ///
 /// A LAMP WHOSE FADES ARE ALREADY DONE SIMPLY STOPS, which is how lamps with
 /// different shapes share one schedule: the blocked lamp's two-second cycles run
@@ -5038,14 +5067,14 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
 /// real one runs.
 fn drive_breaths<B: pns::channels::hue::Bridge>(
     bridge: &B,
-    refresh_secs: u64,
+    budget_ms: u64,
     breathing: &[(String, pns::config::Breath, pns::pulse::PulseColor)],
     mut sleep: impl FnMut(Duration),
 ) {
     // (due millisecond, path, body), in the order they are due.
     let mut schedule: Vec<(u64, &str, String)> = Vec::new();
     for (path, breath, color) in breathing {
-        for (index, fade) in pns::lights::breath_fades(refresh_secs, breath)
+        for (index, fade) in pns::lights::breath_fades(budget_ms, breath)
             .iter()
             .enumerate()
         {
@@ -5510,6 +5539,22 @@ const LIGHTS_SAID: &str = "lights-said";
 /// What a tick says about a held record it could not read at all.
 const HELD_RECORD_UNREADABLE: &str = "pns lights: the held record could not be read, \
 so no lamp can be put out by name; this tick republishes it";
+
+/// How long ONE of a tick's bridge calls may take.
+///
+/// A QUARTER OF THE INTERVAL, so the three the resolve makes cannot outlive the
+/// child that makes them: at the transport's own ten seconds they outlive every
+/// interval the config permits, and a wedged bridge would then have tick after
+/// tick piling up, each still dialling while the next was spawned. What is left
+/// of the interval is the breath's, which is the whole point of the child
+/// staying alive.
+///
+/// A SECOND AT LEAST, because a quarter of the shortest interval is already two
+/// and a half and a floor costs nothing; a bridge on the same LAN answers these
+/// in milliseconds either way.
+fn tick_bridge_deadline(refresh_secs: u64) -> Duration {
+    Duration::from_secs((refresh_secs / 4).max(1))
+}
 
 /// Where the EVENT path remembers the ad-hoc quiet complaint it last made,
 /// which is a file of its own for the reason `say_lights_once` states.
@@ -7499,7 +7544,7 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
-            &[],
+            Some(&[]),
             |_| {},
         );
         assert!(complaints.is_empty(), "{complaints:?}");
@@ -7536,7 +7581,7 @@ mod tests {
             &held_lights(),
             &[],
             &noon(&nothing_muted()),
-            &[LAMP_PATH.to_string()],
+            Some(&[LAMP_PATH.to_string()]),
             |_| {},
         );
         assert_eq!(
@@ -7561,6 +7606,11 @@ mod tests {
         // every single re-arm, in that order, and the lamp would be dark for the
         // whole of every interval after the first.
         let state = scratch("tick-rearm-keeps-the-lamp");
+        // THE RECORD ON DISK IS WHAT THE TICK READ, and it has to agree with
+        // the reading handed in: the pass stands down when the record moved
+        // under it, which is how a return that cleared every lamp mid-tick
+        // stops this run re-arming them.
+        std::fs::write(state.join(LIGHTS_HELD), format!("{LAMP_PATH}\n")).expect("the record");
         let bridge = scripted(true);
         run_tick_writes(
             &bridge,
@@ -7568,7 +7618,7 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
-            &[LAMP_PATH.to_string()],
+            Some(&[LAMP_PATH.to_string()]),
             |_| {},
         );
         assert!(
@@ -7593,6 +7643,11 @@ mod tests {
         // the lamp simply drops out of the arm, which makes its held path stale
         // and puts it out through the ordinary clear rather than a second path.
         let state = scratch("tick-mute-clears");
+        // THE RECORD ON DISK IS WHAT THE TICK READ, and it has to agree with
+        // the reading handed in: the pass stands down when the record moved
+        // under it, which is how a return that cleared every lamp mid-tick
+        // stops this run re-arming them.
+        std::fs::write(state.join(LIGHTS_HELD), format!("{LAMP_PATH}\n")).expect("the record");
         let bridge = scripted(true);
         let complaints = run_tick_writes(
             &bridge,
@@ -7600,7 +7655,7 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&quieted("3F - Studio")),
-            &[LAMP_PATH.to_string()],
+            Some(&[LAMP_PATH.to_string()]),
             |_| {},
         );
         assert_eq!(
@@ -7620,6 +7675,11 @@ mod tests {
         // the one outcome the operator armed the mute to prevent, on the one
         // night the machine could not say why.
         let state = scratch("tick-mute-unreadable");
+        // THE RECORD ON DISK IS WHAT THE TICK READ, and it has to agree with
+        // the reading handed in: the pass stands down when the record moved
+        // under it, which is how a return that cleared every lamp mid-tick
+        // stops this run re-arming them.
+        std::fs::write(state.join(LIGHTS_HELD), format!("{LAMP_PATH}\n")).expect("the record");
         let bridge = scripted(true);
         let complaints = run_tick_writes(
             &bridge,
@@ -7627,7 +7687,7 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&pns::channels::hue::Muting::Everything),
-            &[LAMP_PATH.to_string()],
+            Some(&[LAMP_PATH.to_string()]),
             |_| {},
         );
         assert_eq!(
@@ -7655,7 +7715,7 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
-            &[],
+            None,
             |_| {},
         );
         assert!(
@@ -7669,6 +7729,44 @@ mod tests {
                 .any(|said| said.contains("the held record could not be written")),
             "and the tick says so rather than carrying on quietly: {complaints:?}"
         );
+    }
+
+    #[test]
+    fn a_tick_whose_record_moved_under_it_stands_down_rather_than_re_arming_the_lamps() {
+        // THE RACE THE SOURCE USED TO ADMIT TO. The house is derived BEFORE the
+        // bridge work, which is seconds of network, and the operator's return
+        // clears every held lamp and empties the record in the middle of it: a
+        // tick that then published its own snapshot armed the lamps again and
+        // the operator watched a lamp they had just put out come back on, with
+        // the record naming it once more.
+        //
+        // THE OTHER WRITER HAS ALREADY DONE THE CLEARING, so standing down is
+        // the whole remedy: nothing is armed, nothing is cleared twice, and the
+        // next tick reads a house that agrees with the disk.
+        let state = scratch("tick-record-moved");
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            // WHAT THIS TICK READ before the bridge work, against a record the
+            // event path has emptied since.
+            Some(&[LAMP_PATH.to_string()]),
+            |_| {},
+        );
+        assert!(
+            bridge.puts.borrow().is_empty(),
+            "the lamps were re-armed off a snapshot the disk had already moved past: {:?}",
+            bridge.puts.borrow()
+        );
+        assert_eq!(
+            recorded(&state),
+            None,
+            "and the record the other writer left is not overwritten either"
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
     }
 
     #[test]
@@ -7688,7 +7786,7 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
-            &[LAMP_PATH.to_string()],
+            Some(&[LAMP_PATH.to_string()]),
             |_| {},
         );
         assert!(
@@ -7724,7 +7822,7 @@ mod tests {
         };
         drive_breaths(
             &bridge,
-            12,
+            12_000,
             &[
                 ("light/a".to_string(), quick, pns::pulse::BLOCKED_COLOR),
                 ("light/b".to_string(), slow, pns::pulse::LOOP_COLOR),
@@ -7770,7 +7868,7 @@ mod tests {
             &lights,
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
-            &[],
+            Some(&[]),
             |_| {},
         );
         assert_eq!(
