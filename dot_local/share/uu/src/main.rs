@@ -137,16 +137,26 @@ fn run_mode(only: Option<&str>) -> i32 {
         send_alert(engine.as_deref(), &report.name, &alert_summary(report));
     }
 
-    if let Some(records) = config.records.as_ref() {
-        deliver_record(records, records_body(failures, &detail), engine.as_deref());
-    } else {
-        println!("uu: no [records] block; this run was logged here and nowhere else");
-    }
+    // A RECORD THE GATEWAY NEVER RECEIVED IS A FAILED RUN, even when every
+    // lane passed. The entry is the whole point of the week's work, and the
+    // marker is what the NEXT entry measures its gap from: stamping a success
+    // nothing recorded would have that entry claim a gap from a week no one
+    // can read. With no `[records]` block nothing was owed, so nothing is
+    // lost.
+    let record_lost = match config.records.as_ref() {
+        Some(records) => {
+            !deliver_record(records, records_body(failures, &detail), engine.as_deref())
+        }
+        None => {
+            println!("uu: no [records] block; this run was logged here and nowhere else");
+            false
+        }
+    };
 
     // THE MARKER MOVES ONLY ON A CLEAN RUN, so the next entry's gap measures
     // the last time everything actually worked rather than the last time uu
     // woke up.
-    if failures == 0 {
+    if failures == 0 && !record_lost {
         write_marker(&marker_path, now);
     }
     0
@@ -427,31 +437,36 @@ fn send_alert(engine: Option<&str>, lane: &str, summary: &str) {
     }
 }
 
-/// The record, posted in process. FAIL LOUD: a refused delivery is printed AND
-/// alerted, because a silent record channel is indistinguishable from a
-/// machine whose jobs stopped running, which is the one failure the record
-/// cannot report about itself.
-fn deliver_record(records: &Records, body: String, engine: Option<&str>) {
+/// The record, posted in process, ANSWERING WHETHER IT LANDED. The caller
+/// needs that verdict: an entry the gateway never received is a failed run,
+/// whatever the lanes did.
+///
+/// FAIL LOUD: a refused delivery is printed AND alerted, because a silent
+/// record channel is indistinguishable from a machine whose jobs stopped
+/// running, which is the one failure the record cannot report about itself.
+fn deliver_record(records: &Records, body: String, engine: Option<&str>) -> bool {
     use pns::channels::hermes::{SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 
     let Some(signature) = sign(&records.key, &body) else {
         println!("uu: the [records] key is empty, so nothing could be signed or posted");
-        return;
+        return false;
     };
     let outcome = UreqSignedPost.post(&records.url, &body, &signature, Some(RECORD_DEADLINE));
     println!("uu: {}", outcome_line(outcome));
-    if !delivered(outcome) {
-        send_alert(
-            engine,
-            AGENT,
-            &format!(
-                "the weekly record could NOT be delivered to {} ({}); until this is fixed that \
-                 channel is silent for a reason that has nothing to do with the jobs it reports on",
-                records.url,
-                outcome_line(outcome)
-            ),
-        );
+    if delivered(outcome) {
+        return true;
     }
+    send_alert(
+        engine,
+        AGENT,
+        &format!(
+            "the weekly record could NOT be delivered to {} ({}); until this is fixed that \
+             channel is silent for a reason that has nothing to do with the jobs it reports on",
+            records.url,
+            outcome_line(outcome)
+        ),
+    );
+    false
 }
 
 #[cfg(test)]

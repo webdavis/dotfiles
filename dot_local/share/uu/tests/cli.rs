@@ -31,11 +31,17 @@ impl Home {
     /// A herdr that answers every call with `exit_code`, and a lane block
     /// pointing straight at it.
     fn with_herdr_lane(self, exit_code: i32) -> Self {
+        self.with_herdr_lane_and(&format!("exit {exit_code}\n"), "")
+    }
+
+    /// The same lane, with `body` as the stub herdr's whole script and `extra`
+    /// appended to the config file.
+    fn with_herdr_lane_and(self, body: &str, extra: &str) -> Self {
         use std::os::unix::fs::PermissionsExt;
         let stub = self.dir.join("herdr-stub");
-        std::fs::write(&stub, format!("#!/bin/sh\nexit {exit_code}\n")).expect("stub");
+        std::fs::write(&stub, format!("#!/bin/sh\n{body}")).expect("stub");
         std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).expect("mode");
-        let text = format!("[lanes.herdr]\nbinary = \"{}\"\n", stub.display());
+        let text = format!("[lanes.herdr]\nbinary = \"{}\"\n{extra}", stub.display());
         self.with_config(&text)
     }
 
@@ -60,6 +66,15 @@ impl Drop for Home {
 
 fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).to_string()
+}
+
+/// A loopback port with nothing behind it: bound only to learn a number the
+/// kernel says is free, then released. A connection there is REFUSED at once,
+/// so the record path's failure arm is exercised without waiting out a
+/// deadline or reaching the network.
+fn closed_port() -> u16 {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    listener.local_addr().expect("its number").port()
 }
 
 #[test]
@@ -92,6 +107,32 @@ fn a_failed_lane_leaves_the_exit_at_zero_and_the_marker_unmoved() {
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     assert!(stdout(&output).contains("failure"), "{output:?}");
     assert!(!home.marker().exists(), "{output:?}");
+}
+
+#[test]
+fn a_record_the_gateway_never_received_leaves_the_marker_unmoved() {
+    // The marker is what the NEXT record measures its gap from, so a run
+    // stamped successful after its entry was refused makes the following entry
+    // claim a gap from a week nothing can read. The lanes themselves pass
+    // here: the record path alone decides.
+    let home = Home::new("record-refused").with_herdr_lane_and(
+        "exit 0\n",
+        &format!(
+            "\n[records]\nurl = \"http://127.0.0.1:{}/uu\"\nkey = \"k\"\n",
+            closed_port()
+        ),
+    );
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        stdout(&output).contains("post FAILED"),
+        "the refused delivery is said out loud: {}",
+        stdout(&output)
+    );
+    assert!(
+        !home.marker().exists(),
+        "a run whose record never landed must not stamp a success: {output:?}"
+    );
 }
 
 #[test]
