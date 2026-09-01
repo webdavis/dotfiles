@@ -5230,235 +5230,114 @@
       "source_location": "L3664"
     },
     {
-      "id": "dot_local_share_pns_src_main_abandoned_hold",
-      "label": "abandoned_hold()",
+      "id": "dot_local_share_pns_src_channels_mod_delivery",
+      "label": "Delivery",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "abandoned_hold()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1143"
+      "norm_label": "delivery",
+      "source_file": "dot_local/share/pns/src/channels/mod.rs",
+      "source_location": "L72"
     },
     {
-      "id": "dot_local_share_pns_src_main_activity_in",
-      "label": "activity_in()",
+      "id": "dot_local_share_pns_src_channels_mod_delivery_line_for",
+      "label": ".line_for()",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "activity_in()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L757"
+      "norm_label": ".line_for()",
+      "source_file": "dot_local/share/pns/src/channels/mod.rs",
+      "source_location": "L97"
     },
     {
-      "id": "dot_local_share_pns_src_main_claim_by_rename",
-      "label": "claim_by_rename()",
+      "id": "dot_local_share_pns_src_channels_mod_rs_option",
+      "label": "Option",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "claim_by_rename()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1202"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_claim_journal",
-      "label": "claim_journal()",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": "claim_journal()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1088"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_claim_moment",
-      "label": "claim_moment()",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": "claim_moment()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L827"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_claimed",
-      "label": "Claimed",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": "claimed",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1023"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_claimed_entries",
-      "label": ".entries()",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": ".entries()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1043"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_mark_present",
-      "label": "mark_present()",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": "mark_present()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L519"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_moment",
-      "label": "Moment",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": "moment",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L776"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_replay_missed",
-      "label": "replay_missed()",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": "replay_missed()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L608"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_rs_entry",
-      "label": "Entry",
-      "_origin": "ast",
-      "community": 110,
-      "community_name": "Vec",
-      "file_type": "code",
-      "norm_label": "entry",
+      "norm_label": "option",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_main_rs_vec",
-      "label": "Vec",
+      "id": "dot_local_share_pns_src_channels_mod_rs_string",
+      "label": "String",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "vec",
+      "norm_label": "string",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_main_spawn_recap",
-      "label": "spawn_recap()",
+      "id": "dot_local_share_pns_src_channels_moshi_moshichannel",
+      "label": "MoshiChannel",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "spawn_recap()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L986"
+      "norm_label": "moshichannel",
+      "source_file": "dot_local/share/pns/src/channels/moshi.rs",
+      "source_location": "L88"
     },
     {
-      "id": "dot_local_share_pns_src_main_stranded_claims",
-      "label": "stranded_claims()",
+      "id": "dot_local_share_pns_src_decision_log_record",
+      "label": "Record",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "stranded_claims()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1110"
+      "norm_label": "record",
+      "source_file": "dot_local/share/pns/src/decision_log.rs",
+      "source_location": "L37"
     },
     {
-      "id": "dot_local_share_pns_src_main_take_claim",
-      "label": "take_claim()",
+      "id": "dot_local_share_pns_src_main_deliver",
+      "label": "deliver()",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "take_claim()",
+      "norm_label": "deliver()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1246"
+      "source_location": "L3197"
     },
     {
-      "id": "dot_local_share_pns_src_main_window_claim_suffix",
-      "label": "window_claim_suffix()",
+      "id": "dot_local_share_pns_src_main_deliver_leg",
+      "label": "deliver_leg()",
       "_origin": "ast",
       "community": 110,
-      "community_name": "Vec",
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "window_claim_suffix()",
+      "norm_label": "deliver_leg()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L911"
+      "source_location": "L3136"
     },
     {
-      "id": "dot_local_share_pns_src_main_act",
-      "label": "act()",
+      "id": "dot_local_share_pns_src_main_refused",
+      "label": "refused()",
       "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
+      "community": 110,
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "act()",
+      "norm_label": "refused()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5281"
+      "source_location": "L6562"
     },
     {
-      "id": "dot_local_share_pns_src_main_bounded",
-      "label": "Bounded",
+      "id": "h",
+      "label": "H",
       "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
+      "community": 110,
+      "community_name": "Delivery",
       "file_type": "code",
-      "norm_label": "bounded",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5197"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_configured_submit_deadline",
-      "label": "configured_submit_deadline()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "configured_submit_deadline()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2008"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_daemon_enabled",
-      "label": "daemon_enabled()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "daemon_enabled()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5495"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_daemon_run",
-      "label": "daemon_run()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "daemon_run()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5136"
+      "norm_label": "h",
+      "source_file": "",
+      "source_location": ""
     },
     {
       "id": "dot_local_share_pns_src_main_daemon_tick",
@@ -5472,17 +5351,6 @@
       "source_location": "L5520"
     },
     {
-      "id": "dot_local_share_pns_src_main_drain_spool",
-      "label": "drain_spool()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "drain_spool()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5230"
-    },
-    {
       "id": "dot_local_share_pns_src_main_env_deadline",
       "label": "env_deadline()",
       "_origin": "ast",
@@ -5492,28 +5360,6 @@
       "norm_label": "env_deadline()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2123"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_fire",
-      "label": "fire()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "fire()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5351"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_kill_group",
-      "label": "kill_group()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "kill_group()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5457"
     },
     {
       "id": "dot_local_share_pns_src_main_matches_glob",
@@ -5536,17 +5382,6 @@
       "norm_label": "modified_at()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L6313"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_moshi_hook_bin",
-      "label": "moshi_hook_bin()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "moshi_hook_bin()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1891"
     },
     {
       "id": "dot_local_share_pns_src_main_moshi_json_deadline",
@@ -5615,28 +5450,6 @@
       "source_location": "L5707"
     },
     {
-      "id": "dot_local_share_pns_src_main_reap",
-      "label": "reap()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "reap()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5432"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_release",
-      "label": "release()",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "release()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5332"
-    },
-    {
       "id": "dot_local_share_pns_src_main_reread_interval",
       "label": "reread_interval()",
       "_origin": "ast",
@@ -5657,17 +5470,6 @@
       "norm_label": "reread_interval_from()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2085"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_rs_btreeset",
-      "label": "BTreeSet",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Duration",
-      "file_type": "code",
-      "norm_label": "btreeset",
-      "source_file": "",
-      "source_location": ""
     },
     {
       "id": "dot_local_share_pns_src_main_rs_duration",
@@ -6762,6 +6564,28 @@
       "norm_label": "overrides",
       "source_file": "dot_local/share/pns/src/engine.rs",
       "source_location": "L33"
+    },
+    {
+      "id": "dot_local_share_pns_src_engine_overrides_silenced",
+      "label": ".silenced()",
+      "_origin": "ast",
+      "community": 118,
+      "community_name": "CountingProbes",
+      "file_type": "code",
+      "norm_label": ".silenced()",
+      "source_file": "dot_local/share/pns/src/engine.rs",
+      "source_location": "L78"
+    },
+    {
+      "id": "dot_local_share_pns_src_engine_rs_cell",
+      "label": "Cell",
+      "_origin": "ast",
+      "community": 118,
+      "community_name": "CountingProbes",
+      "file_type": "code",
+      "norm_label": "cell",
+      "source_file": "",
+      "source_location": ""
     },
     {
       "id": "dot_local_share_pns_src_engine_rs_option",
@@ -14774,6 +14598,17 @@
       "source_location": "L141"
     },
     {
+      "id": "dot_local_share_pns_src_routing_leg",
+      "label": "Leg",
+      "_origin": "ast",
+      "community": 155,
+      "community_name": "routing.rs",
+      "file_type": "code",
+      "norm_label": "leg",
+      "source_file": "dot_local/share/pns/src/routing.rs",
+      "source_location": "L53"
+    },
+    {
       "id": "dot_local_share_pns_src_routing_local_only_plans_the_local_surfaces_alone_whatever_the_phone_verdict_was",
       "label": "local_only_plans_the_local_surfaces_alone_whatever_the_phone_verdict_was()",
       "_origin": "ast",
@@ -16581,7 +16416,7 @@
       "label": "channels/mod.rs",
       "_origin": "ast",
       "community": 166,
-      "community_name": "Event",
+      "community_name": "channels/mod.rs",
       "file_type": "code",
       "norm_label": "channels/mod.rs",
       "source_file": "dot_local/share/pns/src/channels/mod.rs",
@@ -16592,29 +16427,18 @@
       "label": "either_verdict_reaches_the_operator_on_a_reporting_leg_and_nothing_does_otherwise()",
       "_origin": "ast",
       "community": 166,
-      "community_name": "Event",
+      "community_name": "channels/mod.rs",
       "file_type": "code",
       "norm_label": "either_verdict_reaches_the_operator_on_a_reporting_leg_and_nothing_does_otherwise()",
       "source_file": "dot_local/share/pns/src/channels/mod.rs",
       "source_location": "L144"
     },
     {
-      "id": "dot_local_share_pns_src_channels_mod_event",
-      "label": "Event",
-      "_origin": "ast",
-      "community": 166,
-      "community_name": "Event",
-      "file_type": "code",
-      "norm_label": "event",
-      "source_file": "dot_local/share/pns/src/channels/mod.rs",
-      "source_location": "L21"
-    },
-    {
       "id": "dot_local_share_pns_src_channels_mod_event_to_json",
       "label": ".to_json()",
       "_origin": "ast",
       "community": 166,
-      "community_name": "Event",
+      "community_name": "channels/mod.rs",
       "file_type": "code",
       "norm_label": ".to_json()",
       "source_file": "dot_local/share/pns/src/channels/mod.rs",
@@ -16625,7 +16449,7 @@
       "label": "native_first()",
       "_origin": "ast",
       "community": 166,
-      "community_name": "Event",
+      "community_name": "channels/mod.rs",
       "file_type": "code",
       "norm_label": "native_first()",
       "source_file": "dot_local/share/pns/src/channels/mod.rs",
@@ -16636,7 +16460,7 @@
       "label": "the_event_is_the_channel_contracts_json_object()",
       "_origin": "ast",
       "community": 166,
-      "community_name": "Event",
+      "community_name": "channels/mod.rs",
       "file_type": "code",
       "norm_label": "the_event_is_the_channel_contracts_json_object()",
       "source_file": "dot_local/share/pns/src/channels/mod.rs",
@@ -16647,7 +16471,7 @@
       "label": "the_mode_is_the_only_per_leg_field_so_one_event_serializes_both_ways()",
       "_origin": "ast",
       "community": 166,
-      "community_name": "Event",
+      "community_name": "channels/mod.rs",
       "file_type": "code",
       "norm_label": "the_mode_is_the_only_per_leg_field_so_one_event_serializes_both_ways()",
       "source_file": "dot_local/share/pns/src/channels/mod.rs",
@@ -21803,17 +21627,6 @@
       "source_location": "L7689"
     },
     {
-      "id": "dot_local_share_pns_src_main_a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it",
-      "label": "a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L7521"
-    },
-    {
       "id": "dot_local_share_pns_src_main_a_reaped_pid",
       "label": "a_reaped_pid()",
       "_origin": "ast",
@@ -21924,39 +21737,6 @@
       "source_location": "L6874"
     },
     {
-      "id": "dot_local_share_pns_src_main_daemon_cancel",
-      "label": "daemon_cancel()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "daemon_cancel()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5650"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_daemon_mode",
-      "label": "daemon_mode()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "daemon_mode()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4206"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_daemon_schedule",
-      "label": "daemon_schedule()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "daemon_schedule()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5545"
-    },
-    {
       "id": "dot_local_share_pns_src_main_drive_breaths",
       "label": "drive_breaths()",
       "_origin": "ast",
@@ -22001,6 +21781,17 @@
       "source_location": "L6968"
     },
     {
+      "id": "dot_local_share_pns_src_main_muted_now",
+      "label": "muted_now()",
+      "_origin": "ast",
+      "community": 194,
+      "community_name": "pns/src/main.rs",
+      "file_type": "code",
+      "norm_label": "muted_now()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6718"
+    },
+    {
       "id": "dot_local_share_pns_src_main_no_directory_and_an_empty_one_both_read_as_nothing",
       "label": "no_directory_and_an_empty_one_both_read_as_nothing()",
       "_origin": "ast",
@@ -22023,17 +21814,6 @@
       "source_location": "L6980"
     },
     {
-      "id": "dot_local_share_pns_src_main_parse_schedule",
-      "label": "parse_schedule()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "parse_schedule()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5610"
-    },
-    {
       "id": "dot_local_share_pns_src_main_plant_shell_marker",
       "label": "plant_shell_marker()",
       "_origin": "ast",
@@ -22045,28 +21825,6 @@
       "source_location": "L7259"
     },
     {
-      "id": "dot_local_share_pns_src_main_publish_state_line",
-      "label": "publish_state_line()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "publish_state_line()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L305"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_quiet_mode",
-      "label": "quiet_mode()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "quiet_mode()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6598"
-    },
-    {
       "id": "dot_local_share_pns_src_main_read_news",
       "label": "read_news()",
       "_origin": "ast",
@@ -22076,6 +21834,17 @@
       "norm_label": "read_news()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L4828"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_read_quiet_expiry",
+      "label": "read_quiet_expiry()",
+      "_origin": "ast",
+      "community": 194,
+      "community_name": "pns/src/main.rs",
+      "file_type": "code",
+      "norm_label": "read_quiet_expiry()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6697"
     },
     {
       "id": "dot_local_share_pns_src_main_recap_bounds",
@@ -22155,6 +21924,17 @@
       "source_location": ""
     },
     {
+      "id": "dot_local_share_pns_src_main_rs_refcell",
+      "label": "RefCell",
+      "_origin": "ast",
+      "community": 194,
+      "community_name": "pns/src/main.rs",
+      "file_type": "code",
+      "norm_label": "refcell",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
       "id": "dot_local_share_pns_src_main_run_tick_writes",
       "label": "run_tick_writes()",
       "_origin": "ast",
@@ -22164,17 +21944,6 @@
       "norm_label": "run_tick_writes()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L4633"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_schedulerequest",
-      "label": "ScheduleRequest",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "schedulerequest",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5595"
     },
     {
       "id": "dot_local_share_pns_src_main_scratch",
@@ -22197,6 +21966,39 @@
       "norm_label": "scripted()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L6945"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_scriptedbridge",
+      "label": "ScriptedBridge",
+      "_origin": "ast",
+      "community": 194,
+      "community_name": "pns/src/main.rs",
+      "file_type": "code",
+      "norm_label": "scriptedbridge",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6921"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_scriptedbridge_put",
+      "label": ".put()",
+      "_origin": "ast",
+      "community": 194,
+      "community_name": "pns/src/main.rs",
+      "file_type": "code",
+      "norm_label": ".put()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6938"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_spawn_recap",
+      "label": "spawn_recap()",
+      "_origin": "ast",
+      "community": 194,
+      "community_name": "pns/src/main.rs",
+      "file_type": "code",
+      "norm_label": "spawn_recap()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L986"
     },
     {
       "id": "dot_local_share_pns_src_main_the_news_record_is_written_for_a_finished_or_a_dead_turn_and_read_back_as_it_was",
@@ -22263,17 +22065,6 @@
       "norm_label": "until",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L5589"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_update_blocked_marker",
-      "label": "update_blocked_marker()",
-      "_origin": "ast",
-      "community": 194,
-      "community_name": "pns/src/main.rs",
-      "file_type": "code",
-      "norm_label": "update_blocked_marker()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L428"
     },
     {
       "id": "docs_runbooks_claude_code_settings",
@@ -22360,11 +22151,121 @@
       "source_location": "L110"
     },
     {
+      "id": "dot_local_share_pns_src_main_ad_hoc_quiet",
+      "label": "ad_hoc_quiet()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "ad_hoc_quiet()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L4517"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_banner_channel",
+      "label": "banner_channel()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "banner_channel()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3063"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_claim_moment",
+      "label": "claim_moment()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "claim_moment()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L827"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_condense",
+      "label": "condense()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "condense()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1682"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_condenser_home",
+      "label": "condenser_home()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "condenser_home()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1721"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_deliver_recap",
+      "label": "deliver_recap()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "deliver_recap()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6527"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_disabled_backend_warning",
+      "label": "disabled_backend_warning()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "disabled_backend_warning()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L2795"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_disabled_backend_warnings",
+      "label": "disabled_backend_warnings()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "disabled_backend_warnings()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L2804"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_dispatch_legs",
+      "label": "dispatch_legs()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "dispatch_legs()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L2583"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_executable_in_path",
+      "label": "executable_in_path()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "executable_in_path()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3174"
+    },
+    {
       "id": "dot_local_share_pns_src_main_fetched",
       "label": "Fetched",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "fetched",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -22375,7 +22276,7 @@
       "label": "field()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "field()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -22386,18 +22287,40 @@
       "label": "found()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "found()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L6080"
     },
     {
+      "id": "dot_local_share_pns_src_main_hermes_channel",
+      "label": "hermes_channel()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "hermes_channel()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3091"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_hermes_url_for",
+      "label": "hermes_url_for()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "hermes_url_for()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3107"
+    },
+    {
       "id": "dot_local_share_pns_src_main_left_of",
       "label": "left_of()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "left_of()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -22408,18 +22331,84 @@
       "label": "merged_pull_requests()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "merged_pull_requests()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L6169"
     },
     {
+      "id": "dot_local_share_pns_src_main_mobile",
+      "label": "Mobile",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "mobile",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L2740"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_moshi_channel",
+      "label": "moshi_channel()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "moshi_channel()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3082"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_muted_state",
+      "label": "muted_state()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "muted_state()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L4494"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_parse_schedule",
+      "label": "parse_schedule()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "parse_schedule()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5610"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_post_recap",
+      "label": "post_recap()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "post_recap()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6497"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_read_payload",
+      "label": "read_payload()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "read_payload()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L2029"
+    },
+    {
       "id": "dot_local_share_pns_src_main_read_sources",
       "label": "read_sources()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "read_sources()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -22430,20 +22419,97 @@
       "label": "recap_mode()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "recap_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L5954"
     },
     {
+      "id": "dot_local_share_pns_src_main_recorded",
+      "label": "recorded()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "recorded()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6988"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_remembered_staleness",
+      "label": "remembered_staleness()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "remembered_staleness()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L272"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_replay_missed",
+      "label": "replay_missed()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "replay_missed()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L608"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_resolve_path",
+      "label": "resolve_path()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "resolve_path()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3163"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_rs_agent",
+      "label": "Agent",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "agent",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
       "id": "dot_local_share_pns_src_main_rs_instant",
       "label": "Instant",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "instant",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_main_rs_option",
+      "label": "Option",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "option",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_main_rs_string",
+      "label": "String",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "string",
       "source_file": "",
       "source_location": ""
     },
@@ -22452,18 +22518,51 @@
       "label": "Value",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "value",
       "source_file": "",
       "source_location": ""
     },
     {
+      "id": "dot_local_share_pns_src_main_schedulerequest",
+      "label": "ScheduleRequest",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "schedulerequest",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5595"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_scriptedbridge_get",
+      "label": ".get()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": ".get()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6927"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_stranded_window_claim",
+      "label": "stranded_window_claim()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "stranded_window_claim()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L885"
+    },
+    {
       "id": "dot_local_share_pns_src_main_summarize",
       "label": "summarize()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "summarize()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -22474,7 +22573,7 @@
       "label": "summarized()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "summarized()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -22485,22 +22584,99 @@
       "label": "truncated()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "truncated()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L6090"
     },
     {
+      "id": "dot_local_share_pns_src_main_ureqbridge",
+      "label": "UreqBridge",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "ureqbridge",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6793"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_ureqbridge_agent",
+      "label": ".agent()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": ".agent()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6799"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_ureqbridge_get",
+      "label": ".get()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": ".get()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6821"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_ureqbridge_put",
+      "label": ".put()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": ".put()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L6832"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_url_from_env",
+      "label": "url_from_env()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "url_from_env()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3127"
+    },
+    {
       "id": "dot_local_share_pns_src_main_wall_clock",
       "label": "wall_clock()",
       "_origin": "ast",
       "community": 196,
-      "community_name": "recap_mode",
+      "community_name": "Option",
       "file_type": "code",
       "norm_label": "wall_clock()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L6455"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_window_claim_is_free",
+      "label": "window_claim_is_free()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "window_claim_is_free()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L932"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_window_claim_suffix",
+      "label": "window_claim_suffix()",
+      "_origin": "ast",
+      "community": 196,
+      "community_name": "Option",
+      "file_type": "code",
+      "norm_label": "window_claim_suffix()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L911"
     },
     {
       "id": "docs_superpowers_audits_2026_07_10_dotfiles_modernization_audit_handoff_deferred_sub_projects",
@@ -29075,17 +29251,6 @@
       "source_location": "L83"
     },
     {
-      "id": "dot_local_share_pns_src_engine_overrides_silenced",
-      "label": ".silenced()",
-      "_origin": "ast",
-      "community": 230,
-      "community_name": "engine.rs",
-      "file_type": "code",
-      "norm_label": ".silenced()",
-      "source_file": "dot_local/share/pns/src/engine.rs",
-      "source_location": "L78"
-    },
-    {
       "id": "dot_local_share_pns_src_engine_rs_btreemap",
       "label": "BTreeMap",
       "_origin": "ast",
@@ -29093,17 +29258,6 @@
       "community_name": "engine.rs",
       "file_type": "code",
       "norm_label": "btreemap",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_engine_rs_cell",
-      "label": "Cell",
-      "_origin": "ast",
-      "community": 230,
-      "community_name": "engine.rs",
-      "file_type": "code",
-      "norm_label": "cell",
       "source_file": "",
       "source_location": ""
     },
@@ -29126,17 +29280,6 @@
       "community_name": "engine.rs",
       "file_type": "code",
       "norm_label": "string",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_engine_rs_vec",
-      "label": "Vec",
-      "_origin": "ast",
-      "community": 230,
-      "community_name": "engine.rs",
-      "file_type": "code",
-      "norm_label": "vec",
       "source_file": "",
       "source_location": ""
     },
@@ -29255,7 +29398,7 @@
       "label": "HookPayload",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "hookpayload",
       "source_file": "dot_local/share/pns/src/hooks.rs",
@@ -29266,29 +29409,18 @@
       "label": "answer_within()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "answer_within()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L1960"
     },
     {
-      "id": "dot_local_share_pns_src_main_attempt",
-      "label": "Attempt",
-      "_origin": "ast",
-      "community": 231,
-      "community_name": "run_event",
-      "file_type": "code",
-      "norm_label": "attempt",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2183"
-    },
-    {
       "id": "dot_local_share_pns_src_main_blocking_event",
       "label": "blocking_event()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "blocking_event()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29299,40 +29431,40 @@
       "label": "clear_nag()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "clear_nag()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L3840"
     },
     {
+      "id": "dot_local_share_pns_src_main_consume_turn_marker",
+      "label": "consume_turn_marker()",
+      "_origin": "ast",
+      "community": 231,
+      "community_name": "blocking_event",
+      "file_type": "code",
+      "norm_label": "consume_turn_marker()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1537"
+    },
+    {
       "id": "dot_local_share_pns_src_main_end_of_turn",
       "label": "end_of_turn()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "end_of_turn()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L1549"
     },
     {
-      "id": "dot_local_share_pns_src_main_event_mode",
-      "label": "event_mode()",
-      "_origin": "ast",
-      "community": 231,
-      "community_name": "run_event",
-      "file_type": "code",
-      "norm_label": "event_mode()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2158"
-    },
-    {
       "id": "dot_local_share_pns_src_main_failed_turn",
       "label": "failed_turn()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "failed_turn()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29343,7 +29475,7 @@
       "label": "forward_to_moshi()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "forward_to_moshi()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29354,7 +29486,7 @@
       "label": "gate_mode()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "gate_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29365,7 +29497,7 @@
       "label": "git_branch()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "git_branch()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29376,7 +29508,7 @@
       "label": "hook_mode()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "hook_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29387,18 +29519,29 @@
       "label": "moshi_decision()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "moshi_decision()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L1912"
     },
     {
+      "id": "dot_local_share_pns_src_main_moshi_hook_bin",
+      "label": "moshi_hook_bin()",
+      "_origin": "ast",
+      "community": 231,
+      "community_name": "blocking_event",
+      "file_type": "code",
+      "norm_label": "moshi_hook_bin()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1891"
+    },
+    {
       "id": "dot_local_share_pns_src_main_overrides_from_env",
       "label": "overrides_from_env()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "overrides_from_env()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29409,7 +29552,7 @@
       "label": "payload_is_whole()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "payload_is_whole()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29420,7 +29563,7 @@
       "label": "project_of()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "project_of()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29431,51 +29574,29 @@
       "label": "pulse_threshold_secs()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "pulse_threshold_secs()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2093"
     },
     {
-      "id": "dot_local_share_pns_src_main_read_payload",
-      "label": "read_payload()",
-      "_origin": "ast",
-      "community": 231,
-      "community_name": "run_event",
-      "file_type": "code",
-      "norm_label": "read_payload()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2029"
-    },
-    {
       "id": "dot_local_share_pns_src_main_rs_child",
       "label": "Child",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "child",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_main_run_event",
-      "label": "run_event()",
-      "_origin": "ast",
-      "community": 231,
-      "community_name": "run_event",
-      "file_type": "code",
-      "norm_label": "run_event()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2197"
-    },
-    {
       "id": "dot_local_share_pns_src_main_spawn_job",
       "label": "spawn_job()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "spawn_job()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29486,7 +29607,7 @@
       "label": "spawn_moshi_hook()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "spawn_moshi_hook()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29497,7 +29618,7 @@
       "label": "start_of_turn()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "start_of_turn()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -29508,22 +29629,55 @@
       "label": "system_probes()",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "system_probes()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L1843"
     },
     {
+      "id": "dot_local_share_pns_src_main_turn_marker",
+      "label": "turn_marker()",
+      "_origin": "ast",
+      "community": 231,
+      "community_name": "blocking_event",
+      "file_type": "code",
+      "norm_label": "turn_marker()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L255"
+    },
+    {
       "id": "dot_local_share_pns_src_system_systemcommandrunner",
       "label": "SystemCommandRunner",
       "_origin": "ast",
       "community": 231,
-      "community_name": "run_event",
+      "community_name": "blocking_event",
       "file_type": "code",
       "norm_label": "systemcommandrunner",
       "source_file": "dot_local/share/pns/src/system.rs",
       "source_location": "L30"
+    },
+    {
+      "id": "dot_local_share_pns_src_system_systemprobes",
+      "label": "SystemProbes",
+      "_origin": "ast",
+      "community": 231,
+      "community_name": "blocking_event",
+      "file_type": "code",
+      "norm_label": "systemprobes",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L336"
+    },
+    {
+      "id": "oncecell",
+      "label": "OnceCell",
+      "_origin": "ast",
+      "community": 231,
+      "community_name": "blocking_event",
+      "file_type": "code",
+      "norm_label": "oncecell",
+      "source_file": "",
+      "source_location": ""
     },
     {
       "id": "dot_local_share_pns_src_lights_live",
@@ -32689,6 +32843,17 @@
       "source_location": "L420"
     },
     {
+      "id": "dot_local_share_pns_src_channels_hermes_ureqsignedpost",
+      "label": "UreqSignedPost",
+      "_origin": "ast",
+      "community": 251,
+      "community_name": "hermes.rs",
+      "file_type": "code",
+      "norm_label": "ureqsignedpost",
+      "source_file": "dot_local/share/pns/src/channels/hermes.rs",
+      "source_location": "L253"
+    },
+    {
       "id": "dot_local_share_pns_src_channels_hermes_ureqsignedpost_post",
       "label": ".post()",
       "_origin": "ast",
@@ -34725,7 +34890,7 @@
       "label": "hue_settings()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "hue_settings()",
       "source_file": "dot_local/share/pns/src/channels/hue.rs",
@@ -34736,7 +34901,7 @@
       "label": "config_path()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "config_path()",
       "source_file": "dot_local/share/pns/src/config.rs",
@@ -34747,7 +34912,7 @@
       "label": "load_config()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "load_config()",
       "source_file": "dot_local/share/pns/src/config.rs",
@@ -34758,62 +34923,51 @@
       "label": "PathBuf",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "pathbuf",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_main_ad_hoc_quiet",
-      "label": "ad_hoc_quiet()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "ad_hoc_quiet()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4517"
-    },
-    {
       "id": "dot_local_share_pns_src_main_clear_held_lamps",
       "label": "clear_held_lamps()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "clear_held_lamps()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2487"
     },
     {
-      "id": "dot_local_share_pns_src_main_consume_turn_marker",
-      "label": "consume_turn_marker()",
+      "id": "dot_local_share_pns_src_main_configured_submit_deadline",
+      "label": "configured_submit_deadline()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
-      "norm_label": "consume_turn_marker()",
+      "norm_label": "configured_submit_deadline()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1537"
+      "source_location": "L2008"
     },
     {
-      "id": "dot_local_share_pns_src_main_daemon_line",
-      "label": "daemon_line()",
+      "id": "dot_local_share_pns_src_main_daemon_enabled",
+      "label": "daemon_enabled()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
-      "norm_label": "daemon_line()",
+      "norm_label": "daemon_enabled()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5895"
+      "source_location": "L5495"
     },
     {
       "id": "dot_local_share_pns_src_main_doctor_mode",
       "label": "doctor_mode()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "doctor_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34824,7 +34978,7 @@
       "label": "enabled_hue_table()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "enabled_hue_table()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34835,7 +34989,7 @@
       "label": "fire_lights()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "fire_lights()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34846,7 +35000,7 @@
       "label": "fire_pulse()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "fire_pulse()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34857,7 +35011,7 @@
       "label": "fire_pulse_unless_quiet()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "fire_pulse_unless_quiet()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34868,7 +35022,7 @@
       "label": "held_lamps()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "held_lamps()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34879,7 +35033,7 @@
       "label": "home_mode()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "home_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34890,51 +35044,18 @@
       "label": "hue_resolves()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "hue_resolves()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2986"
     },
     {
-      "id": "dot_local_share_pns_src_main_last_interaction",
-      "label": "last_interaction()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "last_interaction()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4809"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_lights_mode",
-      "label": "lights_mode()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "lights_mode()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4223"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_lights_quiet",
-      "label": "lights_quiet()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "lights_quiet()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4367"
-    },
-    {
       "id": "dot_local_share_pns_src_main_lights_report",
       "label": "lights_report()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "lights_report()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -34945,117 +35066,40 @@
       "label": "lights_tick()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "lights_tick()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L4537"
     },
     {
-      "id": "dot_local_share_pns_src_main_loop_mode",
-      "label": "loop_mode()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "loop_mode()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4250"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_main",
-      "label": "main()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "main()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L40"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_mobile",
-      "label": "Mobile",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "mobile",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2740"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_muted_now",
-      "label": "muted_now()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "muted_now()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6718"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_muted_state",
-      "label": "muted_state()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "muted_state()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4494"
-    },
-    {
       "id": "dot_local_share_pns_src_main_nag_after_secs",
       "label": "nag_after_secs()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "nag_after_secs()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L4191"
     },
     {
-      "id": "dot_local_share_pns_src_main_now_secs",
-      "label": "now_secs()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "now_secs()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2054"
-    },
-    {
       "id": "dot_local_share_pns_src_main_plugin_settings",
       "label": "plugin_settings()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "plugin_settings()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2833"
     },
     {
-      "id": "dot_local_share_pns_src_main_publish_muted",
-      "label": "publish_muted()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "publish_muted()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L4470"
-    },
-    {
       "id": "dot_local_share_pns_src_main_pulse_mode",
       "label": "pulse_mode()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "pulse_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -35066,7 +35110,7 @@
       "label": "pulse_outcome()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "pulse_outcome()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -35077,84 +35121,18 @@
       "label": "read_mobile()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "read_mobile()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2760"
     },
     {
-      "id": "dot_local_share_pns_src_main_read_quiet_expiry",
-      "label": "read_quiet_expiry()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "read_quiet_expiry()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6697"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_register_lights_tick",
-      "label": "register_lights_tick()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "register_lights_tick()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2534"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_remember_staleness",
-      "label": "remember_staleness()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "remember_staleness()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L285"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_remembered_staleness",
-      "label": "remembered_staleness()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "remembered_staleness()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L272"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_rs_option",
-      "label": "Option",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "option",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_main_rs_refcell",
-      "label": "RefCell",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "refcell",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
       "id": "dot_local_share_pns_src_main_rs_table",
       "label": "Table",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "table",
       "source_file": "",
@@ -35165,84 +35143,29 @@
       "label": "say_lights_once()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "say_lights_once()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L5012"
     },
     {
-      "id": "dot_local_share_pns_src_main_scriptedbridge",
-      "label": "ScriptedBridge",
+      "id": "dot_local_share_pns_src_main_sweep_legacy_state",
+      "label": "sweep_legacy_state()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
-      "norm_label": "scriptedbridge",
+      "norm_label": "sweep_legacy_state()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6921"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_scriptedbridge_get",
-      "label": ".get()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": ".get()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6927"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_scriptedbridge_put",
-      "label": ".put()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": ".put()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6938"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_second_argument",
-      "label": "second_argument()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "second_argument()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L120"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_state_dir",
-      "label": "state_dir()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "state_dir()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L263"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_turn_marker",
-      "label": "turn_marker()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "turn_marker()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L255"
+      "source_location": "L5046"
     },
     {
       "id": "dot_local_share_pns_src_main_watch_card",
       "label": "watch_card()",
       "_origin": "ast",
       "community": 27,
-      "community_name": "Option",
+      "community_name": "load_config",
       "file_type": "code",
       "norm_label": "watch_card()",
       "source_file": "dot_local/share/pns/src/main.rs",
@@ -35976,17 +35899,6 @@
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_channels_hermes_a_closed_port_is_no_response",
-      "label": "a_closed_port_is_no_response()",
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "moshi.rs",
-      "file_type": "code",
-      "norm_label": "a_closed_port_is_no_response()",
-      "source_file": "dot_local/share/pns/src/channels/hermes.rs",
-      "source_location": "L494"
-    },
-    {
       "id": "dot_local_share_pns_src_channels_moshi",
       "label": "moshi.rs",
       "_origin": "ast",
@@ -35996,17 +35908,6 @@
       "norm_label": "moshi.rs",
       "source_file": "dot_local/share/pns/src/channels/moshi.rs",
       "source_location": "L1"
-    },
-    {
-      "id": "dot_local_share_pns_src_channels_moshi_a_closed_port_is_a_quiet_false_never_a_report",
-      "label": "a_closed_port_is_a_quiet_false_never_a_report()",
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "moshi.rs",
-      "file_type": "code",
-      "norm_label": "a_closed_port_is_a_quiet_false_never_a_report()",
-      "source_file": "dot_local/share/pns/src/channels/moshi.rs",
-      "source_location": "L421"
     },
     {
       "id": "dot_local_share_pns_src_channels_moshi_a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write",
@@ -36405,17 +36306,6 @@
       "source_location": "L83"
     },
     {
-      "id": "dot_local_share_pns_src_daemon_scratch_drop",
-      "label": ".drop()",
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "moshi.rs",
-      "file_type": "code",
-      "norm_label": ".drop()",
-      "source_file": "dot_local/share/pns/src/daemon.rs",
-      "source_location": "L1165"
-    },
-    {
       "id": "dot_local_share_pns_src_system_a_pane_on_another_tab_is_hidden_however_that_tab_is_arranged",
       "label": "a_pane_on_another_tab_is_hidden_however_that_tab_is_arranged()",
       "_origin": "ast",
@@ -36471,6 +36361,17 @@
       "source_location": "L1399"
     },
     {
+      "id": "dot_local_share_pns_src_system_exactargvrunner",
+      "label": "ExactArgvRunner",
+      "_origin": "ast",
+      "community": 280,
+      "community_name": ".session_view",
+      "file_type": "code",
+      "norm_label": "exactargvrunner",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L1264"
+    },
+    {
       "id": "dot_local_share_pns_src_system_parse_focused_tab",
       "label": "parse_focused_tab()",
       "_origin": "ast",
@@ -36480,6 +36381,50 @@
       "norm_label": "parse_focused_tab()",
       "source_file": "dot_local/share/pns/src/system.rs",
       "source_location": "L276"
+    },
+    {
+      "id": "dot_local_share_pns_src_system_parse_pids",
+      "label": "parse_pids()",
+      "_origin": "ast",
+      "community": 280,
+      "community_name": ".session_view",
+      "file_type": "code",
+      "norm_label": "parse_pids()",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L244"
+    },
+    {
+      "id": "dot_local_share_pns_src_system_parse_tty_names",
+      "label": "parse_tty_names()",
+      "_origin": "ast",
+      "community": 280,
+      "community_name": ".session_view",
+      "file_type": "code",
+      "norm_label": "parse_tty_names()",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L263"
+    },
+    {
+      "id": "dot_local_share_pns_src_system_rs_refcell",
+      "label": "RefCell",
+      "_origin": "ast",
+      "community": 280,
+      "community_name": ".session_view",
+      "file_type": "code",
+      "norm_label": "refcell",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_system_rs_vec",
+      "label": "Vec",
+      "_origin": "ast",
+      "community": 280,
+      "community_name": ".session_view",
+      "file_type": "code",
+      "norm_label": "vec",
+      "source_file": "",
+      "source_location": ""
     },
     {
       "id": "dot_local_share_pns_src_system_systemprobes_r_session_view",
@@ -42236,28 +42181,6 @@
       "source_location": "L446"
     },
     {
-      "id": "dot_local_share_pns_src_system_parse_pids",
-      "label": "parse_pids()",
-      "_origin": "ast",
-      "community": 337,
-      "community_name": "newest_terminal_atime",
-      "file_type": "code",
-      "norm_label": "parse_pids()",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L244"
-    },
-    {
-      "id": "dot_local_share_pns_src_system_parse_tty_names",
-      "label": "parse_tty_names()",
-      "_origin": "ast",
-      "community": 337,
-      "community_name": "newest_terminal_atime",
-      "file_type": "code",
-      "norm_label": "parse_tty_names()",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L263"
-    },
-    {
       "id": "dot_local_share_pns_src_system_rs_path",
       "label": "Path",
       "_origin": "ast",
@@ -42265,17 +42188,6 @@
       "community_name": "newest_terminal_atime",
       "file_type": "code",
       "norm_label": "path",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_system_rs_vec",
-      "label": "Vec",
-      "_origin": "ast",
-      "community": 337,
-      "community_name": "newest_terminal_atime",
-      "file_type": "code",
-      "norm_label": "vec",
       "source_file": "",
       "source_location": ""
     },
@@ -45092,6 +45004,17 @@
       "source_location": "L224"
     },
     {
+      "id": "dot_local_share_pns_src_decision_log_verdicts",
+      "label": "verdicts()",
+      "_origin": "ast",
+      "community": 37,
+      "community_name": "decision_log.rs",
+      "file_type": "code",
+      "norm_label": "verdicts()",
+      "source_file": "dot_local/share/pns/src/decision_log.rs",
+      "source_location": "L146"
+    },
+    {
       "id": "dot_local_share_pns_src_decision_log_yes_no",
       "label": "yes_no()",
       "_origin": "ast",
@@ -45156,6 +45079,180 @@
       "norm_label": "wait_until()",
       "source_file": "dot_local/share/pns/src/system.rs",
       "source_location": "L151"
+    },
+    {
+      "id": "dot_local_share_pns_src_engine_decision",
+      "label": "Decision",
+      "_origin": "ast",
+      "community": 371,
+      "community_name": "Decision",
+      "file_type": "code",
+      "norm_label": "decision",
+      "source_file": "dot_local/share/pns/src/engine.rs",
+      "source_location": "L116"
+    },
+    {
+      "id": "dot_local_share_pns_src_engine_rs_vec",
+      "label": "Vec",
+      "_origin": "ast",
+      "community": 371,
+      "community_name": "Decision",
+      "file_type": "code",
+      "norm_label": "vec",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_missed_notifications_a_muted_event_the_surface_would_have_decorated_is_the_journals_queue",
+      "label": "a_muted_event_the_surface_would_have_decorated_is_the_journals_queue()",
+      "_origin": "ast",
+      "community": 371,
+      "community_name": "Decision",
+      "file_type": "code",
+      "norm_label": "a_muted_event_the_surface_would_have_decorated_is_the_journals_queue()",
+      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
+      "source_location": "L632"
+    },
+    {
+      "id": "dot_local_share_pns_src_missed_notifications_decided",
+      "label": "decided()",
+      "_origin": "ast",
+      "community": 371,
+      "community_name": "Decision",
+      "file_type": "code",
+      "norm_label": "decided()",
+      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
+      "source_location": "L516"
+    },
+    {
+      "id": "dot_local_share_pns_src_missed_notifications_is_present",
+      "label": "is_present()",
+      "_origin": "ast",
+      "community": 371,
+      "community_name": "Decision",
+      "file_type": "code",
+      "norm_label": "is_present()",
+      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
+      "source_location": "L133"
+    },
+    {
+      "id": "dot_local_share_pns_src_missed_notifications_should_replay",
+      "label": "should_replay()",
+      "_origin": "ast",
+      "community": 371,
+      "community_name": "Decision",
+      "file_type": "code",
+      "norm_label": "should_replay()",
+      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
+      "source_location": "L113"
+    },
+    {
+      "id": "dot_local_share_pns_src_missed_notifications_was_missed",
+      "label": "was_missed()",
+      "_origin": "ast",
+      "community": 371,
+      "community_name": "Decision",
+      "file_type": "code",
+      "norm_label": "was_missed()",
+      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
+      "source_location": "L79"
+    },
+    {
+      "id": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill",
+      "label": "loop/SKILL.md",
+      "_origin": "ast",
+      "community": 372,
+      "community_name": "Loop",
+      "file_type": "document",
+      "frontmatter": {
+        "name": "loop",
+        "description": "Start a long-running loop with the pns loop lamp held for its whole duration, and give the lamp back when the work ends. Use when the user asks to run something overnight, in a loop, or unattended, or says &quot;/pns:loop&quot;."
+      },
+      "node_kind": "page",
+      "norm_label": "loop/skill.md",
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_give_the_lease_back_at_the_end",
+      "label": "Give the lease back at the end",
+      "_origin": "ast",
+      "community": 372,
+      "community_name": "Loop",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "give the lease back at the end",
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L31"
+    },
+    {
+      "id": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_loop",
+      "label": "Loop",
+      "_origin": "ast",
+      "community": 372,
+      "community_name": "Loop",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "loop",
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L6"
+    },
+    {
+      "id": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_take_the_lease_first",
+      "label": "Take the lease first",
+      "_origin": "ast",
+      "community": 372,
+      "community_name": "Loop",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "take the lease first",
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L12"
+    },
+    {
+      "id": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_then_set_the_work_up",
+      "label": "Then set the work up",
+      "_origin": "ast",
+      "community": 372,
+      "community_name": "Loop",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "then set the work up",
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L26"
+    },
+    {
+      "id": "dot_local_share_pns_src_channels_hermes_a_closed_port_is_no_response",
+      "label": "a_closed_port_is_no_response()",
+      "_origin": "ast",
+      "community": 373,
+      "community_name": ".drop",
+      "file_type": "code",
+      "norm_label": "a_closed_port_is_no_response()",
+      "source_file": "dot_local/share/pns/src/channels/hermes.rs",
+      "source_location": "L494"
+    },
+    {
+      "id": "dot_local_share_pns_src_channels_moshi_a_closed_port_is_a_quiet_false_never_a_report",
+      "label": "a_closed_port_is_a_quiet_false_never_a_report()",
+      "_origin": "ast",
+      "community": 373,
+      "community_name": ".drop",
+      "file_type": "code",
+      "norm_label": "a_closed_port_is_a_quiet_false_never_a_report()",
+      "source_file": "dot_local/share/pns/src/channels/moshi.rs",
+      "source_location": "L421"
+    },
+    {
+      "id": "dot_local_share_pns_src_daemon_scratch_drop",
+      "label": ".drop()",
+      "_origin": "ast",
+      "community": 373,
+      "community_name": ".drop",
+      "file_type": "code",
+      "norm_label": ".drop()",
+      "source_file": "dot_local/share/pns/src/daemon.rs",
+      "source_location": "L1165"
     },
     {
       "id": "dot_local_share_pns_src_system",
@@ -45345,17 +45442,6 @@
       "source_location": "L1032"
     },
     {
-      "id": "dot_local_share_pns_src_system_exactargvrunner",
-      "label": "ExactArgvRunner",
-      "_origin": "ast",
-      "community": 38,
-      "community_name": "system.rs",
-      "file_type": "code",
-      "norm_label": "exactargvrunner",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L1264"
-    },
-    {
       "id": "dot_local_share_pns_src_system_local_minutes_since_midnight",
       "label": "local_minutes_since_midnight()",
       "_origin": "ast",
@@ -45400,6 +45486,17 @@
       "source_location": "L749"
     },
     {
+      "id": "dot_local_share_pns_src_system_parse_layout",
+      "label": "parse_layout()",
+      "_origin": "ast",
+      "community": 38,
+      "community_name": "system.rs",
+      "file_type": "code",
+      "norm_label": "parse_layout()",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L308"
+    },
+    {
       "id": "dot_local_share_pns_src_system_phone_probe",
       "label": "phone_probe()",
       "_origin": "ast",
@@ -45411,15 +45508,15 @@
       "source_location": "L990"
     },
     {
-      "id": "dot_local_share_pns_src_system_rs_refcell",
-      "label": "RefCell",
+      "id": "dot_local_share_pns_src_system_tablayout",
+      "label": "TabLayout",
       "_origin": "ast",
       "community": 38,
       "community_name": "system.rs",
       "file_type": "code",
-      "norm_label": "refcell",
-      "source_file": "",
-      "source_location": ""
+      "norm_label": "tablayout",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L290"
     },
     {
       "id": "dot_local_share_pns_src_system_the_console_key_saying_no_is_an_unlocked_screen_whatever_the_session_array_says",
@@ -51059,6 +51156,17 @@
       "source_location": "L57"
     },
     {
+      "id": "dot_local_share_pns_src_channels_mod_event",
+      "label": "Event",
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "banner.rs",
+      "file_type": "code",
+      "norm_label": "event",
+      "source_file": "dot_local/share/pns/src/channels/mod.rs",
+      "source_location": "L21"
+    },
+    {
       "id": "dot_local_share_pns_src_system_commandrunner",
       "label": "CommandRunner",
       "_origin": "ast",
@@ -53939,17 +54047,6 @@
       "source_location": "L835"
     },
     {
-      "id": "dot_local_share_pns_src_missed_notifications_a_muted_event_the_surface_would_have_decorated_is_the_journals_queue",
-      "label": "a_muted_event_the_surface_would_have_decorated_is_the_journals_queue()",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "missed_notifications.rs",
-      "file_type": "code",
-      "norm_label": "a_muted_event_the_surface_would_have_decorated_is_the_journals_queue()",
-      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
-      "source_location": "L632"
-    },
-    {
       "id": "dot_local_share_pns_src_missed_notifications_a_plan_that_decorated_nothing_with_nobody_watching_the_pane_is_missed",
       "label": "a_plan_that_decorated_nothing_with_nobody_watching_the_pane_is_missed()",
       "_origin": "ast",
@@ -54159,17 +54256,6 @@
       "source_location": "L584"
     },
     {
-      "id": "dot_local_share_pns_src_missed_notifications_decided",
-      "label": "decided()",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "missed_notifications.rs",
-      "file_type": "code",
-      "norm_label": "decided()",
-      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
-      "source_location": "L516"
-    },
-    {
       "id": "dot_local_share_pns_src_missed_notifications_entries",
       "label": "entries()",
       "_origin": "ast",
@@ -54245,17 +54331,6 @@
       "norm_label": "every_text_field_is_flattened_and_cut_to_the_cap_a_card_renders()",
       "source_file": "dot_local/share/pns/src/missed_notifications.rs",
       "source_location": "L853"
-    },
-    {
-      "id": "dot_local_share_pns_src_missed_notifications_is_present",
-      "label": "is_present()",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "missed_notifications.rs",
-      "file_type": "code",
-      "norm_label": "is_present()",
-      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
-      "source_location": "L133"
     },
     {
       "id": "dot_local_share_pns_src_missed_notifications_joined",
@@ -54401,17 +54476,6 @@
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_missed_notifications_should_replay",
-      "label": "should_replay()",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "missed_notifications.rs",
-      "file_type": "code",
-      "norm_label": "should_replay()",
-      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
-      "source_location": "L113"
-    },
-    {
       "id": "dot_local_share_pns_src_missed_notifications_sized",
       "label": "sized()",
       "_origin": "ast",
@@ -54509,17 +54573,6 @@
       "norm_label": "waiting_line()",
       "source_file": "dot_local/share/pns/src/missed_notifications.rs",
       "source_location": "L463"
-    },
-    {
-      "id": "dot_local_share_pns_src_missed_notifications_was_missed",
-      "label": "was_missed()",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "missed_notifications.rs",
-      "file_type": "code",
-      "norm_label": "was_missed()",
-      "source_file": "dot_local/share/pns/src/missed_notifications.rs",
-      "source_location": "L79"
     },
     {
       "id": "dot_local_share_pns_src_missed_notifications_with_counts",
@@ -55461,15 +55514,37 @@
       "source_location": "L615"
     },
     {
-      "id": "dot_local_share_pns_src_main_advance_marker",
-      "label": "advance_marker()",
+      "id": "dot_local_share_pns_src_main_abandoned_hold",
+      "label": "abandoned_hold()",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "advance_marker()",
+      "norm_label": "abandoned_hold()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L550"
+      "source_location": "L1143"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_act",
+      "label": "act()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "act()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5281"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_activity_in",
+      "label": "activity_in()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "activity_in()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L757"
     },
     {
       "id": "dot_local_share_pns_src_main_advance_streak",
@@ -55483,15 +55558,26 @@
       "source_location": "L4947"
     },
     {
-      "id": "dot_local_share_pns_src_main_arm_nag",
-      "label": "arm_nag()",
+      "id": "dot_local_share_pns_src_main_bounded",
+      "label": "Bounded",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "arm_nag()",
+      "norm_label": "bounded",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3887"
+      "source_location": "L5197"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_claim_by_rename",
+      "label": "claim_by_rename()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "claim_by_rename()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1202"
     },
     {
       "id": "dot_local_share_pns_src_main_claim_fire",
@@ -55505,6 +55591,17 @@
       "source_location": "L4092"
     },
     {
+      "id": "dot_local_share_pns_src_main_claim_journal",
+      "label": "claim_journal()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "claim_journal()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1088"
+    },
+    {
       "id": "dot_local_share_pns_src_main_claim_record",
       "label": "claim_record()",
       "_origin": "ast",
@@ -55516,26 +55613,48 @@
       "source_location": "L4047"
     },
     {
-      "id": "dot_local_share_pns_src_main_condense",
-      "label": "condense()",
+      "id": "dot_local_share_pns_src_main_claimed",
+      "label": "Claimed",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "condense()",
+      "norm_label": "claimed",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1682"
+      "source_location": "L1023"
     },
     {
-      "id": "dot_local_share_pns_src_main_condenser_home",
-      "label": "condenser_home()",
+      "id": "dot_local_share_pns_src_main_claimed_entries",
+      "label": ".entries()",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "condenser_home()",
+      "norm_label": ".entries()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1721"
+      "source_location": "L1043"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_drain_spool",
+      "label": "drain_spool()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "drain_spool()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5230"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_fire",
+      "label": "fire()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "fire()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5351"
     },
     {
       "id": "dot_local_share_pns_src_main_fire_lock_aged_out",
@@ -55549,6 +55668,28 @@
       "source_location": "L4135"
     },
     {
+      "id": "dot_local_share_pns_src_main_kill_group",
+      "label": "kill_group()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "kill_group()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5457"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_last_interaction",
+      "label": "last_interaction()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "last_interaction()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L4809"
+    },
+    {
       "id": "dot_local_share_pns_src_main_lights_house",
       "label": "lights_house()",
       "_origin": "ast",
@@ -55560,6 +55701,17 @@
       "source_location": "L4756"
     },
     {
+      "id": "dot_local_share_pns_src_main_mark_present",
+      "label": "mark_present()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "mark_present()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L519"
+    },
+    {
       "id": "dot_local_share_pns_src_main_marker_path",
       "label": "marker_path()",
       "_origin": "ast",
@@ -55569,6 +55721,17 @@
       "norm_label": "marker_path()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L4161"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_moment",
+      "label": "Moment",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "moment",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L776"
     },
     {
       "id": "dot_local_share_pns_src_main_nag_mode",
@@ -55626,6 +55789,17 @@
       "source_location": "L566"
     },
     {
+      "id": "dot_local_share_pns_src_main_reap",
+      "label": "reap()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "reap()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5432"
+    },
+    {
       "id": "dot_local_share_pns_src_main_record_entries",
       "label": "record_entries()",
       "_origin": "ast",
@@ -55637,15 +55811,15 @@
       "source_location": "L4010"
     },
     {
-      "id": "dot_local_share_pns_src_main_recorded",
-      "label": "recorded()",
+      "id": "dot_local_share_pns_src_main_release",
+      "label": "release()",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "recorded()",
+      "norm_label": "release()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6988"
+      "source_location": "L5332"
     },
     {
       "id": "dot_local_share_pns_src_main_release_fire",
@@ -55659,15 +55833,26 @@
       "source_location": "L4149"
     },
     {
-      "id": "dot_local_share_pns_src_main_resolve_path",
-      "label": "resolve_path()",
+      "id": "dot_local_share_pns_src_main_rs_btreeset",
+      "label": "BTreeSet",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "resolve_path()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3163"
+      "norm_label": "btreeset",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_main_rs_entry",
+      "label": "Entry",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "entry",
+      "source_file": "",
+      "source_location": ""
     },
     {
       "id": "dot_local_share_pns_src_main_rs_path",
@@ -55692,15 +55877,26 @@
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_main_stranded_window_claim",
-      "label": "stranded_window_claim()",
+      "id": "dot_local_share_pns_src_main_rs_vec",
+      "label": "Vec",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "stranded_window_claim()",
+      "norm_label": "vec",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_main_stranded_claims",
+      "label": "stranded_claims()",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "Path",
+      "file_type": "code",
+      "norm_label": "stranded_claims()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L885"
+      "source_location": "L1110"
     },
     {
       "id": "dot_local_share_pns_src_main_strandedwindow",
@@ -55736,17 +55932,6 @@
       "source_location": "L4321"
     },
     {
-      "id": "dot_local_share_pns_src_main_sweep_legacy_state",
-      "label": "sweep_legacy_state()",
-      "_origin": "ast",
-      "community": 63,
-      "community_name": "Path",
-      "file_type": "code",
-      "norm_label": "sweep_legacy_state()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5046"
-    },
-    {
       "id": "dot_local_share_pns_src_main_sweep_shell_markers",
       "label": "sweep_shell_markers()",
       "_origin": "ast",
@@ -55758,15 +55943,15 @@
       "source_location": "L4874"
     },
     {
-      "id": "dot_local_share_pns_src_main_window_claim_is_free",
-      "label": "window_claim_is_free()",
+      "id": "dot_local_share_pns_src_main_take_claim",
+      "label": "take_claim()",
       "_origin": "ast",
       "community": 63,
       "community_name": "Path",
       "file_type": "code",
-      "norm_label": "window_claim_is_free()",
+      "norm_label": "take_claim()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L932"
+      "source_location": "L1246"
     },
     {
       "id": "dot_local_share_pns_src_main_write_marker",
@@ -57159,7 +57344,7 @@
       "label": "args.rs",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "args.rs",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57170,7 +57355,7 @@
       "label": "a_recognized_flag_is_never_consumed_as_a_value()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "a_recognized_flag_is_never_consumed_as_a_value()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57181,7 +57366,7 @@
       "label": "a_trailing_value_flag_is_warned_and_ignored()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "a_trailing_value_flag_is_warned_and_ignored()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57192,7 +57377,7 @@
       "label": "an_unrecognized_token_is_still_taken_as_a_value()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "an_unrecognized_token_is_still_taken_as_a_value()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57203,7 +57388,7 @@
       "label": "args()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "args()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57214,7 +57399,7 @@
       "label": "EventArgs",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "eventargs",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57225,7 +57410,7 @@
       "label": "every_value_flag_lands_in_its_field()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "every_value_flag_lands_in_its_field()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57236,7 +57421,7 @@
       "label": "parse_args()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "parse_args()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57247,7 +57432,7 @@
       "label": "String",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "string",
       "source_file": "",
@@ -57258,7 +57443,7 @@
       "label": "Vec",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "vec",
       "source_file": "",
@@ -57269,7 +57454,7 @@
       "label": "the_channel_flag_names_a_route_and_is_protected_like_every_value_flag()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "the_channel_flag_names_a_route_and_is_protected_like_every_value_flag()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57280,7 +57465,7 @@
       "label": "the_long_running_flag_is_protected_from_being_eaten_like_every_other_one()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "the_long_running_flag_is_protected_from_being_eaten_like_every_other_one()",
       "source_file": "dot_local/share/pns/src/args.rs",
@@ -57291,251 +57476,207 @@
       "label": "unknown_arguments_are_skipped_in_silence()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "unknown_arguments_are_skipped_in_silence()",
       "source_file": "dot_local/share/pns/src/args.rs",
       "source_location": "L184"
     },
     {
-      "id": "dot_local_share_pns_src_channels_hermes_ureqsignedpost",
-      "label": "UreqSignedPost",
+      "id": "dot_local_share_pns_src_main_append_ring_line",
+      "label": "append_ring_line()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "ureqsignedpost",
-      "source_file": "dot_local/share/pns/src/channels/hermes.rs",
-      "source_location": "L253"
-    },
-    {
-      "id": "dot_local_share_pns_src_channels_mod_delivery",
-      "label": "Delivery",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "delivery",
-      "source_file": "dot_local/share/pns/src/channels/mod.rs",
-      "source_location": "L72"
-    },
-    {
-      "id": "dot_local_share_pns_src_channels_mod_delivery_line_for",
-      "label": ".line_for()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": ".line_for()",
-      "source_file": "dot_local/share/pns/src/channels/mod.rs",
-      "source_location": "L97"
-    },
-    {
-      "id": "dot_local_share_pns_src_channels_mod_rs_option",
-      "label": "Option",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "option",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_channels_mod_rs_string",
-      "label": "String",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "string",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_channels_moshi_moshichannel",
-      "label": "MoshiChannel",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "moshichannel",
-      "source_file": "dot_local/share/pns/src/channels/moshi.rs",
-      "source_location": "L88"
-    },
-    {
-      "id": "dot_local_share_pns_src_decision_log_record",
-      "label": "Record",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "record",
-      "source_file": "dot_local/share/pns/src/decision_log.rs",
-      "source_location": "L37"
-    },
-    {
-      "id": "dot_local_share_pns_src_decision_log_verdicts",
-      "label": "verdicts()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "verdicts()",
-      "source_file": "dot_local/share/pns/src/decision_log.rs",
-      "source_location": "L146"
-    },
-    {
-      "id": "dot_local_share_pns_src_engine_decision",
-      "label": "Decision",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "decision",
-      "source_file": "dot_local/share/pns/src/engine.rs",
-      "source_location": "L116"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_deliver",
-      "label": "deliver()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "deliver()",
+      "norm_label": "append_ring_line()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3197"
+      "source_location": "L1311"
     },
     {
-      "id": "dot_local_share_pns_src_main_deliver_leg",
-      "label": "deliver_leg()",
+      "id": "dot_local_share_pns_src_main_attempt",
+      "label": "Attempt",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "deliver_leg()",
+      "norm_label": "attempt",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3136"
+      "source_location": "L2183"
     },
     {
-      "id": "dot_local_share_pns_src_main_deliver_recap",
-      "label": "deliver_recap()",
+      "id": "dot_local_share_pns_src_main_ends_mid_line",
+      "label": "ends_mid_line()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "deliver_recap()",
+      "norm_label": "ends_mid_line()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6527"
+      "source_location": "L1395"
     },
     {
-      "id": "dot_local_share_pns_src_main_dispatch_legs",
-      "label": "dispatch_legs()",
+      "id": "dot_local_share_pns_src_main_event_mode",
+      "label": "event_mode()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "dispatch_legs()",
+      "norm_label": "event_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2583"
+      "source_location": "L2158"
     },
     {
-      "id": "dot_local_share_pns_src_main_hermes_channel",
-      "label": "hermes_channel()",
+      "id": "dot_local_share_pns_src_main_focus_line",
+      "label": "focus_line()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "hermes_channel()",
+      "norm_label": "focus_line()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3091"
+      "source_location": "L5841"
     },
     {
-      "id": "dot_local_share_pns_src_main_hermes_url_for",
-      "label": "hermes_url_for()",
+      "id": "dot_local_share_pns_src_main_focus_now",
+      "label": "focus_now()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "hermes_url_for()",
+      "norm_label": "focus_now()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3107"
+      "source_location": "L6772"
     },
     {
-      "id": "dot_local_share_pns_src_main_post_recap",
-      "label": "post_recap()",
+      "id": "dot_local_share_pns_src_main_focusreading",
+      "label": "FocusReading",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "post_recap()",
+      "norm_label": "focusreading",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6497"
+      "source_location": "L6731"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_missed_line",
+      "label": "missed_line()",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "run_event",
+      "file_type": "code",
+      "norm_label": "missed_line()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5804"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_readable_ring",
+      "label": "readable_ring()",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "run_event",
+      "file_type": "code",
+      "norm_label": "readable_ring()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1429"
     },
     {
       "id": "dot_local_share_pns_src_main_record_activity",
       "label": "record_activity()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "record_activity()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L477"
     },
     {
+      "id": "dot_local_share_pns_src_main_record_decision",
+      "label": "record_decision()",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "run_event",
+      "file_type": "code",
+      "norm_label": "record_decision()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L345"
+    },
+    {
       "id": "dot_local_share_pns_src_main_record_missed",
       "label": "record_missed()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "record_missed()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L370"
     },
     {
-      "id": "dot_local_share_pns_src_main_refused",
-      "label": "refused()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "dispatch_legs",
-      "file_type": "code",
-      "norm_label": "refused()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6562"
-    },
-    {
       "id": "dot_local_share_pns_src_main_rendered_event",
       "label": "rendered_event()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "rendered_event()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L2681"
     },
     {
-      "id": "dot_local_share_pns_src_routing_leg",
-      "label": "Leg",
+      "id": "dot_local_share_pns_src_main_republish_after",
+      "label": "republish_after()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "leg",
-      "source_file": "dot_local/share/pns/src/routing.rs",
-      "source_location": "L53"
+      "norm_label": "republish_after()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L1384"
     },
     {
-      "id": "h",
-      "label": "H",
+      "id": "dot_local_share_pns_src_main_rs_error",
+      "label": "Error",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
-      "norm_label": "h",
+      "norm_label": "error",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_main_rs_result",
+      "label": "Result",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "run_event",
+      "file_type": "code",
+      "norm_label": "result",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_main_run_event",
+      "label": "run_event()",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "run_event",
+      "file_type": "code",
+      "norm_label": "run_event()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L2197"
+    },
+    {
+      "id": "errorkind",
+      "label": "ErrorKind",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "run_event",
+      "file_type": "code",
+      "norm_label": "errorkind",
       "source_file": "",
       "source_location": ""
     },
@@ -57544,9 +57685,20 @@
       "label": "I",
       "_origin": "ast",
       "community": 69,
-      "community_name": "dispatch_legs",
+      "community_name": "run_event",
       "file_type": "code",
       "norm_label": "i",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "record",
+      "label": "Record",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "run_event",
+      "file_type": "code",
+      "norm_label": "record",
       "source_file": "",
       "source_location": ""
     },
@@ -60374,6 +60526,28 @@
       "source_location": "L961"
     },
     {
+      "id": "dot_local_share_pns_src_system_countingrunner",
+      "label": "CountingRunner",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": "countingrunner",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L679"
+    },
+    {
+      "id": "dot_local_share_pns_src_system_countingrunner_run",
+      "label": ".run()",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": ".run()",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L685"
+    },
+    {
       "id": "dot_local_share_pns_src_system_fakerunner",
       "label": "FakeRunner",
       "_origin": "ast",
@@ -60440,6 +60614,50 @@
       "source_location": "L920"
     },
     {
+      "id": "dot_local_share_pns_src_system_read_under_a_4096_byte_cap",
+      "label": "read_under_a_4096_byte_cap()",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": "read_under_a_4096_byte_cap()",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L598"
+    },
+    {
+      "id": "dot_local_share_pns_src_system_rs_cell",
+      "label": "Cell",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": "cell",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_system_rs_command",
+      "label": "Command",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": "command",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_system_rs_duration",
+      "label": "Duration",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": "duration",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
       "id": "dot_local_share_pns_src_system_rs_r",
       "label": "R",
       "_origin": "ast",
@@ -60462,15 +60680,37 @@
       "source_location": ""
     },
     {
-      "id": "dot_local_share_pns_src_system_systemprobes",
-      "label": "SystemProbes",
+      "id": "dot_local_share_pns_src_system_rs_string",
+      "label": "String",
       "_origin": "ast",
       "community": 78,
       "community_name": ".new",
       "file_type": "code",
-      "norm_label": "systemprobes",
+      "norm_label": "string",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "dot_local_share_pns_src_system_run_bounded",
+      "label": "run_bounded()",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": "run_bounded()",
       "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L336"
+      "source_location": "L75"
+    },
+    {
+      "id": "dot_local_share_pns_src_system_systemcommandrunner_run",
+      "label": ".run()",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": ".new",
+      "file_type": "code",
+      "norm_label": ".run()",
+      "source_file": "dot_local/share/pns/src/system.rs",
+      "source_location": "L43"
     },
     {
       "id": "dot_local_share_pns_src_system_systemprobes_r_marker_mtime_secs",
@@ -60539,13 +60779,13 @@
       "source_location": "L943"
     },
     {
-      "id": "oncecell",
-      "label": "OnceCell",
+      "id": "rc",
+      "label": "Rc",
       "_origin": "ast",
       "community": 78,
       "community_name": ".new",
       "file_type": "code",
-      "norm_label": "oncecell",
+      "norm_label": "rc",
       "source_file": "",
       "source_location": ""
     },
@@ -62660,290 +62900,246 @@
       "source_location": "L1302"
     },
     {
-      "id": "dot_local_share_pns_src_main_append_ring_line",
-      "label": "append_ring_line()",
+      "id": "dot_local_share_pns_src_main_a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it",
+      "label": "a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "append_ring_line()",
+      "norm_label": "a_pending_file_left_behind_wide_open_is_narrowed_before_the_rename_publishes_it()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1311"
+      "source_location": "L7521"
     },
     {
-      "id": "dot_local_share_pns_src_main_banner_channel",
-      "label": "banner_channel()",
+      "id": "dot_local_share_pns_src_main_advance_marker",
+      "label": "advance_marker()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "banner_channel()",
+      "norm_label": "advance_marker()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3063"
+      "source_location": "L550"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_arm_nag",
+      "label": "arm_nag()",
+      "_origin": "ast",
+      "community": 85,
+      "community_name": "state_dir",
+      "file_type": "code",
+      "norm_label": "arm_nag()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L3887"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_daemon_cancel",
+      "label": "daemon_cancel()",
+      "_origin": "ast",
+      "community": 85,
+      "community_name": "state_dir",
+      "file_type": "code",
+      "norm_label": "daemon_cancel()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5650"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_daemon_line",
+      "label": "daemon_line()",
+      "_origin": "ast",
+      "community": 85,
+      "community_name": "state_dir",
+      "file_type": "code",
+      "norm_label": "daemon_line()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5895"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_daemon_mode",
+      "label": "daemon_mode()",
+      "_origin": "ast",
+      "community": 85,
+      "community_name": "state_dir",
+      "file_type": "code",
+      "norm_label": "daemon_mode()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L4206"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_daemon_run",
+      "label": "daemon_run()",
+      "_origin": "ast",
+      "community": 85,
+      "community_name": "state_dir",
+      "file_type": "code",
+      "norm_label": "daemon_run()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5136"
+    },
+    {
+      "id": "dot_local_share_pns_src_main_daemon_schedule",
+      "label": "daemon_schedule()",
+      "_origin": "ast",
+      "community": 85,
+      "community_name": "state_dir",
+      "file_type": "code",
+      "norm_label": "daemon_schedule()",
+      "source_file": "dot_local/share/pns/src/main.rs",
+      "source_location": "L5545"
     },
     {
       "id": "dot_local_share_pns_src_main_decision_section",
       "label": "decision_section()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
       "norm_label": "decision_section()",
       "source_file": "dot_local/share/pns/src/main.rs",
       "source_location": "L5771"
     },
     {
-      "id": "dot_local_share_pns_src_main_disabled_backend_warning",
-      "label": "disabled_backend_warning()",
+      "id": "dot_local_share_pns_src_main_lights_mode",
+      "label": "lights_mode()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "disabled_backend_warning()",
+      "norm_label": "lights_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2795"
+      "source_location": "L4223"
     },
     {
-      "id": "dot_local_share_pns_src_main_disabled_backend_warnings",
-      "label": "disabled_backend_warnings()",
+      "id": "dot_local_share_pns_src_main_lights_quiet",
+      "label": "lights_quiet()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "disabled_backend_warnings()",
+      "norm_label": "lights_quiet()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L2804"
+      "source_location": "L4367"
     },
     {
-      "id": "dot_local_share_pns_src_main_ends_mid_line",
-      "label": "ends_mid_line()",
+      "id": "dot_local_share_pns_src_main_loop_mode",
+      "label": "loop_mode()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "ends_mid_line()",
+      "norm_label": "loop_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1395"
+      "source_location": "L4250"
     },
     {
-      "id": "dot_local_share_pns_src_main_executable_in_path",
-      "label": "executable_in_path()",
+      "id": "dot_local_share_pns_src_main_main",
+      "label": "main()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "executable_in_path()",
+      "norm_label": "main()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3174"
+      "source_location": "L40"
     },
     {
-      "id": "dot_local_share_pns_src_main_focus_line",
-      "label": "focus_line()",
+      "id": "dot_local_share_pns_src_main_now_secs",
+      "label": "now_secs()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "focus_line()",
+      "norm_label": "now_secs()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5841"
+      "source_location": "L2054"
     },
     {
-      "id": "dot_local_share_pns_src_main_focus_now",
-      "label": "focus_now()",
+      "id": "dot_local_share_pns_src_main_publish_muted",
+      "label": "publish_muted()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "focus_now()",
+      "norm_label": "publish_muted()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6772"
+      "source_location": "L4470"
     },
     {
-      "id": "dot_local_share_pns_src_main_focusreading",
-      "label": "FocusReading",
+      "id": "dot_local_share_pns_src_main_publish_state_line",
+      "label": "publish_state_line()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "focusreading",
+      "norm_label": "publish_state_line()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6731"
+      "source_location": "L305"
     },
     {
-      "id": "dot_local_share_pns_src_main_missed_line",
-      "label": "missed_line()",
+      "id": "dot_local_share_pns_src_main_quiet_mode",
+      "label": "quiet_mode()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "missed_line()",
+      "norm_label": "quiet_mode()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L5804"
+      "source_location": "L6598"
     },
     {
-      "id": "dot_local_share_pns_src_main_moshi_channel",
-      "label": "moshi_channel()",
+      "id": "dot_local_share_pns_src_main_register_lights_tick",
+      "label": "register_lights_tick()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "moshi_channel()",
+      "norm_label": "register_lights_tick()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3082"
+      "source_location": "L2534"
     },
     {
-      "id": "dot_local_share_pns_src_main_readable_ring",
-      "label": "readable_ring()",
+      "id": "dot_local_share_pns_src_main_remember_staleness",
+      "label": "remember_staleness()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "readable_ring()",
+      "norm_label": "remember_staleness()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1429"
+      "source_location": "L285"
     },
     {
-      "id": "dot_local_share_pns_src_main_record_decision",
-      "label": "record_decision()",
+      "id": "dot_local_share_pns_src_main_second_argument",
+      "label": "second_argument()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "record_decision()",
+      "norm_label": "second_argument()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L345"
+      "source_location": "L120"
     },
     {
-      "id": "dot_local_share_pns_src_main_republish_after",
-      "label": "republish_after()",
+      "id": "dot_local_share_pns_src_main_state_dir",
+      "label": "state_dir()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "republish_after()",
+      "norm_label": "state_dir()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L1384"
+      "source_location": "L263"
     },
     {
-      "id": "dot_local_share_pns_src_main_rs_agent",
-      "label": "Agent",
+      "id": "dot_local_share_pns_src_main_update_blocked_marker",
+      "label": "update_blocked_marker()",
       "_origin": "ast",
       "community": 85,
-      "community_name": "String",
+      "community_name": "state_dir",
       "file_type": "code",
-      "norm_label": "agent",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_main_rs_error",
-      "label": "Error",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": "error",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_main_rs_result",
-      "label": "Result",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": "result",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_main_rs_string",
-      "label": "String",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": "string",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_main_ureqbridge",
-      "label": "UreqBridge",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": "ureqbridge",
+      "norm_label": "update_blocked_marker()",
       "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6793"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_ureqbridge_agent",
-      "label": ".agent()",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": ".agent()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6799"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_ureqbridge_get",
-      "label": ".get()",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": ".get()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6821"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_ureqbridge_put",
-      "label": ".put()",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": ".put()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L6832"
-    },
-    {
-      "id": "dot_local_share_pns_src_main_url_from_env",
-      "label": "url_from_env()",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": "url_from_env()",
-      "source_file": "dot_local/share/pns/src/main.rs",
-      "source_location": "L3127"
-    },
-    {
-      "id": "errorkind",
-      "label": "ErrorKind",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": "errorkind",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "record",
-      "label": "Record",
-      "_origin": "ast",
-      "community": 85,
-      "community_name": "String",
-      "file_type": "code",
-      "norm_label": "record",
-      "source_file": "",
-      "source_location": ""
+      "source_location": "L428"
     },
     {
       "id": "dot_local_share_pns_src_safety",
@@ -63155,28 +63351,6 @@
       "source_location": "L175"
     },
     {
-      "id": "dot_local_share_pns_src_system_countingrunner",
-      "label": "CountingRunner",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "countingrunner",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L679"
-    },
-    {
-      "id": "dot_local_share_pns_src_system_countingrunner_run",
-      "label": ".run()",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": ".run()",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L685"
-    },
-    {
       "id": "dot_local_share_pns_src_system_exactargvrunner_run",
       "label": ".run()",
       "_origin": "ast",
@@ -63199,17 +63373,6 @@
       "source_location": "L200"
     },
     {
-      "id": "dot_local_share_pns_src_system_parse_layout",
-      "label": "parse_layout()",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "parse_layout()",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L308"
-    },
-    {
       "id": "dot_local_share_pns_src_system_parse_screen_locked",
       "label": "parse_screen_locked()",
       "_origin": "ast",
@@ -63221,50 +63384,6 @@
       "source_location": "L224"
     },
     {
-      "id": "dot_local_share_pns_src_system_read_under_a_4096_byte_cap",
-      "label": "read_under_a_4096_byte_cap()",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "read_under_a_4096_byte_cap()",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L598"
-    },
-    {
-      "id": "dot_local_share_pns_src_system_rs_cell",
-      "label": "Cell",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "cell",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_system_rs_command",
-      "label": "Command",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "command",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_system_rs_duration",
-      "label": "Duration",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "duration",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
       "id": "dot_local_share_pns_src_system_rs_option",
       "label": "Option",
       "_origin": "ast",
@@ -63274,39 +63393,6 @@
       "norm_label": "option",
       "source_file": "",
       "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_system_rs_string",
-      "label": "String",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "string",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "dot_local_share_pns_src_system_run_bounded",
-      "label": "run_bounded()",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "run_bounded()",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L75"
-    },
-    {
-      "id": "dot_local_share_pns_src_system_systemcommandrunner_run",
-      "label": ".run()",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": ".run()",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L43"
     },
     {
       "id": "dot_local_share_pns_src_system_systemprobes_r_herdr",
@@ -63364,17 +63450,6 @@
       "source_location": "L377"
     },
     {
-      "id": "dot_local_share_pns_src_system_tablayout",
-      "label": "TabLayout",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "tablayout",
-      "source_file": "dot_local/share/pns/src/system.rs",
-      "source_location": "L290"
-    },
-    {
       "id": "dot_local_share_pns_src_system_the_idle_probe_argv_matches_the_bash_original",
       "label": "the_idle_probe_argv_matches_the_bash_original()",
       "_origin": "ast",
@@ -63406,17 +63481,6 @@
       "norm_label": "utc_timestamp()",
       "source_file": "dot_local/share/pns/src/system.rs",
       "source_location": "L556"
-    },
-    {
-      "id": "rc",
-      "label": "Rc",
-      "_origin": "ast",
-      "community": 87,
-      "community_name": "Option",
-      "file_type": "code",
-      "norm_label": "rc",
-      "source_file": "",
-      "source_location": ""
     },
     {
       "id": "docs_research_2026_04_13_sesh_deep_dive",
@@ -169553,6 +169617,50 @@
       "weight": 1.0
     },
     {
+      "source": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill",
+      "target": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_loop",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_loop",
+      "target": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_take_the_lease_first",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_loop",
+      "target": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_then_set_the_work_up",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L26",
+      "weight": 1.0
+    },
+    {
+      "source": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_loop",
+      "target": "private_dot_claude_pns_marketplace_plugins_pns_skills_loop_skill_give_the_lease_back_at_the_end",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
       "source": "readme",
       "target": "readme_dotfiles_for_webdavis",
       "relation": "contains",
@@ -183886,5 +183994,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "5e47105a817c9d941a33192f8cb2bb8660df4a41"
+  "built_at_commit": "7359bf251d44975b18d94c6fc794d1db1bc83c21"
 }

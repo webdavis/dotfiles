@@ -418,6 +418,10 @@ shows = ["done", "failed"]
 dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unread", "loop"]
 
+# Each of these states which behaviours it carries and NOTHING about quiet
+# hours, so it keeps inheriting its room's window: the two questions resolve
+# independently, and restating the window here would be one more place to keep
+# in agreement with the room.
 [lights.lamp."3F - Studio - HCL3"]
 shows = ["loop", "blocked", "unread"]
 
@@ -430,8 +434,6 @@ dim_behaviours = []
 
 [lights.lamp."3F - Master Bedroom - HCL3"]
 shows = ["loop", "blocked", "unread"]
-dim_window = "22:00-07:00"
-dim_behaviours = []
 
 [lights.room."2F - Kitchen"]
 shows = ["done", "failed"]
@@ -443,8 +445,6 @@ dim_behaviours = ["blocked", "unread", "loop"]
 # a blink on the lamp holding one.
 [lights.lamp."2F - Kitchen - HCD6"]
 shows = ["loop", "blocked", "unread", "done", "failed"]
-dim_window = "22:00-07:00"
-dim_behaviours = ["blocked", "unread", "loop"]
 
 [lights.lamp."1F - Front Door - HCL1"]
 shows = ["loop", "blocked", "unread"]

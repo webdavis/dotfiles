@@ -3278,7 +3278,7 @@ mod tests {
     /// THE ONE EDIT THAT MOVES IT is the template documenting a key more or a
     /// key fewer, in which case this number moves with it. A change here for
     /// any other reason is the scan breaking rather than the template changing.
-    const TEMPLATE_KEY_PAIRS: usize = 69;
+    const TEMPLATE_KEY_PAIRS: usize = 65;
 
     #[test]
     fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {

@@ -2993,9 +2993,10 @@ fn hue_resolves(hue_table: Option<&toml::Table>) -> bool {
 /// which of its five states this machine is in.
 ///
 /// THE BRIDGE IS DIALLED HERE, and only here, and only for a config that has
-/// asked for the lamps AND enabled hue AND named a bridge. A rooms-only map
-/// costs the one GET the pulse has always made; a map naming a lamp costs the
-/// device join as well, and nothing else in this binary takes either.
+/// asked for the lamps AND enabled hue AND named a bridge. It costs the three
+/// listings the routing resolves from, whatever the map says: arbitration and
+/// the dim window are per lamp, so the joins are needed by every config that
+/// routes anything at all.
 ///
 /// BEHIND THE PANIC BOUNDARY every other bridge call gets, for `pulse_outcome`'s
 /// reason: a panicking call must cost this section its lines rather than end
@@ -3003,10 +3004,9 @@ fn hue_resolves(hue_table: Option<&toml::Table>) -> bool {
 /// resolved no lamp, which is what the unreachable line says.
 ///
 /// THE COST, NAMED: each GET is bounded by `BRIDGE_DEADLINE`, so a bridge that
-/// accepts and never answers adds up to ten seconds to `pns doctor`, or twenty
-/// for a map that needs the device join. That is the same order as the pairing
-/// check's own two deadlines and it is paid only by a machine that wrote the
-/// table.
+/// accepts and never answers adds up to thirty seconds to `pns doctor`. That is
+/// the same order as the pairing check's own two deadlines and it is paid only
+/// by a machine that wrote the table.
 fn lights_report(
     lights: Option<&pns::config::Lights>,
     hue_table: Option<&toml::Table>,
