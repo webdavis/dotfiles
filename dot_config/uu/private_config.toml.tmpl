@@ -40,6 +40,7 @@ binary = "{{ .chezmoi.homeDir }}/.local/libexec/pns/pns"
 # next apply. Local plugins are built from source at apply time and are not
 # listed here.
 [lanes.herdr]
+type = "herdr"
 binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
 plugins = [
 {{- range .packages.herdr_plugins }}

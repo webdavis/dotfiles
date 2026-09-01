@@ -14,10 +14,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use pns::channels::hermes::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign};
+use pns::channels::hermes::{SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 use unattended_upgrades::alert::{Alerter, alert_argv, alert_summary};
 use unattended_upgrades::config::{
-    Config, ConfigError, LANE_NAMES, LoadOutcome, Records, config_path, load_config,
+    Config, ConfigError, LANE_TYPES, LoadOutcome, Records, config_path, load_config,
 };
 use unattended_upgrades::lanes::{
     CommandRunner, LaneReport, enabled_lanes, failure_reason, run_lane,
@@ -62,8 +62,8 @@ fn usage(problem: &str) -> i32 {
            uu run [<lane>]     run every enabled lane, or just one\n  \
            uu doctor           what this config turns on, and what it cannot reach\n  \
            uu schedule render  the launchd job for the configured day and time\n\
-         lanes: {}",
-        LANE_NAMES.join(", ")
+         lane types: {}",
+        LANE_TYPES.join(", ")
     );
     2
 }
@@ -80,11 +80,6 @@ fn run_mode(only: Option<&str>) -> i32 {
         eprintln!("uu: HOME is not set, so there is no config to read");
         return 1;
     };
-    if let Some(lane) = only
-        && !LANE_NAMES.contains(&lane)
-    {
-        return usage(&format!("`{lane}` is not a lane this build runs"));
-    }
 
     let path = config_path(&home);
     let config = match loaded(&path) {
@@ -139,7 +134,12 @@ fn run_mode(only: Option<&str>) -> i32 {
 
     let engine = config.alerts.as_ref().map(|alerts| alerts.binary.clone());
     for report in reports.iter().filter(|report| report.failures > 0) {
-        send_alert(&PnsAlerter, engine.as_deref(), &report.name, &alert_summary(report));
+        send_alert(
+            &PnsAlerter,
+            engine.as_deref(),
+            &report.name,
+            &alert_summary(report),
+        );
     }
 
     // A RECORD THE GATEWAY NEVER RECEIVED IS A FAILED RUN, even when every
@@ -208,10 +208,12 @@ fn doctor_mode() -> i32 {
         Err(code) => return code,
     };
 
-    let enabled = enabled_lanes(&config);
-    for name in LANE_NAMES {
-        let state = if enabled.contains(name) { "on" } else { "off" };
-        println!("uu: lane {name}: {state}");
+    if config.lanes.is_empty() {
+        println!("uu: lanes: none declared");
+    } else {
+        for (name, kind) in &config.lanes {
+            println!("uu: lane {name}: on ({})", kind.type_name());
+        }
     }
     match config.records.as_ref() {
         // THE KEY IS NEVER PRINTED, only whether there is one.
@@ -545,6 +547,7 @@ mod tests {
 
     // --- the record and alert seams --------------------------------------
 
+    use pns::channels::hermes::PostOutcome;
     use std::cell::RefCell;
 
     /// A `SignedPost` stub that always answers the same fixed outcome. It

@@ -189,6 +189,17 @@ fn the_doctor_never_prints_the_records_signing_key() {
 }
 
 #[test]
+fn the_doctor_lists_each_declared_lane_with_its_type() {
+    let home = Home::new("doctor-lanes").with_config("[lanes.herdr]\ntype = \"herdr\"\n");
+    let output = home.uu(&["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        stdout(&output).contains("lane herdr: on (herdr)"),
+        "{output:?}"
+    );
+}
+
+#[test]
 fn an_unknown_command_is_usage_on_stderr_and_exit_two() {
     let home = Home::new("usage");
     let output = home.uu(&["bogus"]);
