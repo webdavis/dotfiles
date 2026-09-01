@@ -252,15 +252,7 @@ fn schedule_mode() -> i32 {
         Ok(None) => Config::default(),
         Err(code) => return code,
     };
-    print!(
-        "{}",
-        render_plist(
-            DEFAULT_LABEL,
-            &installed_binary(&home).display().to_string(),
-            &log_path(&home).display().to_string(),
-            config.schedule,
-        )
-    );
+    print!("{}", render_plist(DEFAULT_LABEL, &home, config.schedule));
     0
 }
 
@@ -291,14 +283,6 @@ fn home() -> Option<String> {
 
 fn marker_path(home: &str) -> PathBuf {
     Path::new(home).join(".local/state/uu/last-success")
-}
-
-fn installed_binary(home: &str) -> PathBuf {
-    Path::new(home).join(".local/libexec/uu/uu")
-}
-
-fn log_path(home: &str) -> PathBuf {
-    Path::new(home).join(".local/log/uu/uu.log")
 }
 
 /// This instant in epoch seconds, or `None` for a clock set before 1970. The
