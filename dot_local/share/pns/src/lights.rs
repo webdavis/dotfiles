@@ -184,14 +184,22 @@ pub fn parse_news(line: &str) -> Option<News> {
 /// IT IS WRITTEN WHATEVER THE DELIVERY DID. A card that was suppressed, muted
 /// or dropped is exactly the news this lamp exists to carry, so the record is
 /// not a function of whether anything was delivered.
+///
+/// AND AN EPOCH ONLY EVER MOVES FORWARD. Two events land together often enough
+/// (an agent that finished beside one that died), each reads the record and
+/// publishes the whole line, so a run that was slow to publish would otherwise
+/// put an OLDER second back over a newer one. What that costs is the lamp's
+/// colour: a failure recorded and then overwritten is red the operator never
+/// sees, and a success pushed backwards arms its lamp before it should.
 pub fn news_after(held: News, behaviour: crate::config::Behaviour, now: u64) -> Option<News> {
+    let forward = |at: Option<u64>| at.max(Some(now));
     match behaviour {
         crate::config::Behaviour::Done => Some(News {
-            done_at: Some(now),
+            done_at: forward(held.done_at),
             ..held
         }),
         crate::config::Behaviour::Failed => Some(News {
-            failed_at: Some(now),
+            failed_at: forward(held.failed_at),
             ..held
         }),
         crate::config::Behaviour::Blocked
@@ -1169,6 +1177,36 @@ mod tests {
         ] {
             assert_eq!(parse_news(garbled), None, "{garbled:?} is not news");
         }
+    }
+
+    #[test]
+    fn the_news_record_only_ever_moves_an_epoch_forward() {
+        // TWO PROCESSES WRITE THIS RECORD, and they are two events landing
+        // together: an agent that finished beside one that died. Each reads,
+        // changes its own field and publishes the whole line, so the slower
+        // reader can put an OLDER second back over a newer one. What that costs
+        // is the unread lamp's colour: a failure recorded at the newer second
+        // and then overwritten with the older one is red the lamp never shows,
+        // or a success armed five minutes before it should be.
+        let held = News {
+            done_at: Some(2_000),
+            failed_at: Some(2_100),
+        };
+        assert_eq!(
+            news_after(held, Behaviour::Done, 1_000),
+            Some(held),
+            "a run publishing late leaves the newer second where it is"
+        );
+        assert_eq!(
+            news_after(held, Behaviour::Failed, 1_000),
+            Some(held),
+            "and so does the other kind"
+        );
+        assert_eq!(
+            news_after(held, Behaviour::Done, 2_000),
+            Some(held),
+            "the same second is not forward either, so a repeat writes nothing new"
+        );
     }
 
     #[test]

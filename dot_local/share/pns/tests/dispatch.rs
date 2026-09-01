@@ -1917,6 +1917,53 @@ fn a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds() {
 }
 
 #[test]
+fn the_news_record_is_written_whatever_the_lamps_are_doing() {
+    // NEWS IS NOT A DELIVERY, which is what makes it independent of both lamp
+    // switches. It is the record of a turn that finished or died, and the lamp
+    // it later arms is what tells the operator about the ones they missed;
+    // written only when a map and a transport were both live, an operator who
+    // switched hue off for an evening came back to a lamp that had nothing to
+    // say about the evening.
+    //
+    // THE TWO SWITCHES, one per case: a machine with no `[lights]` table at
+    // all, and one whose map is written while the transport is off.
+    for (name, config) in [
+        (
+            "news-without-a-map",
+            "[plugins.hermes]\nenabled = true\n".to_string(),
+        ),
+        (
+            "news-with-hue-off",
+            format!(
+                "[plugins.hue]\nenabled = false\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+            ),
+        ),
+    ] {
+        let sandbox = Sandbox::new(name);
+        sandbox.write_config(&config);
+        let mut command = sandbox.pns_stateful();
+        command.env("TZ", "UTC");
+        command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+        sandbox.stub_herdr(&mut command, false);
+        let outcome = run(command.args(LONG_DONE));
+        assert_eq!(
+            outcome.status.code(),
+            Some(0),
+            "{name}: {}",
+            stderr(&outcome)
+        );
+        let news = std::fs::read_to_string(sandbox.state().join("lights-news"))
+            .unwrap_or_else(|error| panic!("{name}: no news record ({error})"));
+        let done_at: u64 = news
+            .split_whitespace()
+            .next()
+            .and_then(|epoch| epoch.parse().ok())
+            .unwrap_or_else(|| panic!("{name}: the record starts with the done epoch"));
+        assert!(done_at > 1_000_000_000, "{name}: a real epoch: {news:?}");
+    }
+}
+
+#[test]
 fn a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built() {
     // THE WORST OUTCOME THIS COMMAND HAS: telling a human a mute is in effect
     // that is not. `kept` is what the file WOULD have held, so a report printed
@@ -4614,7 +4661,7 @@ fn an_event_with_nothing_waiting_delivers_and_leaves_exactly_what_it_did_before(
     assert_eq!(raised[0]["state"], "done", "{raised:?}");
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the run left something new in the state directory"
     );
 }
@@ -4664,7 +4711,7 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
     );
     assert_eq!(
         state_files(&delivered),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a delivered replay left a claim behind"
     );
 
@@ -4715,7 +4762,7 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
     // could never fire again.
     assert_eq!(
         state_files(&killed),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the journal was still claimed, or the window's edge was not restored"
     );
     assert!(
@@ -4818,7 +4865,7 @@ fn a_claim_an_earlier_run_never_finished_is_adopted_by_the_next_return() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the adopted claim outlived the delivery it rode on"
     );
 }
@@ -4888,7 +4935,7 @@ fn a_held_batch_whose_owner_is_gone_is_adopted_exactly_once() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the hold outlived the delivery it rode on"
     );
 }
@@ -4980,7 +5027,7 @@ fn a_line_nothing_can_parse_costs_the_entries_around_it_nothing() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a journal that read back whole is consumed whole"
     );
 }
@@ -5065,6 +5112,7 @@ fn a_directory_at_the_journals_path_is_put_back_exactly_where_it_was_found() {
             "activity",
             "decisions",
             "last-present",
+            "lights-news",
             "missed-notifications"
         ],
         "something was left standing at a claim path"
@@ -5163,7 +5211,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the journal survived the race, or a racer left its claim behind"
     );
 }
@@ -5228,7 +5276,7 @@ fn racing_present_events_adopt_one_stranded_claim_exactly_once() {
     }
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a racer left the stranded claim behind"
     );
 }
@@ -6025,7 +6073,7 @@ fn a_window_claim_whose_owner_is_gone_is_adopted_rather_than_lost_or_left_behind
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the adopted claim was left in the state directory"
     );
 }
@@ -6198,7 +6246,7 @@ fn racing_present_events_recap_one_loud_window_exactly_once_between_them() {
     // back leaves a file here that nothing else would notice.
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a racer left the window claimed"
     );
 }

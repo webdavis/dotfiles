@@ -2392,17 +2392,25 @@ fn run_event(
     //
     // THE PULSE'S OWN MAPPING decides what counts, so the colour a lamp flashes
     // and the record that arms the unread lamp cannot disagree about one event.
-    if lamps_live {
-        record_news(
-            &state_dir(),
-            pns::pulse::state_behaviour(&event.state, true),
-            decision.inputs.now_secs,
-        );
-        // AND THE LOOP LEASE THIS PANE HOLDS, if it holds one. The renewal is
-        // the pane's own ordinary traffic, which is what makes the lease a
-        // liveness signal rather than a timer.
-        renew_loop_lease(&state_dir(), &event.pane, decision.inputs.now_secs);
-    }
+    //
+    // AND IT IS NOT GATED ON THE LAMP SWITCHES EITHER, which is the difference
+    // between this record and the wait marker beside it. A marker is a file per
+    // session that only the tick ever sweeps, so a machine with no lamps must
+    // not start accumulating them; this is ONE line rewritten in place, it can
+    // never grow, and what it holds is the plain fact that a turn finished or
+    // died. Written only while a map and a transport were both live, an
+    // operator who switched hue off for an evening came back to a lamp with
+    // nothing to say about the evening.
+    record_news(
+        &state_dir(),
+        pns::pulse::state_behaviour(&event.state, true),
+        decision.inputs.now_secs,
+    );
+    // AND THE LOOP LEASE THIS PANE HOLDS, if it holds one. The renewal is the
+    // pane's own ordinary traffic, which is what makes the lease a liveness
+    // signal rather than a timer. It CREATES nothing, so a machine with no lamps
+    // pays one failed open and keeps no state.
+    renew_loop_lease(&state_dir(), &event.pane, decision.inputs.now_secs);
     // AND THE ACTIVITY RING WITH IT, at the same site and under the same
     // ordering contract and the same fail-quiet rule. It records
     // UNCONDITIONALLY, which is the whole difference between it and the
@@ -4997,7 +5005,13 @@ fn last_interaction() -> Option<u64> {
 /// place that knows where the file lives: an unreadable record arms no lamp
 /// rather than arming one about news nobody can name.
 fn read_news(state: &Path) -> pns::lights::News {
-    std::fs::read_to_string(state.join(LIGHTS_NEWS))
+    news_at(&state.join(LIGHTS_NEWS))
+}
+
+/// The same reading, taken at whichever path holds the record: the published
+/// one, or the claim a merge is holding it under.
+fn news_at(path: &Path) -> pns::lights::News {
+    std::fs::read_to_string(path)
         .ok()
         .and_then(|line| pns::lights::parse_news(&line))
         .unwrap_or_default()
@@ -5009,18 +5023,78 @@ fn read_news(state: &Path) -> pns::lights::News {
 /// of a record separate from the journal: a card that was suppressed, muted or
 /// dropped is exactly the news the unread lamp exists to carry.
 ///
+/// OWNED BY RENAME FOR THE MERGE, which is this crate's rule for a record two
+/// runs can write at once. Two events landing together (an agent that finished
+/// beside one that died) each read, change their own field and publish the whole
+/// line, so a plain read-modify-write loses the other's field: the record then
+/// says a turn finished when one had also died, which is the red the lamp never
+/// shows. Taking the file first means the winner merges a record nobody else can
+/// still be reading.
+///
+/// A MISS IS RETRIED ONCE, because absent and held look the same from here: a
+/// rename answers `NotFound` for a machine that has never recorded any news and
+/// for one whose holder is mid-merge, and a holder publishes within three
+/// syscalls. So the wait is paid once in a machine's life for the first record,
+/// and it is what closes the window for every record after it.
+///
+/// THE RESIDUAL, STATED: a run whose second attempt also misses merges into
+/// whatever it can read at the path instead, which is the winner's record once
+/// the winner has published and nothing while it is still merging. Its cost is
+/// one lamp colour, which is what fail-quiet buys everywhere on this path.
+///
 /// FAIL-QUIET, in `record_missed`'s style: a record that did not land costs one
 /// lamp its colour, and this process has no reader for a complaint.
 fn record_news(state: &Path, behaviour: pns::config::Behaviour, now: Option<u64>) {
     let Some(now) = now else {
         return;
     };
-    let Some(next) = pns::lights::news_after(read_news(state), behaviour, now) else {
+    // A WAIT IS NOT NEWS AND TOUCHES NOTHING, decided BEFORE the record is
+    // claimed rather than after it is read. `news_after` is the one place that
+    // knows which behaviours count, so this asks it rather than keeping a second
+    // list; claiming for one that does not count would rename the record away
+    // and have to put it back, which is a window over a file this is trying to
+    // make safe.
+    if pns::lights::news_after(pns::lights::News::default(), behaviour, now).is_none() {
         return;
-    };
-    // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = publish_state_line(&state.join(LIGHTS_NEWS), &pns::lights::render_news(&next));
+    }
+    let path = state.join(LIGHTS_NEWS);
+    let claim = path.with_extension(format!("claim.{}", std::process::id()));
+    let claimed = claim_news(&path, &claim);
+    let held = news_at(if claimed { &claim } else { &path });
+    if let Some(next) = pns::lights::news_after(held, behaviour, now) {
+        // The failure is DROPPED here and nowhere else: see the doc comment.
+        let _ = publish_state_line(&path, &pns::lights::render_news(&next));
+    }
+    if claimed {
+        // THE CLAIM GOES WHETHER OR NOT THE PUBLISH LANDED, because the publish
+        // above writes the whole record: a claim left behind would be a second
+        // file holding a stale copy that nothing ever reads and nothing removes.
+        let _ = std::fs::remove_file(&claim);
+    }
 }
+
+/// Take the record for a merge, or answer that this run is merging blind.
+fn claim_news(path: &Path, claim: &Path) -> bool {
+    for attempt in 0..NEWS_CLAIM_ATTEMPTS {
+        if std::fs::rename(path, claim).is_ok() {
+            return true;
+        }
+        if attempt + 1 < NEWS_CLAIM_ATTEMPTS {
+            std::thread::sleep(NEWS_CLAIM_WAIT);
+        }
+    }
+    false
+}
+
+/// How many times a merge looks for the record before going ahead without it,
+/// and how long it waits between two looks.
+///
+/// TWO LOOKS AND TWO MILLISECONDS, which is the whole recovery: a holder is
+/// three syscalls from publishing, and the only other reason the file is not
+/// there is a machine that has never recorded any news, which pays this wait
+/// exactly once.
+const NEWS_CLAIM_ATTEMPTS: u32 = 2;
+const NEWS_CLAIM_WAIT: Duration = Duration::from_millis(2);
 
 /// The oldest epoch a LIVE shell is holding, with the markers whose shells are
 /// gone REMOVED on the way through.
@@ -7825,6 +7899,20 @@ mod tests {
             read_news(&state).done_at,
             Some(1_000),
             "and a wait is not news, so it changes nothing"
+        );
+        // AND THE RECORD IS TAKEN BY RENAME TO MERGE IT, so two runs recording
+        // at once cannot each publish a whole line built from the same stale
+        // read. What that leaves behind is nothing: a claim outliving its run
+        // would be a second file holding a stale copy nothing reads.
+        assert_eq!(
+            std::fs::read_dir(&state)
+                .expect("the state directory")
+                .flatten()
+                .filter(|entry| entry.file_name().to_string_lossy().contains(".claim."))
+                .count(),
+            0,
+            "a claim was left behind in {}",
+            state.display()
         );
         // FAIL TO DARK. A record some other hand rewrote arms no lamp rather
         // than arming one about news nobody can name.
