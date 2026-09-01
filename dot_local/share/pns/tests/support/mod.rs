@@ -547,7 +547,13 @@ impl Drop for Sandbox {
         let _ = std::fs::remove_dir_all(&self.root);
         let elapsed = self.created.elapsed().as_millis();
         if over_budget(elapsed) {
-            eprintln!(
+            // THE PROCESS'S OWN STDERR, not `eprintln!`: libtest captures the
+            // print macros of a passing test and shows them only on failure or
+            // under `--show-output`, which would swallow the one line the
+            // review rule exists to print.
+            use std::io::Write as _;
+            let _ = writeln!(
+                std::io::stderr(),
                 "test budget: sandbox {:?} took {elapsed} ms, over the {TEST_BUDGET_MS} ms budget",
                 self.root
             );
@@ -616,7 +622,9 @@ mod guard_tests {
     //! cannot also move what a twin calls "past the line". The two end to
     //! end tests backdate a real sandbox's construction instant instead of
     //! sleeping past it, so proving the wiring works costs no real wall
-    //! clock either.
+    //! clock either. The two backdated twins each print one budget line to
+    //! stderr on every run, by construction (past the ceiling is past the
+    //! budget); the sandbox name in that line says "guard-twin".
     use super::*;
 
     #[test]

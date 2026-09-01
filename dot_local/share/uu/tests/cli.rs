@@ -98,7 +98,13 @@ impl Drop for Home {
         let _ = std::fs::remove_dir_all(&self.dir);
         let elapsed = self.created.elapsed().as_millis();
         if over_budget(elapsed) {
-            eprintln!(
+            // THE PROCESS'S OWN STDERR, not `eprintln!`: libtest captures the
+            // print macros of a passing test and shows them only on failure or
+            // under `--show-output`, which would swallow the one line the
+            // review rule exists to print.
+            use std::io::Write as _;
+            let _ = writeln!(
+                std::io::stderr(),
                 "test budget: home {:?} took {elapsed} ms, over the {TEST_BUDGET_MS} ms budget",
                 self.dir
             );
@@ -260,7 +266,9 @@ mod guard_tests {
     //! The same twins as pns's copy of this guard: the pure predicates are
     //! pinned with literal inputs rather than the constants they check, and
     //! the two end to end tests backdate a real `Home`'s construction
-    //! instant instead of sleeping past it.
+    //! instant instead of sleeping past it. The two backdated twins each
+    //! print one budget line to stderr on every run, by construction; the
+    //! home name in that line says "guard-twin".
     use super::*;
 
     #[test]
