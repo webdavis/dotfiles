@@ -739,4 +739,33 @@ mod tests {
         assert_eq!(config.nag_after_secs, 0);
         assert!(config.lights.is_none());
     }
+
+    #[test]
+    fn an_armed_but_unspecified_lights_table_renders_every_locked_default_uncommented() {
+        // ANY LIGHTS KEY AT ALL is the operator asking for the lamps, so
+        // every one of the five locked shapes is written live rather than
+        // waiting on a value nobody supplied. The assertion is against the
+        // code's own `Default`, never against a literal copied out of the
+        // layout, so a default that drifts here fails this test rather than
+        // shipping quietly.
+        let mut values = toml::Table::new();
+        values.insert("lights".to_string(), toml::Value::Table(toml::Table::new()));
+        let text = render(&values).expect("an armed-empty lights table renders");
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        assert_eq!(
+            *config.lights.expect("lights was armed"),
+            crate::config::Lights::default()
+        );
+    }
+
+    #[test]
+    fn recap_defaults_are_asserted_against_the_code_rather_than_copied_literals() {
+        let text = render(&toml::Table::new()).expect("an empty walk still renders");
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        assert_eq!(config.recap, crate::config::Recap::default());
+        assert_eq!(
+            config.plugins["mobile"].settings["submit_deadline_secs"].as_integer(),
+            Some(crate::config::DEFAULT_SUBMIT_DEADLINE_SECS as i64)
+        );
+    }
 }
