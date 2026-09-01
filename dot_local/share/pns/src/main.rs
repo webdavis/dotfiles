@@ -7,10 +7,10 @@
 //! notification must never fail the work it reports on.
 
 use std::collections::BTreeMap;
-use std::io::{Read, Seek, Write};
+use std::io::{IsTerminal, Read, Seek, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -106,6 +106,14 @@ fn main() {
     if first == *"nag" {
         std::process::exit(nag_mode());
     }
+    // The first-run walk. A MODE that has to be reachable with NO CONFIG AT
+    // ALL, which is the state it exists to end, and that is why it sits above
+    // everything that loads one. Nothing on the event path reaches it and it
+    // reaches nothing there: it asks questions, composes text and publishes a
+    // file, and delivers nothing.
+    if first == *"setup" {
+        std::process::exit(setup_mode());
+    }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
@@ -154,6 +162,7 @@ pns: usage:
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
   pns recap --since <epoch> --until <epoch>
+  pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
   pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
@@ -7102,6 +7111,404 @@ const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>
 /// as a time, so the timeline still lines up.
 const NO_WALL_CLOCK: &str = "--:--";
 
+/// The `setup` mode: the first-run walk, and the only writer of the config.
+///
+/// A THIN EDGE OVER A PURE COMPOSER. Everything about what lands in the file
+/// is `pns::setup`; this asks, reads a line, and publishes. It EXITS NON-ZERO
+/// on every refusal, which the always-exit-0 contract permits for the same
+/// reason `quiet` does: that contract covers the hook and notification paths,
+/// where a non-zero exit fails the turn being reported on, and this is hand
+/// typed and is never a hook.
+///
+/// IT REFUSES A WALK NOBODY CAN ANSWER. Without a terminal there is no walk,
+/// and guessing every answer would write a config the operator never agreed
+/// to, over one they may already have.
+fn setup_mode() -> i32 {
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(2)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let force = match arguments.as_slice() {
+        [] => false,
+        [word] if word == "--force" => true,
+        // ANY OTHER WORD IS A REFUSAL, never a silent fallthrough to the walk:
+        // a mistyped `--force` that walked anyway would ask ten questions and
+        // then refuse at the end, over a config it was told to replace.
+        _ => {
+            eprintln!("{SETUP_USAGE}");
+            return 2;
+        }
+    };
+    // THE CONFIG IS CHECKED BEFORE THE TERMINAL IS, because it is the more
+    // specific answer: an operator who already has one is told that, whether
+    // or not they are sitting in front of the questions.
+    let path = config_path(&std::env::var("HOME").unwrap_or_default());
+    if path.exists() && !force {
+        eprintln!(
+            "pns setup: {} already exists; pass --force to replace it, \
+             which keeps the old file beside it",
+            path.display()
+        );
+        return 2;
+    }
+    if !std::io::stdin().is_terminal() {
+        eprintln!(
+            "pns setup: this is a walk through questions and stdin is not a terminal; \
+             nothing was written"
+        );
+        return 2;
+    }
+    let Some(answers) = walk() else {
+        eprintln!("pns setup: the answers ended before the walk did; nothing was written");
+        return 2;
+    };
+    let composed = pns::setup::compose_config(&answers);
+    // THROUGH THE ENGINE'S OWN PARSER BEFORE IT IS PUBLISHED. A wizard that
+    // writes a config pns then refuses is worse than no wizard: it leaves a
+    // machine falling back to the core with a complaint nobody is standing in
+    // front of, and it does it while the operator is being told it worked.
+    if let Err(error) = pns::config::parse_config(&composed) {
+        eprintln!(
+            "pns setup: what it composed does not load ({}); nothing was written",
+            error.detail()
+        );
+        return 2;
+    }
+    match publish_config(&path, &composed, force) {
+        Ok(backup) => {
+            if let Some(backup) = backup {
+                println!("pns setup: kept the old config at {}", backup.display());
+            }
+            println!("pns setup: wrote {}", path.display());
+            0
+        }
+        Err(refusal) => {
+            eprintln!("pns setup: {refusal}");
+            1
+        }
+    }
+}
+
+/// The walk itself: one question at a time, in the order the file is written.
+///
+/// NONE OF THIS DECIDES ANYTHING. Every answer is carried to the composer as
+/// it was typed, and a blank one is what declines a feature there. `None` is
+/// the input ending mid-walk, which publishes nothing at all rather than
+/// composing a file out of half a conversation.
+///
+/// THE CREDENTIALS ARE ASKED INSIDE THE WALK, right after the feature they
+/// arm, because a feature switched on now and credentialed later is exactly
+/// the empty-value config this wizard exists to avoid.
+fn walk() -> Option<pns::setup::Answers> {
+    println!("{SETUP_PREAMBLE}");
+    let mut answers = pns::setup::Answers {
+        mobile_token: ask(
+            "The phone card is on. Paste moshi's webhook secret to complete it, \
+             or press enter to pair later",
+        )?,
+        ..Default::default()
+    };
+
+    if ask_yes("Post every event to hermes, for the durable log and the recap?")? {
+        answers.hermes_key = armed("hermes", "the signing key that route verifies")?;
+    }
+    if ask_yes("Flash hue lights green when work finishes and red when it dies?")? {
+        // EACH ANSWER GATES THE NEXT QUESTION: once one comes back empty the
+        // feature is already declined, and the rest would be questions whose
+        // answers are thrown away.
+        answers.hue_bridge = armed("the light pulse", "the hue bridge's address on the network")?;
+        if !answers.hue_bridge.is_empty() {
+            answers.hue_key = armed("the light pulse", "an API key the bridge issued")?;
+        }
+        if !answers.hue_key.is_empty() {
+            answers.hue_rooms = list(armed(
+                "the light pulse",
+                "the rooms to flash, comma separated, spelled as the bridge spells them",
+            )?);
+        }
+    }
+    if ask_yes("Read whether your phone is on the home wifi, off the router's client list?")? {
+        // THE BACKEND HAS A WORKING DEFAULT and every other field here does
+        // not, so this is the one question enter answers rather than declines.
+        // A NAME NOTHING ANSWERS DECLINES THE PROBE, said here and not only in
+        // the file: the composer writes that answer's table commented out, and
+        // an operator who typed their router's brand deserves to hear why.
+        match router_backend(&ask(&format!(
+            "Which router backend? [{}]",
+            pns::home::UNIFI_TYPE
+        ))?) {
+            None => println!(
+                "  nothing here reads that router, so the home probe stays off; \
+                 the file says how to arm it"
+            ),
+            Some(backend) => {
+                answers.router_type = backend.to_string();
+                answers.router_url = armed("the home probe", "the router's URL")?;
+                if !answers.router_url.is_empty() {
+                    answers.router_api_key =
+                        armed("the home probe", "an API key the router issued")?;
+                }
+                if !answers.router_api_key.is_empty() {
+                    answers.router_device_hostname =
+                        armed("the home probe", "the phone's hostname on that router")?;
+                }
+            }
+        }
+    }
+    if ask_yes("Hold notifications back while a macOS Focus is on?")? {
+        answers.focus_modes = list(armed(
+            "focus silencing",
+            "which Focus modes mean it, comma separated",
+        )?);
+    }
+    answers.nag = ask_yes("Card you a second time about an approval left unanswered?")?;
+    Some(answers)
+}
+
+/// One credentialed answer, and the line that says what a blank one costs.
+///
+/// SAID WHEN IT HAPPENS rather than only in the file: an operator who meant to
+/// arm a feature and pressed enter has one chance to notice, and the composed
+/// file's own commented block is read later if at all.
+fn armed(feature: &str, wanted: &str) -> Option<String> {
+    let answer = ask(wanted)?;
+    if answer.is_empty() {
+        println!("  nothing given, so {feature} stays off; the file says how to arm it");
+    }
+    Some(answer)
+}
+
+/// One question, and the line typed back. `None` is the input ending.
+fn ask(question: &str) -> Option<String> {
+    print!("{question}: ");
+    let _ = std::io::stdout().flush();
+    let mut typed = String::new();
+    match std::io::stdin().read_line(&mut typed) {
+        Ok(0) | Err(_) => None,
+        Ok(_) => Some(answered(&typed)),
+    }
+}
+
+/// What a typed line means as an answer.
+///
+/// A LINE OF NOTHING BUT SPACES IS A BLANK ONE, which is the rule the whole
+/// walk rests on: `compose_config` declines a feature whose credential is
+/// empty, and it asks `is_empty`, so a credential of two spaces would arm a
+/// plugin with two spaces and deliver nothing while reading as set up. That is
+/// the exact state this wizard exists to keep off a fresh machine, and the
+/// trailing newline every line carries is what makes it reachable.
+fn answered(line: &str) -> String {
+    line.trim().to_string()
+}
+
+/// One yes-or-no question. ENTER MEANS NO, and so does anything that is not a
+/// yes: this walk arms features that deliver to a phone and to lamps, and the
+/// answer nobody typed on purpose must be the one that changes nothing.
+fn ask_yes(question: &str) -> Option<bool> {
+    Some(means_yes(&ask(&format!("{question} [y/N]"))?))
+}
+
+/// Whether an answer to a yes-or-no question was a yes.
+///
+/// ONLY A YES IS ONE. Enter, a word nobody meant, and a mistyped `yes` all
+/// mean no, because every question this answers arms something that delivers
+/// to a phone or to a lamp and takes a credential to do it.
+fn means_yes(answer: &str) -> bool {
+    matches!(answer.to_lowercase().as_str(), "y" | "yes")
+}
+
+/// Which compiled-in backend an answer names, or `None` for one no backend
+/// answers.
+///
+/// THE SET IS THE CODE'S, never a list kept here: `home` is what refuses a
+/// type at probe time, so a wizard restating its own copy of that set would go
+/// on accepting yesterday's answer the day a second backend lands. Enter names
+/// the one there is, and a spelling that differs only in case is that one too,
+/// written back as the code spells it rather than as it was typed.
+fn router_backend(answer: &str) -> Option<&'static str> {
+    (answer.is_empty() || answer.eq_ignore_ascii_case(pns::home::UNIFI_TYPE))
+        .then_some(pns::home::UNIFI_TYPE)
+}
+
+/// A comma-separated answer as the values it names, blanks dropped.
+fn list(answer: String) -> Vec<String> {
+    answer
+        .split(',')
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+/// Publish the composed config, keeping the old one when replacing it.
+///
+/// CREATE-IF-ABSENT, NEVER A BLANKET RENAME, on both paths: a config that
+/// appeared between the check in `setup_mode` and this moment is another
+/// writer's, and this run has not read it. The link failing with
+/// `AlreadyExists` IS that refusal. NOTHING ASKS WHETHER A CONFIG IS THERE
+/// either, because the answer stops being true the instant it is given: what
+/// `--force` moves aside is the file it found at the name, and what it
+/// publishes into is a name it emptied itself.
+///
+/// THE OLD CONFIG IS MOVED ASIDE RATHER THAN COPIED ASIDE, so the backup holds
+/// what was actually replaced rather than what stood there when a copy ran, and
+/// the old config is at one of the two names at every instant.
+///
+/// THE PENDING FILE CARRIES THE MODE, because it is what gets published:
+/// writing at the umask would publish a config whose plugin secrets any
+/// process on the machine can read.
+fn publish_config(path: &Path, composed: &str, force: bool) -> Result<Option<PathBuf>, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("{} has no directory to write in", path.display()))?;
+    std::fs::create_dir_all(parent)
+        .map_err(|error| format!("{} could not be created: {error}", parent.display()))?;
+    let pending = parent.join(pending_name());
+    // CREATED OR NOT AT ALL, and never opened. A pending file is a second name
+    // for the live config between the link that publishes it and the unlink
+    // that removes it, so an abandoned run leaves one behind and process ids
+    // are reused: an open that truncates would empty a config this run has not
+    // read, and the backup taken next would hold the replacement.
+    let file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(CONFIG_FILE_MODE)
+        .open(&pending)
+        .map_err(|error| format!("{} could not be written: {error}", pending.display()))?;
+    let published = write_then_publish(path, &pending, file, composed, force);
+    // WHICHEVER WAY IT WENT, and only ever the file the line above made: a
+    // pending file left in the config directory would be read by nobody and
+    // found by everybody, and removing one this run did not create is the
+    // mirror of the write it refuses to do.
+    let _ = std::fs::remove_file(&pending);
+    published
+}
+
+/// The name the composed config is written under before it is published.
+///
+/// THE MOMENT AS WELL AS THE PROCESS, because the create above is exclusive: a
+/// leftover from an abandoned run of the same id would otherwise refuse a
+/// wizard nobody can unblock, and a name nothing else is holding is also a
+/// name nothing else can be waiting at.
+fn pending_name() -> String {
+    format!(
+        "config.toml.new.{}.{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since_epoch| since_epoch.subsec_nanos())
+    )
+}
+
+/// The publish itself, with `publish_config` owning the cleanup around it.
+fn write_then_publish(
+    path: &Path,
+    pending: &Path,
+    mut file: std::fs::File,
+    composed: &str,
+    force: bool,
+) -> Result<Option<PathBuf>, String> {
+    // AND AGAIN AFTER THE OPEN, for `publish_state_line`'s reason: the mode an
+    // open asks for is masked by the umask, and a config published without the
+    // operator's own bits is one they cannot read.
+    file.set_permissions(std::fs::Permissions::from_mode(CONFIG_FILE_MODE))
+        .map_err(|error| format!("{} could not be secured: {error}", pending.display()))?;
+    file.write_all(composed.as_bytes())
+        .map_err(|error| format!("{} could not be written: {error}", pending.display()))?;
+
+    // THE FORCED PATH EMPTIES THE NAME FIRST, and what it moves out of the way
+    // is the backup. Nothing here asks whether a config is there: the move
+    // itself is the answer, and it is the same answer a moment later.
+    let kept = if force { keep_aside(path)? } else { None };
+    // AND BOTH PATHS PUBLISH THE SAME WAY. A link that refuses an occupied
+    // name cannot write over a config this run never read, whether that config
+    // was there all along or arrived while the questions were being answered.
+    match std::fs::hard_link(pending, path) {
+        Ok(()) => Ok(kept),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
+            "{} appeared while the questions were being answered; \
+             nothing was written over it{}",
+            path.display(),
+            also_kept(kept.as_deref())
+        )),
+        Err(error) => Err(format!(
+            "{} could not be written: {error}{}",
+            path.display(),
+            also_kept(kept.as_deref())
+        )),
+    }
+}
+
+/// The tail a refusal carries when this run had already moved a config aside,
+/// so nobody is left hunting for a file the wizard took the name of.
+fn also_kept(kept: Option<&Path>) -> String {
+    kept.map_or_else(String::new, |backup| {
+        format!(
+            "; the config that was there is kept at {}",
+            backup.display()
+        )
+    })
+}
+
+/// Move the existing config aside, and answer with where it went.
+///
+/// A MOVE RATHER THAN A COPY, which is what makes the answer true: a copy says
+/// only what stood at the name when the copy ran, and the publish that follows
+/// replaces whatever stands there THEN. Moving it is the one act that both
+/// keeps the old config and frees the name, so the two can never disagree.
+///
+/// NOTHING TO MOVE IS NOT A FAILURE: `--force` on a machine with no config is
+/// an ordinary first run.
+fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
+    let backup = now_secs()
+        .and_then(|now| pns::setup::backup_path(path, now))
+        .ok_or_else(|| {
+            "the clock cannot be read, so the config already there cannot be named \
+             and kept; nothing was written"
+                .to_string()
+        })?;
+    // THE NAME IS CLAIMED BEFORE ANYTHING MOVES ONTO IT, so a second forced run
+    // inside the same second refuses rather than writing over the copy the
+    // first one kept: a rename would replace that copy without a word.
+    std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(CONFIG_FILE_MODE)
+        .open(&backup)
+        .map_err(|error| format!("{} could not be kept: {error}", backup.display()))?;
+    if let Err(error) = std::fs::rename(path, &backup) {
+        // THE CLAIM GOES WITH THE RUN THAT MADE IT, whether there was nothing
+        // to move or the move could not be made: an empty file named like a
+        // backup is worse than no backup at all.
+        let _ = std::fs::remove_file(&backup);
+        return match error.kind() {
+            std::io::ErrorKind::NotFound => Ok(None),
+            _ => Err(format!("{} could not be kept: {error}", backup.display())),
+        };
+    }
+    // AS PRIVATE AS THE CONFIG IT HOLDS, when what moved is a file at all: the
+    // mode of a symlink is the mode of what it points at, and this one points
+    // at a file this run did not replace and has no business changing.
+    if backup.symlink_metadata().is_ok_and(|entry| entry.is_file()) {
+        std::fs::set_permissions(&backup, std::fs::Permissions::from_mode(CONFIG_FILE_MODE))
+            .map_err(|error| format!("{} could not be secured: {error}", backup.display()))?;
+    }
+    Ok(Some(backup))
+}
+
+/// The config carries every plugin's secret, so it is the operator's alone.
+const CONFIG_FILE_MODE: u32 = 0o600;
+
+/// What the walk says before it starts asking.
+const SETUP_PREAMBLE: &str = "\
+pns setup: a few questions, and a config at the end of them.
+The macOS banner and the phone card are on and are not asked about. Everything
+else is off unless you arm it here, and enter is no. Nothing is written until
+the last answer.";
+
+/// What a setup typed wrong is told.
+const SETUP_USAGE: &str =
+    "pns: usage: pns setup [--force]; --force replaces an existing config, keeping it beside";
+
 /// The `quiet` mode: the operator's own mute, typed and timed.
 ///
 /// THE ONLY NON-ZERO EXITS HERE THAT ARE NOT AN OPERATOR'S APPROVAL DECISION,
@@ -7373,12 +7780,13 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        BLOCKED_MAX_AGE_SECS, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
-        LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, asks_the_bridge, drive_breaths, end_lease, held_lamps,
-        lights_report, matches_glob, muted_state, publish_state_line, read_news, read_note,
-        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, run_pulse_writes, run_tick_writes, say_lights_once,
+        BLOCKED_MAX_AGE_SECS, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
+        LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS,
+        MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
+        drive_breaths, end_lease, held_lamps, lights_report, list, matches_glob, means_yes,
+        muted_state, publish_config, publish_state_line, read_news, read_note, recap_bounds,
+        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
+        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
         sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
         tick_bridge_deadline, update_blocked_marker,
     };
@@ -8964,6 +9372,307 @@ mod tests {
         assert!(
             read_note(&inside, 1000, 2000).is_none(),
             "a note rewritten after the scan was read into the window anyway"
+        );
+    }
+
+    #[test]
+    fn the_only_answer_that_arms_a_feature_is_a_yes_somebody_typed() {
+        // ENTER MEANS NO, and this is the assertion that says so. Every
+        // question it answers arms a delivery to a phone or a lamp and takes a
+        // credential to do it, so the answer nobody typed on purpose has to be
+        // the one that changes nothing. A predicate reading "not a no" would
+        // arm the whole walk by default and pass every test about the file.
+        for yes in ["y", "yes", "Y", "YES", "Yes"] {
+            assert!(means_yes(yes), "`{yes}` is a yes");
+        }
+        for no in ["", "n", "no", "N", "sure", "ok", "yeah", "yep", "y ", "1"] {
+            assert!(!means_yes(no), "`{no}` is not the yes this walk requires");
+        }
+    }
+
+    #[test]
+    fn an_answer_of_nothing_but_spaces_is_a_blank_one() {
+        // THE RULE THE WHOLE WALK RESTS ON. `compose_config` declines a
+        // feature whose credential is empty and it asks `is_empty`, so a
+        // credential that survives here as `"  "` arms its plugin with two
+        // spaces: a table that reads as set up and delivers nothing, which is
+        // the one state this wizard exists to keep off a fresh machine.
+        assert_eq!(answered("   \n"), "");
+        assert_eq!(answered("\t\n"), "");
+        assert_eq!(answered("\n"), "");
+        // AND A REAL ANSWER SURVIVES IT: trimming that ate the answer would
+        // decline every feature the operator armed.
+        assert_eq!(answered("  192.168.1.9  \n"), "192.168.1.9");
+        assert_eq!(answered("Studio, Kitchen\n"), "Studio, Kitchen");
+    }
+
+    #[test]
+    fn a_comma_separated_answer_names_only_the_values_somebody_typed() {
+        // A BLANK BETWEEN TWO COMMAS IS NOT A ROOM. It would reach the file as
+        // `rooms = [""]`, which the bridge matches to no room at all while the
+        // table reads as configured.
+        assert_eq!(list("Studio, Kitchen".to_string()), ["Studio", "Kitchen"]);
+        assert_eq!(
+            list("Studio, , Kitchen,".to_string()),
+            ["Studio", "Kitchen"]
+        );
+        assert_eq!(list("  Studio  ".to_string()), ["Studio"]);
+        assert!(list(String::new()).is_empty());
+        assert!(list(" , ".to_string()).is_empty());
+    }
+
+    #[test]
+    fn the_only_backend_the_walk_accepts_is_one_the_home_probe_answers() {
+        // THE ONE QUESTION WHOSE ANSWER IS NOT FREE TEXT. Every other answer
+        // here is a credential nothing but the operator's own network can
+        // judge; this one is judged by `home`, which refuses a type it does
+        // not implement at probe time, long after the wizard said it worked.
+        assert_eq!(router_backend(""), Some(pns::home::UNIFI_TYPE));
+        assert_eq!(router_backend("unifi"), Some(pns::home::UNIFI_TYPE));
+        // AND THE ANSWER IS WRITTEN AS THE CODE SPELLS IT, because the probe
+        // compares the whole string and would refuse the operator's capitals.
+        assert_eq!(router_backend("UniFi"), Some(pns::home::UNIFI_TYPE));
+        for unanswerable in ["asus", "unifi-controller", "u", "unifix", "eero"] {
+            assert_eq!(
+                router_backend(unanswerable),
+                None,
+                "`{unanswerable}` is a backend nothing here reads"
+            );
+        }
+    }
+
+    /// The mode a file was published with, and nothing else about it.
+    fn mode_of(path: &std::path::Path) -> u32 {
+        std::fs::metadata(path)
+            .expect("the file")
+            .permissions()
+            .mode()
+            & 0o777
+    }
+
+    #[test]
+    fn a_first_config_is_published_for_its_operator_alone_and_leaves_no_pending_file() {
+        // THE FILE CARRIES EVERY PLUGIN'S SECRET, so publishing it at the
+        // umask hands the moshi token and the hue key to every process on the
+        // machine. The pending file carries them too, which is why it is
+        // created with the mode rather than chmodded into it afterwards, and
+        // why it never outlives the publish.
+        let home = scratch("setup-publish-first");
+        let path = home.join(".config/pns/config.toml");
+        assert_eq!(
+            publish_config(&path, "# composed\n", false),
+            Ok(None),
+            "a first publish keeps nothing aside"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+        assert_eq!(
+            mode_of(&path),
+            CONFIG_FILE_MODE,
+            "the config is the operator's alone"
+        );
+        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "a pending file was left behind: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn a_config_that_appeared_during_the_walk_is_refused_rather_than_written_over() {
+        // CREATE-IF-ABSENT, NEVER A BLANKET RENAME. The questions take
+        // minutes, and a config that arrived while they were being answered is
+        // another writer's: a rename would replace it with no backup and no
+        // word, and the refusal earlier in `setup_mode` cannot see it because
+        // it ran before the walk did.
+        let home = scratch("setup-publish-raced");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# somebody else got here first\n").expect("the config");
+
+        let refusal = publish_config(&path, "# composed\n", false).expect_err("it must refuse");
+        assert!(
+            refusal.contains("appeared"),
+            "it says what happened: {refusal}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# somebody else got here first\n",
+            "the config that was already there was written over"
+        );
+        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "a refusal left a pending file: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn a_forced_replacement_keeps_the_old_config_before_it_writes_the_new_one() {
+        // THE BACKUP IS TAKEN FIRST, and the way to say that as an assertion
+        // is to read the backup: taken afterwards it would be a copy of the
+        // REPLACEMENT, the old file would be gone, and the line printed to the
+        // operator would name a path that does not hold what it says it holds.
+        let home = scratch("setup-publish-forced");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# the one it replaces\n").expect("the config");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the old config");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&backup).expect("the backup"),
+            "# the one it replaces\n",
+            "the backup holds the replacement rather than what was replaced"
+        );
+        // AND IT IS AS PRIVATE AS THE FILE IT COPIES: a backup of a config
+        // full of plugin secrets is a config full of plugin secrets.
+        assert_eq!(mode_of(&backup), CONFIG_FILE_MODE);
+        assert!(
+            !backup.to_string_lossy().contains(':'),
+            "the stamp carries colons: {}",
+            backup.display()
+        );
+    }
+
+    #[test]
+    fn a_forced_replacement_with_nothing_to_replace_keeps_nothing_aside() {
+        // THE MIRROR: `--force` on a machine with no config is an ordinary
+        // first run, and naming a backup that holds nothing would send the
+        // operator to a file that was never written.
+        let home = scratch("setup-publish-forced-first");
+        let path = home.join(".config/pns/config.toml");
+        assert_eq!(publish_config(&path, "# composed\n", true), Ok(None));
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+        assert_eq!(mode_of(&path), CONFIG_FILE_MODE);
+        // AND IT LEAVES NO FILE NAMED LIKE ONE EITHER. Claiming the backup's
+        // name is how a second forced run in the same second is refused, and a
+        // claim left standing over nothing is a backup that holds nothing.
+        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "it kept something aside: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn a_forced_run_keeps_a_config_the_existence_check_reads_as_absent() {
+        // THE CHECK IS NOT THE AUTHORITY, THE PUBLISH IS. `exists` answers for
+        // what a name resolves to rather than for the name, so it reads a
+        // config the operator symlinked into a checkout that is not there as
+        // nothing at all; the same answer a config CREATED after the check
+        // gives, which no test can reach without a seam. Either way a blanket
+        // rename replaced a config this run never read, with no backup and no
+        // word, so the publish moves aside whatever is standing there and asks
+        // for the name rather than taking it.
+        let home = scratch("setup-publish-unseen");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        let pointed_at = path.with_file_name("config-in-a-checkout.toml");
+        std::os::unix::fs::symlink(&pointed_at, &path).expect("the link");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the config that was standing there");
+        assert_eq!(
+            std::fs::read_link(&backup).expect("the backup"),
+            pointed_at,
+            "the config that was there went nowhere this run can name"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+    }
+
+    #[test]
+    fn a_forced_run_keeps_the_config_it_replaced_rather_than_what_that_config_named() {
+        // WHAT THE BACKUP HOLDS IS WHAT THE PUBLISH REPLACED. A copy taken
+        // from the name reads THROUGH it: with a symlinked config it copied
+        // the file at the far end, which the publish then did not touch, and
+        // the link itself, which the publish did replace, went unrecorded. The
+        // same gap a config replaced between the copy and the publish leaves,
+        // which no test can reach without a seam.
+        let home = scratch("setup-publish-through");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        let pointed_at = path.with_file_name("config-in-a-checkout.toml");
+        std::fs::write(&pointed_at, "# the one it points at\n").expect("the config");
+        std::os::unix::fs::symlink(&pointed_at, &path).expect("the link");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the config that was standing there");
+        assert_eq!(
+            std::fs::read_link(&backup).expect("the backup"),
+            pointed_at,
+            "the backup holds what the config named rather than the config it replaced"
+        );
+        // AND WHAT IT NAMED WAS NOT REPLACED, so it is where it always was.
+        assert_eq!(
+            std::fs::read_to_string(&pointed_at).expect("the config it points at"),
+            "# the one it points at\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+    }
+
+    #[test]
+    fn a_pending_file_left_by_an_abandoned_run_is_never_the_file_this_one_writes_into() {
+        // A PENDING FILE IS A SECOND NAME FOR THE LIVE CONFIG between the link
+        // that publishes it and the unlink that removes it, so a run killed in
+        // that window leaves one behind. PROCESS IDS ARE REUSED, so a later
+        // run naming its pending file after its own id can find that leftover,
+        // and opening it to truncate would empty the config this run has not
+        // read yet: the backup taken next would hold the REPLACEMENT, under a
+        // path printed to the operator as the file they had.
+        let home = scratch("setup-publish-leftover");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# the one it replaces\n").expect("the config");
+        let leftover = path.with_file_name(format!("config.toml.new.{}", std::process::id()));
+        std::fs::hard_link(&path, &leftover).expect("the leftover");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the old config");
+        assert_eq!(
+            std::fs::read_to_string(&backup).expect("the backup"),
+            "# the one it replaces\n",
+            "the leftover was truncated, so the backup holds the replacement"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&leftover).expect("the leftover"),
+            "# the one it replaces\n",
+            "the config the leftover names was written through rather than left alone"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
         );
     }
 }

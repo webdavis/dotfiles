@@ -35,6 +35,7 @@ pub mod registry;
 pub mod render;
 pub mod routing;
 pub mod safety;
+pub mod setup;
 pub mod surface;
 pub mod system;
 

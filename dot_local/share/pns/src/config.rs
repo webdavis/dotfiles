@@ -542,6 +542,60 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
 /// the file itself, so there is no name a lookup could use.
 pub const TOP_LEVEL: &str = "";
 
+/// How many `key = value` pairs a config-shaped text documents, commented
+/// lines included, having checked each one against the roster row of the
+/// heading above it.
+///
+/// THE SCAN READS THE COMMENTED LINES TOO, which is the half a parse cannot
+/// reach: most of a documented config is documentation, and a key documented
+/// there but refused by the code is a line an operator uncomments and then
+/// cannot load.
+///
+/// ONE SCANNER FOR BOTH TEXTS HELD TO THIS SCHEMA, the shipped template and
+/// what `pns setup` composes. Two copies would be two things to keep in
+/// agreement with the roster, which is the drift the roster itself exists to
+/// prevent, and the count is returned rather than pinned here because only the
+/// template has a number worth pinning.
+///
+/// WHITESPACE-EXACT in two places (`# ` and ` = `), which is what the
+/// template's own count is a fence around: a text writing `key= value` on a run
+/// of lines drops exactly that run and nothing else says so.
+#[cfg(test)]
+pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
+    let mut table = String::new();
+    let mut found = 0;
+    for line in text.lines() {
+        let bare = line.strip_prefix("# ").unwrap_or(line);
+        if let Some(heading) = bare
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+        {
+            table = heading.to_string();
+            continue;
+        }
+        let Some((key, _)) = bare.split_once(" = ") else {
+            continue;
+        };
+        if !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') || key.is_empty() {
+            continue;
+        }
+        // A nested table carries the operator's own name; the roster holds
+        // the prefix, the way the refusals do.
+        let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
+            ["lights", "lamp" | "room" | "zone", ..] => TARGET_KEYS.to_string(),
+            _ => table.clone(),
+        };
+        let serves = keys_of(&roster_table)
+            .unwrap_or_else(|| panic!("it writes `[{table}]`, which no table serves"));
+        assert!(
+            serves.contains(&key),
+            "it documents `{key}` under `[{table}]`, which does not serve it"
+        );
+        found += 1;
+    }
+    found
+}
+
 /// The roster row EVERY target declaration shares, whichever of the three
 /// levels wrote it.
 ///
@@ -3292,45 +3346,13 @@ mod tests {
 
     #[test]
     fn every_key_the_template_documents_is_a_key_the_roster_serves() {
-        // THE COMMENTED KEYS TOO, which is the half the parse above cannot
-        // reach: most of the template is documentation, and a key documented
-        // there but refused by the code is a line an operator uncomments and
-        // then cannot load. The scan reads `key = value` at the start of a
-        // line, commented or not, under the table heading above it.
-        let mut table = String::new();
-        let mut found = 0;
-        for line in rendered_template().lines() {
-            let bare = line.strip_prefix("# ").unwrap_or(line);
-            if let Some(heading) = bare
-                .strip_prefix('[')
-                .and_then(|rest| rest.strip_suffix(']'))
-            {
-                table = heading.to_string();
-                continue;
-            }
-            let Some((key, _)) = bare.split_once(" = ") else {
-                continue;
-            };
-            if !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') || key.is_empty() {
-                continue;
-            }
-            // A nested table carries the operator's own name; the roster holds
-            // the prefix, the way the refusals do.
-            let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
-                ["lights", "lamp" | "room" | "zone", ..] => super::TARGET_KEYS.to_string(),
-                _ => table.clone(),
-            };
-            let serves = super::keys_of(&roster_table).unwrap_or_else(|| {
-                panic!("the template writes `[{table}]`, which no table serves")
-            });
-            assert!(
-                serves.contains(&key),
-                "the template documents `{key}` under `[{table}]`, which does not serve it"
-            );
-            found += 1;
-        }
+        // THE SCANNER IS THE SHARED ONE, so the template and what `pns setup`
+        // composes are held to the roster by the same reader rather than by
+        // two that can drift apart. The count is pinned HERE and only here,
+        // because the template is the text whose key list is a fixed document.
         assert_eq!(
-            found, TEMPLATE_KEY_PAIRS,
+            super::documented_keys_the_roster_serves(&rendered_template()),
+            TEMPLATE_KEY_PAIRS,
             "the scan read a different number of keys than the template documents"
         );
     }
