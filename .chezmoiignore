@@ -51,6 +51,9 @@ tmp.*
 # Same, for the pns crate.
 .local/share/pns/target
 
+# Same, for the uu crate.
+.local/share/uu/target
+
 {{- if eq .chezmoi.os "linux" }}
 Library
 .local/libexec/macos-defaults/macos-defaults-drift.sh
@@ -66,4 +69,9 @@ Library
 .local/libexec/pns
 .local/share/pns
 .config/pns
+# uu rides on the pns engine for alerts and on its hermes client for records,
+# so it is macOS-only for the same reasons and its builder is darwin-gated too.
+.local/libexec/uu
+.local/share/uu
+.config/uu
 {{- end }}
