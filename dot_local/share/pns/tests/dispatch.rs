@@ -585,9 +585,7 @@ fn help_in_value_position_is_still_just_a_value() {
     // `--agent --help` warn-and-drop instead of delivering an agent whose
     // name literally is "--help". States are free-form the same way.
     let sandbox = Sandbox::new("help-as-agent-value");
-    run(sandbox
-        .pns()
-        .args(["--agent", "--help", "--state", "done"]));
+    run(sandbox.pns().args(["--agent", "--help", "--state", "done"]));
     assert_eq!(sandbox.event("mobile")["agent"], "--help");
 
     let sandbox = Sandbox::new("help-as-state-value");
@@ -835,10 +833,7 @@ fn pulse_help_prints_its_own_usage_before_any_config_load() {
             .output()
             .expect("the engine runs");
         assert_eq!(output.status.code(), Some(0), "{spelling}: {output:?}");
-        assert!(
-            stdout(&output).contains("usage"),
-            "{spelling}: {output:?}"
-        );
+        assert!(stdout(&output).contains("usage"), "{spelling}: {output:?}");
         assert_eq!(stderr(&output), "", "{spelling}: {output:?}");
     }
 }

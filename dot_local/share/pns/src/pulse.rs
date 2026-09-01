@@ -81,7 +81,10 @@ pub fn exit_behaviour(exit_code: &str) -> Option<crate::config::Behaviour> {
     if exit_code.is_empty() {
         return Some(crate::config::Behaviour::Done);
     }
-    if !exit_code.chars().all(|character| character.is_ascii_digit()) {
+    if !exit_code
+        .chars()
+        .all(|character| character.is_ascii_digit())
+    {
         return None;
     }
     // Every character is an ASCII digit at this point, so "all zeroes" is a
