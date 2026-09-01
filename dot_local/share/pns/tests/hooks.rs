@@ -2521,11 +2521,16 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     // the turn then spends seconds in the condenser; by the time anything is
     // delivered the tap is the older signal and the desk is where they are.
     //
-    // The marker is touched as this hook starts and the desk is stated at one
-    // second, so the two swap places DURING the condense: a reading taken at
+    // The marker is touched as this hook starts and the desk is stated at two
+    // seconds, so the two swap places DURING the condense: a reading taken at
     // process start says mobile and cards the phone, and a reading taken at
     // dispatch says desk and raises the banner. The banner is therefore the
     // whole assertion.
+    //
+    // TWO, NOT ONE: ages are whole seconds and a tie goes to the desk, so a
+    // desk stated at one second read Desk whenever the fresh marker's own age
+    // had just rolled over to one, and a hook reading the world at start
+    // passed this test about one run in twenty (measured 2026-09-01).
     let sandbox = Sandbox::new("hook-snapshot-timing");
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
@@ -2541,7 +2546,7 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     );
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "1")
+        .env("PNS_IDLE_SECS", "2")
         .env("PNS_DESK_IDLE_SECS", "120")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("CODEX_BIN", bin.join("codex"))
