@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use pns::channels::hermes::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 use unattended_upgrades::alert::{Alerter, alert_argv, alert_summary};
 use unattended_upgrades::config::{
     Config, ConfigError, LANE_NAMES, LoadOutcome, Records, config_path, load_config,
@@ -138,7 +139,7 @@ fn run_mode(only: Option<&str>) -> i32 {
 
     let engine = config.alerts.as_ref().map(|alerts| alerts.binary.clone());
     for report in reports.iter().filter(|report| report.failures > 0) {
-        send_alert(engine.as_deref(), &report.name, &alert_summary(report));
+        send_alert(&PnsAlerter, engine.as_deref(), &report.name, &alert_summary(report));
     }
 
     // A RECORD THE GATEWAY NEVER RECEIVED IS A FAILED RUN, even when every
@@ -148,9 +149,13 @@ fn run_mode(only: Option<&str>) -> i32 {
     // can read. With no `[records]` block nothing was owed, so nothing is
     // lost.
     let record_lost = match config.records.as_ref() {
-        Some(records) => {
-            !deliver_record(records, records_body(failures, &detail), engine.as_deref())
-        }
+        Some(records) => !deliver_record(
+            &UreqSignedPost,
+            &PnsAlerter,
+            records,
+            records_body(failures, &detail),
+            engine.as_deref(),
+        ),
         None => {
             println!("uu: no [records] block; this run was logged here and nowhere else");
             false
@@ -440,13 +445,13 @@ impl Alerter for PnsAlerter {
 /// One alert, FAIL OPEN at every rung: no `[alerts]` block, an engine that is
 /// not there, and an engine that refused are each stated here and none of them
 /// ends the run.
-fn send_alert(engine: Option<&str>, lane: &str, summary: &str) {
+fn send_alert(alerter: &dyn Alerter, engine: Option<&str>, lane: &str, summary: &str) {
     let Some(binary) = engine else {
         println!("uu: no [alerts] block; `{lane}: {summary}` was logged and nothing else");
         return;
     };
     let argv = alert_argv(&host(), lane, summary);
-    if let Err(why) = PnsAlerter.alert(binary, &argv) {
+    if let Err(why) = alerter.alert(binary, &argv) {
         println!("uu: the alert for `{lane}` was NOT delivered ({why}); it is logged here instead");
     }
 }
@@ -458,19 +463,29 @@ fn send_alert(engine: Option<&str>, lane: &str, summary: &str) {
 /// FAIL LOUD: a refused delivery is printed AND alerted, because a silent
 /// record channel is indistinguishable from a machine whose jobs stopped
 /// running, which is the one failure the record cannot report about itself.
-fn deliver_record(records: &Records, body: String, engine: Option<&str>) -> bool {
-    use pns::channels::hermes::{SignedPost, UreqSignedPost, delivered, outcome_line, sign};
-
+///
+/// BOTH PROCESS BOUNDARIES ARRIVE AS TRAITS, never the concrete client: a
+/// refused delivery can only be exercised through a real socket failure
+/// otherwise, and the alert it fires is invisible to anything but a real
+/// engine. `run_mode` is the only caller and hands in the production pair.
+fn deliver_record(
+    post: &dyn SignedPost,
+    alerter: &dyn Alerter,
+    records: &Records,
+    body: String,
+    engine: Option<&str>,
+) -> bool {
     let Some(signature) = sign(&records.key, &body) else {
         println!("uu: the [records] key is empty, so nothing could be signed or posted");
         return false;
     };
-    let outcome = UreqSignedPost.post(&records.url, &body, &signature, Some(RECORD_DEADLINE));
+    let outcome = post.post(&records.url, &body, &signature, Some(RECORD_DEADLINE));
     println!("uu: {}", outcome_line(outcome));
     if delivered(outcome) {
         return true;
     }
     send_alert(
+        alerter,
         engine,
         AGENT,
         &format!(
@@ -526,5 +541,77 @@ mod tests {
         let marker = read_marker(&link);
         std::fs::remove_file(&link).ok();
         assert_eq!(marker, Marker::Unreadable);
+    }
+
+    // --- the record and alert seams --------------------------------------
+
+    use std::cell::RefCell;
+
+    /// A `SignedPost` stub that always answers the same fixed outcome. It
+    /// never touches a socket, so both directions below run in well under a
+    /// second and neither depends on a real gateway being up or down.
+    struct AnswerWith(PostOutcome);
+
+    impl SignedPost for AnswerWith {
+        fn post(
+            &self,
+            _url: &str,
+            _body: &str,
+            _signature_hex: &str,
+            _deadline: Option<Duration>,
+        ) -> PostOutcome {
+            self.0
+        }
+    }
+
+    /// An `Alerter` that records every call instead of spawning anything, so
+    /// a test can assert whether the alert path fired at all.
+    #[derive(Default)]
+    struct SpyAlerter {
+        calls: RefCell<Vec<(String, Vec<String>)>>,
+    }
+
+    impl Alerter for SpyAlerter {
+        fn alert(&self, binary: &str, args: &[String]) -> Result<(), String> {
+            self.calls
+                .borrow_mut()
+                .push((binary.to_string(), args.to_vec()));
+            Ok(())
+        }
+    }
+
+    fn stub_records() -> Records {
+        Records {
+            url: "http://127.0.0.1:0/wherever".to_string(),
+            key: "k".to_string(),
+        }
+    }
+
+    #[test]
+    fn a_refused_post_reports_failure_and_alerts_through_the_given_alerter() {
+        let spy = SpyAlerter::default();
+        let delivered = deliver_record(
+            &AnswerWith(PostOutcome::NoResponse),
+            &spy,
+            &stub_records(),
+            "body".to_string(),
+            Some("engine"),
+        );
+        assert!(!delivered);
+        assert_eq!(spy.calls.borrow().len(), 1, "{:?}", spy.calls.borrow());
+    }
+
+    #[test]
+    fn a_delivered_post_reports_success_and_never_touches_the_alerter() {
+        let spy = SpyAlerter::default();
+        let delivered = deliver_record(
+            &AnswerWith(PostOutcome::Status(200)),
+            &spy,
+            &stub_records(),
+            "body".to_string(),
+            Some("engine"),
+        );
+        assert!(delivered);
+        assert!(spy.calls.borrow().is_empty(), "{:?}", spy.calls.borrow());
     }
 }
