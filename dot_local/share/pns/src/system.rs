@@ -183,11 +183,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// THE CEILING USED TO BE THE ONLY INTERVAL, and it was charged to every
 /// bounded spawn. This wait begins after the child's stdout has already hit
 /// EOF, which is a child on its way out, so the check that matters is the one
-/// taken microseconds later and a flat 10ms is what a run pays for missing it.
-/// MEASURED on dresden 2026-09-01, forty interleaved runs a lane: a Stop hook
-/// takes seven probe spawns plus the branch lookup through here, and its
-/// decision path fell from a 129ms median and a 168ms 90th percentile to 98ms
-/// and 102ms.
+/// taken microseconds later and the ceiling is what a run pays for missing it.
 const FIRST_POLL_INTERVAL: Duration = Duration::from_micros(200);
 
 /// The next gap between checks: doubled, and never past the ceiling. The

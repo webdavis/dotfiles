@@ -43,9 +43,8 @@ fn main() {
     // It used to reach EVERYTHING: the word fell through every comparison
     // below into the lenient producer parser, which skipped it and notified
     // about an empty event, so printing the commands loaded the config, spawned
-    // every presence probe and raised a banner titled "pns done" (measured
-    // 2026-09-01, a 137ms median against the 3ms this costs). Nothing about
-    // listing what this binary takes needs the machine read.
+    // every presence probe and raised a banner titled "pns · done". Nothing
+    // about listing what this binary takes needs the machine read.
     if first == *"--help" || first == *"-h" {
         print!("{USAGE}");
         return;

@@ -509,7 +509,7 @@ fn assert_states_the_whole_contract(printed: &str) {
 #[test]
 fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
     // A help print used to be an EVENT: it loaded the config, spawned every
-    // presence probe and delivered a notification reading "pns done" to
+    // presence probe and delivered a notification reading "pns · done" to
     // whatever channel was configured. Nothing about printing the commands
     // needs the machine read, so nothing here may reach it.
     for spelling in ["--help", "-h"] {

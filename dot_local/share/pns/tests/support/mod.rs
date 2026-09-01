@@ -207,7 +207,7 @@ esac"#
     /// banner's `terminal-notifier`, the session view's `herdr`, the branch
     /// lookup's `git` and the condenser's `codex`. The banner is the one that
     /// makes it bite: a usage path that reached the event path raised a real
-    /// macOS notification reading "pns done", measured 2026-09-01.
+    /// macOS notification reading "pns · done".
     pub fn spy_path(&self, command: &mut Command) {
         for name in ["herdr", "terminal-notifier", "git", "codex"] {
             self.stub_on_path(
