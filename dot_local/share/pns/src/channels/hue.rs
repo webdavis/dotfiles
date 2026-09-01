@@ -777,8 +777,9 @@ fn dimming(percent: u8) -> serde_json::Value {
 /// IT ALWAYS STATES A BRIGHTNESS, and that is the price of a config that can
 /// dim: a `dimming` written beside a signal PERSISTS after the signal ends
 /// (drill D4, 2026-08-30), so a body that said nothing would inherit whatever
-/// the last dim write left. The `[plugins.hue] rooms` path below states none and
-/// stays byte-identical, because nothing on that path can ever write a floor.
+/// the last dim write left. The `[plugins.hue] rooms` path below states none,
+/// and the lamp comes back byte-identical, because nothing on that path can
+/// ever write a floor.
 pub fn pulse_body(
     pulse: &crate::config::Pulse,
     color: crate::pulse::PulseColor,
@@ -948,8 +949,9 @@ impl<B: Bridge> HuePulse<B> {
 ///
 /// AND IT STATES NO BRIGHTNESS, ever. This is the path of a machine with no
 /// `[lights]` table and of `pns pulse` on a machine with one: no routing is in
-/// reach to dim, so nothing here can have left a floor on a lamp and the body is
-/// the one that shipped, byte for byte.
+/// reach to dim, so nothing here can have left a floor on a lamp. The duration
+/// stays fixed; the color follows wherever `SUCCESS_COLOR`/`FAILURE_COLOR` are
+/// locked to, so it is not byte-identical across a color relock.
 pub fn signal_fixtures<B: Bridge>(
     bridge: &B,
     fixtures: &[Fixture],
@@ -977,10 +979,12 @@ pub fn signal_fixtures<B: Bridge>(
 /// How long the no-map pulse flashes, in milliseconds.
 ///
 /// THREE SECONDS, AND IT IS NOT THE LOCKED FOUR. This is the body a machine with
-/// no `[lights]` table sends, and it is kept byte-identical to what shipped: the
-/// four-second figure was locked on the ROUTED path, where a per-behaviour knob
-/// states it, and moving this one would change what an unconfigured machine does
-/// without anybody asking for it.
+/// no `[lights]` table sends. The duration and the no-brightness shape are kept
+/// exactly as shipped; the color is not pinned here, it follows whatever
+/// `SUCCESS_COLOR`/`FAILURE_COLOR` are locked to. The four-second figure was
+/// locked on the ROUTED path, where a per-behaviour knob states it, and moving
+/// this one would change what an unconfigured machine does without anybody
+/// asking for it.
 const UNMAPPED_SIGNAL_DURATION_MS: u64 = 3000;
 
 #[cfg(test)]
