@@ -7,10 +7,10 @@
 //! notification must never fail the work it reports on.
 
 use std::collections::BTreeMap;
-use std::io::{Read, Seek, Write};
+use std::io::{IsTerminal, Read, Seek, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -106,6 +106,14 @@ fn main() {
     if first == *"nag" {
         std::process::exit(nag_mode());
     }
+    // The first-run walk. A MODE that has to be reachable with NO CONFIG AT
+    // ALL, which is the state it exists to end, and that is why it sits above
+    // everything that loads one. Nothing on the event path reaches it and it
+    // reaches nothing there: it asks questions, composes text and publishes a
+    // file, and delivers nothing.
+    if first == *"setup" {
+        std::process::exit(setup_mode());
+    }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
@@ -154,6 +162,7 @@ pns: usage:
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
   pns recap --since <epoch> --until <epoch>
+  pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
   pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
@@ -7101,6 +7110,295 @@ const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>
 /// What a line shows for a moment whose clock could not be read: the same width
 /// as a time, so the timeline still lines up.
 const NO_WALL_CLOCK: &str = "--:--";
+
+/// The `setup` mode: the first-run walk, and the only writer of the config.
+///
+/// A THIN EDGE OVER A PURE COMPOSER. Everything about what lands in the file
+/// is `pns::setup`; this asks, reads a line, and publishes. It EXITS NON-ZERO
+/// on every refusal, which the always-exit-0 contract permits for the same
+/// reason `quiet` does: that contract covers the hook and notification paths,
+/// where a non-zero exit fails the turn being reported on, and this is hand
+/// typed and is never a hook.
+///
+/// IT REFUSES A WALK NOBODY CAN ANSWER. Without a terminal there is no walk,
+/// and guessing every answer would write a config the operator never agreed
+/// to, over one they may already have.
+fn setup_mode() -> i32 {
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(2)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let force = match arguments.as_slice() {
+        [] => false,
+        [word] if word == "--force" => true,
+        // ANY OTHER WORD IS A REFUSAL, never a silent fallthrough to the walk:
+        // a mistyped `--force` that walked anyway would ask ten questions and
+        // then refuse at the end, over a config it was told to replace.
+        _ => {
+            eprintln!("{SETUP_USAGE}");
+            return 2;
+        }
+    };
+    // THE CONFIG IS CHECKED BEFORE THE TERMINAL IS, because it is the more
+    // specific answer: an operator who already has one is told that, whether
+    // or not they are sitting in front of the questions.
+    let path = config_path(&std::env::var("HOME").unwrap_or_default());
+    if path.exists() && !force {
+        eprintln!(
+            "pns setup: {} already exists; pass --force to replace it, \
+             which keeps the old file beside it",
+            path.display()
+        );
+        return 2;
+    }
+    if !std::io::stdin().is_terminal() {
+        eprintln!(
+            "pns setup: this is a walk through questions and stdin is not a terminal; \
+             nothing was written"
+        );
+        return 2;
+    }
+    let Some(answers) = walk() else {
+        eprintln!("pns setup: the answers ended before the walk did; nothing was written");
+        return 2;
+    };
+    let composed = pns::setup::compose_config(&answers);
+    // THROUGH THE ENGINE'S OWN PARSER BEFORE IT IS PUBLISHED. A wizard that
+    // writes a config pns then refuses is worse than no wizard: it leaves a
+    // machine falling back to the core with a complaint nobody is standing in
+    // front of, and it does it while the operator is being told it worked.
+    if let Err(error) = pns::config::parse_config(&composed) {
+        eprintln!(
+            "pns setup: what it composed does not load ({}); nothing was written",
+            error.detail()
+        );
+        return 2;
+    }
+    match publish_config(&path, &composed, force) {
+        Ok(backup) => {
+            if let Some(backup) = backup {
+                println!("pns setup: kept the old config at {}", backup.display());
+            }
+            println!("pns setup: wrote {}", path.display());
+            0
+        }
+        Err(refusal) => {
+            eprintln!("pns setup: {refusal}");
+            1
+        }
+    }
+}
+
+/// The walk itself: one question at a time, in the order the file is written.
+///
+/// NONE OF THIS DECIDES ANYTHING. Every answer is carried to the composer as
+/// it was typed, and a blank one is what declines a feature there. `None` is
+/// the input ending mid-walk, which publishes nothing at all rather than
+/// composing a file out of half a conversation.
+///
+/// THE CREDENTIALS ARE ASKED INSIDE THE WALK, right after the feature they
+/// arm, because a feature switched on now and credentialed later is exactly
+/// the empty-value config this wizard exists to avoid.
+fn walk() -> Option<pns::setup::Answers> {
+    println!("{SETUP_PREAMBLE}");
+    let mut answers = pns::setup::Answers {
+        mobile_token: ask(
+            "The phone card is on. Paste moshi's webhook secret to complete it, \
+             or press enter to pair later",
+        )?,
+        ..Default::default()
+    };
+
+    if ask_yes("Post every event to hermes, for the durable log and the recap?")? {
+        answers.hermes_key = armed("hermes", "the signing key that route verifies")?;
+    }
+    if ask_yes("Flash hue lights green when work finishes and red when it dies?")? {
+        // EACH ANSWER GATES THE NEXT QUESTION: once one comes back empty the
+        // feature is already declined, and the rest would be questions whose
+        // answers are thrown away.
+        answers.hue_bridge = armed("the light pulse", "the hue bridge's address on the network")?;
+        if !answers.hue_bridge.is_empty() {
+            answers.hue_key = armed("the light pulse", "an API key the bridge issued")?;
+        }
+        if !answers.hue_key.is_empty() {
+            answers.hue_rooms = list(armed(
+                "the light pulse",
+                "the rooms to flash, comma separated, spelled as the bridge spells them",
+            )?);
+        }
+    }
+    if ask_yes("Read whether your phone is on the home wifi, off the router's client list?")? {
+        // THE BACKEND HAS A WORKING DEFAULT and every other field here does
+        // not, so this is the one question enter answers rather than declines.
+        let backend = ask("Which router backend? [unifi]")?;
+        answers.router_type = if backend.is_empty() {
+            "unifi".to_string()
+        } else {
+            backend
+        };
+        answers.router_url = armed("the home probe", "the router's URL")?;
+        if !answers.router_url.is_empty() {
+            answers.router_api_key = armed("the home probe", "an API key the router issued")?;
+        }
+        if !answers.router_api_key.is_empty() {
+            answers.router_device_hostname =
+                armed("the home probe", "the phone's hostname on that router")?;
+        }
+    }
+    if ask_yes("Hold notifications back while a macOS Focus is on?")? {
+        answers.focus_modes = list(armed(
+            "focus silencing",
+            "which Focus modes mean it, comma separated",
+        )?);
+    }
+    answers.nag = ask_yes("Card you a second time about an approval left unanswered?")?;
+    Some(answers)
+}
+
+/// One credentialed answer, and the line that says what a blank one costs.
+///
+/// SAID WHEN IT HAPPENS rather than only in the file: an operator who meant to
+/// arm a feature and pressed enter has one chance to notice, and the composed
+/// file's own commented block is read later if at all.
+fn armed(feature: &str, wanted: &str) -> Option<String> {
+    let answer = ask(wanted)?;
+    if answer.is_empty() {
+        println!("  nothing given, so {feature} stays off; the file says how to arm it");
+    }
+    Some(answer)
+}
+
+/// One question, and the line typed back. `None` is the input ending.
+fn ask(question: &str) -> Option<String> {
+    print!("{question}: ");
+    let _ = std::io::stdout().flush();
+    let mut typed = String::new();
+    match std::io::stdin().read_line(&mut typed) {
+        Ok(0) | Err(_) => None,
+        Ok(_) => Some(typed.trim().to_string()),
+    }
+}
+
+/// One yes-or-no question. ENTER MEANS NO, and so does anything that is not a
+/// yes: this walk arms features that deliver to a phone and to lamps, and the
+/// answer nobody typed on purpose must be the one that changes nothing.
+fn ask_yes(question: &str) -> Option<bool> {
+    let answer = ask(&format!("{question} [y/N]"))?;
+    Some(matches!(answer.to_lowercase().as_str(), "y" | "yes"))
+}
+
+/// A comma-separated answer as the values it names, blanks dropped.
+fn list(answer: String) -> Vec<String> {
+    answer
+        .split(',')
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+/// Publish the composed config, keeping the old one when replacing it.
+///
+/// CREATE-IF-ABSENT RATHER THAN A RENAME when there is nothing to replace: a
+/// config that appeared between the check above and this moment is another
+/// writer's, and a blanket rename would overwrite it with no backup and no
+/// word. The link failing with `AlreadyExists` IS that refusal.
+///
+/// THE BACKUP IS TAKEN FIRST on the forced path, so the window in which the
+/// old config is neither published nor kept does not exist. It is a hard link
+/// rather than a copy: one directory entry, no secret read through this
+/// process, and it cannot half-succeed.
+///
+/// THE PENDING FILE CARRIES THE MODE, because it is what gets published:
+/// writing at the umask would publish a config whose plugin secrets any
+/// process on the machine can read.
+fn publish_config(path: &Path, composed: &str, force: bool) -> Result<Option<PathBuf>, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("{} has no directory to write in", path.display()))?;
+    std::fs::create_dir_all(parent)
+        .map_err(|error| format!("{} could not be created: {error}", parent.display()))?;
+    let pending = parent.join(format!("config.toml.new.{}", std::process::id()));
+    let published = write_then_publish(path, &pending, composed, force);
+    // WHICHEVER WAY IT WENT: a pending file left in the config directory would
+    // be read by nobody and found by everybody.
+    let _ = std::fs::remove_file(&pending);
+    published
+}
+
+/// The publish itself, with `publish_config` owning the cleanup around it.
+fn write_then_publish(
+    path: &Path,
+    pending: &Path,
+    composed: &str,
+    force: bool,
+) -> Result<Option<PathBuf>, String> {
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(CONFIG_FILE_MODE)
+        .open(pending)
+        .map_err(|error| format!("{} could not be written: {error}", pending.display()))?;
+    // AND AGAIN AFTER THE OPEN, for `publish_state_line`'s reason: `mode`
+    // applies only when the open CREATES the file, and this path carries this
+    // process's own id, so a run of the same pid can find one to reuse.
+    file.set_permissions(std::fs::Permissions::from_mode(CONFIG_FILE_MODE))
+        .map_err(|error| format!("{} could not be secured: {error}", pending.display()))?;
+    file.write_all(composed.as_bytes())
+        .map_err(|error| format!("{} could not be written: {error}", pending.display()))?;
+
+    if !force {
+        return match std::fs::hard_link(pending, path) {
+            Ok(()) => Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
+                "{} appeared while the questions were being answered; \
+                 nothing was written",
+                path.display()
+            )),
+            Err(error) => Err(format!("{} could not be written: {error}", path.display())),
+        };
+    }
+
+    let backup = match path.exists() {
+        false => None,
+        true => Some(keep_aside(path)?),
+    };
+    std::fs::rename(pending, path)
+        .map_err(|error| format!("{} could not be written: {error}", path.display()))?;
+    Ok(backup)
+}
+
+/// Move the existing config aside, and answer with where it went.
+fn keep_aside(path: &Path) -> Result<PathBuf, String> {
+    let backup = now_secs()
+        .and_then(|now| pns::setup::backup_path(path, now))
+        .ok_or_else(|| {
+            "the clock cannot be read, so the config already there cannot be named \
+             and kept; nothing was written"
+                .to_string()
+        })?;
+    // CREATE-IF-ABSENT, so a second forced run inside the same second refuses
+    // rather than writing over the copy the first one kept.
+    std::fs::hard_link(path, &backup)
+        .map_err(|error| format!("{} could not be kept: {error}", backup.display()))?;
+    std::fs::set_permissions(&backup, std::fs::Permissions::from_mode(CONFIG_FILE_MODE))
+        .map_err(|error| format!("{} could not be secured: {error}", backup.display()))?;
+    Ok(backup)
+}
+
+/// The config carries every plugin's secret, so it is the operator's alone.
+const CONFIG_FILE_MODE: u32 = 0o600;
+
+/// What the walk says before it starts asking.
+const SETUP_PREAMBLE: &str = "\
+pns setup: a few questions, and a config at the end of them.
+The macOS banner and the phone card are on and are not asked about. Everything
+else is off unless you arm it here, and enter is no. Nothing is written until
+the last answer.";
+
+/// What a setup typed wrong is told.
+const SETUP_USAGE: &str =
+    "pns: usage: pns setup [--force]; --force replaces an existing config, keeping it beside";
 
 /// The `quiet` mode: the operator's own mute, typed and timed.
 ///
