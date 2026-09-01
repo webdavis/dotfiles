@@ -4,6 +4,7 @@
 
 mod support;
 
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
@@ -225,5 +226,85 @@ fn a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending
         !pty.transcript.contains("the answers ended before the walk did"),
         "a read failure was reported as the input ending: {:?}",
         pty.transcript
+    );
+}
+
+#[test]
+fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
+    let sandbox = Sandbox::without_config("setup-hidden-secret");
+    let mut pty = Pty::open();
+    let mut child = pty.spawn(sandbox.bare().args(["setup"]));
+
+    // EACH ANSWER IS WRITTEN ONLY AFTER ITS OWN PROMPT IS VISIBLE: arming the
+    // hidden read discards whatever is already queued (`TCSAFLUSH`), so
+    // typing ahead of a prompt this walk has not printed yet would be lost.
+    pty.read_until("or press enter to pair later: ", PTY_DEADLINE)
+        .expect("the first prompt");
+    pty.write_all(b"do-not-echo-this-token\n");
+
+    pty.read_until("Post every event to hermes", PTY_DEADLINE)
+        .expect("the hermes question");
+    pty.write_all(b"n\n");
+
+    pty.read_until("Flash hue lights", PTY_DEADLINE)
+        .expect("the hue question");
+    pty.write_all(b"n\n");
+
+    pty.read_until("home wifi", PTY_DEADLINE)
+        .expect("the router question");
+    pty.write_all(b"n\n");
+
+    pty.read_until("macOS Focus", PTY_DEADLINE)
+        .expect("the focus question");
+    pty.write_all(b"n\n");
+
+    pty.read_until("approval left unanswered", PTY_DEADLINE)
+        .expect("the nag question");
+    pty.write_all(b"y\n");
+
+    pty.read_to_eof(PTY_DEADLINE).expect("the wizard exits");
+    let status = child.wait().expect("the wizard is reaped");
+    assert_eq!(status.code(), Some(0), "transcript: {:?}", pty.transcript);
+
+    assert!(
+        !pty.transcript.contains("do-not-echo-this-token"),
+        "the secret reached the pty output: {:?}",
+        pty.transcript
+    );
+    assert!(
+        pty.transcript.contains('y'),
+        "an ordinary, non-secret answer stopped echoing too: {:?}",
+        pty.transcript
+    );
+    // ECHONL IS WHAT PRODUCES THIS, with echo itself off: the prompt's own
+    // ": " is immediately followed by the driver's echo of the typed Enter,
+    // and then the next question, with no echoed secret in between.
+    assert!(
+        pty.transcript.contains(": \r\nPost every event"),
+        "the hidden prompt's Enter was not echoed via ECHONL: {:?}",
+        pty.transcript
+    );
+
+    let published = sandbox.root.join(".config/pns/config.toml");
+    let contents = std::fs::read_to_string(&published).expect("the published config");
+    assert!(
+        contents.contains("do-not-echo-this-token"),
+        "the token did not reach the file: {contents}"
+    );
+    let mode = std::fs::metadata(&published)
+        .expect("the published config")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o600, "the config is not the operator's alone");
+
+    // THE GUARD MUST HAVE DROPPED, restoring the terminal it borrowed, even
+    // though the child has already exited: a pty's master keeps reporting
+    // the slave's last settings after the slave side closes.
+    let after_exit = pty.tcgetattr();
+    assert_ne!(
+        after_exit.c_lflag & libc::ECHO,
+        0,
+        "echo was not restored once the wizard exited"
     );
 }

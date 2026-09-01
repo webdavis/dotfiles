@@ -7205,7 +7205,7 @@ fn setup_mode() -> i32 {
 fn walk() -> Result<pns::setup::Answers, String> {
     println!("{SETUP_PREAMBLE}");
     let mut answers = pns::setup::Answers {
-        mobile_token: ask(
+        mobile_token: ask_hidden(
             "The phone card is on. Paste moshi's webhook secret to complete it, \
              or press enter to pair later",
         )?,
@@ -7213,7 +7213,7 @@ fn walk() -> Result<pns::setup::Answers, String> {
     };
 
     if ask_yes("Post every event to hermes, for the durable log and the recap?")? {
-        answers.hermes_key = armed("hermes", "the signing key that route verifies")?;
+        answers.hermes_key = armed_secret("hermes", "the signing key that route verifies")?;
     }
     if ask_yes("Flash hue lights green when work finishes and red when it dies?")? {
         // EACH ANSWER GATES THE NEXT QUESTION: once one comes back empty the
@@ -7221,7 +7221,7 @@ fn walk() -> Result<pns::setup::Answers, String> {
         // answers are thrown away.
         answers.hue_bridge = armed("the light pulse", "the hue bridge's address on the network")?;
         if !answers.hue_bridge.is_empty() {
-            answers.hue_key = armed("the light pulse", "an API key the bridge issued")?;
+            answers.hue_key = armed_secret("the light pulse", "an API key the bridge issued")?;
         }
         if !answers.hue_key.is_empty() {
             answers.hue_rooms = list(armed(
@@ -7249,7 +7249,7 @@ fn walk() -> Result<pns::setup::Answers, String> {
                 answers.router_url = armed("the home probe", "the router's URL")?;
                 if !answers.router_url.is_empty() {
                     answers.router_api_key =
-                        armed("the home probe", "an API key the router issued")?;
+                        armed_secret("the home probe", "an API key the router issued")?;
                 }
                 if !answers.router_api_key.is_empty() {
                     answers.router_device_hostname =
@@ -7274,11 +7274,22 @@ fn walk() -> Result<pns::setup::Answers, String> {
 /// arm a feature and pressed enter has one chance to notice, and the composed
 /// file's own commented block is read later if at all.
 fn armed(feature: &str, wanted: &str) -> Result<String, String> {
-    let answer = ask(wanted)?;
+    Ok(nothing_given(feature, ask(wanted)?))
+}
+
+/// The same shape as `armed`, for a secret: read with the terminal's echo
+/// held off, because this is where the token, the hermes key, the hue key
+/// and the router key are all asked.
+fn armed_secret(feature: &str, wanted: &str) -> Result<String, String> {
+    Ok(nothing_given(feature, ask_hidden(wanted)?))
+}
+
+/// What `armed` and `armed_secret` share: the line a blank answer costs.
+fn nothing_given(feature: &str, answer: String) -> String {
     if answer.is_empty() {
         println!("  nothing given, so {feature} stays off; the file says how to arm it");
     }
-    Ok(answer)
+    answer
 }
 
 /// One question, and the line typed back. An `Err` names why nothing did: the
@@ -7287,11 +7298,122 @@ fn armed(feature: &str, wanted: &str) -> Result<String, String> {
 fn ask(question: &str) -> Result<String, String> {
     print!("{question}: ");
     let _ = std::io::stdout().flush();
+    read_answer()
+}
+
+/// The same question, answered with the terminal's echo held off so a typed
+/// secret never reaches the pane grid, herdr's persisted pane history, or any
+/// attached client. THE GUARD ARMS BEFORE THE PROMPT PRINTS: arming after
+/// would leave a window in which the prompt is already visible but echo is
+/// still on, so an operator who types ahead of it, or this crate's own pty
+/// test, could still have a secret echoed before `TCSAFLUSH` takes hold.
+///
+/// Ctrl-C, Ctrl-\, Ctrl-Z, and a TERM or HUP are all held for the read rather
+/// than answered immediately, the same trade `readpassphrase(3)` makes: each
+/// is still delivered, just not until the guard drops, so Ctrl-C takes effect
+/// at the next Enter rather than instantly.
+fn ask_hidden(question: &str) -> Result<String, String> {
+    let _hushed = Hushed::arm()?;
+    print!("{question}: ");
+    let _ = std::io::stdout().flush();
+    read_answer()
+}
+
+/// What every read shares, hidden or not.
+fn read_answer() -> Result<String, String> {
     let mut typed = String::new();
     match std::io::stdin().read_line(&mut typed) {
         Ok(0) => Err("the answers ended before the walk did".to_string()),
         Err(error) => Err(format!("the answers could not be read: {error}")),
         Ok(_) => Ok(answered(&typed)),
+    }
+}
+
+/// Turns the terminal's echo off for as long as it lives. `Drop` restores
+/// both the termios state and the signal mask it holds, on every exit path
+/// including EOF and an unwinding panic: this crate carries no
+/// `panic = "abort"`, so Drop always runs.
+struct Hushed {
+    original: libc::termios,
+    original_mask: libc::sigset_t,
+}
+
+impl Hushed {
+    /// Arm the guard. FAILS CLOSED: a termios or signal call this cannot
+    /// complete is refused as loudly as a bad answer, rather than silently
+    /// leaving echo on and asking for a secret anyway.
+    fn arm() -> Result<Hushed, String> {
+        let mut original: libc::termios = unsafe { std::mem::zeroed() };
+        if unsafe { libc::tcgetattr(libc::STDIN_FILENO, &mut original) } != 0 {
+            return Err(format!(
+                "the terminal's settings could not be read (tcgetattr: {})",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let mut blocked: libc::sigset_t = unsafe { std::mem::zeroed() };
+        if unsafe { libc::sigemptyset(&mut blocked) } != 0 {
+            return Err(format!(
+                "the signal mask could not be built (sigemptyset: {})",
+                std::io::Error::last_os_error()
+            ));
+        }
+        // BLOCKED FOR THE READ, not disabled: each one is still delivered,
+        // once the guard drops and the mask is restored.
+        for signal in [
+            libc::SIGINT,
+            libc::SIGQUIT,
+            libc::SIGTSTP,
+            libc::SIGTERM,
+            libc::SIGHUP,
+        ] {
+            if unsafe { libc::sigaddset(&mut blocked, signal) } != 0 {
+                return Err(format!(
+                    "the signal mask could not be built (sigaddset: {})",
+                    std::io::Error::last_os_error()
+                ));
+            }
+        }
+        let mut original_mask: libc::sigset_t = unsafe { std::mem::zeroed() };
+        if unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, &mut original_mask) } != 0 {
+            return Err(format!(
+                "signals could not be held for the read (pthread_sigmask: {})",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let mut hushed = original;
+        hushed.c_lflag &= !libc::ECHO;
+        hushed.c_lflag |= libc::ECHONL;
+        if unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &hushed) } != 0 {
+            let error = std::io::Error::last_os_error();
+            unsafe {
+                libc::pthread_sigmask(libc::SIG_SETMASK, &original_mask, std::ptr::null_mut());
+            }
+            return Err(format!(
+                "the terminal's echo could not be turned off (tcsetattr: {error})"
+            ));
+        }
+        Ok(Hushed {
+            original,
+            original_mask,
+        })
+    }
+}
+
+impl Drop for Hushed {
+    fn drop(&mut self) {
+        unsafe {
+            // TERMIOS FIRST, THEN THE MASK: a signal delivered between the
+            // two would otherwise run with the operator's terminal still
+            // echo-off. Neither call's failure is checked: a tty that hung
+            // up during the read (EOF from a closed pty) makes `tcsetattr`
+            // fail, and Drop must never panic over a terminal already gone.
+            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &self.original);
+            libc::pthread_sigmask(
+                libc::SIG_SETMASK,
+                &self.original_mask,
+                std::ptr::null_mut(),
+            );
+        }
     }
 }
 
