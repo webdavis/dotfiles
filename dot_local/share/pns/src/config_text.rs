@@ -58,7 +58,11 @@ pub const LAYOUT: &[Table] = &[
         prose: "",
         opt_in: false,
         keys: &[
-            Key { name: "enabled", prose: "", sample: Sample::Default("true") },
+            Key {
+                name: "enabled",
+                prose: "",
+                sample: Sample::Default("true"),
+            },
             Key {
                 name: "type",
                 prose: "# Which compiled-in backend carries the card. \"moshi\" is the only one\n\
@@ -94,15 +98,27 @@ pub const LAYOUT: &[Table] = &[
                  # with the key that route verifies.\n",
         opt_in: true,
         keys: &[
-            Key { name: "enabled", prose: "", sample: Sample::Default("true") },
-            Key { name: "key", prose: "", sample: Sample::Example("\"\"") },
+            Key {
+                name: "enabled",
+                prose: "",
+                sample: Sample::Default("true"),
+            },
+            Key {
+                name: "key",
+                prose: "",
+                sample: Sample::Example("\"\""),
+            },
         ],
     },
     Table {
         name: "plugins.macos-banner",
         prose: "# The macOS banner, which is what a machine you are sitting at says.\n",
         opt_in: false,
-        keys: &[Key { name: "enabled", prose: "", sample: Sample::Default("true") }],
+        keys: &[Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        }],
     },
     Table {
         name: "plugins.hue",
@@ -111,10 +127,26 @@ pub const LAYOUT: &[Table] = &[
                  # spelled the way the bridge spells them.\n",
         opt_in: true,
         keys: &[
-            Key { name: "enabled", prose: "", sample: Sample::Default("true") },
-            Key { name: "bridge", prose: "", sample: Sample::Example("\"\"") },
-            Key { name: "key", prose: "", sample: Sample::Example("\"\"") },
-            Key { name: "rooms", prose: "", sample: Sample::Example("[]") },
+            Key {
+                name: "enabled",
+                prose: "",
+                sample: Sample::Default("true"),
+            },
+            Key {
+                name: "bridge",
+                prose: "",
+                sample: Sample::Example("\"\""),
+            },
+            Key {
+                name: "key",
+                prose: "",
+                sample: Sample::Example("\"\""),
+            },
+            Key {
+                name: "rooms",
+                prose: "",
+                sample: Sample::Example("[]"),
+            },
             Key {
                 name: "quiet_hours",
                 prose: "# The hours the room pulse stays dark: local wall clock, the start\n\
@@ -130,9 +162,21 @@ pub const LAYOUT: &[Table] = &[
                  # event ever routes to it; `pns home` is how it is read.\n",
         opt_in: true,
         keys: &[
-            Key { name: "enabled", prose: "", sample: Sample::Default("true") },
-            Key { name: "type", prose: "", sample: Sample::Default("\"unifi\"") },
-            Key { name: "router_url", prose: "", sample: Sample::Example("\"\"") },
+            Key {
+                name: "enabled",
+                prose: "",
+                sample: Sample::Default("true"),
+            },
+            Key {
+                name: "type",
+                prose: "",
+                sample: Sample::Default("\"unifi\""),
+            },
+            Key {
+                name: "router_url",
+                prose: "",
+                sample: Sample::Example("\"\""),
+            },
             Key {
                 name: "device_hostname",
                 prose: "# The device is named by device_hostname, device_mac or device_ipv4, at\n\
@@ -141,9 +185,21 @@ pub const LAYOUT: &[Table] = &[
                          # wifi address.\n",
                 sample: Sample::Example("\"\""),
             },
-            Key { name: "device_mac", prose: "", sample: Sample::Example("\"\"") },
-            Key { name: "device_ipv4", prose: "", sample: Sample::Example("\"\"") },
-            Key { name: "api_key", prose: "", sample: Sample::Example("\"\"") },
+            Key {
+                name: "device_mac",
+                prose: "",
+                sample: Sample::Example("\"\""),
+            },
+            Key {
+                name: "device_ipv4",
+                prose: "",
+                sample: Sample::Example("\"\""),
+            },
+            Key {
+                name: "api_key",
+                prose: "",
+                sample: Sample::Example("\"\""),
+            },
             Key {
                 name: "stale_alert_channel",
                 prose: "# The hermes route a stale-identifier alert posts to. UNSET IS THE\n\
@@ -156,7 +212,11 @@ pub const LAYOUT: &[Table] = &[
         name: "daemon",
         prose: DAEMON_PROSE,
         opt_in: false,
-        keys: &[Key { name: "enabled", prose: "", sample: Sample::Default("true") }],
+        keys: &[Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        }],
     },
     Table {
         name: "recap",
@@ -227,7 +287,11 @@ pub const LAYOUT: &[Table] = &[
                  # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\
                  # table at all.\n",
         opt_in: true,
-        keys: &[Key { name: "silence", prose: "", sample: Sample::Example("[\"Sleep\"]") }],
+        keys: &[Key {
+            name: "silence",
+            prose: "",
+            sample: Sample::Example("[\"Sleep\"]"),
+        }],
     },
     Table {
         name: "nag",
@@ -262,8 +326,16 @@ pub const LAYOUT: &[Table] = &[
                  # only the knobs that APPLY to a behaviour exist.\n",
         opt_in: true,
         keys: &[
-            Key { name: "duration_ms", prose: "", sample: Sample::Default("4000") },
-            Key { name: "brightness", prose: "", sample: Sample::Default("100") },
+            Key {
+                name: "duration_ms",
+                prose: "",
+                sample: Sample::Default("4000"),
+            },
+            Key {
+                name: "brightness",
+                prose: "",
+                sample: Sample::Default("100"),
+            },
         ],
     },
     Table {
@@ -271,8 +343,16 @@ pub const LAYOUT: &[Table] = &[
         prose: "",
         opt_in: true,
         keys: &[
-            Key { name: "duration_ms", prose: "", sample: Sample::Default("4000") },
-            Key { name: "brightness", prose: "", sample: Sample::Default("100") },
+            Key {
+                name: "duration_ms",
+                prose: "",
+                sample: Sample::Default("4000"),
+            },
+            Key {
+                name: "brightness",
+                prose: "",
+                sample: Sample::Default("100"),
+            },
         ],
     },
     Table {
@@ -280,9 +360,21 @@ pub const LAYOUT: &[Table] = &[
         prose: "",
         opt_in: true,
         keys: &[
-            Key { name: "duration_ms", prose: "", sample: Sample::Default("2000") },
-            Key { name: "high", prose: "", sample: Sample::Default("100") },
-            Key { name: "low", prose: "", sample: Sample::Default("30") },
+            Key {
+                name: "duration_ms",
+                prose: "",
+                sample: Sample::Default("2000"),
+            },
+            Key {
+                name: "high",
+                prose: "",
+                sample: Sample::Default("100"),
+            },
+            Key {
+                name: "low",
+                prose: "",
+                sample: Sample::Default("30"),
+            },
         ],
     },
     Table {
@@ -290,9 +382,21 @@ pub const LAYOUT: &[Table] = &[
         prose: "",
         opt_in: true,
         keys: &[
-            Key { name: "duration_ms", prose: "", sample: Sample::Default("4000") },
-            Key { name: "high", prose: "", sample: Sample::Default("60") },
-            Key { name: "low", prose: "", sample: Sample::Default("10") },
+            Key {
+                name: "duration_ms",
+                prose: "",
+                sample: Sample::Default("4000"),
+            },
+            Key {
+                name: "high",
+                prose: "",
+                sample: Sample::Default("60"),
+            },
+            Key {
+                name: "low",
+                prose: "",
+                sample: Sample::Default("10"),
+            },
             Key {
                 name: "after_secs",
                 prose: "# How old a FINISHED run must be before its lamp arms, in seconds. A\n\
@@ -306,9 +410,21 @@ pub const LAYOUT: &[Table] = &[
         prose: "",
         opt_in: true,
         keys: &[
-            Key { name: "duration_ms", prose: "", sample: Sample::Default("4000") },
-            Key { name: "high", prose: "", sample: Sample::Default("60") },
-            Key { name: "low", prose: "", sample: Sample::Default("10") },
+            Key {
+                name: "duration_ms",
+                prose: "",
+                sample: Sample::Default("4000"),
+            },
+            Key {
+                name: "high",
+                prose: "",
+                sample: Sample::Default("60"),
+            },
+            Key {
+                name: "low",
+                prose: "",
+                sample: Sample::Default("10"),
+            },
             Key {
                 name: "threshold_secs",
                 prose: "# How long work must run continuously before the lamp arms itself.\n",
@@ -329,9 +445,21 @@ pub const LAYOUT: &[Table] = &[
                  # since a blink has no low end to fade to.\n",
         opt_in: true,
         keys: &[
-            Key { name: "duration_ms", prose: "", sample: Sample::Default("3000") },
-            Key { name: "high", prose: "", sample: Sample::Default("7") },
-            Key { name: "low", prose: "", sample: Sample::Default("1") },
+            Key {
+                name: "duration_ms",
+                prose: "",
+                sample: Sample::Default("3000"),
+            },
+            Key {
+                name: "high",
+                prose: "",
+                sample: Sample::Default("7"),
+            },
+            Key {
+                name: "low",
+                prose: "",
+                sample: Sample::Default("1"),
+            },
         ],
     },
 ];
@@ -482,7 +610,11 @@ fn render_core(out: &mut String, table: &Table, container: &mut toml::Table) -> 
 
 /// An OPT-IN table: written commented, heading and all, when `container`
 /// never mentions it at all.
-fn render_opt_in(out: &mut String, table: &Table, container: &mut toml::Table) -> Result<(), String> {
+fn render_opt_in(
+    out: &mut String,
+    table: &Table,
+    container: &mut toml::Table,
+) -> Result<(), String> {
     match container.remove(last_segment(table.name)) {
         None => render_block(out, table, &mut toml::Table::new(), false),
         Some(toml::Value::Table(mut settings)) => render_block(out, table, &mut settings, true),
@@ -621,7 +753,10 @@ fn take_note(settings: &mut toml::Table) -> Result<Option<String>, String> {
     match settings.remove("note") {
         None => Ok(None),
         Some(toml::Value::String(note)) => Ok(Some(note)),
-        Some(other) => Err(format!("`note` has type `{}`, not a string", other.type_str())),
+        Some(other) => Err(format!(
+            "`note` has type `{}`, not a string",
+            other.type_str()
+        )),
     }
 }
 
@@ -696,9 +831,7 @@ const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
 /// as template syntax.
 fn secret_action(table: &toml::Table) -> Result<String, String> {
     if table.len() != 2 {
-        return Err(
-            "a table value must be a secret: exactly `keepassxc` and `field`".to_string(),
-        );
+        return Err("a table value must be a secret: exactly `keepassxc` and `field`".to_string());
     }
     let entry = match table.get("keepassxc") {
         Some(toml::Value::String(entry)) => entry,
@@ -845,7 +978,10 @@ mod tests {
     /// A secret marker for one keepassxc entry and field.
     fn secret(entry: &str, field: &str) -> toml::Value {
         let mut table = toml::Table::new();
-        table.insert("keepassxc".to_string(), toml::Value::String(entry.to_string()));
+        table.insert(
+            "keepassxc".to_string(),
+            toml::Value::String(entry.to_string()),
+        );
         table.insert("field".to_string(), toml::Value::String(field.to_string()));
         toml::Value::Table(table)
     }
@@ -864,9 +1000,7 @@ mod tests {
 
         let text = render(&values).expect("a secret marker renders");
         assert!(
-            text.contains(
-                "token = \"{{ (keepassxc \"Moshi :: Webhook Secret\").Password }}\""
-            ),
+            text.contains("token = \"{{ (keepassxc \"Moshi :: Webhook Secret\").Password }}\""),
             "{text}"
         );
         // AND A LITERAL RENDERS QUOTED, right beside it: `type` still comes
@@ -888,7 +1022,9 @@ mod tests {
     #[test]
     fn a_secrets_field_is_whitelisted_to_the_two_chezmoi_methods() {
         let error = super::secret_action(
-            secret("Moshi :: Webhook Secret", "Notes").as_table().unwrap(),
+            secret("Moshi :: Webhook Secret", "Notes")
+                .as_table()
+                .unwrap(),
         )
         .expect_err("Notes is not a field keepassxc exposes to chezmoi");
         assert!(error.contains("Notes"), "{error}");
@@ -898,7 +1034,9 @@ mod tests {
     fn a_hostile_entry_name_is_refused_rather_than_closing_the_chezmoi_action() {
         for hostile in ["a\"b", "a\\b", "a}}b"] {
             let error = super::secret_action(secret(hostile, "Password").as_table().unwrap())
-                .expect_err(&format!("`{hostile}` can break out of the action and must be refused"));
+                .expect_err(&format!(
+                    "`{hostile}` can break out of the action and must be refused"
+                ));
             assert!(error.contains(hostile), "{error}");
         }
     }
@@ -955,7 +1093,10 @@ mod tests {
         let text = render(&values).expect("a multi-line note renders");
         for line in text.lines() {
             if line.contains("hostile") {
-                assert!(line.starts_with('#'), "an injected line escaped its comment: {line}");
+                assert!(
+                    line.starts_with('#'),
+                    "an injected line escaped its comment: {line}"
+                );
             }
         }
         let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
@@ -1000,8 +1141,7 @@ mod tests {
         lights.insert("room".to_string(), toml::Value::Table(rooms));
         let mut values = toml::Table::new();
         values.insert("lights".to_string(), toml::Value::Table(lights));
-        let error =
-            render(&values).expect_err("an unknown key inside a target must be refused");
+        let error = render(&values).expect_err("an unknown key inside a target must be refused");
         assert!(error.contains("zzz_not_a_key"), "{error}");
     }
 
@@ -1023,7 +1163,10 @@ mod tests {
         // ABSENT: the heading, `enabled` and every key are commented, and the
         // table never reaches the parsed config at all.
         let text = render(&toml::Table::new()).expect("an empty walk still renders");
-        assert!(text.contains("# [plugins.hermes]\n# enabled = true\n"), "{text}");
+        assert!(
+            text.contains("# [plugins.hermes]\n# enabled = true\n"),
+            "{text}"
+        );
         let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
         assert!(!config.plugins.contains_key("hermes"));
 
@@ -1038,7 +1181,10 @@ mod tests {
         let mut values = toml::Table::new();
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
         let text = render(&values).expect("an armed table renders");
-        assert!(text.contains("[plugins.hermes]\nenabled = true\n"), "{text}");
+        assert!(
+            text.contains("[plugins.hermes]\nenabled = true\n"),
+            "{text}"
+        );
         let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
         assert!(config.plugins["hermes"].enabled);
     }
