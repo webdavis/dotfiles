@@ -596,6 +596,30 @@ mod tests {
         );
     }
 
+    /// Every line SHAPED like a documented key, however it is spelled: the
+    /// loose reading the strict scan is held against.
+    ///
+    /// THE STRICT SCAN IS WHITESPACE-EXACT AND LOWERCASE-ONLY, which is what
+    /// makes it silent rather than wrong: a line it does not recognise as a key
+    /// is not a line it complains about, it is a line it never sees. This
+    /// reader recognises the shape alone, so the two disagreeing is the
+    /// wizard documenting something the roster was never asked about.
+    fn key_shaped_lines(text: &str) -> Vec<&str> {
+        text.lines()
+            .filter(|line| {
+                let bare = line.strip_prefix("# ").unwrap_or(line);
+                let Some((name, _)) = bare.split_once('=') else {
+                    return false;
+                };
+                let name = name.trim();
+                !name.is_empty()
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            })
+            .collect()
+    }
+
     #[test]
     fn every_key_it_writes_is_a_key_the_roster_serves_however_the_walk_was_answered() {
         // THE ANTI-DRIFT FENCE. The text is compiled into the binary, so
@@ -609,7 +633,24 @@ mod tests {
         ] {
             parsed(&text);
             let found = crate::config::documented_keys_the_roster_serves(&text);
-            assert!(found > 0, "the scan read nothing at all: {text}");
+            // EVERY KEY-SHAPED LINE REACHED THE SCAN, which is the half a bare
+            // count cannot state. The scan checks what it recognises and says
+            // nothing about the rest, so a key misspelled past it (`apiKey`
+            // for `api_key`, or `enabled=true` without the spaces the scan
+            // splits on) is documented, unserved, and silently unchecked: the
+            // operator uncomments it and the whole file stops loading.
+            let shaped = key_shaped_lines(&text);
+            assert!(
+                !shaped.is_empty(),
+                "the text documents no key at all: {text}"
+            );
+            assert_eq!(
+                found,
+                shaped.len(),
+                "a key-shaped line never reached the roster scan; the scan read {found} of these {}:\n{}",
+                shaped.len(),
+                shaped.join("\n")
+            );
         }
     }
 
