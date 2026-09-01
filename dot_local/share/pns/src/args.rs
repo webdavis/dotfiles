@@ -31,7 +31,13 @@ pub struct EventArgs {
     pub long_running: bool,
 }
 
-const VALUE_FLAGS: [&str; 7] = [
+/// Every flag that takes a value.
+///
+/// PUBLIC FOR THE SAME REASON `is_producer_flag` IS: the usage text has to
+/// state this list, and a test that copied it would be the second copy the
+/// `--long-running` bug below came from. The predicate answers one token; the
+/// list is what a caller enumerating the contract needs.
+pub const VALUE_FLAGS: [&str; 7] = [
     "--agent",
     "--state",
     "--project",
@@ -45,7 +51,7 @@ const VALUE_FLAGS: [&str; 7] = [
 /// comparisons because the chain is what went stale: `--long-running` was
 /// handled below and never added here, so a value flag in front of it ate it as
 /// its value and the tier vanished without a warning.
-const BARE_FLAGS: [&str; 3] = ["--long-running", "--local-only", "--remote-only"];
+pub const BARE_FLAGS: [&str; 3] = ["--long-running", "--local-only", "--remote-only"];
 
 /// Whether a token is a flag this parser recognizes.
 ///

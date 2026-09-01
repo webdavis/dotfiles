@@ -441,6 +441,71 @@ fn desk_with_a_native_banner(name: &str) -> (Sandbox, std::process::Command) {
     (sandbox, command)
 }
 
+/// Every word `main` dispatches on, in the spelling its usage row states.
+///
+/// STATED HERE BECAUSE `main` KEEPS NO LIST: the dispatch is a chain of
+/// comparisons in the composition root, which a test crate cannot enumerate,
+/// and reading the rows back out of the printed text would only check the
+/// usage against itself. What this catches is the direction that goes wrong
+/// quietly, a row disappearing from the text while the command still answers.
+/// A NEW arm still has to be added here by hand; nothing catches that, and
+/// nothing can without a table `main` does not have.
+const COMMAND_ROWS: [&str; 13] = [
+    "pns [<producer flags>]",
+    "pns hook <event>",
+    "pns gate <harness>-hook",
+    "pns <harness>-hook",
+    "pns pulse <exit-code>",
+    "pns quiet [<duration>|off]",
+    "pns daemon run|schedule|cancel",
+    "pns lights tick|quiet",
+    "pns loop begin|end",
+    "pns nag",
+    "pns recap --since",
+    "pns doctor",
+    "pns home",
+];
+
+/// Every event `hook_mode` matches on, which the `pns hook` row spells out.
+const HOOK_EVENTS: [&str; 8] = [
+    "prompt",
+    "stop",
+    "stop-failure",
+    "blocked",
+    "asked",
+    "plan-ready",
+    "denied",
+    "resolved",
+];
+
+/// The whole contract, checked row by row and flag by flag.
+///
+/// The three fragments this replaces (`pns hook`, `--agent`, `--long-running`)
+/// left most of the text unpinned: three command rows were deleted and the
+/// test that claimed to verify the usage stayed green. The FLAGS are read out
+/// of the parser's own lists rather than restated, so the half that can be
+/// derived cannot drift at all.
+fn assert_states_the_whole_contract(printed: &str) {
+    for row in COMMAND_ROWS {
+        assert!(printed.contains(row), "no row for `{row}`: {printed}");
+    }
+    for event in HOOK_EVENTS {
+        // THE DELIMITER IS PART OF THE MATCH, because the names nest: a bare
+        // `contains("stop")` is answered by `stop-failure`, so dropping the
+        // `stop` event from the row would go unnoticed.
+        assert!(
+            printed.contains(&format!("{event},")) || printed.contains(&format!("{event}\n")),
+            "no `{event}` event: {printed}"
+        );
+    }
+    for flag in pns::args::VALUE_FLAGS
+        .iter()
+        .chain(pns::args::BARE_FLAGS.iter())
+    {
+        assert!(printed.contains(flag), "no `{flag}` flag: {printed}");
+    }
+}
+
 #[test]
 fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
     // A help print used to be an EVENT: it loaded the config, spawned every
@@ -453,11 +518,7 @@ fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
 
         let printed = stdout(&output);
         assert!(printed.contains("usage"), "{spelling}: {printed}");
-        assert!(printed.contains("pns hook"), "the commands: {printed}");
-        assert!(
-            printed.contains("--agent") && printed.contains("--long-running"),
-            "and the producer flags: {printed}"
-        );
+        assert_states_the_whole_contract(&printed);
         assert_eq!(stderr(&output), "", "help is not a complaint: {output:?}");
         assert_eq!(
             sandbox.spawned(),
@@ -493,10 +554,14 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
             Some(2),
             "{argv:?}: a refusal, never exit 0"
         );
+        let complaint = stderr(&output);
         assert!(
-            stderr(&output).contains("usage"),
+            complaint.contains("usage"),
             "and the usage is on stderr: {output:?}"
         );
+        // THE SAME TEXT, which is the point of it being one constant: an
+        // operator who mistyped is asking what an operator who asked is.
+        assert_states_the_whole_contract(&complaint);
         assert_eq!(
             stdout(&output),
             "",
