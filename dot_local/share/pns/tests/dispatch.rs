@@ -421,6 +421,111 @@ fn a_non_unicode_argument_never_breaks_the_exit_zero_edge() {
     assert!(stdout(&output).contains("SKIPPED"), "{output:?}");
 }
 
+// --- what argv[1] dispatches to ---------------------------------------------
+
+/// A sandbox whose ONLY channel is the native banner, driven from the desk.
+///
+/// THE BANNER IS WHAT MAKES THE SPY BITE. The stub-channel harness dispatches
+/// by absolute path inside the sandbox, so no PATH can see it; the native
+/// banner resolves `terminal-notifier` through PATH, so an argv path that
+/// reached the event path leaves a line in the spy log. `PNS_IDLE_SECS` puts
+/// the operator at the desk, which is where the banner is the delivery.
+fn desk_with_a_native_banner(name: &str) -> (Sandbox, std::process::Command) {
+    let sandbox = Sandbox::without_config(name);
+    sandbox.write_config("[plugins.macos-banner]\nenabled = true\n");
+    let mut command = sandbox.bare();
+    command
+        .env("PNS_STATE_DIR", sandbox.state())
+        .env("PNS_IDLE_SECS", "0");
+    sandbox.spy_path(&mut command);
+    (sandbox, command)
+}
+
+#[test]
+fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
+    // A help print used to be an EVENT: it loaded the config, spawned every
+    // presence probe and delivered a notification reading "pns done" to
+    // whatever channel was configured. Nothing about printing the commands
+    // needs the machine read, so nothing here may reach it.
+    for spelling in ["--help", "-h"] {
+        let (sandbox, mut command) = desk_with_a_native_banner("help");
+        let output = run(command.arg(spelling));
+
+        let printed = stdout(&output);
+        assert!(printed.contains("usage"), "{spelling}: {printed}");
+        assert!(printed.contains("pns hook"), "the commands: {printed}");
+        assert!(
+            printed.contains("--agent") && printed.contains("--long-running"),
+            "and the producer flags: {printed}"
+        );
+        assert_eq!(stderr(&output), "", "help is not a complaint: {output:?}");
+        assert_eq!(
+            sandbox.spawned(),
+            "",
+            "a help print spawns nothing: {output:?}"
+        );
+        assert!(
+            !sandbox.state().exists(),
+            "and writes no state either: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
+    // THE HOUSE RULE `pns nag` already keeps, moved up to the top-level
+    // dispatch: an unknown argument never falls through to a fire. A mistyped
+    // subcommand used to reach the lenient producer parser, which skipped the
+    // word it did not know and notified about an empty event, so `pns stpo`
+    // raised a banner and could card the operator's phone.
+    let (sandbox, mut command) = desk_with_a_native_banner("typo");
+    let output = command.arg("stpo").output().expect("the engine runs");
+
+    assert_eq!(output.status.code(), Some(2), "a refusal, never exit 0");
+    assert!(
+        stderr(&output).contains("usage"),
+        "and the usage is on stderr: {output:?}"
+    );
+    assert_eq!(
+        stdout(&output),
+        "",
+        "nothing was delivered to say: {output:?}"
+    );
+    assert_eq!(sandbox.spawned(), "", "a typo spawns nothing: {output:?}");
+    assert!(
+        !sandbox.state().exists(),
+        "and writes no state either: {output:?}"
+    );
+}
+
+#[test]
+fn a_producer_invocation_led_by_a_stray_word_still_delivers() {
+    // THE MIRROR OF THE REFUSAL ABOVE, and the reason the refusal reads the
+    // whole of argv rather than its first word. The parser deliberately skips
+    // an unrecognized token in front of the real flags, so an invocation
+    // carrying producer flags is a producer invocation whatever leads it, and
+    // refusing one would silently drop a notification instead of a typo.
+    let sandbox = Sandbox::new("stray-leading-word");
+    run(sandbox
+        .pns()
+        .args(["stray", "--agent", "claude", "--state", "done"])
+        .args(["--detail", "a summary"]));
+    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("hermes"));
+}
+
+#[test]
+fn a_bare_invocation_is_still_the_empty_event_the_contract_calls_valid() {
+    // THE OTHER MIRROR. `EventArgs` defaults every field, so argv naming
+    // nothing at all has always rendered and delivered an empty event; a
+    // refusal that read no argument as no command would swallow that whole arm
+    // while looking exactly like the typo fix.
+    let sandbox = Sandbox::new("bare-invocation");
+    run(&mut sandbox.pns());
+    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("hermes"));
+}
+
 #[test]
 fn the_delivered_event_is_newline_terminated_for_line_oriented_channels() {
     let sandbox = Sandbox::new("newline-terminated");

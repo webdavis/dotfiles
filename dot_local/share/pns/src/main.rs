@@ -38,9 +38,20 @@ use pns::system::{
 };
 
 fn main() {
+    let first = std::env::args_os().nth(1).unwrap_or_default();
+    // HELP IS ANSWERED FIRST, and it is the arm that reaches nothing at all.
+    // It used to reach EVERYTHING: the word fell through every comparison
+    // below into the lenient producer parser, which skipped it and notified
+    // about an empty event, so printing the commands loaded the config, spawned
+    // every presence probe and raised a banner titled "pns done" (measured
+    // 2026-09-01, a 137ms median against the 3ms this costs). Nothing about
+    // listing what this binary takes needs the machine read.
+    if first == *"--help" || first == *"-h" {
+        print!("{USAGE}");
+        return;
+    }
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
-    let first = std::env::args_os().nth(1).unwrap_or_default();
     if first == *"pulse" {
         pulse_mode();
         return;
@@ -113,7 +124,62 @@ fn main() {
     if first == *"hook" {
         std::process::exit(hook_mode(&second_argument()));
     }
+    // A WORD THAT NAMES NO COMMAND IS A TYPO, never an event. It is the house
+    // rule `pns nag` and `pns lights` already keep, moved up to where argv[1]
+    // is decided: the producer parser is deliberately lenient about a token it
+    // does not know, so `pns stpo` used to skip the word, render an empty event
+    // and deliver it. The always-exit-0 contract governs EVENT deliveries, and
+    // a word naming no command never becomes one, so refusing it here
+    // contradicts nothing.
+    if !is_producer_argv(&first) {
+        eprint!("{USAGE}");
+        std::process::exit(2);
+    }
     event_mode();
+}
+
+/// Everything this binary answers to, and the flags a producer states an event
+/// with. Printed on request and on a refusal, which is why it is one text: an
+/// operator who mistyped and an operator who asked have the same question.
+const USAGE: &str = "\
+pns: usage:
+  pns [<producer flags>]           one notification, stated in argv
+  pns hook <event>                 a harness hook: prompt, stop, stop-failure,
+                                   blocked, asked, plan-ready, denied, resolved
+  pns gate <harness>-hook          presence-gated pass-through to moshi-hook
+  pns <harness>-hook               the same gate, spelled the way moshi calls it
+  pns pulse <exit-code>            signal the lamps by hand
+  pns quiet [<duration>|off]       the operator's mute
+  pns daemon run|schedule|cancel   the clock
+  pns lights tick|quiet            the lamps' upkeep
+  pns loop begin|end               take the loop lamp by hand, and give it back
+  pns nag                          card every outstanding approval
+  pns recap --since <epoch> --until <epoch>
+  pns doctor                       one test send through every channel
+  pns home                         one reading of the router, said out loud
+
+producer flags: --agent <name> --state <word> --project <name> --branch <name>
+                --detail <text> --pane <id> --channel <route>
+                --local-only --remote-only --long-running
+";
+
+/// Whether argv is a PRODUCER invocation rather than a mistyped subcommand.
+///
+/// IT READS THE WHOLE OF ARGV, not just the leading word, and that is the
+/// point. The parser deliberately accepts a stray token in front of the real
+/// flags, so a leading word alone does not make an invocation a typo: what does
+/// is argv carrying no producer flag anywhere. Refusing on the first word alone
+/// would drop real notifications, which is the exact mirror of the bug this
+/// refusal exists to fix.
+///
+/// An empty argv is the bare invocation `args` calls a valid empty event, and a
+/// leading `-` belongs to the parser whichever flag it turns out to be.
+fn is_producer_argv(first: &str) -> bool {
+    first.is_empty()
+        || first.starts_with('-')
+        || std::env::args_os()
+            .skip(1)
+            .any(|argument| pns::args::is_producer_flag(&argument.to_string_lossy()))
 }
 
 /// The word after the subcommand, or empty when there is none.

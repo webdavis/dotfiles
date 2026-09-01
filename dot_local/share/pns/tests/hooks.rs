@@ -2388,9 +2388,17 @@ fn the_gate_subcommand_refuses_a_word_it_will_not_vouch_for_without_notifying() 
 #[test]
 fn a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi() {
     let sandbox = Sandbox::new("gate-refuses");
-    for word in ["../../etc/passwd", "pi-hook; rm -rf /", "Pi-hook", "-hook"] {
+    for (word, code) in [
+        ("../../etc/passwd", 2),
+        ("pi-hook; rm -rf /", 2),
+        ("Pi-hook", 2),
+        // A leading `-` is a flag as far as argv is concerned, so this one is
+        // still the producer contract's empty event on its always-exit-0 edge
+        // rather than a word refused for naming no command.
+        ("-hook", 0),
+    ] {
         let output = gate(&sandbox, word, "{}");
-        assert_eq!(output.status.code(), Some(0), "word {word:?}");
+        assert_eq!(output.status.code(), Some(code), "word {word:?}");
         assert!(
             !sandbox.path("moshi.argv").exists(),
             "word {word:?} reached moshi"
