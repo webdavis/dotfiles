@@ -6,10 +6,11 @@
 //! all uu runs nothing, logs what it found and exits clean, which is what
 //! makes a fresh install harmless.
 //!
-//! EVERY UNKNOWN KEY IS REFUSED BY NAME, and so is every unknown lane. The
-//! failure that buys is the one a silent pass-through cannot report: a lane
-//! spelled `[lanes.hedr]` is a week that quietly updates nothing while the
-//! operator reads a config that looks right.
+//! EVERY UNKNOWN KEY IS REFUSED BY NAME, and so is every lane whose `type`
+//! this build does not serve, or that states none on a name that is not itself
+//! a type. The failure that buys is the one a silent pass-through cannot
+//! report: a lane spelled `[lanes.hedr]` is a week that quietly updates
+//! nothing while the operator reads a config that looks right.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config; a MISSING file is its own outcome,
