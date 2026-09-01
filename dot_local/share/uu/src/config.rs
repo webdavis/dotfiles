@@ -747,11 +747,7 @@ mod tests {
             "[lanes.herdr]\nplugins = [{ id = \"a\", repo = \"\" }]\n",
         ] {
             let detail = refusal(text);
-            assert!(
-                detail.contains("names \nnothing to refresh")
-                    || detail.contains("nothing to refresh"),
-                "{detail}"
-            );
+            assert!(detail.contains("nothing to refresh"), "{detail}");
         }
     }
 
