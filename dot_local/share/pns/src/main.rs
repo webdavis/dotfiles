@@ -5277,6 +5277,25 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
 /// When the operator last touched this machine, by ANY road: the desk, the
 /// phone's input, or the deliberate phone marker. The rule is
 /// `lights::last_interaction`'s; this reads the three probes and hands them in.
+///
+/// THE CLOCK IS READ LAST, BY DESIGN, after the three samples rather than
+/// before them: `lights::last_interaction` computes each edge as
+/// `t_now - age(t_sample)`, and reading `t_now` first would let time pass
+/// between it and the samples, leaving `t_now` stale against them by the time
+/// they were actually taken. Reading it last instead means the SAMPLES are
+/// the ones that can be stale, by at most the probe spawns above this line: a
+/// residual of 0-1 second, and its direction is DARK (an interaction reads as
+/// very slightly OLDER than it was, never younger, so this can only delay the
+/// unread lamp arming, never arm it early on a false-fresh edge).
+///
+/// HOISTING `let now = now_secs()?;` ABOVE THE SAMPLES WOULD BREAK THIS
+/// SILENTLY: no test can catch a clock read moving a few hundred milliseconds
+/// earlier, so the order below is load-bearing and not provable by a diff
+/// alone. Do not reorder it.
+///
+/// THE OVERRIDES ARE NOT CONSULTED HERE. `PNS_IDLE_SECS` and
+/// `PNS_PHONE_INPUT_AGE` steer the delivery decision in `engine::decide`, not
+/// this reading: the unread lamp always sees the machine's own probes.
 fn last_interaction() -> Option<u64> {
     let probes = system_probes();
     pns::lights::last_interaction(
