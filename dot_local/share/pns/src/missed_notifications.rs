@@ -284,7 +284,7 @@ pub fn summary(waiting: &[Entry]) -> String {
 /// The states that mean an agent is WAITING ON THE OPERATOR rather than
 /// reporting to them.
 ///
-/// ONE LIST, TWO READERS. The phone card's blocked line and the recap's own
+/// ONE LIST, TWO READERS. The phone card's needs-you line and the recap's own
 /// NEEDS YOU section are the same question asked at two sizes, and two copies
 /// of this list would drift the day a sixth state joins. The first four are the
 /// mid-turn arm's own words in the composition root; `failed` is a turn that
