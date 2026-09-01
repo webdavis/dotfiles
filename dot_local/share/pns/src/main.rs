@@ -7058,6 +7058,39 @@ mod tests {
     }
 
     #[test]
+    fn a_lamp_this_arm_wrote_to_stays_held_rather_than_being_put_out_behind_the_arm() {
+        // THE CLEAR SUBTRACTS EVERY PATH THIS ARM WROTE TO, and it has to: a
+        // held body is a plain state write, so a clear computed as "everything
+        // that was held" would PUT the arm and then the off to the same lamp on
+        // every single re-arm, in that order, and the lamp would be dark for the
+        // whole of every interval after the first.
+        let state = scratch("tick-rearm-keeps-the-lamp");
+        let bridge = scripted(true);
+        run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&[]),
+            &[LAMP_PATH.to_string()],
+        );
+        assert!(
+            !bridge
+                .puts
+                .borrow()
+                .iter()
+                .any(|(_, body)| body == CLEAR_BODY),
+            "no off reaches a lamp this arm wrote to: {:?}",
+            bridge.puts.borrow()
+        );
+        assert_eq!(
+            recorded(&state).as_deref(),
+            Some(LAMP_PATH),
+            "and it is still recorded as held, or nothing will ever put it out"
+        );
+    }
+
+    #[test]
     fn a_lamp_the_operator_muted_is_not_armed_and_is_put_out_if_it_was_held() {
         // THE MUTE IS A RENDER FILTER AT THE PER-LAMP DECISION, decided once:
         // the lamp simply drops out of the arm, which makes its held path stale

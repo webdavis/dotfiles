@@ -452,6 +452,11 @@ pub struct House {
 /// design: the house holds all of them at once and each LAMP resolves which one
 /// it shows, so a blue lamp and a violet lamp can be lit at the same moment
 /// because they are routed for different words.
+///
+/// THE PUSHES ARE IN RANK ORDER and there is no sort behind them. One was here
+/// and could never change the answer, which is exactly the code a reader trusts
+/// and a mutation walks straight through. What pins the order instead is the
+/// test that asserts the whole vector, so pushing out of order is red.
 pub fn active_held(house: &House) -> Vec<Held> {
     let mut held = Vec::new();
     if house.blocked {
@@ -465,7 +470,6 @@ pub fn active_held(house: &House) -> Vec<Held> {
         Some(Unread::Success) => held.push(Held::UnreadSuccess),
         None => {}
     }
-    held.sort_unstable();
     held
 }
 
