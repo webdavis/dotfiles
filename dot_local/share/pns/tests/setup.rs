@@ -245,6 +245,15 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     // typing ahead of a prompt this walk has not printed yet would be lost.
     pty.read_until("or press enter to pair later: ", PTY_DEADLINE)
         .expect("the first prompt");
+    // ECHO IS ALREADY OFF BY THE TIME THE PROMPT IS VISIBLE: the guard arms
+    // before the prompt prints, so a secret typed the instant the prompt
+    // appears cannot land in a still-echoing queue.
+    assert_eq!(
+        pty.tcgetattr().c_lflag & libc::ECHO,
+        0,
+        "the secret prompt was visible while echo was still on: {:?}",
+        pty.transcript
+    );
     pty.write_all(b"do-not-echo-this-token\n");
 
     pty.read_until("Post every event to hermes", PTY_DEADLINE)
@@ -276,8 +285,12 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
         "the secret reached the pty output: {:?}",
         pty.transcript
     );
+    // THE ECHOED ANSWER, not a bare `y`: the preamble already carries that
+    // letter, so only the prompt's own tail followed by the typed answer and
+    // the driver's echo of its Enter says echo was back on for the last
+    // question.
     assert!(
-        pty.transcript.contains('y'),
+        pty.transcript.contains("[y/N]: y\r\n"),
         "an ordinary, non-secret answer stopped echoing too: {:?}",
         pty.transcript
     );
