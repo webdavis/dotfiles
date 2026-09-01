@@ -215,10 +215,21 @@ fn unknown_key(table: &str, key: &str) -> ConfigError {
 
 /// Read the file at `path`. A file that is not there is `Missing`, not an
 /// error; every other failure is named.
+///
+/// A DANGLING SYMLINK IS NOT AN ABSENT FILE, though the kernel reports both as
+/// NotFound. chezmoi deploys configs as symlinks, so a broken link is a
+/// CONFIGURED machine whose file stopped resolving, and reading that as an
+/// unconfigured one turns every lane off without a word. The link itself is
+/// what decides, exactly as the pns loader beside this one does it.
 pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
     match std::fs::read_to_string(path) {
         Ok(text) => parse_config(&text).map(LoadOutcome::Loaded),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(LoadOutcome::Missing),
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                && std::fs::symlink_metadata(path).is_err() =>
+        {
+            Ok(LoadOutcome::Missing)
+        }
         Err(error) => Err(ConfigError::Unreadable(error.to_string())),
     }
 }
@@ -768,6 +779,34 @@ mod tests {
         );
         assert!(
             refusal("[lanes.herdr]\nplugins = [\"worktrunk\"]\n").contains("not a plugin table")
+        );
+    }
+
+    // --- the file -------------------------------------------------------------
+
+    #[test]
+    fn a_path_with_nothing_at_it_is_missing_rather_than_an_error() {
+        assert_eq!(
+            load_config(Path::new("/nonexistent/uu-config-test.toml")),
+            Ok(LoadOutcome::Missing)
+        );
+    }
+
+    #[test]
+    fn a_dangling_config_symlink_is_unreadable_rather_than_missing() {
+        // chezmoi deploys configs as symlinks, and a broken link reads
+        // NotFound exactly like an absent path. The two are opposite states:
+        // an absent config is an unconfigured machine, a broken link is a
+        // CONFIGURED machine whose file stopped resolving, and reading it as
+        // "unconfigured" turns every lane off without a word.
+        let link = std::env::temp_dir().join(format!("uu-config-dangling-{}", std::process::id()));
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink("uu-absent-target", &link).expect("the link");
+        let outcome = load_config(&link);
+        std::fs::remove_file(&link).ok();
+        assert!(
+            matches!(outcome, Err(ConfigError::Unreadable(_))),
+            "{outcome:?}"
         );
     }
 

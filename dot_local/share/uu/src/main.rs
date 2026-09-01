@@ -328,10 +328,19 @@ fn host() -> String {
     }
 }
 
+/// The marker, with an ABSENT path told from a BROKEN LINK. Both read
+/// NotFound, and they are opposite states: nothing there is a machine that has
+/// never finished a run, while a link whose target went away is bookkeeping
+/// that stopped resolving and has to be said out loud.
 fn read_marker(path: &Path) -> Marker {
     match std::fs::read_to_string(path) {
         Ok(text) => parse_marker(&text),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Marker::NeverRecorded,
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                && std::fs::symlink_metadata(path).is_err() =>
+        {
+            Marker::NeverRecorded
+        }
         Err(_) => Marker::Unreadable,
     }
 }
@@ -442,5 +451,36 @@ fn deliver_record(records: &Records, body: String, engine: Option<&str>) {
                 outcome_line(outcome)
             ),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A path of this test's own under the temp directory, with nothing at it.
+    fn scratch(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("uu-main-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    #[test]
+    fn a_path_with_no_marker_at_it_is_a_machine_that_never_recorded_a_run() {
+        assert_eq!(read_marker(&scratch("absent")), Marker::NeverRecorded);
+    }
+
+    #[test]
+    fn a_dangling_marker_symlink_is_unreadable_rather_than_never_recorded() {
+        // A broken link reads NotFound exactly like an absent path, and the
+        // two are opposite states: nothing recorded yet is a fresh machine,
+        // while a link whose target went away is bookkeeping that STOPPED
+        // resolving. Read as "never recorded" it reports a fresh machine
+        // forever and no gap is ever measured again.
+        let link = scratch("marker-dangling");
+        std::os::unix::fs::symlink("uu-absent-target", &link).expect("the link");
+        let marker = read_marker(&link);
+        std::fs::remove_file(&link).ok();
+        assert_eq!(marker, Marker::Unreadable);
     }
 }
