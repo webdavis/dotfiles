@@ -152,6 +152,7 @@ fn wait_until(
     child: &mut std::process::Child,
     expires_at: std::time::Instant,
 ) -> Option<std::process::ExitStatus> {
+    let mut interval = FIRST_POLL_INTERVAL;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return Some(status),
@@ -161,13 +162,33 @@ fn wait_until(
         if std::time::Instant::now() >= expires_at {
             return None;
         }
-        std::thread::sleep(POLL_INTERVAL);
+        std::thread::sleep(interval);
+        interval = next_poll_interval(interval);
     }
 }
 
-/// How often a bounded wait checks. Short enough not to add latency anyone
-/// notices, long enough not to spin a core.
+/// The LONGEST a bounded wait sleeps between checks. Long enough not to spin a
+/// core while a genuinely wedged child runs out its deadline.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+/// And the SHORTEST, which is where every wait starts.
+///
+/// THE CEILING USED TO BE THE ONLY INTERVAL, and it was charged to every
+/// bounded spawn. This wait begins after the child's stdout has already hit
+/// EOF, which is a child on its way out, so the check that matters is the one
+/// taken microseconds later and a flat 10ms is what a run pays for missing it.
+/// MEASURED on dresden 2026-09-01, forty interleaved runs a lane: a Stop hook
+/// takes seven probe spawns plus the branch lookup through here, and its
+/// decision path fell from a 129ms median and a 168ms 90th percentile to 98ms
+/// and 102ms.
+const FIRST_POLL_INTERVAL: Duration = Duration::from_micros(200);
+
+/// The next gap between checks: doubled, and never past the ceiling. The
+/// backoff is what keeps the fast start from becoming thousands of wakeups a
+/// second on the one path where a child really is wedged.
+fn next_poll_interval(current: Duration) -> Duration {
+    current.saturating_mul(2).min(POLL_INTERVAL)
+}
 
 /// The idle counter's own units, as the registry reports them.
 const IOREG_IDLE_KEY: &str = "HIDIdleTime";
@@ -582,12 +603,26 @@ pub fn utc_timestamp(epoch_secs: u64) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CommandRunner, local_minutes_since_midnight, newest_terminal_atime, parse_focused_tab,
-        parse_idle_nanoseconds, parse_layout, parse_pids, parse_screen_locked, parse_tty_names,
-        run_bounded, utc_timestamp,
+        CommandRunner, FIRST_POLL_INTERVAL, POLL_INTERVAL, local_minutes_since_midnight,
+        newest_terminal_atime, next_poll_interval, parse_focused_tab, parse_idle_nanoseconds,
+        parse_layout, parse_pids, parse_screen_locked, parse_tty_names, run_bounded, utc_timestamp,
     };
     use std::cell::RefCell;
     use std::time::Duration;
+
+    #[test]
+    fn the_wait_between_checks_doubles_and_stops_at_the_ceiling() {
+        // The ceiling is what keeps a wedged child from being polled thousands
+        // of times a second for the whole deadline; the doubling is what keeps
+        // the ordinary case, a child already exiting, off a flat 10ms bill.
+        assert_eq!(
+            next_poll_interval(FIRST_POLL_INTERVAL),
+            FIRST_POLL_INTERVAL * 2
+        );
+        assert_eq!(next_poll_interval(POLL_INTERVAL / 2), POLL_INTERVAL);
+        assert_eq!(next_poll_interval(POLL_INTERVAL), POLL_INTERVAL);
+        assert!(FIRST_POLL_INTERVAL < POLL_INTERVAL, "it starts below it");
+    }
 
     /// One child writing `bytes` zeroes, read under a 4096-byte ceiling.
     ///
