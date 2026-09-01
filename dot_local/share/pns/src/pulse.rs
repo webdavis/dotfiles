@@ -173,7 +173,7 @@ mod tests {
     // --- state_behaviour ---------------------------------------------------
 
     #[test]
-    fn every_needs_you_state_says_needs_you_and_a_failure_says_failed() {
+    fn every_waiting_state_says_blocked_and_a_failure_says_failed() {
         // THE ONE MAPPING, and the reason the lights do not reuse
         // `missed_notifications::NEEDS_YOU`: that list holds `failed`, which
         // must read RED here. A lamp that painted a dead turn blue would tell

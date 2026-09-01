@@ -1751,7 +1751,7 @@ fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
 }
 
 #[test]
-fn the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else() {
+fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     // THE ONE NEW CONDITION `plan.pulse` DOES NOT ALREADY COVER. Arbitration
     // zeroes the plan's pulse for a muted event, so every other lamp in this
     // slice is muted by that alone; the blue one earns its own gate at the
