@@ -7337,31 +7337,54 @@ fn publish_config(path: &Path, composed: &str, force: bool) -> Result<Option<Pat
         .ok_or_else(|| format!("{} has no directory to write in", path.display()))?;
     std::fs::create_dir_all(parent)
         .map_err(|error| format!("{} could not be created: {error}", parent.display()))?;
-    let pending = parent.join(format!("config.toml.new.{}", std::process::id()));
-    let published = write_then_publish(path, &pending, composed, force);
-    // WHICHEVER WAY IT WENT: a pending file left in the config directory would
-    // be read by nobody and found by everybody.
+    let pending = parent.join(pending_name());
+    // CREATED OR NOT AT ALL, and never opened. A pending file is a second name
+    // for the live config between the link that publishes it and the unlink
+    // that removes it, so an abandoned run leaves one behind and process ids
+    // are reused: an open that truncates would empty a config this run has not
+    // read, and the backup taken next would hold the replacement.
+    let file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(CONFIG_FILE_MODE)
+        .open(&pending)
+        .map_err(|error| format!("{} could not be written: {error}", pending.display()))?;
+    let published = write_then_publish(path, &pending, file, composed, force);
+    // WHICHEVER WAY IT WENT, and only ever the file the line above made: a
+    // pending file left in the config directory would be read by nobody and
+    // found by everybody, and removing one this run did not create is the
+    // mirror of the write it refuses to do.
     let _ = std::fs::remove_file(&pending);
     published
+}
+
+/// The name the composed config is written under before it is published.
+///
+/// THE MOMENT AS WELL AS THE PROCESS, because the create above is exclusive: a
+/// leftover from an abandoned run of the same id would otherwise refuse a
+/// wizard nobody can unblock, and a name nothing else is holding is also a
+/// name nothing else can be waiting at.
+fn pending_name() -> String {
+    format!(
+        "config.toml.new.{}.{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since_epoch| since_epoch.subsec_nanos())
+    )
 }
 
 /// The publish itself, with `publish_config` owning the cleanup around it.
 fn write_then_publish(
     path: &Path,
     pending: &Path,
+    mut file: std::fs::File,
     composed: &str,
     force: bool,
 ) -> Result<Option<PathBuf>, String> {
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .mode(CONFIG_FILE_MODE)
-        .open(pending)
-        .map_err(|error| format!("{} could not be written: {error}", pending.display()))?;
-    // AND AGAIN AFTER THE OPEN, for `publish_state_line`'s reason: `mode`
-    // applies only when the open CREATES the file, and this path carries this
-    // process's own id, so a run of the same pid can find one to reuse.
+    // AND AGAIN AFTER THE OPEN, for `publish_state_line`'s reason: the mode an
+    // open asks for is masked by the umask, and a config published without the
+    // operator's own bits is one they cannot read.
     file.set_permissions(std::fs::Permissions::from_mode(CONFIG_FILE_MODE))
         .map_err(|error| format!("{} could not be secured: {error}", pending.display()))?;
     file.write_all(composed.as_bytes())
@@ -9454,5 +9477,40 @@ mod tests {
             "# composed\n"
         );
         assert_eq!(mode_of(&path), CONFIG_FILE_MODE);
+    }
+
+    #[test]
+    fn a_pending_file_left_by_an_abandoned_run_is_never_the_file_this_one_writes_into() {
+        // A PENDING FILE IS A SECOND NAME FOR THE LIVE CONFIG between the link
+        // that publishes it and the unlink that removes it, so a run killed in
+        // that window leaves one behind. PROCESS IDS ARE REUSED, so a later
+        // run naming its pending file after its own id can find that leftover,
+        // and opening it to truncate would empty the config this run has not
+        // read yet: the backup taken next would hold the REPLACEMENT, under a
+        // path printed to the operator as the file they had.
+        let home = scratch("setup-publish-leftover");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# the one it replaces\n").expect("the config");
+        let leftover = path.with_file_name(format!("config.toml.new.{}", std::process::id()));
+        std::fs::hard_link(&path, &leftover).expect("the leftover");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the old config");
+        assert_eq!(
+            std::fs::read_to_string(&backup).expect("the backup"),
+            "# the one it replaces\n",
+            "the leftover was truncated, so the backup holds the replacement"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&leftover).expect("the leftover"),
+            "# the one it replaces\n",
+            "the config the leftover names was written through rather than left alone"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
     }
 }
