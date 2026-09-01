@@ -14952,13 +14952,13 @@
       "source_location": "L1931"
     },
     {
-      "id": "dot_local_share_pns_tests_dispatch_the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else",
-      "label": "the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else()",
+      "id": "dot_local_share_pns_tests_dispatch_the_operators_own_mute_takes_the_blocked_lamp_with_everything_else",
+      "label": "the_operators_own_mute_takes_the_blocked_lamp_with_everything_else()",
       "_origin": "ast",
       "community": 153,
       "community_name": "dispatch.rs",
       "file_type": "code",
-      "norm_label": "the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else()",
+      "norm_label": "the_operators_own_mute_takes_the_blocked_lamp_with_everything_else()",
       "source_file": "dot_local/share/pns/tests/dispatch.rs",
       "source_location": "L1754"
     },
@@ -55818,13 +55818,13 @@
       "source_location": "L159"
     },
     {
-      "id": "dot_local_share_pns_src_pulse_every_needs_you_state_says_needs_you_and_a_failure_says_failed",
-      "label": "every_needs_you_state_says_needs_you_and_a_failure_says_failed()",
+      "id": "dot_local_share_pns_src_pulse_every_waiting_state_says_blocked_and_a_failure_says_failed",
+      "label": "every_waiting_state_says_blocked_and_a_failure_says_failed()",
       "_origin": "ast",
       "community": 60,
       "community_name": "pulse.rs",
       "file_type": "code",
-      "norm_label": "every_needs_you_state_says_needs_you_and_a_failure_says_failed()",
+      "norm_label": "every_waiting_state_says_blocked_and_a_failure_says_failed()",
       "source_file": "dot_local/share/pns/src/pulse.rs",
       "source_location": "L176"
     },
@@ -163839,7 +163839,7 @@
     },
     {
       "source": "dot_local_share_pns_src_pulse",
-      "target": "dot_local_share_pns_src_pulse_every_needs_you_state_says_needs_you_and_a_failure_says_failed",
+      "target": "dot_local_share_pns_src_pulse_every_waiting_state_says_blocked_and_a_failure_says_failed",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -167788,7 +167788,7 @@
     },
     {
       "source": "dot_local_share_pns_tests_dispatch",
-      "target": "dot_local_share_pns_tests_dispatch_the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else",
+      "target": "dot_local_share_pns_tests_dispatch_the_operators_own_mute_takes_the_blocked_lamp_with_everything_else",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -186908,5 +186908,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "40b2094946cb6147d7533ccad7e479e8a629eacf"
+  "built_at_commit": "e7df096749a7e60dd03c1935e470e094efe21d8c"
 }
