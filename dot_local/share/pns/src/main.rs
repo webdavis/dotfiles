@@ -4357,12 +4357,37 @@ fn loop_mode(verb: &str) -> i32 {
             }
         }
         pns::lights::LoopCommand::End(pane) => {
-            if let Some(marker) = pns::lights::lease_marker(&state, &pane) {
-                let _ = std::fs::remove_file(&marker);
+            if let Err(refusal) = end_lease(&state, &pane) {
+                eprintln!("{refusal}");
+                return 1;
             }
         }
     }
     0
+}
+
+/// Give a lease back, or say why it could not be given back.
+///
+/// LOUD, because a human is waiting on the answer and the lamp is a liveness
+/// signal: reporting that a loop has ended while its lease is still on disk
+/// leaves the violet breathing for the whole timeout with nothing behind it,
+/// and the operator has been told the opposite.
+///
+/// A LEASE THAT IS NOT THERE IS NOT A FAILURE. `pns loop end` on a machine that
+/// never began, or a second one after the first, is a removal of a file that is
+/// already gone, which is exactly the state the command is for.
+fn end_lease(state: &Path, pane: &str) -> Result<(), String> {
+    let Some(marker) = pns::lights::lease_marker(state, pane) else {
+        return Ok(());
+    };
+    match std::fs::remove_file(&marker) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "pns: loop: the lease could not be given back ({error}); the loop lamp \
+             keeps breathing until it times out"
+        )),
+    }
 }
 
 /// Renew the lease this pane holds, if it holds one.
@@ -4372,18 +4397,32 @@ fn loop_mode(verb: &str) -> i32 {
 /// is still firing events from its own pane, and one that stopped stops
 /// renewing. Nothing else in this crate renews it.
 ///
-/// IT CREATES NOTHING. A pane with no lease costs one failed open, so an
-/// ordinary event on an ordinary machine never touches this directory.
+/// IT CREATES NOTHING, and that is a property of the WRITE rather than of a
+/// check in front of one. The open states no `create`, so the file has to be
+/// there already, and the bytes go through the HANDLE rather than through a
+/// fresh file renamed over the path: a `pns loop end` that lands after the open
+/// sends these bytes to an inode nobody can reach any more, where a look-then-
+/// publish would have written the lease back into existence and left the lamp
+/// breathing for a whole timeout over work that had finished.
+///
+/// IT WRITES IN PLACE RATHER THAN TRUNCATING FIRST, so a tick reading the file
+/// mid-renewal cannot see an empty one and sweep the lease. Both epochs are ten
+/// digits and will be for the next two centuries, so a read caught between the
+/// two sees a mix of two same-length numbers, which is a second or two out
+/// rather than a lease nobody can parse. The `set_len` after the write is for
+/// the day that stops being true.
 fn renew_loop_lease(state: &Path, pane: &str, now: Option<u64>) {
     let (Some(marker), Some(now)) = (pns::lights::lease_marker(state, pane), now) else {
         return;
     };
-    if !marker.exists() {
-        return;
-    }
-    // The failure is DROPPED here: a lease that did not renew costs the lamp
+    // The failures are DROPPED here: a lease that did not renew costs the lamp
     // one timeout, and this process has no reader for a complaint.
-    let _ = publish_state_line(&marker, &now.to_string());
+    let line = format!("{now}\n");
+    if let Ok(mut file) = std::fs::OpenOptions::new().write(true).open(&marker)
+        && file.write_all(line.as_bytes()).is_ok()
+    {
+        let _ = file.set_len(line.len() as u64);
+    }
 }
 
 /// Every live lease's epoch, with the ones past the timeout REMOVED on the way
@@ -4393,29 +4432,75 @@ fn renew_loop_lease(state: &Path, pane: &str, now: Option<u64>) {
 /// only process that ever looks in this directory, and a pane that ends without
 /// `pns loop end` leaves a file nothing else would remove.
 fn sweep_leases(state: &Path, now: u64, timeout_secs: u64) -> Vec<u64> {
+    sweep_markers(&pns::lights::lease_dir(state), now, timeout_secs)
+}
+
+/// Every live epoch one marker directory holds, with everything past the bound
+/// REMOVED on the way through.
+///
+/// ONE SWEEP FOR THE WAITS AND THE LEASES, because they are one mechanism twice:
+/// a directory of one-epoch files, a bound, and a tick that is the only process
+/// that ever looks. Written twice, the second copy is where the race fix, the
+/// working-file rule and the collection of what a dead run left behind would
+/// each have to be remembered a second time.
+///
+/// A REMOVAL IS OWNED BY RENAME AND NEVER READ-THEN-UNLINK. Concurrent unlink
+/// does not arbitrate on this filesystem: it reports success to every caller, so
+/// a sweep that read an expired epoch and then unlinked could delete a FRESH
+/// marker a racing event had published in between, and both would believe they
+/// had removed the old one. Taking the file by rename first means what this
+/// removes is what this took, and the epoch is READ AGAIN off the claim: a
+/// marker that turned out to be live in the meantime is put back rather than
+/// destroyed.
+///
+/// THE LIVE PATH TOUCHES NOTHING, which is what keeps that safety free. A
+/// marker still inside its bound is read and left exactly where it is, so the
+/// ordinary tick renames nothing at all.
+///
+/// A PUT-BACK CAN OVERWRITE A NEWER PUBLISH, and that is the residue rather than
+/// a rule: the epoch restored is live and at most one racing publish old, which
+/// is seconds against bounds measured in hours.
+fn sweep_markers(directory: &Path, now: u64, max_age_secs: u64) -> Vec<u64> {
     let mut live = Vec::new();
-    for entry in std::fs::read_dir(pns::lights::lease_dir(state))
-        .into_iter()
-        .flatten()
-        .flatten()
-    {
+    for entry in std::fs::read_dir(directory).into_iter().flatten().flatten() {
         let path = entry.path();
-        // A PENDING PUBLISH IS NOT A LEASE, which is `sweep_blocked`'s own rule
-        // and its own reason: `publish_state_line` writes `<name>.new.<pid>`
-        // into this directory and renames it over the marker.
-        if path
-            .file_name()
-            .is_some_and(|name| name.to_string_lossy().contains(".new."))
-        {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        // A WORKING FILE IS NOT A MARKER, and one whose run is GONE is litter
+        // nothing else collects. A publish caught between its open and its
+        // rename has no epoch in it yet, and unlinking it there wins the race
+        // against the rename, which then publishes nothing: the wait is lost
+        // with the agent still waiting on the operator.
+        if let Some(owner) = pns::lights::working_owner(&name) {
+            if owner_is_gone(owner) {
+                let _ = std::fs::remove_file(&path);
+            }
             continue;
         }
-        match read_epoch(&path) {
-            Some(at) if pns::lights::marker_is_live(at, now, timeout_secs) => live.push(at),
-            // AN UNREADABLE LEASE IS SWEPT TOO: nothing can age out a file whose
-            // epoch cannot be read, so leaving it is unbounded growth through a
-            // different door.
+        if let Some(at) = read_epoch(&path)
+            && pns::lights::marker_is_live(at, now, max_age_secs)
+        {
+            live.push(at);
+            continue;
+        }
+        // EXPIRED, OR AN EPOCH NOBODY CAN READ, which is swept for the same
+        // reason: nothing can ever age out a file whose epoch is unreadable, so
+        // leaving it is the same unbounded growth through a different door.
+        let claim = pns::lights::sweep_claim(directory, &name, std::process::id());
+        if std::fs::rename(&path, &claim).is_err() {
+            continue;
+        }
+        match read_epoch(&claim) {
+            // IT CAME BACK LIVE, so a fresh publish landed between the read and
+            // the claim and this run is holding it. Put it back.
+            Some(at) if pns::lights::marker_is_live(at, now, max_age_secs) => {
+                live.push(at);
+                if std::fs::rename(&claim, &path).is_err() {
+                    let _ = std::fs::remove_file(&claim);
+                }
+            }
             _ => {
-                let _ = std::fs::remove_file(&path);
+                let _ = std::fs::remove_file(&claim);
             }
         }
     }
@@ -5150,42 +5235,7 @@ fn sweep_shell_markers(state: &Path) -> Option<u64> {
 /// leaves a marker nothing else would ever remove, and one file per abandoned
 /// session for the life of a machine is unbounded growth.
 fn sweep_blocked(state: &Path, now: u64) -> Vec<u64> {
-    let mut live = Vec::new();
-    for entry in std::fs::read_dir(pns::lights::blocked_dir(state))
-        .into_iter()
-        .flatten()
-        .flatten()
-    {
-        let path = entry.path();
-        // A PENDING PUBLISH IS NOT A MARKER. `publish_state_line` writes
-        // `<name>.new.<pid>` INTO THIS DIRECTORY and renames it over the
-        // marker, so a file caught between that open and that rename is an
-        // ordinary entry here with no epoch in it yet. Unlinking it wins the
-        // race against the rename, which then publishes nothing, and the wait
-        // is lost with the agent still waiting.
-        //
-        // BY NAME, which also means a session id spelling `.new.` is never
-        // swept. Session ids are the harness's own opaque words and that
-        // collision costs one abandoned marker; deleting a live publish costs a
-        // wait the operator is being asked about.
-        if path
-            .file_name()
-            .is_some_and(|name| name.to_string_lossy().contains(".new."))
-        {
-            continue;
-        }
-        match read_epoch(&path) {
-            Some(at) if pns::lights::marker_is_live(at, now, BLOCKED_MAX_AGE_SECS) => live.push(at),
-            // AN UNREADABLE MARKER IS SWEPT TOO, and it is not the same as an
-            // expired one only in how it got here: nothing can age out a file
-            // whose epoch cannot be read, so leaving it would be the same
-            // unbounded growth through a different door.
-            _ => {
-                let _ = std::fs::remove_file(&path);
-            }
-        }
-    }
-    live
+    sweep_markers(&pns::lights::blocked_dir(state), now, BLOCKED_MAX_AGE_SECS)
 }
 
 /// The working streak after this tick's reading, published or removed.
@@ -7131,13 +7181,15 @@ mod tests {
     use super::{
         BLOCKED_MAX_AGE_SECS, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, asks_the_bridge, drive_breaths, held_lamps, lights_report,
-        matches_glob, muted_state, publish_state_line, read_news, read_note, recap_bounds,
-        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked,
-        sweep_leases, sweep_legacy_state, sweep_shell_markers, update_blocked_marker,
+        STATE_FILE_MODE, ad_hoc_quiet, asks_the_bridge, drive_breaths, end_lease, held_lamps,
+        lights_report, matches_glob, muted_state, publish_state_line, read_news, read_note,
+        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, run_pulse_writes, run_tick_writes, say_lights_once,
+        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
+        update_blocked_marker,
     };
     use std::cell::RefCell;
+    use std::os::unix::fs::MetadataExt;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
     use std::time::Duration;
@@ -7866,6 +7918,68 @@ mod tests {
     }
 
     #[test]
+    fn a_renewal_writes_through_the_lease_it_found_rather_than_publishing_a_new_one() {
+        // A LEASE `pns loop end` REMOVED MUST STAY REMOVED. A look followed by
+        // a publish is two moments: an end landing between them is undone by
+        // the rename, and the lamp then breathes for a whole timeout over work
+        // that finished. Writing through a handle opened on the EXISTING file
+        // closes that window, because an unlink after the open sends the bytes
+        // to an inode nobody can reach.
+        //
+        // THE INODE IS WHAT PROVES IT, and it is the only observable difference:
+        // a publish-by-rename leaves a different file at the same path.
+        let state = scratch("lease-renew-in-place");
+        let marker = pns::lights::lease_marker(&state, "wW:p21").expect("herdr's own id");
+        std::fs::create_dir_all(pns::lights::lease_dir(&state)).expect("the lease directory");
+        std::fs::write(&marker, "1000\n").expect("a lease taken by hand");
+        let before = std::fs::metadata(&marker).expect("the lease").ino();
+
+        renew_loop_lease(&state, "wW:p21", Some(1_700_000_002));
+
+        assert_eq!(
+            std::fs::metadata(&marker).expect("the lease").ino(),
+            before,
+            "the renewal published a NEW file over the lease, so an end landing \
+             between the look and the rename is undone by it"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&marker).expect("the lease"),
+            "1700000002\n",
+            "and the epoch really moved: the file is rewritten, not merely kept"
+        );
+        // AND A SHORTER EPOCH LEAVES NO TAIL of the longer one behind it, which
+        // is what the truncation after the write is for.
+        renew_loop_lease(&state, "wW:p21", Some(9));
+        assert_eq!(std::fs::read_to_string(&marker).expect("the lease"), "9\n");
+    }
+
+    #[test]
+    fn a_lease_that_could_not_be_given_back_is_reported_rather_than_called_a_success() {
+        // THE WORST OUTCOME THIS VERB HAS: telling the operator a loop has
+        // ended while its lease is still on disk. The lamp is a liveness signal,
+        // so it goes on breathing for the whole timeout with nothing behind it,
+        // and they have been told the opposite.
+        let state = scratch("lease-end-refused");
+        std::fs::create_dir_all(pns::lights::lease_dir(&state)).expect("the lease directory");
+        assert_eq!(
+            end_lease(&state, "wW:p21"),
+            Ok(()),
+            "a machine that never began is a removal of a file that is not there"
+        );
+        let marker = pns::lights::lease_marker(&state, "wW:p21").expect("herdr's own id");
+        std::fs::write(&marker, "1000\n").expect("a lease taken by hand");
+        assert_eq!(end_lease(&state, "wW:p21"), Ok(()));
+        assert!(!marker.exists(), "and the lease is really gone");
+
+        std::fs::create_dir(&marker).expect("a directory standing where the lease goes");
+        let refused = end_lease(&state, "wW:p21").expect_err("a lease that will not be removed");
+        assert!(
+            refused.contains("the lease could not be given back"),
+            "{refused}"
+        );
+    }
+
+    #[test]
     fn the_news_record_is_written_for_a_finished_or_a_dead_turn_and_read_back_as_it_was() {
         // THE WIRING, not the rule. `unread_arming` is pure and total and has no
         // file of its own, so a record invented at the call site leaves every one
@@ -8167,6 +8281,83 @@ mod tests {
             "while a marker that really is unreadable is still swept: nothing \
              else ages out a file whose epoch cannot be read"
         );
+    }
+
+    #[test]
+    fn a_pending_file_whose_run_is_gone_is_collected_and_a_marker_that_spells_it_is_swept() {
+        // TWO HALVES OF ONE COLLISION. A session id and a pane id are opaque
+        // words from another program, and both alphabets admit a dot, so a name
+        // matched on the bare `.new.` put a real marker beyond every sweep: it
+        // aged out never and its lamp could not be released. The same match let
+        // a publish whose run had DIED sit in the directory forever, which is
+        // the unbounded growth the sweep exists to prevent, through a door it
+        // opened itself.
+        let state = scratch("sweep-pending-collection");
+        let leases = pns::lights::lease_dir(&state);
+        std::fs::create_dir_all(&leases).expect("the lease directory");
+        let spelled = leases.join("a.new.b");
+        std::fs::write(&spelled, "1000\n").expect("a pane whose own id spells the suffix");
+        let abandoned = leases.join(format!("s2.new.{}", a_reaped_pid()));
+        std::fs::write(&abandoned, "").expect("a publish whose run died");
+        let in_flight = leases.join(format!("s3.new.{}", std::process::id()));
+        std::fs::write(&in_flight, "").expect("a publish still in flight");
+
+        assert_eq!(
+            sweep_markers(&leases, 100_000, 60),
+            Vec::<u64>::new(),
+            "the expired marker is not answered with"
+        );
+        assert!(
+            !spelled.exists(),
+            "a marker whose name spells the pending suffix was invisible to the sweep"
+        );
+        assert!(
+            !abandoned.exists(),
+            "a publish whose own run is gone is litter nothing else collects"
+        );
+        assert!(
+            in_flight.exists(),
+            "while a publish still in flight is left for its own rename"
+        );
+    }
+
+    #[test]
+    fn a_sweep_takes_a_marker_before_removing_it_and_leaves_no_working_file_behind() {
+        // OWNED BY RENAME, NEVER READ-THEN-UNLINK. Concurrent unlink does not
+        // arbitrate on this filesystem: it reports success to every caller, so a
+        // sweep that read an expired epoch and then unlinked could remove a
+        // FRESH marker a racing event published in between, and both runs would
+        // believe they had removed the old one.
+        //
+        // WHAT A SINGLE-THREADED TEST CAN PIN is the shape either way: the
+        // expired marker really goes, the live one is untouched, and no working
+        // file is left in the directory. The interleaving itself is a race no
+        // test in this tree can stage.
+        let state = scratch("sweep-owns-by-rename");
+        let leases = pns::lights::lease_dir(&state);
+        std::fs::create_dir_all(&leases).expect("the lease directory");
+        std::fs::write(leases.join("live"), "1000\n").expect("a live lease");
+        std::fs::write(leases.join("expired"), "10\n").expect("an expired lease");
+        let live_inode = std::fs::metadata(leases.join("live"))
+            .expect("the live lease")
+            .ino();
+
+        assert_eq!(sweep_markers(&leases, 1_000, 60), vec![1_000]);
+
+        assert!(!leases.join("expired").exists(), "the expired lease goes");
+        assert_eq!(
+            std::fs::metadata(leases.join("live"))
+                .expect("the live lease")
+                .ino(),
+            live_inode,
+            "and the live one is not even renamed: the ordinary tick moves nothing"
+        );
+        let left: Vec<String> = std::fs::read_dir(&leases)
+            .expect("the lease directory")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(left, vec!["live".to_string()], "a claim was left behind");
     }
 
     #[test]

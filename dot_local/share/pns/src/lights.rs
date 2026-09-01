@@ -421,6 +421,38 @@ is no pane to key the lease to; run it inside the pane, or name one with --pane"
 pub const LOOP_USAGE: &str = "pns: usage: pns loop begin [--pane <id>] | \
 pns loop end [--pane <id>]";
 
+/// The run that owns a WORKING FILE in a marker directory, or None for an
+/// ordinary marker.
+///
+/// TWO SUFFIXES AND ONE ANSWER. A publish writes `<name>.new.<pid>` beside the
+/// marker it is about to rename over, and a sweep writes `<name>.sweep.<pid>`
+/// when it takes one to remove it. Both are one run's private working name,
+/// both carry that run's own process id, and a sweep has to tell them from the
+/// markers it is there to judge.
+///
+/// THE PID IS WHAT MAKES IT DECIDABLE, and matching the bare suffix was not.
+/// Pane ids and session ids are opaque words from another program, and both
+/// alphabets admit a dot: a pane called `a.new.b` produced a lease file every
+/// sweep stepped over, so it aged out never, while a working file whose own run
+/// had died was never collected either. A name is a working file only when what
+/// follows the LAST such marker is a positive process id, which is a name only
+/// this crate's own writers produce.
+pub fn working_owner(name: &str) -> Option<&str> {
+    let (_, owner) = name
+        .rsplit_once(WORKING_PENDING)
+        .or_else(|| name.rsplit_once(WORKING_SWEEP))?;
+    (crate::parse_count(owner)? > 0).then_some(owner)
+}
+
+/// The two working-file markers, in the spelling their writers use.
+const WORKING_PENDING: &str = ".new.";
+const WORKING_SWEEP: &str = ".sweep.";
+
+/// One run's private name for a marker it has taken to remove.
+pub fn sweep_claim(directory: &std::path::Path, name: &str, pid: u32) -> std::path::PathBuf {
+    directory.join(format!("{name}{WORKING_SWEEP}{pid}"))
+}
+
 /// Whether any wait is still live.
 pub fn any_blocked(marker_epochs: &[u64], now: u64, max_age_secs: u64) -> bool {
     marker_epochs
@@ -1013,7 +1045,7 @@ mod tests {
         last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
         muted_places, muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
         quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
-        workspace_agent_statuses,
+        working_owner, workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1111,6 +1143,31 @@ mod tests {
             None,
             "nothing working and no streak stays nothing"
         );
+    }
+
+    #[test]
+    fn a_working_file_is_told_from_a_marker_by_the_process_id_that_owns_it() {
+        // THE COLLISION THIS EXISTS TO CLOSE. Pane ids and session ids are
+        // opaque words from another program and both alphabets admit a dot, so
+        // a name matched on the bare suffix put a real marker beyond every
+        // sweep: it aged out never and its lamp could not be released.
+        assert_eq!(working_owner("s1.new.4321"), Some("4321"));
+        assert_eq!(working_owner("wW:p21.sweep.99"), Some("99"));
+        assert_eq!(
+            working_owner("a.new.b"),
+            None,
+            "a pane whose own name spells the suffix is a MARKER, not a publish"
+        );
+        for marker in [
+            "s1",
+            "wW:p21",
+            "a.new.",
+            "a.new.0",
+            "a.sweep.-1",
+            "a.new.b.c",
+        ] {
+            assert_eq!(working_owner(marker), None, "{marker:?} is a marker");
+        }
     }
 
     #[test]
