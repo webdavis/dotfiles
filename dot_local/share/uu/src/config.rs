@@ -345,10 +345,10 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     let mut binary = DEFAULT_ALERT_BINARY.to_string();
     for (name, setting) in table {
         admits("alerts", &name)?;
-        match name.as_str() {
-            "binary" => binary = non_empty("alerts", &name, &setting)?,
-            // `admits` above is the ONE gate; nothing reaches here.
-            _ => {}
+        // One key, so an `if` rather than the match the other tables use;
+        // `admits` above is still the one gate and nothing else can arrive.
+        if name == "binary" {
+            binary = non_empty("alerts", &name, &setting)?;
         }
     }
     Ok(Alerts { binary })
