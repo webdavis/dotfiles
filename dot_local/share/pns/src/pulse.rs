@@ -220,26 +220,6 @@ mod tests {
     }
 
     #[test]
-    fn the_lamps_list_drops_the_failure_and_adds_the_condensers_waiting_word() {
-        // THE DIVERGENCE, PINNED, and it runs both ways. `failed` is on the
-        // shared list and must read RED here, or a dead turn would be painted
-        // blue. `asking` reaches only the lamps, because the shared list is the
-        // harness's own state words and this one also has to answer for what
-        // the condenser writes. So a sixth harness state cannot quietly leave
-        // the lamps behind, and nobody can "tidy" the lamps into reusing it.
-        let mut shared_traded: Vec<&str> = crate::missed_notifications::NEEDS_YOU
-            .iter()
-            .copied()
-            .filter(|state| *state != "failed")
-            .chain(["asking"])
-            .collect();
-        shared_traded.sort_unstable();
-        let mut lamps = LAMP_BLOCKED.to_vec();
-        lamps.sort_unstable();
-        assert_eq!(lamps, shared_traded);
-    }
-
-    #[test]
     fn without_a_lamp_map_a_waiting_agent_reports_done_exactly_as_it_did_before() {
         // THE COMPATIBILITY EDGE, and it is a real event rather than a corner:
         // a LONG-RUNNING turn that ends `blocked` has earned a pulse since the

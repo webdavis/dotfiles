@@ -1291,12 +1291,6 @@ mod tests {
     ]}"#;
 
     const HCL1: &str = "17295316-360e-4259-b8fd-928caf1f9c3e";
-    #[allow(dead_code)]
-    const HCL2: &str = "de7b7231-1302-48ed-b0b5-9dd94763d350";
-    #[allow(dead_code)]
-    const HCL3: &str = "9d52d98c-76f0-47d8-a718-4b88cd123665";
-    #[allow(dead_code)]
-    const KITCHEN_HCD3: &str = "0e7a5054-3720-4580-9d8e-8070216e9bfa";
 
     fn stock() -> Inventory {
         inventory(CLIP_ROOMS, CLIP_LIGHTS, CLIP_ZONES)
