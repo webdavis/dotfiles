@@ -7318,15 +7318,17 @@ fn list(answer: String) -> Vec<String> {
 
 /// Publish the composed config, keeping the old one when replacing it.
 ///
-/// CREATE-IF-ABSENT RATHER THAN A RENAME when there is nothing to replace: a
-/// config that appeared between the check above and this moment is another
-/// writer's, and a blanket rename would overwrite it with no backup and no
-/// word. The link failing with `AlreadyExists` IS that refusal.
+/// CREATE-IF-ABSENT, NEVER A BLANKET RENAME, on both paths: a config that
+/// appeared between the check in `setup_mode` and this moment is another
+/// writer's, and this run has not read it. The link failing with
+/// `AlreadyExists` IS that refusal. NOTHING ASKS WHETHER A CONFIG IS THERE
+/// either, because the answer stops being true the instant it is given: what
+/// `--force` moves aside is the file it found at the name, and what it
+/// publishes into is a name it emptied itself.
 ///
-/// THE BACKUP IS TAKEN FIRST on the forced path, so the window in which the
-/// old config is neither published nor kept does not exist. It is a hard link
-/// rather than a copy: one directory entry, no secret read through this
-/// process, and it cannot half-succeed.
+/// THE OLD CONFIG IS MOVED ASIDE RATHER THAN COPIED ASIDE, so the backup holds
+/// what was actually replaced rather than what stood there when a copy ran, and
+/// the old config is at one of the two names at every instant.
 ///
 /// THE PENDING FILE CARRIES THE MODE, because it is what gets published:
 /// writing at the umask would publish a config whose plugin secrets any
@@ -7390,29 +7392,50 @@ fn write_then_publish(
     file.write_all(composed.as_bytes())
         .map_err(|error| format!("{} could not be written: {error}", pending.display()))?;
 
-    if !force {
-        return match std::fs::hard_link(pending, path) {
-            Ok(()) => Ok(None),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
-                "{} appeared while the questions were being answered; \
-                 nothing was written",
-                path.display()
-            )),
-            Err(error) => Err(format!("{} could not be written: {error}", path.display())),
-        };
+    // THE FORCED PATH EMPTIES THE NAME FIRST, and what it moves out of the way
+    // is the backup. Nothing here asks whether a config is there: the move
+    // itself is the answer, and it is the same answer a moment later.
+    let kept = if force { keep_aside(path)? } else { None };
+    // AND BOTH PATHS PUBLISH THE SAME WAY. A link that refuses an occupied
+    // name cannot write over a config this run never read, whether that config
+    // was there all along or arrived while the questions were being answered.
+    match std::fs::hard_link(pending, path) {
+        Ok(()) => Ok(kept),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
+            "{} appeared while the questions were being answered; \
+             nothing was written over it{}",
+            path.display(),
+            also_kept(kept.as_deref())
+        )),
+        Err(error) => Err(format!(
+            "{} could not be written: {error}{}",
+            path.display(),
+            also_kept(kept.as_deref())
+        )),
     }
+}
 
-    let backup = match path.exists() {
-        false => None,
-        true => Some(keep_aside(path)?),
-    };
-    std::fs::rename(pending, path)
-        .map_err(|error| format!("{} could not be written: {error}", path.display()))?;
-    Ok(backup)
+/// The tail a refusal carries when this run had already moved a config aside,
+/// so nobody is left hunting for a file the wizard took the name of.
+fn also_kept(kept: Option<&Path>) -> String {
+    kept.map_or_else(String::new, |backup| {
+        format!(
+            "; the config that was there is kept at {}",
+            backup.display()
+        )
+    })
 }
 
 /// Move the existing config aside, and answer with where it went.
-fn keep_aside(path: &Path) -> Result<PathBuf, String> {
+///
+/// A MOVE RATHER THAN A COPY, which is what makes the answer true: a copy says
+/// only what stood at the name when the copy ran, and the publish that follows
+/// replaces whatever stands there THEN. Moving it is the one act that both
+/// keeps the old config and frees the name, so the two can never disagree.
+///
+/// NOTHING TO MOVE IS NOT A FAILURE: `--force` on a machine with no config is
+/// an ordinary first run.
+fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
     let backup = now_secs()
         .and_then(|now| pns::setup::backup_path(path, now))
         .ok_or_else(|| {
@@ -7420,13 +7443,33 @@ fn keep_aside(path: &Path) -> Result<PathBuf, String> {
              and kept; nothing was written"
                 .to_string()
         })?;
-    // CREATE-IF-ABSENT, so a second forced run inside the same second refuses
-    // rather than writing over the copy the first one kept.
-    std::fs::hard_link(path, &backup)
+    // THE NAME IS CLAIMED BEFORE ANYTHING MOVES ONTO IT, so a second forced run
+    // inside the same second refuses rather than writing over the copy the
+    // first one kept: a rename would replace that copy without a word.
+    std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(CONFIG_FILE_MODE)
+        .open(&backup)
         .map_err(|error| format!("{} could not be kept: {error}", backup.display()))?;
-    std::fs::set_permissions(&backup, std::fs::Permissions::from_mode(CONFIG_FILE_MODE))
-        .map_err(|error| format!("{} could not be secured: {error}", backup.display()))?;
-    Ok(backup)
+    if let Err(error) = std::fs::rename(path, &backup) {
+        // THE CLAIM GOES WITH THE RUN THAT MADE IT, whether there was nothing
+        // to move or the move could not be made: an empty file named like a
+        // backup is worse than no backup at all.
+        let _ = std::fs::remove_file(&backup);
+        return match error.kind() {
+            std::io::ErrorKind::NotFound => Ok(None),
+            _ => Err(format!("{} could not be kept: {error}", backup.display())),
+        };
+    }
+    // AS PRIVATE AS THE CONFIG IT HOLDS, when what moved is a file at all: the
+    // mode of a symlink is the mode of what it points at, and this one points
+    // at a file this run did not replace and has no business changing.
+    if backup.symlink_metadata().is_ok_and(|entry| entry.is_file()) {
+        std::fs::set_permissions(&backup, std::fs::Permissions::from_mode(CONFIG_FILE_MODE))
+            .map_err(|error| format!("{} could not be secured: {error}", backup.display()))?;
+    }
+    Ok(Some(backup))
 }
 
 /// The config carries every plugin's secret, so it is the operator's alone.
@@ -9477,6 +9520,82 @@ mod tests {
             "# composed\n"
         );
         assert_eq!(mode_of(&path), CONFIG_FILE_MODE);
+        // AND IT LEAVES NO FILE NAMED LIKE ONE EITHER. Claiming the backup's
+        // name is how a second forced run in the same second is refused, and a
+        // claim left standing over nothing is a backup that holds nothing.
+        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "it kept something aside: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn a_forced_run_keeps_a_config_the_existence_check_reads_as_absent() {
+        // THE CHECK IS NOT THE AUTHORITY, THE PUBLISH IS. `exists` answers for
+        // what a name resolves to rather than for the name, so it reads a
+        // config the operator symlinked into a checkout that is not there as
+        // nothing at all; the same answer a config CREATED after the check
+        // gives, which no test can reach without a seam. Either way a blanket
+        // rename replaced a config this run never read, with no backup and no
+        // word, so the publish moves aside whatever is standing there and asks
+        // for the name rather than taking it.
+        let home = scratch("setup-publish-unseen");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        let pointed_at = path.with_file_name("config-in-a-checkout.toml");
+        std::os::unix::fs::symlink(&pointed_at, &path).expect("the link");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the config that was standing there");
+        assert_eq!(
+            std::fs::read_link(&backup).expect("the backup"),
+            pointed_at,
+            "the config that was there went nowhere this run can name"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+    }
+
+    #[test]
+    fn a_forced_run_keeps_the_config_it_replaced_rather_than_what_that_config_named() {
+        // WHAT THE BACKUP HOLDS IS WHAT THE PUBLISH REPLACED. A copy taken
+        // from the name reads THROUGH it: with a symlinked config it copied
+        // the file at the far end, which the publish then did not touch, and
+        // the link itself, which the publish did replace, went unrecorded. The
+        // same gap a config replaced between the copy and the publish leaves,
+        // which no test can reach without a seam.
+        let home = scratch("setup-publish-through");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        let pointed_at = path.with_file_name("config-in-a-checkout.toml");
+        std::fs::write(&pointed_at, "# the one it points at\n").expect("the config");
+        std::os::unix::fs::symlink(&pointed_at, &path).expect("the link");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the config that was standing there");
+        assert_eq!(
+            std::fs::read_link(&backup).expect("the backup"),
+            pointed_at,
+            "the backup holds what the config named rather than the config it replaced"
+        );
+        // AND WHAT IT NAMED WAS NOT REPLACED, so it is where it always was.
+        assert_eq!(
+            std::fs::read_to_string(&pointed_at).expect("the config it points at"),
+            "# the one it points at\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
     }
 
     #[test]
