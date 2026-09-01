@@ -3411,11 +3411,11 @@ fn pulse_mode() -> i32 {
         .map(|code| code.to_string_lossy().into_owned())
         .unwrap_or_default();
     if pns::args::is_help_flag(&word) {
-        print!("{PULSE_USAGE}");
+        println!("{PULSE_USAGE}");
         return 0;
     }
     let Some(behaviour) = pns::pulse::exit_behaviour(&word) else {
-        eprint!("{PULSE_USAGE}");
+        eprintln!("{PULSE_USAGE}");
         return 2;
     };
     let home = std::env::var("HOME").unwrap_or_default();
