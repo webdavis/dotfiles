@@ -94,6 +94,17 @@ fn a_machine_with_no_config_updates_nothing_and_exits_clean() {
 }
 
 #[test]
+fn a_lane_asked_for_by_name_on_a_configless_machine_is_refused_with_exit_one() {
+    // The bare run above is clean by design; a lane named on the command line
+    // is a request, and a request that could not run is not a success.
+    let home = Home::new("no-config-by-name");
+    let output = home.uu(&["run", "herdr"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(stderr(&output).contains("no config"), "{output:?}");
+    assert!(!home.marker().exists(), "{output:?}");
+}
+
+#[test]
 fn a_lane_the_config_never_declares_is_refused_by_name_with_exit_one() {
     // With no static roster of names left, this is the ONLY guard on `uu run
     // <lane>`: a name nothing declares must exit non-zero and stamp no

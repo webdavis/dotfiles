@@ -85,6 +85,16 @@ fn run_mode(only: Option<&str>) -> i32 {
     let config = match loaded(&path) {
         Ok(Some(config)) => config,
         Ok(None) => {
+            // A bare run on a configless machine is clean by design. A lane
+            // asked for BY NAME is a request, and one no file declares did
+            // not run, so it is refused the way an undeclared name is below.
+            if let Some(lane) = only {
+                eprintln!(
+                    "uu: no config at {}, so no lane `{lane}` is declared",
+                    path.display()
+                );
+                return 1;
+            }
             println!(
                 "uu: no config at {}; nothing is enabled and nothing was updated",
                 path.display()
