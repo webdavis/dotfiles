@@ -673,12 +673,11 @@ mod tests {
         // DERIVED, so the expectation cannot drift away from the constants: it
         // is the schedule `next_poll_interval` defines, walked from the first
         // interval. What the test states is that the loop walks it too.
-        let schedule: Vec<Duration> =
-            std::iter::successors(Some(FIRST_POLL_INTERVAL), |current| {
-                Some(next_poll_interval(*current))
-            })
-            .take(WATCHED_STEPS)
-            .collect();
+        let schedule: Vec<Duration> = std::iter::successors(Some(FIRST_POLL_INTERVAL), |current| {
+            Some(next_poll_interval(*current))
+        })
+        .take(WATCHED_STEPS)
+        .collect();
         assert!(
             slept.len() >= WATCHED_STEPS,
             "the wait polled {} times, too few to show a schedule",
