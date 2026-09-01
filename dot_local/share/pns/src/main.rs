@@ -2445,8 +2445,8 @@ fn run_event(
     // rather than a second copy of it: a muted operator gets no lamp, which is
     // the shipped rule that the lights are decoration too.
     let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
-    let needs_you_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
-    if decision.plan.pulse || needs_you_lamp {
+    let blocked_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
+    if decision.plan.pulse || blocked_lamp {
         fire_pulse_unless_quiet(hue_table.clone(), lights.as_deref(), behaviour);
     }
     // AND THE OPERATOR'S RETURN PUTS OUT WHATEVER A GLOW IS STILL HOLDING.

@@ -437,9 +437,10 @@ const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
 /// vocabulary to judge a plugin that does not exist; the registry refuses the
 /// NAME, which is the defect in that case.
 ///
-/// THE TWO NESTED ROWS ARE PREFIXES. `[lights.families.<name>]` and
-/// `[lights.places.<name>]` carry the operator's own names, so the roster holds
-/// the part that is the schema's and the refusal names the whole path.
+/// THE NESTED ROW IS A PREFIX. `[lights.lamp.<name>]`, `[lights.room.<name>]`
+/// and `[lights.zone.<name>]` carry the operator's own names, so the roster
+/// holds the part that is the schema's (one row for all three levels) and the
+/// refusal names the whole path.
 ///
 /// THE FIRST ROW IS THE FILE'S OWN TOP LEVEL, whose vocabulary is the six TABLE
 /// names. It is a row like any other so that the refusal an operator gets for a
@@ -564,7 +565,7 @@ fn keys_of(table: &str) -> Option<&'static [&'static str]> {
 ///
 /// THE TWO NAMES ARE DIFFERENT ARGUMENTS because a nested table's roster row
 /// is a prefix and its refusal has to name the path the operator wrote: an
-/// operator told `lights.places` has no `quiet_hour` would go looking for a
+/// operator told `lights.<level>` has no `dim_windows` would go looking for a
 /// table they never typed.
 fn admits(roster_table: &str, shown_table: &str, key: &str) -> Result<(), ConfigError> {
     match keys_of(roster_table) {

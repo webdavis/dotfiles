@@ -773,8 +773,8 @@ pub enum QuietCommand {
 /// file that nothing will ever match, so the lamp the operator meant to quiet
 /// goes on flashing while the command reports success; the only evidence they
 /// get is the lamp itself, at the hour they were trying not to be disturbed.
-/// The vocabulary is `claimed_places`', which is the names a mute can ENFORCE
-/// rather than every name the config wrote down.
+/// The vocabulary is the caller's `known`, which is every name a mute can
+/// ENFORCE at any of the three levels.
 ///
 /// `off` IS ALLOWED OVER ANY NAME, because it can only remove. A place muted
 /// yesterday and dropped from the config today would otherwise be a mute
@@ -859,10 +859,10 @@ pub fn bare_mute_secs(ends_at: Option<u16>, minutes_now: Option<u16>) -> Option<
 /// Why one name cannot be muted, and what can be instead.
 ///
 /// THE ALTERNATIVES ARE LISTED, because the name refused is often one the
-/// operator is reading out of their own config file: a `[lights.places]` entry
-/// is a real name that a mute cannot enforce, and nothing on the page says
-/// which of the two vocabularies this command speaks. A refusal that only
-/// repeats what was typed sends them back to the file that misled them.
+/// operator is reading off their own config file or off the bridge's app, and
+/// nothing on either page says which names a mute can reach. A refusal that
+/// only repeats what was typed sends them back to whichever of the two misled
+/// them.
 fn unmutable(place: &str, known: &[String]) -> String {
     let reaches = if known.is_empty() {
         "this config claims no lamp at all, so there is nothing a mute could \
@@ -879,8 +879,8 @@ fn unmutable(place: &str, known: &[String]) -> String {
         )
     };
     format!(
-        "pns: lights quiet: {place:?} is no room or lamp a [lights.families] \
-         claim names; {reaches}"
+        "pns: lights quiet: {place:?} is no lamp, room or zone this can quiet; \
+         {reaches}"
     )
 }
 
@@ -2023,16 +2023,16 @@ mod tests {
         let known = places(&["3F - Studio", "3F - Studio - HCL3"]);
         assert_eq!(
             quiet_command(&typed_at("3F - Nowhere", "30m"), &known, ONE_HOUR),
-            Err("pns: lights quiet: \"3F - Nowhere\" is no room or lamp a \
-                 [lights.families] claim names; a mute reaches \"3F - Studio\", \
+            Err("pns: lights quiet: \"3F - Nowhere\" is no lamp, room or zone \
+                 this can quiet; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
                 .to_string()),
             "a place nothing in the config names"
         );
         assert_eq!(
             quiet_command(&typed_at("3f - studio", "30m"), &known, ONE_HOUR),
-            Err("pns: lights quiet: \"3f - studio\" is no room or lamp a \
-                 [lights.families] claim names; a mute reaches \"3F - Studio\", \
+            Err("pns: lights quiet: \"3f - studio\" is no lamp, room or zone \
+                 this can quiet; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
                 .to_string()),
             "and a case-folded one is a typo rather than a name to forgive, \
@@ -2067,9 +2067,9 @@ mod tests {
                 ONE_HOUR
             ),
             Err(
-                "pns: lights quiet: \"3F - Studio - HCL1\" is no room or lamp a \
-                 [lights.families] claim names; this config claims no lamp at \
-                 all, so there is nothing a mute could reach"
+                "pns: lights quiet: \"3F - Studio - HCL1\" is no lamp, room or zone \
+                 this can quiet; this config claims no lamp at all, so there is \
+                 nothing a mute could reach"
                     .to_string()
             ),
             "and a config that claims nothing says so rather than trailing off \

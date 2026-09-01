@@ -19,7 +19,7 @@
     STABLE       overwritten from here on every apply, whatever the live file
                  says: permissions, hooks, statusLine, skillOverrides,
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
-                 effortLevel, and the five extraKnownMarketplaces entries this
+                 effortLevel, and the six extraKnownMarketplaces entries this
                  repo declares.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.
@@ -447,7 +447,7 @@
        WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
        schema declares `source` REQUIRED, so writing the flag alone onto a fresh
        machine would produce an entry Claude Code rejects. The repo owns these
-       five keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       six keys and nothing else under extraKnownMarketplaces: setValueAtPath
        writes at the path, so a marketplace the operator adds through
        `claude plugin marketplace add` keeps its own entry untouched (measured
        2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
