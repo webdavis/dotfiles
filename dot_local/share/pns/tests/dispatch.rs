@@ -6698,6 +6698,14 @@ fn assert_fell_back_to_the_plain_list(body: &str) {
 /// posted and read back.
 fn recap_summarized_badly(name: &str, extra: &str, body: &str) -> String {
     let sandbox = Sandbox::new(name);
+    // STRUCTURAL FOR THE ONE CALLER THAT SETS A DEADLINE: summarizer_deadline_secs
+    // is whole seconds (config.rs), and 1 is the smallest budget that still
+    // spawns the stub at all, so the "past its deadline" case pays that
+    // whole second. The other two callers exit immediately and never come
+    // near either line.
+    sandbox.allow_slow(
+        "summarizer_deadline_secs is whole seconds; 1s is the smallest budget that still spawns",
+    );
     record_every_event(&sandbox);
     sandbox.write_config(&recap_summarized_by(extra));
     loud_window(&sandbox);
@@ -7395,6 +7403,12 @@ fn one_recap_spends_one_summarizer_budget_however_many_questions_it_asks() {
     // not something a non-flaky test can pin at the process boundary, so it is
     // left to review rather than claimed here.
     let sandbox = Sandbox::new("recap-one-budget");
+    // STRUCTURAL: the parked call has to hold the whole budget for the count
+    // to mean anything, and summarizer_deadline_secs is whole seconds, so 1
+    // is the smallest value that still spawns.
+    sandbox.allow_slow(
+        "summarizer_deadline_secs is whole seconds; 1s is the smallest budget that still spawns",
+    );
     record_every_event(&sandbox);
     sandbox.write_config(&recap_summarized_by(
         "summarizer_deadline_secs = 1\nrepos = [\"webdavis/dotfiles\"]\n\
