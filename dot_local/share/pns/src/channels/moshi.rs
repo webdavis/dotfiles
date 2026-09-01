@@ -521,7 +521,20 @@ mod tests {
         // is what the card links to, and an event that carries none posts the
         // card it posts today. A channel that built the link from anything
         // else, or dropped it, differs right here.
-        for (pane, action) in [("wW:p21", Some("moshi://herdr?pane=wW:p21")), ("", None)] {
+        //
+        // THE THIRD ROW IS THE GUARD ITSELF, AT THIS SEAM. Without it a
+        // dispatch site that stopped calling `herdr_link` and asked only
+        // "is the pane non-empty" passes every test in this module: the two
+        // rows above agree with that weaker rule, and `herdr_link` keeps its
+        // own tests green while nothing calls it. So a pane that is present
+        // and UNSAFE is asked here too, because this is where an unescaped
+        // value would actually reach moshi's parser and turn the decoration
+        // into a non-2xx that DELETES the card.
+        for (pane, action) in [
+            ("wW:p21", Some("moshi://herdr?pane=wW:p21")),
+            ("", None),
+            ("wW:p21 evil&workspace=x", None),
+        ] {
             let channel = channel_with_settings("token = \"tok-1\"\n");
             channel.deliver(
                 &Event {
