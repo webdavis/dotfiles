@@ -615,10 +615,16 @@ mod tests {
 
     #[test]
     fn a_day_that_is_no_day_is_refused_and_the_seven_are_listed() {
-        let detail = refusal("[schedule]\nday = \"sundae\"\n");
-        assert!(detail.contains("`sundae`"), "{detail}");
-        assert!(detail.contains("sunday, monday"), "{detail}");
-        assert!(detail.contains("saturday"), "{detail}");
+        // The near-misses cover each lenient matching a rewrite could reach
+        // for: a typo, a capitalized day, a prefix, and a trailing stutter.
+        // Every one of them names a day the operator can see, so accepting any
+        // of them silently is a schedule they never wrote.
+        for stated in ["sundae", "Sunday", "sun", "sundayy"] {
+            let detail = refusal(&format!("[schedule]\nday = \"{stated}\"\n"));
+            assert!(detail.contains(&format!("`{stated}`")), "{detail}");
+            assert!(detail.contains("sunday, monday"), "{detail}");
+            assert!(detail.contains("saturday"), "{detail}");
+        }
     }
 
     #[test]
