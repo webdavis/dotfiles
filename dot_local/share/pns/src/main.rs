@@ -7559,8 +7559,10 @@ fn write_then_publish(
     // itself is the answer, and it is the same answer a moment later.
     let kept = if force { keep_aside(path)? } else { None };
     // AND BOTH PATHS PUBLISH THE SAME WAY. A link that refuses an occupied
-    // name cannot write over a config this run never read, whether that config
-    // was there all along or arrived while the questions were being answered.
+    // name cannot write over a config this run never read: after the dangling
+    // symlink pre-check in `setup_mode`, the only way a config can be
+    // standing here is a genuine arrival while the questions were being
+    // answered, so "appeared" below is exact rather than one of two guesses.
     match std::fs::hard_link(pending, path) {
         Ok(()) => Ok(kept),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
@@ -9601,6 +9603,16 @@ mod tests {
             & 0o777
     }
 
+    /// Everything beside the published config in its directory: empty when a
+    /// publish left no pending file and claimed no unclaimed backup name.
+    fn leftovers(path: &std::path::Path) -> Vec<String> {
+        std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect()
+    }
+
     #[test]
     fn a_first_config_is_published_for_its_operator_alone_and_leaves_no_pending_file() {
         // THE FILE CARRIES EVERY PLUGIN'S SECRET, so publishing it at the
@@ -9624,14 +9636,10 @@ mod tests {
             CONFIG_FILE_MODE,
             "the config is the operator's alone"
         );
-        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
-            .expect("the directory")
-            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
-            .filter(|name| name != "config.toml")
-            .collect();
+        let extra = leftovers(&path);
         assert!(
-            leftovers.is_empty(),
-            "a pending file was left behind: {leftovers:?}"
+            extra.is_empty(),
+            "a pending file was left behind: {extra:?}"
         );
     }
 
@@ -9657,15 +9665,8 @@ mod tests {
             "# somebody else got here first\n",
             "the config that was already there was written over"
         );
-        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
-            .expect("the directory")
-            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
-            .filter(|name| name != "config.toml")
-            .collect();
-        assert!(
-            leftovers.is_empty(),
-            "a refusal left a pending file: {leftovers:?}"
-        );
+        let extra = leftovers(&path);
+        assert!(extra.is_empty(), "a refusal left a pending file: {extra:?}");
     }
 
     #[test]
@@ -9717,15 +9718,8 @@ mod tests {
         // AND IT LEAVES NO FILE NAMED LIKE ONE EITHER. Claiming the backup's
         // name is how a second forced run in the same second is refused, and a
         // claim left standing over nothing is a backup that holds nothing.
-        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
-            .expect("the directory")
-            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
-            .filter(|name| name != "config.toml")
-            .collect();
-        assert!(
-            leftovers.is_empty(),
-            "it kept something aside: {leftovers:?}"
-        );
+        let extra = leftovers(&path);
+        assert!(extra.is_empty(), "it kept something aside: {extra:?}");
     }
 
     #[test]
