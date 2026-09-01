@@ -188,6 +188,14 @@ fn keys_of(table: &str) -> Option<&'static [&'static str]> {
 
 /// Whether a table admits a key, refusing it BY NAME and with the whole
 /// vocabulary spelled out when it does not.
+///
+/// THIS IS THE ONE GATE, and every table's match then has a fallthrough that
+/// does nothing. The alternative shape, a gate here AND a refusal in each
+/// fallthrough, spells the same rule twice: removing either leaves the suite
+/// green, so neither is pinned and the roster stops being load-bearing. The
+/// drift this arrangement could still admit, a key declared in the roster with
+/// no arm to read it, is what `every_key_the_roster_declares_is_actually_read`
+/// walks.
 fn admits(table: &str, key: &str) -> Result<(), ConfigError> {
     match keys_of(table) {
         Some(serves) if !serves.contains(&key) => Err(unknown_key(table, key)),
@@ -260,7 +268,8 @@ fn parse_schedule(value: toml::Value) -> Result<Schedule, ConfigError> {
                 schedule.hour = hour;
                 schedule.minute = minute;
             }
-            _ => return Err(unknown_key("schedule", &key)),
+            // `admits` above is the ONE gate; nothing reaches here.
+            _ => {}
         }
     }
     Ok(schedule)
@@ -314,7 +323,8 @@ fn parse_records(value: toml::Value) -> Result<Records, ConfigError> {
         match name.as_str() {
             "url" => url = non_empty("records", &name, &setting)?,
             "key" => key = Some(non_empty("records", &name, &setting)?),
-            _ => return Err(unknown_key("records", &name)),
+            // `admits` above is the ONE gate; nothing reaches here.
+            _ => {}
         }
     }
     // A RECORDS BLOCK THAT CANNOT SIGN IS REFUSED, not quietly demoted to
@@ -337,7 +347,8 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
         admits("alerts", &name)?;
         match name.as_str() {
             "binary" => binary = non_empty("alerts", &name, &setting)?,
-            _ => return Err(unknown_key("alerts", &name)),
+            // `admits` above is the ONE gate; nothing reaches here.
+            _ => {}
         }
     }
     Ok(Alerts { binary })
@@ -377,7 +388,8 @@ fn parse_herdr_lane(value: toml::Value) -> Result<HerdrLane, ConfigError> {
         match name.as_str() {
             "binary" => lane.binary = non_empty("lanes.herdr", &name, &setting)?,
             "plugins" => lane.plugins = parse_plugins(&setting)?,
-            _ => return Err(unknown_key("lanes.herdr", &name)),
+            // `admits` above is the ONE gate; nothing reaches here.
+            _ => {}
         }
     }
     Ok(lane)
@@ -574,10 +586,22 @@ mod tests {
 
     #[test]
     fn each_day_name_maps_to_launchds_own_numbering_with_sunday_at_zero() {
-        for (name, number) in WEEKDAY_NAMES {
+        // THE PAIRS ARE WRITTEN OUT rather than read back off `WEEKDAY_NAMES`.
+        // Walking the table to check the table is a tautology: it stays green
+        // while every day renders a plist that fires on the wrong one.
+        for (name, number) in [
+            ("sunday", 0),
+            ("monday", 1),
+            ("tuesday", 2),
+            ("wednesday", 3),
+            ("thursday", 4),
+            ("friday", 5),
+            ("saturday", 6),
+        ] {
             let config = parsed(&format!("[schedule]\nday = \"{name}\"\n"));
             assert_eq!(config.schedule.weekday, number, "case: {name}");
         }
+        assert_eq!(WEEKDAY_NAMES.len(), 7, "a week has seven days");
     }
 
     #[test]
@@ -745,6 +769,36 @@ mod tests {
     }
 
     // --- the roster -----------------------------------------------------------
+
+    #[test]
+    fn every_key_the_roster_declares_is_actually_read() {
+        // The one drift a single admission gate can still admit: a key added to
+        // `TABLE_KEYS` with no arm to read it is accepted and then ignored, so
+        // the operator writes a setting that does nothing and no refusal ever
+        // mentions it. Every key here is handed a value of the wrong type; an
+        // arm refuses it, and a key with no arm accepts anything.
+        for (table, keys) in TABLE_KEYS {
+            for key in *keys {
+                let text = if *table == TOP_LEVEL {
+                    format!("{key} = 1\n")
+                } else {
+                    format!("[{table}]\n{key} = 1\n")
+                };
+                let detail = match parse_config(&text) {
+                    Err(error) => error.detail().to_string(),
+                    Ok(_) => panic!("`{table}` declares `{key}` and nothing reads it"),
+                };
+                // AND THE REFUSAL MUST NOT BE "UNKNOWN". A key nothing reads is
+                // refused too, by the arm that catches everything else, so the
+                // reason it gives is the whole difference between a key that is
+                // read and one the roster merely advertises.
+                assert!(
+                    !detail.contains("unknown"),
+                    "`{table}` declares `{key}` and nothing reads it: {detail}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn every_lane_the_roster_names_has_a_block_the_parser_accepts() {
