@@ -381,12 +381,14 @@ impl<R: CommandRunner> SystemProbes<R> {
     }
 
     /// The wall clock, taken once and remembered like the four probes beside
-    /// it: see the struct doc. THE FIFTH MEMOIZED READING, and the one every
-    /// other reading in this crate is aged against, which is why forwarding
-    /// to the phone and deciding what to deliver must read this same cell
-    /// rather than each taking their own: a second boundary between two wall-
-    /// clock reads is what drifted a phone reading and a desk reading apart
-    /// in R4-1.
+    /// it: see the struct doc. THE FIFTH MEMOIZED READING, and the one the
+    /// four beside it are aged against, which is why forwarding to the phone
+    /// and deciding what to deliver must read this same cell rather than each
+    /// taking their own: a second boundary between two wall-clock reads is
+    /// what drifted a phone reading and a desk reading apart in R4-1. AN
+    /// UNREADABLE CLOCK IS REMEMBERED TOO: the first reader's `None` is the
+    /// second reader's `None`, so the two can never disagree about whether
+    /// there was a clock at all.
     pub fn now_secs(&self) -> Option<u64> {
         *self.now.get_or_init(|| {
             std::time::SystemTime::now()
@@ -539,11 +541,11 @@ impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
     /// rather than as "not visible".
     ///
     /// NO CELL, UNLIKE THE OTHER FOUR PROBES ON THIS STRUCT: this has exactly
-    /// one production reader (`engine.rs:401`), so "one probe set is one
-    /// reading" already holds by call site alone, with nothing to memoize
-    /// against. A second production reader would need the same `OnceCell`
-    /// the other four carry, to keep that property true once it is no longer
-    /// free.
+    /// one production reader (`engine::operator_visibility`), so "one probe
+    /// set is one reading" already holds by call site alone, with nothing to
+    /// memoize against. A second production reader would need the same
+    /// `OnceCell` the other four carry, to keep that property true once it is
+    /// no longer free.
     fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
         let focused_tab = parse_focused_tab(&self.herdr("workspace", &["list"])?)?;
         let layout = parse_layout(&self.herdr("pane", &["layout", "--pane", origin_pane])?)?;

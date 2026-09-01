@@ -304,9 +304,11 @@ fn start_of_turn(payload: &HookPayload) {
     // Only when none is there: a second prompt inside one turn must not
     // restart the clock.
     // NO CLOCK IS NO MARKER, never a marker at epoch zero: the same rule
-    // `update_blocked_marker` states beside its own clock read. An unreadable
-    // clock writing epoch zero would make the turn this marker times out to
-    // look older than every turn there has ever been.
+    // `update_blocked_marker` states beside its own clock. A marker at zero
+    // would measure the turn from 1970, so `consume_turn_marker` would call a
+    // two-second turn long-running and it would earn the watch card and the
+    // pulse; no marker measures nothing, and `session_was_long` reads that as
+    // not long.
     if !marker.exists()
         && let Some(now) = now_secs()
     {
@@ -2364,10 +2366,11 @@ fn run_event(
     // against it.
     let durable_route = selection.iter().any(|plugin| plugin.name == "hermes");
 
-    // THE SAME CLOCK `forward_to_moshi` ALREADY READ for this event, off this
-    // probe set's own memoized cell: see R4-1. A second wall-clock read here
-    // is exactly the boundary that let a phone reading and a desk reading
-    // about one event disagree.
+    // THE SAME CLOCK `forward_to_moshi` READS, off this probe set's own
+    // memoized cell: see R4-1. On the blocked path that read came first and
+    // this answers the same second; on every other path this is the first and
+    // only read. A second wall-clock read here is exactly the boundary that
+    // let a phone reading and a desk reading about one event disagree.
     let now_secs = probes.now_secs();
     // THE MUTE IS AN INPUT TO THE DECISION, stated here and nowhere else. It
     // is never a filter over `decision.legs` afterwards: which legs are
@@ -2655,8 +2658,9 @@ fn register_lights_tick(
     overrides: &Overrides,
 ) {
     // THE DECISION'S OWN CLOCK, like record_news and renew_loop_lease beside
-    // this call: a fresh wall-clock read here would be a third reading of the
-    // same moment, which is exactly the boundary R4-1 exists to close.
+    // this call: a fresh wall-clock read here would be a second reading of the
+    // same moment, which is exactly the boundary R4-1 exists to close. NO
+    // CLOCK IS NO REGISTRATION, never a job due at epoch zero.
     let (Some(lights), Some(now)) = (lights, decision.inputs.now_secs) else {
         return;
     };
@@ -5285,14 +5289,16 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
 /// `lights::last_interaction`'s; this reads the three probes and hands them in.
 ///
 /// THE CLOCK IS READ LAST, BY DESIGN, after the three samples rather than
-/// before them: `lights::last_interaction` computes each edge as
-/// `t_now - age(t_sample)`, and reading `t_now` first would let time pass
-/// between it and the samples, leaving `t_now` stale against them by the time
-/// they were actually taken. Reading it last instead means the SAMPLES are
-/// the ones that can be stale, by at most the probe spawns above this line: a
-/// residual of 0-1 second, and its direction is DARK (an interaction reads as
-/// very slightly OLDER than it was, never younger, so this can only delay the
-/// unread lamp arming, never arm it early on a false-fresh edge).
+/// before them. The two phone edges are file times and need no clock; the
+/// desk edge is the one `lights::last_interaction` computes, as
+/// `t_now - idle(t_sample)`. Reading `t_now` first would put it BEFORE the
+/// sample, so the edge would land earlier than the true touch and news the
+/// operator had already seen could arm the lamp. Reading it last puts the
+/// residual the other way: `t_now` is later than the sample by at most the
+/// probe spawns above this line, 0-1 second, so the desk touch reads that
+/// much YOUNGER than it was, never older. The direction is DARK: news that
+/// landed inside that residual reads as seen and the lamp stays off, and no
+/// edge can arm it early.
 ///
 /// HOISTING `let now = now_secs()?;` ABOVE THE SAMPLES WOULD BREAK THIS
 /// SILENTLY: no test can catch a clock read moving a few hundred milliseconds
