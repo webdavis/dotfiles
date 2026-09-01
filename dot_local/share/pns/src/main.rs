@@ -500,18 +500,27 @@ fn record_missed(
 /// the wait it is still in.
 ///
 /// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason.
-fn update_blocked_marker(state_dir: &Path, session_id: &str, event_state: &str, lamps_live: bool) {
+fn update_blocked_marker(
+    state_dir: &Path,
+    session_id: &str,
+    event_state: &str,
+    lamps_live: bool,
+    now: Option<u64>,
+) {
     let Some(marker) = pns::lights::blocked_marker(state_dir, session_id) else {
         return;
     };
     match pns::lights::blocked_marker_action(event_state) {
         pns::lights::Action::Start if !lamps_live => {}
         pns::lights::Action::Start => {
-            // NO CLOCK IS NO MARKER, never a marker at epoch zero: the bound
-            // that expires an abandoned wait is measured against this number,
-            // and a zero would be expired the moment it was written or, read
-            // the other way, would be a wait nobody could age out.
-            if let Some(now) = now_secs() {
+            // THE DECISION'S OWN CLOCK, as record_news beside it: this reads
+            // the moment the decision was made for, never a fresh one taken
+            // inside this function. NO CLOCK IS NO MARKER, never a marker at
+            // epoch zero: the bound that expires an abandoned wait is
+            // measured against this number, and a zero would be expired the
+            // moment it was written or, read the other way, would be a wait
+            // nobody could age out.
+            if let Some(now) = now {
                 let _ = publish_state_line(&marker, &now.to_string());
             }
         }
@@ -2464,7 +2473,13 @@ fn run_event(
     // bulb, so a table with hue switched off lights nothing, runs no tick, and
     // must not accumulate markers nothing will ever sweep.
     let lamps_live = lights.is_some() && hue_table.is_some();
-    update_blocked_marker(&state_dir(), session_id, &event.state, lamps_live);
+    update_blocked_marker(
+        &state_dir(),
+        session_id,
+        &event.state,
+        lamps_live,
+        decision.inputs.now_secs,
+    );
     // AND THE NEWS RECORD BESIDE IT, under the same ordering contract and the
     // same fail-quiet rule. It is what arms the unread lamp, and it is written
     // WHATEVER THE DELIVERY DID: a card that was suppressed, muted or dropped is
@@ -2633,7 +2648,10 @@ fn register_lights_tick(
     decision: &pns::engine::Decision,
     overrides: &Overrides,
 ) {
-    let (Some(lights), Some(now)) = (lights, now_secs()) else {
+    // THE DECISION'S OWN CLOCK, like record_news and renew_loop_lease beside
+    // this call: a fresh wall-clock read here would be a third reading of the
+    // same moment, which is exactly the boundary R4-1 exists to close.
+    let (Some(lights), Some(now)) = (lights, decision.inputs.now_secs) else {
         return;
     };
     let lease = if pns::missed_notifications::was_missed(decision, overrides) {
@@ -8736,25 +8754,31 @@ mod tests {
             .expect("the needs directory");
         std::fs::write(&marker, "1000\n").expect("a wait in progress");
 
-        update_blocked_marker(&state, "s1", "done", false);
+        update_blocked_marker(&state, "s1", "done", false, Some(1_000));
         assert!(
             !marker.exists(),
             "the wait ended, so the marker goes, lamps live or not: it is one \
              unlink and it clears a leftover from when they were"
         );
 
-        update_blocked_marker(&state, "s1", "blocked", false);
+        update_blocked_marker(&state, "s1", "blocked", false, Some(1_000));
         assert!(
             !marker.exists(),
             "but STARTING one stays gated: a machine that never asked for the \
              lamps must not accumulate files that nothing will ever sweep"
         );
 
-        update_blocked_marker(&state, "s1", "blocked", true);
+        update_blocked_marker(&state, "s1", "blocked", true, Some(1_000));
         assert!(
             marker.exists(),
             "and a machine with them live starts the wait, which is what makes \
              the two assertions above a difference rather than a dead path"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&marker).expect("the marker"),
+            "1000\n",
+            "the marker holds the DECISION's clock, not a fresh wall-clock read \
+             taken inside this function"
         );
     }
 
