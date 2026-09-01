@@ -98,11 +98,15 @@ test-integration: validate-tests
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# The three Rust crates' inline unit tests, the one camp that is not a shell
+# The four Rust crates' inline unit tests, the one camp that is not a shell
 # suite: a `#[cfg(test)] mod tests` beside the code in each. The two herdr
 # plugins cover the pure decision functions in their src/main.rs (every Command
-# call sits behind an untested boundary by design); the pns crate is a library
+# call sits behind an untested boundary by design); pns and uu are libraries
 # whose whole content is the pure decision core.
+#
+# THE CRATES ARE ENUMERATED BY HAND. treefmt has no Rust coverage and nothing
+# discovers a manifest, so a new crate is invisible to this gate until its
+# three lines are written here.
 #
 # --locked matches the apply-time build
 # (.chezmoitemplates/herdr-plugin-build.sh.tmpl): Cargo.lock is committed for
@@ -112,11 +116,11 @@ test-e2e: validate-tests
 # no new step: macos-latest ships cargo, clippy and rustfmt, and `just test`
 # pulls this in.
 #
-# fmt and clippy run for pns ONLY. Nothing linted Rust anywhere before it, and
-# adopting the two for the herdr plugins is a separate decision with its own
-# diff; a gate that fails on code this slice did not touch would just be turned
-# off. --all-targets so the test modules are linted too, since that is where
-# most of this crate's code lives.
+# fmt and clippy run for pns and uu ONLY. Nothing linted Rust anywhere before
+# pns, and adopting the two for the herdr plugins is a separate decision with
+# its own diff; a gate that fails on code this slice did not touch would just be
+# turned off. --all-targets so the test modules are linted too, since that is
+# where most of those crates' code lives.
 #
 # Cheap enough to sit in the default camp list: about 2.5s per crate against an
 # empty target/, well under a second warm. target/ is crate-local, gitignored
@@ -127,6 +131,9 @@ test-rust:
   cargo test --locked --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --check --manifest-path dot_local/share/pns/Cargo.toml
   cargo clippy --locked --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
+  cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml
+  cargo fmt --check --manifest-path dot_local/share/uu/Cargo.toml
+  cargo clippy --locked --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
 
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,

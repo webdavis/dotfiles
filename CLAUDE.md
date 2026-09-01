@@ -147,10 +147,10 @@ the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts unde
 deployed state and the manifests derived from the same source state. The by-name form existed to dodge
 the vault, which is no longer a goal now that the operator applies with it unlocked.
 
-Twelve targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Thirteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
 `~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`, `~/.config/pns/config.toml`,
-`~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
+`~/.config/uu/config.toml`, `~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
 `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
@@ -419,6 +419,7 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)         |
 | `com.webdavis.report-plugin-updates`               | weekly record of what Claude Code auto-updated              |
 | `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events              |
+| `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject        |
 | `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                                     |
 | `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider                   |
 | `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                        |

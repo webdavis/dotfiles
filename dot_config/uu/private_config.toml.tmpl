@@ -1,0 +1,48 @@
+# uu's lane selection. THE FILE SELECTS: a lane runs only when its
+# [lanes.<name>] block exists, records post only when [records] exists, and
+# alerts leave the machine only when [alerts] exists. With no file at all uu
+# runs nothing and exits clean.
+#
+# Unknown keys and unknown lane names are refused BY NAME at load, in the same
+# sentence that lists what the table does serve. A typo therefore blocks the
+# whole file rather than quietly switching a lane off, which is the trade: the
+# loud half is a refusal on stderr, and the quiet half it replaces is a subject
+# that silently stops being updated.
+#
+# Every default is written out below at its default value, so nothing has to be
+# looked up to change it.
+
+# When `uu schedule render` prints a launchd job for. The tracked LaunchAgent
+# is what actually schedules this machine; these two keys feed the rendered
+# plist and nothing else.
+[schedule]
+day = "sunday"
+time = "12:00"
+
+# The weekly what-happened entry, signed and posted straight to the hermes
+# gateway. Every entry states its own gap since the last clean run: launchd
+# coalesces missed calendar slots, so a healthy job can produce one entry
+# covering three weeks and a missing entry says nothing on its own.
+[records]
+url = "http://127.0.0.1:8644/webhooks/unattended-upgrades"
+key = "{{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password }}"
+
+# Where a failed lane is reported. uu is a client here and takes no delivery
+# decision: pns owns presence and escalation. An engine that is not there leaves
+# the failure logged and the run clean.
+[alerts]
+binary = "{{ .chezmoi.homeDir }}/.local/libexec/pns/pns"
+
+# herdr and every GitHub-sourced plugin, refreshed weekly. herdr has no
+# `plugin update`, so a refresh is an uninstall followed by a fresh install,
+# which re-pins at the source's tip; an install that fails is retried once and a
+# plugin that still failed is named in the record and stays missing until the
+# next apply. Local plugins are built from source at apply time and are not
+# listed here.
+[lanes.herdr]
+binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
+plugins = [
+{{- range .packages.herdr_plugins }}
+  { id = {{ .id | quote }}, repo = {{ .repo | quote }} },
+{{- end }}
+]
