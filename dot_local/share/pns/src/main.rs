@@ -4819,32 +4819,16 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> pns::li
 }
 
 /// When the operator last touched this machine, by ANY road: the desk, the
-/// phone's input, or the deliberate phone marker.
-///
-/// THE FRESHEST OF THE THREE, which is the operator's own "any input, one clear
-/// rule". Taking the oldest would arm the lamp about news they had already seen
-/// through whichever road they were actually using.
-///
-/// NONE WHEN NONE OF THEM CAN BE READ, never an epoch of zero. A machine that
-/// cannot prove the operator was ever here cannot prove this news is unseen
-/// either, and dark is the direction every unreadable reading on this path
-/// takes.
-///
-/// THE DESK CLOCK IS AN AGE AND THE OTHER TWO ARE EPOCHS, which is why it is
-/// subtracted here rather than compared: `idle_secs` counts back from now, and
-/// the probes beside it answer the second something happened.
+/// phone's input, or the deliberate phone marker. The rule is
+/// `lights::last_interaction`'s; this reads the three probes and hands them in.
 fn last_interaction() -> Option<u64> {
     let probes = system_probes();
-    let now = now_secs()?;
-    let desk = pns::probes::IdleProbe::idle_secs(&probes).map(|idle| now.saturating_sub(idle));
-    [
-        desk,
+    pns::lights::last_interaction(
+        pns::probes::IdleProbe::idle_secs(&probes),
         pns::probes::PhoneInputProbe::phone_input_atime_secs(&probes),
         pns::probes::PhoneMarkerProbe::marker_mtime_secs(&probes),
-    ]
-    .into_iter()
-    .flatten()
-    .max()
+        now_secs()?,
+    )
 }
 
 /// The news record, or nothing at all for a file this cannot vouch for.

@@ -262,6 +262,35 @@ pub fn unread_arming(
         .map(|_| Unread::Success)
 }
 
+/// When the operator last touched the machine, from the three roads' own
+/// readings: the desk clock's idle age, and the two phone epochs.
+///
+/// THE FRESHEST OF THE THREE, which is the operator's "any input, one clear
+/// rule". Taking the stalest would arm the unread lamp about news they had
+/// already seen through whichever road they were actually using.
+///
+/// THE DESK READING IS AN AGE AND THE OTHER TWO ARE EPOCHS, which is why it is
+/// subtracted here rather than compared: an idle clock counts back from now,
+/// and the saturation is for an idle age longer than the clock itself, which is
+/// an interaction at the epoch rather than a wrapped one in the far future.
+///
+/// NONE WHEN NONE OF THEM CAN BE READ, never an epoch of zero. A machine that
+/// cannot prove the operator was ever here cannot prove any news is unseen
+/// either, and dark is the direction every unreadable reading on this path
+/// takes.
+pub fn last_interaction(
+    desk_idle_secs: Option<u64>,
+    phone_input_at: Option<u64>,
+    phone_marker_at: Option<u64>,
+    now: u64,
+) -> Option<u64> {
+    let desk = desk_idle_secs.map(|idle| now.saturating_sub(idle));
+    [desk, phone_input_at, phone_marker_at]
+        .into_iter()
+        .flatten()
+        .max()
+}
+
 /// Everything the loop condition is a function of.
 ///
 /// A NAMED STRUCT rather than six positional arguments, four of which are
@@ -974,10 +1003,10 @@ mod tests {
         Action, FADE_LEAD_MS, Fade, Held, House, LOOP_USAGE, Loop, LoopCommand, MAX_MUTED_PLACES,
         Muted, News, QuietCommand, Say, Streak, Unread, WORKING, active_held, any_blocked,
         any_working, bare_mute_secs, blocked_marker, blocked_marker_action, breath_fades,
-        lease_marker, loop_command, loop_running, muted_after, muted_entries, muted_places,
-        muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
-        quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
-        workspace_agent_statuses,
+        last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
+        muted_places, muted_report, news_after, next_streak, parse_news, parse_streak,
+        pulse_fires, quiet_command, render_muted, render_news, render_streak, say, shown,
+        unread_arming, workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1284,6 +1313,39 @@ mod tests {
             ),
             None,
             "a now before the news has no elapsed time in it"
+        );
+    }
+
+    #[test]
+    fn the_interaction_edge_is_the_freshest_of_the_three_roads() {
+        // THE FRESHEST WINS, whichever road it is. The stalest would arm the
+        // unread lamp about news the operator already saw through the road they
+        // were actually using.
+        assert_eq!(
+            last_interaction(Some(100), Some(9_500), Some(9_000), NOW),
+            Some(NOW - 100),
+            "the desk's idle age counts back from now, and here it is freshest"
+        );
+        assert_eq!(
+            last_interaction(Some(2_000), Some(9_500), Some(9_600), NOW),
+            Some(9_600),
+            "and here the phone marker is"
+        );
+        assert_eq!(
+            last_interaction(None, Some(9_500), None, NOW),
+            Some(9_500),
+            "one readable road is enough"
+        );
+        assert_eq!(
+            last_interaction(None, None, None, NOW),
+            None,
+            "and no road at all proves nothing, so the lamp stays dark"
+        );
+        assert_eq!(
+            last_interaction(Some(NOW + 5_000), None, None, NOW),
+            Some(0),
+            "an idle age longer than the clock is an interaction at the epoch, \
+             never a wrapped one in the far future"
         );
     }
 
