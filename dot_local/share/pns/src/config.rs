@@ -560,6 +560,36 @@ pub const TOP_LEVEL: &str = "";
 /// WHITESPACE-EXACT in two places (`# ` and ` = `), which is what the
 /// template's own count is a fence around: a text writing `key= value` on a run
 /// of lines drops exactly that run and nothing else says so.
+/// A chezmoi-templated text with its actions taken out: a directive standing
+/// on its own line goes with the line, and an action inside a value becomes
+/// `placeholder`.
+///
+/// THE SHARED STUB, lifted out of this module's own test for the shipped
+/// template so `config_text`'s tests can fake-render a secret action the same
+/// way: a rendered secret is not TOML (the action's own `"` sits unescaped
+/// inside a basic string), so a round-trip test has to stand in for chezmoi
+/// before it hands the text to `parse_config`, and one stub is what keeps that
+/// standing-in from drifting between the two callers.
+#[cfg(test)]
+pub(crate) fn strip_chezmoi_actions(text: &str, placeholder: &str) -> String {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("{{-"))
+        .map(|line| {
+            let mut rendered = line.to_string();
+            while let Some(start) = rendered.find("{{") {
+                let end = rendered[start..]
+                    .find("}}")
+                    .expect("a chezmoi action is closed on its own line")
+                    + start
+                    + 2;
+                rendered.replace_range(start..end, placeholder);
+            }
+            rendered
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
     let mut table = String::new();
@@ -3302,23 +3332,7 @@ mod tests {
     /// KEYS the file names and under which tables, and no action in it is a key
     /// or a table; they are one conditional wrapper and six secrets.
     fn rendered_template() -> String {
-        SHIPPED_TEMPLATE
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("{{-"))
-            .map(|line| {
-                let mut rendered = line.to_string();
-                while let Some(start) = rendered.find("{{") {
-                    let end = rendered[start..]
-                        .find("}}")
-                        .expect("a chezmoi action is closed on its own line")
-                        + start
-                        + 2;
-                    rendered.replace_range(start..end, "from-the-vault");
-                }
-                rendered
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "from-the-vault")
     }
 
     #[test]

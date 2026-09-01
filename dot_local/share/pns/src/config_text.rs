@@ -626,7 +626,15 @@ fn render_value(value: &toml::Value) -> Result<String, String> {
 const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
 
 /// A secret marker, `{ keepassxc = "<entry>", field = "Password" | "UserName" }`,
-/// as the literal chezmoi action `{{ (keepassxc "<entry>").<field> }}`.
+/// as the chezmoi action `"{{ (keepassxc "<entry>").<field> }}"`, quoted the
+/// way the shipped template quotes every secret it carries.
+///
+/// A RENDERED SECRET IS NOT TOML, which is exactly why the quotes are part of
+/// this text rather than added by the ordinary string path: chezmoi replaces
+/// the `{{ ... }}` action with the vault value's own bytes, unescaped, inside
+/// whatever quotes the template already wrote around it. Only what comes back
+/// from THAT substitution is TOML; this render's own job is to write the
+/// template text, not the file chezmoi eventually produces.
 ///
 /// NEITHER STRING IS TRUSTED. `field` is checked against the two chezmoi
 /// methods a keepassxc entry actually exposes, and the entry name is refused
@@ -657,7 +665,19 @@ fn secret_action(table: &toml::Table) -> Result<String, String> {
             "the keepassxc entry name `{entry}` cannot stand inside a chezmoi action"
         ));
     }
-    Ok(format!("{{{{ (keepassxc \"{entry}\").{field} }}}}"))
+    // BUILT WITH `push_str` RATHER THAN `format!`, deliberately: the target
+    // text is thick with literal `{`, `}` and `"` characters, and escaping all
+    // of them inside a format string is exactly the kind of place a stray
+    // brace goes unnoticed.
+    let mut action = String::with_capacity(entry.len() + field.len() + 20);
+    action.push('"');
+    action.push_str("{{ (keepassxc \"");
+    action.push_str(entry);
+    action.push_str("\").");
+    action.push_str(field);
+    action.push_str(" }}");
+    action.push('"');
+    Ok(action)
 }
 
 #[cfg(test)]
@@ -767,5 +787,66 @@ mod tests {
             config.plugins["mobile"].settings["submit_deadline_secs"].as_integer(),
             Some(crate::config::DEFAULT_SUBMIT_DEADLINE_SECS as i64)
         );
+    }
+
+    /// A secret marker for one keepassxc entry and field.
+    fn secret(entry: &str, field: &str) -> toml::Value {
+        let mut table = toml::Table::new();
+        table.insert("keepassxc".to_string(), toml::Value::String(entry.to_string()));
+        table.insert("field".to_string(), toml::Value::String(field.to_string()));
+        toml::Value::Table(table)
+    }
+
+    #[test]
+    fn a_secret_marker_renders_as_the_chezmoi_action_and_a_literal_renders_quoted() {
+        let mut mobile = toml::Table::new();
+        mobile.insert(
+            "token".to_string(),
+            secret("Moshi :: Webhook Secret", "Password"),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a secret marker renders");
+        assert!(
+            text.contains(
+                "token = \"{{ (keepassxc \"Moshi :: Webhook Secret\").Password }}\""
+            ),
+            "{text}"
+        );
+        // AND A LITERAL RENDERS QUOTED, right beside it: `type` still comes
+        // off the layout's own `Default`, escaped the ordinary way.
+        assert!(text.contains("type = \"moshi\""), "{text}");
+
+        // A RENDERED SECRET IS NOT TOML: the action's own `"` sits unescaped
+        // inside what would otherwise be a basic string, so it has to be
+        // faked into vault output before the whole file can parse.
+        let rendered = crate::config::strip_chezmoi_actions(&text, "from-the-vault");
+        let config =
+            parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
+        assert_eq!(
+            config.plugins["mobile"].settings["token"].as_str(),
+            Some("from-the-vault")
+        );
+    }
+
+    #[test]
+    fn a_secrets_field_is_whitelisted_to_the_two_chezmoi_methods() {
+        let error = super::secret_action(
+            secret("Moshi :: Webhook Secret", "Notes").as_table().unwrap(),
+        )
+        .expect_err("Notes is not a field keepassxc exposes to chezmoi");
+        assert!(error.contains("Notes"), "{error}");
+    }
+
+    #[test]
+    fn a_hostile_entry_name_is_refused_rather_than_closing_the_chezmoi_action() {
+        for hostile in ["a\"b", "a\\b", "a}}b"] {
+            let error = super::secret_action(secret(hostile, "Password").as_table().unwrap())
+                .expect_err(&format!("`{hostile}` can break out of the action and must be refused"));
+            assert!(error.contains(hostile), "{error}");
+        }
     }
 }
