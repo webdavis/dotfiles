@@ -39,6 +39,10 @@ binary = "{{ .chezmoi.homeDir }}/.local/libexec/pns/pns"
 # plugin that still failed is named in the record and stays missing until the
 # next apply. Local plugins are built from source at apply time and are not
 # listed here.
+#
+# Lanes run in NAME order, not the order they are written below: when the
+# other ports land (e.g. a `brew` lane), `brew` runs before `herdr` regardless
+# of where either block sits in this file.
 [lanes.herdr]
 type = "herdr"
 binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
