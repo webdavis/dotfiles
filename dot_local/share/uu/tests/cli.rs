@@ -203,6 +203,13 @@ fn the_marker_stamps_when_the_run_finished_and_not_when_it_started() {
          exit 0\n",
         "",
     );
+    // STRUCTURAL: the marker's own resolution is whole seconds, so telling
+    // the run's start from its finish needs a real second boundary between
+    // them; the spin above is 0 to just-under-1s by construction, not a
+    // number this test controls.
+    home.allow_slow(
+        "the marker's resolution is whole seconds; crossing one is the only reliable signal",
+    );
     let output = home.uu(&["run"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let began =
