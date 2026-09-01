@@ -6698,14 +6698,16 @@ fn assert_fell_back_to_the_plain_list(body: &str) {
 /// posted and read back.
 fn recap_summarized_badly(name: &str, extra: &str, body: &str) -> String {
     let sandbox = Sandbox::new(name);
-    // STRUCTURAL FOR THE ONE CALLER THAT SETS A DEADLINE: summarizer_deadline_secs
-    // is whole seconds (config.rs), and 1 is the smallest budget that still
-    // spawns the stub at all, so the "past its deadline" case pays that
-    // whole second. The other two callers exit immediately and never come
-    // near either line.
-    sandbox.allow_slow(
-        "summarizer_deadline_secs is whole seconds; 1s is the smallest budget that still spawns",
-    );
+    // STRUCTURAL FOR THE ONE CALLER THAT SETS A DEADLINE, and excused for that
+    // caller alone: summarizer_deadline_secs is whole seconds (config.rs), and
+    // 1 is the smallest budget that still spawns the stub at all, so the "past
+    // its deadline" case pays that whole second. The other four callers'
+    // stubs return at once and stay under the ceiling on their own.
+    if extra.contains("summarizer_deadline_secs") {
+        sandbox.allow_slow(
+            "summarizer_deadline_secs is whole seconds; 1s is the smallest budget that still spawns",
+        );
+    }
     record_every_event(&sandbox);
     sandbox.write_config(&recap_summarized_by(extra));
     loud_window(&sandbox);
