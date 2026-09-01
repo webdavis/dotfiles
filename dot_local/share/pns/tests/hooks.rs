@@ -2789,11 +2789,12 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
 /// `[lights]` table with hue disabled lights nothing and runs no tick, so
 /// there would be nothing to sweep the markers it wrote.
 const LAMPS_ON: &str = "[plugins.hue]\nenabled = true\n\
-     [lights]\nrefresh_secs = 20\n[lights.families.local]\nrooms = [\"3F - Studio\"]\n";
+     [lights]\nrefresh_secs = 20\n\
+     [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n";
 
 /// Every session the lamps currently believe is waiting on the operator.
 fn waiting_sessions(sandbox: &Sandbox) -> Vec<String> {
-    let mut names: Vec<String> = std::fs::read_dir(sandbox.path("state/lights-needs"))
+    let mut names: Vec<String> = std::fs::read_dir(sandbox.path("state/lights-blocked"))
         .into_iter()
         .flatten()
         .flatten()
@@ -2805,7 +2806,7 @@ fn waiting_sessions(sandbox: &Sandbox) -> Vec<String> {
 
 #[test]
 fn a_waiting_agent_leaves_a_marker_and_the_next_event_from_that_session_removes_it() {
-    let sandbox = Sandbox::new("lights-needs-marker");
+    let sandbox = Sandbox::new("lights-blocked-marker");
     sandbox.write_config(LAMPS_ON);
     hook_with(
         with_state_dir(&sandbox),
@@ -2846,7 +2847,7 @@ fn an_event_with_no_session_id_behind_it_holds_no_lamp() {
     // identity: an event that arrives on argv rather than through a harness
     // hook has nothing that could later say the wait ended, so it gets the
     // flash and cannot hold the lamp.
-    let sandbox = Sandbox::new("lights-needs-no-session");
+    let sandbox = Sandbox::new("lights-blocked-no-session");
     sandbox.write_config(LAMPS_ON);
     let mut command = with_state_dir(&sandbox);
     sandbox.stub_herdr(&mut command, false);

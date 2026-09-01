@@ -69,6 +69,8 @@ Library
 .local/libexec/pns
 .local/share/pns
 .config/pns
+# And so is the /pns: plugin, which is nothing but commands for that engine.
+.claude/pns-marketplace
 # uu rides on the pns engine for alerts and on its hermes client for records,
 # so it is macOS-only for the same reasons and its builder is darwin-gated too.
 .local/libexec/uu

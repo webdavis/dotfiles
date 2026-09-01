@@ -1,0 +1,11 @@
+{
+  "name": "pns",
+  "owner": {"name": "webdavis"},
+  "plugins": [
+    {
+      "name": "pns",
+      "source": "./plugins/pns",
+      "description": "Commands for the pns notification engine: the loop lamp, and whatever joins it."
+    }
+  ]
+}

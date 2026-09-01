@@ -73,11 +73,13 @@ enabled = true
 bridge = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName }}"
 key = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password }}"
 rooms = ["3F - Studio", "2F - Kitchen"]
-# The hours the rooms stay dark: local wall clock, the start inclusive and the
-# end exclusive, and it may wrap midnight. ONLY the lights are quieted; cards,
-# banners and the log still fire at every hour, and a hand-run `pns pulse` is
-# exempt so a bridge and key can be checked while the window is on.
-# quiet_hours = "22:00-07:00"
+# The operator's quiet hours: local wall clock, the start inclusive and the end
+# exclusive, and it may wrap midnight. A bare `pns lights quiet <place>` mutes
+# until this window ends and is refused when none is set. With no `[lights]`
+# table below it is also the hours the room pulse stays dark (a hand-run
+# `pns pulse` is exempt so a bridge and key can be checked in-window); with one,
+# each place's own `dim_window` decides the night behaviour instead.
+quiet_hours = "22:00-07:00"
 
 # The home probe: is the phone on the home wifi, answered by the UDR's client
 # list. A SENSOR rather than a channel, so it is selected here like any plugin
@@ -315,137 +317,161 @@ summarizer_deadline_secs = 240
 [nag]
 after_secs = 300
 
-# The lamp map: WHICH LAMP says who, and the colour says what. A FAMILY names a
-# source (`local`, `github`, `loop`) and claims PLACES, which are room names or
-# light names; `except` carves lamps out of a claimed room, and a specific claim
-# beats a general one, so a light named by one family leaves its room to the
-# other. A room claimed whole is one write to its group; anything narrower is
-# one write per lamp.
+# The lamp map: WHICH LAMP says what, and the colour says which thing. A
+# DECLARATION names a place at one of three levels, `[lights.lamp."<name>"]`,
+# `[lights.room."<name>"]` or `[lights.zone."<name>"]`, spelled exactly as the
+# bridge spells it, and says which of the five behaviours that place carries.
+#
+# THE MOST SPECIFIC DECLARATION THAT NAMES A LAMP WINS, lamp over room over
+# zone, and the winner supplies the WHOLE answer: levels never merge, so a lamp
+# lifted out of a routed room carries what its own line says and nothing else.
+# Each question resolves on its own, so a lamp can state its behaviours and
+# still inherit its room's dim window. Two ZONES that both answer one question
+# for one lamp are refused with both named, because there is nothing more
+# specific to break the tie; the other levels cannot collide, since a lamp has
+# one name and one room.
+#
+# THE FIVE BEHAVIOURS are `done` and `failed` (blinks, fired by an event) and
+# `blocked`, `unread` and `loop` (breaths, held by the daemon while their
+# condition lasts). On one lamp the held states rank blocked, loop, then unread,
+# and a held state PREEMPTS a blink on the lamp holding it, so a lamp can be
+# dedicated to the held states and still join the blink lamps whenever none of
+# them is active. `unread` is one word carrying two colours, daylight for a run
+# that finished and red for one that died; a lamp carries both or neither.
 #
 # `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE. Hue is the
 # transport and this is the policy, so there is no second off switch that can
 # disagree with the first. With no `[lights]` table at all, the pulse is the
 # `rooms` array above and nothing else, exactly as it has always been.
 #
-# EVERY UNKNOWN KEY IS REFUSED BY NAME, at every level, and so is a `skip` word
-# outside the five behaviours (`done`, `failed`, `needs-you`, `breathing`,
-# `glow`). `[plugins.hue]` judges its own keys the same way now, so the reason
-# this is a top-level table is no longer that one table swallows a typo and this
-# one does not. The reason is that hue is the TRANSPORT and this is the POLICY,
-# and the policy outgrew a plugin's settings. What has not changed is why being
-# refused matters here in particular: the failure mode is a lamp that never
+# EVERY UNKNOWN KEY IS REFUSED BY NAME, at every level, and so is a behaviour
+# word outside the five. The failure that matters here is a lamp that never
 # lights and no message anywhere, which an operator standing in a dark room
 # cannot tell from a lamp that is behaving.
 #
-# QUIET HOURS COME IN TWO FLAVOURS. `quiet_mode = "off"` takes the signal away,
-# which is what quiet hours have always meant and what a place that says nothing
-# gets. `quiet_mode = "dim"` shows the SAME signal at `dim_brightness` instead,
-# so a lamp still says what it has to say and says it faintly. A state shown dim
-# through the night was never suppressed, so it simply comes up to full when the
-# window ends and needs no `catch_up` to survive it.
-#
-# ONE `quiet_mode = "dim"` ANYWHERE MAKES pns THE OWNER OF LAMP BRIGHTNESS, and
-# that is a measurement rather than a style: a `dimming` written beside a signal
-# persists on the lamp after the signal ends, so once a floor can be written,
-# every body has to state a brightness or the first green after 07:00 runs as
-# faint as the ones asked for at 3am. The price is that a level set by hand, the
-# studio at 30 percent for evening work, lasts until the next event. The one
-# thing even that does not correct is a lamp the OPERATOR switches on by hand
-# between a dim signal and the next write, which comes up faint until something
-# signals it again.
-#
-# A CONFIG WITH NO DIM PLACE PAYS NONE OF IT. No floor can be written, so none
-# can be inherited, so no body states a brightness at all: the requests are the
-# ones that shipped, byte for byte, and a level set by hand is left alone.
-#
-# THE TWO COMMAND SOURCES READ THE SHELL'S OWN MARKERS: `commands` and
-# `long-commands` see a file the interactive shell writes per pane while a
-# tracked command runs, so both are live from the same apply that installs the
-# bashrc. Everything else is live too. `github` resolves lamps and nothing
-# routes to it on purpose (plumbing only).
-#
-# DISABLING HUE WHILE A GLOW IS HELD LEAVES THAT LAMP TO THE WALL SWITCH. The
-# steady glow write is the one body on this path that does not expire, and
-# putting it out takes a bridge; with `enabled = false` above there is no bridge
-# to reach, so nothing puts it out and the record is kept for the tick after the
-# switch goes back on. Removing `[lights]` while hue stays enabled is the safe
-# way round: the next tick clears that lamp by name and forgets it.
-#
+# DISABLING HUE WHILE A LAMP IS HELD LEAVES THAT LAMP TO THE WALL SWITCH. A held
+# body is a plain state write that does not expire, and putting it out takes a
+# bridge; with `enabled = false` above there is none to reach, so the record is
+# kept for the tick after the switch goes back on. Removing `[lights]` while hue
+# stays enabled is the safe way round: the next tick clears those lamps by name.
 [lights]
-# How often the daemon re-arms a lamp's state, in seconds.
-#
-# KEEP THIS AT 12 OR LOWER IF YOU WANT SMOOTH BREATHING. Breathing asks the
-# bridge for its own breathe, which is a swell the BRIDGE ends by itself after
-# about fifteen seconds; the daemon just asks again every refresh. Set this
-# above ~15 and the lamp finishes its swell and sits dark until the next tick,
-# which reads as a slow blink rather than as breathing. Every other state
-# holds its lamp for a full interval and does not care.
-#
-# 12 IS ALSO THE DEFAULT, so leaving this out gets smooth breathing. The range
-# is 10 to 300, and the ceiling is the tick's own ordinary lease: an interval
-# longer than the lease would have the lease run out before the tick came back
-# round, so anything above it is refused by name at load.
+# How often the daemon re-arms the lamps, in seconds. It is also the breath
+# budget: a breathing lamp is faded by the tick itself for the whole interval
+# and stops at its peak, so this decides how many fades fit between two ticks.
+# The range is 10 to 30, and the ceiling is how long the daemon lets a tick's
+# own process live: an interval past it is a breath cut off part way through.
 refresh_secs = 12
-# How long an agent must have been working before `agent-loops` calls it a
-# loop. Only that one source reads this.
-breathe_after_secs = 900
-# WHICH activities breathe. Absent means the three that WAIT for something,
-# which is the line written below; an empty list means breathing off; a word
-# outside the four is refused by name at load.
-#   "agent-work"    an agent is working right now, however briefly
-#   "agent-loops"   an agent has been working for breathe_after_secs
-#   "commands"      a tracked shell command is running
-#   "long-commands" one that has been running past the long-command tier
-# A source left out contributes nothing; the ones named still do.
-#
-# `agent-work` IS THE ONE LEFT OUT OF THE DEFAULT. It breathes on any working
-# workspace with no duration test at all, and an eager source wins every time,
-# so switching it on leaves `breathe_after_secs` governing nothing. Name it
-# here for a lamp that should breathe the moment an agent starts.
-# SWITCHED OFF (operator, 2026-08-31, on first sight of the live lamp): the
-# swell is not the behaviour they want; a redesign session is pending. The
-# needs-you and glow states stay live; name sources here to re-enable.
-breathe_on = []
-# The brightness a dimmed signal runs at, in percent. The range is 1 to 100,
-# and zero is refused rather than read as off: a dark signal is a lamp saying
-# nothing, and the way to say nothing is that place's own `skip` list.
-#
-# ONE IS THE DEFAULT and it is as faint as the hardware goes: a studio lamp
-# asked for one percent measured 1.19, which is its own floor.
-dim_brightness = 1
 
-[lights.families.local]
-rooms = ["3F - Studio"]
-except = ["3F - Studio - HCL3"]
+# The five behaviour shapes. Every number below was set on a real lamp; only the
+# knobs that APPLY to a behaviour exist, so a blink has a duration and one
+# brightness and a breath has a duration and two ends.
+[lights.done]
+duration_ms = 4000
+brightness = 100
 
-[lights.families.github]
-lights = ["3F - Studio - HCL3"]
+[lights.failed]
+duration_ms = 4000
+brightness = 100
 
-[lights.families.loop]
-lights = ["3F - Studio - HCL3"]
+[lights.blocked]
+duration_ms = 2000
+high = 100
+low = 30
 
-[lights.places."3F - Master Bedroom"]
-skip = ["breathing"]
-quiet_hours = "22:00-07:00"
-quiet_mode = "dim"
-catch_up = true
+[lights.unread]
+duration_ms = 4000
+high = 60
+low = 10
+# How old a FINISHED run must be before its lamp arms, in seconds. A result you
+# are still looking at should not light a lamp about itself. A run that DIED has
+# no such delay and no knob: the sooner you know, the better. Zero arms at once.
+after_secs = 300
+
+[lights.loop]
+duration_ms = 4000
+high = 60
+low = 10
+# How long work must run continuously before the lamp arms itself. Both an agent
+# herdr calls working and a tracked shell command count.
+threshold_secs = 360
+# How long a lease taken by `pns loop begin` survives with nothing renewing it,
+# in seconds. The pane's own hook traffic renews it; 3900 is an hour plus the
+# margin the harness's own wakeup scheduler needs, so the default outlasts the
+# longest legitimate quiet gap in a live loop.
+lease_timeout_secs = 3900
+
+# The DIM FORM: one shape, shared by every behaviour that runs dimmed, at the
+# faintest levels the hardware has. A lamp asked for one percent measures 1.19,
+# which is its own floor. A dimmed BLINK fires at `low`, since a blink has no
+# low end to fade to.
+[lights.dim]
+duration_ms = 3000
+high = 7
+low = 1
+
+# The routing. `dim_window` is local wall clock, the start inclusive and the end
+# exclusive, and it may wrap midnight; `dim_behaviours` names which behaviours
+# run their dim form inside it, and everything else that place carries is
+# SUPPRESSED there. A window with an empty list therefore takes every behaviour
+# away for the night and needs no mode of its own. A place with no window is
+# untouched at every hour.
+
+[lights.room."3F - Studio"]
+shows = ["done", "failed"]
+dim_window = "22:00-07:00"
+dim_behaviours = ["blocked", "unread", "loop"]
+
+# Each of these states which behaviours it carries and NOTHING about quiet
+# hours, so it keeps inheriting its room's window: the two questions resolve
+# independently, and restating the window here would be one more place to keep
+# in agreement with the room.
+[lights.lamp."3F - Studio - HCL3"]
+shows = ["loop", "blocked", "unread"]
+
+# The bedroom suppresses EVERYTHING overnight: no light behaviour in here during
+# quiet hours, which is an empty enable list rather than a mode.
+[lights.room."3F - Master Bedroom"]
+shows = ["done", "failed"]
+dim_window = "22:00-07:00"
+dim_behaviours = []
+
+[lights.lamp."3F - Master Bedroom - HCL3"]
+shows = ["loop", "blocked", "unread"]
+
+[lights.room."2F - Kitchen"]
+shows = ["done", "failed"]
+dim_window = "22:00-07:00"
+dim_behaviours = ["blocked", "unread", "loop"]
+
+# HCD6 is DEDICATED to the held states and joins HCD1-5 for the blinks whenever
+# none of them is active: it carries all five words, and the held states preempt
+# a blink on the lamp holding one.
+[lights.lamp."2F - Kitchen - HCD6"]
+shows = ["loop", "blocked", "unread", "done", "failed"]
+
+[lights.lamp."1F - Front Door - HCL1"]
+shows = ["loop", "blocked", "unread"]
+dim_window = "22:00-07:00"
+dim_behaviours = ["blocked", "unread", "loop"]
 
 # ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:
 #
 #   pns lights quiet "3F - Studio" 2h   quiet that place's lamps for two hours
+#   pns lights quiet "3F - Studio"      quiet them until quiet hours end
 #   pns lights quiet "3F - Studio" off  loud again
 #   pns lights quiet                    what is quiet right now
 #
-# It reaches the lamps of one room or one light and nothing else: cards, banners
-# and the durable log carry on, and `pns quiet`, which mutes all of them, is a
-# different command with a different file that neither reads. The duration is
-# the same 1s to 24h `pns quiet` takes, and a state file nobody can parse mutes
-# nothing and says so.
+# It silences EVERY behaviour on the target and reaches the lamps of one lamp,
+# room or zone and nothing else: cards, banners and the durable log carry on, and
+# `pns quiet`, which mutes all of them, is a different command with a different
+# file that neither reads. A bare mute reads `[plugins.hue] quiet_hours` above as
+# the schedule and is refused when none is set. An explicit duration is the same
+# 1s to 24h `pns quiet` takes, and a state file nobody can parse mutes EVERY
+# lamp and says so: dark is the fail direction on a lamp path.
 #
-# THE NAMES IT TAKES ARE THE ONES A `[lights.families]` CLAIM NAMES, `rooms`,
-# `lights` and `except` alike, and a name only a `[lights.places]` entry holds is
-# refused with the list of the ones that work. That is not tidiness: a room
-# claimed whole is written as ONE grouped light, so the names of the lamps inside
-# it reach nothing, and a mute typed on one would be stored, reported as in
-# effect, and leave the lamp flashing all night. Quiet the room instead.
+# THE NAMES IT TAKES ARE EVERY LAMP, ROOM AND ZONE, whether a declaration below
+# writes it or the bridge merely holds it, and a name neither knows is refused
+# with the list of the ones that work. Refusing a name it cannot enforce is the
+# point: a mute that matches nothing reports success while the lamp goes on
+# flashing.
 {{- end }}

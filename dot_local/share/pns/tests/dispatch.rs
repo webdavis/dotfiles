@@ -1289,9 +1289,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         outcome(
             "lights-guard-with-a-table",
             "[lights]\nrefresh_secs = 20\n\
-             [lights.families.local]\nrooms = [\"3F - Studio\"]\n\
-             except = [\"3F - Studio - HCL3\"]\n\
-             [lights.places.\"3F - Studio\"]\nskip = [\"breathing\"]\n",
+             [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n",
         ),
         "same stdout, same stderr, same exit code, the bridge dialled either way, \
          and the same legs fired"
@@ -1461,11 +1459,22 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
 
 // --- the lamps: which lamp, and what colour ---------------------------------
 
-/// The studio map this repo actually ships, as a config fragment: `local`
-/// holds the room minus HCL3, which the other two families take.
+/// The studio map this repo actually ships, as a config fragment: the room
+/// carries the blinks and HCL3 is lifted out for the held states.
+///
+/// THE ROOM DOES NOT CARRY `blocked`, and that word being here was the whole
+/// difference between a fixture and a copy of the shipped file. With it, every
+/// lamp in the room answered for the held states, so a lamp-level override that
+/// had stopped working entirely still reached the bridge through HCL1 and HCL2
+/// and every case below stayed green.
+///
+/// THE DIM WINDOW IS THE ONE THING IT LEAVES OUT, deliberately: the shipped room
+/// states a 22:00-07:00 window, and a wall-clock window would make every case
+/// here answer differently depending on the hour the suite happened to run. The
+/// window's own behaviour is pinned by the tests that set a clock.
 const STUDIO_MAP: &str = "[lights]\nrefresh_secs = 20\n\
-     [lights.families.local]\nrooms = [\"3F - Studio\"]\n\
-     except = [\"3F - Studio - HCL3\"]\n";
+     [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n\
+     [lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"loop\", \"blocked\", \"unread\"]\n";
 
 /// One event against a spy bridge: whether the bridge was dialled, and whether
 /// the two network legs fired.
@@ -1674,14 +1683,20 @@ fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
 }
 
 #[test]
-fn an_event_whose_every_place_is_asleep_reaches_no_bridge_and_costs_no_leg() {
+fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
     // The shipped whole-pulse property at the new granularity: the lamps are
-    // muted and NOTHING else is, so the card and the durable log still report a
-    // long command at any hour.
+    // suppressed and NOTHING else is, so the card and the durable log still
+    // report a long command at any hour.
     //
-    // AND IT REACHES NO NETWORK AT ALL, which is the part a per-fixture filter
-    // could have quietly lost: resolving the map costs a GET, and a house whose
-    // every window covers this minute has nothing that GET could light.
+    // IT REACHES THE BRIDGE AND WRITES NOTHING, which is the deliberate change.
+    // The old pre-resolution gate answered "could any place be awake" from the
+    // config alone and paid for it with two stated limits (a lamp that carved an
+    // awake window out of a sleeping room lost its signal to the gate, and a
+    // claimed light took the house window here and its room's window in the
+    // walk). The dim window is now a per-lamp answer that needs the bridge's own
+    // membership, so the cheap half of that question no longer exists. What it
+    // costs is three GETs on an event fired at an hour every lamp is asleep, and
+    // what it buys is that no lamp is ever dark because a gate guessed.
     let asleep = window_around(utc_minute_now(), 120);
     let long_running: Vec<&str> = LONG_DONE
         .iter()
@@ -1691,53 +1706,52 @@ fn an_event_whose_every_place_is_asleep_reaches_no_bridge_and_costs_no_leg() {
     assert_eq!(
         lamp_run(
             "lamps-every-place-asleep",
-            &format!("quiet_hours = \"{asleep}\"\n"),
+            "",
             &format!(
-                "{STUDIO_MAP}[lights.places.\"3F - Studio\"]\n\
-                 quiet_hours = \"{asleep}\"\n"
+                "[lights]\nrefresh_secs = 20\n\
+                 [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+                 dim_window = \"{asleep}\"\ndim_behaviours = []\n"
             ),
             &long_running,
             Mute::Nothing,
             Presence::Away,
         ),
-        (false, true, true, false, Some(0)),
-        "every lamp asleep: no dial, and both legs still fire"
+        (true, true, true, false, Some(0)),
+        "every lamp asleep: the map still resolves and both legs fire. WHAT A \
+         DIAL CAN PROVE HERE stops at the round trip, because this spy is a \
+         plain TCP listener that hangs up; that no lamp is WRITTEN to is pinned \
+         in the unit tests over dim_showing and pulse_render"
     );
 }
 
 #[test]
-fn a_house_window_nobody_can_parse_still_lets_a_place_with_its_own_hours_signal() {
-    // THE HOUSE WINDOW IS THE LAST RUNG OF THE CHAIN, not a gate in front of
-    // it. `[plugins.hue] quiet_hours` used to be parsed before the `[lights]`
-    // branch was reached, so one typo there took every lamp dark however
-    // carefully its own place had been written. A lamp whose room states hours
-    // it can read, and is awake inside them, never consults the house at all.
+fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
+    // `[plugins.hue] quiet_hours` IS NO LONGER A RUNG OF THE ROUTED CHAIN. It
+    // is now exactly one thing: the schedule a bare `pns lights quiet` reads,
+    // and the window the no-map pulse takes. A routed lamp states its own
+    // `dim_window` or has none, so a typo in the house key cannot darken it.
     //
     // THE NO-TABLE SIBLING IS ITS OWN TEST and it still holds:
     // `a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`
     // pins the whole-pulse refusal for a machine that wrote no `[lights]`
     // table, which is the compatibility contract this must not move.
-    let awake = window_around((utc_minute_now() + 720) % 1440, 120);
     assert_eq!(
         lamp_run(
             "lamps-house-window-unreadable",
             "quiet_hours = \"10pm-7am\"\n",
-            &format!(
-                "{STUDIO_MAP}[lights.places.\"3F - Studio\"]\n\
-                 quiet_hours = \"{awake}\"\n"
-            ),
+            STUDIO_MAP,
             &BLOCKED,
             Mute::Nothing,
             Presence::Away,
         ),
         (true, true, true, false, Some(0)),
-        "the room's own window is readable and awake, so the lamp signals \
-         whatever the house key says"
+        "the routed lamps never consult the house key, so a typo there costs \
+         them nothing"
     );
 }
 
 #[test]
-fn the_operators_own_mute_takes_the_needs_you_lamp_with_everything_else() {
+fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     // THE ONE NEW CONDITION `plan.pulse` DOES NOT ALREADY COVER. Arbitration
     // zeroes the plan's pulse for a muted event, so every other lamp in this
     // slice is muted by that alone; the blue one earns its own gate at the
@@ -1784,10 +1798,12 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     // TYPED, NOT INJECTED: the mute is armed by running the subcommand in the
     // same sandbox, which is the path an operator walks at bedtime.
     //
-    // AND NO BRIDGE IS DIALLED AT ALL, which the pre-resolution gate is what
-    // earns: the family holds one claim, the operator muted exactly that name,
-    // and resolving the map to discover it would be a round trip on every
-    // event for the length of the mute.
+    // THE MUTE IS A RENDER FILTER AT THE PER-LAMP DECISION, decided once, so
+    // the map is still resolved and every lamp under the muted name is then
+    // written to for nothing. That costs three GETs for the length of the mute
+    // and it is what keeps ONE answer to "is this lamp muted": the alternative
+    // is a second, config-only copy of the question upstream of the listing,
+    // which is how a report and a lamp come to disagree about a muted room.
     assert_eq!(
         lamp_run(
             "lamps-adhoc-quiet-away",
@@ -1797,7 +1813,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
             Mute::Lights("3F - Studio"),
             Presence::Away,
         ),
-        (false, true, true, false, Some(0)),
+        (true, true, true, false, Some(0)),
         "away: the lamps are quiet and the CARD still reaches the phone"
     );
     // THE BANNER IS OPT IN like every other channel, so the desk runs below
@@ -1813,7 +1829,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
             Mute::Lights("3F - Studio"),
             Presence::Desk,
         ),
-        (false, false, true, true, Some(0)),
+        (true, false, true, true, Some(0)),
         "at the desk: the lamps are quiet and the BANNER still runs, with the \
          durable log taking the event either way"
     );
@@ -1828,7 +1844,8 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
         ),
         (true, false, true, true, Some(0)),
         "the unmuted control: the same event at the same desk reaches the \
-         bridge, so the silence above is the mute and not the presence"
+         bridge too, so the assertions above are about the legs rather than \
+         about the dial"
     );
 }
 
@@ -1870,6 +1887,91 @@ fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() 
         !second.contains("lights-quiet holds"),
         "and the second says nothing, because nothing changed: {second}"
     );
+}
+
+#[test]
+fn a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds() {
+    // THE CALL SITE, not the rule. `record_news` and `renew_loop_lease` are
+    // each pinned as functions, so this is the one test that goes red if the
+    // event path stops calling them. The news record is written whatever the
+    // delivery did, which is why the bridge here is dead on purpose.
+    let sandbox = Sandbox::new("lights-news-and-lease");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n\
+         rooms = [\"3F - Studio\"]\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+    ));
+    let lease_dir = sandbox.state().join("lights-loop");
+    std::fs::create_dir_all(&lease_dir).expect("the lease directory");
+    std::fs::write(lease_dir.join("t1:p2"), "500\n").expect("a lease taken by hand");
+    let mut command = sandbox.pns_stateful();
+    command.env("TZ", "UTC");
+    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    sandbox.stub_herdr(&mut command, false);
+    let outcome = run(command.args(LONG_DONE));
+    assert_eq!(outcome.status.code(), Some(0), "{}", stderr(&outcome));
+    let news = std::fs::read_to_string(sandbox.state().join("lights-news"))
+        .expect("the done event left a news record");
+    let done_at: u64 = news
+        .split_whitespace()
+        .next()
+        .and_then(|epoch| epoch.parse().ok())
+        .expect("the record starts with the done epoch");
+    assert!(
+        done_at > 1_000_000_000,
+        "a real epoch, never zero: {news:?}"
+    );
+    let lease = std::fs::read_to_string(lease_dir.join("t1:p2")).expect("the lease file survives");
+    assert!(
+        lease.trim().parse::<u64>().expect("an epoch") > 1_000_000_000,
+        "the pane's own ordinary traffic moved its lease to now: {lease:?}"
+    );
+}
+
+#[test]
+fn the_news_record_is_written_whatever_the_lamps_are_doing() {
+    // NEWS IS NOT A DELIVERY, which is what makes it independent of both lamp
+    // switches. It is the record of a turn that finished or died, and the lamp
+    // it later arms is what tells the operator about the ones they missed;
+    // written only when a map and a transport were both live, an operator who
+    // switched hue off for an evening came back to a lamp that had nothing to
+    // say about the evening.
+    //
+    // THE TWO SWITCHES, one per case: a machine with no `[lights]` table at
+    // all, and one whose map is written while the transport is off.
+    for (name, config) in [
+        (
+            "news-without-a-map",
+            "[plugins.hermes]\nenabled = true\n".to_string(),
+        ),
+        (
+            "news-with-hue-off",
+            format!(
+                "[plugins.hue]\nenabled = false\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+            ),
+        ),
+    ] {
+        let sandbox = Sandbox::new(name);
+        sandbox.write_config(&config);
+        let mut command = sandbox.pns_stateful();
+        command.env("TZ", "UTC");
+        command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+        sandbox.stub_herdr(&mut command, false);
+        let outcome = run(command.args(LONG_DONE));
+        assert_eq!(
+            outcome.status.code(),
+            Some(0),
+            "{name}: {}",
+            stderr(&outcome)
+        );
+        let news = std::fs::read_to_string(sandbox.state().join("lights-news"))
+            .unwrap_or_else(|error| panic!("{name}: no news record ({error})"));
+        let done_at: u64 = news
+            .split_whitespace()
+            .next()
+            .and_then(|epoch| epoch.parse().ok())
+            .unwrap_or_else(|| panic!("{name}: the record starts with the done epoch"));
+        assert!(done_at > 1_000_000_000, "{name}: a real epoch: {news:?}");
+    }
 }
 
 #[test]
@@ -4570,7 +4672,7 @@ fn an_event_with_nothing_waiting_delivers_and_leaves_exactly_what_it_did_before(
     assert_eq!(raised[0]["state"], "done", "{raised:?}");
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the run left something new in the state directory"
     );
 }
@@ -4620,7 +4722,7 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
     );
     assert_eq!(
         state_files(&delivered),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a delivered replay left a claim behind"
     );
 
@@ -4671,7 +4773,7 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
     // could never fire again.
     assert_eq!(
         state_files(&killed),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the journal was still claimed, or the window's edge was not restored"
     );
     assert!(
@@ -4774,7 +4876,7 @@ fn a_claim_an_earlier_run_never_finished_is_adopted_by_the_next_return() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the adopted claim outlived the delivery it rode on"
     );
 }
@@ -4844,7 +4946,7 @@ fn a_held_batch_whose_owner_is_gone_is_adopted_exactly_once() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the hold outlived the delivery it rode on"
     );
 }
@@ -4936,7 +5038,7 @@ fn a_line_nothing_can_parse_costs_the_entries_around_it_nothing() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a journal that read back whole is consumed whole"
     );
 }
@@ -5021,6 +5123,7 @@ fn a_directory_at_the_journals_path_is_put_back_exactly_where_it_was_found() {
             "activity",
             "decisions",
             "last-present",
+            "lights-news",
             "missed-notifications"
         ],
         "something was left standing at a claim path"
@@ -5119,7 +5222,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the journal survived the race, or a racer left its claim behind"
     );
 }
@@ -5184,7 +5287,7 @@ fn racing_present_events_adopt_one_stranded_claim_exactly_once() {
     }
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a racer left the stranded claim behind"
     );
 }
@@ -5981,7 +6084,7 @@ fn a_window_claim_whose_owner_is_gone_is_adopted_rather_than_lost_or_left_behind
     );
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "the adopted claim was left in the state directory"
     );
 }
@@ -6154,7 +6257,7 @@ fn racing_present_events_recap_one_loud_window_exactly_once_between_them() {
     // back leaves a file here that nothing else would notice.
     assert_eq!(
         state_files(&sandbox),
-        ["activity", "decisions", "last-present"],
+        ["activity", "decisions", "last-present", "lights-news"],
         "a racer left the window claimed"
     );
 }
@@ -7654,9 +7757,104 @@ fn plant_waiting_session(sandbox: &Sandbox) {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("a clock past 1970")
         .as_secs();
-    let needs = sandbox.path("state/lights-needs");
+    let needs = sandbox.path("state/lights-blocked");
     std::fs::create_dir_all(&needs).expect("the needs directory");
     std::fs::write(needs.join("s1"), format!("{now}\n")).expect("a needs marker");
+}
+
+/// The lights job the spool is holding, as its raw record, or nothing.
+fn scheduled_tick(sandbox: &Sandbox) -> Option<String> {
+    std::fs::read_to_string(sandbox.path("state/daemon/lights")).ok()
+}
+
+/// The second a spool record stops being allowed to run.
+fn lease_ends_at(record: &str) -> u64 {
+    record
+        .split_whitespace()
+        .find_map(|field| field.strip_prefix("until="))
+        .and_then(|until| until.parse().ok())
+        .unwrap_or_else(|| panic!("the record states an until: {record:?}"))
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+}
+
+#[test]
+fn a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold() {
+    // THE LOOP LAMP COULD NOT BE REACHED AT ALL. The tick's lease was
+    // refreshed by EVENTS and by nothing else, and a plain shell command
+    // produces no events: with the automatic threshold at five minutes by
+    // default and six on the operator's own machine, both PAST the five-minute
+    // lease an event leaves behind, the daemon dropped the job before the run
+    // it was watching could ever qualify. The one lamp whose job is a long run
+    // could not arm itself.
+    let sandbox = Sandbox::new("lights-tick-renews-its-own-lease");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n{STUDIO_MAP}"
+    ));
+    // A COMMAND THIS TEST'S OWN PROCESS IS HOLDING: the sweep reads the pid in
+    // the name and only a LIVE shell's marker counts as work in flight.
+    let shell = sandbox.path("state/lights-shell");
+    std::fs::create_dir_all(&shell).expect("the shell marker directory");
+    let started = now_secs() - 100;
+    std::fs::write(
+        shell.join(std::process::id().to_string()),
+        format!("{started}\n"),
+    )
+    .expect("a command that started a hundred seconds ago");
+
+    let output = tick(&sandbox);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let record = scheduled_tick(&sandbox).expect("the tick registered itself");
+    assert!(
+        lease_ends_at(&record) >= now_secs() + 240,
+        "the lease has to outlast the threshold the run is climbing toward: {record:?}"
+    );
+}
+
+#[test]
+fn a_tick_with_nothing_in_flight_lets_its_own_lease_lapse() {
+    // THE OTHER DIRECTION, and it is what keeps the renewal above from being a
+    // job that reschedules itself forever: an idle machine's tick has to lapse,
+    // or the daemon runs it three times a minute for the life of the host over
+    // a house that is holding nothing.
+    let sandbox = Sandbox::new("lights-tick-lapses");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n{STUDIO_MAP}"
+    ));
+    let output = tick(&sandbox);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        scheduled_tick(&sandbox),
+        None,
+        "a tick with nothing to watch registered itself again anyway"
+    );
+}
+
+#[test]
+fn a_lease_taken_by_hand_schedules_the_tick_that_reads_it() {
+    // A LEASE NOBODY READS IS A LAMP THAT NEVER LIGHTS. `pns loop begin` is for
+    // work whose length nothing can measure in advance, which is exactly the
+    // run that then goes quiet: the tick's lease is refreshed by event traffic,
+    // so an overnight loop taken by hand in a pane that stops talking expired
+    // minutes into the run it was taken for.
+    let sandbox = Sandbox::new("loop-begin-schedules-the-tick");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n{STUDIO_MAP}"
+    ));
+    let taken = run(sandbox
+        .pns_stateful()
+        .args(["loop", "begin", "--pane", "wW:p21"]));
+    assert_eq!(taken.status.code(), Some(0), "{}", stderr(&taken));
+    let record = scheduled_tick(&sandbox).expect("the lease registered the tick that reads it");
+    assert!(
+        lease_ends_at(&record) >= now_secs() + 3_000,
+        "the tick has to outlast the lease it is there to read: {record:?}"
+    );
 }
 
 #[test]
@@ -7757,13 +7955,13 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
     // DAEMON IS INVOLVED: this is the event path, reading the paths it was
     // told were held and writing one PUT each.
     let (listener, port) = bridge_spy();
-    let sandbox = Sandbox::new("lights-glow-cleared-on-return");
+    let sandbox = Sandbox::new("lights-held-cleared-on-return");
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
          [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
-    std::fs::write(sandbox.path("state/lights-glow"), "light/9d52d98c\n").expect("a held glow");
+    std::fs::write(sandbox.path("state/lights-held"), "light/9d52d98c\n").expect("a held glow");
 
     let mut command = logged_event(&sandbox);
     // AT THE DESK, which is what makes this event the operator's return. An
@@ -7787,7 +7985,7 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
         stderr(&output)
     );
     assert!(
-        !sandbox.path("state/lights-glow").exists(),
+        !sandbox.path("state/lights-held").exists(),
         "and forgot what it was holding, so the next return costs no write at all"
     );
 }
@@ -7798,7 +7996,7 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
     // must not pay a bridge round trip for a lamp nobody is holding. The only
     // reading it takes is whether the file is there.
     let (listener, port) = bridge_spy();
-    let sandbox = Sandbox::new("lights-glow-nothing-held");
+    let sandbox = Sandbox::new("lights-held-nothing-held");
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
          [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
@@ -7832,7 +8030,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         let sandbox = Sandbox::new(name);
         sandbox.write_config(&config(port));
         std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
-        std::fs::write(sandbox.path("state/lights-glow"), "light/9d52d98c\n").expect("a held glow");
+        std::fs::write(sandbox.path("state/lights-held"), "light/9d52d98c\n").expect("a held glow");
         let mut command = logged_event(&sandbox);
         sandbox.stub_herdr(&mut command, false);
         let child = command
@@ -7853,7 +8051,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         assert_eq!(output.status.code(), Some(0), "{name}");
         assert!(stdout(&output).is_empty(), "{name}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "{name}: {}", stderr(&output));
-        (dialled, sandbox.path("state/lights-glow").exists())
+        (dialled, sandbox.path("state/lights-held").exists())
     };
 
     assert_eq!(
@@ -7898,7 +8096,7 @@ fn a_tick_with_nothing_left_to_show_puts_out_the_glow_it_was_holding() {
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
-    std::fs::write(sandbox.path("state/lights-glow"), "light/9d52d98c\n").expect("a held glow");
+    std::fs::write(sandbox.path("state/lights-held"), "light/9d52d98c\n").expect("a held glow");
     // ACCEPTED WHILE THE TICK IS STILL RUNNING, which is what keeps this fast:
     // the spy hangs up the moment it accepts, so the TLS handshake fails at
     // once instead of sitting in the backlog for the ten-second bridge
@@ -7920,7 +8118,7 @@ fn a_tick_with_nothing_left_to_show_puts_out_the_glow_it_was_holding() {
         stderr(&output)
     );
     assert!(
-        !sandbox.path("state/lights-glow").exists(),
+        !sandbox.path("state/lights-held").exists(),
         "and stopped claiming to hold it"
     );
 }

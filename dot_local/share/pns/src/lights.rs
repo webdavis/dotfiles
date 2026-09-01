@@ -132,233 +132,538 @@ pub fn next_streak(
     held.filter(|streak| now.saturating_sub(streak.last_seen) <= grace_secs)
 }
 
-/// Everything the breathing condition is a function of.
+/// The two epochs the unread lamp is armed from: when a turn last finished, and
+/// when one last died.
 ///
-/// A NAMED STRUCT rather than seven positional arguments, four of which are
+/// TWO FIELDS AND NOT A QUEUE, because the question is not what happened but
+/// whether anything has happened since the operator last touched the machine.
+/// A queue would answer the same question with a file that grows.
+///
+/// `None` IS "NOTHING OF THAT KIND YET", never an epoch of zero. Zero is 1970,
+/// which is older than every interaction there has ever been, so a zero read as
+/// a real epoch simply never arms and a zero WRITTEN as one would arm forever
+/// against an unreadable interaction clock.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct News {
+    pub done_at: Option<u64>,
+    pub failed_at: Option<u64>,
+}
+
+/// The record as one line: the two epochs, space separated, with `0` for a kind
+/// that has not happened. `render_heartbeat`'s shape, and `render_streak`'s.
+pub fn render_news(news: &News) -> String {
+    format!(
+        "{} {}",
+        news.done_at.unwrap_or_default(),
+        news.failed_at.unwrap_or_default()
+    )
+}
+
+/// That line read back, or None for anything this will not vouch for.
+///
+/// REFUSED, NEVER GUESSED AT, in `parse_streak`'s style, and the fail direction
+/// is DARK: a file some other hand rewrote yields no news, so the lamp stays
+/// out rather than breathing about something nobody can name.
+pub fn parse_news(line: &str) -> Option<News> {
+    let (done, failed) = line.trim_end_matches('\n').split_once(' ')?;
+    let epoch = |count: u64| (count > 0).then_some(count);
+    Some(News {
+        done_at: epoch(crate::parse_count(done)?),
+        failed_at: epoch(crate::parse_count(failed)?),
+    })
+}
+
+/// The record after one event, or None for an event that is not news.
+///
+/// THE TWO PULSE BEHAVIOURS AND NOTHING ELSE. A wait is the blocked lamp's
+/// business and is not news the operator has missed: it is a question still on
+/// screen. Reusing `pulse::state_behaviour`'s answer rather than re-reading the
+/// state word is what keeps the lamp that flashes and the record that arms the
+/// unread lamp from disagreeing about one event.
+///
+/// IT IS WRITTEN WHATEVER THE DELIVERY DID. A card that was suppressed, muted
+/// or dropped is exactly the news this lamp exists to carry, so the record is
+/// not a function of whether anything was delivered.
+///
+/// AND AN EPOCH ONLY EVER MOVES FORWARD. Two events land together often enough
+/// (an agent that finished beside one that died), each reads the record and
+/// publishes the whole line, so a run that was slow to publish would otherwise
+/// put an OLDER second back over a newer one. What that costs is the lamp's
+/// colour: a failure recorded and then overwritten is red the operator never
+/// sees, and a success pushed backwards arms its lamp before it should.
+pub fn news_after(held: News, behaviour: crate::config::Behaviour, now: u64) -> Option<News> {
+    let forward = |at: Option<u64>| at.max(Some(now));
+    match behaviour {
+        crate::config::Behaviour::Done => Some(News {
+            done_at: forward(held.done_at),
+            ..held
+        }),
+        crate::config::Behaviour::Failed => Some(News {
+            failed_at: forward(held.failed_at),
+            ..held
+        }),
+        crate::config::Behaviour::Blocked
+        | crate::config::Behaviour::Unread
+        | crate::config::Behaviour::Looping => None,
+    }
+}
+
+/// Which of the unread lamp's two colours is showing.
+///
+/// TWO FLAVOURS OF ONE BEHAVIOUR, never two routable behaviours: a config
+/// carries `unread` or it does not, and both colours ride the lamp that carries
+/// it. That is the operator's own routing map read literally, where the two are
+/// always listed together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unread {
+    Failure,
+    Success,
+}
+
+/// Whether the unread lamp is armed, and in which colour.
+///
+/// THE QUESTION IS "IS THERE NEWS THE OPERATOR HAS NOT BEEN BACK FOR", and the
+/// edge is their LAST INTERACTION of any kind: a key at the desk, input from the
+/// phone, or the deliberate phone marker. One rule over every input rather than
+/// one rule per input, which is the operator's own wording.
+///
+/// NOTHING WORKING, which is the other half of the condition. Work in progress
+/// is the loop lamp's business and a lamp cannot be both; news that arrives
+/// while a run is still going is not news anybody has missed yet.
+///
+/// NO INTERACTION AT ALL IS NO LAMP, never an edge at epoch zero. A machine
+/// that cannot prove the operator was ever here cannot prove this news is
+/// unseen either, and dark is the direction every unreadable reading on this
+/// path takes.
+///
+/// RED WINS WHEN BOTH ARE PENDING (operator ruling): a run that died outranks
+/// one that finished, and showing the calmer of the two would hide the one that
+/// needs answering.
+///
+/// FAILURE ARMS AT ONCE AND SUCCESS WAITS. A result the operator is still
+/// looking at should not light a lamp about itself, so success news has to be
+/// `after_secs` old; a failure has no such grace, because the sooner they know
+/// the better.
+///
+/// THE AGE TEST IS CLOSED AND THE EDGE TEST IS NOT, which is two different
+/// questions taking the crate's two standing conventions. News exactly
+/// `after_secs` old HAS waited that long (`session_was_long`'s rule), and news
+/// exactly AT the interaction edge is not newer than it (`marker_is_live`'s
+/// sibling rule, and the direction that leaves a lamp dark on a tie).
+pub fn unread_arming(
+    news: &News,
+    last_interaction: Option<u64>,
+    working: bool,
+    now: u64,
+    after_secs: u64,
+) -> Option<Unread> {
+    if working {
+        return None;
+    }
+    let edge = last_interaction?;
+    // NEWS FROM THE FUTURE IS NEWS NOBODY CAN JUDGE, and it arms nothing of
+    // either flavour. A clock that stepped backwards leaves an epoch ahead of
+    // now, and the record only ever moves FORWARD, so nothing later will pull it
+    // back: read as ordinary news it is newer than every interaction there will
+    // ever be, and the lamp would hold red until wall time caught up with it.
+    // The success flavour has always taken this direction through its age test;
+    // this is the same rule said once for both.
+    let unseen = |at: Option<u64>| at.filter(|at| *at > edge && *at <= now);
+    if unseen(news.failed_at).is_some() {
+        return Some(Unread::Failure);
+    }
+    unseen(news.done_at)
+        .filter(|at| now.checked_sub(*at).is_some_and(|age| age >= after_secs))
+        .map(|_| Unread::Success)
+}
+
+/// When the operator last touched the machine, from the three roads' own
+/// readings: the desk clock's idle age, and the two phone epochs.
+///
+/// THE FRESHEST OF THE THREE, which is the operator's "any input, one clear
+/// rule". Taking the stalest would arm the unread lamp about news they had
+/// already seen through whichever road they were actually using.
+///
+/// THE DESK READING IS AN AGE AND THE OTHER TWO ARE EPOCHS, which is why it is
+/// subtracted here rather than compared: an idle clock counts back from now,
+/// and the saturation is for an idle age longer than the clock itself, which is
+/// an interaction at the epoch rather than a wrapped one in the far future.
+///
+/// NONE WHEN NONE OF THEM CAN BE READ, never an epoch of zero. A machine that
+/// cannot prove the operator was ever here cannot prove any news is unseen
+/// either, and dark is the direction every unreadable reading on this path
+/// takes.
+pub fn last_interaction(
+    desk_idle_secs: Option<u64>,
+    phone_input_at: Option<u64>,
+    phone_marker_at: Option<u64>,
+    now: u64,
+) -> Option<u64> {
+    let desk = desk_idle_secs.map(|idle| now.saturating_sub(idle));
+    [desk, phone_input_at, phone_marker_at]
+        .into_iter()
+        .flatten()
+        .max()
+}
+
+/// Everything the loop condition is a function of.
+///
+/// A NAMED STRUCT rather than six positional arguments, four of which are
 /// `u64`-shaped: a transposition between the two thresholds, or between `now`
 /// and either of them, is a lamp judged against the wrong clock and nothing
 /// would catch it.
-pub struct Breath<'reading> {
-    /// The sources the operator left switched on. A source not in here
-    /// contributes NOTHING, whatever the readings below say.
-    pub enabled: &'reading [crate::config::BreatheSource],
-    /// herdr says at least one workspace is working, right now.
-    pub agent_working: bool,
-    /// The AGENT run in progress, which only `agent-loops` reads. It tracks
-    /// herdr alone: a streak fed by the shell marker as well would let a
-    /// long build satisfy `agent-loops` on a machine where the agent sources
-    /// were the only ones switched on.
+pub struct Loop<'reading> {
+    /// The AGENTS' run in progress, which is the only source whose start has to
+    /// be inferred: herdr answers a status word and no clock, so the run is
+    /// timed from the first tick that read one working.
     pub streak: Option<&'reading Streak>,
-    /// When the shell's tracked command started, if one is running.
+    /// Whether any agent is working right now.
+    pub agents_working: bool,
+    /// When the longest-running tracked shell command STARTED, which is an
+    /// exact epoch the shell itself published. It needs no streak: the marker
+    /// exists for exactly as long as the command runs.
     pub shell_since: Option<u64>,
+    /// When each live lease was last renewed. EMPTY IS THE ORDINARY CASE.
+    pub leases: &'reading [u64],
     pub now: u64,
-    /// How long `agent-loops` waits before calling a run a loop.
-    pub breathe_after_secs: u64,
-    /// How long a command runs before `long-commands` counts it. It is the
-    /// NOTIFIER'S OWN tier, read through the same function the notifier reads,
-    /// so the lamp and the card share the CODE that decides what "long" means.
-    /// They do not share the ENVIRONMENT it reads: that function takes an
-    /// override out of the environment, the notifier's comes from the
-    /// interactive shell and the tick's from the daemon's plist, so an override
-    /// set in only one of the two is a disagreement of exactly that size.
-    pub long_command_secs: u64,
+    /// How long tracked work must run continuously before the lamp arms itself.
+    pub threshold_secs: u64,
+    /// How long a lease survives with nothing renewing it.
+    pub lease_timeout_secs: u64,
 }
 
-/// The second a breathing run began, or None when nothing is breathing.
+/// Whether the loop lamp is on.
 ///
-/// A UNION OVER THE ENABLED SOURCES, which is the operator's own rule: a
-/// source that is switched off contributes nothing and the ones still on carry
-/// on regardless. Naming both agent sources, or both command sources, is
-/// harmless: the eager one simply wins.
+/// TWO TRIGGERS AND AN OR, which is the operator's own design: work that has
+/// been going long enough arms it by itself, and `pns loop begin` arms it by
+/// hand for work whose length nothing can measure in advance. Either is enough,
+/// and neither can turn the other off.
 ///
-/// THE START EPOCH RATHER THAN A BOOLEAN, because the catch-up rule needs to
-/// know WHEN a state began in order to ask whether it began inside a quiet
-/// window. Every state here answers the same shape for the same reason, and
-/// the FRESHEST source wins for `glow_since`'s reason: a run that began after
-/// a quiet window ended is not a leftover of that window.
+/// EACH SOURCE IS TIMED AGAINST ITS OWN START, and pooling them was wrong in
+/// both directions. The shell publishes the second its command began, so a
+/// build is measured from when it really started; an agent gives a status word
+/// and nothing else, so its run is timed from the first tick that read it
+/// working, and that streak deliberately outlives the work by the grace
+/// covering an agent's turn gap. Shared, a fresh five-second command starting
+/// inside that grace inherited a finished agent's run and armed the lamp at
+/// once, while a build already ten minutes in was clocked from now and had to
+/// wait out the whole threshold again.
+///
+/// BOTH HALVES OF THE AGENT ONE. The streak outliving the work is exactly why
+/// the threshold alone would keep the lamp claiming a run in progress after
+/// everything went idle.
+///
+/// AND THE SHELL NEEDS NO SECOND HALF, because its marker exists for exactly as
+/// long as its command runs: the reading IS the liveness.
 ///
 /// A `now` BEHIND A START HAS NO ELAPSED TIME IN IT. A clock that stepped
 /// backwards would otherwise wrap a subtraction into a huge number that passes
 /// every threshold there is.
-pub fn breathing_since(breath: &Breath<'_>) -> Option<u64> {
-    let on = |source| breath.enabled.contains(&source);
-    let ran_for = |since: u64, threshold: u64| {
-        breath
+pub fn loop_running(state: &Loop<'_>) -> bool {
+    let long_enough = |since: u64| {
+        state
             .now
             .checked_sub(since)
-            .is_some_and(|elapsed| elapsed >= threshold)
+            .is_some_and(|elapsed| elapsed >= state.threshold_secs)
     };
-    // THE STREAK IS THE ONLY START AN AGENT HAS. The tick advances it before
-    // asking this, so a working agent always has one; `now` is the honest
-    // answer if it somehow does not, rather than declining to breathe over a
-    // missing file.
-    let agent_since = breath.streak.map(|streak| streak.since);
-    [
-        (
-            on(crate::config::BreatheSource::AgentWork) && breath.agent_working,
-            agent_since.or(Some(breath.now)),
-        ),
-        (
-            // BOTH HALVES, which is the rule as written: something is working
-            // AND the run is at least `breathe_after_secs` old. The streak
-            // deliberately outlives the work by the grace that covers the gap
-            // between a loop's turns, so the threshold alone would keep the
-            // lamp claiming work in progress after the agent went idle.
-            on(crate::config::BreatheSource::AgentLoops)
-                && breath.agent_working
-                && agent_since.is_some_and(|since| ran_for(since, breath.breathe_after_secs)),
-            agent_since,
-        ),
-        (
-            on(crate::config::BreatheSource::Commands),
-            breath.shell_since,
-        ),
-        (
-            on(crate::config::BreatheSource::LongCommands)
-                && breath
-                    .shell_since
-                    .is_some_and(|since| ran_for(since, breath.long_command_secs)),
-            breath.shell_since,
-        ),
-    ]
-    .into_iter()
-    .filter_map(|(fires, since)| fires.then_some(since).flatten())
-    .max()
+    let agent_run =
+        state.agents_working && state.streak.is_some_and(|streak| long_enough(streak.since));
+    agent_run
+        || state.shell_since.is_some_and(long_enough)
+        || state
+            .leases
+            .iter()
+            .any(|at| marker_is_live(*at, state.now, state.lease_timeout_secs))
 }
 
-/// The second the newest UNSEEN journal entry landed, when nothing is working,
-/// or None for a lamp that has nothing to glow about.
+/// What the operator typed at `pns loop`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoopCommand {
+    /// Take a lease for this pane, and hold the lamp until it is given back or
+    /// times out.
+    Begin(String),
+    /// Give it back.
+    End(String),
+}
+
+/// Where a pane's loop lease lives: one file per pane holding one epoch.
 ///
-/// THE CONDITION IS "NOTHING WORKING AND A JOURNAL ENTRY NEWER THAN THE RETURN
-/// EDGE", and it is one function rather than two so the two halves cannot come
-/// out disagreeing about one tick. Something working is the BREATHING lamp's
-/// business, and a lamp cannot be both.
+/// A DIRECTORY, LIKE THE WAITS, because several panes can each be running a
+/// loop and each must be the only writer and the only ordinary remover of its
+/// own file. One shared file would be a lease any other pane erases.
+pub fn lease_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
+    state_dir.join("lights-loop")
+}
+
+/// One pane's lease path, or None for a pane id that cannot become a filename.
+pub fn lease_marker(state_dir: &std::path::Path, pane: &str) -> Option<std::path::PathBuf> {
+    crate::safety::pane_file_is_safe(pane).then(|| lease_dir(state_dir).join(pane))
+}
+
+/// The typed command, or the refusal that says what was missing.
 ///
-/// THE EDGE IS `LAST_PRESENT`, which the return moment already advances on
-/// every present event. That is what makes this state clear itself with no
-/// timeout and no new clear path: a journal whose newest entry predates the
-/// edge stops satisfying the condition, and the next tick stops arming the
-/// lamp.
+/// THE PANE IS THE OPERATOR'S OWN, TAKEN FROM THE ENVIRONMENT they typed in,
+/// because that is what a lease is keyed to: `HERDR_PANE_ID` is set for every
+/// pane herdr owns, so the ordinary case needs no argument at all.
 ///
-/// NO EDGE AT ALL IS NO GLOW, never an edge at epoch zero. `read_epoch`'s own
-/// rule one level up is that an unparseable marker is no edge, and a machine
-/// that cannot prove the operator ever came back cannot prove this news is
-/// unseen either. Dark is the direction every unreadable reading on this path
-/// takes.
+/// TYPED OUTSIDE A PANE IT IS A REFUSAL, NEVER A GUESS. There is no sensible
+/// pane to pick, and picking one would key the lease to a pane whose ordinary
+/// traffic will never renew it: the lamp would then breathe for the whole
+/// timeout with nothing behind it, which is the exact opposite of a liveness
+/// signal.
 ///
-/// AN ENTRY AT THE EDGE IS NOT NEWER THAN IT, which is the same direction on a
-/// tie.
-///
-/// THE NEWEST ENTRY AND NOT THE OLDEST, because the only reader of this epoch
-/// is the catch-up rule, and the question it asks is whether the state is a
-/// leftover of a quiet window that has since ended. News that arrived after
-/// the window ended is not, whatever is queued behind it.
-///
-/// AN ENTRY WITH NO `at` CANNOT GLOW. Its writer had no readable clock, so it
-/// sits in no window at all and there is nothing to compare against an edge.
-pub fn glow_since(
-    entries: &[crate::missed_notifications::Entry],
-    return_edge: Option<u64>,
-    working: bool,
-) -> Option<u64> {
-    if working {
-        return None;
+/// AN UNKNOWN ARGUMENT IS AN ERROR, never a silent fallthrough, because a
+/// mistyped flag would otherwise be a lease the operator believes they took.
+pub fn loop_command(
+    verb: &str,
+    arguments: &[String],
+    env_pane: Option<&str>,
+) -> Result<LoopCommand, String> {
+    let pane = match arguments {
+        [] => env_pane
+            .filter(|pane| !pane.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| NO_PANE.to_string())?,
+        [flag, pane] if flag == "--pane" => pane.clone(),
+        _ => return Err(LOOP_USAGE.to_string()),
+    };
+    if !crate::safety::pane_file_is_safe(&pane) {
+        return Err(format!(
+            "pns: loop: {pane:?} is not a pane id this can key a lease to"
+        ));
     }
-    let edge = return_edge?;
-    entries
-        .iter()
-        .filter_map(|entry| entry.at)
-        .filter(|at| *at > edge)
-        .max()
+    match verb {
+        "begin" => Ok(LoopCommand::Begin(pane)),
+        "end" => Ok(LoopCommand::End(pane)),
+        _ => Err(LOOP_USAGE.to_string()),
+    }
 }
 
-/// The second the freshest LIVE wait began, or None when nothing is waiting on
-/// the operator.
+/// Why a lease cannot be taken with no pane to key it to.
+const NO_PANE: &str = "pns: loop: no HERDR_PANE_ID in this environment, so there \
+is no pane to key the lease to; run it inside the pane, or name one with --pane";
+
+pub const LOOP_USAGE: &str = "pns: usage: pns loop begin [--pane <id>] | \
+pns loop end [--pane <id>]";
+
+/// The run that owns a WORKING FILE in a marker directory, or None for an
+/// ordinary marker.
 ///
-/// A MARKER PAST THE BOUND IS IGNORED, which is the only thing standing
-/// between an abandoned session and a lamp held blue forever. The marker
-/// clears at the next event from its own session, and a session that never
-/// sends one again would otherwise hold the lamp until the operator went
-/// looking for a file. BOTH EDGES CLOSED: exactly at the bound is still live.
+/// TWO SUFFIXES AND ONE ANSWER. A publish writes `<name>.new.<pid>` beside the
+/// marker it is about to rename over, and a sweep writes `<name>.sweep.<pid>`
+/// when it takes one to remove it. Both are one run's private working name,
+/// both carry that run's own process id, and a sweep has to tell them from the
+/// markers it is there to judge.
 ///
-/// THE FRESHEST AND NOT THE OLDEST, for `glow_since`'s reason: the only reader
-/// of this epoch is the catch-up rule, and a wait that began after a quiet
-/// window ended is not a leftover of that window.
-pub fn needs_you_at(marker_epochs: &[u64], now: u64, max_age_secs: u64) -> Option<u64> {
+/// THE PID IS WHAT MAKES IT DECIDABLE, and matching the bare suffix was not.
+/// Pane ids and session ids are opaque words from another program, and both
+/// alphabets admit a dot: a pane called `a.new.b` produced a lease file every
+/// sweep stepped over, so it aged out never, while a working file whose own run
+/// had died was never collected either. A name is a working file only when what
+/// follows the LAST such marker is a positive process id, which is a name only
+/// this crate's own writers produce.
+pub fn working_owner(name: &str) -> Option<&str> {
+    let (_, owner) = name
+        .rsplit_once(WORKING_PENDING)
+        .or_else(|| name.rsplit_once(WORKING_SWEEP))?;
+    (crate::parse_count(owner)? > 0).then_some(owner)
+}
+
+/// The two working-file markers, in the spelling their writers use.
+const WORKING_PENDING: &str = ".new.";
+const WORKING_SWEEP: &str = ".sweep.";
+
+/// One run's private name for a marker it has taken to remove.
+pub fn sweep_claim(directory: &std::path::Path, name: &str, pid: u32) -> std::path::PathBuf {
+    directory.join(format!("{name}{WORKING_SWEEP}{pid}"))
+}
+
+/// Whether any wait is still live.
+pub fn any_blocked(marker_epochs: &[u64], now: u64, max_age_secs: u64) -> bool {
     marker_epochs
         .iter()
-        .copied()
-        .filter(|at| needs_is_live(*at, now, max_age_secs))
-        .max()
+        .any(|at| marker_is_live(*at, now, max_age_secs))
 }
 
-/// Whether one marker still counts as a wait.
+/// Whether one epoch is still inside its bound.
 ///
-/// ITS OWN FUNCTION because two callers ask it and they must agree: the
-/// aggregate above, and the sweep that DELETES the ones past the bound. Two
-/// spellings of "expired" would be a marker the aggregate ignored and the
-/// sweep kept, accumulating forever, or one the sweep removed while the
-/// aggregate was still lighting a lamp for it.
+/// ONE PREDICATE FOR EVERY AGED MARKER IN THIS MODULE, because each of them has
+/// two readers that must agree: the aggregate that lights a lamp, and the sweep
+/// that DELETES what has aged out. Two spellings of "expired" would be a marker
+/// the aggregate ignored and the sweep kept, accumulating forever, or one the
+/// sweep removed while the aggregate was still lighting a lamp for it.
 ///
-/// A MARKER FROM THE FUTURE IS LIVE. A clock that stepped backwards is not a
-/// wait that ended, and the saturating subtraction reads it as zero seconds
-/// old rather than as an enormous age that would delete it.
-pub fn needs_is_live(at: u64, now: u64, max_age_secs: u64) -> bool {
+/// BOTH EDGES CLOSED: exactly at the bound is still live. A MARKER FROM THE
+/// FUTURE IS LIVE TOO, because a clock that stepped backwards is not a wait that
+/// ended, and the saturating subtraction reads it as zero seconds old rather
+/// than as an enormous age that would delete it.
+pub fn marker_is_live(at: u64, now: u64, max_age_secs: u64) -> bool {
     now.saturating_sub(at) <= max_age_secs
 }
 
-/// What this tick read, one field per state, each carrying the second the
-/// freshest thing behind it happened.
+/// One HELD state, and the four of them in the order they outrank each other.
 ///
-/// A NAMED STRUCT RATHER THAN THREE POSITIONAL OPTIONS, because three values
-/// of one type in one signature is a swap nothing would catch and all three
-/// are epochs.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Readings {
-    pub needs_you_at: Option<u64>,
-    pub breathing_since: Option<u64>,
-    pub glow_since: Option<u64>,
+/// THE DECLARATION ORDER IS THE RANK, so the arbitration is a sort rather than a
+/// table of pairs, and adding a fifth state is one line in one place. Blocked is
+/// on top, which is the operator's own ruling: a question waiting on them
+/// outranks work in progress, and work in progress outranks news about work that
+/// has already finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Held {
+    Blocked,
+    Looping,
+    UnreadFailure,
+    UnreadSuccess,
 }
 
-/// One state, and when the thing behind it happened.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct State {
-    pub behaviour: crate::config::Behaviour,
-    /// The second the freshest signal behind this state landed. The CATCH-UP
-    /// rule is the only reader: it asks whether the state began inside a quiet
-    /// window that has since ended.
-    pub since: u64,
+impl Held {
+    /// The ROUTABLE word this state is carried by. The two unread flavours
+    /// answer the same word, which is what makes a lamp carry both or neither.
+    pub fn behaviour(self) -> crate::config::Behaviour {
+        match self {
+            Held::Blocked => crate::config::Behaviour::Blocked,
+            Held::Looping => crate::config::Behaviour::Looping,
+            Held::UnreadFailure | Held::UnreadSuccess => crate::config::Behaviour::Unread,
+        }
+    }
 }
 
-/// The one state the house is in, or None for a dark one.
+/// What the house is holding this tick, one field per state.
 ///
-/// NEEDS-YOU ON TOP, which is the operator's own ruling and is delivered here
-/// rather than by a per-fixture priority file: one state is derived from
-/// scratch every tick, so there is no stored priority for two processes to
-/// disagree about and no read-before-write on the event path.
+/// A NAMED STRUCT rather than three positional values, two of which are bools:
+/// a transposition would be a lamp showing the wrong state and nothing would
+/// catch it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct House {
+    pub blocked: bool,
+    pub looping: bool,
+    pub unread: Option<Unread>,
+}
+
+/// Every state the house is holding, most urgent first.
 ///
-/// ONE STATE FOR THE WHOLE HOUSE, and each family shows it only if that family
-/// produces it (`hue::family_produces`). So a waiting agent turns the local
-/// lamps blue and leaves the loop lamp dark, which is honest: a loop with a
-/// blocked agent in it is not working, and the news it would glow about is
-/// exactly the wait the blue lamp is already reporting.
-pub fn house_state(readings: &Readings) -> Option<State> {
-    let (behaviour, since) = match readings {
-        Readings {
-            needs_you_at: Some(at),
-            ..
-        } => (crate::config::Behaviour::NeedsYou, *at),
-        Readings {
-            breathing_since: Some(since),
-            ..
-        } => (crate::config::Behaviour::Breathing, *since),
-        Readings {
-            glow_since: Some(since),
-            ..
-        } => (crate::config::Behaviour::Glow, *since),
-        _ => return None,
-    };
-    Some(State { behaviour, since })
+/// A LIST RATHER THAN ONE STATE, which is the whole difference from the shipped
+/// design: the house holds all of them at once and each LAMP resolves which one
+/// it shows, so a blue lamp and a violet lamp can be lit at the same moment
+/// because they are routed for different words.
+///
+/// THE PUSHES ARE IN RANK ORDER and there is no sort behind them. One was here
+/// and could never change the answer, which is exactly the code a reader trusts
+/// and a mutation walks straight through. What pins the order instead is the
+/// test that asserts the whole vector, so pushing out of order is red.
+pub fn active_held(house: &House) -> Vec<Held> {
+    let mut held = Vec::new();
+    if house.blocked {
+        held.push(Held::Blocked);
+    }
+    if house.looping {
+        held.push(Held::Looping);
+    }
+    match house.unread {
+        Some(Unread::Failure) => held.push(Held::UnreadFailure),
+        Some(Unread::Success) => held.push(Held::UnreadSuccess),
+        None => {}
+    }
+    held
+}
+
+/// What ONE lamp shows: the most urgent active state it is routed for, or
+/// nothing.
+///
+/// THE LAMP'S OWN ROUTING IS THE FILTER, so a state nothing routes to that lamp
+/// leaves it dark rather than falling through to a lamp that was not asked. That
+/// is what lets one house state reach three lamps saying different things.
+pub fn shown(active: &[Held], shows: &[crate::config::Behaviour]) -> Option<Held> {
+    active
+        .iter()
+        .copied()
+        .find(|held| shows.contains(&held.behaviour()))
+}
+
+/// Whether a PULSE fires on one lamp.
+///
+/// A HELD STATE PREEMPTS A PULSE ON THE LAMP THAT IS HOLDING IT, which is the
+/// operator's "dedicated, but it helps out when free" ruling generalised: a lamp
+/// dedicated to the held states joins the pulse lamps whenever none of them is
+/// active, and stops joining the moment one is. The pulse still fires on every
+/// OTHER lamp routed for it, so nothing is lost, and the held state is not
+/// interrupted by a four-second blink it would have to be re-armed after.
+pub fn pulse_fires(
+    shows: &[crate::config::Behaviour],
+    behaviour: crate::config::Behaviour,
+    lamp_is_held: bool,
+) -> bool {
+    shows.contains(&behaviour) && !lamp_is_held
+}
+
+/// One brightness the lamp is asked to fade to, and when the fade is issued.
+///
+/// `start_ms` IS FROM THE TICK'S OWN START, not from the fade before it, because
+/// the driver sleeps against one clock: a per-fade delay accumulates every
+/// sleep's own overshoot and the breath drifts past the interval it has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fade {
+    pub brightness: u8,
+    pub start_ms: u64,
+}
+
+/// How far before a fade ends the next one is issued.
+///
+/// THE SEAMLESS TURN-AROUND, operator-locked on a real lamp: the next fade is
+/// issued slightly BEFORE the previous one ends, so the lamp never sits at
+/// either end of the breath. Fifty milliseconds is the figure that was set and
+/// looked at; nothing here measured what a lead of zero looks like.
+pub const FADE_LEAD_MS: u64 = 50;
+
+/// The whole breath one tick issues: the fades, in order, with the second one
+/// leading the first by `FADE_LEAD_MS` and so on.
+///
+/// IT STARTS DOWN AND ENDS AT THE PEAK. Ending high is what lets the next tick
+/// resume the breath rather than restart it: the lamp is already where the next
+/// descent begins, so the join between two ticks is one more turn-around rather
+/// than a jump. The cost is a slightly longer hold at the peak once per
+/// interval, which is accepted.
+///
+/// AN EVEN NUMBER OF FADES, ALWAYS, because odd would end at the low end. That
+/// is why the count is computed and then rounded DOWN to even rather than fitted
+/// exactly: an extra half cycle that does not fit is a fade the next tick would
+/// interrupt mid-descent.
+///
+/// THE LAST FADE COMPLETES INSIDE THE INTERVAL. The driver has to be gone before
+/// the next tick starts, and a fade still running when it does would be replaced
+/// mid-flight from an unknown brightness, so the budget covers the final fade's
+/// whole duration rather than only its issue.
+///
+/// THE BUDGET IS WHAT IS LEFT OF THE INTERVAL, in milliseconds, and NOT the
+/// interval itself. A tick spends part of its interval resolving the map on the
+/// bridge before the first fade is issued, and three calls under a transport
+/// deadline are not free: fitted to the whole interval instead, the breath ran
+/// past the moment the next tick started and two children issued fades to one
+/// lamp, each writing a brightness the other did not expect.
+///
+/// A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING, which is the honest answer
+/// rather than a half breath: the lamp keeps whatever the last tick left it at
+/// and the next tick, which has its whole interval, arms it. Two fades fit any
+/// ORDINARY tick, which the config's own bounds guarantee rather than this
+/// function: `MAX_FADE_MS` is five seconds and `MIN_REFRESH_SECS` is ten.
+pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath) -> Vec<Fade> {
+    let step_ms = breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1);
+    // How many fades fit: the first costs its whole duration, and each one after
+    // it costs a step, because it is issued while its predecessor is still
+    // running.
+    let after_the_first = budget_ms.saturating_sub(breath.duration_ms) / step_ms;
+    let count = after_the_first.saturating_add(1);
+    let even = count - count % 2;
+    (0..even)
+        .map(|index| Fade {
+            brightness: if index % 2 == 0 {
+                breath.low
+            } else {
+                breath.high
+            },
+            start_ms: index * step_ms,
+        })
+        .collect()
 }
 
 /// What one harness event does to its session's needs marker.
@@ -379,12 +684,11 @@ pub enum Action {
 /// lamp go dark: an unknown word treated as a start would hold blue on a
 /// session nobody is waiting for.
 ///
-/// IT READS `pulse::LAMP_NEEDS_YOU`, the four-word list the lamps already
-/// carry, and NOT `missed_notifications::NEEDS_YOU`, which correctly includes
-/// `failed`. A dead turn is red, not blue, and it is not a wait anybody can
-/// end.
-pub fn needs_marker_action(event_state: &str) -> Action {
-    if crate::pulse::LAMP_NEEDS_YOU.contains(&event_state) {
+/// IT READS `pulse::LAMP_BLOCKED`, the list the lamps already carry, and NOT
+/// `missed_notifications::NEEDS_YOU`, which correctly includes `failed`. A dead
+/// turn is red, not blue, and it is not a wait anybody can end.
+pub fn blocked_marker_action(event_state: &str) -> Action {
+    if crate::pulse::LAMP_BLOCKED.contains(&event_state) {
         Action::Start
     } else {
         Action::End
@@ -392,8 +696,8 @@ pub fn needs_marker_action(event_state: &str) -> Action {
 }
 
 /// Where the needs markers live: one file per waiting session.
-pub fn needs_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
-    state_dir.join("lights-needs")
+pub fn blocked_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
+    state_dir.join("lights-blocked")
 }
 
 /// One session's marker path, or None for a session id that cannot become a
@@ -404,8 +708,8 @@ pub fn needs_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
 /// filename; `session_id_is_safe` forbids it and already backs a filename in
 /// this same directory (`session-<id>.start`). Reusing it writes no new
 /// predicate and opens no new door.
-pub fn needs_marker(state_dir: &std::path::Path, session_id: &str) -> Option<std::path::PathBuf> {
-    crate::safety::session_id_is_safe(session_id).then(|| needs_dir(state_dir).join(session_id))
+pub fn blocked_marker(state_dir: &std::path::Path, session_id: &str) -> Option<std::path::PathBuf> {
+    crate::safety::session_id_is_safe(session_id).then(|| blocked_dir(state_dir).join(session_id))
 }
 
 /// What a tick does with the complaints it has this second.
@@ -540,8 +844,8 @@ pub enum QuietCommand {
 /// file that nothing will ever match, so the lamp the operator meant to quiet
 /// goes on flashing while the command reports success; the only evidence they
 /// get is the lamp itself, at the hour they were trying not to be disturbed.
-/// The vocabulary is `claimed_places`', which is the names a mute can ENFORCE
-/// rather than every name the config wrote down.
+/// The vocabulary is the caller's `known`, which is every name a mute can
+/// ENFORCE at any of the three levels.
 ///
 /// `off` IS ALLOWED OVER ANY NAME, because it can only remove. A place muted
 /// yesterday and dropped from the config today would otherwise be a mute
@@ -550,12 +854,33 @@ pub enum QuietCommand {
 ///
 /// THE DURATION IS `quiet::parse_duration`'S, refusal and all, so a second
 /// spelling of "how long" cannot exist and neither can a second set of bounds.
-pub fn quiet_command(arguments: &[String], known: &[String]) -> Result<QuietCommand, String> {
+pub fn quiet_command(
+    arguments: &[String],
+    known: &[String],
+    until_quiet_ends: Option<u64>,
+) -> Result<QuietCommand, String> {
     match arguments {
         [] => Ok(QuietCommand::Report),
         [place, word] if word == "off" => Ok(QuietCommand::Unmute {
             place: place.clone(),
         }),
+        [place] => {
+            if !known.iter().any(|name| name == place) {
+                return Err(unmutable(place, known));
+            }
+            // NO SCHEDULE IS A REFUSAL, never a guessed duration. A bare mute
+            // means "until my quiet hours end", and a machine that has not said
+            // when those are has not said how long this mute lasts; picking a
+            // length would be a mute the operator did not ask for, ending at an
+            // hour they cannot predict.
+            let Some(seconds) = until_quiet_ends else {
+                return Err(NO_SCHEDULE.to_string());
+            };
+            Ok(QuietCommand::Mute {
+                place: place.clone(),
+                seconds,
+            })
+        }
         [place, word] => {
             if !known.iter().any(|name| name == place) {
                 return Err(unmutable(place, known));
@@ -569,20 +894,46 @@ pub fn quiet_command(arguments: &[String], known: &[String]) -> Result<QuietComm
         // report: a typo the operator does not see is a mute they believe is
         // on.
         _ => Err(
-            "pns: lights quiet takes a place and a duration, a place and \
+            "pns: lights quiet takes a place, optionally with a duration or \
                   off, or nothing at all"
                 .to_string(),
         ),
     }
 }
 
+/// Why a bare mute cannot be set on a machine with no quiet hours.
+const NO_SCHEDULE: &str = "pns: lights quiet: a bare mute lasts until your quiet \
+hours end, and `[plugins.hue] quiet_hours` states none; give a duration instead, \
+or set that key";
+
+/// How long a BARE mute lasts: from now until the operator's quiet hours end.
+///
+/// THE SCHEDULE IS `[plugins.hue] quiet_hours` and there is no second one. A
+/// mute typed at bedtime is about the operator's night, not about one room's
+/// own dim window, and a room's window is a rendering rule that has nothing to
+/// say about how long a by-hand silence should last.
+///
+/// NONE WHEN EITHER READING IS MISSING. No schedule is the refusal above; no
+/// clock is a mute nothing could time, and the caller already refuses without
+/// one.
+///
+/// NOW AT THE END MINUTE IS A WHOLE DAY, not nothing. The window ends at this
+/// second, so the next end is tomorrow's; a mute of zero seconds is not a mute,
+/// and the operator asked for one.
+pub fn bare_mute_secs(ends_at: Option<u16>, minutes_now: Option<u16>) -> Option<u64> {
+    let (ends_at, now) = (ends_at?, minutes_now?);
+    const DAY: u64 = 24 * 60;
+    let until = (u64::from(ends_at) + DAY - u64::from(now)) % DAY;
+    Some(if until == 0 { DAY } else { until } * 60)
+}
+
 /// Why one name cannot be muted, and what can be instead.
 ///
 /// THE ALTERNATIVES ARE LISTED, because the name refused is often one the
-/// operator is reading out of their own config file: a `[lights.places]` entry
-/// is a real name that a mute cannot enforce, and nothing on the page says
-/// which of the two vocabularies this command speaks. A refusal that only
-/// repeats what was typed sends them back to the file that misled them.
+/// operator is reading off their own config file or off the bridge's app, and
+/// nothing on either page says which names a mute can reach. A refusal that
+/// only repeats what was typed sends them back to whichever of the two misled
+/// them.
 fn unmutable(place: &str, known: &[String]) -> String {
     let reaches = if known.is_empty() {
         "this config claims no lamp at all, so there is nothing a mute could \
@@ -599,8 +950,8 @@ fn unmutable(place: &str, known: &[String]) -> String {
         )
     };
     format!(
-        "pns: lights quiet: {place:?} is no room or lamp a [lights.families] \
-         claim names; {reaches}"
+        "pns: lights quiet: {place:?} is no lamp, room or zone this can quiet; \
+         {reaches}"
     )
 }
 
@@ -720,12 +1071,15 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Action, Breath, MAX_MUTED_PLACES, Muted, QuietCommand, Readings, Say, State, Streak,
-        WORKING, any_working, breathing_since, glow_since, house_state, muted_after, muted_entries,
-        muted_places, muted_report, needs_marker, needs_marker_action, needs_you_at, next_streak,
-        parse_streak, quiet_command, render_muted, render_streak, say, workspace_agent_statuses,
+        Action, FADE_LEAD_MS, Fade, Held, House, LOOP_USAGE, Loop, LoopCommand, MAX_MUTED_PLACES,
+        Muted, News, QuietCommand, Say, Streak, Unread, WORKING, active_held, any_blocked,
+        any_working, bare_mute_secs, blocked_marker, blocked_marker_action, breath_fades,
+        last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
+        muted_places, muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
+        quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
+        working_owner, workspace_agent_statuses,
     };
-    use crate::config::{Behaviour, BreatheSource};
+    use crate::config::Behaviour;
 
     /// herdr 0.8.2's own answer, captured live on 2026-09-01: three workspaces
     /// carrying three of the four status words.
@@ -824,6 +1178,31 @@ mod tests {
     }
 
     #[test]
+    fn a_working_file_is_told_from_a_marker_by_the_process_id_that_owns_it() {
+        // THE COLLISION THIS EXISTS TO CLOSE. Pane ids and session ids are
+        // opaque words from another program and both alphabets admit a dot, so
+        // a name matched on the bare suffix put a real marker beyond every
+        // sweep: it aged out never and its lamp could not be released.
+        assert_eq!(working_owner("s1.new.4321"), Some("4321"));
+        assert_eq!(working_owner("wW:p21.sweep.99"), Some("99"));
+        assert_eq!(
+            working_owner("a.new.b"),
+            None,
+            "a pane whose own name spells the suffix is a MARKER, not a publish"
+        );
+        for marker in [
+            "s1",
+            "wW:p21",
+            "a.new.",
+            "a.new.0",
+            "a.sweep.-1",
+            "a.new.b.c",
+        ] {
+            assert_eq!(working_owner(marker), None, "{marker:?} is a marker");
+        }
+    }
+
+    #[test]
     fn a_streak_survives_as_one_line_and_anything_else_is_no_streak() {
         let held = Streak {
             since: 1_000,
@@ -847,28 +1226,8 @@ mod tests {
     }
 
     const NOW: u64 = 10_000;
-    const AFTER: u64 = 900;
-    const LONG: u64 = 300;
 
-    /// One reading, with everything not under test set to nothing happening.
-    fn breath<'reading>(
-        enabled: &'reading [BreatheSource],
-        agent_working: bool,
-        streak: Option<&'reading Streak>,
-        shell_since: Option<u64>,
-    ) -> Breath<'reading> {
-        Breath {
-            enabled,
-            agent_working,
-            streak,
-            shell_since,
-            now: NOW,
-            breathe_after_secs: AFTER,
-            long_command_secs: LONG,
-        }
-    }
-
-    /// A run of agent work that started `ago` seconds before now.
+    /// A run of work that started `ago` seconds before now.
     fn streak_from(ago: u64) -> Streak {
         Streak {
             since: NOW - ago,
@@ -876,284 +1235,802 @@ mod tests {
         }
     }
 
+    // --- the news record ----------------------------------------------------
+
     #[test]
-    fn each_breathe_on_source_gates_its_own_detector_and_watches_nothing_else() {
-        let long_run = streak_from(AFTER);
-        let short_run = streak_from(0);
-        // Per source: the reading it watches, and a reading it must ignore.
-        let cases: [(BreatheSource, Breath<'_>, Breath<'_>); 4] = [
-            (
-                // Any working agent at all, however briefly.
-                BreatheSource::AgentWork,
-                breath(&[BreatheSource::AgentWork], true, Some(&short_run), None),
-                breath(&[BreatheSource::AgentWork], false, None, Some(NOW)),
-            ),
-            (
-                // The same agent, but only once it has kept at it.
-                BreatheSource::AgentLoops,
-                breath(&[BreatheSource::AgentLoops], true, Some(&long_run), None),
-                breath(&[BreatheSource::AgentLoops], true, Some(&short_run), None),
-            ),
-            (
-                // Any tracked shell command.
-                BreatheSource::Commands,
-                breath(&[BreatheSource::Commands], false, None, Some(NOW)),
-                breath(&[BreatheSource::Commands], true, Some(&long_run), None),
-            ),
-            (
-                // Only one that has reached the notifier's long tier.
-                BreatheSource::LongCommands,
-                breath(
-                    &[BreatheSource::LongCommands],
-                    false,
-                    None,
-                    Some(NOW - LONG),
-                ),
-                breath(
-                    &[BreatheSource::LongCommands],
-                    false,
-                    None,
-                    Some(NOW - LONG + 1),
-                ),
-            ),
-        ];
-        for (source, watched, ignored) in &cases {
-            assert!(
-                breathing_since(watched).is_some(),
-                "{source:?} must breathe for the activity it names"
-            );
-            assert_eq!(
-                breathing_since(ignored),
-                None,
-                "{source:?} must contribute NOTHING for an activity it does not name"
-            );
+    fn the_news_record_survives_as_one_line_and_anything_else_is_no_news() {
+        let both = News {
+            done_at: Some(1_000),
+            failed_at: Some(1_200),
+        };
+        assert_eq!(render_news(&both), "1000 1200");
+        assert_eq!(parse_news("1000 1200"), Some(both));
+        // ZERO IS "NOT YET", both ways round, so the record round-trips through
+        // a state file that has only ever seen one kind of event.
+        let only_done = News {
+            done_at: Some(1_000),
+            failed_at: None,
+        };
+        assert_eq!(render_news(&only_done), "1000 0");
+        assert_eq!(parse_news("1000 0"), Some(only_done));
+        assert_eq!(parse_news("0 0"), Some(News::default()));
+        // REFUSED, NEVER GUESSED AT, and the fail direction is dark: a file some
+        // other hand rewrote yields no news, so nothing arms.
+        for garbled in [
+            "",
+            "1000",
+            "1000 1200 1400",
+            "x 1200",
+            "1000 x",
+            " 1000 1200",
+        ] {
+            assert_eq!(parse_news(garbled), None, "{garbled:?} is not news");
         }
     }
 
     #[test]
-    fn a_source_left_out_of_breathe_on_contributes_nothing_and_the_others_still_do() {
-        let run = streak_from(0);
-        // An agent working, a command running, and only the commands named.
+    fn the_news_record_only_ever_moves_an_epoch_forward() {
+        // TWO PROCESSES WRITE THIS RECORD, and they are two events landing
+        // together: an agent that finished beside one that died. Each reads,
+        // changes its own field and publishes the whole line, so the slower
+        // reader can put an OLDER second back over a newer one. What that costs
+        // is the unread lamp's colour: a failure recorded at the newer second
+        // and then overwritten with the older one is red the lamp never shows,
+        // or a success armed five minutes before it should be.
+        let held = News {
+            done_at: Some(2_000),
+            failed_at: Some(2_100),
+        };
         assert_eq!(
-            breathing_since(&breath(
-                &[BreatheSource::Commands],
-                true,
-                Some(&run),
-                Some(NOW - 40)
-            )),
-            Some(NOW - 40),
-            "the named source still breathes, and it answers ITS OWN start"
+            news_after(held, Behaviour::Done, 1_000),
+            Some(held),
+            "a run publishing late leaves the newer second where it is"
         );
         assert_eq!(
-            breathing_since(&breath(&[], true, Some(&run), Some(NOW))),
-            None,
-            "and an empty breathe_on is breathing off, however much is working"
+            news_after(held, Behaviour::Failed, 1_000),
+            Some(held),
+            "and so does the other kind"
+        );
+        assert_eq!(
+            news_after(held, Behaviour::Done, 2_000),
+            Some(held),
+            "the same second is not forward either, so a repeat writes nothing new"
         );
     }
 
     #[test]
-    fn agent_loops_keeps_the_streak_threshold_and_both_of_its_edges_are_closed() {
-        let only_loops = [BreatheSource::AgentLoops];
-        let under = streak_from(AFTER - 1);
-        let at = streak_from(AFTER);
-        let over = streak_from(AFTER + 1);
+    fn only_a_finished_or_a_dead_turn_is_news_and_a_wait_is_not() {
+        let held = News {
+            done_at: Some(1_000),
+            failed_at: Some(1_100),
+        };
         assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&under), None)),
+            news_after(held, Behaviour::Done, 2_000),
+            Some(News {
+                done_at: Some(2_000),
+                failed_at: Some(1_100)
+            }),
+            "a finished turn moves its own epoch and leaves the other where it was"
+        );
+        assert_eq!(
+            news_after(held, Behaviour::Failed, 2_000),
+            Some(News {
+                done_at: Some(1_000),
+                failed_at: Some(2_000)
+            }),
+            "and a dead one moves the other"
+        );
+        // A WAIT IS NOT NEWS. It is a question still on screen, which is the
+        // blocked lamp's own business; recording it here would arm the unread
+        // lamp about something nobody has missed.
+        for not_news in [Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping] {
+            assert_eq!(
+                news_after(held, not_news, 2_000),
+                None,
+                "{not_news:?} is not news"
+            );
+        }
+    }
+
+    // --- the unread lamp ----------------------------------------------------
+
+    const AFTER: u64 = 300;
+
+    fn news(done_ago: Option<u64>, failed_ago: Option<u64>) -> News {
+        News {
+            done_at: done_ago.map(|ago| NOW - ago),
+            failed_at: failed_ago.map(|ago| NOW - ago),
+        }
+    }
+
+    #[test]
+    fn unread_arms_on_news_the_operator_has_not_been_back_for_and_on_nothing_else() {
+        const IDLE: bool = false;
+        const BUSY: bool = true;
+        let long_ago = Some(NOW - 5_000);
+        assert_eq!(
+            unread_arming(&news(Some(AFTER), None), long_ago, IDLE, NOW, AFTER),
+            Some(Unread::Success),
+            "news newer than the last interaction, with nothing running: the lamp arms"
+        );
+        assert_eq!(
+            unread_arming(&news(Some(AFTER), None), long_ago, BUSY, NOW, AFTER),
             None,
+            "the same news with something working is the loop lamp's business"
+        );
+        assert_eq!(
+            unread_arming(
+                &news(Some(AFTER), None),
+                Some(NOW - AFTER + 1),
+                IDLE,
+                NOW,
+                AFTER
+            ),
+            None,
+            "an interaction AFTER the news is the operator having seen it"
+        );
+        assert_eq!(
+            unread_arming(
+                &news(Some(AFTER), None),
+                Some(NOW - AFTER),
+                IDLE,
+                NOW,
+                AFTER
+            ),
+            None,
+            "news exactly AT the interaction edge is not newer than it; dark on a tie"
+        );
+        assert_eq!(
+            unread_arming(&news(Some(AFTER), None), None, IDLE, NOW, AFTER),
+            None,
+            "no interaction at all is no proof the news is unseen, so the lamp stays dark"
+        );
+        assert_eq!(
+            unread_arming(&News::default(), long_ago, IDLE, NOW, AFTER),
+            None,
+            "and a record with nothing in it arms nothing"
+        );
+    }
+
+    #[test]
+    fn success_news_waits_out_its_delay_and_failure_news_does_not() {
+        let long_ago = Some(NOW - 5_000);
+        assert_eq!(
+            unread_arming(&news(Some(AFTER - 1), None), long_ago, false, NOW, AFTER),
+            None,
+            "one second under the delay, a result the operator may still be looking at"
+        );
+        assert_eq!(
+            unread_arming(&news(Some(AFTER), None), long_ago, false, NOW, AFTER),
+            Some(Unread::Success),
+            "exactly at it, it arms: news that old HAS waited that long"
+        );
+        // FAILURE HAS NO DELAY AT ALL, which is the operator's own ruling: the
+        // sooner they know a run died, the better.
+        assert_eq!(
+            unread_arming(&news(None, Some(0)), long_ago, false, NOW, AFTER),
+            Some(Unread::Failure),
+            "a failure this second arms this second"
+        );
+        // RED WINS WHEN BOTH ARE PENDING, whichever is fresher, because showing
+        // the calmer of the two would hide the one that needs answering.
+        assert_eq!(
+            unread_arming(&news(Some(AFTER), Some(0)), long_ago, false, NOW, AFTER),
+            Some(Unread::Failure),
+            "a failure outranks a success that has waited out its whole delay"
+        );
+        assert_eq!(
+            unread_arming(&news(Some(0), Some(AFTER)), long_ago, false, NOW, AFTER),
+            Some(Unread::Failure),
+            "and it still outranks it when the success is the fresher of the two"
+        );
+        // A CLOCK BEHIND THE NEWS HAS NO AGE IN IT, so a machine whose clock
+        // stepped back does not read a huge age through a wrapping subtraction.
+        assert_eq!(
+            unread_arming(
+                &News {
+                    done_at: Some(NOW + 500),
+                    failed_at: None
+                },
+                long_ago,
+                false,
+                NOW,
+                AFTER
+            ),
+            None,
+            "a now before the news has no elapsed time in it"
+        );
+        // AND A FAILURE FROM THE FUTURE ARMS NOTHING EITHER, which is the same
+        // rule for the flavour that has no age test of its own. The record only
+        // ever moves FORWARD, so a clock that stepped backwards leaves an epoch
+        // nothing later will pull back: read as ordinary news it is newer than
+        // every interaction there will ever be, and the lamp would hold red
+        // until wall time caught up with it.
+        assert_eq!(
+            unread_arming(
+                &News {
+                    done_at: None,
+                    failed_at: Some(NOW + 500)
+                },
+                long_ago,
+                false,
+                NOW,
+                AFTER
+            ),
+            None,
+            "a failure the clock says has not happened yet arms no lamp"
+        );
+        // AND STILL NOT WITH NO DELAY AT ALL. `after_secs` may be zero, and a
+        // saturated age of zero passes a zero threshold, so this edge is where
+        // "no elapsed time" and "an elapsed time of zero" stop agreeing.
+        assert_eq!(
+            unread_arming(
+                &News {
+                    done_at: Some(NOW + 500),
+                    failed_at: None
+                },
+                long_ago,
+                false,
+                NOW,
+                0
+            ),
+            None,
+            "a stepped-back clock cannot arm through a zero threshold"
+        );
+    }
+
+    #[test]
+    fn the_interaction_edge_is_the_freshest_of_the_three_roads() {
+        // THE FRESHEST WINS, whichever road it is. The stalest would arm the
+        // unread lamp about news the operator already saw through the road they
+        // were actually using.
+        assert_eq!(
+            last_interaction(Some(100), Some(9_500), Some(9_000), NOW),
+            Some(NOW - 100),
+            "the desk's idle age counts back from now, and here it is freshest"
+        );
+        assert_eq!(
+            last_interaction(Some(2_000), Some(9_500), Some(9_600), NOW),
+            Some(9_600),
+            "and here the phone marker is"
+        );
+        assert_eq!(
+            last_interaction(None, Some(9_500), None, NOW),
+            Some(9_500),
+            "one readable road is enough"
+        );
+        assert_eq!(
+            last_interaction(None, None, None, NOW),
+            None,
+            "and no road at all proves nothing, so the lamp stays dark"
+        );
+        assert_eq!(
+            last_interaction(Some(NOW + 5_000), None, None, NOW),
+            Some(0),
+            "an idle age longer than the clock is an interaction at the epoch, \
+             never a wrapped one in the far future"
+        );
+    }
+
+    // --- the loop lamp ------------------------------------------------------
+
+    const THRESHOLD: u64 = 360;
+    const LEASE_TIMEOUT: u64 = 3_900;
+
+    /// One reading, with everything not under test set to nothing happening.
+    fn running<'reading>(
+        streak: Option<&'reading Streak>,
+        agents_working: bool,
+        leases: &'reading [u64],
+    ) -> Loop<'reading> {
+        Loop {
+            streak,
+            agents_working,
+            shell_since: None,
+            leases,
+            now: NOW,
+            threshold_secs: THRESHOLD,
+            lease_timeout_secs: LEASE_TIMEOUT,
+        }
+    }
+
+    #[test]
+    fn a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak() {
+        // TWO SOURCES, TWO CLOCKS, and one shared streak could not serve both.
+        // The shell publishes the second its command STARTED, which is an exact
+        // start nothing has to infer; an agent gives a status word and nothing
+        // else, so its run is timed from the first tick that read it working.
+        //
+        // POOLED, THEY BORROWED EACH OTHER'S TIME IN BOTH DIRECTIONS. The
+        // streak outlives the work by the grace that covers an agent's turn
+        // gap, so a fresh five-second command starting inside that grace
+        // inherited the streak and armed the lamp at once; and a build that had
+        // already been running for ten minutes when the streak was empty was
+        // clocked from now and had to wait out the whole threshold again.
+        let stale = Streak {
+            since: NOW - 5_000,
+            last_seen: NOW - 60,
+        };
+        assert!(
+            !loop_running(&Loop {
+                shell_since: Some(NOW - 5),
+                ..running(Some(&stale), false, &[])
+            }),
+            "a five-second command cannot inherit an agent's finished run"
+        );
+        assert!(
+            loop_running(&Loop {
+                shell_since: Some(NOW - THRESHOLD),
+                ..running(None, false, &[])
+            }),
+            "and a build already past the threshold arms from its OWN start, \
+             with no streak behind it and nothing to wait out again"
+        );
+        assert!(
+            !loop_running(&Loop {
+                shell_since: Some(NOW - THRESHOLD + 1),
+                ..running(None, false, &[])
+            }),
+            "one second under it is not a loop yet: the same closed edge"
+        );
+        // AND THE AGENT'S OWN RUN IS NOT DESTROYED BY A FRESH COMMAND, which is
+        // the mirror of the first case and the reason this is two readings
+        // rather than one taken over the earlier of them.
+        let long = streak_from(THRESHOLD);
+        assert!(
+            loop_running(&Loop {
+                shell_since: Some(NOW),
+                ..running(Some(&long), true, &[])
+            }),
+            "an agent ten minutes in keeps its lamp when somebody runs `ls`"
+        );
+        // A CLOCK BEHIND THE COMMAND HAS NO ELAPSED TIME IN IT.
+        assert!(
+            !loop_running(&Loop {
+                shell_since: Some(NOW + 500),
+                ..running(None, false, &[])
+            }),
+            "a now before the command started has no elapsed time in it"
+        );
+    }
+
+    #[test]
+    fn work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed() {
+        let under = streak_from(THRESHOLD - 1);
+        let at = streak_from(THRESHOLD);
+        assert!(
+            !loop_running(&running(Some(&under), true, &[])),
             "one second under the threshold is not a loop yet"
         );
-        assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&at), None)),
-            Some(NOW - AFTER),
-            "exactly at it, it breathes, and it answers the second the run STARTED"
+        assert!(
+            loop_running(&running(Some(&at), true, &[])),
+            "exactly at it, it arms"
         );
-        assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&over), None)),
-            Some(NOW - AFTER - 1),
+        assert!(
+            !loop_running(&running(None, true, &[])),
+            "work with no streak behind it has no duration to measure"
         );
-        assert_eq!(
-            breathing_since(&breath(&only_loops, false, None, None)),
-            None,
-            "no streak is nothing working, however late it is"
+        // BOTH HALVES, which is the condition as written: something is working
+        // AND the run is old enough. The streak deliberately OUTLIVES the work
+        // by the grace that covers the gap between a loop's turns, so a reading
+        // of the streak alone keeps claiming work in progress for minutes after
+        // everything went idle.
+        assert!(
+            !loop_running(&running(Some(&at), false, &[])),
+            "a streak still inside its grace is not work that is still running"
         );
-        // AND THE CONJUNCTION, which is the brief's own wording: something is
-        // working AND the run is at least `breathe_after_secs` old. The streak
-        // deliberately OUTLIVES the work by the grace that covers the gap
-        // between a loop's turns, so a reading of the streak alone keeps
-        // claiming work in progress for minutes after the agent went idle, and
-        // breathing outranks glow, so the lamp says the wrong thing rather than
-        // saying nothing.
-        assert_eq!(
-            breathing_since(&breath(&only_loops, false, Some(&over), None)),
-            None,
-            "a streak still inside its grace is not an agent that is still working"
-        );
-        // A CLOCK BEHIND THE MARKER IS NOT A LONG RUN. A machine whose clock
-        // stepped back would otherwise read a huge elapsed time through a
-        // wrapping subtraction and breathe over nothing.
+        // A CLOCK BEHIND THE STREAK IS NOT A LONG RUN.
         let future = Streak {
             since: NOW + 500,
             last_seen: NOW + 500,
         };
-        assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&future), None)),
-            None,
+        assert!(
+            !loop_running(&running(Some(&future), true, &[])),
             "a now before the streak began has no elapsed time in it"
         );
     }
 
-    /// One journal line, in the shape `missed_notifications::entries` answers.
-    fn missed(at: Option<u64>) -> crate::missed_notifications::Entry {
-        crate::missed_notifications::Entry {
-            at,
-            agent: "claude".to_string(),
-            state: "blocked".to_string(),
-            project: "dotfiles".to_string(),
-            branch: "main".to_string(),
-            detail: "x".to_string(),
+    #[test]
+    fn a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not() {
+        let idle = streak_from(0);
+        assert!(
+            loop_running(&running(None, false, &[NOW - LEASE_TIMEOUT])),
+            "exactly at the timeout is still live: both edges closed"
+        );
+        assert!(
+            !loop_running(&running(None, false, &[NOW - LEASE_TIMEOUT - 1])),
+            "one second past it, an abandoned lease can no longer hold the lamp"
+        );
+        assert!(
+            loop_running(&running(Some(&idle), false, &[NOW - 5_000, NOW])),
+            "one live lease among expired ones is enough, and it needs no work behind it"
+        );
+        assert!(
+            !loop_running(&running(None, false, &[])),
+            "and no lease at all with nothing working is a dark lamp"
+        );
+    }
+
+    // --- the blocked lamp ---------------------------------------------------
+
+    #[test]
+    fn a_live_wait_holds_the_blocked_lamp_and_an_abandoned_one_stops_holding_it() {
+        const BOUND: u64 = 1_800;
+        assert!(
+            any_blocked(&[NOW - 5_000, NOW - 400], NOW, BOUND),
+            "one live marker among expired ones is a wait"
+        );
+        assert!(
+            any_blocked(&[NOW - BOUND], NOW, BOUND),
+            "exactly at the bound is still live: both edges closed"
+        );
+        assert!(
+            !any_blocked(&[NOW - BOUND - 1], NOW, BOUND),
+            "one second past it, an abandoned session can no longer hold a lamp blue"
+        );
+        assert!(!any_blocked(&[], NOW, BOUND), "no marker is no wait");
+        // A MARKER FROM THE FUTURE IS LIVE. A clock that stepped backwards is
+        // not a wait that ended, and the saturating subtraction reads it as
+        // zero seconds old rather than as an age that would delete it.
+        assert!(any_blocked(&[NOW + 500], NOW, BOUND));
+    }
+
+    // --- the loop lease -----------------------------------------------------
+
+    #[test]
+    fn a_lease_is_keyed_to_the_pane_it_was_typed_in_and_refused_when_there_is_none() {
+        assert_eq!(
+            loop_command("begin", &[], Some("wW:p21")),
+            Ok(LoopCommand::Begin("wW:p21".to_string())),
+            "the ordinary case takes the pane out of the environment and needs no \
+             argument at all"
+        );
+        assert_eq!(
+            loop_command("end", &[], Some("wW:p21")),
+            Ok(LoopCommand::End("wW:p21".to_string())),
+        );
+        assert_eq!(
+            loop_command(
+                "begin",
+                &["--pane".to_string(), "wW:p9".to_string()],
+                Some("wW:p21")
+            ),
+            Ok(LoopCommand::Begin("wW:p9".to_string())),
+            "and an explicit pane beats the environment, which is how a lease is \
+             taken for a pane other than this one"
+        );
+        // REFUSED, NEVER GUESSED. A lease keyed to a pane whose ordinary traffic
+        // will never renew it breathes for the whole timeout with nothing behind
+        // it, which is the opposite of a liveness signal.
+        for absent in [None, Some("")] {
+            assert_eq!(
+                loop_command("begin", &[], absent),
+                Err(
+                    "pns: loop: no HERDR_PANE_ID in this environment, so there is no \
+                     pane to key the lease to; run it inside the pane, or name one \
+                     with --pane"
+                        .to_string()
+                ),
+                "env pane {absent:?}"
+            );
         }
     }
 
     #[test]
-    fn glow_is_a_journal_entry_newer_than_the_return_edge_and_nothing_else() {
-        const NOT_WORKING: bool = false;
-        const WORKING_NOW: bool = true;
+    fn a_pane_that_cannot_name_a_file_and_an_argument_this_does_not_know_are_refused() {
         assert_eq!(
-            glow_since(&[missed(Some(1_100))], Some(1_000), NOT_WORKING),
-            Some(1_100),
-            "news the operator has not been back for, with nothing running: glow"
+            loop_command("begin", &["--pane".to_string(), "../x".to_string()], None),
+            Err("pns: loop: \"../x\" is not a pane id this can key a lease to".to_string()),
+            "the path-escape guard, through the predicate that backs the filename"
         );
-        assert_eq!(
-            glow_since(&[missed(Some(1_100))], Some(1_000), WORKING_NOW),
-            None,
-            "the same entry with something working is the BREATHING lamp's business"
-        );
-        assert_eq!(
-            glow_since(&[missed(Some(900))], Some(1_000), NOT_WORKING),
-            None,
-            "an entry older than the edge was seen when the operator came back"
-        );
-        assert_eq!(
-            glow_since(&[missed(Some(1_000))], Some(1_000), NOT_WORKING),
-            None,
-            "an entry AT the edge is not newer than it; dark is the direction on a tie"
-        );
-        assert_eq!(
-            glow_since(&[missed(None)], Some(1_000), NOT_WORKING),
-            None,
-            "an entry whose writer had no clock sits in no window and cannot glow"
-        );
-        assert_eq!(
-            glow_since(&[missed(Some(1_100))], None, NOT_WORKING),
-            None,
-            "no return edge at all is no proof the news is unseen, so the lamp stays dark"
-        );
-        assert_eq!(
-            glow_since(&[], Some(1_000), NOT_WORKING),
-            None,
-            "an empty journal is nothing unseen"
-        );
-        // THE NEWEST UNSEEN ENTRY, which is the epoch the catch-up rule reads:
-        // a glow carrying news from after the quiet window ended is not a
-        // leftover of that window, whatever else is queued behind it.
-        assert_eq!(
-            glow_since(
-                &[
-                    missed(Some(1_100)),
-                    missed(Some(1_400)),
-                    missed(Some(1_200))
-                ],
-                Some(1_000),
-                NOT_WORKING
-            ),
-            Some(1_400),
-            "the newest unseen entry is what the state started at"
-        );
-    }
-
-    #[test]
-    fn needs_you_outranks_both_and_an_expired_marker_does_not_count() {
-        const BOUND: u64 = 1_800;
-        assert_eq!(
-            needs_you_at(&[1_000, 1_400], 2_000, BOUND),
-            Some(1_400),
-            "a live marker is a wait, and the freshest one is when it last began"
-        );
-        assert_eq!(
-            needs_you_at(&[1_000], 1_000 + BOUND, BOUND),
-            Some(1_000),
-            "exactly at the bound is still live: both edges closed"
-        );
-        assert_eq!(
-            needs_you_at(&[1_000], 1_000 + BOUND + 1, BOUND),
-            None,
-            "one second past it, an abandoned session can no longer hold a lamp blue"
-        );
-        assert_eq!(
-            needs_you_at(&[], 2_000, BOUND),
-            None,
-            "no marker is no wait"
-        );
-
-        // THE PRIORITY, which is the operator's own "needs-you on top".
-        assert_eq!(
-            house_state(&Readings {
-                needs_you_at: Some(1_400),
-                breathing_since: Some(1_000),
-                glow_since: Some(1_200),
-            }),
-            Some(State {
-                behaviour: Behaviour::NeedsYou,
-                since: 1_400
-            }),
-            "a live wait beats working and beats unseen news"
-        );
-        assert_eq!(
-            house_state(&Readings {
-                needs_you_at: None,
-                breathing_since: Some(1_000),
-                glow_since: Some(1_200),
-            }),
-            Some(State {
-                behaviour: Behaviour::Breathing,
-                since: 1_000
-            }),
-            "with no wait, something working beats unseen news"
-        );
-        assert_eq!(
-            house_state(&Readings {
-                needs_you_at: None,
-                breathing_since: None,
-                glow_since: Some(1_200),
-            }),
-            Some(State {
-                behaviour: Behaviour::Glow,
-                since: 1_200
-            }),
-        );
-        assert_eq!(
-            house_state(&Readings {
-                needs_you_at: None,
-                breathing_since: None,
-                glow_since: None,
-            }),
-            None,
-            "and none of the three is a dark house"
-        );
-    }
-
-    #[test]
-    fn a_needs_you_event_starts_a_wait_and_every_other_event_ends_one() {
-        for waiting in crate::pulse::LAMP_NEEDS_YOU {
+        for arguments in [
+            vec!["--pain".to_string(), "wW:p9".to_string()],
+            vec!["wW:p9".to_string()],
+            vec![],
+        ] {
+            let refused = if arguments.is_empty() {
+                loop_command("resume", &arguments, Some("wW:p21"))
+            } else {
+                loop_command("begin", &arguments, Some("wW:p21"))
+            };
             assert_eq!(
-                needs_marker_action(waiting),
+                refused,
+                Err(LOOP_USAGE.to_string()),
+                "arguments: {arguments:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_pane_id_that_cannot_be_a_filename_names_no_lease_at_all() {
+        let state = std::path::Path::new("/state");
+        assert_eq!(
+            lease_marker(state, "wW:p21"),
+            Some(state.join("lights-loop").join("wW:p21")),
+            "herdr's own id names a file inside the lease directory, colon and all"
+        );
+        for refused in ["..", "../etc/passwd", "a/b", "", "a b"] {
+            assert_eq!(
+                lease_marker(state, refused),
+                None,
+                "{refused:?} must name no lease"
+            );
+        }
+    }
+
+    // --- per-lamp arbitration -----------------------------------------------
+
+    /// Every held state at once, which is what makes the ranking observable.
+    const ALL_HELD: House = House {
+        blocked: true,
+        looping: true,
+        unread: Some(Unread::Failure),
+    };
+
+    fn shows(behaviours: &[Behaviour]) -> Vec<Behaviour> {
+        behaviours.to_vec()
+    }
+
+    #[test]
+    fn every_held_state_is_active_at_once_and_they_rank_blocked_loop_then_unread() {
+        assert_eq!(
+            active_held(&ALL_HELD),
+            vec![Held::Blocked, Held::Looping, Held::UnreadFailure],
+            "the house holds all of them at once, most urgent first"
+        );
+        assert_eq!(
+            active_held(&House {
+                unread: Some(Unread::Success),
+                ..ALL_HELD
+            }),
+            vec![Held::Blocked, Held::Looping, Held::UnreadSuccess],
+            "and the unread flavour is the one the arming answered"
+        );
+        assert_eq!(
+            active_held(&House::default()),
+            Vec::new(),
+            "a house holding nothing is a dark house"
+        );
+        // THE RANK, and it is the operator's own: a question waiting on them
+        // beats work in progress, which beats news about work already finished,
+        // and red news beats calm news.
+        assert!(Held::Blocked < Held::Looping);
+        assert!(Held::Looping < Held::UnreadFailure);
+        assert!(Held::UnreadFailure < Held::UnreadSuccess);
+    }
+
+    #[test]
+    fn one_lamp_shows_the_most_urgent_state_it_is_routed_for_and_nothing_it_is_not() {
+        let active = active_held(&ALL_HELD);
+        assert_eq!(
+            shown(&active, &shows(&[Behaviour::Blocked, Behaviour::Unread])),
+            Some(Held::Blocked),
+            "a lamp routed for both shows the more urgent"
+        );
+        assert_eq!(
+            shown(&active, &shows(&[Behaviour::Unread])),
+            Some(Held::UnreadFailure),
+            "a lamp routed for only the calmer one shows that, which is how one \
+             house state reaches two lamps saying different things"
+        );
+        assert_eq!(
+            shown(&active, &shows(&[Behaviour::Done, Behaviour::Failed])),
+            None,
+            "a pulse-only lamp holds no state at all"
+        );
+        assert_eq!(
+            shown(&[], &shows(&[Behaviour::Blocked])),
+            None,
+            "and a routed lamp with nothing active is dark"
+        );
+    }
+
+    #[test]
+    fn a_pulse_fires_on_a_lamp_it_is_routed_for_unless_a_held_state_has_that_lamp() {
+        const FREE: bool = false;
+        const HELD: bool = true;
+        assert!(
+            pulse_fires(
+                &shows(&[Behaviour::Done, Behaviour::Failed]),
+                Behaviour::Done,
+                FREE
+            ),
+            "a routed lamp with no state on it flashes"
+        );
+        assert!(
+            !pulse_fires(&shows(&[Behaviour::Done]), Behaviour::Failed, FREE),
+            "and a lamp routed for one pulse does not carry the other"
+        );
+        // THE DEDICATED LAMP, which is the operator's "it helps out when free"
+        // ruling generalised: it joins the pulse lamps whenever no held state
+        // has it, and stops the moment one does.
+        assert!(
+            !pulse_fires(
+                &shows(&[Behaviour::Done, Behaviour::Blocked]),
+                Behaviour::Done,
+                HELD
+            ),
+            "a held state preempts the pulse on the lamp that is holding it"
+        );
+        assert!(
+            !pulse_fires(&shows(&[Behaviour::Blocked]), Behaviour::Done, FREE),
+            "and a lamp that is not routed for the pulse never flashes, held or free"
+        );
+    }
+
+    // --- the breath driver --------------------------------------------------
+
+    /// A whole twelve-second interval, in the milliseconds the driver budgets
+    /// in: the shipped refresh with nothing yet spent resolving the map.
+    const FULL_INTERVAL_MS: u64 = 12_000;
+
+    /// The locked blocked shape: two-second fades between 100 and 30.
+    const BLOCKED: crate::config::Breath = crate::config::Breath {
+        duration_ms: 2000,
+        high: 100,
+        low: 30,
+    };
+
+    /// The locked unread and loop shape: four-second fades between 60 and 10.
+    const SLOW: crate::config::Breath = crate::config::Breath {
+        duration_ms: 4000,
+        high: 60,
+        low: 10,
+    };
+
+    #[test]
+    fn a_breath_starts_down_alternates_and_ends_at_the_peak() {
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+        assert_eq!(
+            fades,
+            vec![
+                Fade {
+                    brightness: 30,
+                    start_ms: 0
+                },
+                Fade {
+                    brightness: 100,
+                    start_ms: 1_950
+                },
+                Fade {
+                    brightness: 30,
+                    start_ms: 3_900
+                },
+                Fade {
+                    brightness: 100,
+                    start_ms: 5_850
+                },
+                Fade {
+                    brightness: 30,
+                    start_ms: 7_800
+                },
+                Fade {
+                    brightness: 100,
+                    start_ms: 9_750
+                },
+            ],
+            "three full cycles of the locked blocked shape inside a twelve-second interval"
+        );
+        // ENDS AT THE PEAK, which is what lets the next tick resume the breath
+        // rather than restart it, and is the property an odd count would break.
+        assert_eq!(fades.len() % 2, 0);
+        assert_eq!(fades.last().map(|fade| fade.brightness), Some(BLOCKED.high));
+        assert_eq!(fades.first().map(|fade| fade.brightness), Some(BLOCKED.low));
+    }
+
+    #[test]
+    fn each_fade_leads_the_one_before_it_so_the_lamp_never_pauses_at_an_end() {
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+        for pair in fades.windows(2) {
+            assert_eq!(
+                pair[1].start_ms - pair[0].start_ms,
+                BLOCKED.duration_ms - FADE_LEAD_MS,
+                "the next fade is issued FADE_LEAD_MS before the previous one ends"
+            );
+        }
+    }
+
+    #[test]
+    fn the_last_fade_finishes_before_the_next_tick_and_a_half_cycle_that_would_not_is_dropped() {
+        // THE BUDGET COVERS THE FINAL FADE'S WHOLE DURATION, because the driver
+        // has to be gone before the next tick starts: a fade still running then
+        // would be replaced mid-flight from a brightness nothing recorded.
+        for refresh_secs in [10, 12, 20, 25, 30] {
+            for breath in [BLOCKED, SLOW] {
+                let fades = breath_fades(refresh_secs * 1000, &breath);
+                let last = fades.last().expect("a breath is never empty");
+                assert!(
+                    last.start_ms + breath.duration_ms <= refresh_secs * 1000,
+                    "refresh {refresh_secs}s, {}ms fades: the last fade must finish inside \
+                     the interval, and it starts at {}ms",
+                    breath.duration_ms,
+                    last.start_ms
+                );
+                assert_eq!(fades.len() % 2, 0, "and it must end at the peak");
+                assert!(fades.len() >= 2, "a breath is at least one full cycle");
+            }
+        }
+        // THE DROPPED HALF CYCLE, named: a twelve-second interval fits three
+        // two-second cycles but only ONE four-second cycle, so the slow shape
+        // holds its peak for the rest of the interval. That is the accepted
+        // cost of stopping at the peak.
+        assert_eq!(breath_fades(FULL_INTERVAL_MS, &SLOW).len(), 2);
+        assert_eq!(breath_fades(20_000, &SLOW).len(), 4);
+    }
+
+    #[test]
+    fn a_breath_fits_what_is_left_of_the_interval_rather_than_the_whole_of_it() {
+        // THE RESOLVE IS PART OF THE CHILD'S LIFE. A tick spends the first
+        // seconds of its interval resolving the map on the bridge, and fades
+        // fitted to the WHOLE interval therefore ran past the moment the next
+        // tick started: two children then issued fades to one lamp, each
+        // writing a brightness the other did not expect.
+        let whole = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+        let after_a_slow_resolve = breath_fades(FULL_INTERVAL_MS - 4_000, &BLOCKED);
+        assert!(
+            after_a_slow_resolve.len() < whole.len(),
+            "four seconds spent resolving has to cost fades: {} against {}",
+            after_a_slow_resolve.len(),
+            whole.len()
+        );
+        let last = after_a_slow_resolve.last().expect("a cycle still fits");
+        assert!(
+            last.start_ms + BLOCKED.duration_ms <= FULL_INTERVAL_MS - 4_000,
+            "and the last fade still finishes inside what was left: {last:?}"
+        );
+        // A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING AT ALL, which is the
+        // honest answer rather than a half breath: the lamp keeps whatever the
+        // last tick left it at, and the next tick has its whole interval.
+        assert!(breath_fades(BLOCKED.duration_ms, &BLOCKED).is_empty());
+        assert!(breath_fades(0, &BLOCKED).is_empty());
+    }
+
+    #[test]
+    fn the_dim_form_is_the_same_cadence_at_the_faintest_levels_the_hardware_has() {
+        // THE DIM SHAPE IS NOT A SPECIAL CASE. It is the same driver over
+        // different numbers, which is what makes "dimmed" one more shape rather
+        // than a second code path that can drift.
+        let dim = crate::config::Breath {
+            duration_ms: 3000,
+            high: 7,
+            low: 1,
+        };
+        let fades = breath_fades(FULL_INTERVAL_MS, &dim);
+        assert_eq!(
+            fades,
+            vec![
+                Fade {
+                    brightness: 1,
+                    start_ms: 0
+                },
+                Fade {
+                    brightness: 7,
+                    start_ms: 2_950
+                },
+                Fade {
+                    brightness: 1,
+                    start_ms: 5_900
+                },
+                Fade {
+                    brightness: 7,
+                    start_ms: 8_850
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn a_blocked_event_starts_a_wait_and_every_other_event_ends_one() {
+        for waiting in crate::pulse::LAMP_BLOCKED {
+            assert_eq!(
+                blocked_marker_action(waiting),
                 Action::Start,
                 "{waiting} is an agent waiting on the operator"
             );
         }
         for ended in ["done", "failed", "stale", "", "anything-else"] {
             assert_eq!(
-                needs_marker_action(ended),
+                blocked_marker_action(ended),
                 Action::End,
                 "{ended} is a later event from that session, so the wait is over"
             );
@@ -1164,15 +2041,15 @@ mod tests {
     fn a_session_id_that_cannot_be_a_filename_names_no_marker_at_all() {
         let state = std::path::Path::new("/state");
         assert_eq!(
-            needs_marker(state, "sess-123"),
-            Some(state.join("lights-needs").join("sess-123")),
+            blocked_marker(state, "sess-123"),
+            Some(state.join("lights-blocked").join("sess-123")),
             "an ordinary id names a file inside the needs directory"
         );
         // THE PATH-ESCAPE GUARD, through the predicate that already backs
         // `session-<id>.start` in this same directory rather than a second one.
         for refused in ["..", "../etc/passwd", "a/b", "", "a:b", "a b"] {
             assert_eq!(
-                needs_marker(state, refused),
+                blocked_marker(state, refused),
                 None,
                 "{refused:?} must name no marker"
             );
@@ -1349,7 +2226,7 @@ mod tests {
         let known = places(&["3F - Studio"]);
         for typed in ["0s", "25h", "1441m", "9223372036854775807h"] {
             assert_eq!(
-                quiet_command(&typed_at("3F - Studio", typed), &known),
+                quiet_command(&typed_at("3F - Studio", typed), &known, ONE_HOUR),
                 Err(format!(
                     "pns: quiet duration {typed:?} is outside 1s to 24h"
                 )),
@@ -1358,7 +2235,7 @@ mod tests {
         }
         for typed in ["30", "", "1d", " 5m"] {
             assert_eq!(
-                quiet_command(&typed_at("3F - Studio", typed), &known),
+                quiet_command(&typed_at("3F - Studio", typed), &known, ONE_HOUR),
                 Err(format!(
                     "pns: quiet duration {typed:?} is not <count><s|m|h>"
                 )),
@@ -1366,7 +2243,7 @@ mod tests {
             );
         }
         assert_eq!(
-            quiet_command(&typed_at("3F - Studio", "30m"), &known),
+            quiet_command(&typed_at("3F - Studio", "30m"), &known, ONE_HOUR),
             Ok(QuietCommand::Mute {
                 place: "3F - Studio".to_string(),
                 seconds: 1_800,
@@ -1383,24 +2260,28 @@ mod tests {
         // the hour they were trying not to be disturbed.
         let known = places(&["3F - Studio", "3F - Studio - HCL3"]);
         assert_eq!(
-            quiet_command(&typed_at("3F - Nowhere", "30m"), &known),
-            Err("pns: lights quiet: \"3F - Nowhere\" is no room or lamp a \
-                 [lights.families] claim names; a mute reaches \"3F - Studio\", \
+            quiet_command(&typed_at("3F - Nowhere", "30m"), &known, ONE_HOUR),
+            Err(
+                "pns: lights quiet: \"3F - Nowhere\" is no lamp, room or zone \
+                 this can quiet; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
-                .to_string()),
+                    .to_string()
+            ),
             "a place nothing in the config names"
         );
         assert_eq!(
-            quiet_command(&typed_at("3f - studio", "30m"), &known),
-            Err("pns: lights quiet: \"3f - studio\" is no room or lamp a \
-                 [lights.families] claim names; a mute reaches \"3F - Studio\", \
+            quiet_command(&typed_at("3f - studio", "30m"), &known, ONE_HOUR),
+            Err(
+                "pns: lights quiet: \"3f - studio\" is no lamp, room or zone \
+                 this can quiet; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
-                .to_string()),
+                    .to_string()
+            ),
             "and a case-folded one is a typo rather than a name to forgive, \
              which is how the bridge listing reads it too"
         );
         assert_eq!(
-            quiet_command(&typed_at("3F - Studio - HCL3", "30m"), &known),
+            quiet_command(&typed_at("3F - Studio - HCL3", "30m"), &known, ONE_HOUR),
             Ok(QuietCommand::Mute {
                 place: "3F - Studio - HCL3".to_string(),
                 seconds: 1_800,
@@ -1408,7 +2289,7 @@ mod tests {
             "the control: a lamp the config names is stored"
         );
         assert_eq!(
-            quiet_command(&typed_at("3F - Nowhere", "off"), &known),
+            quiet_command(&typed_at("3F - Nowhere", "off"), &known, ONE_HOUR),
             Ok(QuietCommand::Unmute {
                 place: "3F - Nowhere".to_string(),
             }),
@@ -1417,36 +2298,122 @@ mod tests {
              otherwise be a mute nothing could clear"
         );
         assert_eq!(
-            quiet_command(&[], &known),
+            quiet_command(&[], &known, ONE_HOUR),
             Ok(QuietCommand::Report),
             "no argument reports and mutes nothing"
         );
         assert_eq!(
-            quiet_command(&typed_at("3F - Studio - HCL1", "30m"), &places(&[])),
+            quiet_command(
+                &typed_at("3F - Studio - HCL1", "30m"),
+                &places(&[]),
+                ONE_HOUR
+            ),
             Err(
-                "pns: lights quiet: \"3F - Studio - HCL1\" is no room or lamp a \
-                 [lights.families] claim names; this config claims no lamp at \
-                 all, so there is nothing a mute could reach"
+                "pns: lights quiet: \"3F - Studio - HCL1\" is no lamp, room or zone \
+                 this can quiet; this config claims no lamp at all, so there is \
+                 nothing a mute could reach"
                     .to_string()
             ),
             "and a config that claims nothing says so rather than trailing off \
              after `a mute reaches`"
         );
-        for arguments in [
-            vec!["3F - Studio".to_string()],
-            vec![
-                "3F - Studio".to_string(),
-                "30m".to_string(),
-                "x".to_string(),
-            ],
-        ] {
-            assert_eq!(
-                quiet_command(&arguments, &known),
-                Err("pns: lights quiet takes a place and a duration, a place \
-                     and off, or nothing at all"
-                    .to_string()),
-                "arguments: {arguments:?}"
-            );
+        let arguments = vec![
+            "3F - Studio".to_string(),
+            "30m".to_string(),
+            "x".to_string(),
+        ];
+        assert_eq!(
+            quiet_command(&arguments, &known, ONE_HOUR),
+            Err(
+                "pns: lights quiet takes a place, optionally with a duration \
+                 or off, or nothing at all"
+                    .to_string()
+            ),
+            "arguments: {arguments:?}"
+        );
+    }
+
+    /// A schedule an hour away, which is what a bare mute reads.
+    const ONE_HOUR: Option<u64> = Some(3_600);
+
+    #[test]
+    fn a_bare_mute_lasts_until_the_operators_quiet_hours_end() {
+        let known = places(&["3F - Studio"]);
+        assert_eq!(
+            quiet_command(&[places(&["3F - Studio"])[0].clone()], &known, ONE_HOUR),
+            Ok(QuietCommand::Mute {
+                place: "3F - Studio".to_string(),
+                seconds: 3_600,
+            }),
+            "no duration typed: the schedule says how long"
+        );
+        // NO SCHEDULE IS A REFUSAL, never a guessed length: picking one would be
+        // a mute the operator did not ask for, ending at an hour they cannot
+        // predict.
+        assert_eq!(
+            quiet_command(&places(&["3F - Studio"]), &known, None),
+            Err(
+                "pns: lights quiet: a bare mute lasts until your quiet hours end, \
+                 and `[plugins.hue] quiet_hours` states none; give a duration \
+                 instead, or set that key"
+                    .to_string()
+            ),
+        );
+        // AND AN UNKNOWN PLACE IS STILL REFUSED BY NAME on the bare form, which
+        // is the same order the two-word form checks in: a typo must not become
+        // a mute nothing will ever match.
+        assert_eq!(
+            quiet_command(&places(&["3F - Nowhere"]), &known, ONE_HOUR),
+            Err(unmutable_sentence("3F - Nowhere", &known)),
+        );
+    }
+
+    #[test]
+    fn how_long_a_bare_mute_runs_is_the_minutes_from_now_to_the_windows_end() {
+        // 22:00 to 07:00, which is the window every room in the operator's own
+        // config carries.
+        const ENDS_AT_0700: Option<u16> = Some(7 * 60);
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, Some(23 * 60)),
+            Some(8 * 3_600),
+            "typed at 23:00, the mute runs to 07:00: eight hours over midnight"
+        );
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, Some(6 * 60)),
+            Some(3_600),
+            "and typed at 06:00 it runs one hour, which is the rest of the window"
+        );
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, Some(15 * 60)),
+            Some(16 * 3_600),
+            "typed outside the window it still runs to the next end, which is what \
+             `until my quiet hours end` says"
+        );
+        // NOW AT THE END MINUTE IS A WHOLE DAY, not nothing: the window ends
+        // this second, so the next end is tomorrow's, and a mute of zero seconds
+        // is not a mute.
+        assert_eq!(bare_mute_secs(ENDS_AT_0700, Some(7 * 60)), Some(24 * 3_600));
+        assert_eq!(
+            bare_mute_secs(None, Some(23 * 60)),
+            None,
+            "no schedule is no bare mute"
+        );
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, None),
+            None,
+            "and neither is a clock this run cannot read"
+        );
+        // IT NEVER EXCEEDS THE DURATION CAP the typed form is held to, which is
+        // what keeps one command from having two sets of bounds.
+        assert!(bare_mute_secs(ENDS_AT_0700, Some(7 * 60 + 1)) <= Some(24 * 3_600));
+    }
+
+    /// The refusal `quiet_command` gives for a place nothing names, so a test
+    /// asserting it does not restate the sentence.
+    fn unmutable_sentence(place: &str, known: &[String]) -> String {
+        match quiet_command(&places(&[place]), known, Some(1)) {
+            Err(said) => said,
+            other => panic!("expected a refusal, got {other:?}"),
         }
     }
 
