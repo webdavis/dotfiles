@@ -541,13 +541,34 @@ fn render_block(
 
 /// The `[lights]` cluster: one presence flag governs seven headings, because
 /// `Config.lights` is one `Option` for the whole table, never seven.
+///
+/// EVERY CLUSTER AND DECLARATION MAP IS PULLED OUT OF `lights` FIRST, before
+/// any of it is written: `render_block`'s own leftover check would otherwise
+/// see the whole cluster sitting unclaimed under the bare `[lights]` heading,
+/// which serves only `refresh_secs`, and refuse it as an unknown key before
+/// the walk ever reaches `[lights.done]`.
 fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Result<(), String> {
     let present = remaining.contains_key("lights");
     let mut lights = take_table(remaining, "lights")?;
 
-    render_block(out, find_table("lights"), &mut lights, present)?;
+    let mut own_keys = toml::Table::new();
+    if let Some(refresh_secs) = lights.remove("refresh_secs") {
+        own_keys.insert("refresh_secs".to_string(), refresh_secs);
+    }
+    let mut clusters = Vec::new();
     for cluster in ["done", "failed", "blocked", "unread", "loop", "dim"] {
-        let mut settings = take_table(&mut lights, cluster)?;
+        clusters.push((cluster, take_table(&mut lights, cluster)?));
+    }
+    let mut declarations = Vec::new();
+    for level in ["lamp", "room", "zone"] {
+        declarations.push((level, take_table(&mut lights, level)?));
+    }
+    if let Some(name) = lights.keys().next() {
+        return Err(format!("unknown `lights` key `{name}`"));
+    }
+
+    render_block(out, find_table("lights"), &mut own_keys, present)?;
+    for (cluster, mut settings) in clusters {
         render_block(
             out,
             find_table(&format!("lights.{cluster}")),
@@ -555,17 +576,13 @@ fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Result<(), St
             present,
         )?;
     }
-    for level in ["lamp", "room", "zone"] {
-        let declarations = take_table(&mut lights, level)?;
-        for (name, entry) in declarations {
+    for (level, names) in declarations {
+        for (name, entry) in names {
             let toml::Value::Table(mut settings) = entry else {
                 return Err(format!("`lights.{level}.{name}` is not a table"));
             };
             render_target(out, level, &name, &mut settings)?;
         }
-    }
-    if let Some(name) = lights.keys().next() {
-        return Err(format!("unknown `lights` key `{name}`"));
     }
     Ok(())
 }
@@ -945,5 +962,59 @@ mod tests {
         // AND THE INJECTED TABLE NEVER ARRIVED: a real `[plugins.hue]` armed
         // by the note would be the exact failure this test exists to catch.
         assert!(!config.plugins.contains_key("hue"));
+    }
+
+    #[test]
+    fn an_unknown_key_is_refused_by_name_wherever_it_appears() {
+        // A TOP-LEVEL KEY, A PLUGIN NAME, A KEY INSIDE A TABLE, AND A KEY
+        // INSIDE A TARGET DECLARATION: the same leftover check runs after
+        // every table this walk writes, so a values file cannot smuggle any
+        // of the four past it.
+        let mut top_level = toml::Table::new();
+        top_level.insert("zzz_not_a_key".to_string(), toml::Value::Boolean(true));
+        let error = render(&top_level).expect_err("an unknown top-level key must be refused");
+        assert!(error.contains("zzz_not_a_key"), "{error}");
+
+        let mut plugins = toml::Table::new();
+        plugins.insert(
+            "zzz_not_a_plugin".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+        let error = render(&values).expect_err("an unknown plugin name must be refused");
+        assert!(error.contains("zzz_not_a_plugin"), "{error}");
+
+        let mut daemon = toml::Table::new();
+        daemon.insert("zzz_not_a_key".to_string(), toml::Value::Boolean(true));
+        let mut values = toml::Table::new();
+        values.insert("daemon".to_string(), toml::Value::Table(daemon));
+        let error = render(&values).expect_err("an unknown key inside a table must be refused");
+        assert!(error.contains("zzz_not_a_key"), "{error}");
+
+        let mut target = toml::Table::new();
+        target.insert("zzz_not_a_key".to_string(), toml::Value::Boolean(true));
+        let mut rooms = toml::Table::new();
+        rooms.insert("Studio".to_string(), toml::Value::Table(target));
+        let mut lights = toml::Table::new();
+        lights.insert("room".to_string(), toml::Value::Table(rooms));
+        let mut values = toml::Table::new();
+        values.insert("lights".to_string(), toml::Value::Table(lights));
+        let error =
+            render(&values).expect_err("an unknown key inside a target must be refused");
+        assert!(error.contains("zzz_not_a_key"), "{error}");
+    }
+
+    #[test]
+    fn an_unknown_table_is_refused_by_name() {
+        let mut lights = toml::Table::new();
+        lights.insert(
+            "zzz_not_a_table".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
+        let mut values = toml::Table::new();
+        values.insert("lights".to_string(), toml::Value::Table(lights));
+        let error = render(&values).expect_err("an unknown lights sub-table must be refused");
+        assert!(error.contains("zzz_not_a_table"), "{error}");
     }
 }
