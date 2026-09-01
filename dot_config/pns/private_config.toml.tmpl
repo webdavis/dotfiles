@@ -328,8 +328,8 @@ after_secs = 300
 # `rooms` array above and nothing else, exactly as it has always been.
 #
 # EVERY UNKNOWN KEY IS REFUSED BY NAME, at every level, and so is a `skip` word
-# outside the five behaviours (`done`, `failed`, `needs-you`, `breathing`,
-# `glow`). `[plugins.hue]` judges its own keys the same way now, so the reason
+# outside the five behaviours (`done`, `failed`, `blocked`, `unread`,
+# `loop`). `[plugins.hue]` judges its own keys the same way now, so the reason
 # this is a top-level table is no longer that one table swallows a typo and this
 # one does not. The reason is that hue is the TRANSPORT and this is the POLICY,
 # and the policy outgrew a plugin's settings. What has not changed is why being
@@ -404,7 +404,7 @@ breathe_after_secs = 900
 # here for a lamp that should breathe the moment an agent starts.
 # SWITCHED OFF (operator, 2026-08-31, on first sight of the live lamp): the
 # swell is not the behaviour they want; a redesign session is pending. The
-# needs-you and glow states stay live; name sources here to re-enable.
+# blocked and unread states stay live; name sources here to re-enable.
 breathe_on = []
 # The brightness a dimmed signal runs at, in percent. The range is 1 to 100,
 # and zero is refused rather than read as off: a dark signal is a lamp saying
@@ -425,7 +425,7 @@ lights = ["3F - Studio - HCL3"]
 lights = ["3F - Studio - HCL3"]
 
 [lights.places."3F - Master Bedroom"]
-skip = ["breathing"]
+skip = ["loop"]
 quiet_hours = "22:00-07:00"
 quiet_mode = "dim"
 catch_up = true

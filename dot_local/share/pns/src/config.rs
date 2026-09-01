@@ -165,9 +165,9 @@ pub struct Place {
 pub enum Behaviour {
     Done,
     Failed,
-    NeedsYou,
-    Breathing,
-    Glow,
+    Blocked,
+    Unread,
+    Looping,
 }
 
 /// The five words, in the spelling a config uses, and the order the refusal
@@ -175,9 +175,9 @@ pub enum Behaviour {
 pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 5] = [
     ("done", Behaviour::Done),
     ("failed", Behaviour::Failed),
-    ("needs-you", Behaviour::NeedsYou),
-    ("breathing", Behaviour::Breathing),
-    ("glow", Behaviour::Glow),
+    ("blocked", Behaviour::Blocked),
+    ("unread", Behaviour::Unread),
+    ("loop", Behaviour::Looping),
 ];
 
 /// One kind of work that can put the loop lamp on breathing.
@@ -2596,7 +2596,7 @@ mod tests {
     #[test]
     fn a_place_parses_its_four_keys_and_defaults_the_ones_it_does_not_state() {
         let lights = parse_config(
-            "[lights.places.\"3F - Master Bedroom\"]\nskip = [\"breathing\", \"glow\"]\n\
+            "[lights.places.\"3F - Master Bedroom\"]\nskip = [\"loop\", \"unread\"]\n\
              quiet_hours = \"22:00-07:00\"\nquiet_mode = \"dim\"\ncatch_up = true\n\
              [lights.places.\"3F - Studio\"]\nskip = []\n",
         )
@@ -2606,7 +2606,7 @@ mod tests {
         assert_eq!(
             lights.places["3F - Master Bedroom"],
             Place {
-                skip: vec![Behaviour::Breathing, Behaviour::Glow],
+                skip: vec![Behaviour::Looping, Behaviour::Unread],
                 quiet_hours: Some("22:00-07:00".to_string()),
                 quiet_mode: Some(QuietMode::Dim),
                 catch_up: Some(true),
@@ -2627,7 +2627,7 @@ mod tests {
             said.contains("3F - Studio") && said.contains("breething"),
             "the place and the misspelling are both named: {said}"
         );
-        for word in ["done", "failed", "needs-you", "breathing", "glow"] {
+        for word in ["done", "failed", "blocked", "loop", "unread"] {
             assert!(
                 said.contains(word),
                 "and the refusal lists the whole closed set, so the operator does \
@@ -2643,7 +2643,7 @@ mod tests {
             ("quiet_mode = 3", "quiet_mode"),
             ("catch_up = \"yes\"", "catch_up"),
             ("quiet_hours = 2200", "quiet_hours"),
-            ("skip = \"breathing\"", "skip"),
+            ("skip = \"loop\"", "skip"),
             ("catch_ups = true", "catch_ups"),
         ] {
             let said = refusal(&format!("[lights.places.\"3F - Studio\"]\n{written}\n"));

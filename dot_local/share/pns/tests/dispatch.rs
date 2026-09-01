@@ -1291,7 +1291,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
             "[lights]\nrefresh_secs = 20\n\
              [lights.families.local]\nrooms = [\"3F - Studio\"]\n\
              except = [\"3F - Studio - HCL3\"]\n\
-             [lights.places.\"3F - Studio\"]\nskip = [\"breathing\"]\n",
+             [lights.places.\"3F - Studio\"]\nskip = [\"loop\"]\n",
         ),
         "same stdout, same stderr, same exit code, the bridge dialled either way, \
          and the same legs fired"
@@ -7654,7 +7654,7 @@ fn plant_waiting_session(sandbox: &Sandbox) {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("a clock past 1970")
         .as_secs();
-    let needs = sandbox.path("state/lights-needs");
+    let needs = sandbox.path("state/lights-blocked");
     std::fs::create_dir_all(&needs).expect("the needs directory");
     std::fs::write(needs.join("s1"), format!("{now}\n")).expect("a needs marker");
 }
@@ -7757,13 +7757,13 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
     // DAEMON IS INVOLVED: this is the event path, reading the paths it was
     // told were held and writing one PUT each.
     let (listener, port) = bridge_spy();
-    let sandbox = Sandbox::new("lights-glow-cleared-on-return");
+    let sandbox = Sandbox::new("lights-held-cleared-on-return");
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
          [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
-    std::fs::write(sandbox.path("state/lights-glow"), "light/9d52d98c\n").expect("a held glow");
+    std::fs::write(sandbox.path("state/lights-held"), "light/9d52d98c\n").expect("a held glow");
 
     let mut command = logged_event(&sandbox);
     // AT THE DESK, which is what makes this event the operator's return. An
@@ -7787,7 +7787,7 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
         stderr(&output)
     );
     assert!(
-        !sandbox.path("state/lights-glow").exists(),
+        !sandbox.path("state/lights-held").exists(),
         "and forgot what it was holding, so the next return costs no write at all"
     );
 }
@@ -7798,7 +7798,7 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
     // must not pay a bridge round trip for a lamp nobody is holding. The only
     // reading it takes is whether the file is there.
     let (listener, port) = bridge_spy();
-    let sandbox = Sandbox::new("lights-glow-nothing-held");
+    let sandbox = Sandbox::new("lights-held-nothing-held");
     sandbox.write_config(&format!(
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
          [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
@@ -7832,7 +7832,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         let sandbox = Sandbox::new(name);
         sandbox.write_config(&config(port));
         std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
-        std::fs::write(sandbox.path("state/lights-glow"), "light/9d52d98c\n").expect("a held glow");
+        std::fs::write(sandbox.path("state/lights-held"), "light/9d52d98c\n").expect("a held glow");
         let mut command = logged_event(&sandbox);
         sandbox.stub_herdr(&mut command, false);
         let child = command
@@ -7853,7 +7853,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         assert_eq!(output.status.code(), Some(0), "{name}");
         assert!(stdout(&output).is_empty(), "{name}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "{name}: {}", stderr(&output));
-        (dialled, sandbox.path("state/lights-glow").exists())
+        (dialled, sandbox.path("state/lights-held").exists())
     };
 
     assert_eq!(
@@ -7898,7 +7898,7 @@ fn a_tick_with_nothing_left_to_show_puts_out_the_glow_it_was_holding() {
         "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
-    std::fs::write(sandbox.path("state/lights-glow"), "light/9d52d98c\n").expect("a held glow");
+    std::fs::write(sandbox.path("state/lights-held"), "light/9d52d98c\n").expect("a held glow");
     // ACCEPTED WHILE THE TICK IS STILL RUNNING, which is what keeps this fast:
     // the spy hangs up the moment it accepts, so the TLS handshake fails at
     // once instead of sitting in the backlog for the ten-second bridge
@@ -7920,7 +7920,7 @@ fn a_tick_with_nothing_left_to_show_puts_out_the_glow_it_was_holding() {
         stderr(&output)
     );
     assert!(
-        !sandbox.path("state/lights-glow").exists(),
+        !sandbox.path("state/lights-held").exists(),
         "and stopped claiming to hold it"
     );
 }

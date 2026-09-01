@@ -24,7 +24,7 @@ pub const SUCCESS_COLOR: PulseColor = PulseColor {
 
 pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 
-/// The two colours a needs-you signal alternates between: TWO DEEP BLUES.
+/// The two colours a blocked signal alternates between: TWO DEEP BLUES.
 ///
 /// THE SECOND ONE WAS A GREEN-BLUE UNTIL THE 2026-09-01 DRILL. Alternating a
 /// blue with a colour that far from it read as a colour CHANGE rather than as
@@ -39,12 +39,12 @@ pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 /// the gamut the studio lamps report (type C) and not yet looked at. The
 /// operator's post-apply eye is the last step, and a change afterwards is
 /// THESE TWO CONSTANTS and nothing else.
-pub const NEEDS_YOU_COLOR: PulseColor = PulseColor {
+pub const BLOCKED_COLOR: PulseColor = PulseColor {
     x: 0.1532,
     y: 0.0475,
 };
 
-pub const NEEDS_YOU_ALT_COLOR: PulseColor = PulseColor { x: 0.15, y: 0.06 };
+pub const BLOCKED_ALT_COLOR: PulseColor = PulseColor { x: 0.15, y: 0.06 };
 
 /// The loop lamp's GLOW colour: magenta.
 ///
@@ -59,7 +59,7 @@ pub const NEEDS_YOU_ALT_COLOR: PulseColor = PulseColor { x: 0.15, y: 0.06 };
 /// and blue primaries and pulled off that edge toward white, and the
 /// operator's post-apply eye is what settles it. A change is this one
 /// constant.
-pub const LOOP_COLOR: PulseColor = PulseColor { x: 0.40, y: 0.19 };
+pub const UNREAD_COLOR: PulseColor = PulseColor { x: 0.40, y: 0.19 };
 
 /// True when a session ran long enough to be worth a light pulse.
 ///
@@ -102,7 +102,7 @@ pub fn exit_behaviour(exit_code: &str) -> crate::config::Behaviour {
 /// says it died, blue says it is waiting, and reusing the shared list would
 /// paint every failure blue. This is the honest divergence rather than a
 /// silent one, and a test pins the two lists as differing by exactly that word.
-pub const LAMP_NEEDS_YOU: [&str; 4] = ["blocked", "asked", "plan-ready", "denied"];
+pub const LAMP_BLOCKED: [&str; 4] = ["blocked", "asked", "plan-ready", "denied"];
 
 /// What a lamp says about an event's state, given whether this machine has a
 /// lamp map at all.
@@ -126,8 +126,8 @@ pub fn state_behaviour(state: &str, lamps_are_mapped: bool) -> crate::config::Be
     if state == "failed" {
         return crate::config::Behaviour::Failed;
     }
-    if lamps_are_mapped && LAMP_NEEDS_YOU.contains(&state) {
-        return crate::config::Behaviour::NeedsYou;
+    if lamps_are_mapped && LAMP_BLOCKED.contains(&state) {
+        return crate::config::Behaviour::Blocked;
     }
     crate::config::Behaviour::Done
 }
@@ -135,7 +135,7 @@ pub fn state_behaviour(state: &str, lamps_are_mapped: bool) -> crate::config::Be
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_LONG_SESSION_SECS, FAILURE_COLOR, LAMP_NEEDS_YOU, SUCCESS_COLOR, exit_behaviour,
+        DEFAULT_LONG_SESSION_SECS, FAILURE_COLOR, LAMP_BLOCKED, SUCCESS_COLOR, exit_behaviour,
         session_was_long, state_behaviour,
     };
     use crate::config::Behaviour;
@@ -188,7 +188,7 @@ mod tests {
         for state in ["blocked", "asked", "plan-ready", "denied"] {
             assert_eq!(
                 state_behaviour(state, true),
-                Behaviour::NeedsYou,
+                Behaviour::Blocked,
                 "state {state:?} waits on the operator"
             );
         }
@@ -216,7 +216,7 @@ mod tests {
             .copied()
             .filter(|state| *state != "failed")
             .collect();
-        let mut lamps = LAMP_NEEDS_YOU.to_vec();
+        let mut lamps = LAMP_BLOCKED.to_vec();
         lamps.sort_unstable();
         assert_eq!(lamps, shared_minus_failed);
     }
@@ -233,13 +233,13 @@ mod tests {
         // there is no third colour to show, no lamp that means "waiting" rather
         // than "finished", and turning that flash blue would be a new behaviour
         // arriving on a machine that asked for nothing.
-        for state in LAMP_NEEDS_YOU {
+        for state in LAMP_BLOCKED {
             assert_eq!(
                 state_behaviour(state, false),
                 Behaviour::Done,
                 "state {state:?} with no map"
             );
-            assert_eq!(state_behaviour(state, true), Behaviour::NeedsYou);
+            assert_eq!(state_behaviour(state, true), Behaviour::Blocked);
         }
         // The failure keeps its colour either way: red predates the map.
         assert_eq!(state_behaviour("failed", false), Behaviour::Failed);

@@ -1165,7 +1165,7 @@ mod tests {
         let urgent = lines
             .iter()
             .position(|line| line == "NEEDS YOU")
-            .expect("a needs-you section");
+            .expect("a blocked section");
         let night = lines
             .iter()
             .position(|line| line == "THE NIGHT IN ORDER")

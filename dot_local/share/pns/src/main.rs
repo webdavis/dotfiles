@@ -387,11 +387,11 @@ fn record_missed(
 /// lamp is derived from.
 ///
 /// ONE FILE PER WAITING SESSION, named by the session id through
-/// `lights::needs_marker`, so a harness id that cannot be a filename writes
+/// `lights::blocked_marker`, so a harness id that cannot be a filename writes
 /// nothing at all rather than escaping the state directory.
 ///
 /// EVERY EVENT ENDS A WAIT EXCEPT THE FOUR THAT START ONE, which is
-/// `needs_marker_action`'s rule and not a second copy of it here.
+/// `blocked_marker_action`'s rule and not a second copy of it here.
 ///
 /// THE LAG, NAMED RATHER THAN HIDDEN: the marker clears at the NEXT event from
 /// that session, which for an answered approval is the Stop hook at the end of
@@ -406,7 +406,7 @@ fn record_missed(
 /// sweeper and it does not run without the table. Removal is one unlink with
 /// nothing to accumulate, and gating it too meant a wait that ended while the
 /// lamps were off kept its marker: switching hue back on inside the thirty
-/// minute bound then put needs-you on a lamp for a session nobody was waiting
+/// minute bound then put blocked on a lamp for a session nobody was waiting
 /// on.
 ///
 /// THE OLDER STOP CAN REMOVE THE NEWER WAIT'S MARKER, and that is a stated
@@ -420,11 +420,11 @@ fn record_missed(
 /// re-publishes the wait it is still in.
 ///
 /// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason.
-fn update_needs_marker(state_dir: &Path, session_id: &str, event_state: &str, lamps_live: bool) {
-    let Some(marker) = pns::lights::needs_marker(state_dir, session_id) else {
+fn update_blocked_marker(state_dir: &Path, session_id: &str, event_state: &str, lamps_live: bool) {
+    let Some(marker) = pns::lights::blocked_marker(state_dir, session_id) else {
         return;
     };
-    match pns::lights::needs_marker_action(event_state) {
+    match pns::lights::blocked_marker_action(event_state) {
         pns::lights::Action::Start if !lamps_live => {}
         pns::lights::Action::Start => {
             // NO CLOCK IS NO MARKER, never a marker at epoch zero: the bound
@@ -2379,7 +2379,7 @@ fn run_event(
     // bulb, so a table with hue switched off lights nothing, runs no tick, and
     // must not accumulate markers nothing will ever sweep.
     let lamps_live = lights.is_some() && hue_table.is_some();
-    update_needs_marker(&state_dir(), session_id, &event.state, lamps_live);
+    update_blocked_marker(&state_dir(), session_id, &event.state, lamps_live);
     // AND THE ACTIVITY RING WITH IT, at the same site and under the same
     // ordering contract and the same fail-quiet rule. It records
     // UNCONDITIONALLY, which is the whole difference between it and the
@@ -2407,13 +2407,13 @@ fn run_event(
     // THE LAMPS HAVE A SECOND GATE, beside the plan's rather than inside it.
     // `plan.pulse` is `long_running` and it is what the decision log records;
     // widening it would change what every card, banner and log line says about
-    // an event that earned no card. The needs-you lamp is not a delivery, it is
+    // an event that earned no card. The blocked lamp is not a delivery, it is
     // a colour on a bulb, so it earns its own condition here: an agent waiting
     // on the operator lights blue whether or not it ran long.
     //
     // IT NEEDS A `[lights]` TABLE, which is the opt-in, and the opt-in is read
     // off the BEHAVIOUR rather than tested a second time here: `state_behaviour`
-    // only answers needs-you for a mapped machine, so the colour a lamp shows
+    // only answers blocked for a mapped machine, so the colour a lamp shows
     // and the gate that lets it fire cannot come out disagreeing about one
     // event. Without the map there is no blue to show, and a long-running
     // blocked turn keeps the green it has flashed since the bash.
@@ -2422,7 +2422,7 @@ fn run_event(
     // rather than a second copy of it: a muted operator gets no lamp, which is
     // the shipped rule that the lights are decoration too.
     let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
-    let needs_you_lamp = behaviour == pns::config::Behaviour::NeedsYou && !overrides.silenced();
+    let needs_you_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
     if decision.plan.pulse || needs_you_lamp {
         fire_pulse_unless_quiet(hue_table.clone(), lights.as_deref(), behaviour);
     }
@@ -2438,7 +2438,7 @@ fn run_event(
     // each with no listing to resolve, and it works on a machine where the
     // tick has not run for hours.
     if lamps_live && pns::missed_notifications::is_present(&decision) {
-        clear_held_glow(hue_table.as_ref());
+        clear_held_lamps(hue_table.as_ref());
     }
     // AND THE TICK'S LEASE IS REFRESHED LAST, by every event, which is what
     // makes a stalled loop go dark for free: nothing renews its own lease, so
@@ -2461,9 +2461,9 @@ fn run_event(
 /// the alternative is worse: a record kept until somebody proved the write
 /// landed would have every later event re-clearing a lamp that is already
 /// dark, forever, on a machine whose daemon is down.
-fn clear_held_glow(settings: Option<&toml::Table>) {
+fn clear_held_lamps(settings: Option<&toml::Table>) {
     let state = state_dir();
-    let held = held_glow(&state);
+    let held = held_lamps(&state);
     if held.is_empty() {
         return;
     }
@@ -2479,7 +2479,7 @@ fn clear_held_glow(settings: Option<&toml::Table>) {
         },
         &held,
     );
-    remember_held_glow(&state, &[]);
+    remember_held(&state, &[]);
 }
 
 /// Register the repeating tick, or drop the refusal.
@@ -4319,7 +4319,7 @@ fn lights_quiet() -> i32 {
 
 /// Publish the file, or remove it when nothing is muted.
 ///
-/// AN EMPTY FILE IS NO FILE, which is `remember_held_glow`'s own rule and is
+/// AN EMPTY FILE IS NO FILE, which is `remember_held`'s own rule and is
 /// what keeps the reader's refusal of an empty one honest: this never writes
 /// one, so a file with no lines in it was written by something else.
 fn publish_muted(state: &Path, kept: &[pns::lights::Muted]) -> std::io::Result<()> {
@@ -4410,11 +4410,11 @@ fn lights_tick() -> i32 {
     // THE FEATURE BEING OFF STILL PUTS A GLOW OUT. `[lights]` removed, or a
     // clock this machine cannot read, is a tick that can arm nothing; the
     // bridge above is still named, so the one thing it can still do is put out
-    // what the last tick was holding and forget it. `clear_held_glow` is the
+    // what the last tick was holding and forget it. `clear_held_lamps` is the
     // event path's own clear, reused whole rather than spelled a second way:
     // it costs one failed open on a machine holding nothing.
     let (Some(lights), Some(now)) = (config.lights.as_deref(), now_secs()) else {
-        clear_held_glow(Some(&settings));
+        clear_held_lamps(Some(&settings));
         return 0;
     };
     // AND CREDENTIALS THAT ARE GONE KEEP THE RECORD for the reason the hue
@@ -4424,8 +4424,9 @@ fn lights_tick() -> i32 {
         return 0;
     };
     let state = state_dir();
+    sweep_legacy_state(&state);
     let readings = lights_readings(&state, lights, now);
-    let held = held_glow(&state);
+    let held = held_lamps(&state);
     let house = pns::lights::house_state(&readings);
     let window = quiet_window(&settings);
     let fallback = window
@@ -4560,7 +4561,7 @@ fn arm_clear_and_remember<B: pns::channels::hue::Bridge>(
             held_now.push(path.clone());
         }
     }
-    remember_held_glow(state, &held_now);
+    remember_held(state, &held_now);
     complaints
 }
 
@@ -4594,8 +4595,8 @@ fn lights_readings(state: &Path, lights: &pns::config::Lights, now: u64) -> pns:
     // agent running stays DARK rather than glowing about unseen news.
     let working = pns::lights::any_working(&statuses, shell_since);
     pns::lights::Readings {
-        needs_you_at: pns::lights::needs_you_at(&sweep_needs(state, now), now, NEEDS_MAX_AGE_SECS),
-        breathing_since: pns::lights::breathing_since(&pns::lights::Breath {
+        blocked_at: pns::lights::blocked_at(&sweep_blocked(state, now), now, BLOCKED_MAX_AGE_SECS),
+        loop_since: pns::lights::loop_since(&pns::lights::Breath {
             enabled: &lights.breathe_on,
             agent_working,
             streak: streak.as_ref(),
@@ -4612,7 +4613,7 @@ fn lights_readings(state: &Path, lights: &pns::config::Lights, now: u64) -> pns:
             // override, and the plist is where to put one that both must read.
             long_command_secs: pulse_threshold_secs(),
         }),
-        glow_since: glow_reading(state, working),
+        unread_since: unread_reading(state, working),
     }
 }
 
@@ -4620,12 +4621,12 @@ fn lights_readings(state: &Path, lights: &pns::config::Lights, now: u64) -> pns:
 ///
 /// THE EDGE IS READ HERE, at the one place that knows where it lives, so the
 /// wiring between `LAST_PRESENT` and the rule is a seam a test can hold.
-/// `glow_since` is pure and total and has no clock of its own, which means an
+/// `unread_since` is pure and total and has no clock of its own, which means an
 /// edge invented at the call site would leave every one of its unit tests green
 /// while the glow never fired on a real machine: nothing in the journal is ever
 /// newer than this second.
-fn glow_reading(state: &Path, working: bool) -> Option<u64> {
-    pns::lights::glow_since(
+fn unread_reading(state: &Path, working: bool) -> Option<u64> {
+    pns::lights::unread_since(
         &journalled_misses(state),
         read_epoch(&state.join(LAST_PRESENT)),
         working,
@@ -4635,7 +4636,7 @@ fn glow_reading(state: &Path, working: bool) -> Option<u64> {
 /// The oldest epoch a LIVE shell is holding, with the markers whose shells are
 /// gone REMOVED on the way through.
 ///
-/// THE SWEEP LIVES WITH THE READ, for `sweep_needs`' reason: the tick is the
+/// THE SWEEP LIVES WITH THE READ, for `sweep_blocked`' reason: the tick is the
 /// only process that ever looks in this directory, and a shell killed
 /// mid-command leaves a file its own precmd will never run to remove.
 ///
@@ -4646,7 +4647,7 @@ fn glow_reading(state: &Path, working: bool) -> Option<u64> {
 /// never reach a threshold measured in minutes.
 ///
 /// AN EPOCH THAT CANNOT BE READ IS NOT SWEPT WHILE ITS SHELL IS ALIVE, which
-/// is the one place this differs from `sweep_needs`. The shell publishes with a
+/// is the one place this differs from `sweep_blocked`. The shell publishes with a
 /// truncating redirect, so a tick landing between that open and the write sees
 /// an empty file for a command that is genuinely starting; unlinking it there
 /// wins the race and the build then runs to completion with no marker at all.
@@ -4685,9 +4686,9 @@ fn sweep_shell_markers(state: &Path) -> Option<u64> {
 /// ever looks in this directory: a session that ends without another event
 /// leaves a marker nothing else would ever remove, and one file per abandoned
 /// session for the life of a machine is unbounded growth.
-fn sweep_needs(state: &Path, now: u64) -> Vec<u64> {
+fn sweep_blocked(state: &Path, now: u64) -> Vec<u64> {
     let mut live = Vec::new();
-    for entry in std::fs::read_dir(pns::lights::needs_dir(state))
+    for entry in std::fs::read_dir(pns::lights::blocked_dir(state))
         .into_iter()
         .flatten()
         .flatten()
@@ -4711,7 +4712,7 @@ fn sweep_needs(state: &Path, now: u64) -> Vec<u64> {
             continue;
         }
         match read_epoch(&path) {
-            Some(at) if pns::lights::needs_is_live(at, now, NEEDS_MAX_AGE_SECS) => live.push(at),
+            Some(at) if pns::lights::marker_is_live(at, now, BLOCKED_MAX_AGE_SECS) => live.push(at),
             // AN UNREADABLE MARKER IS SWEPT TOO, and it is not the same as an
             // expired one only in how it got here: nothing can age out a file
             // whose epoch cannot be read, so leaving it would be the same
@@ -4726,7 +4727,7 @@ fn sweep_needs(state: &Path, now: u64) -> Vec<u64> {
 
 /// The working streak after this tick's reading, published or removed.
 fn advance_streak(state: &Path, working: bool, now: u64) -> Option<pns::lights::Streak> {
-    let marker = state.join(LIGHTS_WORKING_SINCE);
+    let marker = state.join(LIGHTS_STREAK);
     let held = std::fs::read_to_string(&marker)
         .ok()
         .and_then(|line| pns::lights::parse_streak(&line));
@@ -4752,8 +4753,8 @@ fn journalled_misses(state: &Path) -> Vec<pns::missed_notifications::Entry> {
 }
 
 /// The fixture paths a steady glow write is currently holding.
-fn held_glow(state: &Path) -> Vec<String> {
-    std::fs::read_to_string(state.join(LIGHTS_GLOW_HELD))
+fn held_lamps(state: &Path) -> Vec<String> {
+    std::fs::read_to_string(state.join(LIGHTS_HELD))
         .unwrap_or_default()
         .split_whitespace()
         .map(str::to_string)
@@ -4778,8 +4779,8 @@ fn held_glow(state: &Path) -> Vec<String> {
 /// one refresh interval. It is unbounded only for a tick that was its lease's
 /// LAST run, and there the lamp waits for the operator's return, which is the
 /// event that clears it.
-fn remember_held_glow(state: &Path, held: &[String]) {
-    let marker = state.join(LIGHTS_GLOW_HELD);
+fn remember_held(state: &Path, held: &[String]) {
+    let marker = state.join(LIGHTS_HELD);
     if held.is_empty() {
         let _ = std::fs::remove_file(&marker);
         return;
@@ -4814,10 +4815,34 @@ fn say_lights_once(state: &Path, complaints: &[String], marker: &str) {
     }
 }
 
+/// Delete the state the lamps kept under their OLD names, and never read it.
+///
+/// THE DEPLOY TRANSITION, and it is a deletion rather than a migration. Every
+/// one of these files is derived from the machine on the next tick anyway (a
+/// wait re-arrives with its session's next event, a streak restarts the moment
+/// work is seen), so carrying the contents forward would buy nothing and would
+/// mean two readers of one fact for as long as the code lived.
+///
+/// THE DARK DIRECTION, which is what makes the held record safe to drop: the
+/// old record named lamps a steady write was holding, and the binary that wrote
+/// them is gone. Deleting it leaves at most one lamp lit until the operator's
+/// next event, and keeping it would have the NEW tick clear lamps it never
+/// wrote by names it never chose.
+///
+/// ONCE, WITHOUT A MARKER TO SAY SO. A removal of a name that is not there is
+/// one failed syscall, so the deletion happens exactly once and every tick after
+/// it pays three of those rather than a fourth state file.
+fn sweep_legacy_state(state: &Path) {
+    for legacy in ["lights-glow", "lights-working-since"] {
+        let _ = std::fs::remove_file(state.join(legacy));
+    }
+    let _ = std::fs::remove_dir_all(state.join("lights-needs"));
+}
+
 /// How long an unanswered wait may hold a lamp blue. Half an hour: long enough
 /// for the operator to come back from something, short enough that a session
 /// abandoned mid-question does not own a bulb for the rest of the day.
-const NEEDS_MAX_AGE_SECS: u64 = 30 * 60;
+const BLOCKED_MAX_AGE_SECS: u64 = 30 * 60;
 
 /// How long a run of work survives readings that say nothing is working.
 ///
@@ -4828,7 +4853,7 @@ const NEEDS_MAX_AGE_SECS: u64 = 30 * 60;
 const WORKING_GRACE_SECS: u64 = 120;
 
 /// Where the streak lives.
-const LIGHTS_WORKING_SINCE: &str = "lights-working-since";
+const LIGHTS_STREAK: &str = "lights-streak";
 
 /// Where the shell says a tracked command is running: ONE FILE PER INTERACTIVE
 /// SHELL, named for that shell's pid, holding ONE EPOCH, the second the
@@ -4859,7 +4884,7 @@ const LIGHTS_WORKING_SINCE: &str = "lights-working-since";
 const LIGHTS_SHELL_DIR: &str = "lights-shell";
 
 /// Where the fixture paths a steady glow is holding are recorded.
-const LIGHTS_GLOW_HELD: &str = "lights-glow";
+const LIGHTS_HELD: &str = "lights-held";
 
 /// Where a tick remembers what it last complained about.
 const LIGHTS_SAID: &str = "lights-said";
@@ -6599,12 +6624,12 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LAST_PRESENT, LIGHTS_GLOW_HELD,
+        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LAST_PRESENT, LIGHTS_HELD,
         LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, MISSED_NOTIFICATIONS,
-        STATE_FILE_MODE, arm_clear_and_remember, glow_reading, lights_report, matches_glob,
+        STATE_FILE_MODE, arm_clear_and_remember, unread_reading, lights_report, matches_glob,
         muted_state, publish_state_line, read_note, recap_bounds, republish_after,
-        reread_attempts_from, reread_interval_from, resolve_path, sweep_needs, sweep_shell_markers,
-        update_needs_marker,
+        reread_attempts_from, reread_interval_from, resolve_path, sweep_blocked, sweep_shell_markers,
+        update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::PermissionsExt;
@@ -6736,7 +6761,7 @@ mod tests {
 
     /// What the held record says now, or None when there is no record.
     fn recorded(state: &std::path::Path) -> Option<String> {
-        std::fs::read_to_string(state.join(LIGHTS_GLOW_HELD))
+        std::fs::read_to_string(state.join(LIGHTS_HELD))
             .ok()
             .map(|line| line.trim().to_string())
     }
@@ -6756,7 +6781,7 @@ mod tests {
         // transition happens the moment work resumes during an absence.
         let state = scratch("breathing-over-glow");
         let held = vec![STUDIO_GROUP.to_string()];
-        std::fs::write(state.join(LIGHTS_GLOW_HELD), format!("{STUDIO_GROUP}\n"))
+        std::fs::write(state.join(LIGHTS_HELD), format!("{STUDIO_GROUP}\n"))
             .expect("the held record");
 
         let bridge = scripted(Some(ONE_ROOM));
@@ -6764,7 +6789,7 @@ mod tests {
             &bridge,
             &state,
             &loop_lights(),
-            Some(&armed(pns::config::Behaviour::Breathing)),
+            Some(&armed(pns::config::Behaviour::Looping)),
             &held,
         );
         assert_eq!(
@@ -6805,28 +6830,28 @@ mod tests {
         // serve both. Gating the whole update on the feature switches stopped
         // the marker being CLEARED as well: a wait that ended while hue was off
         // stayed on disk, and re-enabling hue inside the thirty-minute bound
-        // put needs-you back on a lamp for a session nobody is waiting on.
+        // put blocked back on a lamp for a session nobody is waiting on.
         let state = scratch("needs-marker-end-ungated");
-        let marker = pns::lights::needs_marker(&state, "s1").expect("a usable session id");
+        let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
         std::fs::create_dir_all(marker.parent().expect("the needs directory"))
             .expect("the needs directory");
         std::fs::write(&marker, "1000\n").expect("a wait in progress");
 
-        update_needs_marker(&state, "s1", "done", false);
+        update_blocked_marker(&state, "s1", "done", false);
         assert!(
             !marker.exists(),
             "the wait ended, so the marker goes, lamps live or not: it is one \
              unlink and it clears a leftover from when they were"
         );
 
-        update_needs_marker(&state, "s1", "blocked", false);
+        update_blocked_marker(&state, "s1", "blocked", false);
         assert!(
             !marker.exists(),
             "but STARTING one stays gated: a machine that never asked for the \
              lamps must not accumulate files that nothing will ever sweep"
         );
 
-        update_needs_marker(&state, "s1", "blocked", true);
+        update_blocked_marker(&state, "s1", "blocked", true);
         assert!(
             marker.exists(),
             "and a machine with them live starts the wait, which is what makes \
@@ -6989,7 +7014,7 @@ mod tests {
         // there: the racing rename then publishes nothing and the wait is lost
         // with the agent still waiting on the operator.
         let state = scratch("sweep-skips-pending");
-        let needs = pns::lights::needs_dir(&state);
+        let needs = pns::lights::blocked_dir(&state);
         std::fs::create_dir_all(&needs).expect("the needs directory");
         std::fs::write(needs.join("s1"), "1000\n").expect("a live wait");
         let pending = needs.join(format!("s2.new.{}", std::process::id()));
@@ -6997,7 +7022,7 @@ mod tests {
         std::fs::write(needs.join("s3"), "not an epoch\n").expect("an unreadable marker");
 
         assert_eq!(
-            sweep_needs(&state, 1000),
+            sweep_blocked(&state, 1000),
             vec![1000],
             "the live wait is still what the sweep answers with"
         );
@@ -7014,7 +7039,7 @@ mod tests {
 
     #[test]
     fn the_glow_reads_its_return_edge_off_the_marker_and_the_news_off_the_journal() {
-        // THE WIRING, not the rule. `glow_since` is pure and total and has no
+        // THE WIRING, not the rule. `unread_since` is pure and total and has no
         // clock of its own, so an edge invented at the call site (`Some(now)`,
         // say) leaves every one of its unit tests green while the glow can
         // never fire on a real machine at all: no journal entry is ever newer
@@ -7030,7 +7055,7 @@ mod tests {
 
         std::fs::write(state.join(LAST_PRESENT), "500\n").expect("an old return edge");
         assert_eq!(
-            glow_reading(&state, false),
+            unread_reading(&state, false),
             Some(1000),
             "news journalled AFTER the operator was last here is unseen, and the \
              glow answers the second it landed"
@@ -7038,7 +7063,7 @@ mod tests {
 
         std::fs::write(state.join(LAST_PRESENT), "1500\n").expect("a newer return edge");
         assert_eq!(
-            glow_reading(&state, false),
+            unread_reading(&state, false),
             None,
             "and the edge moving past it is what puts the state out with no \
              timeout and no second clear path"
@@ -7046,7 +7071,7 @@ mod tests {
 
         std::fs::remove_file(state.join(LAST_PRESENT)).expect("the edge goes");
         assert_eq!(
-            glow_reading(&state, false),
+            unread_reading(&state, false),
             None,
             "no edge at all is no glow: a machine that cannot prove the operator \
              ever came back cannot prove this news is unseen either"
@@ -7062,7 +7087,7 @@ mod tests {
         // anything held to clear, and the event path reads an empty record and
         // returns without a call.
         let state = scratch("bridge-down-keeps-the-record");
-        std::fs::write(state.join(LIGHTS_GLOW_HELD), format!("{STUDIO_GROUP}\n"))
+        std::fs::write(state.join(LIGHTS_HELD), format!("{STUDIO_GROUP}\n"))
             .expect("the held record");
 
         let bridge = scripted(None);
@@ -7070,7 +7095,7 @@ mod tests {
             &bridge,
             &state,
             &loop_lights(),
-            Some(&armed(pns::config::Behaviour::Glow)),
+            Some(&armed(pns::config::Behaviour::Unread)),
             &[STUDIO_GROUP.to_string()],
         );
         assert!(

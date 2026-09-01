@@ -174,13 +174,13 @@ pub struct Breath<'reading> {
 /// THE START EPOCH RATHER THAN A BOOLEAN, because the catch-up rule needs to
 /// know WHEN a state began in order to ask whether it began inside a quiet
 /// window. Every state here answers the same shape for the same reason, and
-/// the FRESHEST source wins for `glow_since`'s reason: a run that began after
+/// the FRESHEST source wins for `unread_since`'s reason: a run that began after
 /// a quiet window ended is not a leftover of that window.
 ///
 /// A `now` BEHIND A START HAS NO ELAPSED TIME IN IT. A clock that stepped
 /// backwards would otherwise wrap a subtraction into a huge number that passes
 /// every threshold there is.
-pub fn breathing_since(breath: &Breath<'_>) -> Option<u64> {
+pub fn loop_since(breath: &Breath<'_>) -> Option<u64> {
     let on = |source| breath.enabled.contains(&source);
     let ran_for = |since: u64, threshold: u64| {
         breath
@@ -256,7 +256,7 @@ pub fn breathing_since(breath: &Breath<'_>) -> Option<u64> {
 ///
 /// AN ENTRY WITH NO `at` CANNOT GLOW. Its writer had no readable clock, so it
 /// sits in no window at all and there is nothing to compare against an edge.
-pub fn glow_since(
+pub fn unread_since(
     entries: &[crate::missed_notifications::Entry],
     return_edge: Option<u64>,
     working: bool,
@@ -281,14 +281,14 @@ pub fn glow_since(
 /// sends one again would otherwise hold the lamp until the operator went
 /// looking for a file. BOTH EDGES CLOSED: exactly at the bound is still live.
 ///
-/// THE FRESHEST AND NOT THE OLDEST, for `glow_since`'s reason: the only reader
+/// THE FRESHEST AND NOT THE OLDEST, for `unread_since`'s reason: the only reader
 /// of this epoch is the catch-up rule, and a wait that began after a quiet
 /// window ended is not a leftover of that window.
-pub fn needs_you_at(marker_epochs: &[u64], now: u64, max_age_secs: u64) -> Option<u64> {
+pub fn blocked_at(marker_epochs: &[u64], now: u64, max_age_secs: u64) -> Option<u64> {
     marker_epochs
         .iter()
         .copied()
-        .filter(|at| needs_is_live(*at, now, max_age_secs))
+        .filter(|at| marker_is_live(*at, now, max_age_secs))
         .max()
 }
 
@@ -303,7 +303,7 @@ pub fn needs_you_at(marker_epochs: &[u64], now: u64, max_age_secs: u64) -> Optio
 /// A MARKER FROM THE FUTURE IS LIVE. A clock that stepped backwards is not a
 /// wait that ended, and the saturating subtraction reads it as zero seconds
 /// old rather than as an enormous age that would delete it.
-pub fn needs_is_live(at: u64, now: u64, max_age_secs: u64) -> bool {
+pub fn marker_is_live(at: u64, now: u64, max_age_secs: u64) -> bool {
     now.saturating_sub(at) <= max_age_secs
 }
 
@@ -315,9 +315,9 @@ pub fn needs_is_live(at: u64, now: u64, max_age_secs: u64) -> bool {
 /// are epochs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Readings {
-    pub needs_you_at: Option<u64>,
-    pub breathing_since: Option<u64>,
-    pub glow_since: Option<u64>,
+    pub blocked_at: Option<u64>,
+    pub loop_since: Option<u64>,
+    pub unread_since: Option<u64>,
 }
 
 /// One state, and when the thing behind it happened.
@@ -332,7 +332,7 @@ pub struct State {
 
 /// The one state the house is in, or None for a dark one.
 ///
-/// NEEDS-YOU ON TOP, which is the operator's own ruling and is delivered here
+/// BLOCKED ON TOP, which is the operator's own ruling and is delivered here
 /// rather than by a per-fixture priority file: one state is derived from
 /// scratch every tick, so there is no stored priority for two processes to
 /// disagree about and no read-before-write on the event path.
@@ -345,17 +345,17 @@ pub struct State {
 pub fn house_state(readings: &Readings) -> Option<State> {
     let (behaviour, since) = match readings {
         Readings {
-            needs_you_at: Some(at),
+            blocked_at: Some(at),
             ..
-        } => (crate::config::Behaviour::NeedsYou, *at),
+        } => (crate::config::Behaviour::Blocked, *at),
         Readings {
-            breathing_since: Some(since),
+            loop_since: Some(since),
             ..
-        } => (crate::config::Behaviour::Breathing, *since),
+        } => (crate::config::Behaviour::Looping, *since),
         Readings {
-            glow_since: Some(since),
+            unread_since: Some(since),
             ..
-        } => (crate::config::Behaviour::Glow, *since),
+        } => (crate::config::Behaviour::Unread, *since),
         _ => return None,
     };
     Some(State { behaviour, since })
@@ -379,12 +379,12 @@ pub enum Action {
 /// lamp go dark: an unknown word treated as a start would hold blue on a
 /// session nobody is waiting for.
 ///
-/// IT READS `pulse::LAMP_NEEDS_YOU`, the four-word list the lamps already
+/// IT READS `pulse::LAMP_BLOCKED`, the four-word list the lamps already
 /// carry, and NOT `missed_notifications::NEEDS_YOU`, which correctly includes
 /// `failed`. A dead turn is red, not blue, and it is not a wait anybody can
 /// end.
-pub fn needs_marker_action(event_state: &str) -> Action {
-    if crate::pulse::LAMP_NEEDS_YOU.contains(&event_state) {
+pub fn blocked_marker_action(event_state: &str) -> Action {
+    if crate::pulse::LAMP_BLOCKED.contains(&event_state) {
         Action::Start
     } else {
         Action::End
@@ -392,8 +392,8 @@ pub fn needs_marker_action(event_state: &str) -> Action {
 }
 
 /// Where the needs markers live: one file per waiting session.
-pub fn needs_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
-    state_dir.join("lights-needs")
+pub fn blocked_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
+    state_dir.join("lights-blocked")
 }
 
 /// One session's marker path, or None for a session id that cannot become a
@@ -404,8 +404,8 @@ pub fn needs_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
 /// filename; `session_id_is_safe` forbids it and already backs a filename in
 /// this same directory (`session-<id>.start`). Reusing it writes no new
 /// predicate and opens no new door.
-pub fn needs_marker(state_dir: &std::path::Path, session_id: &str) -> Option<std::path::PathBuf> {
-    crate::safety::session_id_is_safe(session_id).then(|| needs_dir(state_dir).join(session_id))
+pub fn blocked_marker(state_dir: &std::path::Path, session_id: &str) -> Option<std::path::PathBuf> {
+    crate::safety::session_id_is_safe(session_id).then(|| blocked_dir(state_dir).join(session_id))
 }
 
 /// What a tick does with the complaints it has this second.
@@ -721,8 +721,8 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 mod tests {
     use super::{
         Action, Breath, MAX_MUTED_PLACES, Muted, QuietCommand, Readings, Say, State, Streak,
-        WORKING, any_working, breathing_since, glow_since, house_state, muted_after, muted_entries,
-        muted_places, muted_report, needs_marker, needs_marker_action, needs_you_at, next_streak,
+        WORKING, any_working, loop_since, unread_since, house_state, muted_after, muted_entries,
+        muted_places, muted_report, blocked_marker, blocked_marker_action, blocked_at, next_streak,
         parse_streak, quiet_command, render_muted, render_streak, say, workspace_agent_statuses,
     };
     use crate::config::{Behaviour, BreatheSource};
@@ -919,11 +919,11 @@ mod tests {
         ];
         for (source, watched, ignored) in &cases {
             assert!(
-                breathing_since(watched).is_some(),
+                loop_since(watched).is_some(),
                 "{source:?} must breathe for the activity it names"
             );
             assert_eq!(
-                breathing_since(ignored),
+                loop_since(ignored),
                 None,
                 "{source:?} must contribute NOTHING for an activity it does not name"
             );
@@ -935,7 +935,7 @@ mod tests {
         let run = streak_from(0);
         // An agent working, a command running, and only the commands named.
         assert_eq!(
-            breathing_since(&breath(
+            loop_since(&breath(
                 &[BreatheSource::Commands],
                 true,
                 Some(&run),
@@ -945,7 +945,7 @@ mod tests {
             "the named source still breathes, and it answers ITS OWN start"
         );
         assert_eq!(
-            breathing_since(&breath(&[], true, Some(&run), Some(NOW))),
+            loop_since(&breath(&[], true, Some(&run), Some(NOW))),
             None,
             "and an empty breathe_on is breathing off, however much is working"
         );
@@ -958,21 +958,21 @@ mod tests {
         let at = streak_from(AFTER);
         let over = streak_from(AFTER + 1);
         assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&under), None)),
+            loop_since(&breath(&only_loops, true, Some(&under), None)),
             None,
             "one second under the threshold is not a loop yet"
         );
         assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&at), None)),
+            loop_since(&breath(&only_loops, true, Some(&at), None)),
             Some(NOW - AFTER),
             "exactly at it, it breathes, and it answers the second the run STARTED"
         );
         assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&over), None)),
+            loop_since(&breath(&only_loops, true, Some(&over), None)),
             Some(NOW - AFTER - 1),
         );
         assert_eq!(
-            breathing_since(&breath(&only_loops, false, None, None)),
+            loop_since(&breath(&only_loops, false, None, None)),
             None,
             "no streak is nothing working, however late it is"
         );
@@ -984,7 +984,7 @@ mod tests {
         // breathing outranks glow, so the lamp says the wrong thing rather than
         // saying nothing.
         assert_eq!(
-            breathing_since(&breath(&only_loops, false, Some(&over), None)),
+            loop_since(&breath(&only_loops, false, Some(&over), None)),
             None,
             "a streak still inside its grace is not an agent that is still working"
         );
@@ -996,7 +996,7 @@ mod tests {
             last_seen: NOW + 500,
         };
         assert_eq!(
-            breathing_since(&breath(&only_loops, true, Some(&future), None)),
+            loop_since(&breath(&only_loops, true, Some(&future), None)),
             None,
             "a now before the streak began has no elapsed time in it"
         );
@@ -1019,37 +1019,37 @@ mod tests {
         const NOT_WORKING: bool = false;
         const WORKING_NOW: bool = true;
         assert_eq!(
-            glow_since(&[missed(Some(1_100))], Some(1_000), NOT_WORKING),
+            unread_since(&[missed(Some(1_100))], Some(1_000), NOT_WORKING),
             Some(1_100),
             "news the operator has not been back for, with nothing running: glow"
         );
         assert_eq!(
-            glow_since(&[missed(Some(1_100))], Some(1_000), WORKING_NOW),
+            unread_since(&[missed(Some(1_100))], Some(1_000), WORKING_NOW),
             None,
             "the same entry with something working is the BREATHING lamp's business"
         );
         assert_eq!(
-            glow_since(&[missed(Some(900))], Some(1_000), NOT_WORKING),
+            unread_since(&[missed(Some(900))], Some(1_000), NOT_WORKING),
             None,
             "an entry older than the edge was seen when the operator came back"
         );
         assert_eq!(
-            glow_since(&[missed(Some(1_000))], Some(1_000), NOT_WORKING),
+            unread_since(&[missed(Some(1_000))], Some(1_000), NOT_WORKING),
             None,
             "an entry AT the edge is not newer than it; dark is the direction on a tie"
         );
         assert_eq!(
-            glow_since(&[missed(None)], Some(1_000), NOT_WORKING),
+            unread_since(&[missed(None)], Some(1_000), NOT_WORKING),
             None,
             "an entry whose writer had no clock sits in no window and cannot glow"
         );
         assert_eq!(
-            glow_since(&[missed(Some(1_100))], None, NOT_WORKING),
+            unread_since(&[missed(Some(1_100))], None, NOT_WORKING),
             None,
             "no return edge at all is no proof the news is unseen, so the lamp stays dark"
         );
         assert_eq!(
-            glow_since(&[], Some(1_000), NOT_WORKING),
+            unread_since(&[], Some(1_000), NOT_WORKING),
             None,
             "an empty journal is nothing unseen"
         );
@@ -1057,7 +1057,7 @@ mod tests {
         // a glow carrying news from after the quiet window ended is not a
         // leftover of that window, whatever else is queued behind it.
         assert_eq!(
-            glow_since(
+            unread_since(
                 &[
                     missed(Some(1_100)),
                     missed(Some(1_400)),
@@ -1072,70 +1072,70 @@ mod tests {
     }
 
     #[test]
-    fn needs_you_outranks_both_and_an_expired_marker_does_not_count() {
+    fn a_blocked_wait_outranks_both_and_an_expired_marker_does_not_count() {
         const BOUND: u64 = 1_800;
         assert_eq!(
-            needs_you_at(&[1_000, 1_400], 2_000, BOUND),
+            blocked_at(&[1_000, 1_400], 2_000, BOUND),
             Some(1_400),
             "a live marker is a wait, and the freshest one is when it last began"
         );
         assert_eq!(
-            needs_you_at(&[1_000], 1_000 + BOUND, BOUND),
+            blocked_at(&[1_000], 1_000 + BOUND, BOUND),
             Some(1_000),
             "exactly at the bound is still live: both edges closed"
         );
         assert_eq!(
-            needs_you_at(&[1_000], 1_000 + BOUND + 1, BOUND),
+            blocked_at(&[1_000], 1_000 + BOUND + 1, BOUND),
             None,
             "one second past it, an abandoned session can no longer hold a lamp blue"
         );
         assert_eq!(
-            needs_you_at(&[], 2_000, BOUND),
+            blocked_at(&[], 2_000, BOUND),
             None,
             "no marker is no wait"
         );
 
-        // THE PRIORITY, which is the operator's own "needs-you on top".
+        // THE PRIORITY, which is the operator's own "blocked on top".
         assert_eq!(
             house_state(&Readings {
-                needs_you_at: Some(1_400),
-                breathing_since: Some(1_000),
-                glow_since: Some(1_200),
+                blocked_at: Some(1_400),
+                loop_since: Some(1_000),
+                unread_since: Some(1_200),
             }),
             Some(State {
-                behaviour: Behaviour::NeedsYou,
+                behaviour: Behaviour::Blocked,
                 since: 1_400
             }),
             "a live wait beats working and beats unseen news"
         );
         assert_eq!(
             house_state(&Readings {
-                needs_you_at: None,
-                breathing_since: Some(1_000),
-                glow_since: Some(1_200),
+                blocked_at: None,
+                loop_since: Some(1_000),
+                unread_since: Some(1_200),
             }),
             Some(State {
-                behaviour: Behaviour::Breathing,
+                behaviour: Behaviour::Looping,
                 since: 1_000
             }),
             "with no wait, something working beats unseen news"
         );
         assert_eq!(
             house_state(&Readings {
-                needs_you_at: None,
-                breathing_since: None,
-                glow_since: Some(1_200),
+                blocked_at: None,
+                loop_since: None,
+                unread_since: Some(1_200),
             }),
             Some(State {
-                behaviour: Behaviour::Glow,
+                behaviour: Behaviour::Unread,
                 since: 1_200
             }),
         );
         assert_eq!(
             house_state(&Readings {
-                needs_you_at: None,
-                breathing_since: None,
-                glow_since: None,
+                blocked_at: None,
+                loop_since: None,
+                unread_since: None,
             }),
             None,
             "and none of the three is a dark house"
@@ -1143,17 +1143,17 @@ mod tests {
     }
 
     #[test]
-    fn a_needs_you_event_starts_a_wait_and_every_other_event_ends_one() {
-        for waiting in crate::pulse::LAMP_NEEDS_YOU {
+    fn a_blocked_event_starts_a_wait_and_every_other_event_ends_one() {
+        for waiting in crate::pulse::LAMP_BLOCKED {
             assert_eq!(
-                needs_marker_action(waiting),
+                blocked_marker_action(waiting),
                 Action::Start,
                 "{waiting} is an agent waiting on the operator"
             );
         }
         for ended in ["done", "failed", "stale", "", "anything-else"] {
             assert_eq!(
-                needs_marker_action(ended),
+                blocked_marker_action(ended),
                 Action::End,
                 "{ended} is a later event from that session, so the wait is over"
             );
@@ -1164,15 +1164,15 @@ mod tests {
     fn a_session_id_that_cannot_be_a_filename_names_no_marker_at_all() {
         let state = std::path::Path::new("/state");
         assert_eq!(
-            needs_marker(state, "sess-123"),
-            Some(state.join("lights-needs").join("sess-123")),
+            blocked_marker(state, "sess-123"),
+            Some(state.join("lights-blocked").join("sess-123")),
             "an ordinary id names a file inside the needs directory"
         );
         // THE PATH-ESCAPE GUARD, through the predicate that already backs
         // `session-<id>.start` in this same directory rather than a second one.
         for refused in ["..", "../etc/passwd", "a/b", "", "a:b", "a b"] {
             assert_eq!(
-                needs_marker(state, refused),
+                blocked_marker(state, refused),
                 None,
                 "{refused:?} must name no marker"
             );

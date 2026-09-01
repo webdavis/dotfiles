@@ -333,7 +333,7 @@ pub fn needs_light_listing(
 /// The families whose behaviours include a STATE, and therefore the only ones
 /// that can contest a lamp.
 ///
-/// `local` holds needs-you and `loop` holds breathing and glow. `github` is
+/// `local` holds blocked and `loop` holds breathing and glow. `github` is
 /// PLUMBING ONLY today (operator ruling): it resolves lamps and nothing
 /// produces its events, so it cannot contest one. That is why the studio map's
 /// own `github` and `loop` claims on one lamp are not a conflict, and why the
@@ -708,14 +708,14 @@ pub fn signal_body(behaviour: crate::config::Behaviour, dim: Dimming) -> Option<
     let (signal, colors) = match behaviour {
         crate::config::Behaviour::Done => ("on_off_color", vec![crate::pulse::SUCCESS_COLOR]),
         crate::config::Behaviour::Failed => ("on_off_color", vec![crate::pulse::FAILURE_COLOR]),
-        crate::config::Behaviour::NeedsYou => (
+        crate::config::Behaviour::Blocked => (
             "alternating",
             vec![
-                crate::pulse::NEEDS_YOU_COLOR,
-                crate::pulse::NEEDS_YOU_ALT_COLOR,
+                crate::pulse::BLOCKED_COLOR,
+                crate::pulse::BLOCKED_ALT_COLOR,
             ],
         ),
-        crate::config::Behaviour::Breathing | crate::config::Behaviour::Glow => return None,
+        crate::config::Behaviour::Looping | crate::config::Behaviour::Unread => return None,
     };
     Some(
         stating(
@@ -768,7 +768,7 @@ fn brightness(dim: Dimming, full: f64) -> Option<f64> {
 ///
 /// THE FLOOR BEATS THE BEHAVIOUR'S OWN LEVEL, which is the operator's decision
 /// of 2026-08-30 taken literally: dim mode is the same signals at the
-/// brightness floor, so the glow's own low `GLOW_BRIGHTNESS` gives way to it
+/// brightness floor, so the glow's own low `UNREAD_BRIGHTNESS` gives way to it
 /// inside a dim window rather than being the lower of the two.
 fn floor_or(dim: Dimming, own: f64) -> f64 {
     match dim {
@@ -1264,8 +1264,8 @@ pub fn family_produces(family: &str, behaviour: crate::config::Behaviour) -> boo
 /// awake cannot come out disagreeing about one behaviour.
 pub fn producing_family(behaviour: crate::config::Behaviour) -> Option<&'static str> {
     match behaviour {
-        crate::config::Behaviour::NeedsYou => Some(LOCAL_FAMILY),
-        crate::config::Behaviour::Breathing | crate::config::Behaviour::Glow => Some(LOOP_FAMILY),
+        crate::config::Behaviour::Blocked => Some(LOCAL_FAMILY),
+        crate::config::Behaviour::Looping | crate::config::Behaviour::Unread => Some(LOOP_FAMILY),
         crate::config::Behaviour::Done | crate::config::Behaviour::Failed => None,
     }
 }
@@ -1361,17 +1361,17 @@ const ALERT_BREATHE: &str = "breathe";
 /// How bright the glow runs, in percent. Low enough to read as a glow rather
 /// than as a lamp somebody left on, and not yet approved as seen: it waits on
 /// the operator's eye exactly as the colours do.
-const GLOW_BRIGHTNESS: f64 = 25.0;
+const UNREAD_BRIGHTNESS: f64 = 25.0;
 
 /// The PUT body one STATE holds a lamp with, or None for a behaviour that is a
 /// pulse rather than a state.
 ///
 /// THREE SHAPES, AND THE DRILL OF 2026-09-01 CHOSE TWO OF THEM.
 ///
-/// `needs-you` alternates its two deep blues for one refresh interval plus the
+/// `blocked` alternates its two deep blues for one refresh interval plus the
 /// slack, so the daemon's next re-arm lands while it is still running.
 ///
-/// `breathing` IS THE BRIDGE'S OWN BREATHE (operator decision, 2026-08-30).
+/// `loop` IS THE BRIDGE'S OWN BREATHE (operator decision, 2026-08-30).
 /// Every shape this crate could build out of `signalling` failed on a real
 /// lamp: a long `on_off_color` is a strobe, and a near-steady alternating pair
 /// is a turn signal. The bridge already renders what was wanted, so this asks
@@ -1388,7 +1388,7 @@ const GLOW_BRIGHTNESS: f64 = 25.0;
 /// NO DURATION IS COMPUTED HERE. How long a swell runs is the bridge's
 /// business, and a duration field on this action is one the bridge ignores.
 ///
-/// `glow` IS THE ONE BODY HERE THAT IS NOT A SIGNAL AT ALL. The drill found
+/// `unread` IS THE ONE BODY HERE THAT IS NOT A SIGNAL AT ALL. The drill found
 /// the near-steady alternating pair read as a TURN SIGNAL, so glow takes the
 /// design's own plan B: a plain state write of `on` plus `color` plus a low
 /// `dimming`, which is genuinely steady. THE PRICE, STATED WHERE IT IS PAID:
@@ -1404,18 +1404,18 @@ pub fn state_body(
     dim: Dimming,
 ) -> Option<String> {
     let (signal, colors, duration_ms) = match behaviour {
-        crate::config::Behaviour::NeedsYou => (
+        crate::config::Behaviour::Blocked => (
             "alternating",
             vec![
-                crate::pulse::NEEDS_YOU_COLOR,
-                crate::pulse::NEEDS_YOU_ALT_COLOR,
+                crate::pulse::BLOCKED_COLOR,
+                crate::pulse::BLOCKED_ALT_COLOR,
             ],
             refresh_secs
                 .saturating_add(STATE_SLACK_SECS)
                 .saturating_mul(1000)
                 .min(MAX_SIGNAL_DURATION_MS),
         ),
-        crate::config::Behaviour::Breathing => {
+        crate::config::Behaviour::Looping => {
             return Some(
                 stating(
                     serde_json::json!({"alert": {"action": ALERT_BREATHE}}),
@@ -1428,12 +1428,12 @@ pub fn state_body(
         // mode existed: the glow is a plain state write of its own low level
         // rather than a signal, so there is no shipped body here that says
         // nothing about brightness to preserve.
-        crate::config::Behaviour::Glow => {
+        crate::config::Behaviour::Unread => {
             return Some(
                 serde_json::json!({
                     "on": {"on": true},
-                    "color": {"xy": {"x": crate::pulse::LOOP_COLOR.x, "y": crate::pulse::LOOP_COLOR.y}},
-                    "dimming": {"brightness": floor_or(dim, GLOW_BRIGHTNESS)},
+                    "color": {"xy": {"x": crate::pulse::UNREAD_COLOR.x, "y": crate::pulse::UNREAD_COLOR.y}},
+                    "dimming": {"brightness": floor_or(dim, UNREAD_BRIGHTNESS)},
                 })
                 .to_string(),
             );
@@ -1541,7 +1541,7 @@ pub fn signal_state<B: Bridge>(
     ) else {
         return written;
     };
-    let holds = arming.behaviour == crate::config::Behaviour::Glow;
+    let holds = arming.behaviour == crate::config::Behaviour::Unread;
     for family in STATE_PRODUCING_FAMILIES {
         if !family_produces(family, arming.behaviour) {
             continue;
@@ -1796,7 +1796,7 @@ mod tests {
     /// And at a five percent floor, which is what a config that states
     /// `dim_brightness` gets instead of the default.
     const GREEN_DIM_FIVE: &str = r#"{"dimming":{"brightness":5.0},"signaling":{"colors":[{"xy":{"x":0.2151,"y":0.7106}}],"duration":3000,"signal":"on_off_color"}}"#;
-    /// The needs-you body, which has never shipped: two colours and the
+    /// The blocked body, which has never shipped: two colours and the
     /// `alternating` signal, so it cannot be mistaken for either of the two
     /// above at a glance.
     const BLUE_SIGNAL: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":3000,"signal":"alternating"}}"#;
@@ -2460,18 +2460,18 @@ mod tests {
             "failed is the shipped red body"
         );
         assert_eq!(
-            state_body(Behaviour::NeedsYou, 20, Dimming::Unstated).as_deref(),
+            state_body(Behaviour::Blocked, 20, Dimming::Unstated).as_deref(),
             Some(NEEDS_YOU_STATE),
-            "and so is the needs-you state"
+            "and so is the blocked state"
         );
         assert_eq!(
-            state_body(Behaviour::Breathing, 20, Dimming::Unstated).as_deref(),
+            state_body(Behaviour::Looping, 20, Dimming::Unstated).as_deref(),
             Some(BREATHING_ALERT),
             "and the breathe, which is the body a no-dim install would have \
              been holding a lamp at 100 percent with three times a minute"
         );
         assert_eq!(
-            state_body(Behaviour::Glow, 20, Dimming::Unstated).as_deref(),
+            state_body(Behaviour::Unread, 20, Dimming::Unstated).as_deref(),
             Some(GLOW_STEADY),
             "the glow is the exception, and it is what shipped too: it stated a \
              brightness of its own before dim mode existed because it is a \
@@ -2495,17 +2495,17 @@ mod tests {
             "the shipped green plus the brightness it states"
         );
         assert_eq!(
-            state_body(Behaviour::NeedsYou, 20, Dimming::Full).as_deref(),
+            state_body(Behaviour::Blocked, 20, Dimming::Full).as_deref(),
             Some(NEEDS_YOU_STATE_FULL),
-            "and the needs-you state, which the tick rewrites for hours"
+            "and the blocked state, which the tick rewrites for hours"
         );
         assert_eq!(
-            state_body(Behaviour::Breathing, 20, Dimming::Full).as_deref(),
+            state_body(Behaviour::Looping, 20, Dimming::Full).as_deref(),
             Some(BREATHING_ALERT_FULL),
             "and the breathe"
         );
         assert_eq!(
-            state_body(Behaviour::Glow, 20, Dimming::Full).as_deref(),
+            state_body(Behaviour::Unread, 20, Dimming::Full).as_deref(),
             Some(GLOW_STEADY),
             "the glow states its own level either way: 25 percent IS its full \
              brightness, and only a floor takes it lower"
@@ -2523,9 +2523,9 @@ mod tests {
         for behaviour in [
             Behaviour::Done,
             Behaviour::Failed,
-            Behaviour::NeedsYou,
-            Behaviour::Breathing,
-            Behaviour::Glow,
+            Behaviour::Blocked,
+            Behaviour::Looping,
+            Behaviour::Unread,
         ] {
             for stated in [Dimming::Full, Dimming::Floor(1)] {
                 assert_eq!(
@@ -2565,12 +2565,12 @@ mod tests {
             "the same green, at the one percent floor"
         );
         assert_eq!(
-            signal_body(Behaviour::NeedsYou, Dimming::Full).as_deref(),
+            signal_body(Behaviour::Blocked, Dimming::Full).as_deref(),
             Some(BLUE_FULL),
             "and the blue pulse states full brightness like every other body"
         );
         assert_eq!(
-            signal_body(Behaviour::NeedsYou, Dimming::Floor(5)).as_deref(),
+            signal_body(Behaviour::Blocked, Dimming::Floor(5)).as_deref(),
             Some(BLUE_DIM),
             "at FIVE percent, which is what pins the number as the configured \
              one rather than a constant that happens to match the default"
@@ -2579,33 +2579,33 @@ mod tests {
         // hours at a time and a state that ignored the floor would be the one
         // lamp still shouting at 3am.
         assert_eq!(
-            state_body(Behaviour::NeedsYou, 20, Dimming::Full).as_deref(),
+            state_body(Behaviour::Blocked, 20, Dimming::Full).as_deref(),
             Some(NEEDS_YOU_STATE_FULL),
-            "the needs-you state at full brightness"
+            "the blocked state at full brightness"
         );
         assert_eq!(
-            state_body(Behaviour::NeedsYou, 20, Dimming::Floor(1)).as_deref(),
+            state_body(Behaviour::Blocked, 20, Dimming::Floor(1)).as_deref(),
             Some(NEEDS_YOU_STATE_DIM),
             "and at the floor, with its duration untouched"
         );
         assert_eq!(
-            state_body(Behaviour::Breathing, 20, Dimming::Full).as_deref(),
+            state_body(Behaviour::Looping, 20, Dimming::Full).as_deref(),
             Some(BREATHING_ALERT_FULL),
             "the bridge renders the swell either way, so breathing dims by \
              stating a brightness beside the alert rather than by changing it"
         );
         assert_eq!(
-            state_body(Behaviour::Breathing, 20, Dimming::Floor(2)).as_deref(),
+            state_body(Behaviour::Looping, 20, Dimming::Floor(2)).as_deref(),
             Some(BREATHING_ALERT_DIM),
             "which is what makes the swell faint"
         );
         assert_eq!(
-            state_body(Behaviour::Glow, 20, Dimming::Full).as_deref(),
+            state_body(Behaviour::Unread, 20, Dimming::Full).as_deref(),
             Some(GLOW_STEADY),
             "the glow already stated a brightness of its own"
         );
         assert_eq!(
-            state_body(Behaviour::Glow, 20, Dimming::Floor(1)).as_deref(),
+            state_body(Behaviour::Unread, 20, Dimming::Floor(1)).as_deref(),
             Some(GLOW_DIM),
             "and inside a dim window the FLOOR beats it, because dim means the \
              same signals at the brightness floor"
@@ -2620,7 +2620,7 @@ mod tests {
         // behaviour exists to prevent: green says it finished, blue says it is
         // waiting on you.
         assert_eq!(
-            signal_body(Behaviour::NeedsYou, Dimming::Unstated).as_deref(),
+            signal_body(Behaviour::Blocked, Dimming::Unstated).as_deref(),
             Some(BLUE_SIGNAL)
         );
     }
@@ -2633,8 +2633,8 @@ mod tests {
         // twenty to sixty seconds has never been observed on a bulb (drill D3).
         // A body invented here would be a shape nobody measured, arming a lamp
         // on a schedule that does not exist yet.
-        assert_eq!(signal_body(Behaviour::Breathing, Dimming::Unstated), None);
-        assert_eq!(signal_body(Behaviour::Glow, Dimming::Unstated), None);
+        assert_eq!(signal_body(Behaviour::Looping, Dimming::Unstated), None);
+        assert_eq!(signal_body(Behaviour::Unread, Dimming::Unstated), None);
     }
 
     #[test]
@@ -2919,12 +2919,12 @@ mod tests {
     fn a_behaviour_a_place_skips_reaches_that_lamp_and_no_other_lamp_loses_it() {
         // COMPLETENESS OVER COUNTS: every lamp in the map is named, because a
         // count of two would pass just as well for a skip that took the wrong
-        // lamp out. HCL1 refuses `done` and HCL2 refuses `breathing`, so one
+        // lamp out. HCL1 refuses `done` and HCL2 refuses `loop`, so one
         // config proves both directions at once: the skip that fires and the
         // skip that is about some other behaviour entirely.
         let config = format!(
             "{STUDIO_LOCAL}[lights.places.\"3F - Studio - HCL1\"]\nskip = [\"done\"]\n\
-             [lights.places.\"3F - Studio - HCL2\"]\nskip = [\"breathing\"]\n"
+             [lights.places.\"3F - Studio - HCL2\"]\nskip = [\"loop\"]\n"
         );
         assert_eq!(
             paths_written(&config, Behaviour::Done),
@@ -2996,7 +2996,7 @@ mod tests {
                 "a lamp that named only a skip list still inherits its room's hours",
                 format!(
                     "{STUDIO_LOCAL}{room_asleep}\
-                     [lights.places.\"3F - Studio - HCL1\"]\nskip = [\"breathing\"]\n"
+                     [lights.places.\"3F - Studio - HCL1\"]\nskip = [\"loop\"]\n"
                 ),
                 Ok(None),
                 Vec::new(),
@@ -3199,7 +3199,7 @@ mod tests {
             claimed_places(&lights(&format!(
                 "{STUDIO_LOCAL}[lights.families.loop]\n\
                  lights = [\"3F - Studio - HCL3\"]\n\
-                 [lights.places.\"3F - Master Bedroom\"]\nskip = [\"breathing\"]\n"
+                 [lights.places.\"3F - Master Bedroom\"]\nskip = [\"loop\"]\n"
             ))),
             vec!["3F - Studio".to_string(), "3F - Studio - HCL3".to_string()],
             "every claimed name once, `except` included, and HCL3 is claimed by \
@@ -3373,7 +3373,7 @@ mod tests {
          except = [\"3F - Studio - HCL3\"]\n\
          [lights.families.loop]\nlights = [\"3F - Studio - HCL3\"]\n";
 
-    /// The needs-you STATE body at a 20-second refresh: the same two deep blues
+    /// The blocked STATE body at a 20-second refresh: the same two deep blues
     /// the pulse alternates, held for one refresh interval plus its slack so a
     /// lamp is never dark between two re-arms.
     const NEEDS_YOU_STATE: &str = r#"{"signaling":{"colors":[{"xy":{"x":0.1532,"y":0.0475}},{"xy":{"x":0.15,"y":0.06}}],"duration":25000,"signal":"alternating"}}"#;
@@ -3442,7 +3442,7 @@ mod tests {
     fn a_state_reaches_only_the_fixtures_of_the_family_that_produces_it() {
         let (map, lights) = loop_map();
         let bridge = scripted(None);
-        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::NeedsYou, 20));
+        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::Blocked, 20));
         assert_eq!(
             bridge.puts.borrow().as_slice(),
             &[
@@ -3455,7 +3455,7 @@ mod tests {
         assert!(written.refusals.is_empty() && written.held.is_empty());
 
         let bridge = scripted(None);
-        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::Breathing, 20));
+        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::Looping, 20));
         assert_eq!(
             bridge.puts.borrow().as_slice(),
             &[(format!("light/{HCL3}"), BREATHING_ALERT.to_string())],
@@ -3475,19 +3475,19 @@ mod tests {
         // around the lamp's current colour, ended by the bridge itself after
         // about fifteen seconds.
         assert_eq!(
-            state_body(Behaviour::Breathing, 20, Dimming::Unstated).as_deref(),
+            state_body(Behaviour::Looping, 20, Dimming::Unstated).as_deref(),
             Some(BREATHING_ALERT)
         );
         // NO REFRESH INTERVAL REACHES THIS BODY. How long a swell lasts is the
         // bridge's business, not ours, and a duration computed here would be a
         // number the bridge ignores.
         assert_eq!(
-            state_body(Behaviour::Breathing, 900, Dimming::Unstated).as_deref(),
+            state_body(Behaviour::Looping, 900, Dimming::Unstated).as_deref(),
             Some(BREATHING_ALERT),
             "a fifteen-minute refresh still asks for exactly one breathe"
         );
         let body =
-            state_body(Behaviour::Breathing, 20, Dimming::Unstated).expect("a breathing body");
+            state_body(Behaviour::Looping, 20, Dimming::Unstated).expect("a breathing body");
         assert!(
             !body.contains("signaling") && !body.contains("on_off_color") && !body.contains("xy"),
             "no signal, no flash shape and no colour of our own: {body}"
@@ -3498,7 +3498,7 @@ mod tests {
     fn a_glow_is_a_steady_write_and_the_tick_clears_it_when_the_condition_goes() {
         let (map, lights) = loop_map();
         let bridge = scripted(None);
-        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::Glow, 20));
+        let written = signal_state(&bridge, &map, &lights, &armed(Behaviour::Unread, 20));
         assert_eq!(
             bridge.puts.borrow().as_slice(),
             &[(format!("light/{HCL3}"), GLOW_STEADY.to_string())],
@@ -3547,7 +3547,7 @@ mod tests {
                 &lights,
                 &placement,
                 &Arming {
-                    behaviour: Behaviour::Glow,
+                    behaviour: Behaviour::Unread,
                     refresh_secs: 20,
                     reading: reading(Ok(None), EIGHT_AM),
                     started_minutes: ELEVEN_PM,
@@ -3606,7 +3606,7 @@ mod tests {
                 &lights,
                 &placement,
                 &Arming {
-                    behaviour: Behaviour::Glow,
+                    behaviour: Behaviour::Unread,
                     refresh_secs: 20,
                     reading: reading(Ok(None), minutes_now),
                     started_minutes: ELEVEN_PM,
@@ -3657,7 +3657,7 @@ mod tests {
                 lights,
                 &placement,
                 &Arming {
-                    behaviour: Behaviour::Glow,
+                    behaviour: Behaviour::Unread,
                     refresh_secs: 20,
                     reading: reading(Ok(None), EIGHT_AM),
                     started_minutes: started,
@@ -3700,7 +3700,7 @@ mod tests {
             &map,
             &lights,
             &Arming {
-                behaviour: Behaviour::Glow,
+                behaviour: Behaviour::Unread,
                 refresh_secs: 20,
                 reading: reading(Ok(None), EIGHT_AM),
                 started_minutes: ELEVEN_PM,
