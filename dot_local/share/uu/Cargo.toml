@@ -1,0 +1,42 @@
+# uu: the unattended-upgrades tool. One binary, one lane per thing that
+# updates itself, one record per run.
+#
+# THE PACKAGE NAME IS NOT THE BINARY NAME. `uu` and every `uu_` prefix on
+# crates.io belong to the uutils project, so the package carries the long name
+# and the binary keeps the short one the operator types.
+#
+# WHAT THIS BINARY IS ALLOWED TO SPAWN: the lane subjects themselves (`herdr`
+# today) and the deployed pns binary for alerts. Nothing else. Records do not
+# spawn anything at all: they are one signed POST made in process.
+#
+# pns IS A PATH DEPENDENCY rather than a duplicated hermes client. The signing,
+# the transport and the POST seam are already written, reviewed and tested
+# there, and a second copy of an HMAC signer is a second thing to get wrong.
+# The record BODY is uu's own; only the plumbing is shared. The relative path
+# resolves in both trees this crate lives in: the repo checkout beside
+# `dot_local/share/pns`, and the deployed `~/.local/share/uu` beside
+# `~/.local/share/pns`.
+
+[package]
+name = "unattended-upgrades"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "uu"
+path = "src/main.rs"
+
+[dependencies]
+# The one dependency taken for a system FACT rather than a format, matching
+# pns's own reasoning: std answers neither "what is this machine called"
+# (`gethostname`) nor "which UTC calendar day is this second" (`gmtime_r`), and
+# both are on every record. It is already compiled in this tree behind pns.
+libc = "0.2.189"
+pns = { path = "../pns" }
+serde_json = "1.0.151"
+# Parse only, matching pns: nothing here ever writes TOML back out.
+toml = { version = "1.1.4", default-features = false, features = [
+  "parse",
+  "serde",
+  "std",
+] }
