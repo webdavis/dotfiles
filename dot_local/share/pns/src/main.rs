@@ -7415,11 +7415,7 @@ impl Drop for Hushed {
             // up during the read (EOF from a closed pty) makes `tcsetattr`
             // fail, and Drop must never panic over a terminal already gone.
             libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &self.original);
-            libc::pthread_sigmask(
-                libc::SIG_SETMASK,
-                &self.original_mask,
-                std::ptr::null_mut(),
-            );
+            libc::pthread_sigmask(libc::SIG_SETMASK, &self.original_mask, std::ptr::null_mut());
         }
     }
 }
@@ -7609,7 +7605,13 @@ fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
         .write(true)
         .mode(CONFIG_FILE_MODE)
         .open(&backup)
-        .map_err(|error| format!("{} could not be kept: {error}", backup.display()))?;
+        .map_err(|error| {
+            format!(
+                "{} already exists, kept by a run earlier this same second; \
+                 nothing was written: {error}",
+                backup.display()
+            )
+        })?;
     if let Err(error) = std::fs::rename(path, &backup) {
         // THE CLAIM GOES WITH THE RUN THAT MADE IT, whether there was nothing
         // to move or the move could not be made: an empty file named like a
@@ -7617,7 +7619,13 @@ fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
         let _ = std::fs::remove_file(&backup);
         return match error.kind() {
             std::io::ErrorKind::NotFound => Ok(None),
-            _ => Err(format!("{} could not be kept: {error}", backup.display())),
+            // THE BACKUP WAS NEVER THE PROBLEM HERE: it is a fresh file this
+            // call just created, and what could not be moved onto it is
+            // `path` itself, so the refusal names that instead.
+            _ => Err(format!(
+                "{} could not be moved aside to keep it: {error}",
+                path.display()
+            )),
         };
     }
     // AS PRIVATE AS THE CONFIG IT HOLDS, when what moved is a file at all: the
@@ -7918,12 +7926,12 @@ mod tests {
         BLOCKED_MAX_AGE_SECS, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
         LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS,
         MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
-        drive_breaths, end_lease, held_lamps, lights_report, list, matches_glob, means_yes,
-        muted_state, publish_config, publish_state_line, read_news, read_note, recap_bounds,
-        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
-        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
-        tick_bridge_deadline, update_blocked_marker,
+        drive_breaths, end_lease, held_lamps, keep_aside, lights_report, list, matches_glob,
+        means_yes, muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
+        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
+        say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
+        sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9809,6 +9817,72 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&path).expect("the config"),
             "# composed\n"
+        );
+    }
+
+    #[test]
+    fn a_same_second_backup_collision_names_the_backup_it_could_not_claim() {
+        // THE NAME IS CLAIMED WITH `create_new`, so a second forced run inside
+        // the same second finds its own stamp already taken; this pre-creates
+        // that collision instead of running two forced publishes back to back
+        // and hoping they land in the same wall-clock second.
+        let home = scratch("setup-keep-aside-collision");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# the one it replaces\n").expect("the config");
+        let now = now_secs().expect("the clock");
+        let backup = pns::setup::backup_path(&path, now).expect("the backup name");
+        std::fs::write(&backup, "# an earlier run's own backup\n").expect("the earlier backup");
+
+        let refusal = keep_aside(&path).expect_err("the backup name is already claimed");
+        assert!(
+            refusal.contains(&backup.display().to_string()),
+            "the refusal does not name the backup it could not claim: {refusal}"
+        );
+        assert!(
+            refusal.contains("already exists"),
+            "the reason is a raw io::Error instead of naming the same-second collision: {refusal}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# the one it replaces\n",
+            "the config was moved even though its backup name could not be claimed"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&backup).expect("the earlier backup"),
+            "# an earlier run's own backup\n",
+            "an earlier run's own backup was overwritten rather than left alone"
+        );
+    }
+
+    #[test]
+    fn a_directory_at_the_config_path_is_named_rather_than_the_backup_it_could_not_replace() {
+        // THE RENAME IS WHAT FAILS HERE, not the claim: the backup file is
+        // created fine (it is a fresh name), and then a directory cannot be
+        // renamed onto it. The refusal is about `path`, the thing that could
+        // not be moved, not about `backup`, which was never the problem.
+        let home = scratch("setup-keep-aside-directory");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(&path).expect("a directory standing where the config belongs");
+
+        let refusal =
+            keep_aside(&path).expect_err("a directory cannot be renamed onto a plain file");
+        assert!(
+            refusal.contains(&path.display().to_string()),
+            "the refusal does not name the config path: {refusal}"
+        );
+        // `backup`'s own display string always carries `path`'s as a prefix
+        // (`backup_path` appends `.<stamp>.backup` to the config's name), so
+        // checking for the FULL backup string is what actually tells apart a
+        // refusal that blames the backup from one that blames the path.
+        assert!(
+            !refusal.contains(".backup"),
+            "the refusal blames the backup file it could not replace path with, \
+             rather than the path it could not move: {refusal}"
+        );
+        assert!(
+            path.is_dir(),
+            "the directory standing at the config path was moved"
         );
     }
 }
