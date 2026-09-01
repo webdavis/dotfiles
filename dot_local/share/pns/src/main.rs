@@ -7691,14 +7691,15 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        BLOCKED_MAX_AGE_SECS, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
-        LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, drive_breaths, end_lease,
-        held_lamps, lights_report, list, matches_glob, means_yes, muted_state, publish_state_line,
-        read_news, read_note, recap_bounds, record_news, renew_loop_lease, republish_after,
-        reread_attempts_from, reread_interval_from, resolve_path, run_pulse_writes,
-        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
-        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
+        BLOCKED_MAX_AGE_SECS, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
+        LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS,
+        MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
+        drive_breaths, end_lease, held_lamps, lights_report, list, matches_glob, means_yes,
+        muted_state, publish_config, publish_state_line, read_news, read_note, recap_bounds,
+        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
+        resolve_path, run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked,
+        sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers, tick_bridge_deadline,
+        update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9329,5 +9330,129 @@ mod tests {
         assert_eq!(list("  Studio  ".to_string()), ["Studio"]);
         assert!(list(String::new()).is_empty());
         assert!(list(" , ".to_string()).is_empty());
+    }
+
+    /// The mode a file was published with, and nothing else about it.
+    fn mode_of(path: &std::path::Path) -> u32 {
+        std::fs::metadata(path)
+            .expect("the file")
+            .permissions()
+            .mode()
+            & 0o777
+    }
+
+    #[test]
+    fn a_first_config_is_published_for_its_operator_alone_and_leaves_no_pending_file() {
+        // THE FILE CARRIES EVERY PLUGIN'S SECRET, so publishing it at the
+        // umask hands the moshi token and the hue key to every process on the
+        // machine. The pending file carries them too, which is why it is
+        // created with the mode rather than chmodded into it afterwards, and
+        // why it never outlives the publish.
+        let home = scratch("setup-publish-first");
+        let path = home.join(".config/pns/config.toml");
+        assert_eq!(
+            publish_config(&path, "# composed\n", false),
+            Ok(None),
+            "a first publish keeps nothing aside"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+        assert_eq!(
+            mode_of(&path),
+            CONFIG_FILE_MODE,
+            "the config is the operator's alone"
+        );
+        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "a pending file was left behind: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn a_config_that_appeared_during_the_walk_is_refused_rather_than_written_over() {
+        // CREATE-IF-ABSENT, NEVER A BLANKET RENAME. The questions take
+        // minutes, and a config that arrived while they were being answered is
+        // another writer's: a rename would replace it with no backup and no
+        // word, and the refusal earlier in `setup_mode` cannot see it because
+        // it ran before the walk did.
+        let home = scratch("setup-publish-raced");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# somebody else got here first\n").expect("the config");
+
+        let refusal = publish_config(&path, "# composed\n", false).expect_err("it must refuse");
+        assert!(
+            refusal.contains("appeared"),
+            "it says what happened: {refusal}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# somebody else got here first\n",
+            "the config that was already there was written over"
+        );
+        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "a refusal left a pending file: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn a_forced_replacement_keeps_the_old_config_before_it_writes_the_new_one() {
+        // THE BACKUP IS TAKEN FIRST, and the way to say that as an assertion
+        // is to read the backup: taken afterwards it would be a copy of the
+        // REPLACEMENT, the old file would be gone, and the line printed to the
+        // operator would name a path that does not hold what it says it holds.
+        let home = scratch("setup-publish-forced");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# the one it replaces\n").expect("the config");
+
+        let backup = publish_config(&path, "# composed\n", true)
+            .expect("a forced publish")
+            .expect("it kept the old config");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&backup).expect("the backup"),
+            "# the one it replaces\n",
+            "the backup holds the replacement rather than what was replaced"
+        );
+        // AND IT IS AS PRIVATE AS THE FILE IT COPIES: a backup of a config
+        // full of plugin secrets is a config full of plugin secrets.
+        assert_eq!(mode_of(&backup), CONFIG_FILE_MODE);
+        assert!(
+            !backup.to_string_lossy().contains(':'),
+            "the stamp carries colons: {}",
+            backup.display()
+        );
+    }
+
+    #[test]
+    fn a_forced_replacement_with_nothing_to_replace_keeps_nothing_aside() {
+        // THE MIRROR: `--force` on a machine with no config is an ordinary
+        // first run, and naming a backup that holds nothing would send the
+        // operator to a file that was never written.
+        let home = scratch("setup-publish-forced-first");
+        let path = home.join(".config/pns/config.toml");
+        assert_eq!(publish_config(&path, "# composed\n", true), Ok(None));
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# composed\n"
+        );
+        assert_eq!(mode_of(&path), CONFIG_FILE_MODE);
     }
 }
