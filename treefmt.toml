@@ -53,6 +53,7 @@ excludes = [
   "private_dot_claude/agents/**",
   "private_dot_claude/commands/**",
   "private_dot_claude/output-styles/**",
+  "private_dot_claude/pns-marketplace/**",
   "dot_agents/**",
   "docs/superpowers/**",
   "docs/research/2026-04-12-worktrunk.md",

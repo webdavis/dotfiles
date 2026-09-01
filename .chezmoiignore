@@ -66,4 +66,6 @@ Library
 .local/libexec/pns
 .local/share/pns
 .config/pns
+# And so is the /pns: plugin, which is nothing but commands for that engine.
+.claude/pns-marketplace
 {{- end }}

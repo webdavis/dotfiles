@@ -381,11 +381,16 @@
        and all five source names are in the shipped 2.1.220 binary, read
        2026-08-02).
 
-       Five of these come from marketplaces Anthropic does not ship: ponytail,
-       worktrunk, last30days, codex and plannotator. An entry here only records that the
-       plugin should be ENABLED once installed, and enabling a plugin that is
-       not installed is inert, so the declaration is safe on a fresh machine.
-       The marketplaces themselves are declared in the block below. --- */ -}}
+       Six of these come from marketplaces Anthropic does not ship: ponytail,
+       worktrunk, last30days, codex, plannotator and pns. An entry here only records
+       that the plugin should be ENABLED once installed, and enabling a plugin
+       that is not installed is inert, so the declaration is safe on a fresh
+       machine. The marketplaces themselves are declared in the block below.
+
+       `pns@pns` IS THIS REPO'S OWN, out of a marketplace deployed under
+       ~/.claude/pns-marketplace rather than fetched from anywhere. Installing it
+       is still one deliberate `claude plugin install pns@pns`, exactly like the
+       five above. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
@@ -400,6 +405,13 @@
     "worktrunk@worktrunk"
     "last30days@last30days-skill"
     "plannotator@plannotator" -}}
+{{- /* DARWIN ONLY, so this declaration and .chezmoiignore agree: the pns
+       marketplace is a DIRECTORY on disk, and that directory is not deployed on
+       Linux. Declaring a marketplace whose path is not there is a refresh that
+       fails at every startup, which the five github ones above cannot do. */ -}}
+{{- if eq .chezmoi.os "darwin" -}}
+{{-   $declaredPlugins = append $declaredPlugins "pns@pns" -}}
+{{- end -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
        `slice`, so the value test below already covers absence. Measured
@@ -460,6 +472,16 @@
 {{- $merged = setValueAtPath "extraKnownMarketplaces.plannotator" (dict
     "source" (dict "source" "github" "repo" "backnotprop/plannotator")
     "autoUpdate" true) $merged -}}
+{{- /* THIS REPO'S OWN MARKETPLACE, a DIRECTORY rather than a repo to fetch.
+       `{source: "directory", path: <absolute>}` is the shape `claude plugin
+       marketplace add <path>` writes into user settings, read back off a real
+       registration on 2.1.251. NO `autoUpdate`: chezmoi is what updates this
+       one, so asking Claude Code to refresh it at startup would be a second
+       updater for a directory that is already converged on every apply. */ -}}
+{{- if eq .chezmoi.os "darwin" -}}
+{{-   $merged = setValueAtPath "extraKnownMarketplaces.pns" (dict
+      "source" (dict "source" "directory" "path" (printf "%s/.claude/pns-marketplace" $home))) $merged -}}
+{{- end -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
        invokes them). Source of truth: the tiers table in
