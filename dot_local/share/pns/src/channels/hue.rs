@@ -1928,6 +1928,15 @@ mod tests {
             })),
             "22:00 is 1320 minutes in and 07:00 is 420"
         );
+        assert_eq!(
+            quiet_window(&table("quiet_hours = \"22:00-07:00\""))
+                .expect("parses")
+                .expect("a window")
+                .ends_at(),
+            420,
+            "and the END minute is the one a bare mute reads off it: answering \
+             the start would run a bedtime mute almost a whole day"
+        );
     }
 
     #[test]

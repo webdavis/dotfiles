@@ -1004,9 +1004,9 @@ mod tests {
         Muted, News, QuietCommand, Say, Streak, Unread, WORKING, active_held, any_blocked,
         any_working, bare_mute_secs, blocked_marker, blocked_marker_action, breath_fades,
         last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
-        muted_places, muted_report, news_after, next_streak, parse_news, parse_streak,
-        pulse_fires, quiet_command, render_muted, render_news, render_streak, say, shown,
-        unread_arming, workspace_agent_statuses,
+        muted_places, muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
+        quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
+        workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1313,6 +1313,23 @@ mod tests {
             ),
             None,
             "a now before the news has no elapsed time in it"
+        );
+        // AND STILL NOT WITH NO DELAY AT ALL. `after_secs` may be zero, and a
+        // saturated age of zero passes a zero threshold, so this edge is where
+        // "no elapsed time" and "an elapsed time of zero" stop agreeing.
+        assert_eq!(
+            unread_arming(
+                &News {
+                    done_at: Some(NOW + 500),
+                    failed_at: None
+                },
+                long_ago,
+                false,
+                NOW,
+                0
+            ),
+            None,
+            "a stepped-back clock cannot arm through a zero threshold"
         );
     }
 

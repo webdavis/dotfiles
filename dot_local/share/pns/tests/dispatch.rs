@@ -1879,6 +1879,44 @@ fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() 
 }
 
 #[test]
+fn a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds() {
+    // THE CALL SITE, not the rule. `record_news` and `renew_loop_lease` are
+    // each pinned as functions, so this is the one test that goes red if the
+    // event path stops calling them. The news record is written whatever the
+    // delivery did, which is why the bridge here is dead on purpose.
+    let sandbox = Sandbox::new("lights-news-and-lease");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n\
+         rooms = [\"3F - Studio\"]\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+    ));
+    let lease_dir = sandbox.state().join("lights-loop");
+    std::fs::create_dir_all(&lease_dir).expect("the lease directory");
+    std::fs::write(lease_dir.join("t1:p2"), "500\n").expect("a lease taken by hand");
+    let mut command = sandbox.pns_stateful();
+    command.env("TZ", "UTC");
+    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    sandbox.stub_herdr(&mut command, false);
+    let outcome = run(command.args(LONG_DONE));
+    assert_eq!(outcome.status.code(), Some(0), "{}", stderr(&outcome));
+    let news = std::fs::read_to_string(sandbox.state().join("lights-news"))
+        .expect("the done event left a news record");
+    let done_at: u64 = news
+        .split_whitespace()
+        .next()
+        .and_then(|epoch| epoch.parse().ok())
+        .expect("the record starts with the done epoch");
+    assert!(
+        done_at > 1_000_000_000,
+        "a real epoch, never zero: {news:?}"
+    );
+    let lease = std::fs::read_to_string(lease_dir.join("t1:p2")).expect("the lease file survives");
+    assert!(
+        lease.trim().parse::<u64>().expect("an epoch") > 1_000_000_000,
+        "the pane's own ordinary traffic moved its lease to now: {lease:?}"
+    );
+}
+
+#[test]
 fn a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built() {
     // THE WORST OUTCOME THIS COMMAND HAS: telling a human a mute is in effect
     // that is not. `kept` is what the file WOULD have held, so a report printed

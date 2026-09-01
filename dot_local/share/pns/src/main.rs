@@ -6857,11 +6857,12 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD, LIGHTS_NEWS,
-        LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, drive_breaths, lights_report,
-        matches_glob, muted_state, publish_state_line, read_news, read_note, recap_bounds,
-        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, run_pulse_writes, run_tick_writes, sweep_blocked, sweep_leases, sweep_shell_markers,
+        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID,
+        LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, drive_breaths,
+        lights_report, matches_glob, muted_state, publish_state_line, read_news, read_note,
+        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, run_pulse_writes, run_tick_writes, say_lights_once,
+        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_shell_markers,
         update_blocked_marker,
     };
     use std::cell::RefCell;
@@ -7241,6 +7242,46 @@ mod tests {
                  not a HH:MM-HH:MM window; that lamp stays dark"
                     .to_string(),
             ],
+        );
+    }
+
+    #[test]
+    fn the_first_tick_sweeps_the_state_the_old_names_held() {
+        // THE DEPLOY TRANSITION: delete, dark direction, once. Files under the
+        // old names would otherwise sit unread forever, and the old held-glow
+        // record names lamps only the binary that is gone knew how to put out.
+        let state = scratch("legacy-sweep");
+        std::fs::write(state.join("lights-glow"), "light/l9\n").expect("the old held record");
+        std::fs::write(state.join("lights-working-since"), "1000\n").expect("the old streak");
+        std::fs::create_dir_all(state.join("lights-needs")).expect("the old needs directory");
+        std::fs::write(state.join("lights-needs").join("s1"), "1000\n").expect("an old wait");
+        sweep_legacy_state(&state);
+        assert!(
+            !state.join("lights-glow").exists()
+                && !state.join("lights-working-since").exists()
+                && !state.join("lights-needs").exists(),
+            "every old name is gone, contents and all"
+        );
+    }
+
+    #[test]
+    fn a_complaint_that_cleared_is_forgotten_so_its_return_is_news_again() {
+        // THE FORGET ARM IS THE ONE THAT NEEDS ITS OWN PIN: `say` decides it,
+        // but only this wiring removes the memory, and a memory that outlives
+        // its complaint keeps the same complaint silent when it comes back.
+        let state = scratch("lights-said-forget");
+        let marker = state.join(LIGHTS_SAID);
+        say_lights_once(
+            &state,
+            &["lights: `HCL9` (lamp) is not on the bridge".to_string()],
+            LIGHTS_SAID,
+        );
+        assert!(marker.exists(), "the first complaint is remembered");
+        say_lights_once(&state, &[], LIGHTS_SAID);
+        assert!(
+            !marker.exists(),
+            "a clear tick forgets, or the same complaint returning would never \
+             be said again"
         );
     }
 
