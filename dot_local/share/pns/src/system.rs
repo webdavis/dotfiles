@@ -619,6 +619,14 @@ mod tests {
             next_poll_interval(FIRST_POLL_INTERVAL),
             FIRST_POLL_INTERVAL * 2
         );
+        // AND THE FIRST INTERVAL HAS TO GROW, which doubling alone does not
+        // give: zero doubles to zero, so a first interval of nothing is a
+        // `try_wait` spin for the whole deadline rather than the backoff the
+        // ceiling above was written to guarantee.
+        assert!(
+            next_poll_interval(FIRST_POLL_INTERVAL) > FIRST_POLL_INTERVAL,
+            "a wait that starts at zero never leaves it"
+        );
         assert_eq!(next_poll_interval(POLL_INTERVAL / 2), POLL_INTERVAL);
         assert_eq!(next_poll_interval(POLL_INTERVAL), POLL_INTERVAL);
         assert!(FIRST_POLL_INTERVAL < POLL_INTERVAL, "it starts below it");
