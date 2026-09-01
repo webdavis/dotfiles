@@ -306,6 +306,15 @@ fn time_of_day(stated: &str) -> Result<(u8, u8), ConfigError> {
     if hour.len() != 2 || minute.len() != 2 {
         return Err(refusal());
     }
+    // DIGITS ONLY. `u8::parse` on its own admits a leading `+`, so `+1:23`
+    // would coerce to 01:23, an hour nobody wrote.
+    if !hour
+        .bytes()
+        .chain(minute.bytes())
+        .all(|byte| byte.is_ascii_digit())
+    {
+        return Err(refusal());
+    }
     let hour: u8 = hour.parse().map_err(|_| refusal())?;
     let minute: u8 = minute.parse().map_err(|_| refusal())?;
     if hour > 23 || minute > 59 {
@@ -625,7 +634,9 @@ mod tests {
     fn a_time_that_is_not_hh_colon_mm_is_refused_rather_than_coerced() {
         // Each of these parses as SOMETHING under a lenient reading, and each
         // would render a plist that fires at an hour nobody asked for.
-        for stated in ["12", "12:00:00", "24:00", "12:60", "9:00", "noon", "-1:00"] {
+        for stated in [
+            "12", "12:00:00", "24:00", "12:60", "9:00", "noon", "-1:00", "+1:23", "12:+5",
+        ] {
             let detail = refusal(&format!("[schedule]\ntime = \"{stated}\"\n"));
             assert!(
                 detail.contains("not a 24-hour `HH:MM` time"),
