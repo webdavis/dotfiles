@@ -99,8 +99,8 @@ impl Default for Recap {
     }
 }
 
-/// The lamps' policy: how often a state is re-armed, how long a loop must have
-/// been working before its lamp breathes, and how faint a dimmed signal runs.
+/// The lamps' policy: how often a state is re-armed, what each of the five
+/// behaviours looks like, and which lamps carry which of them.
 ///
 /// THE TABLE IS OPTIONAL AND ITS ABSENCE IS NOT ITS DEFAULT, which is why the
 /// config holds an `Option` of this rather than the struct. A machine with no
@@ -111,56 +111,95 @@ impl Default for Recap {
 /// THE DEFAULT IS WRITTEN OUT rather than derived, for `Recap`'s reason: a
 /// derived `u64` is zero, and zero is refused by every one of these keys, so a
 /// derive would make the empty table unrepresentable through its own parser.
+///
+/// ONLY THE KNOBS THAT APPLY TO A BEHAVIOUR EXIST (operator ruling): a pulse
+/// has a duration and one brightness, a breathing state has a duration and two,
+/// and there is no dead knob anywhere for a reader to set and watch do nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lights {
     pub refresh_secs: u64,
-    pub breathe_after_secs: u64,
-    pub dim_brightness: u8,
-    /// WHICH activities put the loop lamp on breathing. Every source not named
-    /// here contributes nothing to the condition; the ones named still do.
-    ///
-    /// AN ABSENT KEY IS RESOLVED TO THE FULL SET AT PARSE TIME, which is what
-    /// lets this be a plain `Vec`. Absent means every source and an empty list
-    /// means breathing off, and a `Vec` cannot tell those apart by itself; the
-    /// alternative is an `Option` every reader has to remember to unwrap the
-    /// right way round.
-    pub breathe_on: Vec<BreatheSource>,
-    pub families: BTreeMap<String, Family>,
-    pub places: BTreeMap<String, Place>,
+    pub done: Pulse,
+    pub failed: Pulse,
+    pub blocked: Breath,
+    pub unread: Unread,
+    /// `[lights.loop]`. NOT SPELLED `r#loop` AT THE FIELD, because every reader
+    /// would then carry the raw identifier through; the TOML key is `loop` and
+    /// the mapping is stated once, in `parse_lights`.
+    pub looping: Looping,
+    /// The one dim FORM, shared by every behaviour that runs dimmed, because
+    /// the operator locked one shape rather than one per behaviour. WHICH
+    /// behaviours run it is a per-target opt-in, not a knob here.
+    pub dim: Breath,
+    pub lamps: BTreeMap<String, Target>,
+    pub rooms: BTreeMap<String, Target>,
+    pub zones: BTreeMap<String, Target>,
 }
 
-/// One place's own policy: the behaviours it refuses, the hours it wants
-/// quiet, what quiet means there, and whether a state suppressed by those hours
-/// is shown afterwards.
+/// A blink: how long the bridge runs it, and how bright.
 ///
-/// A PLACE IS A ROOM NAME OR A LIGHT NAME, the same vocabulary a family claims
-/// in, so an operator writes one spelling of "which lamps" rather than two.
+/// NO LOW, because a pulse has no low to run to. That is the config ruling
+/// applied at the type level rather than in a comment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pulse {
+    pub duration_ms: u64,
+    pub brightness: u8,
+}
+
+/// A breath: how long ONE fade takes, and the two ends it fades between.
+///
+/// `high` IS THE PEAK AND IS WHERE A BREATH STOPS. The driver finishes its
+/// in-flight cycle at the peak so the next tick resumes from there, which is
+/// why `low` above `high` is refused at load rather than rendered upside down.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Breath {
+    pub duration_ms: u64,
+    pub high: u8,
+    pub low: u8,
+}
+
+/// The unread lamp: its breath, plus how old SUCCESS news must be before it
+/// arms. Failure news arms with no delay at all and has no knob.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Unread {
+    pub breath: Breath,
+    pub after_secs: u64,
+}
+
+/// The loop lamp: its breath, how long work must run before the automatic
+/// trigger arms, and how long a hand-taken lease survives without renewal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Looping {
+    pub breath: Breath,
+    pub threshold_secs: u64,
+    pub lease_timeout_secs: u64,
+}
+
+/// One declaration, at one of the three levels, and the questions it answers.
+///
+/// EACH FIELD IS ONE QUESTION, resolved independently of the others: a lamp's
+/// own declaration can state which behaviours it carries and say nothing about
+/// dimming, and its room's window still applies. `Option` is what spells "said
+/// nothing" for the behaviour set; the dim question is stated exactly when
+/// `dim_window` is.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Place {
-    pub skip: Vec<Behaviour>,
-    pub quiet_hours: Option<String>,
-    /// What quiet MEANS here, and `None` IS "SAID NOTHING" for `catch_up`'s
-    /// reason: the chain is walked specific first per setting, so a lamp that
-    /// wrote `off` has to be able to turn its room's `dim` back off. With a
-    /// plain `QuietMode`, "not written" and "written off" were the same value
-    /// and the room won either way. Absent at every rung is off, which is the
-    /// shipped meaning of quiet hours.
-    pub quiet_mode: Option<QuietMode>,
-    /// CATCH-UP DEFAULTS OFF (operator ruling): a state that was suppressed
-    /// through the night is news nobody wants at 07:00.
-    ///
-    /// `None` IS "SAID NOTHING", which is what a plain `bool` could not spell.
-    /// The chain is walked specific first per setting, so a lamp that wrote
-    /// `false` has to be able to turn its room's `true` back off; with a bool,
-    /// "not written" and "written false" were the same value and the room won
-    /// either way. Absent at every rung is off, which is the ruling above.
-    pub catch_up: Option<bool>,
+pub struct Target {
+    pub shows: Option<Vec<Behaviour>>,
+    pub dim_window: Option<String>,
+    /// The behaviours that run their DIM FORM inside that window. Everything
+    /// else the target carries is suppressed there, which is what makes a
+    /// window with an empty list a room that goes dark for the night with no
+    /// second mode to spell it.
+    pub dim_behaviours: Vec<Behaviour>,
 }
 
 /// What a lamp can say. A CLOSED SET, which is the whole reason `[lights]` is
 /// judged here instead of passed through as a plugin's free-form settings: a
-/// `skip` list holding a word nothing matches is a lamp that keeps signalling
-/// something the operator switched off, with no message anywhere.
+/// `shows` list holding a word nothing matches is a lamp that stays dark while
+/// the operator is sure they routed it, with no message anywhere.
+///
+/// `Unread` IS ONE WORD AND CARRIES TWO COLOURS. Its success and failure
+/// flavours always ride the same lamp, so a config cannot route one without the
+/// other and there is no spelling for trying.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Behaviour {
     Done,
@@ -180,89 +219,37 @@ pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 5] = [
     ("loop", Behaviour::Looping),
 ];
 
-/// One kind of work that can put the loop lamp on breathing.
-///
-/// A CLOSED SET, judged at load for `Behaviour`'s reason: a `breathe_on`
-/// holding a word nothing matches is a lamp that stays dark while the operator
-/// is sure they switched it on, with no message anywhere.
-///
-/// THE TWO AGENT SOURCES DIFFER ONLY IN PATIENCE. `AgentWork` breathes the
-/// moment herdr says a workspace is working; `AgentLoops` waits for that to
-/// have been true continuously for `breathe_after_secs`. Naming both is
-/// harmless and the eager one simply wins.
-///
-/// THE TWO COMMAND SOURCES DIFFER THE SAME WAY, over the shell's own marker:
-/// `Commands` is any tracked command, `LongCommands` only one that has been
-/// running past the notifier's long tier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BreatheSource {
-    AgentWork,
-    AgentLoops,
-    Commands,
-    LongCommands,
-}
-
-/// The four words, in the spelling a config uses, and the order the refusal
-/// lists them in.
-pub const BREATHE_SOURCE_WORDS: [(&str, BreatheSource); 4] = [
-    ("agent-work", BreatheSource::AgentWork),
-    ("agent-loops", BreatheSource::AgentLoops),
-    ("commands", BreatheSource::Commands),
-    ("long-commands", BreatheSource::LongCommands),
-];
-
-/// What quiet hours DO to a place: take the signal away, or show it faintly.
-///
-/// `Off` IS THE SIGNAL BEING OFF, not the quiet hours being off. There is no
-/// third value meaning "no quiet hours": a place that wants none simply states
-/// no `quiet_hours`, so the two cannot disagree.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum QuietMode {
-    #[default]
-    Off,
-    Dim,
-}
-
-/// One source family's claim on the house: whole rooms, individual lights, and
-/// the lights inside a claimed room that it does not want.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Family {
-    pub rooms: Vec<String>,
-    pub lights: Vec<String>,
-    pub except: Vec<String>,
-}
-
 impl Default for Lights {
     fn default() -> Self {
         Lights {
             refresh_secs: DEFAULT_REFRESH_SECS,
-            breathe_after_secs: DEFAULT_BREATHE_AFTER_SECS,
-            dim_brightness: DEFAULT_DIM_BRIGHTNESS,
-            // EVERY SOURCE THAT WAITS, which is the breathing the design
-            // describes: an agent loop past `breathe_after_secs`, and either
-            // command tier. `AgentWork` is left OUT because it breathes on any
-            // working workspace with no duration test, and an eager source in
-            // the default set wins every time, which would leave
-            // `breathe_after_secs` governing nothing at all. It stays available
-            // by name, so this narrows the default rather than the vocabulary.
-            breathe_on: BREATHE_SOURCE_WORDS
-                .iter()
-                .map(|(_, source)| *source)
-                .filter(|source| *source != BreatheSource::AgentWork)
-                .collect(),
-            families: BTreeMap::new(),
-            places: BTreeMap::new(),
+            done: DEFAULT_DONE,
+            failed: DEFAULT_FAILED,
+            blocked: DEFAULT_BLOCKED,
+            unread: Unread {
+                breath: DEFAULT_UNREAD_BREATH,
+                after_secs: DEFAULT_UNREAD_AFTER_SECS,
+            },
+            looping: Looping {
+                breath: DEFAULT_LOOP_BREATH,
+                threshold_secs: DEFAULT_LOOP_THRESHOLD_SECS,
+                lease_timeout_secs: DEFAULT_LEASE_TIMEOUT_SECS,
+            },
+            dim: DEFAULT_DIM,
+            lamps: BTreeMap::new(),
+            rooms: BTreeMap::new(),
+            zones: BTreeMap::new(),
         }
     }
 }
 
 /// How often a lamp holding a state is re-armed.
 ///
-/// TWELVE, WHICH IS THE TEMPLATE'S OWN ADVICE and not a round number: breathing
-/// asks the bridge for its own breathe, a swell the BRIDGE ends by itself after
-/// about fifteen seconds, so a default above that would have the lamp finish its
-/// swell and sit dark until the next tick. An operator who writes `[lights]` and
-/// nothing else gets breathing rather than a slow blink.
+/// TWELVE, and it is a breath budget rather than a round number: the tick's own
+/// driver fades a breathing lamp for its whole interval and stops at the peak,
+/// so the interval is what decides how many fades fit between two ticks. Twelve
+/// seconds holds three two-second cycles or one four-second one, which is what
+/// the locked shapes were measured at.
 const DEFAULT_REFRESH_SECS: u64 = 12;
 
 /// The floor under it, and it is the TRANSPORT DEADLINE rather than a round
@@ -287,32 +274,87 @@ const MIN_REFRESH_SECS: u64 = 10;
 /// virtually the whole interval while the config claimed a state.
 const MAX_REFRESH_SECS: u64 = 300;
 
-/// How long a loop must have been working before its lamp breathes. The
-/// operator's own figure: fifteen minutes.
-const DEFAULT_BREATHE_AFTER_SECS: u64 = 900;
+/// The five locked shapes. EVERY NUMBER HERE WAS SET ON A REAL LAMP under the
+/// operator's observe-adjust-lock protocol (2026-08-31 and 2026-09-01), so a
+/// change to one of them is a change to something that was looked at, not a
+/// tuning.
+const DEFAULT_DONE: Pulse = Pulse {
+    duration_ms: 4000,
+    brightness: 100,
+};
+const DEFAULT_FAILED: Pulse = Pulse {
+    duration_ms: 4000,
+    brightness: 100,
+};
+const DEFAULT_BLOCKED: Breath = Breath {
+    duration_ms: 2000,
+    high: 100,
+    low: 30,
+};
+const DEFAULT_UNREAD_BREATH: Breath = Breath {
+    duration_ms: 4000,
+    high: 60,
+    low: 10,
+};
+const DEFAULT_LOOP_BREATH: Breath = Breath {
+    duration_ms: 4000,
+    high: 60,
+    low: 10,
+};
 
-/// The floor. Zero would breathe for every momentary reading of "working",
-/// which is what the delay exists to prevent, so one second is the floor and
-/// it means "as soon as anything is seen working".
-const MIN_BREATHE_AFTER_SECS: u64 = 1;
+/// The dim form: the same seamless cadence at the faintest levels the hardware
+/// has. Drill D4 measured a lamp asked for one percent reporting 1.19, which is
+/// its own floor rather than a rounding.
+const DEFAULT_DIM: Breath = Breath {
+    duration_ms: 3000,
+    high: 7,
+    low: 1,
+};
 
-/// The ceiling. A loop that has been working for a whole day has stalled, and
-/// a threshold past that describes a lamp that never breathes at all.
-const MAX_BREATHE_AFTER_SECS: u64 = 86_400;
+/// How old SUCCESS news must be before the unread lamp arms: five minutes, so a
+/// result the operator is already looking at does not light a lamp about itself.
+/// FAILURE news has no such delay and no knob.
+const DEFAULT_UNREAD_AFTER_SECS: u64 = 300;
 
-/// The brightness a dimmed signal runs at, in percent.
+/// How long work must run continuously before the loop lamp arms itself.
+const DEFAULT_LOOP_THRESHOLD_SECS: u64 = 300;
+
+/// How long a hand-taken loop lease survives with nothing renewing it.
 ///
-/// ONE, WHICH IS THE OPERATOR'S OWN FIGURE (2026-08-30: one to five percent,
-/// ideally one). Drill D4 measured a lamp asked for one percent reporting 1.19,
-/// which is its own floor rather than a rounding: the bulb cannot go lower, so
-/// this asks for the faintest thing the hardware has.
-const DEFAULT_DIM_BRIGHTNESS: u8 = 1;
+/// SIXTY-FIVE MINUTES, and the number comes from what renews it: the lease is
+/// refreshed by the calling pane's ordinary hook traffic, and the harness's own
+/// wakeup scheduler clamps a sleep to 3600 seconds, so the longest legitimate
+/// gap between two events from a live loop is an hour. A timeout at the hour
+/// itself would drop a lease that was about to be renewed.
+const DEFAULT_LEASE_TIMEOUT_SECS: u64 = 3900;
+
+/// How long any threshold or timeout in this table may be. A day, which is the
+/// bound the working streak already carried: work that has been going for
+/// longer has stalled, and a threshold past it describes a lamp that never
+/// lights at all.
+const MIN_THRESHOLD_SECS: u64 = 1;
+const MAX_THRESHOLD_SECS: u64 = 86_400;
+
+/// The floor under a lease timeout. A minute, because the lease is renewed by
+/// event traffic and anything shorter drops a live loop between two turns.
+const MIN_LEASE_TIMEOUT_SECS: u64 = 60;
+
+/// How long ONE fade may take, in milliseconds.
+///
+/// THE CEILING IS WHAT MAKES THE DRIVER TOTAL. A breath stops at the peak, so
+/// the shortest honest run is a fade down and a fade back, and both have to fit
+/// inside `MIN_REFRESH_SECS`. At five seconds a pair fits ten with room to
+/// spare; past it a tick could be asked for a cycle longer than the interval it
+/// has, and the driver would have to either overrun the next tick or stop
+/// somewhere other than the peak.
+const MIN_FADE_MS: u64 = 200;
+const MAX_FADE_MS: u64 = 5000;
 
 /// Percent, so the two ends are the two ends. ZERO IS REFUSED rather than read
 /// as off: a dark signal is a lamp that says nothing, and the way to say
-/// nothing is the place's own `skip` list.
-const MIN_DIM_BRIGHTNESS: u8 = 1;
-const MAX_DIM_BRIGHTNESS: u8 = 100;
+/// nothing is to leave the behaviour off that lamp's `shows` list.
+const MIN_BRIGHTNESS: u8 = 1;
+const MAX_BRIGHTNESS: u8 = 100;
 
 /// How many events a window needs before a recap is worth the operator's
 /// attention. The operator's own stated figure; see `Recap`.
@@ -426,19 +468,37 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "lights",
         &[
-            "breathe_after_secs",
-            "breathe_on",
-            "dim_brightness",
-            "families",
-            "places",
+            "blocked",
+            "dim",
+            "done",
+            "failed",
+            "lamp",
+            "loop",
             "refresh_secs",
+            "room",
+            "unread",
+            "zone",
         ],
     ),
-    ("lights.families", &["except", "lights", "rooms"]),
+    ("lights.done", &["brightness", "duration_ms"]),
+    ("lights.failed", &["brightness", "duration_ms"]),
+    ("lights.blocked", &["duration_ms", "high", "low"]),
+    ("lights.dim", &["duration_ms", "high", "low"]),
     (
-        "lights.places",
-        &["catch_up", "quiet_hours", "quiet_mode", "skip"],
+        "lights.unread",
+        &["after_secs", "duration_ms", "high", "low"],
     ),
+    (
+        "lights.loop",
+        &[
+            "duration_ms",
+            "high",
+            "lease_timeout_secs",
+            "low",
+            "threshold_secs",
+        ],
+    ),
+    (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
     ("plugins.hermes", &["enabled", "key"]),
     (
         "plugins.hue",
@@ -474,6 +534,15 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
 /// level has no heading: an operator writes `[recap]`, never a bracket around
 /// the file itself, so there is no name a lookup could use.
 pub const TOP_LEVEL: &str = "";
+
+/// The roster row EVERY target declaration shares, whichever of the three
+/// levels wrote it.
+///
+/// ONE ROW FOR THREE LEVELS, because the vocabulary is the same at all of them:
+/// a lamp, a room and a zone answer the same questions and differ only in how
+/// specific they are. Three rows would be one list to keep in agreement with
+/// two others, which is the drift this roster exists to prevent.
+const TARGET_KEYS: &str = "lights.<level>";
 
 /// What one table serves, or `None` for a table this schema has no vocabulary
 /// for (a plugin nothing registered; see `TABLE_KEYS`).
@@ -890,8 +959,9 @@ fn modes(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
     Ok(names)
 }
 
-/// `[lights]`, the lamp policy: three scalars, each starting at its default and
-/// moved only by a key that states it.
+/// `[lights]`, the lamp policy: one interval, five behaviour shapes and three
+/// levels of routing, each starting at its default and moved only by a key that
+/// states it.
 ///
 /// EVERY UNKNOWN KEY IS REFUSED BY NAME, and that refusal is the whole argument
 /// for parsing this table here rather than inside the hue plugin. A plugin's
@@ -907,32 +977,20 @@ fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
         admits_flat("lights", &key)?;
         match key.as_str() {
             "refresh_secs" => {
-                lights.refresh_secs = bounded(&key, &setting, MIN_REFRESH_SECS, MAX_REFRESH_SECS)?;
+                lights.refresh_secs =
+                    bounded("lights", &key, &setting, MIN_REFRESH_SECS, MAX_REFRESH_SECS)?;
             }
-            "breathe_after_secs" => {
-                lights.breathe_after_secs = bounded(
-                    &key,
-                    &setting,
-                    MIN_BREATHE_AFTER_SECS,
-                    MAX_BREATHE_AFTER_SECS,
-                )?;
+            "done" => lights.done = parse_pulse("lights.done", &setting, lights.done)?,
+            "failed" => lights.failed = parse_pulse("lights.failed", &setting, lights.failed)?,
+            "blocked" => {
+                lights.blocked = parse_breath("lights.blocked", &setting, lights.blocked)?;
             }
-            "breathe_on" => lights.breathe_on = breathe_sources(&setting)?,
-            "families" => lights.families = parse_families(&setting)?,
-            "places" => lights.places = parse_places(&setting)?,
-            "dim_brightness" => {
-                let percent = bounded(
-                    &key,
-                    &setting,
-                    MIN_DIM_BRIGHTNESS.into(),
-                    MAX_DIM_BRIGHTNESS.into(),
-                )?;
-                // THE BOUND ABOVE ALREADY HELD, so this cannot fail and a
-                // fallback here would be a second, silent answer to a question
-                // `bounded` has already refused by name.
-                lights.dim_brightness = u8::try_from(percent)
-                    .expect("bounded at MAX_DIM_BRIGHTNESS, which is a percent and fits a u8");
-            }
+            "dim" => lights.dim = parse_breath("lights.dim", &setting, lights.dim)?,
+            "unread" => lights.unread = parse_unread(&setting, lights.unread)?,
+            "loop" => lights.looping = parse_looping(&setting, lights.looping)?,
+            "lamp" => lights.lamps = parse_targets("lamp", &setting)?,
+            "room" => lights.rooms = parse_targets("room", &setting)?,
+            "zone" => lights.zones = parse_targets("zone", &setting)?,
             _ => {
                 return Err(unknown_key("lights", "lights", &key));
             }
@@ -941,126 +999,205 @@ fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
     Ok(lights)
 }
 
-/// `breathe_on`, refused BY NAME for anything outside the closed set.
-fn breathe_sources(stated: &toml::Value) -> Result<Vec<BreatheSource>, ConfigError> {
-    let words = strings("lights", "breathe_on", "a list of activity names", stated)?;
-    words
-        .iter()
-        .map(|word| {
-            BREATHE_SOURCE_WORDS
-                .iter()
-                .find(|(spelling, _)| spelling == word)
-                .map(|(_, source)| *source)
-                .ok_or_else(|| {
-                    let known: Vec<&str> =
-                        BREATHE_SOURCE_WORDS.iter().map(|(word, _)| *word).collect();
-                    ConfigError::Invalid(format!(
-                        "`lights` key `breathe_on` names `{word}`, which is nothing the lamps \
-                         watch; they watch {}",
-                        known.join(", ")
-                    ))
-                })
-        })
-        .collect()
-}
-
-/// `[lights.families]`, one table per source family.
+/// The keys a behaviour's own table serves, read into whichever of the shapes
+/// that behaviour has.
 ///
-/// THE FAMILY NAMES ARE NOT JUDGED HERE, deliberately. `local`, `github` and
-/// `loop` are the three the crate produces today, and only the crate knows
-/// that, so a name outside the set is named by `pns doctor` against
-/// `hue::KNOWN_FAMILIES` instead: a map is often half written, and a config
-/// that refuses to load is a worse answer than a line saying which family
-/// nothing routes to. What IS judged is the shape inside it, because a mistyped
-/// `room` for `rooms` is a lamp that never lights and says nothing.
-fn parse_families(setting: &toml::Value) -> Result<BTreeMap<String, Family>, ConfigError> {
-    let Some(table) = setting.as_table() else {
-        return Err(ConfigError::Invalid(format!(
-            "`lights` key `families` has type `{}`, not a table of families",
-            setting.type_str()
-        )));
-    };
-    let mut families = BTreeMap::new();
-    for (name, entry) in table {
-        let where_it_is = format!("lights.families.{name}");
-        let Some(claims) = entry.as_table() else {
-            return Err(ConfigError::Invalid(format!(
-                "`{where_it_is}` has type `{}`, not a table of claims",
-                entry.type_str()
-            )));
-        };
-        let mut family = Family::default();
-        for (key, claim) in claims {
-            admits("lights.families", &where_it_is, key)?;
-            let named = match key.as_str() {
-                "rooms" => &mut family.rooms,
-                "lights" => &mut family.lights,
-                "except" => &mut family.except,
-                _ => {
-                    return Err(unknown_key("lights.families", &where_it_is, key));
-                }
-            };
-            *named = places_claimed(&where_it_is, key, claim)?;
+/// THE DEFAULT ARRIVES AS A VALUE rather than being rebuilt here, so a table
+/// that states one key moves that one and leaves the rest where the locked
+/// figures put them.
+fn parse_pulse(
+    where_it_is: &str,
+    setting: &toml::Value,
+    mut pulse: Pulse,
+) -> Result<Pulse, ConfigError> {
+    for (key, stated) in behaviour_table(where_it_is, setting)? {
+        admits_flat(where_it_is, key)?;
+        match key.as_str() {
+            "duration_ms" => {
+                pulse.duration_ms = bounded(where_it_is, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
+            }
+            "brightness" => pulse.brightness = percent(where_it_is, key, stated)?,
+            _ => return Err(unknown_key(where_it_is, where_it_is, key)),
         }
-        families.insert(name.clone(), family);
     }
-    Ok(families)
+    Ok(pulse)
 }
 
-/// `[lights.places]`, one table per room or light with a policy of its own.
+fn parse_breath(
+    where_it_is: &str,
+    setting: &toml::Value,
+    mut breath: Breath,
+) -> Result<Breath, ConfigError> {
+    for (key, stated) in behaviour_table(where_it_is, setting)? {
+        admits_flat(where_it_is, key)?;
+        breath_key(where_it_is, key, stated, &mut breath)?;
+    }
+    ends_agree(where_it_is, &breath)?;
+    Ok(breath)
+}
+
+fn parse_unread(setting: &toml::Value, mut unread: Unread) -> Result<Unread, ConfigError> {
+    const WHERE: &str = "lights.unread";
+    for (key, stated) in behaviour_table(WHERE, setting)? {
+        admits_flat(WHERE, key)?;
+        if key == "after_secs" {
+            // ZERO IS ALLOWED AND MEANS "AT ONCE", which is the failure
+            // flavour's own behaviour spelled for the success one. It is not a
+            // switch that turns anything off, so it needs no floor.
+            unread.after_secs = bounded(WHERE, key, stated, 0, MAX_THRESHOLD_SECS)?;
+            continue;
+        }
+        breath_key(WHERE, key, stated, &mut unread.breath)?;
+    }
+    ends_agree(WHERE, &unread.breath)?;
+    Ok(unread)
+}
+
+fn parse_looping(setting: &toml::Value, mut looping: Looping) -> Result<Looping, ConfigError> {
+    const WHERE: &str = "lights.loop";
+    for (key, stated) in behaviour_table(WHERE, setting)? {
+        admits_flat(WHERE, key)?;
+        match key.as_str() {
+            "threshold_secs" => {
+                looping.threshold_secs =
+                    bounded(WHERE, key, stated, MIN_THRESHOLD_SECS, MAX_THRESHOLD_SECS)?;
+            }
+            "lease_timeout_secs" => {
+                looping.lease_timeout_secs = bounded(
+                    WHERE,
+                    key,
+                    stated,
+                    MIN_LEASE_TIMEOUT_SECS,
+                    MAX_THRESHOLD_SECS,
+                )?;
+            }
+            _ => breath_key(WHERE, key, stated, &mut looping.breath)?,
+        }
+    }
+    ends_agree(WHERE, &looping.breath)?;
+    Ok(looping)
+}
+
+/// The three keys every breathing shape shares, so `unread` and `loop` read
+/// them through the same arm the two plain breaths do.
+fn breath_key(
+    where_it_is: &str,
+    key: &str,
+    stated: &toml::Value,
+    breath: &mut Breath,
+) -> Result<(), ConfigError> {
+    match key {
+        "duration_ms" => {
+            breath.duration_ms = bounded(where_it_is, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
+        }
+        "high" => breath.high = percent(where_it_is, key, stated)?,
+        "low" => breath.low = percent(where_it_is, key, stated)?,
+        _ => return Err(unknown_key(where_it_is, where_it_is, key)),
+    }
+    Ok(())
+}
+
+/// A breath whose `low` is above its `high` is REFUSED rather than rendered
+/// upside down, because the driver's stated invariant is that it stops at the
+/// peak: with the ends swapped it would stop at the fainter of the two and the
+/// next tick would resume from there, which is the opposite of what the shape
+/// promises.
+fn ends_agree(where_it_is: &str, breath: &Breath) -> Result<(), ConfigError> {
+    if breath.low > breath.high {
+        return Err(ConfigError::Invalid(format!(
+            "`{where_it_is}` has low {} above high {}, so the breath would stop at \
+             its faintest rather than at its peak",
+            breath.low, breath.high
+        )));
+    }
+    Ok(())
+}
+
+/// One behaviour's own table, refused by name when it is not a table at all.
+fn behaviour_table<'setting>(
+    where_it_is: &str,
+    setting: &'setting toml::Value,
+) -> Result<&'setting toml::map::Map<String, toml::Value>, ConfigError> {
+    setting.as_table().ok_or_else(|| {
+        ConfigError::Invalid(format!(
+            "`{where_it_is}` has type `{}`, not a table of settings",
+            setting.type_str()
+        ))
+    })
+}
+
+/// One brightness, in percent, refused by name outside the range.
+fn percent(where_it_is: &str, key: &str, stated: &toml::Value) -> Result<u8, ConfigError> {
+    let count = bounded(
+        where_it_is,
+        key,
+        stated,
+        MIN_BRIGHTNESS.into(),
+        MAX_BRIGHTNESS.into(),
+    )?;
+    // THE BOUND ABOVE ALREADY HELD, so this cannot fail and a fallback here
+    // would be a second, silent answer to a question `bounded` has already
+    // refused by name.
+    Ok(u8::try_from(count).expect("bounded at MAX_BRIGHTNESS, which is a percent and fits a u8"))
+}
+
+/// `[lights.lamp]`, `[lights.room]` and `[lights.zone]`: one table per declared
+/// name, at one of the three levels.
 ///
-/// A PLACE NAME IS NOT JUDGED against the bridge here, for `families`' reason:
-/// this layer reads a file, and only a bridge listing can say which names
-/// exist. The doctor is where an unresolved one is named out loud.
-fn parse_places(setting: &toml::Value) -> Result<BTreeMap<String, Place>, ConfigError> {
+/// A NAME IS NOT JUDGED against the bridge here. This layer reads a file, and
+/// only the bridge's own listings can say which lamps, rooms and zones exist;
+/// an unresolvable name is reported by the tick and by `pns doctor` in their
+/// own words, once there is a listing to judge it against.
+fn parse_targets(
+    level: &str,
+    setting: &toml::Value,
+) -> Result<BTreeMap<String, Target>, ConfigError> {
     let Some(table) = setting.as_table() else {
         return Err(ConfigError::Invalid(format!(
-            "`lights` key `places` has type `{}`, not a table of places",
+            "`lights` key `{level}` has type `{}`, not a table of {level} names",
             setting.type_str()
         )));
     };
-    let mut places = BTreeMap::new();
+    let mut targets = BTreeMap::new();
     for (name, entry) in table {
-        let where_it_is = format!("lights.places.{name}");
+        let where_it_is = format!("lights.{level}.{name}");
         let Some(settings) = entry.as_table() else {
             return Err(ConfigError::Invalid(format!(
                 "`{where_it_is}` has type `{}`, not a table of settings",
                 entry.type_str()
             )));
         };
-        let mut place = Place::default();
+        let mut target = Target::default();
         for (key, stated) in settings {
-            admits("lights.places", &where_it_is, key)?;
+            admits(TARGET_KEYS, &where_it_is, key)?;
             match key.as_str() {
-                "skip" => place.skip = behaviours(&where_it_is, stated)?,
-                "quiet_hours" => place.quiet_hours = Some(text(&where_it_is, key, stated)?),
-                "quiet_mode" => place.quiet_mode = Some(quiet_mode(&where_it_is, stated)?),
-                "catch_up" => {
-                    place.catch_up = Some(stated.as_bool().ok_or_else(|| {
-                        ConfigError::Invalid(format!(
-                            "`{where_it_is}` key `catch_up` has type `{}`, not boolean",
-                            stated.type_str()
-                        ))
-                    })?);
+                "shows" => target.shows = Some(behaviours(&where_it_is, key, stated)?),
+                "dim_window" => target.dim_window = Some(text(&where_it_is, key, stated)?),
+                "dim_behaviours" => {
+                    target.dim_behaviours = behaviours(&where_it_is, key, stated)?;
                 }
                 _ => {
-                    return Err(unknown_key("lights.places", &where_it_is, key));
+                    return Err(unknown_key(TARGET_KEYS, &where_it_is, key));
                 }
             }
         }
-        places.insert(name.clone(), place);
+        targets.insert(name.clone(), target);
     }
-    Ok(places)
+    Ok(targets)
 }
 
-/// `skip`, the behaviours a place refuses, each one a word off the closed set.
+/// A list of behaviour words off the closed set, refused BY NAME.
 ///
 /// THE REFUSAL LISTS THE WHOLE SET, which is worth the extra words here and
-/// nowhere else in this file: the failure it prevents is a lamp that goes on
-/// signalling something the operator switched off, and the operator's only
-/// evidence would be a lamp doing what they told it not to.
-fn behaviours(where_it_is: &str, stated: &toml::Value) -> Result<Vec<Behaviour>, ConfigError> {
-    let words = strings(where_it_is, "skip", "a list of behaviour names", stated)?;
+/// nowhere else in this file: the failure it prevents is a lamp that stays dark
+/// while the operator is sure they routed it, and their only evidence is a lamp
+/// doing nothing.
+fn behaviours(
+    where_it_is: &str,
+    key: &str,
+    stated: &toml::Value,
+) -> Result<Vec<Behaviour>, ConfigError> {
+    let words = strings(where_it_is, key, "a list of behaviour names", stated)?;
     words
         .iter()
         .map(|word| {
@@ -1071,7 +1208,7 @@ fn behaviours(where_it_is: &str, stated: &toml::Value) -> Result<Vec<Behaviour>,
                 .ok_or_else(|| {
                     let known: Vec<&str> = BEHAVIOUR_WORDS.iter().map(|(word, _)| *word).collect();
                     ConfigError::Invalid(format!(
-                        "`{where_it_is}` key `skip` names `{word}`, which is no behaviour; \
+                        "`{where_it_is}` key `{key}` names `{word}`, which is no behaviour; \
                          the lamps say {}",
                         known.join(", ")
                     ))
@@ -1080,18 +1217,7 @@ fn behaviours(where_it_is: &str, stated: &toml::Value) -> Result<Vec<Behaviour>,
         .collect()
 }
 
-/// `quiet_mode`, and only the two words that mean something.
-fn quiet_mode(where_it_is: &str, stated: &toml::Value) -> Result<QuietMode, ConfigError> {
-    match text(where_it_is, "quiet_mode", stated)?.as_str() {
-        "off" => Ok(QuietMode::Off),
-        "dim" => Ok(QuietMode::Dim),
-        other => Err(ConfigError::Invalid(format!(
-            "`{where_it_is}` key `quiet_mode` is `{other}`, which is neither `off` nor `dim`"
-        ))),
-    }
-}
-
-/// One place setting that has to be a string, refused BY NAME and BY TYPE.
+/// One setting that has to be a string, refused BY NAME and BY TYPE.
 fn text(where_it_is: &str, key: &str, stated: &toml::Value) -> Result<String, ConfigError> {
     stated.as_str().map(str::to_string).ok_or_else(|| {
         ConfigError::Invalid(format!(
@@ -1101,47 +1227,34 @@ fn text(where_it_is: &str, key: &str, stated: &toml::Value) -> Result<String, Co
     })
 }
 
-/// One claim list: names of rooms or lights as the bridge spells them.
-///
-/// AN EMPTY NAME IS REFUSED, on `focus`'s own rule rather than a new one: it
-/// names no room and no lamp, so it is a claim the operator wrote and pns can
-/// never act on. The names themselves are NOT judged here; the bridge is the
-/// authority on which exist, and `pns doctor` is where an operator learns which
-/// of theirs it does not have.
-fn places_claimed(
-    where_it_is: &str,
-    key: &str,
-    claim: &toml::Value,
-) -> Result<Vec<String>, ConfigError> {
-    let names = strings(where_it_is, key, "a list of room or light names", claim)?;
-    if names.iter().any(String::is_empty) {
-        return Err(ConfigError::Invalid(format!(
-            "`{where_it_is}` key `{key}` names a place that is the empty string, \
-             which is no room and no lamp"
-        )));
-    }
-    Ok(names)
-}
-
 /// One `[lights]` scalar, refused BY NAME outside its range.
 ///
 /// BOTH ENDS, ALWAYS. A floor alone leaves a value that parses and cannot work;
 /// a ceiling alone leaves the same at the other end. Each bound is argued at
 /// the constant that holds it, and the refusal echoes both, so an operator
 /// reading it learns the range rather than only that they missed it.
-fn bounded(key: &str, setting: &toml::Value, low: u64, high: u64) -> Result<u64, ConfigError> {
+///
+/// THE TABLE IS AN ARGUMENT because the behaviour tables are nested: an
+/// operator told `lights` has no `high` would go looking in the wrong heading.
+fn bounded(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    low: u64,
+    high: u64,
+) -> Result<u64, ConfigError> {
     let Some(count) = setting
         .as_integer()
         .and_then(|count| u64::try_from(count).ok())
     else {
         return Err(ConfigError::Invalid(format!(
-            "`lights` key `{key}` has type `{}`, not a count between {low} and {high}",
+            "`{table}` key `{key}` has type `{}`, not a count between {low} and {high}",
             setting.type_str()
         )));
     };
     if count < low || count > high {
         return Err(ConfigError::Invalid(format!(
-            "`lights` key `{key}` is {count}, outside the {low} to {high} range"
+            "`{table}` key `{key}` is {count}, outside the {low} to {high} range"
         )));
     }
     Ok(count)
@@ -1465,8 +1578,8 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BREATHE_SOURCE_WORDS, Behaviour, BreatheSource, ConfigError, Family, Lights, LoadOutcome,
-        Place, QuietMode, config_path, load_config, parse_config, submit_deadline,
+        Behaviour, Breath, ConfigError, Lights, LoadOutcome, Looping, Pulse, Target, Unread,
+        config_path, load_config, parse_config, submit_deadline,
     };
     use std::time::Duration;
 
@@ -2428,311 +2541,321 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_lights_table_reads_its_three_scalars() {
-        let lights = parse_config(
-            "[lights]\nrefresh_secs = 25\nbreathe_after_secs = 600\ndim_brightness = 15\n",
-        )
-        .unwrap()
-        .lights
-        .expect("a table that was written is a table that was read");
-        assert_eq!(lights.refresh_secs, 25);
-        assert_eq!(lights.breathe_after_secs, 600);
-        assert_eq!(lights.dim_brightness, 15);
+    /// The `[lights]` table one config parses to.
+    fn lights(text: &str) -> Lights {
+        *parse_config(text)
+            .expect("this config parses")
+            .lights
+            .expect("and carries a lights table")
     }
 
     #[test]
-    fn no_lights_table_is_none_and_an_empty_one_is_every_default() {
+    fn no_lights_table_is_none_and_an_empty_one_is_every_locked_default() {
+        // ABSENT AND EMPTY ARE DIFFERENT CONFIGS, which is what the Option
+        // spells: a machine with no table keeps the room-based pulse it has
+        // always had, and a machine with an empty one has asked for the lamps
+        // and routed nothing yet.
+        assert_eq!(parse_config("").expect("empty parses").lights, None);
+        let shipped = lights("[lights]\n");
+        assert_eq!(shipped, Lights::default());
+        // THE LOCKED FIGURES, each one set on a real lamp. A change to any of
+        // them is a change to something that was looked at.
+        assert_eq!(shipped.refresh_secs, 12);
         assert_eq!(
-            parse_config("[plugins.hue]\nenabled = true\n")
-                .unwrap()
-                .lights,
-            None,
-            "a machine that never wrote the table is DISTINGUISHABLE from one \
-             that wrote an empty one: the doctor says different things about them"
+            shipped.done,
+            Pulse {
+                duration_ms: 4000,
+                brightness: 100
+            }
+        );
+        assert_eq!(shipped.failed, shipped.done);
+        assert_eq!(
+            shipped.blocked,
+            Breath {
+                duration_ms: 2000,
+                high: 100,
+                low: 30
+            }
         );
         assert_eq!(
-            parse_config("[lights]\n").unwrap().lights,
-            Some(Box::new(Lights::default())),
-            "and an empty table is every default, written out"
+            shipped.unread,
+            Unread {
+                breath: Breath {
+                    duration_ms: 4000,
+                    high: 60,
+                    low: 10
+                },
+                after_secs: 300,
+            }
         );
         assert_eq!(
-            Lights::default().refresh_secs,
-            12,
-            "and the refresh an operator gets by writing `[lights]` alone is \
-             inside the ceiling the template states for smooth breathing, not \
-             above it: the bridge ends its own swell at about fifteen seconds"
+            shipped.looping,
+            Looping {
+                breath: Breath {
+                    duration_ms: 4000,
+                    high: 60,
+                    low: 10
+                },
+                threshold_secs: 300,
+                lease_timeout_secs: 3900,
+            }
         );
+        assert_eq!(
+            shipped.dim,
+            Breath {
+                duration_ms: 3000,
+                high: 7,
+                low: 1
+            }
+        );
+        assert!(shipped.lamps.is_empty() && shipped.rooms.is_empty() && shipped.zones.is_empty());
     }
 
     #[test]
-    fn an_unknown_lights_key_is_refused_by_name() {
-        let said = refusal("[lights]\nrefrsh_secs = 20\n");
-        assert!(
-            said.contains("lights") && said.contains("refrsh_secs"),
-            "the table and the misspelling are both named: {said}"
+    fn a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values() {
+        let stated = lights(
+            "[lights]\nrefresh_secs = 25\n\
+             [lights.done]\nduration_ms = 1500\n\
+             [lights.blocked]\nlow = 45\n\
+             [lights.unread]\nafter_secs = 60\n\
+             [lights.loop]\nthreshold_secs = 360\nlease_timeout_secs = 600\n\
+             [lights.dim]\nhigh = 9\n",
         );
+        assert_eq!(stated.refresh_secs, 25);
+        assert_eq!(
+            stated.done,
+            Pulse {
+                duration_ms: 1500,
+                brightness: 100
+            },
+            "the duration moved and the brightness stayed at its locked value"
+        );
+        assert_eq!(
+            stated.failed,
+            Lights::default().failed,
+            "and its sibling is untouched"
+        );
+        assert_eq!(stated.blocked.low, 45);
+        assert_eq!(stated.blocked.duration_ms, 2000);
+        assert_eq!(stated.unread.after_secs, 60);
+        assert_eq!(stated.unread.breath, Lights::default().unread.breath);
+        assert_eq!(stated.looping.threshold_secs, 360);
+        assert_eq!(stated.looping.lease_timeout_secs, 600);
+        assert_eq!(stated.dim.high, 9);
+        assert_eq!(stated.dim.low, 1);
     }
 
     #[test]
-    fn a_lights_scalar_of_the_wrong_type_is_refused_by_name_and_by_type() {
+    fn a_knob_that_does_not_apply_to_a_behaviour_does_not_exist_on_it() {
+        // NO DEAD KNOBS (operator ruling), enforced by the roster rather than by
+        // a comment: a blink has no low end to fade to, and a breath has no
+        // single brightness. A reader who sets one and watches nothing happen is
+        // exactly what this refuses.
         for (written, key) in [
-            ("refresh_secs = \"20\"", "refresh_secs"),
-            ("breathe_after_secs = true", "breathe_after_secs"),
-            ("dim_brightness = 10.5", "dim_brightness"),
+            ("[lights.done]\nlow = 10\n", "low"),
+            ("[lights.done]\nhigh = 90\n", "high"),
+            ("[lights.failed]\nlow = 10\n", "low"),
+            ("[lights.blocked]\nbrightness = 90\n", "brightness"),
+            ("[lights.unread]\nbrightness = 90\n", "brightness"),
+            ("[lights.loop]\nbrightness = 90\n", "brightness"),
+            ("[lights.dim]\nbrightness = 90\n", "brightness"),
+            ("[lights.dim]\nthreshold_secs = 90\n", "threshold_secs"),
+            ("[lights.done]\nthreshold_secs = 90\n", "threshold_secs"),
+            ("[lights.blocked]\nafter_secs = 90\n", "after_secs"),
+            (
+                "[lights.unread]\nlease_timeout_secs = 90\n",
+                "lease_timeout_secs",
+            ),
         ] {
-            let said = refusal(&format!("[lights]\n{written}\n"));
+            let said = refusal(written);
             assert!(
-                said.contains(key) && said.contains("has type"),
-                "the key and what was written instead are both named: {said}"
+                said.contains(key) && said.contains("the table serves"),
+                "{written:?} must refuse `{key}` by name and list what the table does \
+                 serve: {said}"
             );
         }
     }
 
     #[test]
-    fn every_lights_scalar_is_bounded_on_both_sides_and_refused_by_name_outside_them() {
-        for (key, written) in [
-            ("refresh_secs", "0"),
-            ("refresh_secs", "1"),
-            ("refresh_secs", "301"),
-            ("breathe_after_secs", "0"),
-            ("breathe_after_secs", "604800"),
-            ("dim_brightness", "0"),
-            ("dim_brightness", "101"),
+    fn every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them() {
+        // BOTH ENDS, ALWAYS. A floor alone leaves a value that parses and cannot
+        // work; a ceiling alone leaves the same at the other end.
+        for (written, key) in [
+            ("[lights]\nrefresh_secs = 9\n", "refresh_secs"),
+            ("[lights]\nrefresh_secs = 301\n", "refresh_secs"),
+            ("[lights.done]\nduration_ms = 199\n", "duration_ms"),
+            ("[lights.done]\nduration_ms = 5001\n", "duration_ms"),
+            ("[lights.done]\nbrightness = 0\n", "brightness"),
+            ("[lights.done]\nbrightness = 101\n", "brightness"),
+            ("[lights.blocked]\nlow = 0\n", "low"),
+            ("[lights.blocked]\nhigh = 101\n", "high"),
+            ("[lights.loop]\nthreshold_secs = 0\n", "threshold_secs"),
+            ("[lights.loop]\nthreshold_secs = 86401\n", "threshold_secs"),
+            (
+                "[lights.loop]\nlease_timeout_secs = 59\n",
+                "lease_timeout_secs",
+            ),
+            (
+                "[lights.loop]\nlease_timeout_secs = 86401\n",
+                "lease_timeout_secs",
+            ),
+            ("[lights.unread]\nafter_secs = 86401\n", "after_secs"),
         ] {
-            let said = refusal(&format!("[lights]\n{key} = {written}\n"));
+            let said = refusal(written);
             assert!(
-                said.contains(key) && said.contains(written) && said.contains("range"),
-                "the refusal names the key, echoes what was written and states the \
-                 range: {said}"
+                said.contains(key) && said.contains("range"),
+                "{written:?} must be refused by name with the range echoed: {said}"
             );
         }
-    }
-
-    #[test]
-    fn each_bound_is_inclusive_so_the_edge_itself_is_a_working_setting() {
-        let edges = parse_config(
-            "[lights]\nrefresh_secs = 10\nbreathe_after_secs = 1\ndim_brightness = 1\n",
-        )
-        .unwrap()
-        .lights
-        .expect("the floor of every range is inside it");
-        assert_eq!(
-            (
-                edges.refresh_secs,
-                edges.breathe_after_secs,
-                edges.dim_brightness
-            ),
-            (10, 1, 1)
-        );
-        let edges = parse_config(
-            "[lights]\nrefresh_secs = 300\nbreathe_after_secs = 86400\ndim_brightness = 100\n",
-        )
-        .unwrap()
-        .lights
-        .expect("and so is the ceiling");
-        assert_eq!(
-            (
-                edges.refresh_secs,
-                edges.breathe_after_secs,
-                edges.dim_brightness
-            ),
-            (300, 86400, 100)
-        );
-    }
-
-    #[test]
-    fn a_family_claims_rooms_lights_and_exceptions() {
-        let lights = parse_config(
-            "[lights.families.local]\nrooms = [\"3F - Studio\"]\nexcept = [\"3F - Studio - HCL3\"]\n\
-             [lights.families.github]\nlights = [\"3F - Studio - HCL3\"]\n",
-        )
-        .unwrap()
-        .lights
-        .expect("a families table is a lights table");
-        assert_eq!(
-            lights.families["local"],
-            Family {
-                rooms: vec!["3F - Studio".to_string()],
-                lights: Vec::new(),
-                except: vec!["3F - Studio - HCL3".to_string()],
-            }
-        );
-        assert_eq!(
-            lights.families["github"],
-            Family {
-                rooms: Vec::new(),
-                lights: vec!["3F - Studio - HCL3".to_string()],
-                except: Vec::new(),
-            }
-        );
-    }
-
-    #[test]
-    fn a_family_claim_that_is_not_a_list_of_names_is_refused_by_name() {
+        // THE ENDS THEMSELVES ARE ACCEPTED, which is what makes the bound a
+        // bound rather than an off-by-one.
         for written in [
-            "rooms = \"3F - Studio\"",
-            "lights = 3",
-            "except = [true]",
-            "rooms = [\"\"]",
+            "[lights]\nrefresh_secs = 10\n",
+            "[lights]\nrefresh_secs = 300\n",
+            "[lights.done]\nduration_ms = 200\nbrightness = 1\n",
+            "[lights.done]\nduration_ms = 5000\nbrightness = 100\n",
+            "[lights.loop]\nthreshold_secs = 1\nlease_timeout_secs = 60\n",
+            "[lights.unread]\nafter_secs = 0\n",
         ] {
-            let said = refusal(&format!("[lights.families.local]\n{written}\n"));
             assert!(
-                said.contains("local"),
-                "the refusal names the family that carries it: {said}"
+                parse_config(written).is_ok(),
+                "{written:?} sits on a bound and must be accepted"
             );
         }
     }
 
     #[test]
-    fn an_unknown_family_key_is_refused_by_name() {
-        let said = refusal("[lights.families.local]\nroom = [\"3F - Studio\"]\n");
-        assert!(
-            said.contains("local") && said.contains("room"),
-            "the family and the misspelled key are both named: {said}"
-        );
-    }
-
-    #[test]
-    fn a_place_parses_its_four_keys_and_defaults_the_ones_it_does_not_state() {
-        let lights = parse_config(
-            "[lights.places.\"3F - Master Bedroom\"]\nskip = [\"loop\", \"unread\"]\n\
-             quiet_hours = \"22:00-07:00\"\nquiet_mode = \"dim\"\ncatch_up = true\n\
-             [lights.places.\"3F - Studio\"]\nskip = []\n",
-        )
-        .unwrap()
-        .lights
-        .expect("a places table is a lights table");
-        assert_eq!(
-            lights.places["3F - Master Bedroom"],
-            Place {
-                skip: vec![Behaviour::Looping, Behaviour::Unread],
-                quiet_hours: Some("22:00-07:00".to_string()),
-                quiet_mode: Some(QuietMode::Dim),
-                catch_up: Some(true),
-            }
-        );
-        assert_eq!(
-            lights.places["3F - Studio"],
-            Place::default(),
-            "a place that states nothing beyond an empty skip list keeps every \
-             default, and catch-up is off among them"
-        );
-    }
-
-    #[test]
-    fn a_skip_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named() {
-        let said = refusal("[lights.places.\"3F - Studio\"]\nskip = [\"breething\"]\n");
-        assert!(
-            said.contains("3F - Studio") && said.contains("breething"),
-            "the place and the misspelling are both named: {said}"
-        );
-        for word in ["done", "failed", "blocked", "loop", "unread"] {
-            assert!(
-                said.contains(word),
-                "and the refusal lists the whole closed set, so the operator does \
-                 not have to find it: `{word}` is missing from {said}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_place_setting_of_the_wrong_type_or_value_is_refused_by_name() {
-        for (written, offender) in [
-            ("quiet_mode = \"quiet\"", "quiet"),
-            ("quiet_mode = 3", "quiet_mode"),
-            ("catch_up = \"yes\"", "catch_up"),
-            ("quiet_hours = 2200", "quiet_hours"),
-            ("skip = \"loop\"", "skip"),
-            ("catch_ups = true", "catch_ups"),
+    fn a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down() {
+        // THE DRIVER'S STATED INVARIANT IS THAT IT STOPS AT THE PEAK, and with
+        // the ends swapped it would stop at the fainter of the two and the next
+        // tick would resume from there.
+        for written in [
+            "[lights.blocked]\nhigh = 20\nlow = 40\n",
+            "[lights.unread]\nhigh = 20\nlow = 40\n",
+            "[lights.loop]\nhigh = 20\nlow = 40\n",
+            "[lights.dim]\nhigh = 2\nlow = 4\n",
         ] {
-            let said = refusal(&format!("[lights.places.\"3F - Studio\"]\n{written}\n"));
+            let said = refusal(written);
             assert!(
-                said.contains("3F - Studio") && said.contains(offender),
-                "the place and the offender are both named: {said}"
+                said.contains("low 40") || said.contains("low 4"),
+                "{written:?} must name both ends: {said}"
+            );
+            assert!(said.contains("peak"), "and say what it costs: {said}");
+        }
+        assert!(
+            parse_config("[lights.blocked]\nhigh = 40\nlow = 40\n").is_ok(),
+            "equal ends are a lamp that holds steady, which is a shape rather than \
+             a mistake"
+        );
+    }
+
+    #[test]
+    fn a_lights_value_of_the_wrong_type_is_refused_by_name_and_by_type() {
+        for (written, key) in [
+            ("[lights]\nrefresh_secs = \"20\"\n", "refresh_secs"),
+            ("[lights.done]\nduration_ms = true\n", "duration_ms"),
+            ("[lights.dim]\nlow = 10.5\n", "low"),
+            ("[lights]\ndone = 3\n", "lights.done"),
+            ("[lights]\nlamp = 3\n", "lamp"),
+        ] {
+            let said = refusal(written);
+            assert!(said.contains(key), "{written:?} must name `{key}`: {said}");
+        }
+    }
+
+    // --- the routing grammar -------------------------------------------------
+
+    #[test]
+    fn a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys() {
+        // ONE VOCABULARY FOR THREE LEVELS, because a lamp, a room and a zone
+        // answer the same questions and differ only in how specific they are.
+        for level in ["lamp", "room", "zone"] {
+            let held = lights(&format!(
+                "[lights.{level}.\"3F - Studio\"]\n\
+                 shows = [\"done\", \"failed\"]\n\
+                 dim_window = \"22:00-07:00\"\n\
+                 dim_behaviours = [\"blocked\", \"unread\", \"loop\"]\n"
+            ));
+            let table = match level {
+                "lamp" => &held.lamps,
+                "room" => &held.rooms,
+                _ => &held.zones,
+            };
+            assert_eq!(
+                table.get("3F - Studio"),
+                Some(&Target {
+                    shows: Some(vec![Behaviour::Done, Behaviour::Failed]),
+                    dim_window: Some("22:00-07:00".to_string()),
+                    dim_behaviours: vec![Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping],
+                }),
+                "at the {level} level"
             );
         }
     }
 
     #[test]
-    fn a_present_malformed_file_is_a_loud_error() {
-        let path =
-            std::env::temp_dir().join(format!("pns-config-malformed-{}", std::process::id()));
-        std::fs::write(&path, "corrupt [").unwrap();
-        let outcome = load_config(&path);
-        std::fs::remove_file(&path).ok();
-        assert!(matches!(outcome, Err(ConfigError::Malformed(_))));
-    }
-
-    #[test]
-    fn breathe_on_names_which_activities_breathe_and_absent_is_the_thresholded_default() {
+    fn a_declaration_that_states_nothing_states_nothing_rather_than_defaulting() {
+        // `None` IS "SAID NOTHING", which a plain `Vec` could not spell: it is
+        // what lets a lamp state which behaviours it carries and inherit its
+        // room's window, and what tells a deliberate empty list from silence.
+        let silent = lights("[lights.lamp.\"HCL1\"]\n");
+        assert_eq!(silent.lamps["HCL1"], Target::default());
+        assert_eq!(silent.lamps["HCL1"].shows, None);
+        let emptied = lights("[lights.lamp.\"HCL1\"]\nshows = []\n");
         assert_eq!(
-            parse_config("[lights]\n")
-                .unwrap()
-                .lights
-                .unwrap()
-                .breathe_on,
-            vec![
-                BreatheSource::AgentLoops,
-                BreatheSource::Commands,
-                BreatheSource::LongCommands
-            ],
-            "an operator who said nothing gets breathing that WAITS. `agent-work` \
-             breathes on any working workspace with no duration test at all, so \
-             defaulting it on would leave `breathe_after_secs` governing nothing \
-             while the template beside it says that key is what calls a run a loop"
-        );
-        assert_eq!(
-            parse_config("[lights]\nbreathe_on = [\"agent-work\"]\n")
-                .unwrap()
-                .lights
-                .unwrap()
-                .breathe_on,
-            vec![BreatheSource::AgentWork],
-            "and it is still there for an operator who names it: the default \
-             narrows the set, it does not take a source out of the vocabulary"
-        );
-        assert_eq!(
-            parse_config("[lights]\nbreathe_on = [\"agent-loops\", \"long-commands\"]\n")
-                .unwrap()
-                .lights
-                .unwrap()
-                .breathe_on,
-            vec![BreatheSource::AgentLoops, BreatheSource::LongCommands],
-        );
-        // AN EMPTY LIST IS BREATHING OFF, and it is a different config from an
-        // absent key. A `Vec` cannot tell those apart on its own, which is why
-        // the default is resolved to the full set at PARSE time rather than
-        // left for a reader to guess at.
-        assert!(
-            parse_config("[lights]\nbreathe_on = []\n")
-                .unwrap()
-                .lights
-                .unwrap()
-                .breathe_on
-                .is_empty(),
-            "an operator who named no source asked for no breathing"
+            emptied.lamps["HCL1"].shows,
+            Some(Vec::new()),
+            "an empty list is an OVERRIDE, which is how one lamp is taken out of a \
+             routed room"
         );
     }
 
     #[test]
-    fn a_breathe_on_value_outside_the_closed_set_is_refused_at_load_by_name() {
-        let said = refusal("[lights]\nbreathe_on = [\"agent-work\", \"agent-loop\"]\n");
-        assert!(
-            said.contains("breathe_on") && said.contains("agent-loop"),
-            "the key and the value are both named: {said}"
-        );
-        for known in BREATHE_SOURCE_WORDS.iter().map(|(word, _)| *word) {
-            assert!(
-                said.contains(known),
-                "and the closed set is spelled out, or an operator cannot fix it: {said}"
+    fn a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named() {
+        // THE REFUSAL LISTS THE WHOLE SET, which is worth the extra words here:
+        // the failure it prevents is a lamp that stays dark while the operator
+        // is sure they routed it, and their only evidence is a lamp doing
+        // nothing.
+        for key in ["shows", "dim_behaviours"] {
+            let said = refusal(&format!(
+                "[lights.room.\"3F - Studio\"]\n{key} = [\"breathing\"]\n"
+            ));
+            assert_eq!(
+                said,
+                format!(
+                    "`lights.room.3F - Studio` key `{key}` names `breathing`, which is \
+                     no behaviour; the lamps say done, failed, blocked, unread, loop"
+                ),
             );
         }
-        let said = refusal("[lights]\nbreathe_on = \"agent-work\"\n");
+    }
+
+    #[test]
+    fn an_unknown_declaration_key_is_refused_by_name_with_the_path_the_operator_wrote() {
+        // THE PATH THEY WROTE, not the roster's own row: an operator told
+        // `lights.<level>` has no `dim_hours` would go looking for a table they
+        // never typed.
+        let said = refusal("[lights.room.\"3F - Studio\"]\ndim_hours = \"22:00-07:00\"\n");
         assert!(
-            said.contains("breathe_on"),
-            "a bare string is not a list of sources: {said}"
+            said.contains("`lights.room.3F - Studio` key `dim_hours`"),
+            "{said}"
         );
+        assert!(
+            said.contains("dim_behaviours, dim_window, shows"),
+            "and it lists what the level does serve: {said}"
+        );
+    }
+
+    #[test]
+    fn a_declaration_that_is_not_a_table_of_settings_is_refused_by_name() {
+        for written in [
+            "[lights]\nlamp = { \"HCL1\" = 3 }\n",
+            "[lights]\nroom = 3\n",
+            "[lights]\nzone = \"Upstairs\"\n",
+        ] {
+            let said = refusal(written);
+            assert!(!said.is_empty(), "{written:?} must be refused: {said}");
+        }
     }
 
     // --- every table's own vocabulary ---------------------------------------
@@ -2742,8 +2865,10 @@ mod tests {
     /// holds the prefix and this picks a name to write under it.
     fn header_for(table: &str) -> String {
         match table {
-            "lights.families" => "lights.families.local".to_string(),
-            "lights.places" => "lights.places.study".to_string(),
+            // THE ONE ROSTER ROW WITH NO HEADING OF ITS OWN: three levels share
+            // it, so a sample writes whichever of them, and the refusal names
+            // the path the operator wrote rather than this row.
+            super::TARGET_KEYS => "lights.room.\"3F - Studio\"".to_string(),
             other => other.to_string(),
         }
     }
@@ -2764,6 +2889,17 @@ mod tests {
         match table {
             super::TOP_LEVEL => "top-level".to_string(),
             other => format!("`{}`", header_for(other)),
+        }
+    }
+
+    /// The header text a refusal from one roster row carries, which for the
+    /// three levels sharing a row is the PATH THE OPERATOR WROTE rather than the
+    /// row's own name: an operator told `lights.<level>` has no `dim_hours`
+    /// would go looking for a table they never typed.
+    fn refusal_names(table: &str) -> String {
+        match table {
+            super::TARGET_KEYS => "`lights.room.3F - Studio`".to_string(),
+            other => shown_as(other),
         }
     }
 
@@ -2871,7 +3007,7 @@ mod tests {
         for (table, serves) in super::TABLE_KEYS.iter().copied() {
             let said = refusal(&config_writing(table, "zzz_not_a_key", "\"x\""));
             assert!(
-                said.contains(&shown_as(table)) && said.contains("`zzz_not_a_key`"),
+                said.contains(&refusal_names(table)) && said.contains("`zzz_not_a_key`"),
                 "`{table}` names the table and the key: {said}"
             );
             for key in serves {
@@ -2923,23 +3059,38 @@ mod tests {
         ("focus", "silence", "[\"Sleep\"]"),
         ("daemon", "enabled", "true"),
         ("nag", "after_secs", "300"),
-        ("lights", "breathe_after_secs", "900"),
-        ("lights", "breathe_on", "[\"commands\"]"),
-        ("lights", "dim_brightness", "1"),
-        (
-            "lights",
-            "families",
-            "{ local = { rooms = [\"3F - Studio\"] } }",
-        ),
-        ("lights", "places", "{ study = { catch_up = true } }"),
+        ("lights", "blocked", "{ duration_ms = 2000 }"),
+        ("lights", "dim", "{ duration_ms = 3000 }"),
+        ("lights", "done", "{ duration_ms = 4000 }"),
+        ("lights", "failed", "{ duration_ms = 4000 }"),
+        ("lights", "lamp", "{ HCL1 = { shows = [\"done\"] } }"),
+        ("lights", "loop", "{ threshold_secs = 300 }"),
         ("lights", "refresh_secs", "12"),
-        ("lights.families", "except", "[\"3F - Studio Lamp\"]"),
-        ("lights.families", "lights", "[\"3F - Studio Lamp\"]"),
-        ("lights.families", "rooms", "[\"3F - Studio\"]"),
-        ("lights.places", "catch_up", "false"),
-        ("lights.places", "quiet_hours", "\"22:00-07:00\""),
-        ("lights.places", "quiet_mode", "\"dim\""),
-        ("lights.places", "skip", "[\"done\"]"),
+        ("lights", "room", "{ Study = { shows = [\"done\"] } }"),
+        ("lights", "unread", "{ after_secs = 300 }"),
+        ("lights", "zone", "{ Upstairs = { shows = [\"done\"] } }"),
+        ("lights.blocked", "duration_ms", "2000"),
+        ("lights.blocked", "high", "100"),
+        ("lights.blocked", "low", "30"),
+        ("lights.dim", "duration_ms", "3000"),
+        ("lights.dim", "high", "7"),
+        ("lights.dim", "low", "1"),
+        ("lights.done", "brightness", "100"),
+        ("lights.done", "duration_ms", "4000"),
+        ("lights.failed", "brightness", "100"),
+        ("lights.failed", "duration_ms", "4000"),
+        ("lights.loop", "duration_ms", "4000"),
+        ("lights.loop", "high", "60"),
+        ("lights.loop", "lease_timeout_secs", "3900"),
+        ("lights.loop", "low", "10"),
+        ("lights.loop", "threshold_secs", "300"),
+        ("lights.unread", "after_secs", "300"),
+        ("lights.unread", "duration_ms", "4000"),
+        ("lights.unread", "high", "60"),
+        ("lights.unread", "low", "10"),
+        (super::TARGET_KEYS, "dim_behaviours", "[\"blocked\"]"),
+        (super::TARGET_KEYS, "dim_window", "\"22:00-07:00\""),
+        (super::TARGET_KEYS, "shows", "[\"done\"]"),
         ("plugins.hermes", "enabled", "true"),
         ("plugins.hermes", "key", "\"secret\""),
         ("plugins.hue", "bridge", "\"192.168.1.10\""),
@@ -3097,8 +3248,7 @@ mod tests {
             // A nested table carries the operator's own name; the roster holds
             // the prefix, the way the refusals do.
             let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
-                ["lights", "families", ..] => "lights.families".to_string(),
-                ["lights", "places", ..] => "lights.places".to_string(),
+                ["lights", "lamp" | "room" | "zone", ..] => super::TARGET_KEYS.to_string(),
                 _ => table.clone(),
             };
             let serves = super::keys_of(&roster_table).unwrap_or_else(|| {
@@ -3128,7 +3278,7 @@ mod tests {
     /// THE ONE EDIT THAT MOVES IT is the template documenting a key more or a
     /// key fewer, in which case this number moves with it. A change here for
     /// any other reason is the scan breaking rather than the template changing.
-    const TEMPLATE_KEY_PAIRS: usize = 42;
+    const TEMPLATE_KEY_PAIRS: usize = 69;
 
     #[test]
     fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {

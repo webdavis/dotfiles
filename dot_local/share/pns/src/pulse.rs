@@ -17,49 +17,38 @@ pub struct PulseColor {
     pub y: f64,
 }
 
-pub const SUCCESS_COLOR: PulseColor = PulseColor {
-    x: 0.2151,
-    y: 0.7106,
-};
+/// Deep green, operator-locked on a real lamp on 2026-08-31 under the
+/// observe-adjust-lock protocol. It replaced a paler green that read as
+/// yellow-green across a room.
+pub const SUCCESS_COLOR: PulseColor = PulseColor { x: 0.17, y: 0.70 };
 
+/// Red, and it carries TWO jobs: the failure pulse, and the unread lamp's
+/// failure flavour. ONE CONSTANT because they are one statement, "something
+/// died", said once as a blink and once as a breath; two constants would let
+/// the two drift into looking like different events.
 pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 
-/// The two colours a blocked signal alternates between: TWO DEEP BLUES.
-///
-/// THE SECOND ONE WAS A GREEN-BLUE UNTIL THE 2026-09-01 DRILL. Alternating a
-/// blue with a colour that far from it read as a colour CHANGE rather than as
-/// one lamp saying one thing, and the operator asked for a deeper blue, so the
-/// alternate moved next door to the primary. The pair still alternates, which
-/// is what keeps a wait from being mistaken for a `done` at a glance; what it
-/// no longer does is look like two different messages.
-///
-/// NEITHER IS APPROVED AS SEEN YET, and that is the honest state rather than
-/// an oversight. Green and red above passed the only test a colour can pass,
-/// which is the operator looking at the lamp; these two have been chosen for
-/// the gamut the studio lamps report (type C) and not yet looked at. The
-/// operator's post-apply eye is the last step, and a change afterwards is
-/// THESE TWO CONSTANTS and nothing else.
+/// The deepest blue the studio lamps report, operator-locked on 2026-08-31.
+/// It is the colour a question waiting on the operator breathes in.
 pub const BLOCKED_COLOR: PulseColor = PulseColor {
     x: 0.1532,
     y: 0.0475,
 };
 
-pub const BLOCKED_ALT_COLOR: PulseColor = PulseColor { x: 0.15, y: 0.06 };
+/// Daylight, for the unread lamp's SUCCESS flavour: a run that finished while
+/// the operator was away. Operator-locked on 2026-08-31.
+///
+/// A COLOUR NOBODY READS AS AN ALARM, which is the point of it: the red
+/// flavour beside it is the one that needs answering, and a success that has
+/// merely gone unseen must not compete with it.
+pub const UNREAD_SUCCESS_COLOR: PulseColor = PulseColor { x: 0.50, y: 0.40 };
 
-/// The loop lamp's GLOW colour: magenta.
-///
-/// THE GLOW'S ALONE, and breathing has no colour of its own by design. The
-/// bridge's native breathe swells around whatever the lamp is already showing,
-/// so a colour here would be one this crate never gets to state. That is the
-/// operator's decision of 2026-08-30 read backwards: the two states are one
-/// lamp saying one thing, and only the steady one has to pick a hue.
-///
-/// IN GAMUT AND NOT YET APPROVED AS SEEN, exactly like the two blues above: it
-/// sits inside the type C triangle the studio lamps report, between their red
-/// and blue primaries and pulled off that edge toward white, and the
-/// operator's post-apply eye is what settles it. A change is this one
-/// constant.
-pub const UNREAD_COLOR: PulseColor = PulseColor { x: 0.40, y: 0.19 };
+/// Deep violet, picked on the lamp by the operator on 2026-09-01: the loop
+/// lamp, breathing while long-running work is in flight.
+pub const LOOP_COLOR: PulseColor = PulseColor {
+    x: 0.213,
+    y: 0.0766,
+};
 
 /// True when a session ran long enough to be worth a light pulse.
 ///
@@ -135,8 +124,7 @@ pub fn state_behaviour(state: &str, lamps_are_mapped: bool) -> crate::config::Be
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_LONG_SESSION_SECS, FAILURE_COLOR, LAMP_BLOCKED, SUCCESS_COLOR, exit_behaviour,
-        session_was_long, state_behaviour,
+        DEFAULT_LONG_SESSION_SECS, LAMP_BLOCKED, exit_behaviour, session_was_long, state_behaviour,
     };
     use crate::config::Behaviour;
 
@@ -249,17 +237,13 @@ mod tests {
     // --- exit_behaviour ----------------------------------------------------
 
     #[test]
-    fn a_zero_exit_code_is_done_and_green_is_the_colour_it_carries() {
+    fn a_zero_exit_code_is_done() {
         assert_eq!(exit_behaviour("0"), Behaviour::Done);
-        assert_eq!(SUCCESS_COLOR.x, 0.2151);
-        assert_eq!(SUCCESS_COLOR.y, 0.7106);
     }
 
     #[test]
-    fn a_non_zero_exit_code_is_failed_and_red_is_the_colour_it_carries() {
+    fn a_non_zero_exit_code_is_failed() {
         assert_eq!(exit_behaviour("1"), Behaviour::Failed);
-        assert_eq!(FAILURE_COLOR.x, 0.675);
-        assert_eq!(FAILURE_COLOR.y, 0.322);
     }
 
     #[test]

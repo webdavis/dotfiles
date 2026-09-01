@@ -2789,7 +2789,8 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
 /// `[lights]` table with hue disabled lights nothing and runs no tick, so
 /// there would be nothing to sweep the markers it wrote.
 const LAMPS_ON: &str = "[plugins.hue]\nenabled = true\n\
-     [lights]\nrefresh_secs = 20\n[lights.families.local]\nrooms = [\"3F - Studio\"]\n";
+     [lights]\nrefresh_secs = 20\n\
+     [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n";
 
 /// Every session the lamps currently believe is waiting on the operator.
 fn waiting_sessions(sandbox: &Sandbox) -> Vec<String> {

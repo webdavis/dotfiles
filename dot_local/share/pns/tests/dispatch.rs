@@ -1289,9 +1289,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         outcome(
             "lights-guard-with-a-table",
             "[lights]\nrefresh_secs = 20\n\
-             [lights.families.local]\nrooms = [\"3F - Studio\"]\n\
-             except = [\"3F - Studio - HCL3\"]\n\
-             [lights.places.\"3F - Studio\"]\nskip = [\"loop\"]\n",
+             [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n",
         ),
         "same stdout, same stderr, same exit code, the bridge dialled either way, \
          and the same legs fired"
@@ -1461,11 +1459,11 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
 
 // --- the lamps: which lamp, and what colour ---------------------------------
 
-/// The studio map this repo actually ships, as a config fragment: `local`
-/// holds the room minus HCL3, which the other two families take.
+/// The studio map this repo actually ships, as a config fragment: the room
+/// carries the blinks and HCL3 is lifted out for the held states.
 const STUDIO_MAP: &str = "[lights]\nrefresh_secs = 20\n\
-     [lights.families.local]\nrooms = [\"3F - Studio\"]\n\
-     except = [\"3F - Studio - HCL3\"]\n";
+     [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\", \"blocked\"]\n\
+     [lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"blocked\", \"unread\", \"loop\"]\n";
 
 /// One event against a spy bridge: whether the bridge was dialled, and whether
 /// the two network legs fired.
@@ -1674,14 +1672,20 @@ fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
 }
 
 #[test]
-fn an_event_whose_every_place_is_asleep_reaches_no_bridge_and_costs_no_leg() {
+fn an_event_inside_every_dim_window_writes_to_no_lamp_and_costs_no_leg() {
     // The shipped whole-pulse property at the new granularity: the lamps are
-    // muted and NOTHING else is, so the card and the durable log still report a
-    // long command at any hour.
+    // suppressed and NOTHING else is, so the card and the durable log still
+    // report a long command at any hour.
     //
-    // AND IT REACHES NO NETWORK AT ALL, which is the part a per-fixture filter
-    // could have quietly lost: resolving the map costs a GET, and a house whose
-    // every window covers this minute has nothing that GET could light.
+    // IT REACHES THE BRIDGE AND WRITES NOTHING, which is the deliberate change.
+    // The old pre-resolution gate answered "could any place be awake" from the
+    // config alone and paid for it with two stated limits (a lamp that carved an
+    // awake window out of a sleeping room lost its signal to the gate, and a
+    // claimed light took the house window here and its room's window in the
+    // walk). The dim window is now a per-lamp answer that needs the bridge's own
+    // membership, so the cheap half of that question no longer exists. What it
+    // costs is three GETs on an event fired at an hour every lamp is asleep, and
+    // what it buys is that no lamp is ever dark because a gate guessed.
     let asleep = window_around(utc_minute_now(), 120);
     let long_running: Vec<&str> = LONG_DONE
         .iter()
@@ -1691,48 +1695,45 @@ fn an_event_whose_every_place_is_asleep_reaches_no_bridge_and_costs_no_leg() {
     assert_eq!(
         lamp_run(
             "lamps-every-place-asleep",
-            &format!("quiet_hours = \"{asleep}\"\n"),
+            "",
             &format!(
-                "{STUDIO_MAP}[lights.places.\"3F - Studio\"]\n\
-                 quiet_hours = \"{asleep}\"\n"
+                "[lights]\nrefresh_secs = 20\n\
+                 [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+                 dim_window = \"{asleep}\"\ndim_behaviours = []\n"
             ),
             &long_running,
             Mute::Nothing,
             Presence::Away,
         ),
-        (false, true, true, false, Some(0)),
-        "every lamp asleep: no dial, and both legs still fire"
+        (true, true, true, false, Some(0)),
+        "every lamp asleep: the map still resolves, no lamp is written to, and \
+         both legs fire"
     );
 }
 
 #[test]
-fn a_house_window_nobody_can_parse_still_lets_a_place_with_its_own_hours_signal() {
-    // THE HOUSE WINDOW IS THE LAST RUNG OF THE CHAIN, not a gate in front of
-    // it. `[plugins.hue] quiet_hours` used to be parsed before the `[lights]`
-    // branch was reached, so one typo there took every lamp dark however
-    // carefully its own place had been written. A lamp whose room states hours
-    // it can read, and is awake inside them, never consults the house at all.
+fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
+    // `[plugins.hue] quiet_hours` IS NO LONGER A RUNG OF THE ROUTED CHAIN. It
+    // is now exactly one thing: the schedule a bare `pns lights quiet` reads,
+    // and the window the no-map pulse takes. A routed lamp states its own
+    // `dim_window` or has none, so a typo in the house key cannot darken it.
     //
     // THE NO-TABLE SIBLING IS ITS OWN TEST and it still holds:
     // `a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`
     // pins the whole-pulse refusal for a machine that wrote no `[lights]`
     // table, which is the compatibility contract this must not move.
-    let awake = window_around((utc_minute_now() + 720) % 1440, 120);
     assert_eq!(
         lamp_run(
             "lamps-house-window-unreadable",
             "quiet_hours = \"10pm-7am\"\n",
-            &format!(
-                "{STUDIO_MAP}[lights.places.\"3F - Studio\"]\n\
-                 quiet_hours = \"{awake}\"\n"
-            ),
+            STUDIO_MAP,
             &BLOCKED,
             Mute::Nothing,
             Presence::Away,
         ),
         (true, true, true, false, Some(0)),
-        "the room's own window is readable and awake, so the lamp signals \
-         whatever the house key says"
+        "the routed lamps never consult the house key, so a typo there costs \
+         them nothing"
     );
 }
 
@@ -1784,10 +1785,12 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     // TYPED, NOT INJECTED: the mute is armed by running the subcommand in the
     // same sandbox, which is the path an operator walks at bedtime.
     //
-    // AND NO BRIDGE IS DIALLED AT ALL, which the pre-resolution gate is what
-    // earns: the family holds one claim, the operator muted exactly that name,
-    // and resolving the map to discover it would be a round trip on every
-    // event for the length of the mute.
+    // THE MUTE IS A RENDER FILTER AT THE PER-LAMP DECISION, decided once, so
+    // the map is still resolved and every lamp under the muted name is then
+    // written to for nothing. That costs three GETs for the length of the mute
+    // and it is what keeps ONE answer to "is this lamp muted": the alternative
+    // is a second, config-only copy of the question upstream of the listing,
+    // which is how a report and a lamp come to disagree about a muted room.
     assert_eq!(
         lamp_run(
             "lamps-adhoc-quiet-away",
@@ -1797,7 +1800,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
             Mute::Lights("3F - Studio"),
             Presence::Away,
         ),
-        (false, true, true, false, Some(0)),
+        (true, true, true, false, Some(0)),
         "away: the lamps are quiet and the CARD still reaches the phone"
     );
     // THE BANNER IS OPT IN like every other channel, so the desk runs below
@@ -1813,7 +1816,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
             Mute::Lights("3F - Studio"),
             Presence::Desk,
         ),
-        (false, false, true, true, Some(0)),
+        (true, false, true, true, Some(0)),
         "at the desk: the lamps are quiet and the BANNER still runs, with the \
          durable log taking the event either way"
     );
@@ -1828,7 +1831,8 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
         ),
         (true, false, true, true, Some(0)),
         "the unmuted control: the same event at the same desk reaches the \
-         bridge, so the silence above is the mute and not the presence"
+         bridge too, so the assertions above are about the legs rather than \
+         about the dial"
     );
 }
 
