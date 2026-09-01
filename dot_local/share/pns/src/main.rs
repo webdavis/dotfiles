@@ -3406,10 +3406,7 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// failing exit code. Reading the word first means `--help` and a bad code
 /// both answer with no machine read at all.
 fn pulse_mode() -> i32 {
-    let word = std::env::args_os()
-        .nth(2)
-        .map(|code| code.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let word = second_argument();
     if pns::args::is_help_flag(&word) {
         println!("{PULSE_USAGE}");
         return 0;
