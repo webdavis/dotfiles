@@ -505,6 +505,7 @@ fn render_block(
     present: bool,
 ) -> Result<(), String> {
     out.push_str(table.prose);
+    write_note(out, take_note(settings)?);
     if present {
         out.push_str(&format!("[{}]\n", table.name));
     } else {
@@ -577,6 +578,7 @@ fn render_target(
     name: &str,
     settings: &mut toml::Table,
 ) -> Result<(), String> {
+    write_note(out, take_note(settings)?);
     out.push_str(&format!("[lights.{level}.{}]\n", quoted(name)));
     for key in ["shows", "dim_window", "dim_behaviours"] {
         if let Some(value) = settings.remove(key) {
@@ -590,6 +592,40 @@ fn render_target(
         return Err(format!("unknown `lights.{level}` key `{name}`"));
     }
     Ok(())
+}
+
+/// Removes and returns `note` off `settings`, refusing by name when it is
+/// there but not a string.
+///
+/// A RESERVED KEY, invisible to the roster: it never reaches the output as
+/// `note = "..."`, only as the comment `write_note` turns it into, so a
+/// parsed config never carries one.
+fn take_note(settings: &mut toml::Table) -> Result<Option<String>, String> {
+    match settings.remove("note") {
+        None => Ok(None),
+        Some(toml::Value::String(note)) => Ok(Some(note)),
+        Some(other) => Err(format!("`note` has type `{}`, not a string", other.type_str())),
+    }
+}
+
+/// Writes `note` as one or more `# `-prefixed comment lines, or nothing at
+/// all when there is none.
+///
+/// EVERY LINE GETS ITS OWN `# `, which is what keeps a newline inside the
+/// operator's own text from opening a heading or an uncommented key: nothing
+/// this function writes can ever start a line without that prefix, however
+/// many newlines the note carries.
+fn write_note(out: &mut String, note: Option<String>) {
+    let Some(note) = note else { return };
+    if note.is_empty() {
+        out.push_str("#\n");
+        return;
+    }
+    for line in note.split('\n') {
+        out.push_str("# ");
+        out.push_str(line);
+        out.push('\n');
+    }
 }
 
 /// One value, written the way its own TOML type is spelled: a bool and an
@@ -848,5 +884,66 @@ mod tests {
                 .expect_err(&format!("`{hostile}` can break out of the action and must be refused"));
             assert!(error.contains(hostile), "{error}");
         }
+    }
+
+    #[test]
+    fn a_note_renders_above_its_heading_as_a_commented_line() {
+        let mut hermes = toml::Table::new();
+        hermes.insert(
+            "note".to_string(),
+            toml::Value::String("armed for the pns-recap route".to_string()),
+        );
+        hermes.insert(
+            "key".to_string(),
+            toml::Value::String("hermes-secret".to_string()),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a noted table renders");
+        assert!(
+            text.contains("# armed for the pns-recap route\n[plugins.hermes]"),
+            "{text}"
+        );
+        // AND `note` NEVER REACHES THE PARSED CONFIG: it is a renderer
+        // directive, not a key the roster serves, so stripping it before a
+        // round-trip comparison is not a workaround, it never round-trips.
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        assert!(!config.plugins["hermes"].settings.contains_key("note"));
+    }
+
+    #[test]
+    fn a_note_holding_a_newline_stays_commented_on_every_line() {
+        // THE INJECTION CASE. A note that could open a live heading or an
+        // uncommented key on its second line would let a values file smuggle
+        // arbitrary config text past every other refusal in this module.
+        let mut hermes = toml::Table::new();
+        hermes.insert(
+            "note".to_string(),
+            toml::Value::String(
+                "line one\n[plugins.hue]\nenabled = true\nbridge = \"hostile\"".to_string(),
+            ),
+        );
+        hermes.insert(
+            "key".to_string(),
+            toml::Value::String("hermes-secret".to_string()),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a multi-line note renders");
+        for line in text.lines() {
+            if line.contains("hostile") {
+                assert!(line.starts_with('#'), "an injected line escaped its comment: {line}");
+            }
+        }
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        // AND THE INJECTED TABLE NEVER ARRIVED: a real `[plugins.hue]` armed
+        // by the note would be the exact failure this test exists to catch.
+        assert!(!config.plugins.contains_key("hue"));
     }
 }
