@@ -7615,12 +7615,16 @@ fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
         .write(true)
         .mode(CONFIG_FILE_MODE)
         .open(&backup)
-        .map_err(|error| {
-            format!(
+        .map_err(|error| match error.kind() {
+            std::io::ErrorKind::AlreadyExists => format!(
                 "{} already exists, kept by a run earlier this same second; \
-                 nothing was written: {error}",
+                 nothing was written",
                 backup.display()
-            )
+            ),
+            // ANY OTHER FAILURE IS ITS OWN REASON: naming the same-second
+            // collision for a permission refusal would blame a run that
+            // never happened.
+            _ => format!("{} could not be claimed: {error}", backup.display()),
         })?;
     if let Err(error) = std::fs::rename(path, &backup) {
         // THE CLAIM GOES WITH THE RUN THAT MADE IT, whether there was nothing
