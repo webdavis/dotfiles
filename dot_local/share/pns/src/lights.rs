@@ -261,7 +261,14 @@ pub fn unread_arming(
         return None;
     }
     let edge = last_interaction?;
-    let unseen = |at: Option<u64>| at.filter(|at| *at > edge);
+    // NEWS FROM THE FUTURE IS NEWS NOBODY CAN JUDGE, and it arms nothing of
+    // either flavour. A clock that stepped backwards leaves an epoch ahead of
+    // now, and the record only ever moves FORWARD, so nothing later will pull it
+    // back: read as ordinary news it is newer than every interaction there will
+    // ever be, and the lamp would hold red until wall time caught up with it.
+    // The success flavour has always taken this direction through its age test;
+    // this is the same rule said once for both.
+    let unseen = |at: Option<u64>| at.filter(|at| *at > edge && *at <= now);
     if unseen(news.failed_at).is_some() {
         return Some(Unread::Failure);
     }
@@ -1432,6 +1439,26 @@ mod tests {
             ),
             None,
             "a now before the news has no elapsed time in it"
+        );
+        // AND A FAILURE FROM THE FUTURE ARMS NOTHING EITHER, which is the same
+        // rule for the flavour that has no age test of its own. The record only
+        // ever moves FORWARD, so a clock that stepped backwards leaves an epoch
+        // nothing later will pull back: read as ordinary news it is newer than
+        // every interaction there will ever be, and the lamp would hold red
+        // until wall time caught up with it.
+        assert_eq!(
+            unread_arming(
+                &News {
+                    done_at: None,
+                    failed_at: Some(NOW + 500)
+                },
+                long_ago,
+                false,
+                NOW,
+                AFTER
+            ),
+            None,
+            "a failure the clock says has not happened yet arms no lamp"
         );
         // AND STILL NOT WITH NO DELAY AT ALL. `after_secs` may be zero, and a
         // saturated age of zero passes a zero threshold, so this edge is where
