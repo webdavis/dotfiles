@@ -1,8 +1,8 @@
 # Skip Herdr onboarding workflow on first run.
 onboarding = false
 
-# Declarative channel. CLI invocation in run_onchange_before_15-install-herdr.sh.tmpl
-# guarantees the runtime state, this entry documents intent.
+# Declarative intent; run_onchange_before_15-install-herdr.sh.tmpl guarantees the
+# runtime state.
 [update]
 channel = "stable"
 
@@ -11,98 +11,78 @@ default_shell = "bash"
 shell_mode = "auto"
 
 [theme]
-# Built-in theme (others: terminal, tokyo-night, dracula, nord, gruvbox,
-# one-dark, solarized, kanagawa, rose-pine, vesper).
+# Others: terminal, tokyo-night, dracula, nord, gruvbox, one-dark, solarized,
+# kanagawa, rose-pine, vesper.
 name = "catppuccin"
 
-# [ui] scalar keys must precede the [ui.*] subtables below, TOML forbids
-# reopening a table once a subtable has started.
+# TOML: [ui] scalar keys must precede the [ui.*] subtables; a table cannot be
+# reopened once a subtable has started.
 [ui]
-# Show detected/reported agent labels in split-pane borders when no manual pane
-# name is set.
+# Agent labels in split-pane borders when no manual pane name is set.
 show_agent_labels_on_pane_borders = true
 
 [ui.sound]
-# Play a sound when an agent changes state in a background workspace.
+# Sound when an agent changes state in a background workspace.
 enabled = true
 
 [ui.sound.agents]
-# Per-agent overrides accept "default", "on", or "off". droid is muted by
-# default; turn it on.
+# Overrides accept "default", "on", "off". droid is muted by default.
 droid = "on"
 
 [ui.toast]
-# Background notification popups render as in-app herdr toasts (not a desktop or
-# OS notification). Other values: off, terminal, system.
+# Background notifications as in-app toasts. Others: off, terminal, system.
 delivery = "herdr"
 
 [experimental]
 # Persist pane scrollback across full server restarts.
 pane_history = true
-# While prefix mode is active, temporarily switch the macOS host input source to
-# an ASCII-capable layout so prefix chords register even under a CJK IME, then
-# restore the previous source on prefix exit. macOS only, best-effort.
+# In prefix mode, switch macOS input to an ASCII layout so chords register under
+# a CJK IME; restores on exit. macOS only, best-effort.
 switch_ascii_input_source_in_prefix = true
 
-# herdr's actual keybindings section is [keys] (per `herdr --default-config`); the
-# design brief drafted it as [keybindings]. [keys] is authoritative.
+# [keys] is authoritative (per `herdr --default-config`); the design brief's
+# [keybindings] name is wrong.
 [keys]
 prefix = "ctrl+d"
 
-# Workspace picker (already the herdr default, set explicitly for documentation).
+# Workspace picker (the herdr default, set explicitly for documentation).
 goto = "prefix+g"
 
 # Rename current tab.
 rename_tab = "prefix+comma"
 
-# Agent-pane navigation, on the alt modifier so it stays clear of tab nav
-# (herdr's plain prefix+n/prefix+p + prefix+1..9) and the prefix+ctrl+<letter>
-# workspace chords. Three nav axes, three modifier tiers. prefix+alt may depend
-# on terminal handling, Ghostty is fine; verify if a chord misfires.
+# Agent-pane nav on the alt tier: three nav axes, three modifier tiers (plain =
+# tabs, ctrl = workspaces, alt = agents). Ghostty delivers prefix+alt; verify if
+# a chord misfires elsewhere.
 next_agent = "prefix+alt+n"
 previous_agent = "prefix+alt+p"
 focus_agent = "prefix+alt+1..9"
 
-# Splits, deliberately crossed against herdr's defaults to preserve tmux muscle memory.
-# herdr names splits by divider orientation; tmux by motion direction. Opposite words,
-# same physical result. DO NOT "fix" the cross, it is the intended mapping.
-#   prefix+" → top/bottom stack (tmux: split horizontally with `-`)
-#   prefix+% → side-by-side    (tmux: split vertically with `|`)
+# Splits deliberately crossed against herdr's defaults for tmux muscle memory:
+# herdr names the divider, tmux names the motion. DO NOT "fix" the cross.
+#   prefix+" -> top/bottom stack, prefix+% -> side-by-side.
 split_horizontal = "prefix+\""
 split_vertical = "prefix+%"
 
-# Workspace sidebar navigation in herdr's built-in navigate mode (entered via
-# prefix+w). ctrl+p/ctrl+n (up/down) instead of plain k/j so they don't collide
-# with navigate_pane's k/j (a plain-key clash there disables pane up/down in
-# navigate mode). Not a custom key table, built-in mode, so it coexists with
-# the no-multi-step-bindings constraint.
+# Navigate-mode workspace up/down on ctrl+p/ctrl+n: plain k/j would clash with
+# navigate_pane's k/j and disable pane up/down in that mode.
 navigate_workspace_up = "ctrl+p"
 navigate_workspace_down = "ctrl+n"
 
-# Back-and-forth to the previously-focused PANE (herdr's builtin global MRU
-# toggle). Pairs with the workspace-level toggle on prefix+ctrl+\ below: prefix+\
-# bounces panes, prefix+ctrl+\ bounces workspaces.
+# Pane-level MRU toggle; pairs with the workspace-level toggle on prefix+ctrl+\.
 last_pane = "prefix+\\"
 
-# Swap the focused pane with a neighbor. Moved off their default prefix+shift+h/j/k/l
-# to prefix+alt+h/j/k/l so prefix+shift+l is free for clear-screen (below), and
-# to sit alongside the other prefix+alt nav (agent next/prev/focus). h/j/k/l keep
-# the directional convention.
+# Swap moved off prefix+shift+h/j/k/l to the alt tier, freeing prefix+shift+l
+# for clear-screen below.
 swap_pane_left = "prefix+alt+h"
 swap_pane_down = "prefix+alt+j"
 swap_pane_up = "prefix+alt+k"
 swap_pane_right = "prefix+alt+l"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Workspace quick-jump chords (prefix+ctrl+<letter>)
-# 8 workspaces in a namespace empty in herdr defaults and structurally unlikely
-# to be claimed upstream. Each calls herdr-jump.sh <label> <cwd>, which focuses
-# the existing workspace with that label or creates it if absent. The helper is
-# required because `herdr workspace create` is NOT idempotent, it spawns a new
-# workspace on every invocation, and `herdr workspace focus` takes an id, not a
-# label, so there is no single built-in create-or-focus command.
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Workspace quick-jump chords (prefix+ctrl+<letter>), a namespace empty in herdr
+# defaults. Each calls herdr-jump.sh <label> <cwd>: REQUIRED because `herdr
+# workspace create` is not idempotent and `workspace focus` takes an id, not a
+# label, so no built-in create-or-focus exists.
 [[keys.command]]
 key = "prefix+ctrl+h"
 type = "shell"
@@ -157,30 +137,18 @@ type = "shell"
 command = "$HOME/.local/libexec/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
 description = "jump to plantpulse workspace"
 
-# Workspace-level back-and-forth (a true "last_workspace" MRU toggle). herdr has
-# no builtin for this, last_pane (prefix+\) is pane-level, previous_workspace is
-# positional, so the herdr-last-workspace plugin tracks workspace focus via
-# the workspace.focused event and its `last_workspace` action focuses the previous
-# one. Unlike a key-bound script, the plugin sees mouse/picker switches too. The
-# key is the user's choice; prefix+ctrl+\ is the default. Pairs with last_pane:
-# prefix+\ panes, prefix+ctrl+\ spaces.
+# Workspace-level MRU toggle via the herdr-last-workspace plugin (herdr has no
+# builtin; the plugin tracks workspace.focused so mouse/picker switches count).
 [[keys.command]]
 key = "prefix+ctrl+\\"
 type = "plugin_action"
 command = "herdr-last-workspace.last_workspace"
 description = "last workspace (MRU toggle, via plugin)"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Pane / split focus, raw Ctrl-h/j/k/l navigate seamlessly across Neovim splits
-# AND herdr panes. herdr-smart-nav is the conditional herdr lacks: if the
-# focused pane runs Neovim it forwards the keystroke into nvim (smart-splits.nvim
-# moves the split, or at a split edge calls `herdr pane focus` to cross into the
-# next herdr pane); otherwise it moves herdr pane focus directly. So one set of
-# keys works whether you are in Neovim or not. Replaces the dead
-# devxplay/herdr.nvim herdr-navigator (no-ops on herdr 0.7.0). nvim side:
-# mrjones2014/smart-splits.nvim + a custom herdr backend (lua/smart-splits/mux/).
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Raw ctrl-h/j/k/l navigate Neovim splits AND herdr panes as one space:
+# herdr-smart-nav forwards into nvim when the pane runs it (smart-splits.nvim
+# moves or crosses the edge via `herdr pane focus`), else moves herdr focus.
+# nvim side: mrjones2014/smart-splits.nvim + the custom herdr backend.
 [[keys.command]]
 key = "ctrl+h"
 type = "plugin_action"
@@ -205,32 +173,19 @@ type = "plugin_action"
 command = "herdr-smart-nav.nav_right"
 description = "nav right: Neovim split or herdr pane"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Clear screen, raw Ctrl-l is taken by pane-focus-right above, so prefix+shift+l
-# sends a literal Ctrl-l to the focused pane, giving back bash's clear-screen
-# (readline clear-screen: no command, no history entry). prefix+shift+l was
-# herdr's default swap_pane_right, relocated to prefix+alt+l above to free it.
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Raw Ctrl-l is pane-nav above, so this sends a literal Ctrl-l to the pane:
+# readline clear-screen, no command, no history entry.
 [[keys.command]]
 key = "prefix+shift+l"
 type = "shell"
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
 description = "clear screen: send Ctrl-l to the focused pane (like bash)"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Worktree lifecycle through worktrunk (devashish2203/herdr-worktrunk, installed
-# by run_after_53). worktrunk is already the worktree tool here, invoked as `wt`
-# from a shell; the plugin puts the same `wt` behind an fzf picker inside herdr,
-# so a worktree created from these keys still runs worktrunk's lifecycle hooks.
-# prefix+shift+g deliberately shadows herdr's built-in "new worktree" (the
-# plugin README recommends exactly that), and the plugin's own config file is
-# left absent: its defaults are open_mode = "workspace" and a split picker,
-# which is what this machine wants, since dot_config/worktrunk/config.toml
-# already points worktree-path at herdr's own ~/.herdr/worktrees layout. Popup
-# placement would need herdr >= 0.7.4 and this host runs 0.7.0-preview.
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Worktrees through worktrunk's picker (same `wt` lifecycle hooks as the shell).
+# prefix+shift+g deliberately shadows herdr's built-in new-worktree, per the
+# plugin README. Its config file stays absent: the defaults are what this
+# machine wants, and dot_config/worktrunk/config.toml already points worktrees
+# at herdr's own layout.
 [[keys.command]]
 key = "prefix+shift+g"
 type = "plugin_action"
@@ -243,63 +198,35 @@ type = "plugin_action"
 command = "worktrunk.remove"
 description = "worktree: remove"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# One-keystroke session launcher (seshagy). prefix+k opens a temporary pane
-# holding one picker over three sources at once: the live herdr workspaces,
-# zoxide's frecency-ranked directories, and the project directories fd finds.
-# The quick-jump chords above reach the eight workspaces that have a chord; this
-# reaches everything else, including a project visited once and never bound.
-#
-# `type = "pane"` opens the command in a temporary pane and closes it when the
-# command exits, and `--ephemeral` makes seshagy exit on focus loss, so the
-# picker behaves like a popup on a herdr too old for real popups (those need
-# 0.7.4 and this host runs 0.7.0-preview).
-#
-# Declared HERE by hand, never by `seshagy keybind install herdr`. That command
-# writes this same block into ~/.config/herdr/config.toml, which is a chezmoi
-# target, so its edit would be erased by the next apply. The block below is
-# byte-equivalent to what it writes with --key k (captured from the tool in a
-# throwaway HOME, 2026-08-29).
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# seshagy: one picker over live workspaces, zoxide frecency, and fd-found
+# projects; reaches everything the quick-jump chords do not. `type = "pane"` +
+# --ephemeral makes it behave like a popup. NEVER run `seshagy keybind install
+# herdr`: it writes into ~/.config/herdr/config.toml, a chezmoi target, so its
+# edit is erased at the next apply. This block is byte-equivalent to what it
+# writes with --key k (captured 2026-08-29).
 [[keys.command]]
 key = "prefix+k"
 type = "pane"
 command = "seshagy --ephemeral"
 description = "seshagy session manager"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Files-and-git sidebar (alexarthurs/herdr-sidebar, installed by run_after_53).
-# A VS Code-style dockable pane: file explorer plus a source-control panel.
-# Its own settings modal persists dock side, width and theming, so the only
-# host-side config is this toggle. prefix+b was free here (herdr's default
-# sidebar binding is not declared in this file, and declared bindings win).
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Files-and-git sidebar. Its settings modal persists dock/width/theme (mutable
+# state, deliberately unmanaged), so the toggle is the only host-side config.
 [[keys.command]]
 key = "prefix+b"
 type = "plugin_action"
 command = "herdr-sidebar.open-sidebar"
 description = "sidebar: toggle files and source control"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Command bar (jeffarese/herdr-bar, installed by run_after_53). A Cmd+K-style
-# fuzzy switcher over tabs, panes and agents. prefix+space was free here.
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Cmd+K-style fuzzy switcher over tabs, panes and agents.
 [[keys.command]]
 key = "prefix+space"
 type = "plugin_action"
 command = "herdr-bar.open"
 description = "command bar: fuzzy jump to any tab, pane or agent"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Embedded nvim workspace (ChmaraX/herdr-nvim, installed by run_after_53).
-# A persistent per-tab nvim sidebar plus a picker over agent-touched files;
-# annotations flow back to agents. prefix+a and prefix+i were free (the
-# README's e/o suggestions shadow edit_scrollback and notification-target).
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Per-tab nvim sidebar + agent-touched-files picker; annotations flow back to
+# agents. The README's e/o keys shadow edit_scrollback and notification-target.
 [[keys.command]]
 key = "prefix+a"
 type = "plugin_action"
@@ -312,26 +239,16 @@ type = "plugin_action"
 command = "chmarax.herdr-nvim.pick-file"
 description = "nvim sidebar: open file from agent output"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Code-review pane (persiyanov/herdr-reviewr, installed by run_after_53). Its
-# config lives at dot_config/herdr/plugins/config/persiyanov.reviewr/, chezmoi-
-# managed: auto_open off, branch scope. cmd+r reaches herdr where alt+ chords
-# get swallowed by macOS terminals, and is free here.
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Code-review pane; config chezmoi-managed at plugins/config/persiyanov.reviewr/.
+# cmd+r reaches herdr where alt chords get swallowed by macOS terminals.
 [[keys.command]]
 key = "cmd+r"
 type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
 description = "reviewr: toggle the code-review pane"
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Workflow launcher (aorumbayev/herdr-workflows, installed by run_after_53).
-# The plugin's README puts its picker on prefix+k, which seshagy above already
-# holds; this declared binding on prefix+w is the one this machine uses, and
-# prefix+k stays seshagy's.
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+# Workflow launcher. Its README wants prefix+k, which seshagy holds; declared
+# bindings win, so prefix+w is the one this machine uses.
 [[keys.command]]
 key = "prefix+w"
 type = "plugin_action"
