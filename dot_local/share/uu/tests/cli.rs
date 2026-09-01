@@ -6,11 +6,33 @@
 //! own scratch HOME, with the lane pointed at a stub herdr by absolute path so
 //! nothing touches PATH, the network or the machine's own config.
 
+use std::cell::Cell;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use std::time::Instant;
+
+/// The same speed guard as pns's `Sandbox` (`dot_local/share/pns/tests/support/mod.rs`):
+/// two crates, no shared dev crate, so this is a deliberate duplicate rather
+/// than an import. See that file for the full reasoning behind the two
+/// numbers; in short, `TEST_BUDGET_MS` is the review line (`Drop` warns on
+/// stderr, greppable as "test budget", and keeps going) and `TEST_CEILING_MS`
+/// is the failure line, calibrated so parallel-scheduler contention never
+/// reaches it.
+const TEST_BUDGET_MS: u128 = 1_000;
+const TEST_CEILING_MS: u128 = 5_000;
+
+fn over_budget(elapsed_ms: u128) -> bool {
+    elapsed_ms > TEST_BUDGET_MS
+}
+
+fn over_ceiling(elapsed_ms: u128, excused: bool, panicking: bool) -> bool {
+    elapsed_ms > TEST_CEILING_MS && !excused && !panicking
+}
 
 struct Home {
     dir: PathBuf,
+    created: Instant,
+    excused: Cell<bool>,
 }
 
 impl Home {
@@ -18,7 +40,20 @@ impl Home {
         let dir = std::env::temp_dir().join(format!("uu-cli-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("scratch HOME");
-        Home { dir }
+        Home {
+            dir,
+            created: Instant::now(),
+            excused: Cell::new(false),
+        }
+    }
+
+    /// Excuse THIS home from `TEST_CEILING_MS` because its cost is
+    /// structural rather than a regression. `&self`: tests hold their home
+    /// immutably, so the excuse is a `Cell`. Never silences the WARNING at
+    /// `TEST_BUDGET_MS`, only the failure at the ceiling.
+    fn allow_slow(&self, reason: &'static str) {
+        debug_assert!(!reason.is_empty(), "allow_slow needs a real reason");
+        self.excused.set(true);
     }
 
     fn with_config(self, text: &str) -> Self {
@@ -61,6 +96,20 @@ impl Home {
 impl Drop for Home {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.dir);
+        let elapsed = self.created.elapsed().as_millis();
+        if over_budget(elapsed) {
+            eprintln!(
+                "test budget: home {:?} took {elapsed} ms, over the {TEST_BUDGET_MS} ms budget",
+                self.dir
+            );
+        }
+        if over_ceiling(elapsed, self.excused.get(), std::thread::panicking()) {
+            panic!(
+                "test budget: home {:?} took {elapsed} ms, over the {TEST_CEILING_MS} ms ceiling \
+                 (call allow_slow(\"reason\") if this is structural)",
+                self.dir
+            );
+        }
     }
 }
 
@@ -197,4 +246,77 @@ fn an_unknown_command_is_usage_on_stderr_and_exit_two() {
         String::from_utf8_lossy(&output.stderr).contains("usage"),
         "{output:?}"
     );
+}
+
+#[cfg(test)]
+mod guard_tests {
+    //! The same twins as pns's copy of this guard: the pure predicates are
+    //! pinned with literal inputs rather than the constants they check, and
+    //! the two end to end tests backdate a real `Home`'s construction
+    //! instant instead of sleeping past it.
+    use super::*;
+
+    #[test]
+    fn a_fast_home_is_not_over_budget() {
+        assert!(!over_budget(10));
+    }
+
+    #[test]
+    fn a_home_past_the_budget_is_over_budget() {
+        assert!(over_budget(1_500));
+    }
+
+    #[test]
+    fn a_home_past_the_ceiling_with_no_excuse_is_over_ceiling() {
+        assert!(over_ceiling(6_000, false, false));
+    }
+
+    #[test]
+    fn an_excused_home_is_never_over_ceiling() {
+        assert!(!over_ceiling(6_000, true, false));
+    }
+
+    #[test]
+    fn an_already_panicking_thread_is_never_double_panicked() {
+        assert!(!over_ceiling(6_000, false, true));
+    }
+
+    /// Drop a real home whose construction instant was pushed back by
+    /// `age_ms`, optionally excused, and say what its own drop panicked
+    /// with, if anything.
+    fn drop_backdated(name: &str, age_ms: u64, excuse: Option<&'static str>) -> Option<String> {
+        let mut home = Home::new(name);
+        home.created = Instant::now() - std::time::Duration::from_millis(age_ms);
+        if let Some(reason) = excuse {
+            home.allow_slow(reason);
+        }
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(home)))
+            .err()
+            .map(|payload| {
+                payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .unwrap_or_default()
+            })
+    }
+
+    #[test]
+    fn a_real_home_past_the_ceiling_fails_naming_the_test_budget() {
+        let message = drop_backdated("guard-twin-ceiling", TEST_CEILING_MS as u64 + 1, None)
+            .expect("a home over the ceiling must fail its own drop");
+        assert!(message.starts_with("test budget:"), "{message}");
+    }
+
+    #[test]
+    fn a_real_home_past_the_ceiling_with_allow_slow_does_not_fail() {
+        assert!(
+            drop_backdated(
+                "guard-twin-ceiling-excused",
+                TEST_CEILING_MS as u64 + 1,
+                Some("a structural reason, for this twin alone")
+            )
+            .is_none(),
+            "allow_slow must lift the ceiling"
+        );
+    }
 }
