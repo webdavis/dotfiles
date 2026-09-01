@@ -3,11 +3,12 @@
 # alerts leave the machine only when [alerts] exists. With no file at all uu
 # runs nothing and exits clean.
 #
-# Unknown keys and unknown lane names are refused BY NAME at load, in the same
-# sentence that lists what the table does serve. A typo therefore blocks the
-# whole file rather than quietly switching a lane off, which is the trade: the
-# loud half is a refusal on stderr, and the quiet half it replaces is a subject
-# that silently stops being updated.
+# Unknown keys are refused BY NAME at load, in the same sentence that lists
+# what the table does serve, and so is a lane whose `type` this build does not
+# serve, or that states none on a name that is not itself a type. A typo
+# therefore blocks the whole file rather than quietly switching a lane off,
+# which is the trade: the loud half is a refusal on stderr, and the quiet half
+# it replaces is a subject that silently stops being updated.
 #
 # Every default is written out below at its default value, so nothing has to be
 # looked up to change it.
@@ -39,7 +40,12 @@ binary = "{{ .chezmoi.homeDir }}/.local/libexec/pns/pns"
 # plugin that still failed is named in the record and stays missing until the
 # next apply. Local plugins are built from source at apply time and are not
 # listed here.
+#
+# Lanes run in NAME order, not the order they are written below: when the
+# other ports land (e.g. a `brew` lane), `brew` runs before `herdr` regardless
+# of where either block sits in this file.
 [lanes.herdr]
+type = "herdr"
 binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
 plugins = [
 {{- range .packages.herdr_plugins }}

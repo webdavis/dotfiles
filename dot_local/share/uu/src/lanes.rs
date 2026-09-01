@@ -1,4 +1,6 @@
-//! The lane registry, and the first lane.
+//! Running the lanes a config declared, and the first lane's own adapter. The
+//! registry itself (`Lanes`, `LaneKind`, and their parsing) lives in `config`;
+//! this module only dispatches on a kind and does the work.
 //!
 //! CONTINUE ON FAILURE, at both levels. A plugin that will not reinstall does
 //! not stop the next plugin, and a lane that failed does not stop the next
@@ -13,7 +15,7 @@
 //! plugins until restart, so a failure costs the next restart rather than the
 //! current session.
 
-use crate::config::{Config, HerdrLane, LANE_NAMES};
+use crate::config::{Config, HerdrLane, LaneKind};
 
 /// What one lane did: how many things went wrong, the lines the record
 /// carries about it, and the last of those lines that reported a FAILURE.
@@ -93,43 +95,30 @@ pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
     format!("{how_it_ended}: ...{}", &one_line[cut..])
 }
 
-/// The lanes this config turns on, in the roster's own order.
+/// The lanes this config declares, in NAME order.
 ///
-/// ORDER IS THE ROSTER'S, never the config file's. A TOML table order is
-/// whatever the operator happened to type, and a run whose sequence changes
-/// when a block moves is a run nobody can reason about.
-pub fn enabled_lanes(config: &Config) -> Vec<&'static str> {
-    LANE_NAMES
-        .iter()
-        .copied()
-        .filter(|name| is_enabled(name, config))
-        .collect()
+/// ORDER IS THE NAME'S, never the file's. `Lanes` is a `BTreeMap`, so this is
+/// always sorted regardless of which block the operator happened to type
+/// first, and a run whose sequence changes when a block moves is a run nobody
+/// can reason about.
+pub fn enabled_lanes(config: &Config) -> Vec<&str> {
+    config.lanes.keys().map(String::as_str).collect()
 }
 
-/// Whether one named lane has a block in this config.
-fn is_enabled(name: &str, config: &Config) -> bool {
-    match name {
-        "herdr" => config.lanes.herdr.is_some(),
-        _ => false,
-    }
-}
-
-/// Run one named lane, or `None` when this config leaves it off.
+/// Run one named lane, or `None` when this config declares none by that name.
+/// Dispatches on the lane's own kind; a name the parser accepted always
+/// carries a kind this build knows how to run, because an unrecognized `type`
+/// was already refused at load.
 pub fn run_lane(name: &str, config: &Config, runner: &dyn CommandRunner) -> Option<LaneReport> {
-    match name {
-        "herdr" => config
-            .lanes
-            .herdr
-            .as_ref()
-            .map(|lane| run_herdr(lane, runner)),
-        _ => None,
+    match config.lanes.get(name)? {
+        LaneKind::Herdr(lane) => Some(run_herdr(name, lane, runner)),
     }
 }
 
 /// The herdr lane: the binary refreshes itself, then every plugin in the
 /// roster is reinstalled at its source's tip.
-pub fn run_herdr(lane: &HerdrLane, runner: &dyn CommandRunner) -> LaneReport {
-    let mut report = LaneReport::new("herdr");
+pub fn run_herdr(name: &str, lane: &HerdrLane, runner: &dyn CommandRunner) -> LaneReport {
+    let mut report = LaneReport::new(name);
 
     match runner.run(&lane.binary, &["update"]) {
         Ok(_) => {
@@ -267,16 +256,37 @@ mod tests {
     }
 
     #[test]
-    fn every_lane_the_roster_names_can_be_selected_and_run() {
-        // The roster is what `uu run <lane>` validates against, so a name in it
-        // that dispatches to nothing would accept a lane it never runs.
-        for name in LANE_NAMES {
+    fn every_built_in_lane_type_can_be_selected_and_run_and_keeps_its_own_name() {
+        // One minimal block per BUILT-IN TYPE (the WEEKDAY_NAMES pattern): a
+        // type in `LANE_TYPES` that dispatches to nothing, or that loses the
+        // lane's own name along the way, would accept a lane it never truly
+        // runs.
+        let fixtures: &[(&str, &str)] = &[("herdr", "herdr")];
+        assert_eq!(crate::config::LANE_TYPES.len(), fixtures.len());
+        for (kind, name) in fixtures {
             let config = parse_config(&format!("[lanes.{name}]\n")).unwrap();
-            assert!(
-                run_lane(name, &config, &ScriptedRunner::new(&[])).is_some(),
-                "the roster names `{name}` but nothing dispatches it"
-            );
+            let report = run_lane(name, &config, &ScriptedRunner::new(&[]))
+                .unwrap_or_else(|| panic!("the roster names `{kind}` but nothing dispatches it"));
+            assert_eq!(&report.name, name);
         }
+    }
+
+    #[test]
+    fn a_run_lanes_report_carries_the_lanes_own_name_not_its_type() {
+        // The fixture above names its herdr lane "herdr", which cannot tell a
+        // report carrying the ACTUAL name apart from one hardcoding the type's
+        // own literal. A lane named something else closes that gap.
+        let config = parse_config("[lanes.mine]\ntype = \"herdr\"\n").unwrap();
+        let report = run_lane("mine", &config, &ScriptedRunner::new(&[])).unwrap();
+        assert_eq!(report.name, "mine");
+    }
+
+    #[test]
+    fn lanes_run_in_name_order_whatever_the_file_order() {
+        let config =
+            parse_config("[lanes.zeta]\ntype = \"herdr\"\n\n[lanes.alpha]\ntype = \"herdr\"\n")
+                .unwrap();
+        assert_eq!(enabled_lanes(&config), vec!["alpha", "zeta"]);
     }
 
     // --- why a command failed -------------------------------------------------
@@ -333,7 +343,7 @@ mod tests {
     #[test]
     fn a_clean_run_updates_herdr_then_refreshes_every_plugin_in_roster_order() {
         let runner = ScriptedRunner::new(&[]);
-        let report = run_herdr(&lane(&[("a", "o/a"), ("b", "o/b")]), &runner);
+        let report = run_herdr("herdr", &lane(&[("a", "o/a"), ("b", "o/b")]), &runner);
         assert_eq!(report.failures, 0);
         assert_eq!(
             runner.calls(),
@@ -353,14 +363,14 @@ mod tests {
         let runner = ScriptedRunner::new(&[]);
         let mut configured = lane(&[]);
         configured.binary = "/opt/herdr".to_string();
-        run_herdr(&configured, &runner);
+        run_herdr("herdr", &configured, &runner);
         assert_eq!(runner.calls()[0][0], "/opt/herdr");
     }
 
     #[test]
     fn a_failed_self_update_is_counted_and_the_plugins_still_refresh() {
         let runner = ScriptedRunner::new(&[&["herdr", "update"]]);
-        let report = run_herdr(&lane(&[("a", "o/a")]), &runner);
+        let report = run_herdr("herdr", &lane(&[("a", "o/a")]), &runner);
         assert_eq!(report.failures, 1);
         assert!(
             report
@@ -383,7 +393,7 @@ mod tests {
     #[test]
     fn a_successful_self_update_reports_the_version_it_landed_on() {
         let runner = ScriptedRunner::new(&[]).answering("herdr 0.42.0\nbuilt from source\n");
-        let report = run_herdr(&lane(&[]), &runner);
+        let report = run_herdr("herdr", &lane(&[]), &runner);
         assert_eq!(report.lines[0], "herdr self-update: ok (herdr 0.42.0)");
     }
 
@@ -392,7 +402,7 @@ mod tests {
         // The version is a courtesy in the record, never a verdict: counting it
         // as a failure would report a healthy update as a broken one.
         let runner = ScriptedRunner::new(&[&["herdr", "--version"]]);
-        let report = run_herdr(&lane(&[]), &runner);
+        let report = run_herdr("herdr", &lane(&[]), &runner);
         assert_eq!(report.failures, 0);
         assert_eq!(report.lines[0], "herdr self-update: ok");
     }
@@ -402,7 +412,7 @@ mod tests {
         // Installing over a plugin the uninstall could not remove is how a
         // half-removed plugin becomes two.
         let runner = ScriptedRunner::new(&[&["herdr", "plugin", "uninstall", "a"]]);
-        let report = run_herdr(&lane(&[("a", "o/a"), ("b", "o/b")]), &runner);
+        let report = run_herdr("herdr", &lane(&[("a", "o/a"), ("b", "o/b")]), &runner);
         assert_eq!(report.failures, 1);
         assert!(
             report
@@ -451,7 +461,7 @@ mod tests {
         let runner = FlakyInstall {
             attempts: RefCell::new(0),
         };
-        let report = run_herdr(&lane(&[("a", "o/a")]), &runner);
+        let report = run_herdr("herdr", &lane(&[("a", "o/a")]), &runner);
         assert_eq!(
             *runner.attempts.borrow(),
             2,
@@ -469,7 +479,7 @@ mod tests {
     #[test]
     fn a_plugin_that_fails_twice_is_named_loudly_as_missing() {
         let runner = ScriptedRunner::new(&[&["herdr", "plugin", "install", "o/a", "--yes"]]);
-        let report = run_herdr(&lane(&[("a", "o/a")]), &runner);
+        let report = run_herdr("herdr", &lane(&[("a", "o/a")]), &runner);
         assert_eq!(report.failures, 1);
         assert!(
             report
@@ -497,7 +507,7 @@ mod tests {
         // is a card that names nothing to fix and reads like a lane that
         // worked.
         let runner = ScriptedRunner::new(&[&["herdr", "update"]]);
-        let report = run_herdr(&lane(&[("a", "o/a")]), &runner);
+        let report = run_herdr("herdr", &lane(&[("a", "o/a")]), &runner);
         let summary = crate::alert::alert_summary(&report);
         assert!(summary.contains("self-update FAILED"), "{summary}");
         assert!(!summary.contains("refreshed"), "{summary}");
@@ -512,7 +522,7 @@ mod tests {
             &["herdr", "plugin", "uninstall", "a"],
             &["herdr", "plugin", "install", "o/b", "--yes"],
         ]);
-        let report = run_herdr(&lane(&[("a", "o/a"), ("b", "o/b")]), &runner);
+        let report = run_herdr("herdr", &lane(&[("a", "o/a"), ("b", "o/b")]), &runner);
         for line in report
             .lines
             .iter()
@@ -530,7 +540,11 @@ mod tests {
             &["herdr", "plugin", "uninstall", "a"],
             &["herdr", "plugin", "install", "o/b", "--yes"],
         ]);
-        let report = run_herdr(&lane(&[("a", "o/a"), ("b", "o/b"), ("c", "o/c")]), &runner);
+        let report = run_herdr(
+            "herdr",
+            &lane(&[("a", "o/a"), ("b", "o/b"), ("c", "o/c")]),
+            &runner,
+        );
         assert_eq!(report.failures, 3);
         assert_eq!(report.name, "herdr");
     }
@@ -538,7 +552,7 @@ mod tests {
     #[test]
     fn a_lane_with_no_plugins_still_updates_the_binary() {
         let runner = ScriptedRunner::new(&[]);
-        let report = run_herdr(&lane(&[]), &runner);
+        let report = run_herdr("herdr", &lane(&[]), &runner);
         assert_eq!(report.failures, 0);
         assert_eq!(
             runner.calls().first().map(|call| call[1].clone()),
