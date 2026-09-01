@@ -7751,6 +7751,101 @@ fn plant_waiting_session(sandbox: &Sandbox) {
     std::fs::write(needs.join("s1"), format!("{now}\n")).expect("a needs marker");
 }
 
+/// The lights job the spool is holding, as its raw record, or nothing.
+fn scheduled_tick(sandbox: &Sandbox) -> Option<String> {
+    std::fs::read_to_string(sandbox.path("state/daemon/lights")).ok()
+}
+
+/// The second a spool record stops being allowed to run.
+fn lease_ends_at(record: &str) -> u64 {
+    record
+        .split_whitespace()
+        .find_map(|field| field.strip_prefix("until="))
+        .and_then(|until| until.parse().ok())
+        .unwrap_or_else(|| panic!("the record states an until: {record:?}"))
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+}
+
+#[test]
+fn a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold() {
+    // THE LOOP LAMP COULD NOT BE REACHED AT ALL. The tick's lease was
+    // refreshed by EVENTS and by nothing else, and a plain shell command
+    // produces no events: with the automatic threshold at five minutes by
+    // default and six on the operator's own machine, both PAST the five-minute
+    // lease an event leaves behind, the daemon dropped the job before the run
+    // it was watching could ever qualify. The one lamp whose job is a long run
+    // could not arm itself.
+    let sandbox = Sandbox::new("lights-tick-renews-its-own-lease");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n{STUDIO_MAP}"
+    ));
+    // A COMMAND THIS TEST'S OWN PROCESS IS HOLDING: the sweep reads the pid in
+    // the name and only a LIVE shell's marker counts as work in flight.
+    let shell = sandbox.path("state/lights-shell");
+    std::fs::create_dir_all(&shell).expect("the shell marker directory");
+    let started = now_secs() - 100;
+    std::fs::write(
+        shell.join(std::process::id().to_string()),
+        format!("{started}\n"),
+    )
+    .expect("a command that started a hundred seconds ago");
+
+    let output = tick(&sandbox);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let record = scheduled_tick(&sandbox).expect("the tick registered itself");
+    assert!(
+        lease_ends_at(&record) >= now_secs() + 240,
+        "the lease has to outlast the threshold the run is climbing toward: {record:?}"
+    );
+}
+
+#[test]
+fn a_tick_with_nothing_in_flight_lets_its_own_lease_lapse() {
+    // THE OTHER DIRECTION, and it is what keeps the renewal above from being a
+    // job that reschedules itself forever: an idle machine's tick has to lapse,
+    // or the daemon runs it three times a minute for the life of the host over
+    // a house that is holding nothing.
+    let sandbox = Sandbox::new("lights-tick-lapses");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n{STUDIO_MAP}"
+    ));
+    let output = tick(&sandbox);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        scheduled_tick(&sandbox),
+        None,
+        "a tick with nothing to watch registered itself again anyway"
+    );
+}
+
+#[test]
+fn a_lease_taken_by_hand_schedules_the_tick_that_reads_it() {
+    // A LEASE NOBODY READS IS A LAMP THAT NEVER LIGHTS. `pns loop begin` is for
+    // work whose length nothing can measure in advance, which is exactly the
+    // run that then goes quiet: the tick's lease is refreshed by event traffic,
+    // so an overnight loop taken by hand in a pane that stops talking expired
+    // minutes into the run it was taken for.
+    let sandbox = Sandbox::new("loop-begin-schedules-the-tick");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n{STUDIO_MAP}"
+    ));
+    let taken = run(sandbox
+        .pns_stateful()
+        .args(["loop", "begin", "--pane", "wW:p21"]));
+    assert_eq!(taken.status.code(), Some(0), "{}", stderr(&taken));
+    let record = scheduled_tick(&sandbox).expect("the lease registered the tick that reads it");
+    assert!(
+        lease_ends_at(&record) >= now_secs() + 3_000,
+        "the tick has to outlast the lease it is there to read: {record:?}"
+    );
+}
+
 #[test]
 fn a_bare_lights_command_is_a_usage_error_rather_than_an_event() {
     // FALLING THROUGH TO THE EVENT PATH IS THE FAILURE THIS PREVENTS: argv

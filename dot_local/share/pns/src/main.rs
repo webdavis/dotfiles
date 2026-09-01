@@ -2556,20 +2556,37 @@ fn register_lights_tick(
     let (Some(lights), Some(now)) = (lights, now_secs()) else {
         return;
     };
-    let state = state_dir();
+    let lease = if pns::missed_notifications::was_missed(decision, overrides) {
+        JOURNALLED_LEASE_SECS
+    } else {
+        ORDINARY_LEASE_SECS
+    };
+    schedule_lights_tick(&state_dir(), lights, now, lease);
+}
+
+/// The tick registered to run for the next `lease_secs`, keeping whatever due
+/// second is already pending.
+///
+/// THREE CALLERS AND ONE REGISTRATION, because the tick's lease is what decides
+/// whether a lamp can EVER light, and three spellings of it would be three
+/// answers. An event refreshes it, a lease taken by hand starts it, and the
+/// tick renews its own while anything is still in flight.
+///
+/// THE DUE SECOND IS KEPT WHEN ONE IS ALREADY PENDING, and that is not
+/// decoration: re-registering replaces the job by name, so an event storm that
+/// pushed `due` out to `now + refresh` every time would keep moving the tick
+/// away from itself and a busy machine's lamps would never be re-armed at all.
+/// The lease is what every caller refreshes; the schedule is left where the
+/// last tick put it.
+fn schedule_lights_tick(state: &Path, lights: &pns::config::Lights, now: u64, lease_secs: u64) {
     let pending =
-        match pns::daemon::peek(&pns::daemon::spool_dir(&state).join(LIGHTS_JOB), LIGHTS_JOB) {
+        match pns::daemon::peek(&pns::daemon::spool_dir(state).join(LIGHTS_JOB), LIGHTS_JOB) {
             pns::daemon::Peeked::Job(job) => Some(job.due),
             _ => None,
         };
     let due = pending
         .filter(|due| *due > now)
         .unwrap_or_else(|| now.saturating_add(lights.refresh_secs));
-    let lease = if pns::missed_notifications::was_missed(decision, overrides) {
-        JOURNALLED_LEASE_SECS
-    } else {
-        ORDINARY_LEASE_SECS
-    };
     let job = pns::daemon::Job {
         id: LIGHTS_JOB.to_string(),
         due,
@@ -2578,13 +2595,13 @@ fn register_lights_tick(
         // refused registration is a lamp that never re-arms with nothing said
         // anywhere. It bites for any refresh interval longer than the ordinary
         // lease, which the config permits up to a day.
-        until: due.max(now.saturating_add(lease)),
+        until: due.max(now.saturating_add(lease_secs)),
         every: Some(lights.refresh_secs),
         unless_marker: None,
         args: vec!["lights".to_string(), "tick".to_string()],
     };
     // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = pns::daemon::schedule(&state, &job, now);
+    let _ = pns::daemon::schedule(state, &job, now);
 }
 
 /// Every leg to its destination, in the registry's delivery order, each
@@ -4318,8 +4335,11 @@ pns lights quiet [<place> [<duration>|off]]";
 /// work whose length nothing can measure in advance: an overnight run is a loop
 /// from the moment it starts, not once it has been going five minutes.
 ///
-/// IT WRITES ONE FILE AND NOTHING ELSE. The tick is what reads it, so a daemon
-/// that is down means the lamp simply does not light, and `pns loop end` on a
+/// IT WRITES A FILE AND REGISTERS THE TICK. The tick is what reads the lease,
+/// and its own lease is refreshed by EVENT traffic: a lease taken by hand in a
+/// pane that then goes quiet for an hour would be read by nobody, because the
+/// tick would have expired minutes into the run it was taken for. A daemon that
+/// is down still means the lamp simply does not light, and `pns loop end` on a
 /// machine that never began is a removal of a file that is not there.
 fn loop_mode(verb: &str) -> i32 {
     let arguments: Vec<String> = std::env::args_os()
@@ -4354,6 +4374,17 @@ fn loop_mode(verb: &str) -> i32 {
                 // success for one is the worst outcome available.
                 eprintln!("pns: loop: the lease could not be written: {error}");
                 return 1;
+            }
+            // AND THE TICK IS REGISTERED FOR THE WHOLE LEASE, because nothing
+            // else will register it in time. The tick's own lease is refreshed
+            // by EVENT traffic, so a lease taken by hand in a pane that then
+            // goes quiet, which is exactly the overnight run this verb exists
+            // for, would be read by a tick that expired minutes into it.
+            let home = std::env::var("HOME").unwrap_or_default();
+            if let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home))
+                && let Some(lights) = config.lights.as_deref()
+            {
+                schedule_lights_tick(&state, lights, now, lights.looping.lease_timeout_secs);
             }
         }
         pns::lights::LoopCommand::End(pane) => {
@@ -4820,7 +4851,7 @@ fn lights_tick() -> i32 {
     };
     let state = state_dir();
     sweep_legacy_state(&state);
-    let house = lights_house(&state, lights, now);
+    let standing = lights_house(&state, lights, now);
     let (muted, mut complaints) = ad_hoc_quiet(&state, Some(now));
     // A RECORD THIS CANNOT READ NAMES NOTHING TO CLEAR, and the tick is its
     // only writer, so it goes on and republishes it: the pass below writes the
@@ -4834,7 +4865,7 @@ fn lights_tick() -> i32 {
             (Vec::new(), true)
         }
     };
-    let active = pns::lights::active_held(&house);
+    let active = pns::lights::active_held(&standing.house);
     // NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE CALL AT ALL, which
     // is what keeps an idle machine off the network several times a minute.
     //
@@ -4869,6 +4900,20 @@ fn lights_tick() -> i32 {
     // complaint was never forgotten on the tick that ended it, so the same
     // complaint returning later would not read as news.
     say_lights_once(&state, &complaints, LIGHTS_SAID);
+    // AND THE TICK KEEPS ITSELF ALIVE while anything could still light a lamp.
+    // Its lease was refreshed by EVENTS alone, which reaches only the states an
+    // event ARRIVES with: a shell command produces no events at all, and the
+    // automatic loop trigger is five minutes by default and six on the
+    // operator's own machine, both PAST the five-minute lease an event leaves.
+    // So the one lamp whose whole job is a long run could never arm itself, and
+    // a lease taken by hand in a pane that then went quiet expired unread.
+    //
+    // IT IS STILL BOUNDED BY THE CONDITION, not a self-perpetuating job: a
+    // house holding nothing with no run and no lease renews nothing, so an idle
+    // machine's tick lapses exactly as it did.
+    if !active.is_empty() || standing.in_flight {
+        schedule_lights_tick(&state, lights, now, ORDINARY_LEASE_SECS);
+    }
     0
 }
 
@@ -5029,11 +5074,24 @@ fn drive_breaths<B: pns::channels::hue::Bridge>(
     }
 }
 
+/// What one tick found: the states the house is holding, and whether anything
+/// is still in flight that could become one before the next tick.
+///
+/// TWO ANSWERS OFF ONE READING, because the tick's own lease is a function of
+/// both. A lamp that is ON has to be re-armed; a run of work that has NOT yet
+/// reached its threshold has to still be watched when it does, and taking that
+/// as a second reading would be a second sweep of the same directories.
+struct Standing {
+    house: pns::lights::House,
+    /// A run of work or a lease that is live and has not lit a lamp YET.
+    in_flight: bool,
+}
+
 /// The states the house is in, taken off the machine.
 ///
 /// THE STREAK IS ADVANCED HERE, which is the one reading that WRITES: a run of
 /// work is a duration, and a duration needs somewhere to have started.
-fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> pns::lights::House {
+fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standing {
     // THE SAME CALL THE VISIBILITY MODEL MAKES, bounded the same way, and read
     // for a different field. A herdr that is missing, wedged or answering
     // something this cannot parse yields no working workspace, which is the
@@ -5045,29 +5103,47 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> pns::li
     // THE SHELL'S OWN MARKERS, which each interactive shell writes while a
     // plain command runs in it. Nothing in this crate writes them.
     let shell_since = sweep_shell_markers(state);
-    // BOTH SOURCES FEED ONE STREAK (operator ruling): an agent herdr calls
-    // working and a tracked shell command are each work in flight, and the loop
-    // lamp measures how long ANY of it has been going. One streak is what keeps
-    // a build and an agent loop from each starting a clock of their own.
+    // BOTH SOURCES ARE WORK IN FLIGHT (operator ruling), which is the question
+    // the UNREAD lamp asks: news that arrives while anything is still running is
+    // not news anybody has missed yet.
     let working = pns::lights::any_working(&statuses, shell_since);
-    let streak = advance_streak(state, working, now);
-    pns::lights::House {
-        blocked: pns::lights::any_blocked(&sweep_blocked(state, now), now, BLOCKED_MAX_AGE_SECS),
-        looping: pns::lights::loop_running(&pns::lights::Loop {
-            streak: streak.as_ref(),
-            working,
-            leases: &sweep_leases(state, now, lights.looping.lease_timeout_secs),
-            now,
-            threshold_secs: lights.looping.threshold_secs,
-            lease_timeout_secs: lights.looping.lease_timeout_secs,
-        }),
-        unread: pns::lights::unread_arming(
-            &read_news(state),
-            last_interaction(),
-            working,
-            now,
-            lights.unread.after_secs,
-        ),
+    // AND THE STREAK IS THE AGENTS' ALONE, because it exists to supply a start
+    // that herdr does not give: a status word carries no clock. The shell
+    // publishes the second its command began, so pooling the two had a fresh
+    // command inherit an agent's finished run and a long build restart its own.
+    let agents_working = pns::lights::any_working(&statuses, None);
+    let streak = advance_streak(state, agents_working, now);
+    let leases = sweep_leases(state, now, lights.looping.lease_timeout_secs);
+    Standing {
+        // WORK THAT HAS NOT REACHED ITS THRESHOLD IS STILL IN FLIGHT, and this
+        // is the reading that keeps the tick alive long enough to see it get
+        // there: the automatic trigger's default is five minutes and the
+        // operator's is six, both of them PAST the ordinary lease an event
+        // leaves behind.
+        in_flight: streak.is_some() || shell_since.is_some() || !leases.is_empty(),
+        house: pns::lights::House {
+            blocked: pns::lights::any_blocked(
+                &sweep_blocked(state, now),
+                now,
+                BLOCKED_MAX_AGE_SECS,
+            ),
+            looping: pns::lights::loop_running(&pns::lights::Loop {
+                streak: streak.as_ref(),
+                agents_working,
+                shell_since,
+                leases: &leases,
+                now,
+                threshold_secs: lights.looping.threshold_secs,
+                lease_timeout_secs: lights.looping.lease_timeout_secs,
+            }),
+            unread: pns::lights::unread_arming(
+                &read_news(state),
+                last_interaction(),
+                working,
+                now,
+                lights.unread.after_secs,
+            ),
+        },
     }
 }
 

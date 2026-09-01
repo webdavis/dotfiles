@@ -306,12 +306,16 @@ pub fn last_interaction(
 /// and either of them, is a lamp judged against the wrong clock and nothing
 /// would catch it.
 pub struct Loop<'reading> {
-    /// The run in progress, which is what the automatic trigger measures.
+    /// The AGENTS' run in progress, which is the only source whose start has to
+    /// be inferred: herdr answers a status word and no clock, so the run is
+    /// timed from the first tick that read one working.
     pub streak: Option<&'reading Streak>,
-    /// Whether anything tracked is working right now. BOTH SOURCES FEED IT
-    /// (operator ruling): an agent herdr calls working, and a tracked shell
-    /// command, are each a loop running.
-    pub working: bool,
+    /// Whether any agent is working right now.
+    pub agents_working: bool,
+    /// When the longest-running tracked shell command STARTED, which is an
+    /// exact epoch the shell itself published. It needs no streak: the marker
+    /// exists for exactly as long as the command runs.
+    pub shell_since: Option<u64>,
     /// When each live lease was last renewed. EMPTY IS THE ORDINARY CASE.
     pub leases: &'reading [u64],
     pub now: u64,
@@ -328,23 +332,37 @@ pub struct Loop<'reading> {
 /// hand for work whose length nothing can measure in advance. Either is enough,
 /// and neither can turn the other off.
 ///
-/// BOTH HALVES OF THE AUTOMATIC ONE. The streak deliberately outlives the work
-/// by the grace that covers the gap between a loop's turns, so the threshold
-/// alone would keep the lamp claiming work in progress after everything went
-/// idle.
+/// EACH SOURCE IS TIMED AGAINST ITS OWN START, and pooling them was wrong in
+/// both directions. The shell publishes the second its command began, so a
+/// build is measured from when it really started; an agent gives a status word
+/// and nothing else, so its run is timed from the first tick that read it
+/// working, and that streak deliberately outlives the work by the grace
+/// covering an agent's turn gap. Shared, a fresh five-second command starting
+/// inside that grace inherited a finished agent's run and armed the lamp at
+/// once, while a build already ten minutes in was clocked from now and had to
+/// wait out the whole threshold again.
+///
+/// BOTH HALVES OF THE AGENT ONE. The streak outliving the work is exactly why
+/// the threshold alone would keep the lamp claiming a run in progress after
+/// everything went idle.
+///
+/// AND THE SHELL NEEDS NO SECOND HALF, because its marker exists for exactly as
+/// long as its command runs: the reading IS the liveness.
 ///
 /// A `now` BEHIND A START HAS NO ELAPSED TIME IN IT. A clock that stepped
 /// backwards would otherwise wrap a subtraction into a huge number that passes
 /// every threshold there is.
 pub fn loop_running(state: &Loop<'_>) -> bool {
-    let worked_long_enough = state.working
-        && state.streak.is_some_and(|streak| {
-            state
-                .now
-                .checked_sub(streak.since)
-                .is_some_and(|elapsed| elapsed >= state.threshold_secs)
-        });
-    worked_long_enough
+    let long_enough = |since: u64| {
+        state
+            .now
+            .checked_sub(since)
+            .is_some_and(|elapsed| elapsed >= state.threshold_secs)
+    };
+    let agent_run =
+        state.agents_working && state.streak.is_some_and(|streak| long_enough(streak.since));
+    agent_run
+        || state.shell_since.is_some_and(long_enough)
         || state
             .leases
             .iter()
@@ -1468,17 +1486,78 @@ mod tests {
     /// One reading, with everything not under test set to nothing happening.
     fn running<'reading>(
         streak: Option<&'reading Streak>,
-        working: bool,
+        agents_working: bool,
         leases: &'reading [u64],
     ) -> Loop<'reading> {
         Loop {
             streak,
-            working,
+            agents_working,
+            shell_since: None,
             leases,
             now: NOW,
             threshold_secs: THRESHOLD,
             lease_timeout_secs: LEASE_TIMEOUT,
         }
+    }
+
+    #[test]
+    fn a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak() {
+        // TWO SOURCES, TWO CLOCKS, and one shared streak could not serve both.
+        // The shell publishes the second its command STARTED, which is an exact
+        // start nothing has to infer; an agent gives a status word and nothing
+        // else, so its run is timed from the first tick that read it working.
+        //
+        // POOLED, THEY BORROWED EACH OTHER'S TIME IN BOTH DIRECTIONS. The
+        // streak outlives the work by the grace that covers an agent's turn
+        // gap, so a fresh five-second command starting inside that grace
+        // inherited the streak and armed the lamp at once; and a build that had
+        // already been running for ten minutes when the streak was empty was
+        // clocked from now and had to wait out the whole threshold again.
+        let stale = Streak {
+            since: NOW - 5_000,
+            last_seen: NOW - 60,
+        };
+        assert!(
+            !loop_running(&Loop {
+                shell_since: Some(NOW - 5),
+                ..running(Some(&stale), false, &[])
+            }),
+            "a five-second command cannot inherit an agent's finished run"
+        );
+        assert!(
+            loop_running(&Loop {
+                shell_since: Some(NOW - THRESHOLD),
+                ..running(None, false, &[])
+            }),
+            "and a build already past the threshold arms from its OWN start, \
+             with no streak behind it and nothing to wait out again"
+        );
+        assert!(
+            !loop_running(&Loop {
+                shell_since: Some(NOW - THRESHOLD + 1),
+                ..running(None, false, &[])
+            }),
+            "one second under it is not a loop yet: the same closed edge"
+        );
+        // AND THE AGENT'S OWN RUN IS NOT DESTROYED BY A FRESH COMMAND, which is
+        // the mirror of the first case and the reason this is two readings
+        // rather than one taken over the earlier of them.
+        let long = streak_from(THRESHOLD);
+        assert!(
+            loop_running(&Loop {
+                shell_since: Some(NOW),
+                ..running(Some(&long), true, &[])
+            }),
+            "an agent ten minutes in keeps its lamp when somebody runs `ls`"
+        );
+        // A CLOCK BEHIND THE COMMAND HAS NO ELAPSED TIME IN IT.
+        assert!(
+            !loop_running(&Loop {
+                shell_since: Some(NOW + 500),
+                ..running(None, false, &[])
+            }),
+            "a now before the command started has no elapsed time in it"
+        );
     }
 
     #[test]
