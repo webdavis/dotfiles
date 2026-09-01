@@ -1175,6 +1175,7 @@ fn parse_targets(
             )));
         };
         let mut target = Target::default();
+        let mut states_behaviours = false;
         for (key, stated) in settings {
             admits(TARGET_KEYS, &where_it_is, key)?;
             match key.as_str() {
@@ -1182,11 +1183,25 @@ fn parse_targets(
                 "dim_window" => target.dim_window = Some(text(&where_it_is, key, stated)?),
                 "dim_behaviours" => {
                     target.dim_behaviours = behaviours(&where_it_is, key, stated)?;
+                    states_behaviours = true;
                 }
                 _ => {
                     return Err(unknown_key(TARGET_KEYS, &where_it_is, key));
                 }
             }
+        }
+        // NO DEAD KNOBS, which is the config ruling reaching the one pair of
+        // keys that can be half written. The enables RIDE the window (they are
+        // resolved as one answer), so a declaration that names which behaviours
+        // run dimmed and never says WHEN is a list nothing reads: the operator
+        // gets a lamp that strobes all night and a file that says it should
+        // not. STATED rather than non-empty, because an empty list with no
+        // window is the same dead knob and the two must not disagree.
+        if states_behaviours && target.dim_window.is_none() {
+            return Err(ConfigError::Invalid(format!(
+                "`{where_it_is}` states `dim_behaviours` with no `dim_window` for \
+                 them to run in, so nothing would ever read them"
+            )));
         }
         targets.insert(name.clone(), target);
     }
@@ -2838,6 +2853,35 @@ mod tests {
     }
 
     #[test]
+    fn dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped() {
+        // NO DEAD KNOBS, which is the config ruling applied to the one pair of
+        // keys that can be half written. The enables RIDE the window, so a
+        // declaration naming which behaviours run dimmed and never saying when
+        // is a list nothing will ever read: the operator gets a lamp that
+        // strobes all night and a file that says it should not.
+        for stated in ["[\"blocked\"]", "[]"] {
+            assert_eq!(
+                refusal(&format!(
+                    "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+                     dim_behaviours = {stated}\n"
+                )),
+                "`lights.room.3F - Studio` states `dim_behaviours` with no \
+                 `dim_window` for them to run in, so nothing would ever read them",
+                "dim_behaviours = {stated}"
+            );
+        }
+        // AN EMPTY LIST BESIDE A WINDOW IS THE BEDROOM RULE and stays legal:
+        // the refusal is about a missing window, never about an empty list.
+        assert!(
+            parse_config(
+                "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+                 dim_window = \"22:00-07:00\"\ndim_behaviours = []\n"
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
     fn an_unknown_declaration_key_is_refused_by_name_with_the_path_the_operator_wrote() {
         // THE PATH THEY WROTE, not the roster's own row: an operator told
         // `lights.<level>` has no `dim_hours` would go looking for a table they
@@ -2886,7 +2930,25 @@ mod tests {
     fn config_writing(table: &str, key: &str, value: &str) -> String {
         match table {
             super::TOP_LEVEL => format!("{key} = {value}\n"),
-            other => format!("[{}]\n{key} = {value}\n", header_for(other)),
+            other => format!(
+                "[{}]\n{key} = {value}\n{}",
+                header_for(other),
+                companion(table, key)
+            ),
+        }
+    }
+
+    /// The one key that cannot stand alone, written beside its sample.
+    ///
+    /// `dim_behaviours` NAMES WHAT RUNS DIMMED INSIDE A WINDOW, and a
+    /// declaration that states it without one is refused by name. This walk
+    /// asks whether the arm READS the key, so its sample writes the window the
+    /// key depends on rather than the walk reading a refusal as a key nothing
+    /// serves.
+    fn companion(table: &str, key: &str) -> &'static str {
+        match (table, key) {
+            (super::TARGET_KEYS, "dim_behaviours") => "dim_window = \"22:00-07:00\"\n",
+            _ => "",
         }
     }
 
