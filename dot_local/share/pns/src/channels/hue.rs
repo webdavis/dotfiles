@@ -707,14 +707,20 @@ pub fn muted_now(lamp: &Lamp, muting: &Muting) -> bool {
         .any(|name| muted.iter().any(|quiet| quiet == name))
 }
 
-/// Every name a declaration writes, at any level, sorted and deduplicated.
+/// Every name a mute may be typed at, sorted and deduplicated: the config's
+/// declarations, plus the bridge's own lamps, rooms and zones.
 ///
-/// THE VOCABULARY `pns lights quiet` ACCEPTS, and it is the config's own rather
-/// than the bridge's on purpose: this answer is wanted by a typed command that
-/// must not dial a bridge to refuse a typo, and a name the config holds but the
-/// bridge does not is already reported by the tick and the doctor in their own
-/// words.
-pub fn declared_names(lights: &crate::config::Lights) -> Vec<String> {
+/// THE VOCABULARY `pns lights quiet` ACCEPTS, and it is BOTH SOURCES because
+/// the target grammar is lamp, room and zone rather than "whatever the config
+/// happened to write down". Off the config alone it accepted a misspelled
+/// declaration, which is a mute that can never match a lamp, and refused a real
+/// inherited lamp the operator was reading off the bridge's own app, which is
+/// the room they were standing in at the hour they wanted it quiet.
+///
+/// A BRIDGE THAT ANSWERED NOTHING LEAVES THE DECLARATIONS, which is the
+/// direction that keeps the command usable with the transport down: those names
+/// are the ones a mute can still enforce when it comes back.
+pub fn mutable_names(lights: &crate::config::Lights, inventory: Option<&Inventory>) -> Vec<String> {
     let mut names: Vec<String> = lights
         .lamps
         .keys()
@@ -722,6 +728,11 @@ pub fn declared_names(lights: &crate::config::Lights) -> Vec<String> {
         .chain(lights.zones.keys())
         .cloned()
         .collect();
+    if let Some(inventory) = inventory {
+        names.extend(inventory.lamps.iter().map(|lamp| lamp.name.clone()));
+        names.extend(inventory.rooms.iter().cloned());
+        names.extend(inventory.zones.iter().cloned());
+    }
     names.sort();
     names.dedup();
     names
@@ -976,10 +987,10 @@ const UNMAPPED_SIGNAL_DURATION_MS: u64 = 3000;
 mod tests {
     use super::{
         Bridge, DEFAULT_ROOMS, DimWindow, HuePulse, Inventory, Missing, Muting, QuietWindow,
-        Routing, Showing, Unresolved, breath_arm_body, clear_body, clear_held, declared_names,
-        dim_showing, fade_body, grouped_light_ids_for_rooms, held_render, hue_settings, inventory,
-        muted_now, parse_window, pulse_body, pulse_render, quiet_now, quiet_window, resolve,
-        resolve_on_bridge,
+        Routing, Showing, Unresolved, breath_arm_body, clear_body, clear_held, dim_showing,
+        fade_body, grouped_light_ids_for_rooms, held_render, hue_settings, inventory,
+        mutable_names, muted_now, parse_window, pulse_body, pulse_render, quiet_now, quiet_window,
+        resolve, resolve_on_bridge,
     };
     use crate::config::Behaviour;
     use std::cell::RefCell;
@@ -1811,22 +1822,45 @@ mod tests {
     }
 
     #[test]
-    fn the_names_a_mute_takes_are_every_name_a_declaration_writes_at_any_level() {
+    fn the_names_a_mute_takes_are_the_declarations_and_the_bridges_own_three_levels() {
+        let declared = lights(
+            "[lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"blocked\"]\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+             [lights.zone.Upstairs]\nshows = [\"done\"]\n",
+        );
         assert_eq!(
-            declared_names(&lights(
-                "[lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"blocked\"]\n\
-                 [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-                 [lights.zone.Upstairs]\nshows = [\"done\"]\n",
-            )),
+            mutable_names(&declared, None),
             vec![
                 "3F - Studio".to_string(),
                 "3F - Studio - HCL3".to_string(),
                 "Upstairs".to_string(),
             ],
             "sorted, deduplicated, and with no level of its own: a mute names a place, \
-             and every level is one"
+             and every level is one. A bridge that answered nothing leaves these, \
+             which are the names a mute can still enforce once it is back"
         );
-        assert!(declared_names(&lights("[lights]\n")).is_empty());
+        // AND THE BRIDGE'S OWN NAMES ARE IN THE GRAMMAR TOO. The targets are
+        // lamp, room and zone, not "whatever the config wrote down": a lamp
+        // inheriting its room's declaration is a real name the operator reads
+        // off the bridge's own app, and refusing it sent them away from the room
+        // they were standing in at the hour they wanted it quiet.
+        let both = mutable_names(&declared, Some(&stock()));
+        for reachable in [
+            "3F - Studio - HCL1",
+            "3F - Studio - HCL3",
+            "2F - Kitchen",
+            "Upstairs",
+        ] {
+            assert!(
+                both.contains(&reachable.to_string()),
+                "{reachable:?} is a name a mute reaches: {both:?}"
+            );
+        }
+        assert!(
+            both.windows(2).all(|pair| pair[0] < pair[1]),
+            "still sorted and deduplicated across both sources: {both:?}"
+        );
+        assert!(mutable_names(&lights("[lights]\n"), None).is_empty());
     }
 
     // --- the bodies ----------------------------------------------------------

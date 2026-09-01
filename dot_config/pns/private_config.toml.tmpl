@@ -467,7 +467,9 @@ dim_behaviours = ["blocked", "unread", "loop"]
 # 1s to 24h `pns quiet` takes, and a state file nobody can parse mutes nothing
 # and says so.
 #
-# THE NAMES IT TAKES ARE THE ONES A DECLARATION WRITES, at any of the three
-# levels, and a name none of them holds is refused with the list of the ones that
-# work.
+# THE NAMES IT TAKES ARE EVERY LAMP, ROOM AND ZONE, whether a declaration below
+# writes it or the bridge merely holds it, and a name neither knows is refused
+# with the list of the ones that work. Refusing a name it cannot enforce is the
+# point: a mute that matches nothing reports success while the lamp goes on
+# flashing.
 {{- end }}

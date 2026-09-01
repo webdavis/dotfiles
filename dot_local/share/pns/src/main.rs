@@ -2504,6 +2504,7 @@ fn clear_held_lamps(settings: Option<&toml::Table>) {
         &UreqBridge {
             base: format!("https://{}/clip/v2/resource", hue.bridge),
             key: hue.key,
+            deadline: BRIDGE_DEADLINE,
         },
         &held,
     );
@@ -2938,6 +2939,7 @@ fn fire_pulse(hue_table: Option<toml::Table>, behaviour: pns::config::Behaviour)
         bridge: UreqBridge {
             base: format!("https://{}/clip/v2/resource", hue.bridge),
             key: hue.key,
+            deadline: BRIDGE_DEADLINE,
         },
         rooms: hue.rooms,
     }
@@ -2967,6 +2969,7 @@ fn fire_lights(
     let bridge = UreqBridge {
         base: format!("https://{}/clip/v2/resource", hue.bridge),
         key: hue.key,
+        deadline: BRIDGE_DEADLINE,
     };
     run_pulse_writes(&bridge, lights, behaviour, reading, held)
 }
@@ -3095,6 +3098,7 @@ fn lights_report(
             &UreqBridge {
                 base: format!("https://{}/clip/v2/resource", hue.bridge),
                 key: hue.key,
+                deadline: BRIDGE_DEADLINE,
             },
             lights,
         )
@@ -4437,7 +4441,7 @@ fn lights_quiet() -> i32 {
         Ok(LoadOutcome::Loaded(config)) => config
             .lights
             .as_deref()
-            .map(pns::channels::hue::declared_names)
+            .map(|lights| mutable_names(lights, config, &arguments))
             .unwrap_or_default(),
         // A CONFIG THIS CANNOT READ NAMES NO PLACE, so every mute is refused by
         // name rather than stored against a map nobody could load. The report
@@ -4522,6 +4526,71 @@ fn lights_quiet() -> i32 {
         println!("{line}");
     }
     0
+}
+
+/// Every name `pns lights quiet` will take, for the command as it was typed.
+///
+/// THE GRAMMAR IS LAMP, ROOM AND ZONE, which are the BRIDGE'S nouns as much as
+/// the config's: a lamp that inherits its room's declaration has a real name no
+/// declaration writes, and refusing it sends the operator away from the room
+/// they are standing in. So the bridge's own listing widens the vocabulary.
+///
+/// AND THE DIAL IS ON THE MISS PATH ALONE. A place a declaration already holds
+/// is a name a mute can enforce whatever the bridge says, so the ordinary
+/// command, muting a room the config routes, costs no network at all. Only a
+/// word neither this run's declarations nor `off` can account for is worth
+/// asking a bridge about, and `off` is allowed over any name because it can
+/// only remove.
+fn mutable_names(
+    lights: &pns::config::Lights,
+    config: &pns::config::Config,
+    arguments: &[String],
+) -> Vec<String> {
+    let declared = pns::channels::hue::mutable_names(lights, None);
+    if !asks_the_bridge(&declared, arguments) {
+        return declared;
+    }
+    pns::channels::hue::mutable_names(lights, bridge_inventory(config).as_ref())
+}
+
+/// Whether the typed command holds a word only a bridge listing could account
+/// for.
+///
+/// THE FIRST ARGUMENT IS THE PLACE in every form that names one (`<place>`,
+/// `<place> <duration>`, `<place> off`), and the bare report names none. A
+/// second word of `off` needs no listing either: `off` is allowed over any
+/// name, because it can only remove a mute the operator can see.
+fn asks_the_bridge(declared: &[String], arguments: &[String]) -> bool {
+    arguments.first().is_some_and(|place| {
+        !declared.contains(place) && arguments.get(1).is_none_or(|word| word != "off")
+    })
+}
+
+/// What the bridge says it holds, or nothing at all.
+///
+/// A BRIDGE THAT ANSWERS NOTHING IS NOT A REFUSAL. The declarations are still
+/// names a mute can enforce once the transport is back, so the command works
+/// with the bridge down at the cost of a narrower vocabulary.
+fn bridge_inventory(config: &pns::config::Config) -> Option<pns::channels::hue::Inventory> {
+    let settings = enabled_hue_table(config)?;
+    let hue = hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())?;
+    // THE HUMAN'S OWN DEADLINE, not the transport's. Nothing else here dials a
+    // bridge with somebody standing at a terminal waiting on the answer, and
+    // three calls at the transport's ten seconds is half a minute before a mute
+    // typed at bedtime says anything at all. A bridge on the same LAN answers
+    // these in milliseconds, so a second apiece is generous; past it the
+    // vocabulary narrows to the declarations, which is what a bridge that
+    // answered nothing leaves anyway.
+    let bridge = UreqBridge {
+        base: format!("https://{}/clip/v2/resource", hue.bridge),
+        key: hue.key,
+        deadline: TYPED_COMMAND_DEADLINE,
+    };
+    Some(pns::channels::hue::inventory(
+        &pns::channels::hue::Bridge::get(&bridge, "room")?,
+        &pns::channels::hue::Bridge::get(&bridge, "light")?,
+        &pns::channels::hue::Bridge::get(&bridge, "zone")?,
+    ))
 }
 
 /// Publish the file, or remove it when nothing is muted.
@@ -4688,6 +4757,7 @@ fn lights_tick() -> i32 {
             &UreqBridge {
                 base: format!("https://{}/clip/v2/resource", hue.bridge),
                 key: hue.key,
+                deadline: BRIDGE_DEADLINE,
             },
             &state,
             lights,
@@ -6925,12 +6995,17 @@ fn focus_now(home: &str, silence: &[String]) -> std::io::Result<FocusReading> {
 struct UreqBridge {
     base: String,
     key: String,
+    /// How long ONE call may take. A FIELD rather than one constant, because
+    /// the callers wait for different reasons: an unattended tick and the
+    /// doctor can spend the full transport deadline, and a human standing at a
+    /// terminal typing a mute cannot.
+    deadline: Duration,
 }
 
 impl UreqBridge {
     fn agent(&self) -> ureq::Agent {
         ureq::Agent::config_builder()
-            .timeout_global(Some(BRIDGE_DEADLINE))
+            .timeout_global(Some(self.deadline))
             .max_redirects(0)
             // The bridge serves a self-signed certificate for its own LAN
             // address, so verification is disabled here exactly as openhue
@@ -6948,6 +7023,10 @@ impl UreqBridge {
 /// How long one bridge call may take. The pulse is decoration on a
 /// notification, so it must never be what makes one slow.
 const BRIDGE_DEADLINE: Duration = Duration::from_secs(10);
+
+/// And how long one may take with a HUMAN waiting on it, which is the mute
+/// command's inventory read and nothing else.
+const TYPED_COMMAND_DEADLINE: Duration = Duration::from_secs(1);
 
 impl Bridge for UreqBridge {
     fn get(&self, path: &str) -> Option<String> {
@@ -6978,9 +7057,9 @@ mod tests {
     use super::{
         BLOCKED_MAX_AGE_SECS, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, drive_breaths, held_lamps, lights_report, matches_glob,
-        muted_state, publish_state_line, read_news, read_note, recap_bounds, record_news,
-        renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
+        STATE_FILE_MODE, ad_hoc_quiet, asks_the_bridge, drive_breaths, held_lamps, lights_report,
+        matches_glob, muted_state, publish_state_line, read_news, read_note, recap_bounds,
+        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
         resolve_path, run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked,
         sweep_leases, sweep_legacy_state, sweep_shell_markers, update_blocked_marker,
     };
@@ -7063,6 +7142,33 @@ mod tests {
         let (muting, complaints) = ad_hoc_quiet(&state, None);
         assert_eq!(muting, pns::channels::hue::Muting::Everything);
         assert_eq!(complaints.len(), 1, "{complaints:?}");
+    }
+
+    #[test]
+    fn only_a_word_no_declaration_accounts_for_is_worth_a_bridge_listing() {
+        // THE MUTE'S VOCABULARY IS BOTH SOURCES, and the bridge half costs a
+        // human three round trips while they stand at a terminal. A place the
+        // config already declares can be enforced whatever the bridge says, so
+        // the ordinary bedtime mute must not pay for a listing that cannot
+        // change the answer.
+        let declared = vec!["3F - Studio".to_string()];
+        let typed = |words: &[&str]| -> Vec<String> {
+            words.iter().map(|word| (*word).to_string()).collect()
+        };
+        assert!(!asks_the_bridge(&declared, &typed(&[])), "the bare report");
+        assert!(!asks_the_bridge(&declared, &typed(&["3F - Studio"])));
+        assert!(!asks_the_bridge(&declared, &typed(&["3F - Studio", "2h"])));
+        assert!(
+            !asks_the_bridge(&declared, &typed(&["3F - Nowhere", "off"])),
+            "`off` is allowed over any name, so no listing could change it"
+        );
+        // AND THE ONE CASE A LISTING DECIDES: a name no declaration holds may
+        // still be a real lamp, room or zone, which is the whole grammar.
+        assert!(asks_the_bridge(&declared, &typed(&["3F - Studio - HCL1"])));
+        assert!(asks_the_bridge(
+            &declared,
+            &typed(&["3F - Studio - HCL1", "2h"])
+        ));
     }
 
     #[test]
