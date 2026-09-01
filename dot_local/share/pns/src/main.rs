@@ -421,8 +421,8 @@ fn record_missed(
 /// arbitrate on this filesystem (concurrent unlink reports success to every
 /// caller on APFS), so telling the two apart would need a generation IN the
 /// marker and a compare-and-swap publish over it. The damage is bounded by the
-/// thirty minute expiry above and closed by the session's next event, which
-/// re-publishes the wait it is still in.
+/// backstop above and closed by the session's next event, which re-publishes
+/// the wait it is still in.
 ///
 /// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason.
 fn update_blocked_marker(state_dir: &Path, session_id: &str, event_state: &str, lamps_live: bool) {
@@ -5063,10 +5063,27 @@ fn sweep_legacy_state(state: &Path) {
     let _ = std::fs::remove_dir_all(state.join("lights-needs"));
 }
 
-/// How long an unanswered wait may hold a lamp blue. Half an hour: long enough
-/// for the operator to come back from something, short enough that a session
-/// abandoned mid-question does not own a bulb for the rest of the day.
-const BLOCKED_MAX_AGE_SECS: u64 = 30 * 60;
+/// How long an unanswered wait may hold a lamp blue.
+///
+/// TWELVE HOURS, AND IT IS A BACKSTOP RATHER THAN AN EXPIRY. The locked
+/// behaviour is blue breathing CONTINUOUS UNTIL THE OPERATOR ANSWERS, so any
+/// bound at all is a departure from it and the only honest job left for one is
+/// releasing a bulb from a session that will never come back. At half an hour
+/// it was doing the other job as well: a question asked while the operator was
+/// at lunch went dark before they returned, and nothing anywhere said it had,
+/// which is precisely the state a lamp exists to prevent.
+///
+/// THE TRADE, STATED. Twelve hours outlasts every absence a working day
+/// contains and still gives the bulb back by the next morning, so an agent
+/// abandoned mid-question costs one lamp for one night rather than for the life
+/// of the machine. The ORDINARY end is not this at all: the session's next
+/// event clears the marker, whatever the hour.
+///
+/// NOT A CONFIG KNOB. The lock sheet fixes what a behaviour's knobs are
+/// (duration and the two ends, plus a threshold where one applies) and an
+/// abandoned-session backstop is none of those; a key here would be one more
+/// number an operator can set to something that reads as an expiry.
+const BLOCKED_MAX_AGE_SECS: u64 = 12 * 60 * 60;
 
 /// How long a run of work survives readings that say nothing is working.
 ///
@@ -6858,7 +6875,8 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID,
-        LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, drive_breaths,
+        BLOCKED_MAX_AGE_SECS, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        STATE_FILE_MODE, drive_breaths,
         lights_report, matches_glob, muted_state, publish_state_line, read_news, read_note,
         recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
         reread_interval_from, resolve_path, run_pulse_writes, run_tick_writes, say_lights_once,
@@ -7446,7 +7464,7 @@ mod tests {
         // REMOVAL IS CHEAP AND CREATION IS NOT, which is why one gate cannot
         // serve both. Gating the whole update on the feature switches stopped
         // the marker being CLEARED as well: a wait that ended while hue was off
-        // stayed on disk, and re-enabling hue inside the thirty-minute bound
+        // stayed on disk, and re-enabling hue inside the backstop bound
         // put blocked back on a lamp for a session nobody is waiting on.
         let state = scratch("needs-marker-end-ungated");
         let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
@@ -7620,6 +7638,37 @@ mod tests {
             None,
             "an empty shell directory read as work"
         );
+    }
+
+    #[test]
+    fn a_wait_nobody_has_answered_still_holds_its_lamp_hours_later() {
+        // THE LOCK SAYS "CONTINUOUS UNTIL THE OPERATOR ANSWERS", and half an
+        // hour was not that: a question asked while they were at lunch went
+        // dark before they came back, with nothing anywhere to say it had. What
+        // is left is an ABANDONED-SESSION BACKSTOP and nothing else, so the
+        // lamp survives every absence a working day contains.
+        let state = scratch("blocked-bound");
+        let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
+        std::fs::create_dir_all(marker.parent().expect("the wait directory"))
+            .expect("the wait directory");
+        std::fs::write(&marker, "1000\n").expect("a wait in progress");
+
+        assert_eq!(
+            sweep_blocked(&state, 1_000 + 4 * 60 * 60),
+            vec![1_000],
+            "a question four hours old is still a question nobody has answered"
+        );
+        assert_eq!(
+            sweep_blocked(&state, 1_000 + BLOCKED_MAX_AGE_SECS),
+            vec![1_000],
+            "exactly at the backstop it is still live: both edges closed"
+        );
+        assert_eq!(
+            sweep_blocked(&state, 1_000 + BLOCKED_MAX_AGE_SECS + 1),
+            Vec::<u64>::new(),
+            "and one second past it the abandoned session gives the bulb back"
+        );
+        assert!(!marker.exists(), "swept on the way through");
     }
 
     #[test]

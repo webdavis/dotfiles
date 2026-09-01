@@ -612,10 +612,9 @@ pub enum Action {
 /// lamp go dark: an unknown word treated as a start would hold blue on a
 /// session nobody is waiting for.
 ///
-/// IT READS `pulse::LAMP_BLOCKED`, the four-word list the lamps already
-/// carry, and NOT `missed_notifications::NEEDS_YOU`, which correctly includes
-/// `failed`. A dead turn is red, not blue, and it is not a wait anybody can
-/// end.
+/// IT READS `pulse::LAMP_BLOCKED`, the list the lamps already carry, and NOT
+/// `missed_notifications::NEEDS_YOU`, which correctly includes `failed`. A dead
+/// turn is red, not blue, and it is not a wait anybody can end.
 pub fn blocked_marker_action(event_state: &str) -> Action {
     if crate::pulse::LAMP_BLOCKED.contains(&event_state) {
         Action::Start

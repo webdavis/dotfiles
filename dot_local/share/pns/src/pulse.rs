@@ -85,13 +85,18 @@ pub fn exit_behaviour(exit_code: &str) -> crate::config::Behaviour {
 
 /// The states that put a lamp on BLUE: an agent waiting on the operator.
 ///
-/// FOUR WORDS, AND `missed_notifications::NEEDS_YOU` HAS FIVE. That constant
-/// is right to carry `failed`, because a turn that died needs the operator
-/// every bit as much as one that asked. The lamps must tell them apart: red
-/// says it died, blue says it is waiting, and reusing the shared list would
-/// paint every failure blue. This is the honest divergence rather than a
-/// silent one, and a test pins the two lists as differing by exactly that word.
-pub const LAMP_BLOCKED: [&str; 4] = ["blocked", "asked", "plan-ready", "denied"];
+/// IT TRADES ONE WORD WITH `missed_notifications::NEEDS_YOU` IN EACH
+/// DIRECTION. That constant is right to carry `failed`, because a turn that
+/// died needs the operator every bit as much as one that asked; the lamps must
+/// tell them apart, since red says it died and blue says it is waiting, so
+/// reusing the shared list would paint every failure blue.
+///
+/// AND `asking` IS ON THIS LIST ALONE. The shared list is the harness's own
+/// state words, while a lamp also has to answer for what the CONDENSER writes:
+/// every condensed turn is classified done, asking or blocked
+/// (`hooks::condenser_prompt`), and `asking` is its word for a turn waiting on
+/// an answer. Left off, it read as `done` and flashed green over a question.
+pub const LAMP_BLOCKED: [&str; 5] = ["blocked", "asked", "plan-ready", "denied", "asking"];
 
 /// What a lamp says about an event's state, given whether this machine has a
 /// lamp map at all.
@@ -189,24 +194,39 @@ mod tests {
         // EVERY OTHER STATE THAT EARNS A PULSE IS GREEN, which is the shipped
         // rule: today the event path asks whether the state is `failed` and
         // takes the success branch for everything else.
-        assert_eq!(state_behaviour("asking", true), Behaviour::Done);
+        assert_eq!(state_behaviour("shipped", true), Behaviour::Done);
         assert_eq!(state_behaviour("", true), Behaviour::Done);
     }
 
     #[test]
-    fn the_lamps_needs_you_list_is_the_shared_one_minus_the_failure() {
-        // THE DIVERGENCE, PINNED. The two lists are deliberately different and
-        // the difference is exactly one word, so a sixth state joining the
-        // shared list cannot quietly leave the lamps behind, and nobody can
-        // "tidy" the lamps into reusing it.
-        let shared_minus_failed: Vec<&str> = crate::missed_notifications::NEEDS_YOU
+    fn the_condensers_own_waiting_word_lights_the_blue_lamp() {
+        // `asking` IS A REAL STATE ON EVERY CONDENSED TURN, not a corner. The
+        // condenser classifies each one as done, asking or blocked
+        // (`hooks::condenser_prompt`), and `asking` is its word for a turn that
+        // wants the operator to answer or choose. Read as done, it flashed
+        // GREEN, recorded a finished turn as unread SUCCESS news, and ENDED the
+        // wait marker instead of starting one.
+        assert_eq!(state_behaviour("asking", true), Behaviour::Blocked);
+    }
+
+    #[test]
+    fn the_lamps_list_drops_the_failure_and_adds_the_condensers_waiting_word() {
+        // THE DIVERGENCE, PINNED, and it runs both ways. `failed` is on the
+        // shared list and must read RED here, or a dead turn would be painted
+        // blue. `asking` reaches only the lamps, because the shared list is the
+        // harness's own state words and this one also has to answer for what
+        // the condenser writes. So a sixth harness state cannot quietly leave
+        // the lamps behind, and nobody can "tidy" the lamps into reusing it.
+        let mut shared_traded: Vec<&str> = crate::missed_notifications::NEEDS_YOU
             .iter()
             .copied()
             .filter(|state| *state != "failed")
+            .chain(["asking"])
             .collect();
+        shared_traded.sort_unstable();
         let mut lamps = LAMP_BLOCKED.to_vec();
         lamps.sort_unstable();
-        assert_eq!(lamps, shared_minus_failed);
+        assert_eq!(lamps, shared_traded);
     }
 
     #[test]
