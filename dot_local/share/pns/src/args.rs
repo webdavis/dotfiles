@@ -31,28 +31,44 @@ pub struct EventArgs {
     pub long_running: bool,
 }
 
+/// Every flag that takes a value.
+///
+/// PUBLIC FOR THE SAME REASON `is_producer_flag` IS: the usage text has to
+/// state this list, and a test that copied it would be the second copy the
+/// `--long-running` bug below came from. The predicate answers one token; the
+/// list is what a caller enumerating the contract needs.
+pub const VALUE_FLAGS: [&str; 7] = [
+    "--agent",
+    "--state",
+    "--project",
+    "--branch",
+    "--detail",
+    "--pane",
+    "--channel",
+];
+
+/// Every flag that takes no value. It is a LIST rather than a chain of
+/// comparisons because the chain is what went stale: `--long-running` was
+/// handled below and never added here, so a value flag in front of it ate it as
+/// its value and the tier vanished without a warning.
+pub const BARE_FLAGS: [&str; 3] = ["--long-running", "--local-only", "--remote-only"];
+
+/// Whether a token is a flag this parser recognizes.
+///
+/// PUBLIC BECAUSE THE COMPOSITION ROOT ASKS IT TOO: telling a producer
+/// invocation from a mistyped subcommand is a question about these same two
+/// lists, and a second copy of them in `main` is exactly the drift the
+/// `--long-running` bug above came from.
+pub fn is_producer_flag(token: &str) -> bool {
+    VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token)
+}
+
 /// Parse argv (without the program name). Returns the arguments plus the
 /// warnings to print to stderr, one per ignored flag.
 pub fn parse_args<I>(argv: I) -> (EventArgs, Vec<String>)
 where
     I: IntoIterator<Item = String>,
 {
-    const VALUE_FLAGS: [&str; 7] = [
-        "--agent",
-        "--state",
-        "--project",
-        "--branch",
-        "--detail",
-        "--pane",
-        "--channel",
-    ];
-    // Every flag that takes no value. It is a LIST rather than a chain of
-    // comparisons because the chain is what went stale: `--long-running` was
-    // handled below and never added here, so a value flag in front of it ate
-    // it as its value and the tier vanished without a warning.
-    const BARE_FLAGS: [&str; 3] = ["--long-running", "--local-only", "--remote-only"];
-    let recognized = |token: &str| VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token);
-
     let mut parsed = EventArgs::default();
     let mut warnings = Vec::new();
     let mut tokens = argv.into_iter().peekable();
@@ -64,7 +80,7 @@ where
             flag if VALUE_FLAGS.contains(&flag) => {
                 // Missing, or a recognized flag standing where the value
                 // should be: warn and leave the token for its own arm.
-                if tokens.peek().is_none_or(|next| recognized(next)) {
+                if tokens.peek().is_none_or(|next| is_producer_flag(next)) {
                     warnings.push(format!("{flag} given without a value; ignoring"));
                     continue;
                 }

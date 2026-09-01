@@ -196,6 +196,36 @@ esac"#
         command.env("PATH", path);
     }
 
+    /// Every binary the engine resolves through PATH, replaced by a spy that
+    /// records the call and does nothing else.
+    ///
+    /// AN EMPTY LOG IS THE OBSERVABLE PROXY for "this path spawned nothing",
+    /// which is how the help and usage paths are pinned without a wall clock.
+    /// Its REACH IS STATED rather than implied: the system probes are absolute
+    /// by design (`/usr/sbin/ioreg`, `/usr/bin/pgrep`, `/bin/ps`) so no PATH
+    /// can stand in front of them, and what this does catch is the native
+    /// banner's `terminal-notifier`, the session view's `herdr`, the branch
+    /// lookup's `git` and the condenser's `codex`. The banner is the one that
+    /// makes it bite: a usage path that reached the event path raised a real
+    /// macOS notification reading "pns · done".
+    pub fn spy_path(&self, command: &mut Command) {
+        for name in ["herdr", "terminal-notifier", "git", "codex"] {
+            self.stub_on_path(
+                command,
+                name,
+                &format!(
+                    "printf '%s %s\\n' \"${{0##*/}}\" \"$*\" >>\"{}/spawn.log\"",
+                    self.display()
+                ),
+            );
+        }
+    }
+
+    /// What the spies recorded, empty when nothing was spawned.
+    pub fn spawned(&self) -> String {
+        std::fs::read_to_string(self.path("spawn.log")).unwrap_or_default()
+    }
+
     /// A stub `terminal-notifier` first on PATH, so the native banner's spawn
     /// is recorded instead of posting a real notification.
     pub fn stub_notifier(&self, command: &mut Command) {

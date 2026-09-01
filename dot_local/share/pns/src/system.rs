@@ -125,7 +125,7 @@ pub fn run_bounded(
     // Closed stdout is not an exited process: a child can close it and sleep,
     // so the wait is polled against the SAME deadline rather than blocking.
     let status = match output.is_some() {
-        true => wait_until(&mut child, expires_at),
+        true => wait_until(&mut child, expires_at, std::thread::sleep),
         false => None,
     };
     let Some(status) = status else {
@@ -148,10 +148,18 @@ pub fn run_bounded(
 
 /// Poll a child to exit, up to a deadline. There is no wait-with-timeout in
 /// the standard library and macOS ships no `timeout(1)`.
+///
+/// THE SLEEPER IS A PARAMETER because the schedule is only worth anything at
+/// the line that sleeps it. `next_poll_interval` can compute the whole backoff
+/// correctly while this loop sleeps a flat ceiling, which is the shape the
+/// latency fix removed, so a test watches the durations this hands its sleeper
+/// rather than a clock.
 fn wait_until(
     child: &mut std::process::Child,
     expires_at: std::time::Instant,
+    mut sleep: impl FnMut(Duration),
 ) -> Option<std::process::ExitStatus> {
+    let mut interval = FIRST_POLL_INTERVAL;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return Some(status),
@@ -161,13 +169,29 @@ fn wait_until(
         if std::time::Instant::now() >= expires_at {
             return None;
         }
-        std::thread::sleep(POLL_INTERVAL);
+        sleep(interval);
+        interval = next_poll_interval(interval);
     }
 }
 
-/// How often a bounded wait checks. Short enough not to add latency anyone
-/// notices, long enough not to spin a core.
+/// The LONGEST a bounded wait sleeps between checks. Long enough not to spin a
+/// core while a genuinely wedged child runs out its deadline.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+/// And the SHORTEST, which is where every wait starts.
+///
+/// THE CEILING USED TO BE THE ONLY INTERVAL, and it was charged to every
+/// bounded spawn. This wait begins after the child's stdout has already hit
+/// EOF, which is a child on its way out, so the check that matters is the one
+/// taken microseconds later and the ceiling is what a run pays for missing it.
+const FIRST_POLL_INTERVAL: Duration = Duration::from_micros(200);
+
+/// The next gap between checks: doubled, and never past the ceiling. The
+/// backoff is what keeps the fast start from becoming thousands of wakeups a
+/// second on the one path where a child really is wedged.
+fn next_poll_interval(current: Duration) -> Duration {
+    current.saturating_mul(2).min(POLL_INTERVAL)
+}
 
 /// The idle counter's own units, as the registry reports them.
 const IOREG_IDLE_KEY: &str = "HIDIdleTime";
@@ -582,12 +606,89 @@ pub fn utc_timestamp(epoch_secs: u64) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CommandRunner, local_minutes_since_midnight, newest_terminal_atime, parse_focused_tab,
-        parse_idle_nanoseconds, parse_layout, parse_pids, parse_screen_locked, parse_tty_names,
-        run_bounded, utc_timestamp,
+        CommandRunner, FIRST_POLL_INTERVAL, POLL_INTERVAL, local_minutes_since_midnight,
+        newest_terminal_atime, next_poll_interval, parse_focused_tab, parse_idle_nanoseconds,
+        parse_layout, parse_pids, parse_screen_locked, parse_tty_names, run_bounded, utc_timestamp,
+        wait_until,
     };
     use std::cell::RefCell;
     use std::time::Duration;
+
+    #[test]
+    fn the_wait_between_checks_doubles_and_stops_at_the_ceiling() {
+        // The ceiling is what keeps a wedged child from being polled thousands
+        // of times a second for the whole deadline; the doubling is what keeps
+        // the ordinary case, a child already exiting, off a flat 10ms bill.
+        assert_eq!(
+            next_poll_interval(FIRST_POLL_INTERVAL),
+            FIRST_POLL_INTERVAL * 2
+        );
+        // AND THE FIRST INTERVAL HAS TO GROW, which doubling alone does not
+        // give: zero doubles to zero, so a first interval of nothing is a
+        // `try_wait` spin for the whole deadline rather than the backoff the
+        // ceiling above was written to guarantee.
+        assert!(
+            next_poll_interval(FIRST_POLL_INTERVAL) > FIRST_POLL_INTERVAL,
+            "a wait that starts at zero never leaves it"
+        );
+        assert_eq!(next_poll_interval(POLL_INTERVAL / 2), POLL_INTERVAL);
+        assert_eq!(next_poll_interval(POLL_INTERVAL), POLL_INTERVAL);
+        assert!(FIRST_POLL_INTERVAL < POLL_INTERVAL, "it starts below it");
+    }
+
+    /// How many steps of the schedule the test below watches: enough to pass
+    /// the ceiling, which is where a call site that doubles without capping
+    /// parts company with one that does not.
+    const WATCHED_STEPS: usize = 8;
+
+    #[test]
+    fn the_wait_sleeps_the_schedule_it_computes_rather_than_a_flat_ceiling() {
+        // THE HELPER ABOVE IS NOT THE FIX. A correct backoff computed beside a
+        // loop that still sleeps `POLL_INTERVAL` leaves every assertion up
+        // there green and every bounded spawn paying the flat bill again, so
+        // what is pinned here is the LINE THAT SLEEPS: the durations the loop
+        // hands its sleeper, in order, against the schedule the helper states.
+        //
+        // NOTHING SLEEPS AND NOTHING IS TIMED. The fake sleeper returns at
+        // once, so the child is alive for exactly as many polls as it allows
+        // and dropping its stdin is what ends the wait. `cat` holds that pipe
+        // open until it does.
+        let mut child = std::process::Command::new("/bin/cat")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .expect("a child to wait on");
+        let mut stdin = child.stdin.take();
+        let mut slept: Vec<Duration> = Vec::new();
+        wait_until(
+            &mut child,
+            std::time::Instant::now() + Duration::from_secs(5),
+            |interval| {
+                slept.push(interval);
+                if slept.len() >= WATCHED_STEPS {
+                    drop(stdin.take());
+                }
+            },
+        );
+        // DERIVED, so the expectation cannot drift away from the constants: it
+        // is the schedule `next_poll_interval` defines, walked from the first
+        // interval. What the test states is that the loop walks it too.
+        let schedule: Vec<Duration> = std::iter::successors(Some(FIRST_POLL_INTERVAL), |current| {
+            Some(next_poll_interval(*current))
+        })
+        .take(WATCHED_STEPS)
+        .collect();
+        assert!(
+            slept.len() >= WATCHED_STEPS,
+            "the wait polled {} times, too few to show a schedule",
+            slept.len()
+        );
+        assert_eq!(
+            &slept[..WATCHED_STEPS],
+            schedule.as_slice(),
+            "the loop slept its own schedule"
+        );
+    }
 
     /// One child writing `bytes` zeroes, read under a 4096-byte ceiling.
     ///
