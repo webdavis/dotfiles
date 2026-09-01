@@ -92,10 +92,13 @@ fn hue_is_armed(answers: &Answers) -> bool {
     !answers.hue_bridge.is_empty() && !answers.hue_key.is_empty() && !answers.hue_rooms.is_empty()
 }
 
-/// Whether the walk armed the home probe. The backend name is not in the test
-/// because it has a working default and every other field here does not.
+/// Whether the walk armed the home probe. THE BACKEND COUNTS AS A CREDENTIAL:
+/// the table's keys are free text to the parser, so a name no compiled-in
+/// backend answers composes a probe that loads and then refuses every time it
+/// runs, which is the same silent nothing an empty credential writes.
 fn router_is_armed(answers: &Answers) -> bool {
-    !answers.router_url.is_empty()
+    answers.router_type == crate::home::UNIFI_TYPE
+        && !answers.router_url.is_empty()
         && !answers.router_api_key.is_empty()
         && !answers.router_device_hostname.is_empty()
 }
@@ -564,6 +567,29 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_backend_the_home_probe_cannot_answer_declines_the_probe_rather_than_arming_it() {
+        // THE SILENT NOTHING THIS WALK EXISTS TO PREVENT. Every key of the
+        // router table is free text to the parser, so a backend name nothing
+        // implements composes a file that loads, is reported as written, and
+        // then refuses at the first probe with a type no compiled-in backend
+        // answers. WHAT ACCEPTS IT IS ASKED rather than restated: the day a
+        // second backend lands, `router_settings` is what has to agree.
+        let armed = parsed(&compose_config(&every_feature_armed()));
+        crate::home::router_settings(&armed.plugins["router"].settings)
+            .expect("an armed walk writes a table the home probe can answer");
+
+        let unanswerable = Answers {
+            router_type: "asus".to_string(),
+            ..every_feature_armed()
+        };
+        let config = parsed(&compose_config(&unanswerable));
+        assert!(
+            !config.plugins.contains_key("router"),
+            "a backend nothing answers was written as an armed probe"
+        );
     }
 
     #[test]

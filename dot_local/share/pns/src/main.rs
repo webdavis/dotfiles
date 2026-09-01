@@ -7230,19 +7230,29 @@ fn walk() -> Option<pns::setup::Answers> {
     if ask_yes("Read whether your phone is on the home wifi, off the router's client list?")? {
         // THE BACKEND HAS A WORKING DEFAULT and every other field here does
         // not, so this is the one question enter answers rather than declines.
-        let backend = ask("Which router backend? [unifi]")?;
-        answers.router_type = if backend.is_empty() {
-            "unifi".to_string()
-        } else {
-            backend
-        };
-        answers.router_url = armed("the home probe", "the router's URL")?;
-        if !answers.router_url.is_empty() {
-            answers.router_api_key = armed("the home probe", "an API key the router issued")?;
-        }
-        if !answers.router_api_key.is_empty() {
-            answers.router_device_hostname =
-                armed("the home probe", "the phone's hostname on that router")?;
+        // A NAME NOTHING ANSWERS DECLINES THE PROBE, said here and not only in
+        // the file: the composer writes that answer's table commented out, and
+        // an operator who typed their router's brand deserves to hear why.
+        match router_backend(&ask(&format!(
+            "Which router backend? [{}]",
+            pns::home::UNIFI_TYPE
+        ))?) {
+            None => println!(
+                "  nothing here reads that router, so the home probe stays off; \
+                 the file says how to arm it"
+            ),
+            Some(backend) => {
+                answers.router_type = backend.to_string();
+                answers.router_url = armed("the home probe", "the router's URL")?;
+                if !answers.router_url.is_empty() {
+                    answers.router_api_key =
+                        armed("the home probe", "an API key the router issued")?;
+                }
+                if !answers.router_api_key.is_empty() {
+                    answers.router_device_hostname =
+                        armed("the home probe", "the phone's hostname on that router")?;
+                }
+            }
         }
     }
     if ask_yes("Hold notifications back while a macOS Focus is on?")? {
@@ -7305,6 +7315,19 @@ fn ask_yes(question: &str) -> Option<bool> {
 /// to a phone or to a lamp and takes a credential to do it.
 fn means_yes(answer: &str) -> bool {
     matches!(answer.to_lowercase().as_str(), "y" | "yes")
+}
+
+/// Which compiled-in backend an answer names, or `None` for one no backend
+/// answers.
+///
+/// THE SET IS THE CODE'S, never a list kept here: `home` is what refuses a
+/// type at probe time, so a wizard restating its own copy of that set would go
+/// on accepting yesterday's answer the day a second backend lands. Enter names
+/// the one there is, and a spelling that differs only in case is that one too,
+/// written back as the code spells it rather than as it was typed.
+fn router_backend(answer: &str) -> Option<&'static str> {
+    (answer.is_empty() || answer.eq_ignore_ascii_case(pns::home::UNIFI_TYPE))
+        .then_some(pns::home::UNIFI_TYPE)
 }
 
 /// A comma-separated answer as the values it names, blanks dropped.
@@ -7763,9 +7786,9 @@ mod tests {
         drive_breaths, end_lease, held_lamps, lights_report, list, matches_glob, means_yes,
         muted_state, publish_config, publish_state_line, read_news, read_note, recap_bounds,
         record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked,
-        sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers, tick_bridge_deadline,
-        update_blocked_marker,
+        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
+        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
+        tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9396,6 +9419,26 @@ mod tests {
         assert_eq!(list("  Studio  ".to_string()), ["Studio"]);
         assert!(list(String::new()).is_empty());
         assert!(list(" , ".to_string()).is_empty());
+    }
+
+    #[test]
+    fn the_only_backend_the_walk_accepts_is_one_the_home_probe_answers() {
+        // THE ONE QUESTION WHOSE ANSWER IS NOT FREE TEXT. Every other answer
+        // here is a credential nothing but the operator's own network can
+        // judge; this one is judged by `home`, which refuses a type it does
+        // not implement at probe time, long after the wizard said it worked.
+        assert_eq!(router_backend(""), Some(pns::home::UNIFI_TYPE));
+        assert_eq!(router_backend("unifi"), Some(pns::home::UNIFI_TYPE));
+        // AND THE ANSWER IS WRITTEN AS THE CODE SPELLS IT, because the probe
+        // compares the whole string and would refuse the operator's capitals.
+        assert_eq!(router_backend("UniFi"), Some(pns::home::UNIFI_TYPE));
+        for unanswerable in ["asus", "unifi-controller", "u", "unifix", "eero"] {
+            assert_eq!(
+                router_backend(unanswerable),
+                None,
+                "`{unanswerable}` is a backend nothing here reads"
+            );
+        }
     }
 
     /// The mode a file was published with, and nothing else about it.
