@@ -7158,9 +7158,12 @@ fn setup_mode() -> i32 {
         );
         return 2;
     }
-    let Some(answers) = walk() else {
-        eprintln!("pns setup: the answers ended before the walk did; nothing was written");
-        return 2;
+    let answers = match walk() {
+        Ok(answers) => answers,
+        Err(reason) => {
+            eprintln!("pns setup: {reason}; nothing was written");
+            return 2;
+        }
     };
     let composed = pns::setup::compose_config(&answers);
     // THROUGH THE ENGINE'S OWN PARSER BEFORE IT IS PUBLISHED. A wizard that
@@ -7192,14 +7195,14 @@ fn setup_mode() -> i32 {
 /// The walk itself: one question at a time, in the order the file is written.
 ///
 /// NONE OF THIS DECIDES ANYTHING. Every answer is carried to the composer as
-/// it was typed, and a blank one is what declines a feature there. `None` is
-/// the input ending mid-walk, which publishes nothing at all rather than
-/// composing a file out of half a conversation.
+/// it was typed, and a blank one is what declines a feature there. An `Err`
+/// is the walk ending mid-conversation, named by its own reason, which
+/// publishes nothing at all rather than composing a file out of half of one.
 ///
 /// THE CREDENTIALS ARE ASKED INSIDE THE WALK, right after the feature they
 /// arm, because a feature switched on now and credentialed later is exactly
 /// the empty-value config this wizard exists to avoid.
-fn walk() -> Option<pns::setup::Answers> {
+fn walk() -> Result<pns::setup::Answers, String> {
     println!("{SETUP_PREAMBLE}");
     let mut answers = pns::setup::Answers {
         mobile_token: ask(
@@ -7262,7 +7265,7 @@ fn walk() -> Option<pns::setup::Answers> {
         )?);
     }
     answers.nag = ask_yes("Card you a second time about an approval left unanswered?")?;
-    Some(answers)
+    Ok(answers)
 }
 
 /// One credentialed answer, and the line that says what a blank one costs.
@@ -7270,22 +7273,25 @@ fn walk() -> Option<pns::setup::Answers> {
 /// SAID WHEN IT HAPPENS rather than only in the file: an operator who meant to
 /// arm a feature and pressed enter has one chance to notice, and the composed
 /// file's own commented block is read later if at all.
-fn armed(feature: &str, wanted: &str) -> Option<String> {
+fn armed(feature: &str, wanted: &str) -> Result<String, String> {
     let answer = ask(wanted)?;
     if answer.is_empty() {
         println!("  nothing given, so {feature} stays off; the file says how to arm it");
     }
-    Some(answer)
+    Ok(answer)
 }
 
-/// One question, and the line typed back. `None` is the input ending.
-fn ask(question: &str) -> Option<String> {
+/// One question, and the line typed back. An `Err` names why nothing did: the
+/// input ending and a read failing are different reasons, and this walk asks
+/// for pasted answers, so a byte that is not valid UTF-8 is not a rare guest.
+fn ask(question: &str) -> Result<String, String> {
     print!("{question}: ");
     let _ = std::io::stdout().flush();
     let mut typed = String::new();
     match std::io::stdin().read_line(&mut typed) {
-        Ok(0) | Err(_) => None,
-        Ok(_) => Some(answered(&typed)),
+        Ok(0) => Err("the answers ended before the walk did".to_string()),
+        Err(error) => Err(format!("the answers could not be read: {error}")),
+        Ok(_) => Ok(answered(&typed)),
     }
 }
 
@@ -7304,8 +7310,8 @@ fn answered(line: &str) -> String {
 /// One yes-or-no question. ENTER MEANS NO, and so does anything that is not a
 /// yes: this walk arms features that deliver to a phone and to lamps, and the
 /// answer nobody typed on purpose must be the one that changes nothing.
-fn ask_yes(question: &str) -> Option<bool> {
-    Some(means_yes(&ask(&format!("{question} [y/N]"))?))
+fn ask_yes(question: &str) -> Result<bool, String> {
+    Ok(means_yes(&ask(&format!("{question} [y/N]"))?))
 }
 
 /// Whether an answer to a yes-or-no question was a yes.
