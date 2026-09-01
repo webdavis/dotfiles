@@ -476,8 +476,8 @@ fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, 
         match name.as_str() {
             "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
             "plugins" => lane.plugins = parse_plugins(&setting)?,
-            // Already resolved before dispatch; admitted here so it is not
-            // reported as unknown.
+            // Read by `lane_type` before this block was dispatched; nothing
+            // is left to do with it here.
             "type" => {}
             // `admits` above is the ONE gate; nothing else reaches here.
             _ => {}
