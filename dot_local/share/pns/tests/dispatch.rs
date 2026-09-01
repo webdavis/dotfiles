@@ -580,6 +580,97 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
 }
 
 #[test]
+fn a_dash_led_first_word_is_no_longer_a_free_pass_for_an_empty_event() {
+    // R5-1: `first.starts_with('-')` used to make ANY dash-led argv[1] a
+    // producer invocation, so a mistyped flag delivered an empty event in
+    // silence, the `pns stpo` bug reopened for a typo that happens to start
+    // with a dash. None of these carries a flag the parser recognizes.
+    for word in [
+        "--wat",
+        "-",
+        "--",
+        "--help=x",
+        "--HELP",
+        "-help",
+        "--agent=claude",
+    ] {
+        let sandbox = Sandbox::new("dash-led-typo");
+        let output = sandbox.pns().arg(word).output().expect("the engine runs");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{word:?}: a refusal, never exit 0"
+        );
+        assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
+        assert!(!sandbox.fired("mobile"), "{word:?} delivered: {output:?}");
+        assert!(!sandbox.fired("hermes"), "{word:?} delivered: {output:?}");
+    }
+}
+
+#[test]
+fn a_typed_empty_word_is_refused_unlike_the_bare_invocation_beside_it() {
+    // R5-3: `unwrap_or_default().is_empty()` conflated "no argv[1] at all"
+    // with "argv[1] is the literal empty string", so `pns ""` delivered the
+    // same empty event a truly bare `pns` does. `doctor` and `setup` already
+    // refuse an unknown extra argument; this is that same rule reaching the
+    // top-level dispatch.
+    let sandbox = Sandbox::new("typed-empty-word");
+    let output = sandbox.pns().arg("").output().expect("the engine runs");
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("usage"), "{output:?}");
+    assert!(!sandbox.fired("mobile"), "{output:?}");
+    assert!(!sandbox.fired("hermes"), "{output:?}");
+}
+
+#[test]
+fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
+    // R5-2 + H-A: help was checked at argv[1] only, so `--agent claude
+    // --help` delivered the event with `--help` unconsumed, and `--
+    // --help`/`stray --help` reached the lenient producer parser and did the
+    // same. `is_producer_argv` now counts `--help`/`-h` too, so all four
+    // shapes reach the parser's own help arm instead.
+    for argv in [
+        &["--agent", "claude", "--help"][..],
+        &["--local-only", "--help"][..],
+        &["--", "--help"][..],
+        &["stray", "--help"][..],
+    ] {
+        let sandbox = Sandbox::new("help-anywhere");
+        let output = sandbox.pns().args(argv).output().expect("the engine runs");
+        assert_eq!(output.status.code(), Some(0), "{argv:?}: {output:?}");
+        assert!(stdout(&output).contains("usage"), "{argv:?}: {output:?}");
+        assert_eq!(stderr(&output), "", "{argv:?}: {output:?}");
+        assert!(
+            !sandbox.fired("mobile"),
+            "{argv:?} spawned a delivery: {output:?}"
+        );
+        assert!(
+            !sandbox.fired("hermes"),
+            "{argv:?} spawned a delivery: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn help_in_value_position_is_still_just_a_value() {
+    // H-F, PINNED so nobody "fixes" this by adding `--help` to
+    // `is_producer_flag`: doing that would flip the value rule and make
+    // `--agent --help` warn-and-drop instead of delivering an agent whose
+    // name literally is "--help". States are free-form the same way.
+    let sandbox = Sandbox::new("help-as-agent-value");
+    run(sandbox
+        .pns()
+        .args(["--agent", "--help", "--state", "done"]));
+    assert_eq!(sandbox.event("mobile")["agent"], "--help");
+
+    let sandbox = Sandbox::new("help-as-state-value");
+    run(sandbox
+        .pns()
+        .args(["--agent", "claude", "--state", "--help"]));
+    assert_eq!(sandbox.event("mobile")["state"], "--help");
+}
+
+#[test]
 fn the_first_run_walk_refuses_a_terminal_nobody_is_at_and_writes_nothing() {
     // A WIZARD NOBODY CAN ANSWER MUST NOT GUESS. Every question has a default
     // and answering them all by default would still write a file the operator

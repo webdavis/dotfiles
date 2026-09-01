@@ -1,13 +1,16 @@
 //! pns's CLI contract, ported verbatim: lenient, warning, never fatal.
 //!
 //! The engine sits on an always-exit-0 notification path, so argument
-//! problems WARN and degrade rather than abort. Three rules carry the
+//! problems WARN and degrade rather than abort. Four rules carry the
 //! contract: a value-taking flag whose next token is missing or is itself a
 //! RECOGNIZED flag is warned about and ignored WITHOUT consuming that token
 //! (consuming it would silently drop the real flag, e.g. leak an event a
 //! caller narrowed with `--pane --local-only`); an unrecognized next token
-//! IS taken as the value, the leniency the bash deliberately retained; and
-//! any other unknown argument is skipped silently.
+//! IS taken as the value, the leniency the bash deliberately retained; any
+//! other unknown argument is skipped silently; and `--help`/`-h` sitting in
+//! FLAG position wins over all three and turns the event into a usage print,
+//! while the same word sitting where a flag's value belongs is still just a
+//! value, under the second rule.
 
 /// The parsed event arguments. Every field defaults to empty or false, so a
 /// bare invocation is valid and renders an empty event.
@@ -29,6 +32,9 @@ pub struct EventArgs {
     /// The >=300s tier: the lights signal rides on top of whatever else the
     /// plan decides.
     pub long_running: bool,
+    /// Set when `--help`/`-h` reached this parse in FLAG position. `event_mode`
+    /// checks this before touching the config or a probe.
+    pub help: bool,
 }
 
 /// Every flag that takes a value.
@@ -63,6 +69,17 @@ pub fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token)
 }
 
+/// Whether a token is `--help`/`-h`.
+///
+/// PUBLIC FOR THE SAME REASON `is_producer_flag` IS: the composition root's
+/// producer check counts it too (a producer invocation that only adds
+/// `--help` still has to reach this parser, which is where the help arm
+/// actually prints the usage), and a second copy of the two spellings in
+/// `main` is exactly the drift the `--long-running` bug above came from.
+pub fn is_help_flag(token: &str) -> bool {
+    token == "--help" || token == "-h"
+}
+
 /// Parse argv (without the program name). Returns the arguments plus the
 /// warnings to print to stderr, one per ignored flag.
 pub fn parse_args<I>(argv: I) -> (EventArgs, Vec<String>)
@@ -77,6 +94,12 @@ where
             "--long-running" => parsed.long_running = true,
             "--local-only" => parsed.local_only = true,
             "--remote-only" => parsed.remote_only = true,
+            // HELP IN FLAG POSITION WINS: this arm only ever sees a token
+            // that reached the top of the loop unconsumed, so `--state
+            // --help` never lands here, the value arm below already took
+            // `--help` as `--state`'s value by the time this token is asked
+            // about again.
+            flag if is_help_flag(flag) => parsed.help = true,
             flag if VALUE_FLAGS.contains(&flag) => {
                 // Missing, or a recognized flag standing where the value
                 // should be: warn and leave the token for its own arm.
@@ -201,5 +224,35 @@ mod tests {
         let (parsed, warnings) = args(&["stray", "--agent", "claude", "--wat"]);
         assert_eq!(parsed.agent, "claude");
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn help_in_flag_position_is_recognized_wherever_it_sits() {
+        for tokens in [
+            &["--help"][..],
+            &["-h"][..],
+            &["--agent", "claude", "--help"][..],
+            &["--local-only", "--help"][..],
+            &["stray", "--help"][..],
+        ] {
+            let (parsed, _) = args(tokens);
+            assert!(parsed.help, "{tokens:?} should set help");
+        }
+    }
+
+    #[test]
+    fn help_in_value_position_is_still_just_a_value() {
+        // H-F, PINNED: `--help` sitting where a flag's value belongs is a
+        // value, under the same leniency `an_unrecognized_token_is_still_taken_as_a_value`
+        // pins for `--bogus`. Adding `--help` to `is_producer_flag` would flip
+        // this into a warn-and-drop, which is the wrong fix.
+        let (parsed, warnings) = args(&["--agent", "--help", "--state", "done"]);
+        assert_eq!(parsed.agent, "--help");
+        assert!(!parsed.help);
+        assert!(warnings.is_empty());
+
+        let (parsed, _) = args(&["--agent", "claude", "--state", "--help"]);
+        assert_eq!(parsed.state, "--help");
+        assert!(!parsed.help);
     }
 }
