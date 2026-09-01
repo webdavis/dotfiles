@@ -7275,16 +7275,36 @@ fn ask(question: &str) -> Option<String> {
     let mut typed = String::new();
     match std::io::stdin().read_line(&mut typed) {
         Ok(0) | Err(_) => None,
-        Ok(_) => Some(typed.trim().to_string()),
+        Ok(_) => Some(answered(&typed)),
     }
+}
+
+/// What a typed line means as an answer.
+///
+/// A LINE OF NOTHING BUT SPACES IS A BLANK ONE, which is the rule the whole
+/// walk rests on: `compose_config` declines a feature whose credential is
+/// empty, and it asks `is_empty`, so a credential of two spaces would arm a
+/// plugin with two spaces and deliver nothing while reading as set up. That is
+/// the exact state this wizard exists to keep off a fresh machine, and the
+/// trailing newline every line carries is what makes it reachable.
+fn answered(line: &str) -> String {
+    line.trim().to_string()
 }
 
 /// One yes-or-no question. ENTER MEANS NO, and so does anything that is not a
 /// yes: this walk arms features that deliver to a phone and to lamps, and the
 /// answer nobody typed on purpose must be the one that changes nothing.
 fn ask_yes(question: &str) -> Option<bool> {
-    let answer = ask(&format!("{question} [y/N]"))?;
-    Some(matches!(answer.to_lowercase().as_str(), "y" | "yes"))
+    Some(means_yes(&ask(&format!("{question} [y/N]"))?))
+}
+
+/// Whether an answer to a yes-or-no question was a yes.
+///
+/// ONLY A YES IS ONE. Enter, a word nobody meant, and a mistyped `yes` all
+/// mean no, because every question this answers arms something that delivers
+/// to a phone or to a lamp and takes a credential to do it.
+fn means_yes(answer: &str) -> bool {
+    matches!(answer.to_lowercase().as_str(), "y" | "yes")
 }
 
 /// A comma-separated answer as the values it names, blanks dropped.
@@ -7673,12 +7693,12 @@ mod tests {
     use super::{
         BLOCKED_MAX_AGE_SECS, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, asks_the_bridge, drive_breaths, end_lease, held_lamps,
-        lights_report, matches_glob, muted_state, publish_state_line, read_news, read_note,
-        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, run_pulse_writes, run_tick_writes, say_lights_once,
-        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
-        tick_bridge_deadline, update_blocked_marker,
+        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, drive_breaths, end_lease,
+        held_lamps, lights_report, list, matches_glob, means_yes, muted_state, publish_state_line,
+        read_news, read_note, recap_bounds, record_news, renew_loop_lease, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, run_pulse_writes,
+        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
+        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9263,5 +9283,51 @@ mod tests {
             read_note(&inside, 1000, 2000).is_none(),
             "a note rewritten after the scan was read into the window anyway"
         );
+    }
+
+    #[test]
+    fn the_only_answer_that_arms_a_feature_is_a_yes_somebody_typed() {
+        // ENTER MEANS NO, and this is the assertion that says so. Every
+        // question it answers arms a delivery to a phone or a lamp and takes a
+        // credential to do it, so the answer nobody typed on purpose has to be
+        // the one that changes nothing. A predicate reading "not a no" would
+        // arm the whole walk by default and pass every test about the file.
+        for yes in ["y", "yes", "Y", "YES", "Yes"] {
+            assert!(means_yes(yes), "`{yes}` is a yes");
+        }
+        for no in ["", "n", "no", "N", "sure", "ok", "yeah", "yep", "y ", "1"] {
+            assert!(!means_yes(no), "`{no}` is not the yes this walk requires");
+        }
+    }
+
+    #[test]
+    fn an_answer_of_nothing_but_spaces_is_a_blank_one() {
+        // THE RULE THE WHOLE WALK RESTS ON. `compose_config` declines a
+        // feature whose credential is empty and it asks `is_empty`, so a
+        // credential that survives here as `"  "` arms its plugin with two
+        // spaces: a table that reads as set up and delivers nothing, which is
+        // the one state this wizard exists to keep off a fresh machine.
+        assert_eq!(answered("   \n"), "");
+        assert_eq!(answered("\t\n"), "");
+        assert_eq!(answered("\n"), "");
+        // AND A REAL ANSWER SURVIVES IT: trimming that ate the answer would
+        // decline every feature the operator armed.
+        assert_eq!(answered("  192.168.1.9  \n"), "192.168.1.9");
+        assert_eq!(answered("Studio, Kitchen\n"), "Studio, Kitchen");
+    }
+
+    #[test]
+    fn a_comma_separated_answer_names_only_the_values_somebody_typed() {
+        // A BLANK BETWEEN TWO COMMAS IS NOT A ROOM. It would reach the file as
+        // `rooms = [""]`, which the bridge matches to no room at all while the
+        // table reads as configured.
+        assert_eq!(list("Studio, Kitchen".to_string()), ["Studio", "Kitchen"]);
+        assert_eq!(
+            list("Studio, , Kitchen,".to_string()),
+            ["Studio", "Kitchen"]
+        );
+        assert_eq!(list("  Studio  ".to_string()), ["Studio"]);
+        assert!(list(String::new()).is_empty());
+        assert!(list(" , ".to_string()).is_empty());
     }
 }
