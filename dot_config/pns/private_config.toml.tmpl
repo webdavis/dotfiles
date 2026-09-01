@@ -187,20 +187,16 @@ min_events = 8
 # episode outlives it; the calls behind it are already warm without it.
 # summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
 # How long that command may take. FOUR MINUTES, and what it covers is GENERATION
-# rather than a model load. Measured on one machine: loading a cold model cost
-# about 5.5 seconds, once, while a whole three-call episode took about 114.6
-# seconds and nearly all of that was tokens being generated at about eleven a
-# second. Nobody is waiting on any of it: the recap is rendered in a process the
-# event you were standing at never joined. Past the deadline the command is
-# killed and the plain list is posted. THOSE SECONDS ARE ONE MACHINE ON ONE
-# EVENING, so treat them as a starting point and raise the number rather than
-# trust them. AN HOUR IS THE CEILING and a bigger number is refused by name:
-# nothing supervises the process the recap is rendered in, so a wedged backend
-# past that is a pair of processes held for as long as the number says. IT IS
-# THE WHOLE RECAP'S BUDGET, not each question's: with `repos` or `review_notes`
-# also set, one recap asks up to three (the night, the merges, the notes) and
-# each is bounded by what is left of this number, so the recap arrives within it
-# however many sources are configured.
+# rather than a model load. Nobody is waiting on any of it: the recap is
+# rendered in a process the event you were standing at never joined. Past the
+# deadline the command is killed and the plain list is posted. AN HOUR IS THE
+# CEILING and a bigger number is refused by name: nothing supervises the process
+# the recap is rendered in, so a wedged backend past that is a pair of processes
+# held for as long as the number says. IT IS THE WHOLE RECAP'S BUDGET, not each
+# question's: with `repos` or `review_notes` also set, one recap asks up to
+# three (the night, the merges, the notes) and each is bounded by what is left
+# of this number, so the recap arrives within it however many sources are
+# configured.
 summarizer_deadline_secs = 240
 # The repositories whose merged pull requests become the recap's "what it does
 # now" section. UNSET IS THE WORKING SETTING and it is a fence: with no repo
