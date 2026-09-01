@@ -4668,17 +4668,19 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
         let Some(routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
             return complaints;
         };
-        complaints.extend(routing.unresolved.iter().map(|missing| {
-            format!(
-                "pns lights: {}",
-                pns::channels::hue::missing_sentence(missing)
-            )
-        }));
+        // `pns ` AND NOT `pns lights: `, because every sentence already begins
+        // `lights: ` (the doctor prefixes the same sentences `pns doctor: `).
+        complaints.extend(
+            routing
+                .unresolved
+                .iter()
+                .map(|missing| format!("pns {}", pns::channels::hue::missing_sentence(missing))),
+        );
         complaints.extend(
             routing
                 .refusals
                 .iter()
-                .map(|refusal| format!("pns lights: {refusal}")),
+                .map(|refusal| format!("pns {refusal}")),
         );
         for routed in &routing.lamps {
             if pns::channels::hue::muted_now(&routed.lamp, reading.muted) {
@@ -7202,6 +7204,43 @@ mod tests {
                 "light/a"
             ],
             "the fades interleave by their due milliseconds, not by lamp"
+        );
+    }
+
+    #[test]
+    fn the_tick_says_what_could_not_be_resolved_and_what_was_refused() {
+        // THE LOUD HALF of "a dark lamp must never be ambiguous with a typo":
+        // the resolution's findings have to leave the tick as complaints, or an
+        // unattended machine routes a behaviour to a name nobody can light and
+        // no one is ever told.
+        let state = scratch("tick-complains");
+        let bridge = scripted(true);
+        let lights = *pns::config::parse_config(
+            "[lights]\nrefresh_secs = 10\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
+             dim_window = \"2200-0700\"\n\
+             [lights.lamp.\"3F - Nowhere\"]\nshows = [\"blocked\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&[]),
+            &[],
+            |_| {},
+        );
+        assert_eq!(
+            complaints,
+            vec![
+                "pns lights: `3F - Nowhere` (lamp) is not on the bridge".to_string(),
+                "pns lights: `3F - Studio - HCL1` has dim_window \"2200-0700\", which is \
+                 not a HH:MM-HH:MM window; that lamp stays dark"
+                    .to_string(),
+            ],
         );
     }
 
