@@ -2022,18 +2022,22 @@ mod tests {
         let known = places(&["3F - Studio", "3F - Studio - HCL3"]);
         assert_eq!(
             quiet_command(&typed_at("3F - Nowhere", "30m"), &known, ONE_HOUR),
-            Err("pns: lights quiet: \"3F - Nowhere\" is no lamp, room or zone \
+            Err(
+                "pns: lights quiet: \"3F - Nowhere\" is no lamp, room or zone \
                  this can quiet; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
-                .to_string()),
+                    .to_string()
+            ),
             "a place nothing in the config names"
         );
         assert_eq!(
             quiet_command(&typed_at("3f - studio", "30m"), &known, ONE_HOUR),
-            Err("pns: lights quiet: \"3f - studio\" is no lamp, room or zone \
+            Err(
+                "pns: lights quiet: \"3f - studio\" is no lamp, room or zone \
                  this can quiet; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
-                .to_string()),
+                    .to_string()
+            ),
             "and a case-folded one is a typo rather than a name to forgive, \
              which is how the bridge listing reads it too"
         );

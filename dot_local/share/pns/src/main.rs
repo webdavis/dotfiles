@@ -2486,7 +2486,12 @@ fn run_event(
 /// dark, forever, on a machine whose daemon is down.
 fn clear_held_lamps(settings: Option<&toml::Table>) {
     let state = state_dir();
-    let held = held_lamps(&state);
+    // A RECORD THIS CANNOT READ NAMES NO LAMP TO PUT OUT, and it is KEPT: the
+    // clear works off names alone, so there is nothing to write, and forgetting
+    // the file would take the tick's only chance of repairing it with it.
+    let Some(held) = held_lamps(&state) else {
+        return;
+    };
     if held.is_empty() {
         return;
     }
@@ -2502,7 +2507,10 @@ fn clear_held_lamps(settings: Option<&toml::Table>) {
         },
         &held,
     );
-    remember_held(&state, &[]);
+    // The failure is DROPPED here, in this function's own stated style: the
+    // PUTs are already out, so the worst a failed forget costs is one more
+    // clear of a lamp that is already dark.
+    let _ = remember_held(&state, &[]);
 }
 
 /// Register the repeating tick, or drop the refusal.
@@ -2888,12 +2896,8 @@ fn fire_pulse_unless_quiet(
     // A machine that has never typed the command reads no file and pays one
     // failed open.
     let state = state_dir();
-    let (muted, complaints) = ad_hoc_quiet(&state, now);
-    // SAY-ONCE, NOT ONCE PER EVENT. A state file something else corrupted stays
-    // corrupt until a human fixes it, and this path fires many times a session,
-    // so a bare print here is one stderr line per hook invocation forever.
-    say_lights_once(&state, &complaints, LIGHTS_QUIET_SAID);
-    fire_lights(
+    let (muted, mut complaints) = ad_hoc_quiet(&state, now);
+    complaints.extend(fire_lights(
         &settings,
         lights,
         behaviour,
@@ -2901,8 +2905,18 @@ fn fire_pulse_unless_quiet(
             minutes_now,
             muted: &muted,
         },
-        &held_lamps(&state),
-    );
+        held_lamps(&state).as_deref(),
+    ));
+    // SAY-ONCE, NOT ONCE PER EVENT. A state file something else corrupted stays
+    // corrupt until a human fixes it, and this path fires many times a session,
+    // so a bare print here is one stderr line per hook invocation forever.
+    //
+    // AND IT CARRIES THE RESOLUTION'S OWN FINDINGS TOO, which used to be
+    // discarded here. A machine whose map routes only `done` and `failed` holds
+    // no state, so its tick never resolves anything and never complains: a
+    // mistyped lamp name on such a config was dark forever with the whole
+    // system silent about it, and this is the path that meets it.
+    say_lights_once(&state, &complaints, LIGHTS_QUIET_SAID);
 }
 
 /// The ROOM-BASED lights signal, from whichever mode asked for it, and how many
@@ -2945,38 +2959,49 @@ fn fire_lights(
     lights: &pns::config::Lights,
     behaviour: pns::config::Behaviour,
     reading: &pns::channels::hue::Reading<'_>,
-    held: &[String],
-) {
+    held: Option<&[String]>,
+) -> Vec<String> {
     let Some(hue) = hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) else {
-        return;
+        return Vec::new();
     };
     let bridge = UreqBridge {
         base: format!("https://{}/clip/v2/resource", hue.bridge),
         key: hue.key,
     };
-    run_pulse_writes(&bridge, lights, behaviour, reading, held);
+    run_pulse_writes(&bridge, lights, behaviour, reading, held)
 }
 
 /// The event path's routed writes: one pulse body per lamp the behaviour is
 /// routed for, with the mute and the TICK'S held record each answered at the
 /// per-lamp decision, once.
+///
+/// IT ANSWERS WITH THE RESOLUTION'S COMPLAINTS rather than printing or dropping
+/// them. This path resolves the map on every pulse, so it is where a mistyped
+/// name on a pulse-only config is met; the caller owns the say-once memory.
+///
+/// A HELD RECORD OF `None` IS EVERY LAMP HELD, which is the fail-dark direction
+/// on the one gate that decides whether a blink writes over a breath. Read as
+/// nothing held, an unreadable record let the pulse flash straight over a lamp
+/// that was breathing about a question.
 fn run_pulse_writes<B: pns::channels::hue::Bridge>(
     bridge: &B,
     lights: &pns::config::Lights,
     behaviour: pns::config::Behaviour,
     reading: &pns::channels::hue::Reading<'_>,
-    held: &[String],
-) {
+    held: Option<&[String]>,
+) -> Vec<String> {
     // A BRIDGE THAT ANSWERED NOTHING RESOLVES NOTHING, and says nothing here.
     // The doctor is where an unreachable bridge is reported; a warning on every
     // notification for the rest of a machine's life is noise.
     let Some(routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
-        return;
+        return Vec::new();
     };
+    let complaints = routing_complaints(&routing);
     for routed in &routing.lamps {
         let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
+        let lamp_is_held = held.is_none_or(|held| held.contains(&path));
         if pns::channels::hue::muted_now(&routed.lamp, reading.muted)
-            || !pns::lights::pulse_fires(&routed.shows, behaviour, held.contains(&path))
+            || !pns::lights::pulse_fires(&routed.shows, behaviour, lamp_is_held)
         {
             continue;
         }
@@ -2991,6 +3016,30 @@ fn run_pulse_writes<B: pns::channels::hue::Bridge>(
             );
         }
     }
+    complaints
+}
+
+/// What one resolution has to say for itself: every declared name the bridge
+/// could not answer, and every declaration it refused.
+///
+/// ONE WORDING FOR BOTH READERS, the tick's and the event path's, because a
+/// typo reported in two spellings is two entries in two say-once memories and
+/// an operator reading the same problem twice.
+///
+/// `pns ` AND NOT `pns lights: `, because every sentence already begins
+/// `lights: ` (the doctor prefixes the same sentences `pns doctor: `).
+fn routing_complaints(routing: &pns::channels::hue::Routing) -> Vec<String> {
+    routing
+        .unresolved
+        .iter()
+        .map(|missing| format!("pns {}", pns::channels::hue::missing_sentence(missing)))
+        .chain(
+            routing
+                .refusals
+                .iter()
+                .map(|refusal| format!("pns {refusal}")),
+        )
+        .collect()
 }
 
 /// Whether the config's hue table resolves to a bridge that could be dialled:
@@ -4526,11 +4575,39 @@ fn muted_state(state: &Path) -> (Vec<pns::lights::Muted>, Vec<String>) {
     }
 }
 
-/// The places an ad-hoc quiet is muting right now, and that same complaint.
-fn ad_hoc_quiet(state: &Path, now: Option<u64>) -> (Vec<String>, Vec<String>) {
+/// What an ad-hoc quiet is muting right now, and that same complaint.
+///
+/// A READING THIS CANNOT TAKE MUTES EVERYTHING, which is the fail direction
+/// every lamp-path input takes and the OPPOSITE of what both halves used to do.
+/// A record nobody can parse and a clock nobody can read each answered with an
+/// empty list, which is a house with every lamp loud: exactly the 3am the mute
+/// was armed to prevent, on the one night the machine could not tell anybody
+/// why.
+///
+/// THE COMPLAINT IS STILL THE OTHER HALF. Going dark silently would be a lamp
+/// that stopped working for a reason nobody can see, so the caller says it
+/// once through `say_lights_once` and the state is repaired by the next
+/// `pns lights quiet` write, which republishes the whole file.
+fn ad_hoc_quiet(state: &Path, now: Option<u64>) -> (pns::channels::hue::Muting, Vec<String>) {
     let (entries, complaints) = muted_state(state);
-    (pns::lights::muted_places(&entries, now), complaints)
+    if !complaints.is_empty() {
+        return (pns::channels::hue::Muting::Everything, complaints);
+    }
+    let Some(now) = now else {
+        return (
+            pns::channels::hue::Muting::Everything,
+            vec![NO_CLOCK_FOR_THE_MUTE.to_string()],
+        );
+    };
+    (
+        pns::channels::hue::Muting::Places(pns::lights::muted_places(&entries, Some(now))),
+        complaints,
+    )
 }
+
+/// Why every lamp is quiet on a run whose clock would not answer.
+const NO_CLOCK_FOR_THE_MUTE: &str = "pns lights: the clock cannot be read, so no \
+mute can be judged live; every lamp is quiet until it can";
 
 /// One upkeep pass: read the machine, derive the one state the house is in,
 /// and write it to every lamp that should show it.
@@ -4582,8 +4659,19 @@ fn lights_tick() -> i32 {
     let state = state_dir();
     sweep_legacy_state(&state);
     let house = lights_house(&state, lights, now);
-    let held_before = held_lamps(&state);
     let (muted, mut complaints) = ad_hoc_quiet(&state, Some(now));
+    // A RECORD THIS CANNOT READ NAMES NOTHING TO CLEAR, and the tick is its
+    // only writer, so it goes on and republishes it: the pass below writes the
+    // record it derived, which is what repairs the file. The residue is stated:
+    // a lamp held under a name this run could not read stays lit until the
+    // repaired record names it again or the operator's next return clears it.
+    let (held_before, unreadable_record) = match held_lamps(&state) {
+        Some(held) => (held, false),
+        None => {
+            complaints.push(HELD_RECORD_UNREADABLE.to_string());
+            (Vec::new(), true)
+        }
+    };
     let active = pns::lights::active_held(&house);
     // NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE CALL AT ALL, which
     // is what keeps an idle machine off the network several times a minute.
@@ -4595,7 +4683,7 @@ fn lights_tick() -> i32 {
     // is now a per-lamp answer that needs the listing anyway, so the cheap half
     // of that question no longer exists. A house holding nothing still costs
     // nothing, which is the case that matters.
-    if !active.is_empty() || !held_before.is_empty() {
+    if !active.is_empty() || !held_before.is_empty() || unreadable_record {
         complaints.extend(run_tick_writes(
             &UreqBridge {
                 base: format!("https://{}/clip/v2/resource", hue.bridge),
@@ -4668,20 +4756,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
         let Some(routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
             return complaints;
         };
-        // `pns ` AND NOT `pns lights: `, because every sentence already begins
-        // `lights: ` (the doctor prefixes the same sentences `pns doctor: `).
-        complaints.extend(
-            routing
-                .unresolved
-                .iter()
-                .map(|missing| format!("pns {}", pns::channels::hue::missing_sentence(missing))),
-        );
-        complaints.extend(
-            routing
-                .refusals
-                .iter()
-                .map(|refusal| format!("pns {refusal}")),
-        );
+        complaints.extend(routing_complaints(&routing));
         for routed in &routing.lamps {
             if pns::channels::hue::muted_now(&routed.lamp, reading.muted) {
                 continue;
@@ -4716,7 +4791,20 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
         .cloned()
         .collect();
     pns::channels::hue::clear_held(bridge, &stale);
-    remember_held(state, &held_now);
+    // A RECORD THAT DID NOT LAND STOPS THE ARM, and that is the whole reason
+    // this answer is read. Every held body is a plain state write that does not
+    // expire, so arming a lamp the record does not name is a lamp nothing in
+    // the system can ever put out: not the next tick, which computes its clear
+    // by name off this file, not the return from an absence, and not the
+    // operator's own mute. Nothing armed is one interval of a dark lamp, which
+    // the next tick fixes by itself.
+    if let Err(error) = remember_held(state, &held_now) {
+        complaints.push(format!(
+            "pns lights: the held record could not be written ({error}); no lamp \
+             was armed, because nothing would have been able to put one out"
+        ));
+        return complaints;
+    }
     drive_breaths(bridge, lights.refresh_secs, &breathing, sleep);
     complaints
 }
@@ -4976,13 +5064,20 @@ fn advance_streak(state: &Path, working: bool, now: u64) -> Option<pns::lights::
     next
 }
 
-/// The fixture paths a steady glow write is currently holding.
-fn held_lamps(state: &Path) -> Vec<String> {
-    std::fs::read_to_string(state.join(LIGHTS_HELD))
-        .unwrap_or_default()
-        .split_whitespace()
-        .map(str::to_string)
-        .collect()
+/// The fixture paths a held write is currently holding, or None for a record
+/// this cannot read.
+///
+/// ABSENT AND UNREADABLE ARE DIFFERENT ANSWERS, and collapsing them into an
+/// empty list is what made a corrupt record read as a house holding nothing.
+/// The event path's pulse gate then flashed straight over a lamp that was
+/// breathing, and no reader was told. The ordinary case, a machine holding
+/// nothing at all, is an ABSENT file and still answers with an empty list.
+fn held_lamps(state: &Path) -> Option<Vec<String>> {
+    match std::fs::read_to_string(state.join(LIGHTS_HELD)) {
+        Ok(line) => Some(line.split_whitespace().map(str::to_string).collect()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(Vec::new()),
+        Err(_) => None,
+    }
 }
 
 /// Record what is held now, or forget the file when nothing is.
@@ -5003,16 +5098,19 @@ fn held_lamps(state: &Path) -> Vec<String> {
 /// one refresh interval. It is unbounded only for a tick that was its lease's
 /// LAST run, and there the lamp waits for the operator's return, which is the
 /// event that clears it.
-fn remember_held(state: &Path, held: &[String]) {
+/// THE FAILURE IS RETURNED, not dropped, because the caller has to stop: a
+/// lamp armed after a record that did not land is a lamp nothing in the system
+/// knows the name of, and the return from an absence, the next tick and the
+/// operator's own mute all put lamps out BY NAME off this file.
+fn remember_held(state: &Path, held: &[String]) -> std::io::Result<()> {
     let marker = state.join(LIGHTS_HELD);
     if held.is_empty() {
-        let _ = std::fs::remove_file(&marker);
-        return;
+        return match std::fs::remove_file(&marker) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        };
     }
-    // The failure is DROPPED here: a record that did not land costs one lamp
-    // its clear, which the operator can end by hand, and this process has
-    // nobody to tell.
-    let _ = publish_state_line(&marker, &held.join(" "));
+    publish_state_line(&marker, &held.join(" "))
 }
 
 /// Say a complaint ONCE, and say it again only when it changes.
@@ -5138,6 +5236,10 @@ const LIGHTS_NEWS: &str = "lights-news";
 
 /// Where a tick remembers what it last complained about.
 const LIGHTS_SAID: &str = "lights-said";
+
+/// What a tick says about a held record it could not read at all.
+const HELD_RECORD_UNREADABLE: &str = "pns lights: the held record could not be read, \
+so no lamp can be put out by name; this tick republishes it";
 
 /// Where the EVENT path remembers the ad-hoc quiet complaint it last made,
 /// which is a file of its own for the reason `say_lights_once` states.
@@ -6874,14 +6976,13 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID,
-        BLOCKED_MAX_AGE_SECS, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, drive_breaths,
-        lights_report, matches_glob, muted_state, publish_state_line, read_news, read_note,
-        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, run_pulse_writes, run_tick_writes, say_lights_once,
-        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_shell_markers,
-        update_blocked_marker,
+        BLOCKED_MAX_AGE_SECS, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
+        LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        STATE_FILE_MODE, ad_hoc_quiet, drive_breaths, held_lamps, lights_report, matches_glob,
+        muted_state, publish_state_line, read_news, read_note, recap_bounds, record_news,
+        renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
+        resolve_path, run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked,
+        sweep_leases, sweep_legacy_state, sweep_shell_markers, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::PermissionsExt;
@@ -6935,11 +7036,54 @@ mod tests {
             entries.is_empty() && complaints.len() == 1,
             "and so does a file that is not text: {entries:?} {complaints:?}"
         );
+        // AND WHAT AN UNREADABLE ONE MUTES IS EVERYTHING, which is the fail
+        // direction on a lamp path and the opposite of what it used to do: a
+        // record nobody can parse says nothing about which places are quiet,
+        // and read as an empty list it was a house with every lamp loud.
+        assert_eq!(
+            ad_hoc_quiet(&state, Some(1_000)).0,
+            pns::channels::hue::Muting::Everything
+        );
         std::fs::write(&file, "9999999999 3F - Studio\n").expect("a file it can read");
         assert_eq!(
             muted_state(&state).1,
             Vec::<String>::new(),
             "the control: a file it can read complains about nothing"
+        );
+        assert_eq!(
+            ad_hoc_quiet(&state, Some(1_000)),
+            (
+                pns::channels::hue::Muting::Places(vec!["3F - Studio".to_string()]),
+                Vec::new()
+            ),
+            "and it mutes exactly the place the file names"
+        );
+        // A CLOCK THAT WILL NOT ANSWER GOES THE SAME WAY. Nothing can judge a
+        // mute live without one, and the direction is dark rather than loud.
+        let (muting, complaints) = ad_hoc_quiet(&state, None);
+        assert_eq!(muting, pns::channels::hue::Muting::Everything);
+        assert_eq!(complaints.len(), 1, "{complaints:?}");
+    }
+
+    #[test]
+    fn a_held_record_that_is_absent_holds_nothing_and_one_that_will_not_read_holds_everything() {
+        // TWO DIFFERENT FACTS, and collapsing them into an empty list is what
+        // let a blink write straight over a lamp that was breathing. The
+        // ORDINARY case is a machine holding nothing at all, which is an absent
+        // file; a file that exists and cannot be read says nothing about which
+        // lamps are held, and the gate that reads it decides whether a pulse
+        // fires over one.
+        let state = scratch("held-record-absent-or-unreadable");
+        assert_eq!(
+            held_lamps(&state),
+            Some(Vec::new()),
+            "no file at all is a house holding nothing"
+        );
+        std::fs::create_dir(state.join(LIGHTS_HELD)).expect("a directory where the record goes");
+        assert_eq!(
+            held_lamps(&state),
+            None,
+            "and one nobody can read is unknown"
         );
     }
 
@@ -7009,11 +7153,21 @@ mod tests {
 
     /// The clock and the mutes a tick that is testing something else is judged
     /// against: noon, and nothing muted.
-    fn noon(muted: &[String]) -> pns::channels::hue::Reading<'_> {
+    fn noon(muted: &pns::channels::hue::Muting) -> pns::channels::hue::Reading<'_> {
         pns::channels::hue::Reading {
             minutes_now: Some(12 * 60),
             muted,
         }
+    }
+
+    /// The ordinary mute: a machine that has never typed the command.
+    fn nothing_muted() -> pns::channels::hue::Muting {
+        pns::channels::hue::Muting::Places(Vec::new())
+    }
+
+    /// One place the operator quieted by hand.
+    fn quieted(place: &str) -> pns::channels::hue::Muting {
+        pns::channels::hue::Muting::Places(vec![place.to_string()])
     }
 
     /// What the held record says right now.
@@ -7036,7 +7190,7 @@ mod tests {
             &state,
             &held_lights(),
             &[pns::lights::Held::Blocked],
-            &noon(&[]),
+            &noon(&nothing_muted()),
             &[],
             |_| {},
         );
@@ -7073,7 +7227,7 @@ mod tests {
             &state,
             &held_lights(),
             &[],
-            &noon(&[]),
+            &noon(&nothing_muted()),
             &[LAMP_PATH.to_string()],
             |_| {},
         );
@@ -7105,7 +7259,7 @@ mod tests {
             &state,
             &held_lights(),
             &[pns::lights::Held::Blocked],
-            &noon(&[]),
+            &noon(&nothing_muted()),
             &[LAMP_PATH.to_string()],
             |_| {},
         );
@@ -7137,7 +7291,7 @@ mod tests {
             &state,
             &held_lights(),
             &[pns::lights::Held::Blocked],
-            &noon(&["3F - Studio".to_string()]),
+            &noon(&quieted("3F - Studio")),
             &[LAMP_PATH.to_string()],
             |_| {},
         );
@@ -7148,6 +7302,65 @@ mod tests {
         );
         assert!(complaints.is_empty(), "{complaints:?}");
         assert_eq!(recorded(&state), None);
+    }
+
+    #[test]
+    fn a_mute_reading_nobody_could_take_leaves_every_lamp_quiet_rather_than_loud() {
+        // THE FAIL DIRECTION ON A LAMP PATH IS DARK. An unreadable mute record
+        // and a clock that would not answer each arrived at the walk as an
+        // EMPTY list of quiet places, which is a house with every lamp loud:
+        // the one outcome the operator armed the mute to prevent, on the one
+        // night the machine could not say why.
+        let state = scratch("tick-mute-unreadable");
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&pns::channels::hue::Muting::Everything),
+            &[LAMP_PATH.to_string()],
+            |_| {},
+        );
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[(LAMP_PATH.to_string(), CLEAR_BODY.to_string())],
+            "every lamp is quiet, so the lamp is armed with nothing and put out"
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(recorded(&state), None);
+    }
+
+    #[test]
+    fn a_held_record_that_will_not_publish_stops_the_arm_rather_than_lighting_a_lamp() {
+        // A LAMP THE RECORD DOES NOT NAME IS A LAMP NOTHING CAN PUT OUT. Every
+        // held body is a plain state write that does not expire, and the next
+        // tick, the return from an absence and the operator's own mute all
+        // clear BY NAME off this file, so arming after a failed publish is a
+        // bulb held by nothing until somebody finds the wall switch.
+        let state = scratch("tick-record-unwritable");
+        std::fs::create_dir(state.join(LIGHTS_HELD)).expect("a directory where the record goes");
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            &[],
+            |_| {},
+        );
+        assert!(
+            bridge.puts.borrow().is_empty(),
+            "no lamp is armed once the record refused to land: {:?}",
+            bridge.puts.borrow()
+        );
+        assert!(
+            complaints
+                .iter()
+                .any(|said| said.contains("the held record could not be written")),
+            "and the tick says so rather than carrying on quietly: {complaints:?}"
+        );
     }
 
     #[test]
@@ -7166,7 +7379,7 @@ mod tests {
             &state,
             &held_lights(),
             &[pns::lights::Held::Blocked],
-            &noon(&[]),
+            &noon(&nothing_muted()),
             &[LAMP_PATH.to_string()],
             |_| {},
         );
@@ -7248,7 +7461,7 @@ mod tests {
             &state,
             &lights,
             &[pns::lights::Held::Blocked],
-            &noon(&[]),
+            &noon(&nothing_muted()),
             &[],
             |_| {},
         );
@@ -7320,8 +7533,8 @@ mod tests {
             &free,
             &lights,
             pns::config::Behaviour::Done,
-            &noon(&[]),
-            &[],
+            &noon(&nothing_muted()),
+            Some(&[]),
         );
         let puts = free.puts.borrow();
         assert_eq!(puts.len(), 1, "{puts:?}");
@@ -7341,13 +7554,29 @@ mod tests {
             &muted,
             &lights,
             pns::config::Behaviour::Done,
-            &noon(&["3F - Studio".to_string()]),
-            &[],
+            &noon(&quieted("3F - Studio")),
+            Some(&[]),
         );
         assert!(
             muted.puts.borrow().is_empty(),
             "a muted lamp is not flashed: {:?}",
             muted.puts.borrow()
+        );
+        // AND A MUTE READING NOBODY COULD TAKE MUTES EVERY LAMP, which is the
+        // fail direction on a lamp path: an unreadable record or clock arrived
+        // here as an empty list, which is a house with every lamp loud.
+        let dark = scripted(true);
+        run_pulse_writes(
+            &dark,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&pns::channels::hue::Muting::Everything),
+            Some(&[]),
+        );
+        assert!(
+            dark.puts.borrow().is_empty(),
+            "a mute nobody could read let the lamp flash anyway: {:?}",
+            dark.puts.borrow()
         );
         // AND THE TICK'S HELD RECORD PREEMPTS THE PULSE on the lamp it holds,
         // which is the dedicated-but-helps-when-free ruling's event-path half.
@@ -7356,13 +7585,56 @@ mod tests {
             &held,
             &lights,
             pns::config::Behaviour::Done,
-            &noon(&[]),
-            &[LAMP_PATH.to_string()],
+            &noon(&nothing_muted()),
+            Some(&[LAMP_PATH.to_string()]),
         );
         assert!(
             held.puts.borrow().is_empty(),
             "a held lamp is not flashed over: {:?}",
             held.puts.borrow()
+        );
+        // AND A HELD RECORD NOBODY COULD READ HOLDS EVERY LAMP, for the same
+        // reason: read as nothing held, a corrupt record let a blink write
+        // straight over a lamp breathing about a question.
+        let unreadable = scripted(true);
+        run_pulse_writes(
+            &unreadable,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&nothing_muted()),
+            None,
+        );
+        assert!(
+            unreadable.puts.borrow().is_empty(),
+            "a held record nobody could read let the pulse fire anyway: {:?}",
+            unreadable.puts.borrow()
+        );
+    }
+
+    #[test]
+    fn the_pulse_path_says_what_it_could_not_resolve_rather_than_dropping_it() {
+        // THE PATH A PULSE-ONLY MAP ACTUALLY TAKES. A config that routes only
+        // `done` and `failed` holds no state, so its tick never resolves
+        // anything and never complains; every resolution such a machine ever
+        // does happens right here, and the findings were discarded on the
+        // floor. A mistyped lamp name was therefore dark forever with the whole
+        // system silent about it.
+        let lights = *pns::config::parse_config(
+            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+             [lights.lamp.\"3F - Nowhere\"]\nshows = [\"done\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        assert_eq!(
+            run_pulse_writes(
+                &scripted(true),
+                &lights,
+                pns::config::Behaviour::Done,
+                &noon(&nothing_muted()),
+                Some(&[]),
+            ),
+            vec!["pns lights: `3F - Nowhere` (lamp) is not on the bridge".to_string()],
         );
     }
 

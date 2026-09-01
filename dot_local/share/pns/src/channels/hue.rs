@@ -449,19 +449,32 @@ pub fn resolve(inventory: &Inventory, lights: &crate::config::Lights) -> Routing
         ..Routing::default()
     };
     for lamp in &inventory.lamps {
-        let shows = winner(&mut routing, lamp, lights, "shows", |target| {
+        let shows = match winner(&mut routing, lamp, lights, "shows", |target| {
             target.shows.clone()
-        })
-        .unwrap_or_default();
-        let dim = winner(&mut routing, lamp, lights, "dim_window", |target| {
+        }) {
+            // A CONTESTED BEHAVIOUR SET IS AN EMPTY ONE, which the drop below
+            // turns into a dark lamp: two declarations that each name what it
+            // carries settle nothing, so it carries nothing.
+            Answered::Refused => Vec::new(),
+            Answered::Silent => Vec::new(),
+            Answered::Stated(shows) => shows,
+        };
+        let dim = match winner(&mut routing, lamp, lights, "dim_window", |target| {
             target
                 .dim_window
                 .as_ref()
                 .map(|stated| (stated.clone(), target.dim_behaviours.clone()))
-        });
-        let dim = match dim {
-            None => None,
-            Some((stated, behaviours)) => match parse_window(&stated) {
+        }) {
+            // A CONTESTED DIM QUESTION FAILS DARK, exactly as an unreadable one
+            // does below, and telling the two apart from SILENCE is the whole
+            // reason this answer has three arms. Collapsed into one `None` they
+            // took the no-window path, which is FULL BRIGHTNESS: the config
+            // that said loudest that a lamp must be quiet at night, two
+            // declarations both stating when, was the one that ran it at full
+            // brightness all night.
+            Answered::Refused => continue,
+            Answered::Silent => None,
+            Answered::Stated((stated, behaviours)) => match parse_window(&stated) {
                 Some(window) => Some(DimWindow { window, behaviours }),
                 // FAIL CLOSED, FOR THIS LAMP ALONE. An operator who asked for a
                 // dim window and mistyped it would otherwise be flashed at 3am
@@ -485,6 +498,19 @@ pub fn resolve(inventory: &Inventory, lights: &crate::config::Lights) -> Routing
     routing
 }
 
+/// What the declarations had to say about one question for one lamp.
+///
+/// THREE ANSWERS AND NOT AN `Option`, because "nobody stated this" and "two
+/// declarations stated it and neither can win" are different facts with
+/// different fail directions, and every caller has to choose between them. As
+/// one `None` the refusal took the silent path, which on the dim question is
+/// full brightness.
+enum Answered<Answer> {
+    Stated(Answer),
+    Silent,
+    Refused,
+}
+
 /// The most specific declaration that STATES one question, or a refusal when
 /// two zones both do.
 fn winner<Answer>(
@@ -493,14 +519,19 @@ fn winner<Answer>(
     lights: &crate::config::Lights,
     question: &str,
     stated: impl Fn(&crate::config::Target) -> Option<Answer>,
-) -> Option<Answer> {
+) -> Answered<Answer> {
     for level in LEVELS {
         let answers: Vec<(&String, Answer)> = declarations(lamp, lights, level)
             .filter_map(|(name, target)| Some((name, stated(target)?)))
             .collect();
         match answers.len() {
             0 => continue,
-            1 => return answers.into_iter().next().map(|(_, answer)| answer),
+            1 => {
+                return answers
+                    .into_iter()
+                    .next()
+                    .map_or(Answered::Silent, |(_, answer)| Answered::Stated(answer));
+            }
             _ => {
                 let names: Vec<String> = answers
                     .iter()
@@ -510,11 +541,11 @@ fn winner<Answer>(
                     &mut routing.refusals,
                     double_cover_refusal(&lamp.name, level, question, &names),
                 );
-                return None;
+                return Answered::Refused;
             }
         }
     }
-    None
+    Answered::Silent
 }
 
 /// Every declaration at one level that names this lamp.
@@ -647,13 +678,29 @@ pub fn dim_showing(
     }
 }
 
+/// What the operator's own by-hand mute is covering this second.
+///
+/// `Everything` IS THE FAIL DIRECTION AND NOT A COMMAND ANYBODY TYPES. A mute
+/// record or a clock this run cannot read says nothing about which places are
+/// quiet, and the direction every unreadable reading takes on a lamp path is
+/// DARK: read as an empty list it was a house with every lamp loud, which is
+/// the one outcome the operator armed the mute to prevent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Muting {
+    Everything,
+    Places(Vec<String>),
+}
+
 /// Whether the operator's own by-hand mute covers this lamp.
 ///
 /// EVERY NAME THE LAMP ANSWERS TO, which is the same vocabulary a declaration
 /// names it by: `pns lights quiet "3F - Studio"` reaches every lamp in the
 /// studio and `pns lights quiet "3F - Studio - HCL3"` reaches one. A zone name
 /// works for the same reason.
-pub fn muted_now(lamp: &Lamp, muted: &[String]) -> bool {
+pub fn muted_now(lamp: &Lamp, muting: &Muting) -> bool {
+    let Muting::Places(muted) = muting else {
+        return true;
+    };
     std::iter::once(lamp.name.as_str())
         .chain(lamp.room.as_deref())
         .chain(lamp.zones.iter().map(String::as_str))
@@ -851,9 +898,9 @@ pub fn pulse_render(
 /// names the operator's own mute is covering.
 pub struct Reading<'reading> {
     pub minutes_now: Option<u16>,
-    /// EMPTY IS THE ORDINARY CASE, and a machine that has never run
+    /// AN EMPTY `Places` IS THE ORDINARY CASE, and a machine that has never run
     /// `pns lights quiet` reads an absent file as exactly that.
-    pub muted: &'reading [String],
+    pub muted: &'reading Muting,
 }
 
 /// The signal: one PUT per wanted room, and the bridge does the rest.
@@ -928,10 +975,10 @@ const UNMAPPED_SIGNAL_DURATION_MS: u64 = 3000;
 #[cfg(test)]
 mod tests {
     use super::{
-        Bridge, DEFAULT_ROOMS, DimWindow, HuePulse, Inventory, Missing, QuietWindow, Routing,
-        Showing, Unresolved, breath_arm_body, clear_body, clear_held, declared_names, dim_showing,
-        fade_body, grouped_light_ids_for_rooms, held_render, hue_settings, inventory, muted_now,
-        parse_window, pulse_body, pulse_render, quiet_now, quiet_window, resolve,
+        Bridge, DEFAULT_ROOMS, DimWindow, HuePulse, Inventory, Missing, Muting, QuietWindow,
+        Routing, Showing, Unresolved, breath_arm_body, clear_body, clear_held, declared_names,
+        dim_showing, fade_body, grouped_light_ids_for_rooms, held_render, hue_settings, inventory,
+        muted_now, parse_window, pulse_body, pulse_render, quiet_now, quiet_window, resolve,
         resolve_on_bridge,
     };
     use crate::config::Behaviour;
@@ -1394,6 +1441,48 @@ mod tests {
     }
 
     #[test]
+    fn a_dim_question_two_zones_both_answer_leaves_that_lamp_dark_rather_than_bright() {
+        // THE FAIL DIRECTION ON A LAMP PATH IS DARK, and a refusal used to
+        // arrive at the caller as the same `None` as "nobody said anything
+        // about quiet hours". So the one config that says LOUDEST that a lamp
+        // must be quiet at night, two declarations both stating when, was the
+        // config that ran it at full brightness all night.
+        //
+        // THE SAME DIRECTION AN UNPARSEABLE WINDOW ALREADY TAKES: that lamp
+        // drops out of the routing entirely, which costs one lamp rather than
+        // the house, and the refusal names both declarations.
+        // THE ROOM ANSWERS `shows`, so the lamp really is routed and the ONLY
+        // question in doubt is the dim one: a config where both were contested
+        // would drop the lamp for carrying nothing and prove nothing here.
+        let routing = resolve(
+            &stock(),
+            &lights(
+                "[lights.room.\"3F - Studio\"]\nshows = [\"loop\"]\n\
+                 [lights.zone.Upstairs]\n\
+                 dim_window = \"22:00-07:00\"\ndim_behaviours = [\"loop\"]\n\
+                 [lights.zone.Desk]\n\
+                 dim_window = \"23:00-06:00\"\ndim_behaviours = [\"loop\"]\n",
+            ),
+        );
+        assert!(
+            routing.refusals.iter().any(|refusal| refusal
+                .contains("is covered by 2 zone declarations that each state `dim_window`")),
+            "both declarations are cited by name: {:?}",
+            routing.refusals
+        );
+        assert_eq!(
+            carried(&routing, "3F - Studio - HCL1"),
+            None,
+            "the lamp whose quiet hours nobody can settle is dark, never full"
+        );
+        assert_eq!(
+            carried(&routing, "3F - Studio - HCL2"),
+            Some(vec![Behaviour::Looping]),
+            "a lamp only ONE of them holds is unaffected: the refusal is per lamp"
+        );
+    }
+
+    #[test]
     fn each_question_resolves_on_its_own_so_a_lamp_can_state_one_and_inherit_the_other() {
         // PER QUESTION, NOT WHOLESALE. A lamp that says which behaviours it
         // carries and nothing about quiet hours still takes its room's window;
@@ -1700,15 +1789,25 @@ mod tests {
             .expect("HCL1 is in the listing");
         for typed in ["3F - Studio - HCL1", "3F - Studio", "Upstairs", "Desk"] {
             assert!(
-                muted_now(&hcl1, &[typed.to_string()]),
+                muted_now(&hcl1, &Muting::Places(vec![typed.to_string()])),
                 "{typed:?} must reach this lamp"
             );
         }
         assert!(
-            !muted_now(&hcl1, &["2F - Kitchen".to_string()]),
+            !muted_now(&hcl1, &Muting::Places(vec!["2F - Kitchen".to_string()])),
             "and a name it does not answer to reaches nothing"
         );
-        assert!(!muted_now(&hcl1, &[]), "an empty mute list mutes nothing");
+        assert!(
+            !muted_now(&hcl1, &Muting::Places(Vec::new())),
+            "an empty mute list mutes nothing"
+        );
+        // AND A READING NOBODY COULD TAKE MUTES EVERY LAMP, which is the fail
+        // direction on a lamp path: an unreadable mute record or clock must not
+        // arrive here as a house with nothing quiet in it.
+        assert!(
+            muted_now(&hcl1, &Muting::Everything),
+            "a mute nobody could read leaves every lamp quiet, never loud"
+        );
     }
 
     #[test]
