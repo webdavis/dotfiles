@@ -7143,7 +7143,12 @@ fn setup_mode() -> i32 {
     // specific answer: an operator who already has one is told that, whether
     // or not they are sitting in front of the questions.
     let path = config_path(&std::env::var("HOME").unwrap_or_default());
-    if path.exists() && !force {
+    // `symlink_metadata`, NOT `exists`: `exists` follows a symlink and asks
+    // what it resolves to, so a dangling one at the config name reads as
+    // nothing at all here and the whole walk runs before the publish refuses
+    // it with a claim that it "appeared while the questions were being
+    // answered", which would not be true.
+    if path.symlink_metadata().is_ok() && !force {
         eprintln!(
             "pns setup: {} already exists; pass --force to replace it, \
              which keeps the old file beside it",
@@ -9709,14 +9714,15 @@ mod tests {
 
     #[test]
     fn a_forced_run_keeps_a_config_the_existence_check_reads_as_absent() {
-        // THE CHECK IS NOT THE AUTHORITY, THE PUBLISH IS. `exists` answers for
-        // what a name resolves to rather than for the name, so it reads a
-        // config the operator symlinked into a checkout that is not there as
-        // nothing at all; the same answer a config CREATED after the check
-        // gives, which no test can reach without a seam. Either way a blanket
-        // rename replaced a config this run never read, with no backup and no
-        // word, so the publish moves aside whatever is standing there and asks
-        // for the name rather than taking it.
+        // THE CHECK IS NOT THE AUTHORITY, THE PUBLISH IS. The walk's own
+        // pre-check reads `symlink_metadata` rather than `exists`, so a
+        // dangling symlink at the config name is refused before the first
+        // question is even asked; this proves the FORCED publish handles the
+        // same dangling symlink correctly on its own, which must not depend
+        // on the pre-check having caught it. Either way a blanket rename
+        // replaced a config this run never read, with no backup and no word,
+        // so the publish moves aside whatever is standing there and asks for
+        // the name rather than taking it.
         let home = scratch("setup-publish-unseen");
         let path = home.join(".config/pns/config.toml");
         std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");

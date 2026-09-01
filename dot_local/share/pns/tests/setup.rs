@@ -308,3 +308,33 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
         "echo was not restored once the wizard exited"
     );
 }
+
+#[test]
+fn a_dangling_symlink_at_the_config_path_is_refused_before_the_first_question() {
+    // NO PTY NEEDED: the config check runs before the tty check, so a plain
+    // pipe (here, `/dev/null`) is enough to tell which one fired first.
+    let sandbox = Sandbox::without_config("setup-dangling-symlink");
+    let config_dir = sandbox.root.join(".config/pns");
+    std::fs::create_dir_all(&config_dir).expect("the config directory");
+    let config_path = config_dir.join("config.toml");
+    std::os::unix::fs::symlink(config_dir.join("nowhere.toml"), &config_path)
+        .expect("the dangling symlink");
+
+    let output = sandbox
+        .bare()
+        .args(["setup"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the wizard runs");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("already exists"),
+        "the dangling symlink was not caught by the pre-check: {stderr}"
+    );
+    assert!(
+        !stderr.contains("not a terminal"),
+        "the pre-check ran after the tty check instead of before it: {stderr}"
+    );
+}
