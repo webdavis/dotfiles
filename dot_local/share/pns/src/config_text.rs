@@ -1042,4 +1042,97 @@ mod tests {
         let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
         assert!(config.plugins["hermes"].enabled);
     }
+
+    /// `lights.<level>` is not a public name (`config::TARGET_KEYS` is
+    /// private), so it is spelled out here rather than imported; a change to
+    /// it on either side is caught the moment the two literals disagree.
+    const TARGET_KEYS: &str = "lights.<level>";
+
+    #[test]
+    fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
+        // EVERY LAYOUT TABLE IS ONE THE ROSTER SERVES, and with the SAME key
+        // set: the layout is a second statement of `config`'s own vocabulary,
+        // and this is what stops the two from drifting apart.
+        //
+        // `lights` ITSELF IS THE ONE EXCEPTION, and only because `config`
+        // reads it as one flat table where this layout writes seven headings:
+        // the roster's `done`, `failed`, `blocked`, `unread`, `loop` and `dim`
+        // are each a SEPARATE `lights.<name>` entry here, not a `Key` of
+        // `lights`, and `lamp`, `room` and `zone` are the hardcoded
+        // declaration branch. So `lights`'s effective key set is its own
+        // `refresh_secs` plus the leaf name of every `lights.<x>` table this
+        // layout declares, plus the three declaration levels.
+        for table in super::LAYOUT {
+            let (_, roster_keys) = crate::config::TABLE_KEYS
+                .iter()
+                .find(|(name, _)| *name == table.name)
+                .unwrap_or_else(|| panic!("`{}` is not a table the roster serves", table.name));
+            let mut layout_keys: Vec<&str> = table.keys.iter().map(|key| key.name).collect();
+            if table.name == "lights" {
+                layout_keys.extend(["lamp", "room", "zone"]);
+                layout_keys.extend(
+                    super::LAYOUT
+                        .iter()
+                        .filter_map(|entry| entry.name.strip_prefix("lights.")),
+                );
+            }
+            layout_keys.sort_unstable();
+            layout_keys.dedup();
+            let mut roster_keys = roster_keys.to_vec();
+            roster_keys.sort_unstable();
+            assert_eq!(
+                layout_keys, roster_keys,
+                "`{}` disagrees between the layout and the roster",
+                table.name
+            );
+        }
+
+        // AND EVERY ROSTER TABLE THE LAYOUT CAN REACH IS WRITTEN BY SOME
+        // PATH: `TOP_LEVEL` has no heading of its own to write, and
+        // `lights.<level>` is written by the hardcoded target-declaration
+        // branch rather than a `Key` list, so both are the two named
+        // exceptions rather than gaps.
+        for (table, _) in crate::config::TABLE_KEYS.iter().copied() {
+            if table == crate::config::TOP_LEVEL || table == TARGET_KEYS {
+                continue;
+            }
+            assert!(
+                super::LAYOUT.iter().any(|entry| entry.name == table),
+                "the roster serves `{table}` and the layout never writes it"
+            );
+        }
+    }
+
+    #[test]
+    fn the_hardcoded_target_declaration_branch_writes_every_target_key() {
+        // THE HALF THE LAYOUT WALK CANNOT SEE: `lights.<level>` has no `Key`
+        // list, so its coverage is proven by exercising the render path
+        // directly rather than by a table lookup.
+        let mut target = toml::Table::new();
+        target.insert(
+            "shows".to_string(),
+            toml::Value::Array(vec![toml::Value::String("done".to_string())]),
+        );
+        target.insert(
+            "dim_window".to_string(),
+            toml::Value::String("22:00-07:00".to_string()),
+        );
+        target.insert(
+            "dim_behaviours".to_string(),
+            toml::Value::Array(vec![toml::Value::String("done".to_string())]),
+        );
+        let mut rooms = toml::Table::new();
+        rooms.insert("Studio".to_string(), toml::Value::Table(target));
+        let mut lights = toml::Table::new();
+        lights.insert("room".to_string(), toml::Value::Table(rooms));
+        let mut values = toml::Table::new();
+        values.insert("lights".to_string(), toml::Value::Table(lights));
+
+        let text = render(&values).expect("a full target declaration renders");
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        let studio = &config.lights.expect("lights was armed").rooms["Studio"];
+        assert_eq!(studio.shows, Some(vec![crate::config::Behaviour::Done]));
+        assert_eq!(studio.dim_window.as_deref(), Some("22:00-07:00"));
+        assert_eq!(studio.dim_behaviours, vec![crate::config::Behaviour::Done]);
+    }
 }
