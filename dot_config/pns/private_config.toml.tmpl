@@ -37,10 +37,10 @@ enabled = true
 # rather than read as this one.
 type = "moshi"
 token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
-# Whether a long command's card still fires while you are watching that pane
-# on the phone. OFF by operator ruling 2026-08-12: a card describing the pane
-# already filling the screen is noise, and the light pulse alone marks the
-# command finishing. Written out at its default; set true to be carded anyway.
+# Whether a long command's card still fires while you are watching that pane on
+# the phone. OFF: a card describing the pane already filling the screen is
+# noise, and the light pulse alone marks the command finishing. Written out at
+# its default; set true to be carded anyway.
 mobile_watch_card = false
 # How long pns waits for moshi to acknowledge a submitted permission prompt
 # before giving up on it, in seconds. FIVE when no key states one.
@@ -176,33 +176,15 @@ min_events = 8
 # you, and the phone card are composed by pns whatever comes back, and a
 # summarizer that fails, is not installed, says nothing or runs long falls to
 # that same plain list, which says so in its own heading. THE THREE OLLAMA FLAGS
-# ARE NOT OPTIONAL: measured on this machine, `ollama run` without them
-# interleaves terminal control bytes and a "Thinking..." preamble into its
-# output, and those reach Discord verbatim. Another backend is simply another
-# array.
+# ARE NOT OPTIONAL: `ollama run` without them interleaves terminal control bytes
+# and a "Thinking..." preamble into its output, and those reach Discord
+# verbatim. Another backend is simply another array.
 # THE LENGTH OF THE ANSWER IS THE WHOLE BILL, and it is tuned HERE, in the array,
-# without pns knowing anything about it. Measured on one machine: the night call
-# spent 82.7 seconds generating 761 tokens, and the night section keeps about
-# nine lines however many arrive, because the header, the NEEDS YOU list, the
-# tail and the merge and notes sections take their share of the 25-line body
-# first. Most of what that call paid for was discarded before it was posted. A
-# derived model caps the length at the source. Run `ollama create recap-qwen`
-# over a Modelfile of
-#   FROM qwen3.5:4b
-#   PARAMETER num_predict 320
-#   PARAMETER temperature 0.2
-# and the same call measured 30.5 seconds with `num_predict 320` alone and 27.0
-# seconds with the lower temperature as well, returning 13 to 15 lines, which is
-# about level with what the night section keeps rather than far past it; then
-# name `recap-qwen` where `qwen3.5:4b` is below. The lower temperature is
-# PROPOSED rather than settled: it is the setting the drill verifies the merge
-# section's `#NNN` receipts under, and the evidence behind it today is two runs.
-# THE PLAIN EXAMPLE STAYS THE DEFAULT because the derived model does not exist
-# until you run that command. `ollama run --keepalive` is real and is
-# deliberately NOT suggested: the flag cannot help the FIRST call of an episode,
-# which is the only cold one, because a return moment follows an absence and no
-# keepalive from the last episode outlives it; the calls behind it are already
-# warm without it.
+# without pns knowing anything about it. A derived model caps the length at the
+# source. `ollama run --keepalive` is real and is deliberately NOT suggested:
+# the flag cannot help the FIRST call of an episode, which is the only cold one,
+# because a return moment follows an absence and no keepalive from the last
+# episode outlives it; the calls behind it are already warm without it.
 # summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
 # How long that command may take. FOUR MINUTES, and what it covers is GENERATION
 # rather than a model load. Measured on one machine: loading a cold model cost
@@ -251,13 +233,12 @@ summarizer_deadline_secs = 240
 # over once the Focus ends, and that catch-up is what hands you what you missed.
 # Approvals are NEVER held back, and neither is the durable log: a written
 # record interrupts nobody, so a Focus has nothing there to hold.
-# PER MODE RATHER THAN "a Focus is on", which is the whole design: measured on
-# this machine, a Focus was active for 95% of one day (Casually Concerned runs
-# across a whole working day), so a switch that fired on any Focus at all would
-# be a mute with no expiry and nothing on screen to explain it. Name the modes
-# that really mean it and leave the always-on one out. A name is matched however
-# you capitalised it, and a mode's raw modeIdentifier works too for one the Mode
-# catalog does not name; an entry that is the empty string is refused by name.
+# PER MODE RATHER THAN "a Focus is on", which is the whole design: a switch that
+# fired on any Focus at all would be a mute with no expiry and nothing on screen
+# to explain it. Name the modes that really mean it and leave the always-on one
+# out. A name is matched however you capitalised it, and a mode's raw
+# modeIdentifier works too for one the Mode catalog does not name; an entry that
+# is the empty string is refused by name.
 # NO TABLE AT ALL, and a table naming no mode, are the same statement: the
 # feature is off, and `pns doctor` says so with one sentence for both, because
 # nothing downstream can tell a list you emptied from a table you never wrote.
@@ -304,10 +285,8 @@ summarizer_deadline_secs = 240
 # AND IT IS NUDGED ANYWAY IN ONE MORE CASE, which is worth knowing before you
 # switch this on: the signal pns gets is the tool batch RESOLVING, not you
 # answering, so a tool you approve in five seconds that then runs for longer
-# than `after_secs` produces a card saying nobody answered. That is why 300 is
-# suggested rather than 120: in this repo a `just test` is about 34 seconds and
-# a cargo build is a minute or two, so at 120 an ordinary approved build cards
-# you about itself. If it still bites, raise the number.
+# than `after_secs` produces a card saying nobody answered. If it still bites,
+# raise the number.
 # THIRTY SECONDS IS THE FLOOR and an hour is the ceiling. A negative, a
 # fraction, a string, a list and anything outside that range are each refused by
 # name. The floor is low enough to drill in half a minute and high enough that
