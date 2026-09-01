@@ -69908,7 +69908,7 @@
       "file_type": "code",
       "norm_label": "a_clock_that_cannot_be_read_names_no_backup_at_all()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L628"
+      "source_location": "L630"
     },
     {
       "id": "dot_local_share_pns_src_setup_a_credential_carrying_quotes_and_backslashes_reaches_the_config_as_itself",
@@ -69919,7 +69919,7 @@
       "file_type": "code",
       "norm_label": "a_credential_carrying_quotes_and_backslashes_reaches_the_config_as_itself()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L582"
+      "source_location": "L584"
     },
     {
       "id": "dot_local_share_pns_src_setup_a_credential_left_blank_declines_its_feature_rather_than_arming_an_empty_one",
@@ -69930,7 +69930,7 @@
       "file_type": "code",
       "norm_label": "a_credential_left_blank_declines_its_feature_rather_than_arming_an_empty_one()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L521"
+      "source_location": "L523"
     },
     {
       "id": "dot_local_share_pns_src_setup_a_skipped_token_is_commented_out_rather_than_written_empty",
@@ -69941,7 +69941,7 @@
       "file_type": "code",
       "norm_label": "a_skipped_token_is_commented_out_rather_than_written_empty()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L467"
+      "source_location": "L469"
     },
     {
       "id": "dot_local_share_pns_src_setup_a_walk_that_armed_nothing_still_writes_the_core",
@@ -69952,7 +69952,7 @@
       "file_type": "code",
       "norm_label": "a_walk_that_armed_nothing_still_writes_the_core()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L413"
+      "source_location": "L415"
     },
     {
       "id": "dot_local_share_pns_src_setup_answers",
@@ -69996,7 +69996,7 @@
       "file_type": "code",
       "norm_label": "every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L478"
+      "source_location": "L480"
     },
     {
       "id": "dot_local_share_pns_src_setup_every_feature_armed",
@@ -70007,7 +70007,7 @@
       "file_type": "code",
       "norm_label": "every_feature_armed()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L391"
+      "source_location": "L393"
     },
     {
       "id": "dot_local_share_pns_src_setup_every_key_it_writes_is_a_key_the_roster_serves_however_the_walk_was_answered",
@@ -70018,7 +70018,7 @@
       "file_type": "code",
       "norm_label": "every_key_it_writes_is_a_key_the_roster_serves_however_the_walk_was_answered()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L598"
+      "source_location": "L600"
     },
     {
       "id": "dot_local_share_pns_src_setup_focus_section",
@@ -70095,7 +70095,7 @@
       "file_type": "code",
       "norm_label": "parsed()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L408"
+      "source_location": "L410"
     },
     {
       "id": "dot_local_share_pns_src_setup_quoted",
@@ -70216,7 +70216,7 @@
       "file_type": "code",
       "norm_label": "the_backup_sits_beside_the_config_stamped_with_the_instant_it_was_moved()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L615"
+      "source_location": "L617"
     },
     {
       "id": "dot_local_share_pns_src_setup_the_lamp_map_starter_is_offered_with_hue_alone_and_is_wholly_commented_out",
@@ -70227,7 +70227,7 @@
       "file_type": "code",
       "norm_label": "the_lamp_map_starter_is_offered_with_hue_alone_and_is_wholly_commented_out()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L568"
+      "source_location": "L570"
     },
     {
       "id": "dot_local_share_pns_src_setup_the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to",
@@ -70238,7 +70238,7 @@
       "file_type": "code",
       "norm_label": "the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to()",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L449"
+      "source_location": "L451"
     },
     {
       "id": "test_fixtures_ssh_hardening_lib",
@@ -94932,7 +94932,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L588",
+      "source_location": "L590",
       "weight": 1.0
     },
     {
@@ -94944,7 +94944,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L590",
+      "source_location": "L592",
       "weight": 1.0
     },
     {
@@ -94956,7 +94956,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L590",
+      "source_location": "L592",
       "weight": 1.0
     },
     {
@@ -94968,7 +94968,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L544",
+      "source_location": "L546",
       "weight": 1.0
     },
     {
@@ -94980,7 +94980,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L546",
+      "source_location": "L548",
       "weight": 1.0
     },
     {
@@ -94992,24 +94992,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L546",
+      "source_location": "L548",
       "weight": 1.0
     },
     {
       "source": "dot_local_share_pns_src_setup_a_skipped_token_is_commented_out_rather_than_written_empty",
       "target": "dot_local_share_pns_src_setup_compose_config",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L470",
-      "weight": 1.0
-    },
-    {
-      "source": "dot_local_share_pns_src_setup_a_skipped_token_is_commented_out_rather_than_written_empty",
-      "target": "dot_local_share_pns_src_setup_parsed",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -95020,6 +95008,18 @@
       "weight": 1.0
     },
     {
+      "source": "dot_local_share_pns_src_setup_a_skipped_token_is_commented_out_rather_than_written_empty",
+      "target": "dot_local_share_pns_src_setup_parsed",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "dot_local/share/pns/src/setup.rs",
+      "source_location": "L474",
+      "weight": 1.0
+    },
+    {
       "source": "dot_local_share_pns_src_setup_a_walk_that_armed_nothing_still_writes_the_core",
       "target": "dot_local_share_pns_src_setup_compose_config",
       "relation": "calls",
@@ -95028,7 +95028,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L419",
+      "source_location": "L421",
       "weight": 1.0
     },
     {
@@ -95040,7 +95040,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L420",
+      "source_location": "L422",
       "weight": 1.0
     },
     {
@@ -95064,7 +95064,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L479",
+      "source_location": "L481",
       "weight": 1.0
     },
     {
@@ -95076,7 +95076,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L479",
+      "source_location": "L481",
       "weight": 1.0
     },
     {
@@ -95088,7 +95088,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L488",
+      "source_location": "L490",
       "weight": 1.0
     },
     {
@@ -95100,7 +95100,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L605",
+      "source_location": "L607",
       "weight": 1.0
     },
     {
@@ -95112,7 +95112,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L606",
+      "source_location": "L608",
       "weight": 1.0
     },
     {
@@ -95124,7 +95124,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L608",
+      "source_location": "L610",
       "weight": 1.0
     },
     {
@@ -95172,7 +95172,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L572",
+      "source_location": "L574",
       "weight": 1.0
     },
     {
@@ -95184,7 +95184,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L572",
+      "source_location": "L574",
       "weight": 1.0
     },
     {
@@ -95196,7 +95196,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L455",
+      "source_location": "L457",
       "weight": 1.0
     },
     {
@@ -95208,7 +95208,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L455",
+      "source_location": "L457",
       "weight": 1.0
     },
     {
@@ -121176,7 +121176,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L377",
+      "source_location": "L379",
       "weight": 1.0
     },
     {
@@ -121188,7 +121188,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L378",
+      "source_location": "L380",
       "weight": 1.0
     },
     {
@@ -135672,7 +135672,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L391",
+      "source_location": "L393",
       "weight": 1.0
     },
     {
@@ -135744,7 +135744,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L408",
+      "source_location": "L410",
       "weight": 1.0
     },
     {
@@ -174971,7 +174971,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L391",
+      "source_location": "L393",
       "weight": 1.0
     },
     {
@@ -174982,7 +174982,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L408",
+      "source_location": "L410",
       "weight": 1.0
     },
     {
@@ -174993,7 +174993,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L413",
+      "source_location": "L415",
       "weight": 1.0
     },
     {
@@ -175004,7 +175004,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L449",
+      "source_location": "L451",
       "weight": 1.0
     },
     {
@@ -175026,7 +175026,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L467",
+      "source_location": "L469",
       "weight": 1.0
     },
     {
@@ -175037,7 +175037,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L478",
+      "source_location": "L480",
       "weight": 1.0
     },
     {
@@ -175048,7 +175048,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L521",
+      "source_location": "L523",
       "weight": 1.0
     },
     {
@@ -175059,7 +175059,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L568",
+      "source_location": "L570",
       "weight": 1.0
     },
     {
@@ -175070,7 +175070,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L582",
+      "source_location": "L584",
       "weight": 1.0
     },
     {
@@ -175081,7 +175081,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L598",
+      "source_location": "L600",
       "weight": 1.0
     },
     {
@@ -175092,7 +175092,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L615",
+      "source_location": "L617",
       "weight": 1.0
     },
     {
@@ -175103,7 +175103,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L628",
+      "source_location": "L630",
       "weight": 1.0
     },
     {
@@ -197433,7 +197433,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "dot_local/share/pns/src/setup.rs",
-      "source_location": "L409",
+      "source_location": "L411",
       "weight": 1.0
     },
     {
@@ -198482,5 +198482,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "22bad530818b8109631d12fbb9d710092c57cbbe"
+  "built_at_commit": "6247d077d053b96abc081c92f910574ad1112283"
 }
