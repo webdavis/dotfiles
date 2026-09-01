@@ -7332,7 +7332,9 @@ fn read_answer() -> Result<String, String> {
 /// Turns the terminal's echo off for as long as it lives. `Drop` restores
 /// both the termios state and the signal mask it holds, on every exit path
 /// including EOF and an unwinding panic: this crate carries no
-/// `panic = "abort"`, so Drop always runs.
+/// `panic = "abort"`, so Drop always runs. Arming applies `TCSAFLUSH`, which
+/// also discards whatever was already queued, so a secret typed ahead of its
+/// own prompt is lost rather than read.
 struct Hushed {
     original: libc::termios,
     original_mask: libc::sigset_t,
