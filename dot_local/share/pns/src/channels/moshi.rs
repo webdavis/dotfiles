@@ -97,12 +97,13 @@ pub fn moshi_secret(settings: &toml::Table) -> Option<String> {
 ///
 /// WHAT THE TAP ACTUALLY DOES, stated rather than fought: moshi looks for an
 /// active card matching server session AND workspace, else resumes the most
-/// recently minimized card for that session, and with no active or minimized
-/// card the tap does nothing. This link names neither, so it rides whichever
-/// card the phone already has and asks the host daemon to refine it to the
-/// pane; a pane-only link is best-effort exact focus with no parent to
-/// degrade to. It is a DECORATION, so no pane means no action and the card
-/// ships exactly as it does without this.
+/// recently minimized card for that session, and with no card matching at all
+/// it SHOWS AN ERROR rather than opening a connection, because these links
+/// only ever resume a card moshi already holds. This link names neither, so it
+/// rides whichever card the phone already has and asks the host daemon to
+/// refine it to the pane; a pane-only link is best-effort exact focus with no
+/// parent to degrade to. It is a DECORATION, so no pane means no action and
+/// the card ships exactly as it does without this.
 pub fn herdr_link(pane: &str) -> Option<String> {
     crate::safety::pane_is_safe(pane).then(|| format!("moshi://herdr?pane={pane}"))
 }
