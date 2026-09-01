@@ -1909,7 +1909,11 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
 /// are two questions about one moment, and a boundary crossed between two
 /// measurements cards a phone with no round trip behind it.
 fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
-    pns::engine::operator_surface(probes, &overrides_from_env(), now_secs())
+    // THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off this probe set's own
+    // memoized cell rather than a fresh wall-clock read: see R4-1. Two reads
+    // of the wall clock for one event is the boundary that drifted a phone
+    // reading and a desk reading apart.
+    pns::engine::operator_surface(probes, &overrides_from_env(), probes.now_secs())
         != pns::surface::Surface::Desk
 }
 
@@ -2345,10 +2349,11 @@ fn run_event(
     // against it.
     let durable_route = selection.iter().any(|plugin| plugin.name == "hermes");
 
-    let now_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|since_epoch| since_epoch.as_secs());
+    // THE SAME CLOCK `forward_to_moshi` ALREADY READ for this event, off this
+    // probe set's own memoized cell: see R4-1. A second wall-clock read here
+    // is exactly the boundary that let a phone reading and a desk reading
+    // about one event disagree.
+    let now_secs = probes.now_secs();
     // THE MUTE IS AN INPUT TO THE DECISION, stated here and nowhere else. It
     // is never a filter over `decision.legs` afterwards: which legs are
     // decorative is routing's policy, and re-deriving it here would be the
