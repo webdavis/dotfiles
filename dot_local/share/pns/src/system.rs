@@ -537,6 +537,13 @@ impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
     /// layout names the origin's tab as well, so the third call is gone.
     /// Either call failing yields None, which the model reads as Unknown
     /// rather than as "not visible".
+    ///
+    /// NO CELL, UNLIKE THE OTHER FOUR PROBES ON THIS STRUCT: this has exactly
+    /// one production reader (`engine.rs:401`), so "one probe set is one
+    /// reading" already holds by call site alone, with nothing to memoize
+    /// against. A second production reader would need the same `OnceCell`
+    /// the other four carry, to keep that property true once it is no longer
+    /// free.
     fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
         let focused_tab = parse_focused_tab(&self.herdr("workspace", &["list"])?)?;
         let layout = parse_layout(&self.herdr("pane", &["layout", "--pane", origin_pane])?)?;
