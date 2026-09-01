@@ -29,6 +29,11 @@ set -uo pipefail
 
 BREW="${HOMEBREW_WEEKLY_BREW:-/opt/homebrew/bin/brew}"
 MAS="${HOMEBREW_WEEKLY_MAS:-/opt/homebrew/bin/mas}"
+# npm and uv global tools joined the weekly (operator approved 2026-08-31).
+# npm MUST run with fnm's version-free bin first on PATH, or it runs on
+# whatever node PATH finds and installs into that node's prefix.
+FNM_BIN="${HOMEBREW_WEEKLY_FNM_BIN:-$HOME/.local/share/fnm/aliases/default/bin}"
+UV="${HOMEBREW_WEEKLY_UV:-/opt/homebrew/bin/uv}"
 GTIMEOUT="${HOMEBREW_WEEKLY_GTIMEOUT:-/opt/homebrew/bin/gtimeout}"
 # The mas declarations the APPLY publishes and deliberately does not run: the
 # App Store wedges interactive runs, so new declarations install here instead.
@@ -454,6 +459,27 @@ mas_declarations() {
   "$GTIMEOUT" 180 "$BREW" bundle --no-upgrade --file="$MAS_MANIFEST"
 }
 
+# shellcheck disable=SC2329,SC2317 # invoked indirectly, as an argument to run()
+npm_globals_upgrade() {
+  # ABSENT IS THE ORDINARY STATE on a machine without the fnm lane (and in the
+  # test sandbox), the same reading the mas manifest gets: nothing to upgrade
+  # is a clean skip, not a failure.
+  [[ -x $FNM_BIN/npm ]] || {
+    printf 'npm is not at %s; nothing to upgrade\n' "$FNM_BIN/npm"
+    return 0
+  }
+  PATH="$FNM_BIN:$PATH" "$FNM_BIN/npm" update -g
+}
+
+# shellcheck disable=SC2329,SC2317 # invoked indirectly, as an argument to run()
+uv_tools_upgrade() {
+  [[ -x $UV ]] || {
+    printf 'uv is not at %s; nothing to upgrade\n' "$UV"
+    return 0
+  }
+  "$UV" tool upgrade --all
+}
+
 run "brew update" "$BREW" update
 run "brew outdated" "$BREW" outdated
 run "mas outdated" "$MAS" outdated
@@ -468,6 +494,8 @@ run "osquery config converge (after upgrade)" converge_osquery
 run "mas upgrade" "$MAS" upgrade
 run "mas declarations (bounded)" mas_declarations
 run "brew cleanup" "$BREW" cleanup
+run "npm globals upgrade" npm_globals_upgrade
+run "uv tools upgrade" uv_tools_upgrade
 
 printf '=== done %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
