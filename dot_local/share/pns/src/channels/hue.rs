@@ -77,6 +77,14 @@ pub struct QuietWindow {
     end: u16,
 }
 
+impl QuietWindow {
+    /// The minute of the local day this window ends at, which is the one thing
+    /// a BARE `pns lights quiet` needs from it.
+    pub fn ends_at(&self) -> u16 {
+        self.end
+    }
+}
+
 /// The window the operator configured, or None for no window at all.
 ///
 /// A value that is not a `HH:MM-HH:MM` string is a REFUSAL rather than a

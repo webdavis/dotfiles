@@ -4226,8 +4226,8 @@ fn lights_mode(verb: &str) -> i32 {
     }
 }
 
-const LIGHTS_USAGE: &str =
-    "pns: usage: pns lights tick | pns lights quiet [<place> <duration|off>]";
+const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
+pns lights quiet [<place> [<duration>|off]]";
 
 /// The lamps' own mute: one place, quiet for a bounded while, by hand.
 ///
@@ -4251,7 +4251,8 @@ fn lights_quiet() -> i32 {
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect();
     let home = std::env::var("HOME").unwrap_or_default();
-    let known = match load_config(&config_path(&home)) {
+    let loaded = load_config(&config_path(&home));
+    let known = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => config
             .lights
             .as_deref()
@@ -4263,7 +4264,21 @@ fn lights_quiet() -> i32 {
         // this command first.
         _ => Vec::new(),
     };
-    let command = match pns::lights::quiet_command(&arguments, &known) {
+    let state = state_dir();
+    let now = now_secs();
+    // HOW LONG A BARE MUTE LASTS, off the operator's OWN schedule rather than
+    // any one room's dim window: a mute typed at bedtime is about their night.
+    // A window nobody can parse states no schedule, which the refusal covers.
+    let until_quiet_ends = pns::lights::bare_mute_secs(
+        match &loaded {
+            Ok(LoadOutcome::Loaded(config)) => enabled_hue_table(config)
+                .and_then(|settings| quiet_window(&settings).ok().flatten())
+                .map(|window| window.ends_at()),
+            _ => None,
+        },
+        now.and_then(local_minutes_since_midnight),
+    );
+    let command = match pns::lights::quiet_command(&arguments, &known, until_quiet_ends) {
         Ok(command) => command,
         Err(refusal) => {
             eprintln!("{refusal}");
@@ -4271,8 +4286,6 @@ fn lights_quiet() -> i32 {
             return 2;
         }
     };
-    let state = state_dir();
-    let now = now_secs();
     let (entries, complaints) = muted_state(&state);
     // SAID BEFORE ANYTHING IS WRITTEN, because the write below republishes the
     // whole file: an operator whose file was unreadable is losing whatever it

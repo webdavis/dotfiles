@@ -680,12 +680,33 @@ pub enum QuietCommand {
 ///
 /// THE DURATION IS `quiet::parse_duration`'S, refusal and all, so a second
 /// spelling of "how long" cannot exist and neither can a second set of bounds.
-pub fn quiet_command(arguments: &[String], known: &[String]) -> Result<QuietCommand, String> {
+pub fn quiet_command(
+    arguments: &[String],
+    known: &[String],
+    until_quiet_ends: Option<u64>,
+) -> Result<QuietCommand, String> {
     match arguments {
         [] => Ok(QuietCommand::Report),
         [place, word] if word == "off" => Ok(QuietCommand::Unmute {
             place: place.clone(),
         }),
+        [place] => {
+            if !known.iter().any(|name| name == place) {
+                return Err(unmutable(place, known));
+            }
+            // NO SCHEDULE IS A REFUSAL, never a guessed duration. A bare mute
+            // means "until my quiet hours end", and a machine that has not said
+            // when those are has not said how long this mute lasts; picking a
+            // length would be a mute the operator did not ask for, ending at an
+            // hour they cannot predict.
+            let Some(seconds) = until_quiet_ends else {
+                return Err(NO_SCHEDULE.to_string());
+            };
+            Ok(QuietCommand::Mute {
+                place: place.clone(),
+                seconds,
+            })
+        }
         [place, word] => {
             if !known.iter().any(|name| name == place) {
                 return Err(unmutable(place, known));
@@ -699,11 +720,37 @@ pub fn quiet_command(arguments: &[String], known: &[String]) -> Result<QuietComm
         // report: a typo the operator does not see is a mute they believe is
         // on.
         _ => Err(
-            "pns: lights quiet takes a place and a duration, a place and \
+            "pns: lights quiet takes a place, optionally with a duration or \
                   off, or nothing at all"
                 .to_string(),
         ),
     }
+}
+
+/// Why a bare mute cannot be set on a machine with no quiet hours.
+const NO_SCHEDULE: &str = "pns: lights quiet: a bare mute lasts until your quiet \
+hours end, and `[plugins.hue] quiet_hours` states none; give a duration instead, \
+or set that key";
+
+/// How long a BARE mute lasts: from now until the operator's quiet hours end.
+///
+/// THE SCHEDULE IS `[plugins.hue] quiet_hours` and there is no second one. A
+/// mute typed at bedtime is about the operator's night, not about one room's
+/// own dim window, and a room's window is a rendering rule that has nothing to
+/// say about how long a by-hand silence should last.
+///
+/// NONE WHEN EITHER READING IS MISSING. No schedule is the refusal above; no
+/// clock is a mute nothing could time, and the caller already refuses without
+/// one.
+///
+/// NOW AT THE END MINUTE IS A WHOLE DAY, not nothing. The window ends at this
+/// second, so the next end is tomorrow's; a mute of zero seconds is not a mute,
+/// and the operator asked for one.
+pub fn bare_mute_secs(ends_at: Option<u16>, minutes_now: Option<u16>) -> Option<u64> {
+    let (ends_at, now) = (ends_at?, minutes_now?);
+    const DAY: u64 = 24 * 60;
+    let until = (u64::from(ends_at) + DAY - u64::from(now)) % DAY;
+    Some(if until == 0 { DAY } else { until } * 60)
 }
 
 /// Why one name cannot be muted, and what can be instead.
@@ -851,11 +898,11 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 mod tests {
     use super::{
         Action, FADE_LEAD_MS, Fade, Held, House, Loop, MAX_MUTED_PLACES, Muted, News, QuietCommand,
-        Say, Streak, Unread, WORKING, active_held, any_blocked, any_working, blocked_marker,
-        blocked_marker_action, breath_fades, loop_running, muted_after, muted_entries,
-        muted_places, muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
-        quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
-        workspace_agent_statuses,
+        Say, Streak, Unread, WORKING, active_held, any_blocked, any_working, bare_mute_secs,
+        blocked_marker, blocked_marker_action, breath_fades, loop_running, muted_after,
+        muted_entries, muted_places, muted_report, news_after, next_streak, parse_news,
+        parse_streak, pulse_fires, quiet_command, render_muted, render_news, render_streak, say,
+        shown, unread_arming, workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1704,7 +1751,7 @@ mod tests {
         let known = places(&["3F - Studio"]);
         for typed in ["0s", "25h", "1441m", "9223372036854775807h"] {
             assert_eq!(
-                quiet_command(&typed_at("3F - Studio", typed), &known),
+                quiet_command(&typed_at("3F - Studio", typed), &known, ONE_HOUR),
                 Err(format!(
                     "pns: quiet duration {typed:?} is outside 1s to 24h"
                 )),
@@ -1713,7 +1760,7 @@ mod tests {
         }
         for typed in ["30", "", "1d", " 5m"] {
             assert_eq!(
-                quiet_command(&typed_at("3F - Studio", typed), &known),
+                quiet_command(&typed_at("3F - Studio", typed), &known, ONE_HOUR),
                 Err(format!(
                     "pns: quiet duration {typed:?} is not <count><s|m|h>"
                 )),
@@ -1721,7 +1768,7 @@ mod tests {
             );
         }
         assert_eq!(
-            quiet_command(&typed_at("3F - Studio", "30m"), &known),
+            quiet_command(&typed_at("3F - Studio", "30m"), &known, ONE_HOUR),
             Ok(QuietCommand::Mute {
                 place: "3F - Studio".to_string(),
                 seconds: 1_800,
@@ -1738,7 +1785,7 @@ mod tests {
         // the hour they were trying not to be disturbed.
         let known = places(&["3F - Studio", "3F - Studio - HCL3"]);
         assert_eq!(
-            quiet_command(&typed_at("3F - Nowhere", "30m"), &known),
+            quiet_command(&typed_at("3F - Nowhere", "30m"), &known, ONE_HOUR),
             Err("pns: lights quiet: \"3F - Nowhere\" is no room or lamp a \
                  [lights.families] claim names; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
@@ -1746,7 +1793,7 @@ mod tests {
             "a place nothing in the config names"
         );
         assert_eq!(
-            quiet_command(&typed_at("3f - studio", "30m"), &known),
+            quiet_command(&typed_at("3f - studio", "30m"), &known, ONE_HOUR),
             Err("pns: lights quiet: \"3f - studio\" is no room or lamp a \
                  [lights.families] claim names; a mute reaches \"3F - Studio\", \
                  \"3F - Studio - HCL3\""
@@ -1755,7 +1802,7 @@ mod tests {
              which is how the bridge listing reads it too"
         );
         assert_eq!(
-            quiet_command(&typed_at("3F - Studio - HCL3", "30m"), &known),
+            quiet_command(&typed_at("3F - Studio - HCL3", "30m"), &known, ONE_HOUR),
             Ok(QuietCommand::Mute {
                 place: "3F - Studio - HCL3".to_string(),
                 seconds: 1_800,
@@ -1763,7 +1810,7 @@ mod tests {
             "the control: a lamp the config names is stored"
         );
         assert_eq!(
-            quiet_command(&typed_at("3F - Nowhere", "off"), &known),
+            quiet_command(&typed_at("3F - Nowhere", "off"), &known, ONE_HOUR),
             Ok(QuietCommand::Unmute {
                 place: "3F - Nowhere".to_string(),
             }),
@@ -1772,12 +1819,16 @@ mod tests {
              otherwise be a mute nothing could clear"
         );
         assert_eq!(
-            quiet_command(&[], &known),
+            quiet_command(&[], &known, ONE_HOUR),
             Ok(QuietCommand::Report),
             "no argument reports and mutes nothing"
         );
         assert_eq!(
-            quiet_command(&typed_at("3F - Studio - HCL1", "30m"), &places(&[])),
+            quiet_command(
+                &typed_at("3F - Studio - HCL1", "30m"),
+                &places(&[]),
+                ONE_HOUR
+            ),
             Err(
                 "pns: lights quiet: \"3F - Studio - HCL1\" is no room or lamp a \
                  [lights.families] claim names; this config claims no lamp at \
@@ -1787,21 +1838,103 @@ mod tests {
             "and a config that claims nothing says so rather than trailing off \
              after `a mute reaches`"
         );
-        for arguments in [
-            vec!["3F - Studio".to_string()],
-            vec![
-                "3F - Studio".to_string(),
-                "30m".to_string(),
-                "x".to_string(),
-            ],
-        ] {
-            assert_eq!(
-                quiet_command(&arguments, &known),
-                Err("pns: lights quiet takes a place and a duration, a place \
-                     and off, or nothing at all"
-                    .to_string()),
-                "arguments: {arguments:?}"
-            );
+        let arguments = vec![
+            "3F - Studio".to_string(),
+            "30m".to_string(),
+            "x".to_string(),
+        ];
+        assert_eq!(
+            quiet_command(&arguments, &known, ONE_HOUR),
+            Err(
+                "pns: lights quiet takes a place, optionally with a duration \
+                 or off, or nothing at all"
+                    .to_string()
+            ),
+            "arguments: {arguments:?}"
+        );
+    }
+
+    /// A schedule an hour away, which is what a bare mute reads.
+    const ONE_HOUR: Option<u64> = Some(3_600);
+
+    #[test]
+    fn a_bare_mute_lasts_until_the_operators_quiet_hours_end() {
+        let known = places(&["3F - Studio"]);
+        assert_eq!(
+            quiet_command(&[places(&["3F - Studio"])[0].clone()], &known, ONE_HOUR),
+            Ok(QuietCommand::Mute {
+                place: "3F - Studio".to_string(),
+                seconds: 3_600,
+            }),
+            "no duration typed: the schedule says how long"
+        );
+        // NO SCHEDULE IS A REFUSAL, never a guessed length: picking one would be
+        // a mute the operator did not ask for, ending at an hour they cannot
+        // predict.
+        assert_eq!(
+            quiet_command(&places(&["3F - Studio"]), &known, None),
+            Err(
+                "pns: lights quiet: a bare mute lasts until your quiet hours end, \
+                 and `[plugins.hue] quiet_hours` states none; give a duration \
+                 instead, or set that key"
+                    .to_string()
+            ),
+        );
+        // AND AN UNKNOWN PLACE IS STILL REFUSED BY NAME on the bare form, which
+        // is the same order the two-word form checks in: a typo must not become
+        // a mute nothing will ever match.
+        assert_eq!(
+            quiet_command(&places(&["3F - Nowhere"]), &known, ONE_HOUR),
+            Err(unmutable_sentence("3F - Nowhere", &known)),
+        );
+    }
+
+    #[test]
+    fn how_long_a_bare_mute_runs_is_the_minutes_from_now_to_the_windows_end() {
+        // 22:00 to 07:00, which is the window every room in the operator's own
+        // config carries.
+        const ENDS_AT_0700: Option<u16> = Some(7 * 60);
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, Some(23 * 60)),
+            Some(8 * 3_600),
+            "typed at 23:00, the mute runs to 07:00: eight hours over midnight"
+        );
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, Some(6 * 60)),
+            Some(3_600),
+            "and typed at 06:00 it runs one hour, which is the rest of the window"
+        );
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, Some(15 * 60)),
+            Some(16 * 3_600),
+            "typed outside the window it still runs to the next end, which is what \
+             `until my quiet hours end` says"
+        );
+        // NOW AT THE END MINUTE IS A WHOLE DAY, not nothing: the window ends
+        // this second, so the next end is tomorrow's, and a mute of zero seconds
+        // is not a mute.
+        assert_eq!(bare_mute_secs(ENDS_AT_0700, Some(7 * 60)), Some(24 * 3_600));
+        assert_eq!(
+            bare_mute_secs(None, Some(23 * 60)),
+            None,
+            "no schedule is no bare mute"
+        );
+        assert_eq!(
+            bare_mute_secs(ENDS_AT_0700, None),
+            None,
+            "and neither is a clock this run cannot read"
+        );
+        // IT NEVER EXCEEDS THE DURATION CAP the typed form is held to, which is
+        // what keeps one command from having two sets of bounds.
+        assert!(bare_mute_secs(ENDS_AT_0700, Some(7 * 60 + 1)) <= Some(24 * 3_600));
+    }
+
+    /// The refusal `quiet_command` gives for a place nothing names, so a test
+    /// asserting it does not restate the sentence.
+    fn unmutable_sentence(place: &str, known: &[String]) -> String {
+        match quiet_command(&places(&[place]), known, Some(1)) {
+            Err(said) => said,
+            other => panic!("expected a refusal, got {other:?}"),
         }
     }
 
