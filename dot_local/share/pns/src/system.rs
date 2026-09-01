@@ -880,7 +880,11 @@ mod tests {
         // bypassed the cell would answer the real epoch here, not 42.
         let probes = probes_answering("unused").with_clock(42);
         assert_eq!(probes.now_secs(), Some(42));
-        assert_eq!(probes.now_secs(), Some(42), "and the same answer both times");
+        assert_eq!(
+            probes.now_secs(),
+            Some(42),
+            "and the same answer both times"
+        );
     }
 
     // --- parse_idle_nanoseconds --------------------------------------------
