@@ -314,6 +314,76 @@ pub fn loop_running(state: &Loop<'_>) -> bool {
             .any(|at| marker_is_live(*at, state.now, state.lease_timeout_secs))
 }
 
+/// What the operator typed at `pns loop`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoopCommand {
+    /// Take a lease for this pane, and hold the lamp until it is given back or
+    /// times out.
+    Begin(String),
+    /// Give it back.
+    End(String),
+}
+
+/// Where a pane's loop lease lives: one file per pane holding one epoch.
+///
+/// A DIRECTORY, LIKE THE WAITS, because several panes can each be running a
+/// loop and each must be the only writer and the only ordinary remover of its
+/// own file. One shared file would be a lease any other pane erases.
+pub fn lease_dir(state_dir: &std::path::Path) -> std::path::PathBuf {
+    state_dir.join("lights-loop")
+}
+
+/// One pane's lease path, or None for a pane id that cannot become a filename.
+pub fn lease_marker(state_dir: &std::path::Path, pane: &str) -> Option<std::path::PathBuf> {
+    crate::safety::pane_file_is_safe(pane).then(|| lease_dir(state_dir).join(pane))
+}
+
+/// The typed command, or the refusal that says what was missing.
+///
+/// THE PANE IS THE OPERATOR'S OWN, TAKEN FROM THE ENVIRONMENT they typed in,
+/// because that is what a lease is keyed to: `HERDR_PANE_ID` is set for every
+/// pane herdr owns, so the ordinary case needs no argument at all.
+///
+/// TYPED OUTSIDE A PANE IT IS A REFUSAL, NEVER A GUESS. There is no sensible
+/// pane to pick, and picking one would key the lease to a pane whose ordinary
+/// traffic will never renew it: the lamp would then breathe for the whole
+/// timeout with nothing behind it, which is the exact opposite of a liveness
+/// signal.
+///
+/// AN UNKNOWN ARGUMENT IS AN ERROR, never a silent fallthrough, because a
+/// mistyped flag would otherwise be a lease the operator believes they took.
+pub fn loop_command(
+    verb: &str,
+    arguments: &[String],
+    env_pane: Option<&str>,
+) -> Result<LoopCommand, String> {
+    let pane = match arguments {
+        [] => env_pane
+            .filter(|pane| !pane.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| NO_PANE.to_string())?,
+        [flag, pane] if flag == "--pane" => pane.clone(),
+        _ => return Err(LOOP_USAGE.to_string()),
+    };
+    if !crate::safety::pane_file_is_safe(&pane) {
+        return Err(format!(
+            "pns: loop: {pane:?} is not a pane id this can key a lease to"
+        ));
+    }
+    match verb {
+        "begin" => Ok(LoopCommand::Begin(pane)),
+        "end" => Ok(LoopCommand::End(pane)),
+        _ => Err(LOOP_USAGE.to_string()),
+    }
+}
+
+/// Why a lease cannot be taken with no pane to key it to.
+const NO_PANE: &str = "pns: loop: no HERDR_PANE_ID in this environment, so there \
+is no pane to key the lease to; run it inside the pane, or name one with --pane";
+
+pub const LOOP_USAGE: &str = "pns: usage: pns loop begin [--pane <id>] | \
+pns loop end [--pane <id>]";
+
 /// Whether any wait is still live.
 pub fn any_blocked(marker_epochs: &[u64], now: u64, max_age_secs: u64) -> bool {
     marker_epochs
@@ -897,12 +967,13 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Action, FADE_LEAD_MS, Fade, Held, House, Loop, MAX_MUTED_PLACES, Muted, News, QuietCommand,
-        Say, Streak, Unread, WORKING, active_held, any_blocked, any_working, bare_mute_secs,
-        blocked_marker, blocked_marker_action, breath_fades, loop_running, muted_after,
-        muted_entries, muted_places, muted_report, news_after, next_streak, parse_news,
-        parse_streak, pulse_fires, quiet_command, render_muted, render_news, render_streak, say,
-        shown, unread_arming, workspace_agent_statuses,
+        Action, FADE_LEAD_MS, Fade, Held, House, LOOP_USAGE, Loop, LoopCommand, MAX_MUTED_PLACES,
+        Muted, News, QuietCommand, Say, Streak, Unread, WORKING, active_held, any_blocked,
+        any_working, bare_mute_secs, blocked_marker, blocked_marker_action, breath_fades,
+        lease_marker, loop_command, loop_running, muted_after, muted_entries, muted_places,
+        muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
+        quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
+        workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1312,6 +1383,89 @@ mod tests {
         // not a wait that ended, and the saturating subtraction reads it as
         // zero seconds old rather than as an age that would delete it.
         assert!(any_blocked(&[NOW + 500], NOW, BOUND));
+    }
+
+    // --- the loop lease -----------------------------------------------------
+
+    #[test]
+    fn a_lease_is_keyed_to_the_pane_it_was_typed_in_and_refused_when_there_is_none() {
+        assert_eq!(
+            loop_command("begin", &[], Some("wW:p21")),
+            Ok(LoopCommand::Begin("wW:p21".to_string())),
+            "the ordinary case takes the pane out of the environment and needs no \
+             argument at all"
+        );
+        assert_eq!(
+            loop_command("end", &[], Some("wW:p21")),
+            Ok(LoopCommand::End("wW:p21".to_string())),
+        );
+        assert_eq!(
+            loop_command(
+                "begin",
+                &["--pane".to_string(), "wW:p9".to_string()],
+                Some("wW:p21")
+            ),
+            Ok(LoopCommand::Begin("wW:p9".to_string())),
+            "and an explicit pane beats the environment, which is how a lease is \
+             taken for a pane other than this one"
+        );
+        // REFUSED, NEVER GUESSED. A lease keyed to a pane whose ordinary traffic
+        // will never renew it breathes for the whole timeout with nothing behind
+        // it, which is the opposite of a liveness signal.
+        for absent in [None, Some("")] {
+            assert_eq!(
+                loop_command("begin", &[], absent),
+                Err(
+                    "pns: loop: no HERDR_PANE_ID in this environment, so there is no \
+                     pane to key the lease to; run it inside the pane, or name one \
+                     with --pane"
+                        .to_string()
+                ),
+                "env pane {absent:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_pane_that_cannot_name_a_file_and_an_argument_this_does_not_know_are_refused() {
+        assert_eq!(
+            loop_command("begin", &["--pane".to_string(), "../x".to_string()], None),
+            Err("pns: loop: \"../x\" is not a pane id this can key a lease to".to_string()),
+            "the path-escape guard, through the predicate that backs the filename"
+        );
+        for arguments in [
+            vec!["--pain".to_string(), "wW:p9".to_string()],
+            vec!["wW:p9".to_string()],
+            vec![],
+        ] {
+            let refused = if arguments.is_empty() {
+                loop_command("resume", &arguments, Some("wW:p21"))
+            } else {
+                loop_command("begin", &arguments, Some("wW:p21"))
+            };
+            assert_eq!(
+                refused,
+                Err(LOOP_USAGE.to_string()),
+                "arguments: {arguments:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_pane_id_that_cannot_be_a_filename_names_no_lease_at_all() {
+        let state = std::path::Path::new("/state");
+        assert_eq!(
+            lease_marker(state, "wW:p21"),
+            Some(state.join("lights-loop").join("wW:p21")),
+            "herdr's own id names a file inside the lease directory, colon and all"
+        );
+        for refused in ["..", "../etc/passwd", "a/b", "", "a b"] {
+            assert_eq!(
+                lease_marker(state, refused),
+                None,
+                "{refused:?} must name no lease"
+            );
+        }
     }
 
     // --- per-lamp arbitration -----------------------------------------------

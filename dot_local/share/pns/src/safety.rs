@@ -21,6 +21,16 @@ pub fn pane_is_safe(pane: &str) -> bool {
         })
 }
 
+/// True when a pane id may become a FILENAME as well as a shell word.
+///
+/// THE PANE ALLOWLIST PLUS ONE REFUSAL, rather than a third allowlist. herdr's
+/// own ids carry a colon (`wW:p21`), so `session_id_is_safe` refuses every real
+/// one; what the pane predicate permits and a filename cannot is the parent
+/// reference, because a pane id becomes a shell WORD there and never a path.
+pub fn pane_file_is_safe(pane: &str) -> bool {
+    pane_is_safe(pane) && !pane.contains("..")
+}
+
 /// True when a harness-supplied session id may be used as a FILENAME. The id
 /// arrives inside a hook payload and is interpolated into a path, so a value
 /// carrying a separator or a parent reference would write outside its
@@ -52,7 +62,7 @@ pub fn route_name_is_usable(route: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{pane_is_safe, session_id_is_safe};
+    use super::{pane_file_is_safe, pane_is_safe, session_id_is_safe};
 
     // --- pane_is_safe ------------------------------------------------------
 
@@ -99,6 +109,26 @@ mod tests {
         // relaxing the test to every unicode letter admits a hundred thousand
         // of them in one edit, none of them examined.
         assert!(!pane_is_safe("panée"));
+    }
+
+    // --- pane_file_is_safe -------------------------------------------------
+
+    #[test]
+    fn a_pane_id_that_names_a_file_keeps_its_colon_and_loses_its_parent_reference() {
+        // THE COLON EARNS ITS PLACE HERE for the reason it does one predicate
+        // up: herdr's real ids carry one, and refusing it would refuse every
+        // lease an operator could ever take.
+        assert!(pane_file_is_safe("wW:p21"));
+        assert!(pane_file_is_safe("pane-1.2_3"));
+        // AND THE PARENT REFERENCE LOSES ITS PLACE, because this one becomes a
+        // path: a pane id spelling `..` would write outside the lease
+        // directory.
+        for refused in ["..", "../etc/passwd", "a..b", "a/b", "", "a;b", "a b"] {
+            assert!(
+                !pane_file_is_safe(refused),
+                "{refused:?} must not name a lease file"
+            );
+        }
     }
 
     // --- session_id_is_safe ------------------------------------------------

@@ -83,6 +83,11 @@ fn main() {
     if first == *"lights" {
         std::process::exit(lights_mode(&second_argument()));
     }
+    // The loop lease, taken and given back by hand. A MODE beside the lamps'
+    // for the same reason: it moves one file and delivers nothing.
+    if first == *"loop" {
+        std::process::exit(loop_mode(&second_argument()));
+    }
     // The nudge about an approval nobody answered. A MODE for the reason the
     // others are: it takes no decision from an event and reads no stdin. It
     // takes NO SESSION ARGUMENT either, because coalescing means it looks at
@@ -2393,6 +2398,10 @@ fn run_event(
             pns::pulse::state_behaviour(&event.state, true),
             decision.inputs.now_secs,
         );
+        // AND THE LOOP LEASE THIS PANE HOLDS, if it holds one. The renewal is
+        // the pane's own ordinary traffic, which is what makes the lease a
+        // liveness signal rather than a timer.
+        renew_loop_lease(&state_dir(), &event.pane, decision.inputs.now_secs);
     }
     // AND THE ACTIVITY RING WITH IT, at the same site and under the same
     // ordering contract and the same fail-quiet rule. It records
@@ -4229,6 +4238,116 @@ fn lights_mode(verb: &str) -> i32 {
 const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
 pns lights quiet [<place> [<duration>|off]]";
 
+/// `pns loop begin|end`: take the loop lamp by hand, and give it back.
+///
+/// THE LEASE IS THE SECOND TRIGGER, beside the automatic one, and it exists for
+/// work whose length nothing can measure in advance: an overnight run is a loop
+/// from the moment it starts, not once it has been going five minutes.
+///
+/// IT WRITES ONE FILE AND NOTHING ELSE. The tick is what reads it, so a daemon
+/// that is down means the lamp simply does not light, and `pns loop end` on a
+/// machine that never began is a removal of a file that is not there.
+fn loop_mode(verb: &str) -> i32 {
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(3)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let command = match pns::lights::loop_command(
+        verb,
+        &arguments,
+        std::env::var("HERDR_PANE_ID").ok().as_deref(),
+    ) {
+        Ok(command) => command,
+        Err(refusal) => {
+            eprintln!("{refusal}");
+            return 2;
+        }
+    };
+    let state = state_dir();
+    match command {
+        pns::lights::LoopCommand::Begin(pane) => {
+            // NO CLOCK IS NO LEASE, never a lease at epoch zero: the timeout is
+            // measured against this number, and a zero would be expired the
+            // moment it was written.
+            let (Some(marker), Some(now)) = (pns::lights::lease_marker(&state, &pane), now_secs())
+            else {
+                eprintln!("pns: loop: the clock cannot be read; the lease was not taken");
+                return 1;
+            };
+            if let Err(error) = publish_state_line(&marker, &now.to_string()) {
+                // LOUD, because a human is waiting on the answer: a lease that
+                // was not taken is a lamp that never lights, and reporting
+                // success for one is the worst outcome available.
+                eprintln!("pns: loop: the lease could not be written: {error}");
+                return 1;
+            }
+        }
+        pns::lights::LoopCommand::End(pane) => {
+            if let Some(marker) = pns::lights::lease_marker(&state, &pane) {
+                let _ = std::fs::remove_file(&marker);
+            }
+        }
+    }
+    0
+}
+
+/// Renew the lease this pane holds, if it holds one.
+///
+/// THE PANE'S ORDINARY HOOK TRAFFIC IS THE RENEWAL, which is what makes the
+/// lease a liveness signal rather than a timer: an agent that is still working
+/// is still firing events from its own pane, and one that stopped stops
+/// renewing. Nothing else in this crate renews it.
+///
+/// IT CREATES NOTHING. A pane with no lease costs one failed open, so an
+/// ordinary event on an ordinary machine never touches this directory.
+fn renew_loop_lease(state: &Path, pane: &str, now: Option<u64>) {
+    let (Some(marker), Some(now)) = (pns::lights::lease_marker(state, pane), now) else {
+        return;
+    };
+    if !marker.exists() {
+        return;
+    }
+    // The failure is DROPPED here: a lease that did not renew costs the lamp
+    // one timeout, and this process has no reader for a complaint.
+    let _ = publish_state_line(&marker, &now.to_string());
+}
+
+/// Every live lease's epoch, with the ones past the timeout REMOVED on the way
+/// through.
+///
+/// THE SWEEP LIVES WITH THE READ, for `sweep_blocked`'s reason: the tick is the
+/// only process that ever looks in this directory, and a pane that ends without
+/// `pns loop end` leaves a file nothing else would remove.
+fn sweep_leases(state: &Path, now: u64, timeout_secs: u64) -> Vec<u64> {
+    let mut live = Vec::new();
+    for entry in std::fs::read_dir(pns::lights::lease_dir(state))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        let path = entry.path();
+        // A PENDING PUBLISH IS NOT A LEASE, which is `sweep_blocked`'s own rule
+        // and its own reason: `publish_state_line` writes `<name>.new.<pid>`
+        // into this directory and renames it over the marker.
+        if path
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().contains(".new."))
+        {
+            continue;
+        }
+        match read_epoch(&path) {
+            Some(at) if pns::lights::marker_is_live(at, now, timeout_secs) => live.push(at),
+            // AN UNREADABLE LEASE IS SWEPT TOO: nothing can age out a file whose
+            // epoch cannot be read, so leaving it is unbounded growth through a
+            // different door.
+            _ => {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+    live
+}
+
 /// The lamps' own mute: one place, quiet for a bounded while, by hand.
 ///
 /// LIGHTS ONLY, and that is the operator's own scope: cards, banners, the
@@ -4657,7 +4776,7 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> pns::li
         looping: pns::lights::loop_running(&pns::lights::Loop {
             streak: streak.as_ref(),
             working,
-            leases: &[],
+            leases: &sweep_leases(state, now, lights.looping.lease_timeout_secs),
             now,
             threshold_secs: lights.looping.threshold_secs,
             lease_timeout_secs: lights.looping.lease_timeout_secs,
@@ -6728,8 +6847,9 @@ mod tests {
         DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD, LIGHTS_NEWS,
         LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, lights_report,
         matches_glob, muted_state, publish_state_line, read_news, read_note, recap_bounds,
-        record_news, republish_after, reread_attempts_from, reread_interval_from, resolve_path,
-        run_tick_writes, sweep_blocked, sweep_shell_markers, update_blocked_marker,
+        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
+        resolve_path, run_tick_writes, sweep_blocked, sweep_leases, sweep_shell_markers,
+        update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::PermissionsExt;
@@ -6992,6 +7112,53 @@ mod tests {
             "and the record survives the outage, so the next reachable tick still \
              has a name to write the clear to"
         );
+    }
+
+    #[test]
+    fn a_lease_is_renewed_only_while_it_exists_and_swept_once_it_times_out() {
+        // THE WIRING, not the rule. `loop_running` is pure and total and reads
+        // no directory, so a lease list invented at the call site leaves every
+        // one of its unit tests green while the lamp never arms by hand. The
+        // renewal is the half that matters most: it must never CREATE a lease,
+        // or every event from every pane would take one.
+        const TIMEOUT: u64 = 3_900;
+        let state = scratch("loop-lease");
+        let marker =
+            pns::lights::lease_marker(&state, "wW:p21").expect("herdr's own id names a lease");
+        std::fs::create_dir_all(pns::lights::lease_dir(&state)).expect("the lease directory");
+
+        renew_loop_lease(&state, "wW:p21", Some(1_000));
+        assert!(
+            !marker.exists(),
+            "a pane with no lease is not given one by its own traffic"
+        );
+
+        std::fs::write(&marker, "1000\n").expect("a lease taken by hand");
+        renew_loop_lease(&state, "wW:p21", Some(2_000));
+        assert_eq!(
+            sweep_leases(&state, 2_000, TIMEOUT),
+            vec![2_000],
+            "the pane's own traffic moved the lease forward"
+        );
+        assert_eq!(
+            sweep_leases(&state, 2_000 + TIMEOUT, TIMEOUT),
+            vec![2_000],
+            "exactly at the timeout it is still live: both edges closed"
+        );
+        assert_eq!(
+            sweep_leases(&state, 2_000 + TIMEOUT + 1, TIMEOUT),
+            Vec::<u64>::new(),
+            "and one second past it, an abandoned lease is gone"
+        );
+        assert!(
+            !marker.exists(),
+            "swept on the way through, because nothing else would ever remove it"
+        );
+        // AN UNREADABLE LEASE IS SWEPT TOO: nothing can age out a file whose
+        // epoch cannot be read.
+        std::fs::write(&marker, "not an epoch\n").expect("a garbled lease");
+        assert_eq!(sweep_leases(&state, 2_000, TIMEOUT), Vec::<u64>::new());
+        assert!(!marker.exists());
     }
 
     #[test]

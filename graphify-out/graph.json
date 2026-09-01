@@ -45078,7 +45078,7 @@
       "file_type": "code",
       "norm_label": "a_bare_mute_lasts_until_the_operators_quiet_hours_end()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1862"
+      "source_location": "L1861"
     },
     {
       "id": "dot_local_share_pns_src_lights_a_blocked_event_starts_a_wait_and_every_other_event_ends_one",
@@ -45144,7 +45144,7 @@
       "file_type": "code",
       "norm_label": "a_mute_past_the_places_the_file_keeps_is_refused_rather_than_written()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1951"
+      "source_location": "L1950"
     },
     {
       "id": "dot_local_share_pns_src_lights_a_place_the_config_does_not_name_is_refused_rather_than_silently_stored",
@@ -45243,7 +45243,7 @@
       "file_type": "code",
       "norm_label": "an_ad_hoc_quiet_ends_on_the_second_it_names_and_an_expired_file_mutes_nothing()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L2059"
+      "source_location": "L2058"
     },
     {
       "id": "dot_local_share_pns_src_lights_any_blocked",
@@ -45397,7 +45397,7 @@
       "file_type": "code",
       "norm_label": "how_long_a_bare_mute_runs_is_the_minutes_from_now_to_the_windows_end()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1894"
+      "source_location": "L1893"
     },
     {
       "id": "dot_local_share_pns_src_lights_live",
@@ -45551,7 +45551,7 @@
       "file_type": "code",
       "norm_label": "off_clears_one_place_and_leaves_the_others_where_they_were()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1993"
+      "source_location": "L1992"
     },
     {
       "id": "dot_local_share_pns_src_lights_one_lamp_shows_the_most_urgent_state_it_is_routed_for_and_nothing_it_is_not",
@@ -45617,7 +45617,7 @@
       "file_type": "code",
       "norm_label": "places()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1942"
+      "source_location": "L1941"
     },
     {
       "id": "dot_local_share_pns_src_lights_pulse_fires",
@@ -45925,7 +45925,7 @@
       "file_type": "code",
       "norm_label": "typed_at()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1946"
+      "source_location": "L1945"
     },
     {
       "id": "dot_local_share_pns_src_lights_unmutable",
@@ -45947,7 +45947,7 @@
       "file_type": "code",
       "norm_label": "unmutable_sentence()",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1935"
+      "source_location": "L1934"
     },
     {
       "id": "dot_local_share_pns_src_lights_unread",
@@ -82389,7 +82389,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1863",
+      "source_location": "L1862",
       "weight": 1.0
     },
     {
@@ -82557,7 +82557,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L2050",
+      "source_location": "L2049",
       "weight": 1.0
     },
     {
@@ -82629,7 +82629,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1936",
+      "source_location": "L1935",
       "weight": 1.0
     },
     {
@@ -82641,7 +82641,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1936",
+      "source_location": "L1935",
       "weight": 1.0
     },
     {
@@ -109209,7 +109209,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1942",
+      "source_location": "L1941",
       "weight": 1.0
     },
     {
@@ -109281,7 +109281,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1946",
+      "source_location": "L1945",
       "weight": 1.0
     },
     {
@@ -122649,7 +122649,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1942",
+      "source_location": "L1941",
       "weight": 1.0
     },
     {
@@ -122769,7 +122769,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1946",
+      "source_location": "L1945",
       "weight": 1.0
     },
     {
@@ -122793,7 +122793,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1935",
+      "source_location": "L1934",
       "weight": 1.0
     },
     {
@@ -156509,7 +156509,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1862",
+      "source_location": "L1861",
       "weight": 1.0
     },
     {
@@ -156531,7 +156531,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1894",
+      "source_location": "L1893",
       "weight": 1.0
     },
     {
@@ -156542,7 +156542,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1935",
+      "source_location": "L1934",
       "weight": 1.0
     },
     {
@@ -156553,7 +156553,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1942",
+      "source_location": "L1941",
       "weight": 1.0
     },
     {
@@ -156564,7 +156564,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1946",
+      "source_location": "L1945",
       "weight": 1.0
     },
     {
@@ -156575,7 +156575,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1951",
+      "source_location": "L1950",
       "weight": 1.0
     },
     {
@@ -156586,7 +156586,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L1993",
+      "source_location": "L1992",
       "weight": 1.0
     },
     {
@@ -156597,7 +156597,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "dot_local/share/pns/src/lights.rs",
-      "source_location": "L2059",
+      "source_location": "L2058",
       "weight": 1.0
     },
     {
@@ -183276,5 +183276,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "01e7e215220ea38a7827f9679f2a303723a3de94"
+  "built_at_commit": "87f309d03217950ea895e402033e1ba5fa981fac"
 }
