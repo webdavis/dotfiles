@@ -606,7 +606,11 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         let Some((key, _)) = bare.split_once(" = ") else {
             continue;
         };
-        if !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') || key.is_empty() {
+        if !key
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            || key.is_empty()
+        {
             continue;
         }
         // A nested table carries the operator's own name; the roster holds
