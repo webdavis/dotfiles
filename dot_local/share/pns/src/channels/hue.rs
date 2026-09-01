@@ -948,8 +948,9 @@ impl<B: Bridge> HuePulse<B> {
 ///
 /// AND IT STATES NO BRIGHTNESS, ever. This is the path of a machine with no
 /// `[lights]` table and of `pns pulse` on a machine with one: no routing is in
-/// reach to dim, so nothing here can have left a floor on a lamp and the body is
-/// the one that shipped, byte for byte.
+/// reach to dim, so nothing here can have left a floor on a lamp. The duration
+/// stays fixed; the color follows wherever `SUCCESS_COLOR`/`FAILURE_COLOR` are
+/// locked to, so it is not byte-identical across a color relock.
 pub fn signal_fixtures<B: Bridge>(
     bridge: &B,
     fixtures: &[Fixture],
@@ -977,10 +978,12 @@ pub fn signal_fixtures<B: Bridge>(
 /// How long the no-map pulse flashes, in milliseconds.
 ///
 /// THREE SECONDS, AND IT IS NOT THE LOCKED FOUR. This is the body a machine with
-/// no `[lights]` table sends, and it is kept byte-identical to what shipped: the
-/// four-second figure was locked on the ROUTED path, where a per-behaviour knob
-/// states it, and moving this one would change what an unconfigured machine does
-/// without anybody asking for it.
+/// no `[lights]` table sends. The duration and the no-brightness shape are kept
+/// exactly as shipped; the color is not pinned here, it follows whatever
+/// `SUCCESS_COLOR`/`FAILURE_COLOR` are locked to. The four-second figure was
+/// locked on the ROUTED path, where a per-behaviour knob states it, and moving
+/// this one would change what an unconfigured machine does without anybody
+/// asking for it.
 const UNMAPPED_SIGNAL_DURATION_MS: u64 = 3000;
 
 #[cfg(test)]
