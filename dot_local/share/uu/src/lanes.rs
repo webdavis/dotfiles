@@ -66,15 +66,29 @@ pub trait CommandRunner {
 /// How much of a failed command's stderr a lane line carries.
 pub const STDERR_TAIL: usize = 240;
 
+/// The last `keep` characters of `text`, prefixed with `...` when it was cut.
+/// Shared by `failure_reason`'s stderr tail today and a command lane's own
+/// stdout cap tomorrow: BOUNDED because both go into the record and into one
+/// alert card, and the verdict a tool prints is at the END of what it said.
+pub fn tail(text: &str, keep: usize) -> String {
+    let length = text.chars().count();
+    if length <= keep {
+        return text.to_string();
+    }
+    let cut = text
+        .char_indices()
+        .nth(length - keep)
+        .map_or(0, |(index, _)| index);
+    format!("...{}", &text[cut..])
+}
+
 /// Why a command failed, in one line: how it ended, and the tail of what it
 /// said about it.
 ///
 /// THE STATUS ALONE IS NOT A REASON. `exit 1` sends the operator to a log that
 /// a weekly job may have rotated away, while the command already printed the
-/// answer on stderr and this is the last moment it exists. It is the TAIL
-/// because that is where a tool puts its verdict, BOUNDED because this line
-/// goes into the record and into one alert card, and squashed to a single line
-/// so neither is reflowed by a build log.
+/// answer on stderr and this is the last moment it exists. Squashed to a
+/// single line so it is not reflowed by a build log.
 pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
     let said = stderr.trim();
     if said.is_empty() {
@@ -84,15 +98,7 @@ pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
         .chars()
         .map(|letter| if letter.is_control() { ' ' } else { letter })
         .collect();
-    let length = one_line.chars().count();
-    if length <= STDERR_TAIL {
-        return format!("{how_it_ended}: {one_line}");
-    }
-    let cut = one_line
-        .char_indices()
-        .nth(length - STDERR_TAIL)
-        .map_or(0, |(index, _)| index);
-    format!("{how_it_ended}: ...{}", &one_line[cut..])
+    format!("{how_it_ended}: {}", tail(&one_line, STDERR_TAIL))
 }
 
 /// The lanes this config declares, in NAME order.
@@ -287,6 +293,18 @@ mod tests {
             parse_config("[lanes.zeta]\ntype = \"herdr\"\n\n[lanes.alpha]\ntype = \"herdr\"\n")
                 .unwrap();
         assert_eq!(enabled_lanes(&config), vec!["alpha", "zeta"]);
+    }
+
+    // --- the shared tail --------------------------------------------------
+
+    #[test]
+    fn tail_returns_the_text_unchanged_when_it_already_fits() {
+        assert_eq!(tail("hello", 10), "hello");
+    }
+
+    #[test]
+    fn tail_keeps_the_last_keep_characters_and_prefixes_the_cut() {
+        assert_eq!(tail("0123456789ABCDEF", 4), "...CDEF");
     }
 
     // --- why a command failed -------------------------------------------------
