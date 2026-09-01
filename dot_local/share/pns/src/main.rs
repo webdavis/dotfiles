@@ -9863,6 +9863,27 @@ mod tests {
     }
 
     #[test]
+    fn a_claim_that_fails_for_another_reason_is_not_blamed_on_a_same_second_run() {
+        // THE CLAIM FAILS, BUT NOT BECAUSE THE NAME IS TAKEN: the config's own
+        // directory is missing, so `create_new` cannot open the backup name at
+        // all. Only AlreadyExists is the same-second collision; any other
+        // failure must carry its own reason rather than blame an earlier run
+        // that never happened.
+        let home = scratch("setup-keep-aside-other-reason");
+        let path = home.join(".config/pns/config.toml");
+
+        let refusal = keep_aside(&path).expect_err("the backup name cannot be claimed");
+        assert!(
+            refusal.contains("could not be claimed"),
+            "the refusal does not say the claim itself failed: {refusal}"
+        );
+        assert!(
+            !refusal.contains("earlier this same second"),
+            "a missing directory was blamed on a same-second collision: {refusal}"
+        );
+    }
+
+    #[test]
     fn a_directory_at_the_config_path_is_named_rather_than_the_backup_it_could_not_replace() {
         // THE RENAME IS WHAT FAILS HERE, not the claim: the backup file is
         // created fine (it is a fresh name), and then a directory cannot be
