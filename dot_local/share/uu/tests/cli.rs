@@ -136,6 +136,45 @@ fn a_record_the_gateway_never_received_leaves_the_marker_unmoved() {
 }
 
 #[test]
+fn the_marker_stamps_when_the_run_finished_and_not_when_it_started() {
+    // Every record's gap is measured from this timestamp, so a marker holding
+    // the run's START time inflates the next gap by the whole duration of the
+    // run before it, and lanes have no upper bound. Crossing a wall-clock
+    // second inside the lane is the only observation that tells the two
+    // instants apart, so the stub spends its update call doing exactly that
+    // and leaves behind the second it began in.
+    let home = Home::new("finish-time").with_herdr_lane_and(
+        "case \"$1\" in\n\
+         update)\n\
+         date +%s >\"$HOME/lane-started\"\n\
+         began=$(date +%s)\n\
+         while [ \"$(date +%s)\" = \"$began\" ]; do sleep 0.05; done\n\
+         ;;\n\
+         esac\n\
+         exit 0\n",
+        "",
+    );
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let began =
+        epoch_in(&std::fs::read_to_string(home.dir.join("lane-started")).expect("the lane"));
+    let stamped = epoch_in(&std::fs::read_to_string(home.marker()).expect("the marker"));
+    assert!(
+        stamped > began,
+        "the marker stamped {stamped}, which is not after the second the lane began in ({began})"
+    );
+}
+
+/// The epoch at the head of a marker or a stub's breadcrumb.
+fn epoch_in(text: &str) -> i64 {
+    text.split_whitespace()
+        .next()
+        .expect("an epoch field")
+        .parse()
+        .expect("an epoch")
+}
+
+#[test]
 fn the_doctor_never_prints_the_records_signing_key() {
     let home = Home::new("doctor").with_config("[records]\nkey = \"s3cr3t-value\"\n");
     let output = home.uu(&["doctor"]);

@@ -97,13 +97,15 @@ fn run_mode(only: Option<&str>) -> i32 {
     };
 
     // The header is captured BEFORE the lanes run and before the marker is
-    // rewritten: a gap sampled at delivery reports zero on every run.
-    let now = now_epoch();
+    // rewritten: a gap sampled at delivery reports zero on every run. A clock
+    // that cannot be read renders as the epoch itself, which is a date no
+    // reader mistakes for a real one.
+    let started = now_epoch().unwrap_or(0);
     let marker_path = marker_path(&home);
     let gap = gap_line(
         &read_marker(&marker_path),
         &marker_path.display().to_string(),
-        now,
+        started,
     );
 
     let runner = SystemRunner;
@@ -129,7 +131,7 @@ fn run_mode(only: Option<&str>) -> i32 {
     }
 
     let failures: usize = reports.iter().map(|report| report.failures).sum();
-    let detail = record_detail(&host(), &iso(now), &gap, &reports);
+    let detail = record_detail(&host(), &iso(started), &gap, &reports);
     print!("{detail}");
 
     let engine = config.alerts.as_ref().map(|alerts| alerts.binary.clone());
@@ -156,8 +158,23 @@ fn run_mode(only: Option<&str>) -> i32 {
     // THE MARKER MOVES ONLY ON A CLEAN RUN, so the next entry's gap measures
     // the last time everything actually worked rather than the last time uu
     // woke up.
+    //
+    // AND IT STAMPS THE MOMENT THE RUN FINISHED, read here rather than reused
+    // from the header. Lanes have no upper bound, so the header's instant can
+    // be an hour old by now, and every following gap would carry that hour on
+    // top of its own. A clock that will not answer at this instant leaves the
+    // marker alone: an unmoved marker overstates the next gap, while a
+    // guessed timestamp understates it silently.
     if failures == 0 && !record_lost {
-        write_marker(&marker_path, now);
+        match now_epoch() {
+            Some(finished) => write_marker(&marker_path, finished),
+            None => eprintln!(
+                "uu: this clock could not be read at the end of the run, so the successful-run \
+                 timestamp at {} was left as it was; the next entry measures its gap from the \
+                 run before this one",
+                marker_path.display()
+            ),
+        }
     }
     0
 }
@@ -215,7 +232,7 @@ fn doctor_mode() -> i32 {
         gap_line(
             &read_marker(&marker_path),
             &marker_path.display().to_string(),
-            now_epoch()
+            now_epoch().unwrap_or(0)
         )
     );
     0
@@ -282,10 +299,14 @@ fn log_path(home: &str) -> PathBuf {
     Path::new(home).join(".local/log/uu/uu.log")
 }
 
-fn now_epoch() -> i64 {
+/// This instant in epoch seconds, or `None` for a clock set before 1970. The
+/// caller decides what an unreadable clock means: the header prints it, the
+/// marker refuses to move on it.
+fn now_epoch() -> Option<i64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs() as i64)
+        .ok()
+        .map(|since| since.as_secs() as i64)
 }
 
 /// ISO 8601 UTC, computed from the same epoch the gap is, so the two figures
