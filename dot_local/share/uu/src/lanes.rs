@@ -61,6 +61,38 @@ pub trait CommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String>;
 }
 
+/// How much of a failed command's stderr a lane line carries.
+pub const STDERR_TAIL: usize = 240;
+
+/// Why a command failed, in one line: how it ended, and the tail of what it
+/// said about it.
+///
+/// THE STATUS ALONE IS NOT A REASON. `exit 1` sends the operator to a log that
+/// a weekly job may have rotated away, while the command already printed the
+/// answer on stderr and this is the last moment it exists. It is the TAIL
+/// because that is where a tool puts its verdict, BOUNDED because this line
+/// goes into the record and into one alert card, and squashed to a single line
+/// so neither is reflowed by a build log.
+pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
+    let said = stderr.trim();
+    if said.is_empty() {
+        return how_it_ended.to_string();
+    }
+    let one_line: String = said
+        .chars()
+        .map(|letter| if letter.is_control() { ' ' } else { letter })
+        .collect();
+    let length = one_line.chars().count();
+    if length <= STDERR_TAIL {
+        return format!("{how_it_ended}: {one_line}");
+    }
+    let cut = one_line
+        .char_indices()
+        .nth(length - STDERR_TAIL)
+        .map_or(0, |(index, _)| index);
+    format!("{how_it_ended}: ...{}", &one_line[cut..])
+}
+
 /// The lanes this config turns on, in the roster's own order.
 ///
 /// ORDER IS THE ROSTER'S, never the config file's. A TOML table order is
@@ -123,22 +155,22 @@ pub fn run_herdr(lane: &HerdrLane, runner: &dyn CommandRunner) -> LaneReport {
         // AN INSTALL OVER A FAILED UNINSTALL IS NOT ATTEMPTED. herdr pins a
         // plugin at install, so installing on top of a copy that would not
         // come off is how one plugin becomes two.
-        if runner
-            .run(&lane.binary, &["plugin", "uninstall", id])
-            .is_err()
-        {
+        if let Err(why) = runner.run(&lane.binary, &["plugin", "uninstall", id]) {
             report.failed(format!(
-                "plugin {id}: uninstall failed; leaving the installed copy alone"
+                "plugin {id}: uninstall failed ({why}); leaving the installed copy alone"
             ));
             continue;
         }
         let install = || runner.run(&lane.binary, &["plugin", "install", &plugin.repo, "--yes"]);
-        if install().is_ok() || install().is_ok() {
-            report.noted(format!("plugin {id}: refreshed"));
-        } else {
-            report.failed(format!(
-                "plugin {id}: REINSTALL FAILED twice; it is now MISSING until the next apply or run"
-            ));
+        // The retry is the SECOND call and there is no third: `or_else` runs
+        // it only on a failure, and the reason kept is the one the last
+        // attempt gave.
+        match install().or_else(|_| install()) {
+            Ok(_) => report.noted(format!("plugin {id}: refreshed")),
+            Err(why) => report.failed(format!(
+                "plugin {id}: REINSTALL FAILED twice ({why}); it is now MISSING until the next \
+                 apply or run"
+            )),
         }
     }
     report
@@ -245,6 +277,55 @@ mod tests {
                 "the roster names `{name}` but nothing dispatches it"
             );
         }
+    }
+
+    // --- why a command failed -------------------------------------------------
+
+    #[test]
+    fn a_failure_reason_carries_what_the_command_printed_on_stderr() {
+        assert_eq!(
+            failure_reason("exit 1", "fatal: repository not found\n"),
+            "exit 1: fatal: repository not found"
+        );
+    }
+
+    #[test]
+    fn a_command_that_said_nothing_reports_only_how_it_ended() {
+        // An empty stderr must not leave a dangling colon with nothing after
+        // it, which reads as a message that went missing.
+        for silence in ["", "\n", "   \n\t"] {
+            assert_eq!(failure_reason("exit 2", silence), "exit 2");
+        }
+        assert_eq!(
+            failure_reason("killed by a signal", ""),
+            "killed by a signal"
+        );
+    }
+
+    #[test]
+    fn a_talkative_command_is_cut_to_the_tail_that_holds_its_verdict() {
+        // A build log's worth of stderr would push every other line off the
+        // record and blow past the one card an alert gets, and the verdict is
+        // at the END of it.
+        let noise = format!("{}THE REAL REASON", "x".repeat(4000));
+        let reason = failure_reason("exit 1", &noise);
+        assert!(reason.ends_with("THE REAL REASON"), "{reason}");
+        assert!(
+            reason.chars().count() <= STDERR_TAIL + 32,
+            "{} characters",
+            reason.chars().count()
+        );
+        assert!(reason.contains("..."), "the cut is visible: {reason}");
+    }
+
+    #[test]
+    fn a_multi_line_stderr_is_squashed_onto_one_line() {
+        // Lane lines are indented under their lane in the record and go out as
+        // one alert sentence; an embedded newline breaks both.
+        let reason = failure_reason("exit 1", "first\nsecond\r\nthird");
+        assert!(!reason.contains('\n'), "{reason}");
+        assert!(!reason.contains('\r'), "{reason}");
+        assert!(reason.contains("third"), "{reason}");
     }
 
     // --- the herdr lane -------------------------------------------------------
@@ -420,6 +501,26 @@ mod tests {
         let summary = crate::alert::alert_summary(&report);
         assert!(summary.contains("self-update FAILED"), "{summary}");
         assert!(!summary.contains("refreshed"), "{summary}");
+    }
+
+    #[test]
+    fn a_failed_step_names_the_reason_the_command_gave() {
+        // `exit 1` alone sends the operator to a log a weekly job may have
+        // rotated away. The command already said why on stderr, and the
+        // record and the alert are where that has to end up.
+        let runner = ScriptedRunner::new(&[
+            &["herdr", "plugin", "uninstall", "a"],
+            &["herdr", "plugin", "install", "o/b", "--yes"],
+        ]);
+        let report = run_herdr(&lane(&[("a", "o/a"), ("b", "o/b")]), &runner);
+        for line in report
+            .lines
+            .iter()
+            .filter(|line| line.contains("FAILED") || line.contains("failed"))
+        {
+            assert!(line.contains("exit 1"), "{line}");
+        }
+        assert_eq!(report.failures, 2);
     }
 
     #[test]

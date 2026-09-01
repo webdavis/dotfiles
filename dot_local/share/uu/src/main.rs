@@ -18,7 +18,9 @@ use unattended_upgrades::alert::{Alerter, alert_argv, alert_summary};
 use unattended_upgrades::config::{
     Config, ConfigError, LANE_NAMES, LoadOutcome, Records, config_path, load_config,
 };
-use unattended_upgrades::lanes::{CommandRunner, LaneReport, enabled_lanes, run_lane};
+use unattended_upgrades::lanes::{
+    CommandRunner, LaneReport, enabled_lanes, failure_reason, run_lane,
+};
 use unattended_upgrades::record::{
     AGENT, Marker, gap_line, marker_contents, parse_marker, record_body, record_detail,
     record_state,
@@ -423,10 +425,17 @@ impl CommandRunner for SystemRunner {
             Ok(output) if output.status.success() => {
                 Ok(String::from_utf8_lossy(&output.stdout).to_string())
             }
-            Ok(output) => Err(match output.status.code() {
-                Some(code) => format!("exit {code}"),
-                None => "killed by a signal".to_string(),
-            }),
+            // WHAT IT PRINTED, not only how it ended. `output` captured stderr
+            // either way, the child is gone by the time the record is
+            // composed, and a weekly job's own log may have rotated before
+            // anyone reads it.
+            Ok(output) => Err(failure_reason(
+                &match output.status.code() {
+                    Some(code) => format!("exit {code}"),
+                    None => "killed by a signal".to_string(),
+                },
+                &String::from_utf8_lossy(&output.stderr),
+            )),
         }
     }
 }
@@ -504,6 +513,21 @@ mod tests {
     #[test]
     fn a_path_with_no_marker_at_it_is_a_machine_that_never_recorded_a_run() {
         assert_eq!(read_marker(&scratch("absent")), Marker::NeverRecorded);
+    }
+
+    #[test]
+    fn a_failed_command_reports_what_it_printed_and_not_only_its_status() {
+        // The one place stderr is still readable is here: the child is gone by
+        // the time the record is composed, and a weekly job's log may have
+        // rotated before anyone reads it.
+        let failure = SystemRunner
+            .run(
+                "/bin/sh",
+                &["-c", "printf 'no such repository\\n' >&2; exit 3"],
+            )
+            .expect_err("this command fails");
+        assert!(failure.contains("exit 3"), "{failure}");
+        assert!(failure.contains("no such repository"), "{failure}");
     }
 
     #[test]
