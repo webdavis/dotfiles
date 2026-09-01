@@ -1427,6 +1427,13 @@ fn bridge_spy() -> (std::net::TcpListener, u16) {
 /// ACCEPTING HANGS UP AT ONCE, which is what keeps a test that expects a dial
 /// fast: the engine's TLS handshake fails on the closed socket instead of
 /// waiting out the ten-second bridge deadline.
+///
+/// `Duration::ZERO` IS THE RIGHT CALL, not a bug, everywhere the child has
+/// already exited: `run` waits for output and a poll loop waits for the
+/// child before asking, so a dial that was going to happen has already
+/// happened, and a connection still queued is sitting in the accept queue
+/// where one non-blocking accept sees it. Waiting any longer there would only
+/// be waiting on a dial that was never coming.
 fn dialled_within(listener: &std::net::TcpListener, limit: std::time::Duration) -> bool {
     let deadline = std::time::Instant::now() + limit;
     loop {
@@ -1441,11 +1448,6 @@ fn dialled_within(listener: &std::net::TcpListener, limit: std::time::Duration) 
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
-
-/// Long enough for a dial that was going to happen to have happened: the child
-/// has already exited by the time this is asked, so the connection would be
-/// sitting in the accept queue.
-const SETTLE: std::time::Duration = std::time::Duration::from_millis(200);
 
 /// The UTC minute of the day, from the epoch alone. Every test below pins the
 /// child to `TZ=UTC`, so this is the minute the engine's own clock reads,
@@ -1575,7 +1577,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
         "every other leg still dispatches inside the window"
     );
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "and the room stays dark"
     );
 }
@@ -1618,7 +1620,7 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
         "and echoing what was written: {said}"
     );
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "a window nobody can parse leaves the room dark rather than flashing it"
     );
 }
@@ -1684,7 +1686,7 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "the child is inside a window written in ITS zone, so the room stays dark"
     );
 
@@ -1805,7 +1807,7 @@ fn lamp_run(
         if child.try_wait().expect("the child is waitable").is_some() {
             // A connection opened just before the exit is sitting in the accept
             // queue, so the answer is only settled after one more look.
-            break dialled_within(&listener, SETTLE);
+            break dialled_within(&listener, std::time::Duration::ZERO);
         }
         // AND THE POLL HAS A CEILING, because its two exits are a dial and an
         // exit: a child that manages neither would otherwise park the whole
@@ -2433,7 +2435,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     assert!(!sandbox.fired("mobile"), "no card while muted");
     assert!(!sandbox.fired("macos-banner"), "no banner while muted");
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "and no pulse, so slice 7's window is never even consulted"
     );
 }
@@ -3272,7 +3274,7 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
         "the line names the settings to write: {printed}"
     );
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "a bridge was dialled for a config that resolves to none"
     );
 }
@@ -8264,7 +8266,7 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "an ordinary event with nothing held reaches no bridge"
     );
 }
@@ -8295,17 +8297,20 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
             .stderr(std::process::Stdio::piped())
             .spawn()
             .expect("the engine starts");
-        let dialled = dialled_within(
-            &listener,
-            if expect_dial {
-                std::time::Duration::from_secs(5)
-            } else {
-                SETTLE
-            },
-        );
+        // THE TRUE ARM DIALS WHILE THE CHILD RUNS, same reason as everywhere
+        // else that expects a dial: the spy hangs up the moment it accepts,
+        // so the handshake fails at once instead of waiting out the bridge
+        // deadline. THE FALSE ARM WAITS FOR THE CHILD FIRST, then takes its
+        // one non-blocking accept: dialling here while the child still runs
+        // had a 200 ms window where a dial arriving just after it gave up
+        // would read as "no dial" that never actually happened to look.
+        let dialled_while_running =
+            expect_dial.then(|| dialled_within(&listener, std::time::Duration::from_secs(5)));
         let output = child.wait_with_output().expect("the child is waitable");
         assert_eq!(output.status.code(), Some(0), "{name}");
         assert!(stdout(&output).is_empty(), "{name}: {}", stdout(&output));
+        let dialled = dialled_while_running
+            .unwrap_or_else(|| dialled_within(&listener, std::time::Duration::ZERO));
         assert!(stderr(&output).is_empty(), "{name}: {}", stderr(&output));
         (dialled, sandbox.path("state/lights-held").exists())
     };
