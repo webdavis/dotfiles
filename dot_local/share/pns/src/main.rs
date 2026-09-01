@@ -7139,10 +7139,18 @@ fn setup_mode() -> i32 {
             return 2;
         }
     };
+    // AN EMPTY HOME IS REFUSED BY NAME, before the config is even located: an
+    // unset or empty HOME would otherwise compose a config path relative to
+    // the current directory, which is not the operator's own machine-wide
+    // config no matter where this happened to be run from.
+    let Some(home) = std::env::var("HOME").ok().filter(|home| !home.is_empty()) else {
+        eprintln!("pns setup: HOME is empty; nothing was written");
+        return 2;
+    };
     // THE CONFIG IS CHECKED BEFORE THE TERMINAL IS, because it is the more
     // specific answer: an operator who already has one is told that, whether
     // or not they are sitting in front of the questions.
-    let path = config_path(&std::env::var("HOME").unwrap_or_default());
+    let path = config_path(&home);
     // `symlink_metadata`, NOT `exists`: `exists` follows a symlink and asks
     // what it resolves to, so a dangling one at the config name reads as
     // nothing at all here and the whole walk runs before the publish refuses

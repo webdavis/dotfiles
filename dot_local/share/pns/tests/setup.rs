@@ -48,7 +48,11 @@ impl Pty {
         // terminal's other end, and this test's own read side would then
         // never see EOF once the wizard exits.
         let flags = unsafe { libc::fcntl(master, libc::F_GETFD) };
-        assert!(flags >= 0, "fcntl F_GETFD: {}", std::io::Error::last_os_error());
+        assert!(
+            flags >= 0,
+            "fcntl F_GETFD: {}",
+            std::io::Error::last_os_error()
+        );
         let set = unsafe { libc::fcntl(master, libc::F_SETFD, flags | libc::FD_CLOEXEC) };
         assert_eq!(set, 0, "fcntl F_SETFD: {}", std::io::Error::last_os_error());
         Pty {
@@ -223,7 +227,8 @@ fn a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending
         pty.transcript
     );
     assert!(
-        !pty.transcript.contains("the answers ended before the walk did"),
+        !pty.transcript
+            .contains("the answers ended before the walk did"),
         "a read failure was reported as the input ending: {:?}",
         pty.transcript
     );
@@ -336,5 +341,34 @@ fn a_dangling_symlink_at_the_config_path_is_refused_before_the_first_question() 
     assert!(
         !stderr.contains("not a terminal"),
         "the pre-check ran after the tty check instead of before it: {stderr}"
+    );
+}
+
+#[test]
+fn an_empty_home_is_refused_by_name_before_anything_is_written() {
+    let sandbox = Sandbox::without_config("setup-empty-home");
+    let output = sandbox
+        .bare()
+        // `bare()` points HOME at the sandbox; this overrides it back to
+        // empty, which is what a launchd-less, misconfigured shell can hand
+        // a process. `current_dir` keeps a still-unfixed run's relative
+        // `.config/pns/config.toml` write inside the sandbox rather than
+        // wherever this test binary happens to run from.
+        .env("HOME", "")
+        .current_dir(&sandbox.root)
+        .args(["setup"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the wizard runs");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("HOME"),
+        "the refusal does not name HOME: {stderr}"
+    );
+    assert!(
+        !sandbox.root.join(".config").exists(),
+        "something was written under an empty HOME: {stderr}"
     );
 }
