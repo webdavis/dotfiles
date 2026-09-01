@@ -303,8 +303,14 @@ fn start_of_turn(payload: &HookPayload) {
     }
     // Only when none is there: a second prompt inside one turn must not
     // restart the clock.
-    if !marker.exists() {
-        let _ = std::fs::write(&marker, now_secs().unwrap_or_default().to_string());
+    // NO CLOCK IS NO MARKER, never a marker at epoch zero: the same rule
+    // `update_blocked_marker` states beside its own clock read. An unreadable
+    // clock writing epoch zero would make the turn this marker times out to
+    // look older than every turn there has ever been.
+    if !marker.exists()
+        && let Some(now) = now_secs()
+    {
+        let _ = std::fs::write(&marker, now.to_string());
     }
 }
 
