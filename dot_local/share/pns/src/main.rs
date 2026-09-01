@@ -52,8 +52,7 @@ fn main() {
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
     if first == "pulse" {
-        pulse_mode();
-        return;
+        std::process::exit(pulse_mode());
     }
     // The home diagnostic: one reading of the router, said out loud. The
     // doctor mode (P3) will absorb it; until then this is how the probe is
@@ -3400,7 +3399,25 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// `hue.quiet_hours` on purpose: the gate lives at the event path's call site
 /// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
 /// inside the window, which is what keeps the window checkable while it is on.
-fn pulse_mode() {
+///
+/// THE WORD IS READ BEFORE THE CONFIG LOADS. `pulse --help` used to load the
+/// config first: with none it silently exited 0 having printed nothing, and
+/// with one it pulsed the room red, because a non-numeric word was read as a
+/// failing exit code. Reading the word first means `--help` and a bad code
+/// both answer with no machine read at all.
+fn pulse_mode() -> i32 {
+    let word = std::env::args_os()
+        .nth(2)
+        .map(|code| code.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if pns::args::is_help_flag(&word) {
+        print!("{PULSE_USAGE}");
+        return 0;
+    }
+    let Some(behaviour) = pns::pulse::exit_behaviour(&word) else {
+        eprint!("{PULSE_USAGE}");
+        return 2;
+    };
     let home = std::env::var("HOME").unwrap_or_default();
     // FAIL CLOSED, unlike an event. The roster fallback that keeps every
     // notification working through a broken config is an EVENT-mode rule:
@@ -3410,25 +3427,21 @@ fn pulse_mode() {
     let config = match load_config(&config_path(&home)) {
         Ok(LoadOutcome::Loaded(config)) => config,
         // Absent is not a mistake; never opting in earns no warning.
-        Ok(LoadOutcome::Missing) => return,
+        Ok(LoadOutcome::Missing) => return 0,
         Err(error) => {
             // The sanitized detail event mode prints, with the outcome THIS
             // mode had: there is no recoverable setting to fall back to, so
             // nothing pulses.
             eprintln!("pns: config error ({}); no pulse", error.detail());
-            return;
+            return 0;
         }
     };
-    fire_pulse(
-        enabled_hue_table(&config),
-        pns::pulse::exit_behaviour(
-            &std::env::args_os()
-                .nth(2)
-                .map(|code| code.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "0".to_string()),
-        ),
-    );
+    fire_pulse(enabled_hue_table(&config), behaviour);
+    0
 }
+
+const PULSE_USAGE: &str = "pns: usage: pns pulse [<exit-code>] | \
+pns pulse --help, -h (a bare `pulse` is a success pulse)";
 
 /// The `home` mode: one reading of the home probe, reported in one line, and
 /// the one stale-identifier alert that reading may earn.

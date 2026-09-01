@@ -893,6 +893,48 @@ fn an_absent_config_stays_silent_in_pulse_mode() {
     assert!(output.status.success());
 }
 
+#[test]
+fn pulse_help_prints_its_own_usage_before_any_config_load() {
+    // H-C: `pulse --help` used to load the config first, so with none it
+    // silently exited 0 and with one it pulsed the room red, because
+    // `exit_behaviour` read the word as a failing, non-numeric code. Reading
+    // the word first means help answers with no machine read at all, even
+    // with no config on disk.
+    let sandbox = support::Sandbox::without_config("pulse-help");
+    for spelling in ["--help", "-h"] {
+        let output = sandbox
+            .bare()
+            .args(["pulse", spelling])
+            .output()
+            .expect("the engine runs");
+        assert_eq!(output.status.code(), Some(0), "{spelling}: {output:?}");
+        assert!(
+            stdout(&output).contains("usage"),
+            "{spelling}: {output:?}"
+        );
+        assert_eq!(stderr(&output), "", "{spelling}: {output:?}");
+    }
+}
+
+#[test]
+fn pulse_refuses_a_code_it_cannot_read_instead_of_guessing_it_failed() {
+    // H-C: `exit_behaviour` now answers `None` for anything that is not an
+    // ASCII-digit run (or empty), and `pulse_mode` reads that as a refusal
+    // rather than a failure pulse. `pulse oops`, `-0` and padded zeroes used
+    // to flash the room red on a code nobody proved.
+    let sandbox = support::Sandbox::without_config("pulse-refuses");
+    for word in ["oops", "-0", " 0", "0\n"] {
+        let output = sandbox
+            .bare()
+            .args(["pulse", word])
+            .output()
+            .expect("the engine runs");
+        assert_eq!(output.status.code(), Some(2), "{word:?}: {output:?}");
+        assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
+        assert_eq!(stdout(&output), "", "{word:?}: {output:?}");
+    }
+}
+
 /// Wait for a child with a deadline, killing it if it outlives one. The suite
 /// must not be able to hang on a test whose whole point is a blocking read.
 fn wait_bounded(mut child: std::process::Child, limit: std::time::Duration) -> Option<i32> {
