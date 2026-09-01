@@ -515,10 +515,10 @@ pub struct Fade {
 
 /// How far before a fade ends the next one is issued.
 ///
-/// THE SEAMLESS TURN-AROUND, operator-locked on a real lamp: at zero the lamp
-/// visibly pauses at each end of the breath, which reads as a blink rather than
-/// as breathing. Fifty milliseconds is what it took for the reversal to look
-/// continuous.
+/// THE SEAMLESS TURN-AROUND, operator-locked on a real lamp: the next fade is
+/// issued slightly BEFORE the previous one ends, so the lamp never sits at
+/// either end of the breath. Fifty milliseconds is the figure that was set and
+/// looked at; nothing here measured what a lead of zero looks like.
 pub const FADE_LEAD_MS: u64 = 50;
 
 /// The whole breath one tick issues: the fades, in order, with the second one
@@ -1645,7 +1645,7 @@ mod tests {
         // THE BUDGET COVERS THE FINAL FADE'S WHOLE DURATION, because the driver
         // has to be gone before the next tick starts: a fade still running then
         // would be replaced mid-flight from a brightness nothing recorded.
-        for refresh_secs in [10, 12, 20, 25, 60, 300] {
+        for refresh_secs in [10, 12, 20, 25, 30] {
             for breath in [BLOCKED, SLOW] {
                 let fades = breath_fades(refresh_secs, &breath);
                 let last = fades.last().expect("a breath is never empty");

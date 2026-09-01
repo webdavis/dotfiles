@@ -356,7 +356,8 @@ after_secs = 300
 # How often the daemon re-arms the lamps, in seconds. It is also the breath
 # budget: a breathing lamp is faded by the tick itself for the whole interval
 # and stops at its peak, so this decides how many fades fit between two ticks.
-# The range is 10 to 300, and the ceiling is the tick's own ordinary lease.
+# The range is 10 to 30, and the ceiling is how long the daemon lets a tick's
+# own process live: an interval past it is a breath cut off part way through.
 refresh_secs = 12
 
 # The five behaviour shapes. Every number below was set on a real lamp; only the

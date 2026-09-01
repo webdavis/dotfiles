@@ -1672,7 +1672,7 @@ fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
 }
 
 #[test]
-fn an_event_inside_every_dim_window_writes_to_no_lamp_and_costs_no_leg() {
+fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
     // The shipped whole-pulse property at the new granularity: the lamps are
     // suppressed and NOTHING else is, so the card and the durable log still
     // report a long command at any hour.
@@ -1706,8 +1706,10 @@ fn an_event_inside_every_dim_window_writes_to_no_lamp_and_costs_no_leg() {
             Presence::Away,
         ),
         (true, true, true, false, Some(0)),
-        "every lamp asleep: the map still resolves, no lamp is written to, and \
-         both legs fire"
+        "every lamp asleep: the map still resolves and both legs fire. WHAT A \
+         DIAL CAN PROVE HERE stops at the round trip, because this spy is a \
+         plain TCP listener that hangs up; that no lamp is WRITTEN to is pinned \
+         in the unit tests over dim_showing and pulse_render"
     );
 }
 

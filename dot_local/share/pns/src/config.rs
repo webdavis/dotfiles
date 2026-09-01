@@ -259,20 +259,26 @@ const DEFAULT_REFRESH_SECS: u64 = 12;
 /// pile of children rather than a faster lamp.
 const MIN_REFRESH_SECS: u64 = 10;
 
-/// And the ceiling: the ORDINARY LEASE, which is the longest interval that can
-/// still re-arm a lamp before the lease behind it runs out.
+/// And the ceiling: THE LONGEST A TICK'S CHILD IS ALLOWED TO LIVE.
 ///
-/// IT IS A LEASE BOUND RATHER THAN A ROUND NUMBER. The tick is registered with
-/// `until` at least as far as its own first due second, so a refresh longer than
-/// the ordinary lease used to EXTEND that lease to the refresh: an allowed 600
-/// seconds bought a ten-minute lease and an allowed day bought a sticky glow
-/// nothing was left to clear. Refusing the interval at load is what keeps the
-/// two lease lengths the fixed numbers they are documented as.
+/// THIRTY, AND IT IS THE DAEMON'S OWN BOUND read back rather than a round
+/// number. The daemon kills a job's child after `CHILD_TICKS` of its own tick
+/// (thirty, at the production tick of one second), and a breathing tick now
+/// SLEEPS for most of its interval issuing fades. So an interval past that is an
+/// interval whose breath is cut off part way through with nothing said anywhere:
+/// the lamp freezes at whatever brightness the last fade reached and sits there
+/// until the next tick. Refusing the interval at load is what keeps the two
+/// numbers from disagreeing silently.
 ///
-/// A day is not a refresh in any case: past a few minutes the signal has expired
-/// and gone dark long before the next arm, so the lamp would be off for
-/// virtually the whole interval while the config claimed a state.
-const MAX_REFRESH_SECS: u64 = 300;
+/// IT IS ALSO UNDER THE ORDINARY LEASE, which the old ceiling was: the tick is
+/// registered with `until` at least as far as its own first due second, so a
+/// refresh longer than that lease would EXTEND it, and the two lease lengths
+/// would stop being the fixed numbers they are documented as.
+///
+/// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds seven full cycles of the
+/// locked blocked shape and three of the slow one, so nothing an operator would
+/// want is out of reach above it.
+const MAX_REFRESH_SECS: u64 = 30;
 
 /// The five locked shapes. EVERY NUMBER HERE WAS SET ON A REAL LAMP under the
 /// operator's observe-adjust-lock protocol (2026-08-31 and 2026-09-01), so a
@@ -2682,7 +2688,7 @@ mod tests {
         // work; a ceiling alone leaves the same at the other end.
         for (written, key) in [
             ("[lights]\nrefresh_secs = 9\n", "refresh_secs"),
-            ("[lights]\nrefresh_secs = 301\n", "refresh_secs"),
+            ("[lights]\nrefresh_secs = 31\n", "refresh_secs"),
             ("[lights.done]\nduration_ms = 199\n", "duration_ms"),
             ("[lights.done]\nduration_ms = 5001\n", "duration_ms"),
             ("[lights.done]\nbrightness = 0\n", "brightness"),
@@ -2711,7 +2717,7 @@ mod tests {
         // bound rather than an off-by-one.
         for written in [
             "[lights]\nrefresh_secs = 10\n",
-            "[lights]\nrefresh_secs = 300\n",
+            "[lights]\nrefresh_secs = 30\n",
             "[lights.done]\nduration_ms = 200\nbrightness = 1\n",
             "[lights.done]\nduration_ms = 5000\nbrightness = 100\n",
             "[lights.loop]\nthreshold_secs = 1\nlease_timeout_secs = 60\n",

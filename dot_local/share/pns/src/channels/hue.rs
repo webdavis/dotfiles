@@ -1493,21 +1493,39 @@ mod tests {
     fn a_lamp_moved_to_another_room_answers_the_room_it_is_in_now() {
         // THE BRIDGE'S CURRENT MEMBERSHIP IS THE TRUTH AT RESOLVE TIME, which is
         // the case the whole join exists for: a lamp physically moved is not a
-        // config to edit.
-        let moved = CLIP_ROOMS.replace(
-            r#"{"rid":"c97b44a9-cdcc-48c3-a15d-630fdaa936d0","rtype":"device"},"#,
-            "",
-        );
-        assert_ne!(moved, CLIP_ROOMS, "the studio really lost HCL3's device");
+        // config to edit. HCL3's device leaves the studio's children and joins
+        // the kitchen's, which is what the listing shows after the operator
+        // drags a lamp between rooms in the app.
+        let moved = CLIP_ROOMS
+            .replace(
+                r#"{"rid":"c97b44a9-cdcc-48c3-a15d-630fdaa936d0","rtype":"device"},"#,
+                "",
+            )
+            .replace(
+                r#""children":[{"rid":"b1e78057-aa81-4de0-ab08-6d06e1736dd6","rtype":"device"}]"#,
+                r#""children":[{"rid":"b1e78057-aa81-4de0-ab08-6d06e1736dd6","rtype":"device"},
+                   {"rid":"c97b44a9-cdcc-48c3-a15d-630fdaa936d0","rtype":"device"}]"#,
+            );
         let held = inventory(&moved, CLIP_LIGHTS, CLIP_ZONES);
+        assert_eq!(
+            held.lamps
+                .iter()
+                .find(|lamp| lamp.name == "3F - Studio - HCL3")
+                .and_then(|lamp| lamp.room.clone()),
+            Some("2F - Kitchen".to_string()),
+            "the join reads the room the lamp is in NOW, whatever its name says"
+        );
         let routing = resolve(
             &held,
-            &lights("[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n"),
+            &lights(
+                "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+                 [lights.room.\"2F - Kitchen\"]\nshows = [\"blocked\"]\n",
+            ),
         );
         assert_eq!(
             carried(&routing, "3F - Studio - HCL3"),
-            None,
-            "the lamp left the room, so the room's declaration no longer reaches it"
+            Some(vec![Behaviour::Blocked]),
+            "so it answers its NEW room's declaration and no longer the old one"
         );
         assert_eq!(
             carried(&routing, "3F - Studio - HCL1"),

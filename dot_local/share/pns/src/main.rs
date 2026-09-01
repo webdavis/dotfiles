@@ -4616,13 +4616,20 @@ fn lights_tick() -> i32 {
 /// that does NOT expire, so a clear computed before the arm, or a record written
 /// before the clear, is a lamp left lit with nothing that knows its name.
 ///
-/// THE BREATHING RUNS LAST AND HOLDS THIS PROCESS OPEN for the rest of the
-/// interval. That is what makes the lamp a liveness signal: the fades are issued
-/// by this process on a cadence, so a daemon that dies, a machine that sleeps and
-/// a pns that crashes all stop the motion within one interval. The record and
-/// the clear are already on disk before the first sleep, so a driver killed
-/// mid-breath costs a lamp frozen at its last brightness and never a lamp
-/// nothing can put out.
+/// THE BREATHING RUNS LAST AND HOLDS THIS PROCESS OPEN until the last fade has
+/// been ISSUED, which is one fade's duration before the interval ends. That is
+/// what makes the lamp a liveness signal: the fades are issued by this process
+/// on a cadence, so a daemon that dies, a machine that sleeps and a pns that
+/// crashes all stop the motion within one interval. The record and the clear are
+/// already on disk before the first sleep, so a driver killed mid-breath costs a
+/// lamp frozen at its last brightness and never a lamp nothing can put out.
+///
+/// AND IT IS GONE BEFORE THE NEXT TICK STARTS, which `breath_fades` guarantees
+/// and `MAX_REFRESH_SECS` is bounded by: the daemon re-arms the repeat BEFORE it
+/// spawns this child and kills a child that outlives `CHILD_TICKS`, so an
+/// interval past that would be a breath cut off part way through with nothing
+/// said. Two ticks fading one lamp at once would each be writing a brightness
+/// the other did not expect.
 ///
 /// A BRIDGE THAT ANSWERED NO LISTING CHANGES NOTHING AT ALL. It is direct
 /// evidence the transport is down, and both halves of acting on it are wrong: a
