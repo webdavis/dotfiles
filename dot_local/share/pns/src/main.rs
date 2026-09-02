@@ -4456,25 +4456,38 @@ fn claim_record(record: &Path) -> Option<std::path::PathBuf> {
 /// direction.
 fn claim_fire(directory: &Path, now: u64) -> Option<std::path::PathBuf> {
     let lock = directory.join(pns::nag::FIRE_LOCK);
-    if publish_fire_lock(&lock).is_ok() {
-        return Some(lock);
+    claim_lock(&lock, now, pns::nag::FIRE_STALE_SECS).then_some(lock)
+}
+
+/// One named lock taken, or false when somebody live already holds it.
+///
+/// THE SHAPE EVERY LOCK IN THIS BINARY USES, and it is one function because its
+/// two halves are only correct together: an exclusive create arbitrates between
+/// racers, and the age rule is what stops a holder that died from wedging the
+/// path forever. What differs between callers is the NAME and how long a holder
+/// is believed, so those are the parameters and the mechanism is not repeated.
+fn claim_lock(lock: &Path, now: u64, stale_secs: u64) -> bool {
+    if publish_lock(lock).is_ok() {
+        return true;
     }
-    // Somebody holds it. A live fire is one this process stands down for.
-    if !fire_lock_aged_out(&lock, now) {
-        return None;
+    // Somebody holds it. A live holder is one this process stands down for.
+    if !lock_aged_out(lock, now, stale_secs) {
+        return false;
     }
     // THE DEAD LOCK IS TAKEN BY RENAME AND NEVER BY REMOVE, which is the one
     // place arbitration is still needed on this path: a remove reports success
     // to EVERY racer on APFS (measured, eight racers all told they had
     // succeeded), so two processes clearing one dead lock would each then create
     // a fresh one and both would own the window. A rename does arbitrate.
-    let claim = pns::nag::claim_path(&lock, std::process::id());
+    let claim = pns::nag::claim_path(lock, std::process::id());
     if std::fs::symlink_metadata(&claim).is_ok() {
-        return None;
+        return false;
     }
-    std::fs::rename(&lock, &claim).ok()?;
+    if std::fs::rename(lock, &claim).is_err() {
+        return false;
+    }
     let _ = std::fs::remove_file(&claim);
-    publish_fire_lock(&lock).ok().map(|()| lock)
+    publish_lock(lock).is_ok()
 }
 
 /// The lock published, or an error when somebody already holds it.
@@ -4482,7 +4495,7 @@ fn claim_fire(directory: &Path, now: u64) -> Option<std::path::PathBuf> {
 /// EXCLUSIVE, so of any number of processes racing this exactly one is told it
 /// succeeded, and it NEVER FOLLOWS A LINK: an exclusive create fails on a
 /// symlink at the path rather than opening what it points at.
-fn publish_fire_lock(lock: &Path) -> std::io::Result<()> {
+fn publish_lock(lock: &Path) -> std::io::Result<()> {
     std::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -4493,16 +4506,16 @@ fn publish_fire_lock(lock: &Path) -> std::io::Result<()> {
 
 /// Whether a lock already on disk is old enough to be the leavings of a crash.
 ///
-/// A LOCK WHOSE OWN CLOCK CANNOT BE READ COUNTS AS LIVE and stands this fire
-/// down. That is the safe direction (one nudge window lost, never a second
-/// card), and the case behind it is a lock that vanished between the failed
-/// create and the question, which the next fire resolves anyway.
-fn fire_lock_aged_out(lock: &Path, now: u64) -> bool {
+/// A LOCK WHOSE OWN CLOCK CANNOT BE READ COUNTS AS LIVE and stands the caller
+/// down. That is the safe direction (one window lost, never two holders), and
+/// the case behind it is a lock that vanished between the failed create and the
+/// question, which the next attempt resolves anyway.
+fn lock_aged_out(lock: &Path, now: u64, stale_secs: u64) -> bool {
     std::fs::symlink_metadata(lock)
         .ok()
         .as_ref()
         .and_then(modified_at)
-        .is_some_and(|at| now.saturating_sub(at.as_secs()) > pns::nag::FIRE_STALE_SECS)
+        .is_some_and(|at| now.saturating_sub(at.as_secs()) > stale_secs)
 }
 
 /// The fire given up, so the next window can be claimed without waiting out
@@ -5277,6 +5290,20 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     sleep: impl FnMut(Duration),
 ) -> Vec<String> {
     let mut complaints = Vec::new();
+    // ONE TICK DRIVES THE HOUSE AT A TIME. Taken before the resolve rather than
+    // around the record alone, because two ticks that both got past a record
+    // comparison would still spend a whole interval issuing fades at each
+    // other. The second returns having done nothing at all, which is what a
+    // tick with nothing to say has always returned.
+    //
+    // `now_ms / 1000` IS THE SECOND THE CALLER IS ON: production hands this
+    // function the wall clock in milliseconds, and the age rule compares that
+    // against the lock file's own mtime.
+    let lock = state.join(LIGHTS_TICK_LOCK);
+    if !claim_lock(&lock, now_ms / 1000, lights_tick_stale_secs()) {
+        return complaints;
+    }
+    let _lock = HeldLock(lock);
     let mut breathing: Vec<Breathing> = Vec::new();
     if !active.is_empty() {
         // The doctor is where an unreachable bridge is REPORTED; this process
@@ -5958,6 +5985,58 @@ const LIGHTS_SHELL_DIR: &str = "lights-shell";
 
 /// Where the fixture paths a steady glow is holding are recorded.
 const LIGHTS_HELD: &str = "lights-held";
+
+/// Where a lights tick holds the whole house for as long as it is driving it.
+///
+/// THE DAEMON'S OWN BOOKKEEPING IS NOT A LOCK. `decide` refuses to fire a
+/// second lights child while the first is still listed, and that list is ONE
+/// process's memory: a tick the operator ran by hand and an orphan left behind
+/// by a daemon replacement are both invisible to it. Two ticks driving one lamp
+/// interleave their fades against two schedules, and the phase the LAST of them
+/// writes is the one the next tick resumes off, so the breath it picks up is
+/// one no lamp was ever running. A file the operating system arbitrates is the
+/// only guard every writer can see.
+///
+/// IT DOES NOT LOCK OUT THE EVENT PATH, deliberately. The operator's return
+/// clears the held record from a process that holds no lock and must never wait
+/// on one; `run_tick_writes` re-reads the record instead and stands down when
+/// it moved, which is the guard that case has always had.
+const LIGHTS_TICK_LOCK: &str = "lights-tick.lock";
+
+/// How long a lights tick's lock is believed before it is read as an orphan.
+///
+/// `child_bound`'S OWN ARITHMETIC FOR THIS JOB, because it bounds the same
+/// process: the longest interval the config permits, plus the longest a single
+/// write may take at that interval, plus the second the daemon takes to notice
+/// the child is gone. A tick still holding the lock past that has already been
+/// killed, so the file is leavings. Standing down for a live holder costs one
+/// interval of an unchanged lamp; stealing the lock from one that is still
+/// driving is the failure the lock exists to stop, so the bound errs long.
+fn lights_tick_stale_secs() -> u64 {
+    pns::config::MAX_REFRESH_SECS
+        + tick_bridge_deadline(pns::config::MAX_REFRESH_SECS).as_secs()
+        + 1
+}
+
+/// A lock held for as long as this value is alive, and given back when it is
+/// dropped.
+///
+/// A GUARD RATHER THAN A RELEASE AT EVERY EXIT: the tick stands down from four
+/// places, and a lock left behind stands every later tick down for a whole
+/// stale window. `Drop` is the one exit all of them share.
+struct HeldLock(std::path::PathBuf);
+
+impl Drop for HeldLock {
+    fn drop(&mut self) {
+        if let Err(error) = std::fs::remove_file(&self.0) {
+            eprintln!(
+                "pns lights: the tick lock {} could not be given up ({error}); \
+                 the next tick waits it out",
+                self.0.display()
+            );
+        }
+    }
+}
 
 /// Where the two news epochs live: the second a turn last finished, and the
 /// second one last died.
@@ -8347,15 +8426,15 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
-        LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS,
-        MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
-        blocked_lamp, child_bound, drive_breaths, end_lease, held_lamps, keep_aside, lights_report,
-        list, matches_glob, means_yes, muted_state, now_secs, publish_config, publish_state_line,
-        read_held, read_news, read_note, recap_bounds, record_news, remember_held,
-        renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
-        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
-        tick_bridge_deadline, update_blocked_marker,
+        LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK,
+        MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered,
+        asks_the_bridge, blocked_lamp, child_bound, drive_breaths, end_lease, held_lamps,
+        keep_aside, lights_report, list, matches_glob, means_yes, muted_state, now_secs,
+        publish_config, publish_state_line, read_held, read_news, read_note, recap_bounds,
+        record_news, remember_held, renew_loop_lease, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
+        say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
+        sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9027,6 +9106,68 @@ mod tests {
             "and the record the other writer left is not overwritten either"
         );
         assert!(complaints.is_empty(), "{complaints:?}");
+    }
+
+    #[test]
+    fn a_second_tick_stands_down_while_a_first_still_holds_the_lamps() {
+        // THE GUARD THE DAEMON'S OWN BOOKKEEPING CANNOT BE. `decide` refuses to
+        // fire a second lights child while the first is listed, and that list is
+        // ONE process's memory: a tick the operator ran by hand and an orphan a
+        // daemon replacement left behind are both invisible to it. Two ticks
+        // driving one lamp interleave their fades, and the phase the last of
+        // them writes is the one the next tick resumes off.
+        let state = scratch("tick-lock-held");
+        std::fs::write(state.join(LIGHTS_TICK_LOCK), "").expect("a lock a live tick holds");
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            no_time_passes(),
+            |_| {},
+        );
+        assert!(
+            bridge.puts.borrow().is_empty(),
+            "a second tick drove the lamps while the first still held them: {:?}",
+            bridge.puts.borrow()
+        );
+        assert_eq!(
+            recorded(&state),
+            None,
+            "and it wrote no record over the holder's own"
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+
+        // AND A LOCK NO LIVE TICK COULD STILL BE HOLDING IS TAKEN, so an orphan
+        // costs one stale window rather than the lamps forever. The moment is
+        // handed in rather than waited out: this test never sleeps.
+        let long_past_any_holder_ms = 4_000_000_000_000;
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            long_past_any_holder_ms,
+            no_time_passes(),
+            |_| {},
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert!(
+            !bridge.puts.borrow().is_empty(),
+            "a lock older than any tick may hold it was never taken, so the lamps \
+             stayed dark for as long as the orphan sat there"
+        );
+        assert!(
+            !state.join(LIGHTS_TICK_LOCK).exists(),
+            "and the tick that took it never gave it back, which stands every later \
+             tick down for a whole stale window"
+        );
     }
 
     #[test]
