@@ -917,9 +917,10 @@ const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
 ///
 /// NEITHER STRING IS TRUSTED. `field` is checked against the two chezmoi
 /// methods a keepassxc entry actually exposes, and the entry name is refused
-/// if it carries a quote, a backslash or `}}`: any of the three would close
-/// the Go string or the action early and let the rest of the entry name run
-/// as template syntax.
+/// if it carries a quote, a backslash, `}}` or a control character: the
+/// first three would close the Go string or the action early and let the rest
+/// of the entry name run as template syntax, and a newline would start a line
+/// of its own in the rendered text.
 fn secret_action(table: &toml::Table) -> Result<String, String> {
     if table.len() != 2 {
         return Err("a table value must be a secret: exactly `keepassxc` and `field`".to_string());
@@ -937,7 +938,11 @@ fn secret_action(table: &toml::Table) -> Result<String, String> {
             "a secret's `field` must be one of {SECRET_FIELDS:?}, not `{field}`"
         ));
     }
-    if entry.contains('"') || entry.contains('\\') || entry.contains("}}") {
+    if entry.contains('"')
+        || entry.contains('\\')
+        || entry.contains("}}")
+        || entry.chars().any(char::is_control)
+    {
         return Err(format!(
             "the keepassxc entry name `{entry}` cannot stand inside a chezmoi action"
         ));
@@ -1123,7 +1128,7 @@ mod tests {
 
     #[test]
     fn a_hostile_entry_name_is_refused_rather_than_closing_the_chezmoi_action() {
-        for hostile in ["a\"b", "a\\b", "a}}b"] {
+        for hostile in ["a\"b", "a\\b", "a}}b", "a\nb"] {
             let error = super::secret_action(secret(hostile, "Password").as_table().unwrap())
                 .expect_err(&format!(
                     "`{hostile}` can break out of the action and must be refused"
