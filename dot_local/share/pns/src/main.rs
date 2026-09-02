@@ -7812,13 +7812,31 @@ fn also_kept(kept: Option<&Path>) -> String {
 /// NOTHING TO MOVE IS NOT A FAILURE: `--force` on a machine with no config is
 /// an ordinary first run.
 fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
-    let backup = now_secs()
-        .and_then(|now| pns::setup::backup_path(path, now))
-        .ok_or_else(|| {
-            "the clock cannot be read, so the config already there cannot be named \
-             and kept; nothing was written"
-                .to_string()
-        })?;
+    let now = now_secs().ok_or_else(|| {
+        "the clock cannot be read, so the config already there cannot be named \
+         and kept; nothing was written"
+            .to_string()
+    })?;
+    keep_aside_at(path, now)
+}
+
+/// `keep_aside` with the moment NAMED rather than read.
+///
+/// THE SPLIT EXISTS FOR THE TEST, and the test is what makes it worth having.
+/// With the clock read in here, a test that pre-claims a backup name has to
+/// read the clock itself and hope neither read lands on the far side of a
+/// second boundary. Pre-claiming both candidate names only narrows that
+/// window: a thread parked across more than one boundary still picks a third
+/// name and the test fails on a working build. Naming the second removes the
+/// race instead of shrinking it.
+fn keep_aside_at(path: &Path, epoch_secs: u64) -> Result<Option<PathBuf>, String> {
+    let backup = pns::setup::backup_path(path, epoch_secs).ok_or_else(|| {
+        format!(
+            "{} cannot be named for keeping, so the config already there \
+             cannot be kept; nothing was written",
+            path.display()
+        )
+    })?;
     // THE NAME IS CLAIMED BEFORE ANYTHING MOVES ONTO IT, so a second forced run
     // inside the same second refuses rather than writing over the copy the
     // first one kept: a rename would replace that copy without a word.
@@ -8157,7 +8175,7 @@ mod tests {
         CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
         STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
-        end_lease, held_lamps, keep_aside, lights_report, list, matches_glob, means_yes,
+        end_lease, held_lamps, keep_aside, keep_aside_at, lights_report, list, matches_glob, means_yes,
         muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
         recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
         reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
@@ -10098,34 +10116,23 @@ mod tests {
         // that collision instead of running two forced publishes back to back
         // and hoping they land in the same wall-clock second.
         //
-        // BOTH SECONDS ARE PRE-CLAIMED, not only the one this test's own
-        // clock read named: `keep_aside` reads the clock again internally,
-        // and a boundary crossing between the two reads would otherwise miss
-        // the one name this test actually pre-claimed, making the run flake
-        // on a real clock rather than on a broken build.
+        // THE MOMENT IS NAMED, NOT READ, on both sides: `keep_aside_at`
+        // takes the epoch, so this test and the code under it cannot
+        // disagree about which second they are in, and exactly one backup
+        // name is in play.
+        const FIXED_EPOCH: u64 = 1_700_000_000;
         let home = scratch("setup-keep-aside-collision");
         let path = home.join(".config/pns/config.toml");
         std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
         std::fs::write(&path, "# the one it replaces\n").expect("the config");
-        let now = now_secs().expect("the clock");
-        let this_second = pns::setup::backup_path(&path, now).expect("the backup name");
-        let next_second = pns::setup::backup_path(&path, now + 1).expect("the backup name");
-        std::fs::write(
-            &this_second,
-            "# an earlier run's own backup (this second)\n",
-        )
-        .expect("the earlier backup");
-        std::fs::write(
-            &next_second,
-            "# an earlier run's own backup (the next second)\n",
-        )
-        .expect("the earlier backup");
+        let claimed = pns::setup::backup_path(&path, FIXED_EPOCH).expect("the backup name");
+        std::fs::write(&claimed, "# an earlier run's own backup\n").expect("the earlier backup");
 
-        let refusal = keep_aside(&path).expect_err("the backup name is already claimed");
+        let refusal =
+            keep_aside_at(&path, FIXED_EPOCH).expect_err("the backup name is already claimed");
         assert!(
-            refusal.contains(&this_second.display().to_string())
-                || refusal.contains(&next_second.display().to_string()),
-            "the refusal does not name either pre-claimed backup: {refusal}"
+            refusal.contains(&claimed.display().to_string()),
+            "the refusal does not name the pre-claimed backup: {refusal}"
         );
         assert!(
             refusal.contains("already claimed"),
@@ -10137,13 +10144,8 @@ mod tests {
             "the config was moved even though its backup name could not be claimed"
         );
         assert_eq!(
-            std::fs::read_to_string(&this_second).expect("the earlier backup"),
-            "# an earlier run's own backup (this second)\n",
-            "an earlier run's own backup was overwritten rather than left alone"
-        );
-        assert_eq!(
-            std::fs::read_to_string(&next_second).expect("the earlier backup"),
-            "# an earlier run's own backup (the next second)\n",
+            std::fs::read_to_string(&claimed).expect("the earlier backup"),
+            "# an earlier run's own backup\n",
             "an earlier run's own backup was overwritten rather than left alone"
         );
     }
