@@ -1189,11 +1189,6 @@ mod tests {
         assert!(config.plugins["hermes"].enabled);
     }
 
-    /// `lights.<level>` is not a public name (`config::TARGET_KEYS` is
-    /// private), so it is spelled out here rather than imported; a change to
-    /// it on either side is caught the moment the two literals disagree.
-    const TARGET_KEYS: &str = "lights.<level>";
-
     #[test]
     fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
         // EVERY LAYOUT TABLE IS ONE THE ROSTER SERVES, and with the SAME key
@@ -1239,7 +1234,7 @@ mod tests {
         // branch rather than a `Key` list, so both are the two named
         // exceptions rather than gaps.
         for (table, _) in crate::config::TABLE_KEYS.iter().copied() {
-            if table == crate::config::TOP_LEVEL || table == TARGET_KEYS {
+            if table == crate::config::TOP_LEVEL || table == crate::config::TARGET_KEYS {
                 continue;
             }
             assert!(

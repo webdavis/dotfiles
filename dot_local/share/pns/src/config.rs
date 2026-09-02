@@ -637,7 +637,7 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
 /// a lamp, a room and a zone answer the same questions and differ only in how
 /// specific they are. Three rows would be one list to keep in agreement with
 /// two others, which is the drift this roster exists to prevent.
-const TARGET_KEYS: &str = "lights.<level>";
+pub(crate) const TARGET_KEYS: &str = "lights.<level>";
 
 /// What one table serves, or `None` for a table this schema has no vocabulary
 /// for (a plugin nothing registered; see `TABLE_KEYS`).
