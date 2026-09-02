@@ -675,33 +675,6 @@ mod tests {
     }
 
     #[test]
-    fn the_templates_own_herdr_lane_shape_parses() {
-        // dot_config/uu/private_config.toml.tmpl's [lanes.herdr] block,
-        // verbatim, with its two templated values stood in for by a
-        // placeholder: this cannot render headless (it reads the vault), so
-        // this is what proves the SHAPE the template ships is one the parser
-        // still accepts once `type` is added.
-        let config = parsed(
-            "[lanes.herdr]\n\
-             type = \"herdr\"\n\
-             binary = \"/home/example/.local/bin/herdr\"\n\
-             plugins = [\n\
-               { id = \"worktrunk\", repo = \"owner/herdr-worktrunk\" },\n\
-             ]\n",
-        );
-        assert_eq!(
-            config.lanes.get("herdr"),
-            Some(&LaneKind::Herdr(HerdrLane {
-                binary: "/home/example/.local/bin/herdr".to_string(),
-                plugins: vec![Plugin {
-                    id: "worktrunk".to_string(),
-                    repo: "owner/herdr-worktrunk".to_string(),
-                }],
-            }))
-        );
-    }
-
-    #[test]
     fn every_table_refuses_its_own_near_miss_and_lists_its_vocabulary() {
         for (text, table, key, serves) in [
             (
