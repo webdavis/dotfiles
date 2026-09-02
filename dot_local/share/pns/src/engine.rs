@@ -17,7 +17,8 @@
 use std::collections::BTreeMap;
 
 use crate::probes::{
-    IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ScreenLockProbe, SessionViewProbe,
+    IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,
+    Wants,
 };
 use crate::registry::Selection;
 use crate::routing::Leg;
@@ -167,7 +168,12 @@ pub fn decide<P>(
     mobile_watch_card: bool,
 ) -> Decision
 where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + SessionViewProbe,
+    P: IdleProbe
+        + PhoneMarkerProbe
+        + PhoneInputProbe
+        + ScreenLockProbe
+        + SessionViewProbe
+        + ProbeStart,
 {
     let reading = surface_reading(probes, overrides, now_secs);
     let session_visibility = operator_visibility(probes, pane);
@@ -325,7 +331,7 @@ struct SurfaceReading {
 /// already stated the answer never pays for the probe underneath it.
 pub fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> Surface
 where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + ProbeStart,
 {
     surface_reading(probes, overrides, now_secs).surface
 }
@@ -334,7 +340,7 @@ where
 /// over the probes.
 fn surface_reading<P>(probes: &P, overrides: &Overrides, now_secs: Option<u64>) -> SurfaceReading
 where
-    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe,
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + ProbeStart,
 {
     // A garbled threshold is UNKNOWN, never the default: substituting 120
     // would read a stale desk as fresh and hold the operator at their desk.
@@ -356,6 +362,14 @@ where
             desk_fresh_secs: None,
         };
     };
+
+    // ONE START, right where the reads below are about to become certain:
+    // the same two predicates the guards below consult, so an override that
+    // answers a question outright never starts the probe underneath it.
+    probes.start(Wants {
+        desk: overrides.reads_desk(),
+        phone: overrides.reads_phone(),
+    });
 
     // THE LOCK IS READ ONLY WHERE THE IDLE CLOCK ANSWERED, because its only
     // job is to disqualify what that probe reported: a desk reading the
@@ -422,7 +436,8 @@ mod tests {
     use super::{DEFAULT_DESK_IDLE_SECS, Decision, Overrides, decide, operator_surface};
     use crate::config::parse_config;
     use crate::probes::{
-        IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ScreenLockProbe, SessionViewProbe,
+        IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe,
+        SessionViewProbe, Wants,
     };
     use crate::registry::Selection;
     use crate::routing::{Leg, ReportMode};
@@ -444,6 +459,10 @@ mod tests {
         phone_reads: Cell<u32>,
         lock_reads: Cell<u32>,
         view_reads: Cell<u32>,
+        /// What the last `start` call was asked for, synchronous and
+        /// nothing to race: this double never spawns a thread, it only
+        /// records what it was told.
+        wants: Cell<Option<Wants>>,
     }
 
     impl IdleProbe for CountingProbes {
@@ -474,6 +493,11 @@ mod tests {
         fn session_view(&self, _origin_pane: &str) -> Option<SessionView> {
             self.view_reads.set(self.view_reads.get() + 1);
             self.view.clone()
+        }
+    }
+    impl ProbeStart for CountingProbes {
+        fn start(&self, wants: Wants) {
+            self.wants.set(Some(wants));
         }
     }
 
@@ -1616,6 +1640,57 @@ mod tests {
                 ..Overrides::default()
             }
             .reads_phone()
+        );
+    }
+
+    #[test]
+    fn start_is_asked_for_exactly_what_the_read_guards_below_it_would_consult() {
+        // The override rule has to reach `start` with the same answer the
+        // guard below it reads, or a probe gets begun for a reading the
+        // caller already gave. A stated idle clock must not start the desk
+        // pair; a stated phone age must not start the phone chain.
+        let probes = CountingProbes {
+            idle: Some(2),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        decide_with(
+            &probes,
+            &Overrides {
+                idle_secs: Some(5),
+                ..Overrides::default()
+            },
+            "wW:p1",
+        );
+        assert_eq!(
+            probes.wants.get(),
+            Some(Wants {
+                desk: false,
+                phone: true
+            }),
+            "a stated idle clock must start no desk thread"
+        );
+
+        let probes = CountingProbes {
+            idle: Some(2),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        decide_with(
+            &probes,
+            &Overrides {
+                phone_input_age: Some(5),
+                ..Overrides::default()
+            },
+            "wW:p1",
+        );
+        assert_eq!(
+            probes.wants.get(),
+            Some(Wants {
+                desk: true,
+                phone: false
+            }),
+            "a stated phone age must start no phone thread"
         );
     }
 
