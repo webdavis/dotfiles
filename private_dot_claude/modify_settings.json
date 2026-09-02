@@ -195,14 +195,33 @@
      for one prompt (PermissionRequest fires, then the prompt appears and
      Notification fires), so this is one seam per harness, matching Codex's
      PermissionRequest entry in
-     hooks/codex/install-hooks.sh. Notification now carries NO entry at all.
+     hooks/codex/install-hooks.sh. Notification carries a QUOTA-ONLY entry:
      alerter held the slot for a local sound and was the last notification
-     path on this machine that bypassed the presence engine; the
-     PermissionRequest hook above and the unanswered-approval nag already
-     raise what it raised, so it is gone rather than kept for a second
-     opinion. A wildcard entry here would double-fire against the lifecycle
-     hooks for the reason stated just above. alerter itself stays installed:
-     the osquery pipeline is its real caller.
+     path on this machine that bypassed the presence engine, and for TOOL
+     approvals the PermissionRequest hook above and the unanswered-approval
+     nag already raise what it raised, so it was deleted rather than kept
+     for a second opinion (5d30d362) and the slot sat empty until this one.
+     Sandbox NETWORK approvals are covered by neither: Claude Code's
+     PermissionRequest hooks do not run for them, so deleting alerter left
+     that class with no repository-managed alert and no nag. That gap is
+     known and filed (backlog B39), not fixed here. alerter itself stays
+     installed: the osquery pipeline is its real caller.
+
+     THE ONE MATCHER IS AN EXACT PIPE-SEPARATED ALLOWLIST OF THREE QUOTA
+     AUTO-RESUME TYPES, never a wildcard: a wildcard entry here would
+     double-fire against the canonical lifecycle hooks for the reason stated
+     just above (a permission prompt against PermissionRequest, an
+     elicitation against the Elicitation hook, and so on). `agent_needs_input`
+     and `agent_completed` are deliberately left off the allowlist rather
+     than wired: the former may duplicate an ordinary asked or blocked event
+     and the latter combines success and failure in one notification type, so
+     either needs a live capture before it can be mapped honestly. Async,
+     because Claude Code hooks block by default and the quota arm dispatches
+     through the full delivery plan before it ever reaches the attempt guard,
+     so a synchronous hook would delay Claude Code's own quota transition on
+     every wait. Routed to ONE handler (`pns hook quota`) rather than three
+     declarations, which is one seam to keep in sync instead of three that can
+     drift apart.
 
      ONE Stop entry: the engine measures the turn and reports it in the same
      pass, where a separate pulse hook used to decide the tier again on its
@@ -292,6 +311,12 @@
         "type" "command"
         "async" true
         "command" (printf "%s/.local/libexec/pns/pns hook stop-failure" $home)))))
+    "Notification" (list (dict
+      "matcher" "quota_auto_resume_fired|quota_auto_resume_stale|quota_auto_resume_disabled"
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook quota" $home)))))
     "PermissionRequest" (list (dict
       "hooks" (list (dict
         "type" "command"

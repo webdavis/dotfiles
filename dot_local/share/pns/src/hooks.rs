@@ -60,6 +60,11 @@ pub struct HookPayload {
     /// every other value is silence, at least until D4b's resume audit
     /// record.
     pub source: String,
+    /// A `Notification` event's own kind, for example
+    /// `quota_auto_resume_fired`. The hooks reference documents the whole
+    /// matcher vocabulary; only the three `quota_auto_resume_*` values are
+    /// routed anywhere today, and every other value is silence.
+    pub notification_type: String,
 }
 
 /// Read a payload, treating anything unparseable as an empty one.
@@ -109,6 +114,7 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         from_model: text("from_model"),
         to_model: text("to_model"),
         source: text("source"),
+        notification_type: text("notification_type"),
     }
 }
 
@@ -740,6 +746,29 @@ mod tests {
             payload.message.chars().count(),
             320,
             "an error is cut at the shared cap, not merely somewhere under it"
+        );
+    }
+
+    #[test]
+    fn a_notification_yields_its_type_and_message() {
+        // THE BINARY'S OWN FIELD SET (hooks reference matcher table): a
+        // `Notification` event carries `notification_type` beside the same
+        // `message` every other event states, so the quota arm reads both
+        // off fields this parser already exposes.
+        let payload = parse_payload(
+            r#"{"session_id":"s1","cwd":"/a/dotfiles",
+                "hook_event_name":"Notification","notification_type":"quota_auto_resume_stale",
+                "message":"Your usage limit has reset"}"#,
+        );
+        assert_eq!(payload.notification_type, "quota_auto_resume_stale");
+        assert_eq!(payload.message, "Your usage limit has reset");
+    }
+
+    #[test]
+    fn notification_type_is_absent_rather_than_guessed_off_a_non_notification_event() {
+        assert_eq!(
+            parse_payload(r#"{"session_id":"s1"}"#).notification_type,
+            ""
         );
     }
 
