@@ -4338,13 +4338,38 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
     let present_after_auto =
         std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default();
 
-    for source in ["command", "picker", "sdk", "resume"] {
-        hook_with(
-            with_state_dir(&sandbox),
-            &sandbox,
-            "model-switch",
-            &model_switch_payload("s2", source),
-        );
+    // The four other documented words, then the shapes the reference does
+    // not list: a `source` that is missing, empty, of the wrong type, spelled
+    // in the wrong case, or a word it never documents. Each reads as not
+    // `auto`, and not `auto` is silence; a gate that let an ABSENT source
+    // through would fire on every harness that sends none.
+    let documented = ["command", "picker", "sdk", "resume"]
+        .map(|source| (source.to_string(), model_switch_payload("s2", source)));
+    let unlisted = [
+        (
+            "missing",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b"}"#,
+        ),
+        (
+            "empty",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":""}"#,
+        ),
+        (
+            "a number",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":7}"#,
+        ),
+        (
+            "AUTO",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":"AUTO"}"#,
+        ),
+        (
+            "manual",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":"manual"}"#,
+        ),
+    ]
+    .map(|(label, payload)| (label.to_string(), payload.to_string()));
+    for (source, payload) in documented.into_iter().chain(unlisted) {
+        hook_with(with_state_dir(&sandbox), &sandbox, "model-switch", &payload);
         assert_eq!(
             deliveries(&sandbox, "hermes"),
             deliveries_after_auto,
