@@ -11,6 +11,15 @@ return {
     assert(util.trim(nil) == "")
   end,
 
+  ["trim returns only the trimmed string"] = function()
+    -- gsub's second return value is the substitution count. Leaking it makes
+    -- every tail-position caller a two-value expression, and util.lua's own
+    -- run_shell_command returned three values because of it.
+    local first, second = util.trim(" x ")
+    assert(first == "x", "trimmed to " .. tostring(first))
+    assert(second == nil, "leaked a second value: " .. tostring(second))
+  end,
+
   ["sanitize_input trims and lowercases"] = function()
     assert(util.sanitize_input("  HeLLo World  ") == "hello world")
   end,

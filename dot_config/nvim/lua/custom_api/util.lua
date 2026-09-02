@@ -30,8 +30,12 @@ end
 -- ╰──────╯
 
 ---Remove surrounding whitespace from `s`.
+---
+---The outer parentheses are load-bearing: they drop `gsub`'s substitution
+---count, which every caller in tail position would otherwise return as a
+---second value of its own.
 function M.trim(s)
-  return (s or ""):gsub("^%s*(.-)%s*$", "%1")
+  return ((s or ""):gsub("^%s*(.-)%s*$", "%1"))
 end
 
 ---Remove surrounding whitespace and convert `s` to lowercase.
