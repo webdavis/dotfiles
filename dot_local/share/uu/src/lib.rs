@@ -21,6 +21,7 @@
 
 pub mod alert;
 pub mod config;
+pub mod deadline;
 pub mod lanes;
 pub mod record;
 pub mod schedule;

@@ -20,6 +20,9 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use crate::deadline::{DEFAULT_LANE_DEADLINE, parse_deadline};
 
 /// The lane TYPES this build knows how to run: the roster of BUILT-IN
 /// adapters, never the roster of names an operator may declare. A lane's NAME
@@ -115,7 +118,20 @@ pub const DEFAULT_ALERT_BINARY: &str = "pns";
 /// file's own order (`toml::Table` is itself a `BTreeMap`, and neither this
 /// crate nor pns enables the `toml`/`indexmap` `preserve_order` feature, so a
 /// run's sequence never depends on where a block happens to sit in the file).
-pub type Lanes = BTreeMap<String, LaneKind>;
+pub type Lanes = BTreeMap<String, Lane>;
+
+/// One declared `[lanes.<name>]` block: the adapter that runs it, and the
+/// deadline that bounds it.
+///
+/// THE DEADLINE SITS BESIDE THE KIND RATHER THAN INSIDE IT, so a lane type
+/// added later is bounded by construction instead of by its author
+/// remembering to carry the field. The run lock is held across lane
+/// execution, so a lane with no bound is a lock nothing ever gets back.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lane {
+    pub kind: LaneKind,
+    pub deadline: Duration,
+}
 
 /// One lane's ADAPTER, selected by its `type` key (the house rule: `type`
 /// selects backends everywhere). The kind carries the lane's own parsed
@@ -211,8 +227,11 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("schedule", &["day", "time"]),
     ("records", &["key", "url"]),
     ("alerts", &["binary"]),
-    ("lanes.command", &["run", "type"]),
-    ("lanes.herdr", &["binary", "plugins", "type"]),
+    ("lanes.command", &["deadline_secs", "run", "type"]),
+    (
+        "lanes.herdr",
+        &["binary", "deadline_secs", "plugins", "type"],
+    ),
 ];
 
 /// The roster row for the file's own top level. THE EMPTY NAME, because that
@@ -459,14 +478,21 @@ fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
             )));
         }
         let table_label = format!("lanes.{name}");
-        let fields = table_of(&table_label, block)?;
+        let mut fields = table_of(&table_label, block)?;
+        // TAKEN BEFORE THE DISPATCH, because every lane type carries it and
+        // none of them has an arm to read it: left in the table it would meet
+        // each kind parser's do-nothing fallthrough and be silently ignored.
+        let deadline = match fields.remove("deadline_secs") {
+            Some(stated) => parse_deadline(&table_label, &stated)?,
+            None => DEFAULT_LANE_DEADLINE,
+        };
         let kind = match lane_type(&name, &table_label, &fields)?.as_str() {
             "command" => LaneKind::Command(parse_command_lane(&table_label, fields)?),
             "herdr" => LaneKind::Herdr(parse_herdr_lane(&table_label, fields)?),
             // `lane_type` never returns anything outside `LANE_TYPES`.
             _ => unreachable!("lane_type only answers a member of LANE_TYPES"),
         };
-        lanes.insert(name, kind);
+        lanes.insert(name, Lane { kind, deadline });
     }
     Ok(lanes)
 }
@@ -673,6 +699,12 @@ mod tests {
         }
     }
 
+    /// One lane's ADAPTER. Every assertion below is about what a block parsed
+    /// into, never about the deadline beside it, which `deadline.rs` owns.
+    fn kind<'a>(config: &'a Config, name: &str) -> Option<&'a LaneKind> {
+        config.lanes.get(name).map(|lane| &lane.kind)
+    }
+
     // --- what an empty file means --------------------------------------------
 
     #[test]
@@ -745,9 +777,7 @@ mod tests {
     #[test]
     fn the_herdr_lane_still_parses_with_its_type_written_out() {
         assert_eq!(
-            parsed("[lanes.herdr]\ntype = \"herdr\"\n")
-                .lanes
-                .get("herdr"),
+            kind(&parsed("[lanes.herdr]\ntype = \"herdr\"\n"), "herdr"),
             Some(&LaneKind::Herdr(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
@@ -758,7 +788,7 @@ mod tests {
     #[test]
     fn a_herdr_lane_may_carry_any_name_once_its_type_says_herdr() {
         assert_eq!(
-            parsed("[lanes.mine]\ntype = \"herdr\"\n").lanes.get("mine"),
+            kind(&parsed("[lanes.mine]\ntype = \"herdr\"\n"), "mine"),
             Some(&LaneKind::Herdr(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
@@ -807,7 +837,7 @@ mod tests {
                 "[lanes.herdr]\nplugin = []\n",
                 "lanes.herdr",
                 "plugin",
-                "binary, plugins, type",
+                "binary, deadline_secs, plugins, type",
             ),
         ] {
             let detail = refusal(text);
@@ -979,7 +1009,7 @@ mod tests {
     #[test]
     fn a_lane_block_with_nothing_in_it_is_the_lane_on_with_its_defaults() {
         assert_eq!(
-            parsed("[lanes.herdr]\n").lanes.get("herdr"),
+            kind(&parsed("[lanes.herdr]\n"), "herdr"),
             Some(&LaneKind::Herdr(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
@@ -996,7 +1026,7 @@ mod tests {
                { id = \"herdr-bar\", repo = \"other/herdr-bar\" },\n\
              ]\n",
         );
-        let Some(LaneKind::Herdr(herdr)) = config.lanes.get("herdr") else {
+        let Some(LaneKind::Herdr(herdr)) = kind(&config, "herdr") else {
             panic!("expected a herdr lane, got {:?}", config.lanes.get("herdr"));
         };
         assert_eq!(
@@ -1111,7 +1141,7 @@ mod tests {
     fn a_command_lane_reads_run_as_the_program_and_its_arguments() {
         let config = parsed("[lanes.mine]\ntype = \"command\"\nrun = [\"/bin/x\", \"--yes\"]\n");
         assert_eq!(
-            config.lanes.get("mine"),
+            kind(&config, "mine"),
             Some(&LaneKind::Command(CommandLane {
                 run: vec!["/bin/x".to_string(), "--yes".to_string()],
             }))
@@ -1140,9 +1170,10 @@ mod tests {
         // The stated `type` wins over a name that happens to be a type of its
         // own: the name is the operator's label, the type is the contract.
         assert_eq!(
-            parsed("[lanes.herdr]\ntype = \"command\"\nrun = [\"x\"]\n")
-                .lanes
-                .get("herdr"),
+            kind(
+                &parsed("[lanes.herdr]\ntype = \"command\"\nrun = [\"x\"]\n"),
+                "herdr"
+            ),
             Some(&LaneKind::Command(CommandLane {
                 run: vec!["x".to_string()],
             }))
@@ -1198,7 +1229,7 @@ mod tests {
         assert!(config.records.is_some());
         assert!(config.alerts.is_some());
         assert_eq!(
-            config.lanes.get("herdr"),
+            kind(&config, "herdr"),
             Some(&LaneKind::Herdr(HerdrLane {
                 binary: "stand-in/.local/bin/herdr".to_string(),
                 plugins: vec![Plugin {
@@ -1238,7 +1269,7 @@ mod tests {
         // sync.
         let config = parsed(&shipped_command_example_uncommented());
         assert_eq!(
-            config.lanes.get("example"),
+            kind(&config, "example"),
             Some(&LaneKind::Command(CommandLane {
                 run: vec!["/usr/local/bin/my-updater".to_string(), "--yes".to_string()],
             }))
@@ -1292,12 +1323,16 @@ mod tests {
         // the operator writes a setting that does nothing and no refusal ever
         // mentions it. Every key here is handed a value of the wrong type; an
         // arm refuses it, and a key with no arm accepts anything.
+        //
+        // A BOOLEAN IS THE PROBE, because no key this schema serves admits
+        // one. An integer probe would be a LEGAL value for `deadline_secs`,
+        // and this test would then read the key it is meant to walk as unread.
         for (table, keys) in TABLE_KEYS {
             for key in *keys {
                 let text = if *table == TOP_LEVEL {
-                    format!("{key} = 1\n")
+                    format!("{key} = true\n")
                 } else {
-                    format!("[{table}]\n{key} = 1\n")
+                    format!("[{table}]\n{key} = true\n")
                 };
                 let detail = match parse_config(&text) {
                     Err(error) => error.detail().to_string(),
