@@ -308,7 +308,14 @@ fn an_unknown_command_is_usage_on_stderr_and_exit_two() {
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.contains("usage"), "{output:?}");
-    assert!(err.contains("lane types: herdr"), "{output:?}");
+    // The line's SHAPE, not its exact text: a build that adds a lane type
+    // lengthens the list, and the pin here is that usage lists the types at
+    // all and that `herdr` is one of them.
+    let lists_herdr = err.lines().any(|line| {
+        line.strip_prefix("lane types: ")
+            .is_some_and(|types| types.split(", ").any(|kind| kind == "herdr"))
+    });
+    assert!(lists_herdr, "{output:?}");
 }
 
 #[cfg(test)]
