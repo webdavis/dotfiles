@@ -3456,6 +3456,40 @@ mod tests {
     const SHIPPED_TEMPLATE: &str =
         include_str!("../../../../dot_config/pns/private_config.toml.tmpl");
 
+    /// The one committed input `pns-config-render` walks to produce
+    /// `SHIPPED_TEMPLATE`. Same four-levels-out caveat as `SHIPPED_TEMPLATE`
+    /// itself.
+    const CONFIG_VALUES: &str = include_str!("../../../../dot_config/pns/config-values.toml");
+
+    #[test]
+    fn the_committed_template_is_render_over_the_committed_values_file() {
+        // THE WRAPPER TEXT IS DUPLICATED BY HAND rather than imported from
+        // `pns-config-render`, on purpose: if that binary's own copy were
+        // ever deleted or gutted to an empty string, importing it here would
+        // make both sides agree on nothing and this test would still pass.
+        // A hand-kept second copy is what turns that mutant red.
+        const BANNER: &str = "\
+# GENERATED FILE: this is `render`'s own text over the committed
+# `dot_config/pns/config-values.toml`, produced by `just pns-config-render`.
+# EDIT THE VALUES FILE AND REGENERATE; a hand edit here fails this test.
+{{- if eq .chezmoi.os \"darwin\" }}
+
+";
+        const FOOTER: &str = "{{- end }}\n";
+
+        let values: toml::Table = CONFIG_VALUES
+            .parse()
+            .expect("the committed values file is valid TOML");
+        let rendered =
+            crate::config_text::render(&values).expect("the committed values file renders");
+        let expected = format!("{BANNER}{rendered}{FOOTER}");
+        assert_eq!(
+            expected, SHIPPED_TEMPLATE,
+            "the shipped template drifted from `render` over the committed values file; \
+             regenerate with `just pns-config-render`"
+        );
+    }
+
     /// The template with its chezmoi actions taken out: a directive standing on
     /// its own line goes with the line, and an action inside a value becomes
     /// the string the vault would have put there.

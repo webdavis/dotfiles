@@ -1,346 +1,230 @@
-# The pns engine's plugin selection. THE FILE SELECTS: a plugin runs only
-# when its table here says enabled = true, and this file existing is what
-# moves the light pulse from the retired bash channel to `pns pulse`.
+# GENERATED FILE: this is `render`'s own text over the committed
+# `dot_config/pns/config-values.toml`, produced by `just pns-config-render`.
+# EDIT THE VALUES FILE AND REGENERATE; a hand edit here fails this test.
 {{- if eq .chezmoi.os "darwin" }}
 
-# EVERY SHIPPED PLUGIN'S SETTINGS ARE JUDGED, not handed through. Each table
-# below serves a fixed set of keys, and a key that is not one of them is refused
-# at load by name, in the same sentence that lists what the table does serve.
-# A TYPO THEREFORE BLOCKS THE WHOLE FILE until it is fixed, which is by design
-# and is the loud half of a deliberate trade: pns falls back to its built-in
-# plugin roster, every secret in here goes unread, and the phone card, the
-# Discord post and the lamps stop together, with a refusal on stderr naming the
-# key. The quiet half is what it replaced: `room` for `rooms` used to reach the
-# hue plugin as a setting it did not recognize, and `tokens` for `token` a phone
-# card that never left the machine, each costing one destination and saying
-# nothing anywhere.
-# A TABLE FOR A PLUGIN THAT DOES NOT SHIP keeps free-form settings, because
-# nothing here has a vocabulary for a plugin that does not exist. Its NAME is
-# what gets refused, one layer on.
+# The pns engine's plugin selection, as `pns setup` first wrote it. A
+# plugin runs only when its table here says enabled = true, and a key this
+# schema does not serve is refused by name at load, which blocks the whole
+# file until it is fixed: pns falls back to its built-in roster, every
+# secret in here goes unread, and the refusal on stderr names the key.
 #
-# WITH NO FILE AT ALL pns runs the CORE: the macOS banner and the phone card.
-# Those two are what a notification engine has to do on a machine nobody has
-# configured yet. The other three are OPT-INS you arm with a credential first:
-# hue needs a bridge and key, hermes needs a signed route, and the home probe
-# needs a router API key, so switching them on by default would deliver nothing
-# and report three failures.
-#
-# A PLUGIN NAMES ITS BACKEND WITH `type`, under every table that has one to
-# pick, and the key is required: nothing guesses which implementation a table
-# meant.
+# THE BANNER AND THE PHONE CARD ARE THE CORE and are written on. Three of
+# the plugins below are OPT-INS you arm with a credential first: hue needs
+# a bridge and key, hermes needs a signed route, and the home probe needs
+# a router API key, so switching them on by default would deliver nothing
+# and report three failures. Focus, the nag and the lamp map are separate
+# opt-ins below `[plugins]` and need no credential at all. A commented-out
+# block below is a feature nothing is set up for yet: fill its values in
+# and uncomment it. A plugin names its backend with `type`, and the key is
+# required: nothing guesses which implementation a table meant.
 
 [plugins.mobile]
 enabled = true
-# Which compiled-in backend carries the card. "moshi" is the only one today,
-# and a table naming none, or naming one nothing answers, is refused out loud
-# rather than read as this one.
+# Which compiled-in backend carries the card. "moshi" is the only one
+# today, and a table naming none, or naming one nothing answers, is
+# refused out loud rather than read as this one.
 type = "moshi"
+# Pair with moshi and put the webhook secret it issues here: that pairing
+# is what completes the phone card.
 token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}
-# Whether a long command's card still fires while you are watching that pane on
-# the phone. OFF: a card describing the pane already filling the screen is
-# noise, and the light pulse alone marks the command finishing. Written out at
-# its default; set true to be carded anyway.
+# Whether a long command's card still fires while you are watching that
+# pane on the phone. OFF: a card describing the pane already filling the
+# screen is noise, and the light pulse alone marks the command finishing;
+# set true to be carded anyway.
 mobile_watch_card = false
-# How long pns waits for moshi to acknowledge a submitted permission prompt
-# before giving up on it, in seconds. FIVE when no key states one.
-# THIS BOUNDS THE PROMPT ITSELF, which is why it matters more than it looks:
-# the harness runs the hook BEFORE drawing the permission prompt and waits for
-# it to return, so every second pns spends waiting on a moshi daemon that
-# stopped answering is a second the question is off your screen. The wait is a
-# registration and not a human wait (moshi-hook returns as soon as the daemon
-# acknowledges it; your own answer arrives later, by the daemon typing into
-# the prompt), so five seconds bounds a machine's acknowledgement rather than
-# anybody's answer. On expiry pns says nothing
-# either way and the submission is killed, which is what actually lets the
-# prompt be drawn: the harness reads the hook's output to end-of-file, and a
-# surviving moshi-hook would hold that open and keep the question hidden
-# anyway. The cost is the pending card dying with it, which a daemon that
-# silent had almost certainly not sent. There is no off switch, because an
-# unbounded wait is the bug this replaces; a zero, a negative, a non-integer
-# and anything past 3600 are refused by name. Written out at its default.
+# How long pns waits for moshi to acknowledge a submitted permission
+# prompt, in seconds. The harness draws the prompt only once the hook
+# returns, so this is time the question is off your screen. On expiry
+# the submission is killed and its pending card dies with it, and
+# nothing is said either way. There is no off switch: zero, a negative,
+# a fraction and anything past 3600 are refused by name.
 submit_deadline_secs = 5
 
+# The durable paper trail: every event posted to a hermes route, signed
+# with the key that route verifies.
 [plugins.hermes]
 enabled = true
 key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}
 
+# The macOS banner, which is what a machine you are sitting at says.
 [plugins.macos-banner]
 enabled = true
 
+# The light pulse: the named rooms flash green when work finishes and red
+# when it dies. Needs the bridge's address, a key it issued, and the rooms
+# spelled the way the bridge spells them.
 [plugins.hue]
 enabled = true
 bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
 rooms = ["3F - Studio", "2F - Kitchen"]
-# The operator's quiet hours: local wall clock, the start inclusive and the end
-# exclusive, and it may wrap midnight. A bare `pns lights quiet <place>` mutes
-# until this window ends and is refused when none is set. With no `[lights]`
-# table below it is also the hours the room pulse stays dark (a hand-run
-# `pns pulse` is exempt so a bridge and key can be checked in-window); with one,
-# each place's own `dim_window` decides the night behaviour instead.
+# The hours the room pulse stays dark: local wall clock, the start
+# inclusive and the end exclusive, and it may wrap midnight. A hand-run
+# `pns pulse` is exempt, so a bridge and key can be checked in-window.
+# A bare `pns lights quiet <place>` mutes until this window ends and is
+# refused when none is set. With a `[lights]` table below, each place's
+# own `dim_window` decides the night instead and this window is the
+# mute's schedule alone.
 quiet_hours = "22:00-07:00"
 
-# The home probe: is the phone on the home wifi, answered by the UDR's client
-# list. A SENSOR rather than a channel, so it is selected here like any plugin
-# and no event can ever route to it; `pns home` is how it is read and drilled,
-# and the catch-up and quiet-window slices are what will spend the reading.
-# THE DEVICE is named by up to three keys, `device_mac`, `device_hostname` and
-# `device_ipv4`; at least one is required, any one of them matching a client
-# reads home, and on disagreement the strongest (that order) names the match.
-# The phone is matched by NAME because iOS private wifi addresses make its MAC
-# rotate per network; `device_mac` is the key for a device whose MAC is stable.
-# `type` names which compiled-in backend answers; "unifi" is the only one
-# today, and a table naming none, or naming one nothing answers, is refused out
-# loud.
+# The home probe: whether the phone is on the home wifi, answered by the
+# router's own client list. A SENSOR rather than a destination, so no
+# event ever routes to it; `pns home` is how it is read.
 [plugins.router]
 enabled = true
+# Which compiled-in backend answers. "unifi" is the only one today, and
+# a table naming none, or naming one nothing answers, is refused out loud.
 type = "unifi"
 router_url = "https://192.168.1.1"
+# The device is named by device_mac, device_hostname or device_ipv4, at
+# least one of them; any one matching a client reads home, and on
+# disagreement the strongest, in that order, names the match. A phone is
+# matched by NAME, because iOS rotates its wifi address; device_mac is
+# for a device whose address stays put.
 device_hostname = "mister"
+# device_mac = ""
+# device_ipv4 = ""
 api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}
-# The hermes route a stale-identifier alert posts to. UNSET IS THE WORKING
-# SETTING: the alert posts to the default route (`/webhooks/pns`), which is the
-# one route that both verifies against the key pns signs with (`[plugins.hermes]
-# key`) and renders the body pns sends (`{agent} · {state} · {project}` over
-# `{detail}`). Naming another route needs that hermes route prepared first, with
-# the pns signing secret and a pns-shaped prompt, or the POST is rejected and the
-# leg is silent, so nothing says the alert never landed. That is an operator
-# decision, not a default.
+# The hermes route a stale-identifier alert posts to. UNSET IS THE
+# WORKING SETTING: the alert posts to the default route. Naming another
+# needs that hermes route prepared first, with the pns signing secret
+# and a pns-shaped prompt, or the POST is rejected and the leg is silent.
 # stale_alert_channel = "priority"
 
-# The clock. pns is otherwise a set of short-lived processes: a hook fires, a
-# process starts, decides, delivers and exits, so every feature is a REACTION to
-# something that happened. The daemon is what runs BETWEEN events, for the two
-# things that are not reactions: saying something when nothing happened (an
-# approval left unanswered), and keeping an ambient effect alive while an agent
-# loop is alive (a light that breathes while work is running and goes dark when
-# it stops). It holds no state of its own; everything it knows is a file in
-# ~/.local/state/pns, so a restart loses nothing and a stopped daemon costs
-# those ambient features and never a card. Every notification you get today is
-# delivered on exactly the same path whether this is running or not.
-# ON UNLESS YOU SAY OTHERWISE, which is the opposite of every other table here,
-# because this one delivers nothing by itself: an idle daemon reads one empty
-# directory a second. Turning it off with `enabled = false` makes the launchd
-# job exit cleanly and stay exited, and takes away anything built on the clock.
-# `pns doctor` says which of the four states it is in. WRITTEN OUT AT ITS
-# DEFAULT so the switch can be seen; deleting the table is the same statement.
+# The clock: what runs BETWEEN events, for the two things that are not
+# reactions to one, saying something when nothing happened and keeping a
+# lamp alive while an agent loop is. It holds no state of its own, so a
+# restart loses nothing and a stopped daemon costs those ambient features
+# and never a card. ON UNLESS YOU SAY OTHERWISE, because it delivers
+# nothing by itself; deleting the table is the same statement, and
+# `pns doctor` says which state it is in.
 [daemon]
 enabled = true
 
-# The return recap's three delivery switches, each gating only its own
-# delivery. THE UNCOMMENTED LINES BELOW ARE THE DEFAULTS, written out so they
-# can be seen; deleting the whole table gets exactly the same behaviour, and a
-# misspelled key or a non-boolean value is refused by name rather than
-# half-read. NOT A PLUGIN, so it sits at the top level beside `[plugins]`
-# rather than under it.
+# The return recap: what you missed while you were away. THE UNCOMMENTED
+# LINES ARE THE DEFAULTS, written out so they can be seen; each switch
+# gates only its own delivery, and deleting the whole table gets exactly
+# the same behaviour.
 [recap]
-# The catch-up card: the misses queued while you were away, put in front of you
-# on the first event you are present for. Off never cards from the journal; the
-# misses stay recorded whatever this says, the newest 25 of them, so switching
+# The catch-up card: the misses queued while you were away, put in front
+# of you on the first event you are present for. Off never cards from
+# the journal; the misses stay recorded whatever this says, so switching
 # the card back on has something to deliver.
 replay_card = true
-# The recap of the whole window posted to Discord: the header, what still needs
-# you, the night in order, and where the full text lives. It is rendered and
-# posted by a SECOND pns process the return event starts and never waits for, so
-# nothing it does can slow the prompt you are standing at. Off records the window
+# The recap of the whole window posted to hermes, rendered and posted
+# by a second process that nothing waits for. Off records the window
 # just the same; only the posting stops.
 digest = true
-# Whether that recap posts to the `pns-recap` route rather than to the default
-# one. THE ROUTE MUST EXIST IN HERMES FIRST, prepared with the pns signing secret
-# (`[plugins.hermes] key` above) and a prompt of bare `{detail}`, so the recap's
-# own header stays the message's first line. Two shapes work and the difference
-# is only where the thread comes from: point the route's chat_id at a Discord
-# FORUM channel and every window opens its own thread, auto-titled from that
-# first line ("While you were away, 23:04-06:15 · 37 events"); or give the route
-# a static thread_id inside #pns and every window lands in one long-lived thread
-# there. The forum gives a title per window, the static thread keeps everything
-# in #pns; pns posts the same message either way. A route that refuses the post
-# is not silent: the recap goes to the default route instead, carrying one line
-# saying why it landed there.
+# Whether that recap posts to the `pns-recap` route rather than the
+# default one. The route has to exist in hermes first, prepared with
+# the pns signing secret and a prompt of bare `{detail}`; a route that
+# refuses the post is not silent, the recap goes to the default route
+# instead, carrying one line saying why it landed there.
 digest_as_thread = true
-# How many events a window needs before it is worth a recap rather than the
-# catch-up card alone. THE CALIBRATION KNOB: eight is a starting guess, every
-# recap's header prints the window's real count, and a week of them settles the
-# number without a rebuild. The window runs from the last event you were present
-# for to now, so a continuous stretch at the desk never reaches this. One is the
-# floor and means "any activity at all"; zero is refused, because it would recap
-# every single event, including one over a window where nothing happened.
+# How many events a window needs before it is worth a recap rather than
+# the catch-up card alone. Every recap's header prints the window's real
+# count, which is how the number gets settled. One is the floor and
+# means any activity at all; zero is refused.
 min_events = 8
-# The command that turns the window into the night-in-order lines. ARGV, NEVER A
-# SHELL STRING: the words are passed to the program as they are written here, so
-# nothing is interpreted and there is no quoting rule to get wrong. It is handed
-# the timeline on stdin and answers with the lines on stdout. UNSET IS A WORKING
-# SETTING and the common one: with no summarizer the recap posts the plain
-# mechanical list. Only these lines ever change; the header's count, what needs
-# you, and the phone card are composed by pns whatever comes back, and a
-# summarizer that fails, is not installed, says nothing or runs long falls to
-# that same plain list, which says so in its own heading. THE THREE OLLAMA FLAGS
-# ARE NOT OPTIONAL: `ollama run` without them interleaves terminal control bytes
-# and a "Thinking..." preamble into its output, and those reach Discord
-# verbatim. Another backend is simply another array.
-# THE LENGTH OF THE ANSWER IS THE WHOLE BILL, and it is tuned HERE, in the array,
-# without pns knowing anything about it. A derived model caps the length at the
-# source. `ollama run --keepalive` is real and is deliberately NOT suggested:
-# the flag cannot help the FIRST call of an episode, which is the only cold one,
-# because a return moment follows an absence and no keepalive from the last
-# episode outlives it; the calls behind it are already warm without it.
+# The command that turns the window into the night-in-order lines:
+# ARGV, NEVER A SHELL STRING, handed the timeline on stdin and answering
+# on stdout. UNSET IS A WORKING SETTING and posts the plain mechanical
+# list, and so does a summarizer that fails, is missing, says nothing
+# or runs long, which the list's own heading says. THE THREE OLLAMA
+# FLAGS ARE NOT OPTIONAL: without them `ollama run` interleaves terminal
+# control bytes and a preamble into its output, posted verbatim.
 # summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
-# How long that command may take. FOUR MINUTES, and what it covers is GENERATION
-# rather than a model load. Nobody is waiting on any of it: the recap is
-# rendered in a process the event you were standing at never joined. Past the
-# deadline the command is killed and the plain list is posted. AN HOUR IS THE
-# CEILING and a bigger number is refused by name: nothing supervises the process
-# the recap is rendered in, so a wedged backend past that is a pair of processes
-# held for as long as the number says. IT IS THE WHOLE RECAP'S BUDGET, not each
-# question's: with `repos` or `review_notes` also set, one recap asks up to
-# three (the night, the merges, the notes) and each is bounded by what is left
-# of this number, so the recap arrives within it however many sources are
-# configured.
+# How long that command may take before it is killed and the plain list
+# is posted instead. It is the whole recap's budget rather than each
+# question's, and AN HOUR IS THE CEILING: a bigger number is refused by
+# name.
 summarizer_deadline_secs = 240
-# The repositories whose merged pull requests become the recap's "what it does
-# now" section. UNSET IS THE WORKING SETTING and it is a fence: with no repo
-# named, no `gh` process is started at all. Named, the recap runs one read-only
-# `gh pr list` per repo, bounded in count and in time, over the window alone; it
-# never touches a token, and `gh`'s own login is what authorizes it. Each line
-# carries the pull request number it came from, and a line that cannot be traced
-# back to one pns actually fetched is dropped rather than posted. A `gh` that is
-# missing, refuses or runs long costs this section and nothing else. `gh` IS
-# FOUND ON PATH, and the PATH is the one the event that started the recap was
-# handed: a hook environment without /opt/homebrew/bin reads `gh` as permanently
-# unavailable, and the section says so on every window until the harness's own
-# PATH carries it.
-# repos = ["webdavis/dotfiles"]
-# The review notes whose findings become the recap's "caught by review" section:
-# ONE directory, named in full, and a file name that may hold one `*`. A
-# relative path and a `*` in a directory are both refused, because this pattern
-# is the whole of what pns is allowed to open. Only files whose own clock falls
-# inside the window are read, so a note you had already seen before you left is
-# not news. UNSET IS THE WORKING SETTING and, as with `repos`, unset means the
-# directory is never opened. Twenty-five notes is what one recap considers,
-# NEWEST FIRST, and a window holding more says "at least" in its own count
-# rather than printing a total it cannot back; a matched note that will not open
-# is named as one that could not be read rather than left out.
-# review_notes = "~/.claude/pipeline/slices/checklist-*.md"
+# The repositories whose merged pull requests become the recap's "what
+# it does now" section. UNSET IS THE WORKING SETTING and it is a fence:
+# with no repo named, no `gh` process is started at all. Named, the recap
+# runs one read-only `gh pr list` per repo, bounded in count and in time,
+# over the window alone; it never touches a token, and `gh`'s own login is
+# what authorizes it. Each line carries the pull request number it came
+# from, and a line that cannot be traced back to one pns actually fetched
+# is dropped rather than posted. A `gh` that is missing, refuses or runs
+# long costs this section and nothing else. `gh` IS FOUND ON PATH, and the
+# PATH is the one the event that started the recap was handed: a hook
+# environment without /opt/homebrew/bin reads `gh` as permanently
+# unavailable, and the section says so on every window until the harness's
+# own PATH carries it.
+# repos = ["owner/name"]
+# The review notes whose findings become the recap's "caught by review"
+# section: ONE directory, named in full, and a file name that may hold
+# one `*`. A relative path and a `*` in a directory are both refused,
+# because this pattern is the whole of what pns is allowed to open. Only
+# files whose own clock falls inside the window are read, so a note you
+# had already seen before you left is not news. UNSET IS THE WORKING
+# SETTING and, as with `repos`, unset means the directory is never
+# opened. Twenty-five notes is what one recap considers, NEWEST FIRST,
+# and a window holding more says "at least" in its own count rather than
+# printing a total it cannot back; a matched note that will not open is
+# named as one that could not be read rather than left out.
+# review_notes = "/absolute/path/notes-*.md"
 
-# The macOS Focus modes that pns treats as your own instruction not to be
-# interrupted. While one of the modes named below is active, banners, cards and
-# light pulses are held back and journaled instead, and the catch-up hands them
-# over once the Focus ends, and that catch-up is what hands you what you missed.
-# Approvals are NEVER held back, and neither is the durable log: a written
-# record interrupts nobody, so a Focus has nothing there to hold.
-# PER MODE RATHER THAN "a Focus is on", which is the whole design: a switch that
-# fired on any Focus at all would be a mute with no expiry and nothing on screen
-# to explain it. Name the modes that really mean it and leave the always-on one
-# out. A name is matched however you capitalised it, and a mode's raw
-# modeIdentifier works too for one the Mode catalog does not name; an entry that
-# is the empty string is refused by name.
-# NO TABLE AT ALL, and a table naming no mode, are the same statement: the
-# feature is off, and `pns doctor` says so with one sentence for both, because
-# nothing downstream can tell a list you emptied from a table you never wrote.
-# The Focus store is a private Apple file, so a read that fails is treated as no
-# Focus and never as silence: `pns doctor` is the one place an unreadable store
-# is reported, and it says whether the file is absent or unreadable rather than
-# folding the two together.
+# The macOS Focus modes that pns reads as your own instruction not to be
+# interrupted. While one of them is active, banners, cards and light
+# pulses are held back and handed over when it ends; approvals never are,
+# and neither is the durable log. A name matches however you capitalised
+# it, a mode's raw modeIdentifier works too, and an empty entry is refused
+# by name. An unreadable Focus store reads as no Focus, never as silence.
+# NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no
+# table at all.
 # [focus]
-# silence = ["Sleep", "Coding"]
+# silence = ["Sleep"]
 
-# The nag: one more card when an approval has been sitting unanswered. pns
-# raises a card the moment an agent blocks on a permission prompt, and if you do
-# not look, nothing else happens: the prompt sits, the turn sits, and the first
-# you know is a session that has been idle for half an hour. This is the answer.
-# A NUDGE IS A STATEMENT, NEVER A SECOND PROMPT. It reads "still waiting 5m:
-# Bash: cargo test" and it cannot be answered; moshi's own card, the one raised
-# when the prompt appeared, is still the one that carries Allow and Deny, and it
-# is still waiting on the phone. Answer that one.
-# IT IS INFORMATIONAL, so it respects everything the first card respects and the
-# approval itself does not: a `pns quiet` mute, a Focus named under [focus], the
-# quiet window and the visibility rules all hold a nudge back exactly as they
-# hold back any ordinary event. A nudge held back is simply LOST rather than
-# queued for the catch-up, because a "still waiting" card handed to you hours
-# later, about a question answered long ago, is worse than silence.
-# SEVERAL UNANSWERED APPROVALS ARE ONE CARD AND NEVER SEVERAL. Three waiting
-# reads "3 approvals waiting, oldest 12m" and names no single question, so the
-# most you ever get is one nudge card per `after_secs`, whatever is piling up.
-# Each approval is nudged AT MOST ONCE, ever; there is no second rung.
-# THAT COALESCING SPENDS A NEW APPROVAL'S NUDGE EARLY, which is the price of it
-# and is worth knowing: a card fired for an approval that has waited its
-# `after_secs` counts EVERY approval outstanding at that moment, including one
-# that arrived seconds ago. So a prompt you have only just been given can be
-# named in a card that goes out well before its own `after_secs`, and it is then
-# done: it will not be nudged about again. The count on the card is always true;
-# what is not guaranteed is that every approval named on it has waited the full
-# schedule.
-# NO TABLE AT ALL, AND `after_secs = 0`, ARE THE SAME STATEMENT: the feature is
-# off, which is what ships. Turning it on needs three things and `pns doctor`
-# says where you are on all three: this key, the daemon running (see [daemon]
-# above), and a `chezmoi apply` to install the PostToolBatch hook entry that
-# tells pns an approval was dealt with. Without that entry the only clearing
-# signal is the end of the turn, so an approval answered in a turn that then
-# runs on is nudged about anyway.
-# AND IT IS NUDGED ANYWAY IN ONE MORE CASE, which is worth knowing before you
-# switch this on: the signal pns gets is the tool batch RESOLVING, not you
-# answering, so a tool you approve in five seconds that then runs for longer
-# than `after_secs` produces a card saying nobody answered. If it still bites,
-# raise the number.
-# THIRTY SECONDS IS THE FLOOR and an hour is the ceiling. A negative, a
-# fraction, a string, a list and anything outside that range are each refused by
-# name. The floor is low enough to drill in half a minute and high enough that
-# an approval's OWN timer cannot put a nudge in front of you before you could
-# have reached your phone; it does not bound the coalescing case above, where a
-# fresh approval is named on an older one's card whenever it arrives.
+# The nag: one more card when an approval has been sitting unanswered. IT
+# IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the
+# prompt appeared is still the one carrying Allow and Deny. It needs the
+# daemon running and the PostToolBatch hook entry that tells pns an
+# approval was dealt with; without that entry the only clearing signal
+# is the end of the turn. It respects every mute the first card respects,
+# a `pns quiet`, a Focus, the quiet window, and a nag held back is LOST
+# rather than queued. Several approvals waiting are one card rather than
+# several, each approval is nagged at most once, and a card counts every
+# approval outstanding at that moment, so a fresh one can be named early
+# and is then done. The signal is the tool batch RESOLVING rather than
+# your answer, so a tool approved at once that then runs longer than this
+# is nagged about anyway; if that bites, raise the number. THIRTY SECONDS
+# IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by
+# name; no table at all, and after_secs of zero, are the same statement.
 [nag]
 after_secs = 300
 
-# The lamp map: WHICH LAMP says what, and the colour says which thing. A
-# DECLARATION names a place at one of three levels, `[lights.lamp."<name>"]`,
-# `[lights.room."<name>"]` or `[lights.zone."<name>"]`, spelled exactly as the
-# bridge spells it, and says which of the five behaviours that place carries.
+# The lamp map: WHICH LAMP says what. A declaration names a place at one
+# of three levels, `[lights.lamp."<name>"]`, `[lights.room."<name>"]` or
+# `[lights.zone."<name>"]`, spelled as the bridge spells it, and says
+# which of the five behaviours it carries: `done` and `failed` blink, and
+# `blocked`, `unread` and `loop` breathe while their condition lasts. The
+# most specific declaration naming a lamp wins, lamp over room over zone,
+# and levels never merge; each question resolves on its own, so a lamp
+# can state its behaviours and still inherit its room's dim window. On
+# one lamp the held states rank blocked, loop, then unread, and a held
+# state preempts a blink on the lamp holding it. `unread` is one word
+# carrying two colours, one for a run that finished and red for one that
+# died; a lamp carries both or neither. An unknown key at any level, and
+# a behaviour word outside the five, are refused by name.
 #
-# THE MOST SPECIFIC DECLARATION THAT NAMES A LAMP WINS, lamp over room over
-# zone, and the winner supplies the WHOLE answer: levels never merge, so a lamp
-# lifted out of a routed room carries what its own line says and nothing else.
-# Each question resolves on its own, so a lamp can state its behaviours and
-# still inherit its room's dim window. Two ZONES that both answer one question
-# for one lamp are refused with both named, because there is nothing more
-# specific to break the tie; the other levels cannot collide, since a lamp has
-# one name and one room.
-#
-# THE FIVE BEHAVIOURS are `done` and `failed` (blinks, fired by an event) and
-# `blocked`, `unread` and `loop` (breaths, held by the daemon while their
-# condition lasts). On one lamp the held states rank blocked, loop, then unread,
-# and a held state PREEMPTS a blink on the lamp holding it, so a lamp can be
-# dedicated to the held states and still join the blink lamps whenever none of
-# them is active. `unread` is one word carrying two colours, daylight for a run
-# that finished and red for one that died; a lamp carries both or neither.
-#
-# `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE. Hue is the
-# transport and this is the policy, so there is no second off switch that can
-# disagree with the first. With no `[lights]` table at all, the pulse is the
-# `rooms` array above and nothing else, exactly as it has always been.
-#
-# EVERY UNKNOWN KEY IS REFUSED BY NAME, at every level, and so is a behaviour
-# word outside the five. The failure that matters here is a lamp that never
-# lights and no message anywhere, which an operator standing in a dark room
-# cannot tell from a lamp that is behaving.
-#
-# DISABLING HUE WHILE A LAMP IS HELD LEAVES THAT LAMP TO THE WALL SWITCH. A held
-# body is a plain state write that does not expire, and putting it out takes a
-# bridge; with `enabled = false` above there is none to reach, so the record is
-# kept for the tick after the switch goes back on. Removing `[lights]` while hue
-# stays enabled is the safe way round: the next tick clears those lamps by name.
+# `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE: hue is the
+# transport and this is the policy. WITH NO TABLE AT ALL the pulse is the
+# `rooms` array above and nothing else; uncommenting `[lights]` with no
+# declaration replaces that pulse with an empty lamp map, so name a place
+# before you do. Switching hue off while a lamp is held leaves that lamp
+# to the wall switch, since putting it out takes a bridge.
 [lights]
-# How often the daemon re-arms the lamps, in seconds. It is also the breath
-# budget: a breathing lamp is faded by the tick itself for the whole interval
-# and stops at its peak, so this decides how many fades fit between two ticks.
-# The range is 10 to 30, and the ceiling is how long the daemon lets a tick's
-# own process live: an interval past it is a breath cut off part way through.
+# How often the daemon re-arms the lamps, in seconds. It is also the
+# breath budget: a breathing lamp is faded by the tick itself for the
+# whole interval and stops at its peak. The range is 10 to 30.
 refresh_secs = 12
 
-# The five behaviour shapes. Every number below was set on a real lamp; only the
-# knobs that APPLY to a behaviour exist, so a blink has a duration and one
-# brightness and a breath has a duration and two ends; some behaviours carry
-# one knob more besides (unread's delay, loop's threshold and lease, blocked's
-# give-up backstop below).
+# The five behaviour shapes. Every number below was set on a real lamp;
+# only the knobs that APPLY to a behaviour exist, so a blink has a
+# duration and one brightness and a breath has a duration and two ends.
 [lights.done]
 duration_ms = 4000
 brightness = 100
@@ -353,73 +237,62 @@ brightness = 100
 duration_ms = 2000
 high = 100
 low = 30
-# How long an unanswered wait may hold the lamp before the daemon gives up on
-# an abandoned session, in seconds. This is a BACKSTOP, not an expiry: the
-# locked behaviour is blue breathing continuous until you answer, and the
-# ordinary end is your session's next event, whatever the hour. 57600 (16
-# hours) outlasts a long day away and still gives the lamp back before the
-# next one starts. The range is 60 to 604800 (a week), since an abandoned wait
-# can span a weekend away.
+# How long an unanswered wait may hold the lamp before the daemon gives
+# up on an abandoned session, in seconds. This is a BACKSTOP, not an
+# expiry: the locked behaviour is blue breathing continuous until you
+# answer, and the ordinary end is your session's next event, whatever the
+# hour. 57600 (16 hours) outlasts a long day away and still gives the lamp
+# back before the next one starts. The range is 60 to 604800 (a week),
+# since an abandoned wait can span a weekend away.
 give_up_after_secs = 57600
 
 [lights.unread]
 duration_ms = 4000
 high = 60
 low = 10
-# How old a FINISHED run must be before its lamp arms, in seconds. A result you
-# are still looking at should not light a lamp about itself. A run that DIED has
-# no such delay and no knob: the sooner you know, the better. Zero arms at once.
+# How old a FINISHED run must be before its lamp arms, in seconds. A
+# run that DIED has no such delay and no knob. Zero arms at once.
 after_secs = 300
 
 [lights.loop]
 duration_ms = 4000
 high = 60
 low = 10
-# How long work must run continuously before the lamp arms itself. Both an agent
-# herdr calls working and a tracked shell command count.
+# How long work must run continuously before the lamp arms itself, in
+# seconds. Both an agent herdr calls working and a tracked shell command
+# count.
 threshold_secs = 360
-# How long a lease taken by `pns loop begin` survives with nothing renewing it,
-# in seconds. The pane's own hook traffic renews it; 3900 is an hour plus the
-# margin the harness's own wakeup scheduler needs, so the default outlasts the
-# longest legitimate quiet gap in a live loop.
+# How long a lease taken by `pns loop begin` survives with nothing
+# renewing it, in seconds. The pane's own hook traffic renews it.
 lease_timeout_secs = 3900
 
-# The DIM FORM: one shape, shared by every behaviour that runs dimmed, at the
-# faintest levels the hardware has. A lamp asked for one percent measures 1.19,
-# which is its own floor. A dimmed BLINK fires at `low`, since a blink has no
-# low end to fade to.
+# The DIM FORM: one shape, shared by every behaviour that runs dimmed, at
+# the faintest levels the hardware has. A dimmed BLINK fires at `low`,
+# since a blink has no low end to fade to.
 [lights.dim]
 duration_ms = 3000
 high = 7
 low = 1
 
-# The routing. `dim_window` is local wall clock, the start inclusive and the end
-# exclusive, and it may wrap midnight; `dim_behaviours` names which behaviours
-# run their dim form inside it, and everything else that place carries is
-# SUPPRESSED there. A window with an empty list therefore takes every behaviour
-# away for the night and needs no mode of its own. A place with no window is
-# untouched at every hour.
-
-[lights.room."3F - Studio"]
-shows = ["done", "failed"]
+# The routing. `dim_window` is local wall clock, the start inclusive and
+# the end exclusive, and it may wrap midnight; `dim_behaviours` names
+# which behaviours run their dim form inside it, and everything else that
+# place carries is SUPPRESSED there. A window with an empty list therefore
+# takes every behaviour away for the night and needs no mode of its own.
+# A place with no window is untouched at every hour; one that states
+# behaviours and no window keeps inheriting its room's window.
+[lights.lamp."1F - Front door - HCL1"]
+shows = ["loop", "blocked", "unread"]
 dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unread", "loop"]
 
-# Each of these states which behaviours it carries and NOTHING about quiet
-# hours, so it keeps inheriting its room's window: the two questions resolve
-# independently, and restating the window here would be one more place to keep
-# in agreement with the room.
-[lights.lamp."3F - Studio - HCL3"]
-shows = ["loop", "blocked", "unread"]
-
-# The bedroom suppresses EVERYTHING overnight: no light behaviour in here during
-# quiet hours, which is an empty enable list rather than a mode.
-[lights.room."3F - Master Bedroom"]
-shows = ["done", "failed"]
-dim_window = "22:00-07:00"
-dim_behaviours = []
+[lights.lamp."2F - Kitchen - HCD6"]
+shows = ["loop", "blocked", "unread", "done", "failed"]
 
 [lights.lamp."3F - Master Bedroom - HCL3"]
+shows = ["loop", "blocked", "unread"]
+
+[lights.lamp."3F - Studio - HCL3"]
 shows = ["loop", "blocked", "unread"]
 
 [lights.room."2F - Kitchen"]
@@ -427,35 +300,32 @@ shows = ["done", "failed"]
 dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unread", "loop"]
 
-# HCD6 is DEDICATED to the held states and joins HCD1-5 for the blinks whenever
-# none of them is active: it carries all five words, and the held states preempt
-# a blink on the lamp holding one.
-[lights.lamp."2F - Kitchen - HCD6"]
-shows = ["loop", "blocked", "unread", "done", "failed"]
+[lights.room."3F - Master Bedroom"]
+shows = ["done", "failed"]
+dim_window = "22:00-07:00"
+dim_behaviours = []
 
-[lights.lamp."1F - Front door - HCL1"]
-shows = ["loop", "blocked", "unread"]
+[lights.room."3F - Studio"]
+shows = ["done", "failed"]
 dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unread", "loop"]
 
 # ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:
 #
-#   pns lights quiet "3F - Studio" 2h   quiet that place's lamps for two hours
-#   pns lights quiet "3F - Studio"      quiet them until quiet hours end
-#   pns lights quiet "3F - Studio" off  loud again
-#   pns lights quiet                    what is quiet right now
+#   pns lights quiet "Studio" 2h   quiet that place's lamps for two hours
+#   pns lights quiet "Studio"      quiet them until quiet hours end
+#   pns lights quiet "Studio" off  loud again
+#   pns lights quiet               what is quiet right now
 #
-# It silences EVERY behaviour on the target and reaches the lamps of one lamp,
-# room or zone and nothing else: cards, banners and the durable log carry on, and
-# `pns quiet`, which mutes all of them, is a different command with a different
-# file that neither reads. A bare mute reads `[plugins.hue] quiet_hours` above as
-# the schedule and is refused when none is set. An explicit duration is the same
-# 1s to 24h `pns quiet` takes, and a state file nobody can parse mutes EVERY
-# lamp and says so: dark is the fail direction on a lamp path.
-#
-# THE NAMES IT TAKES ARE EVERY LAMP, ROOM AND ZONE, whether a declaration below
-# writes it or the bridge merely holds it, and a name neither knows is refused
-# with the list of the ones that work. Refusing a name it cannot enforce is the
-# point: a mute that matches nothing reports success while the lamp goes on
-# flashing.
+# It silences EVERY behaviour on the target and reaches the lamps of one
+# lamp, room or zone and nothing else: cards, banners and the durable log
+# carry on, and `pns quiet`, which mutes all of them, is a different
+# command with a different file that neither reads. A bare mute reads
+# `[plugins.hue] quiet_hours` above as the schedule and is refused when
+# none is set; an explicit duration is the same 1s to 24h `pns quiet`
+# takes. A state file nobody can parse mutes EVERY lamp and says so: dark
+# is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY
+# LAMP, ROOM AND ZONE, whether a declaration above writes it or the
+# bridge merely holds it, and a name neither knows is refused with the
+# list of the ones that work.
 {{- end }}
