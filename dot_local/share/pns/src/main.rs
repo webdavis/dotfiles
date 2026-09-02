@@ -24,7 +24,10 @@ use pns::channels::banner::BannerChannel;
 use pns::channels::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
-use pns::channels::hue::{Bridge, HuePulse, hue_settings, quiet_now, quiet_window};
+use pns::channels::hue::{
+    BRIDGE_DEADLINE, HuePulse, TYPED_COMMAND_DEADLINE, UreqBridge, hue_settings, quiet_now,
+    quiet_window,
+};
 use pns::channels::moshi::{
     DEFAULT_MOSHI_URL, MOSHI_TYPE, MoshiChannel, UreqPost, mobile_backend, moshi_secret,
     refused_backend_line,
@@ -8972,67 +8975,6 @@ fn focus_now(home: &str, silence: &[String]) -> std::io::Result<FocusReading> {
         ),
         catalog: catalog.as_ref().err().map(std::io::Error::kind),
     })
-}
-
-/// The CLIP v2 bridge over ureq.
-struct UreqBridge {
-    base: String,
-    key: String,
-    /// How long ONE call may take. A FIELD rather than one constant, because
-    /// the callers wait for different reasons: an unattended tick and the
-    /// doctor can spend the full transport deadline, and a human standing at a
-    /// terminal typing a mute cannot.
-    deadline: Duration,
-}
-
-impl UreqBridge {
-    fn agent(&self) -> ureq::Agent {
-        ureq::Agent::config_builder()
-            .timeout_global(Some(self.deadline))
-            .max_redirects(0)
-            // The bridge serves a self-signed certificate for its own LAN
-            // address, so verification is disabled here exactly as openhue
-            // does it; there is no CA that could vouch for a Hue bridge.
-            .tls_config(
-                ureq::tls::TlsConfig::builder()
-                    .disable_verification(true)
-                    .build(),
-            )
-            .build()
-            .new_agent()
-    }
-}
-
-/// How long one bridge call may take. The pulse is decoration on a
-/// notification, so it must never be what makes one slow.
-const BRIDGE_DEADLINE: Duration = Duration::from_secs(10);
-
-/// And how long one may take with a HUMAN waiting on it, which is the mute
-/// command's inventory read and nothing else.
-const TYPED_COMMAND_DEADLINE: Duration = Duration::from_secs(1);
-
-impl Bridge for UreqBridge {
-    fn get(&self, path: &str) -> Option<String> {
-        self.agent()
-            .get(format!("{}/{path}", self.base))
-            .header("hue-application-key", &self.key)
-            .call()
-            .ok()?
-            .body_mut()
-            .read_to_string()
-            .ok()
-    }
-
-    fn put(&self, path: &str, body: &str) {
-        // Nothing reads the outcome: a pulse that did not land is not worth
-        // failing, reporting or retrying on a notification path.
-        let _ = self
-            .agent()
-            .put(format!("{}/{path}", self.base))
-            .header("hue-application-key", &self.key)
-            .content_type("application/json")
-            .send(body);
-    }
 }
 
 #[cfg(test)]
