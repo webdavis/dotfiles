@@ -298,7 +298,9 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
   diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim
   diff "$B/lazy-lock.json" ~/.config/nvim/lazy-lock.json
   diff "$S/before/health.norm" "$S/after/health.norm" || true   # advisory, see step 5
-  diff "$S/before/state.json" "$S/after/state.json"
+  RACING='"lhs":"\[s"|"lhs":"\]s"|"lhs":"as"'                   # advisory rows, see step 5
+  diff <(grep -Ev "$RACING" "$S/before/state.json") <(grep -Ev "$RACING" "$S/after/state.json")
+  diff <(grep -E "$RACING" "$S/before/state.json") <(grep -E "$RACING" "$S/after/state.json") || true
   err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
   [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
   median() {
@@ -313,7 +315,10 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
 
   A proof that cannot fail is not a proof: the median function used to return 0 from zero samples and
   half a real value from two, and neither a missing log nor a nonempty diff forced a failure. This
-  version requires exactly four warm samples per phase and treats a nonempty stderr log as fatal.
+  version requires exactly four warm samples per phase and treats a nonempty stderr log as fatal. The
+  `[s`, `]s` and `as` rows are printed rather than gated: `sort.nvim` and
+  `nvim-treesitter-textobjects` both map them and plugin load order picks the winner, so 2 of 12 dumps
+  of the identical unchanged config named the other one (measured 2026-09-02, spec 3.7).
 - [ ] **Step 12, OPERATOR:** when the three 3.6 guards (`status --porcelain`, `rev-list
   origin/main..HEAD`, `stash list`, all in `~/.config/nvim`) print nothing, `trash ~/.config/nvim/.git`.
   Task 3 waits for steps 10 to 12.

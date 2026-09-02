@@ -378,6 +378,16 @@ filetype-mismatch warning listing its set in hash-iteration order. The health ch
 therefore ADVISORY, reviewed by eye against this known noise profile, never a hard gate; gating on it
 would fail every future PR, including a perfect one.
 
+`sort.nvim` and `nvim-treesitter-textobjects` both map `[s`, `]s` and `as`, and which of the two owns
+them is settled by plugin load order at startup rather than by anything this program controls. Two of
+twelve dumps of the IDENTICAL unchanged config named the other winner (measured 2026-09-02; an explicit
+one-second event-loop drain before the capture did not change the rate, so the race is already settled
+by the time the dump can observe it). Those eleven rows are printed rather than gated, the same way the
+health diff is, and every other row in `state.json` stays a hard gate. Gating them would fail roughly
+one run in six on a correct change, and the documented answer to a red gate is to look again, which is
+exactly how a real regression gets re-rolled away. PR 17-series owns the conflict itself and checks
+those three maps by hand.
+
 The comparison, run once after the second phase under `set -euo pipefail` (a comparison that can pass on
 missing or malformed input is not a proof): the byte, lock, state and stderr-log checks are hard gates,
 the health diff is advisory (printed, not gated), and the last line prints the two warm medians without
@@ -390,7 +400,9 @@ set -euo pipefail
 diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim
 diff "$B/lazy-lock.json" ~/.config/nvim/lazy-lock.json
 diff "$S/before/health.norm" "$S/after/health.norm" || true   # advisory, see above
-diff "$S/before/state.json" "$S/after/state.json"
+RACING='"lhs":"\[s"|"lhs":"\]s"|"lhs":"as"'                   # advisory rows, see above
+diff <(grep -Ev "$RACING" "$S/before/state.json") <(grep -Ev "$RACING" "$S/after/state.json")
+diff <(grep -E "$RACING" "$S/before/state.json") <(grep -E "$RACING" "$S/after/state.json") || true
 err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
 [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
 median() {
@@ -429,7 +441,8 @@ and corrupts the median without erroring) and treats a nonempty stderr log as fa
    + 10` is actually asserted.
 4. **Health.** The third diff, over the normalized files (the volatile roots, config root, log size and
    dates replaced, the rest intact), ADVISORY per above: printed for review, never gated.
-5. **Keymaps and plugins.** The fourth diff, a HARD gate. `dump_state.lua` is the first file in `tests/`
+5. **Keymaps and plugins.** The fourth diff, a HARD gate on every row but the three above.
+   `dump_state.lua` is the first file in `tests/`
    (section 6) and every later PR shows its diff. Its preconditions and its projection are fixed here,
    so a regression cannot slip through a timing gap and a run cannot fail on encoding:
    - It runs WITHOUT `--clean`, invoked as `nvim --headless -u <config>/init.lua -l tests/dump_state.lua
