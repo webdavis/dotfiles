@@ -302,7 +302,9 @@ fn a_failed_command_lane_alerts_through_the_configured_engine() {
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let args = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
     assert!(args.contains("--state failed"), "{args}");
-    assert!(args.contains("mine"), "{args}");
+    // The lane's own NAME heads the detail, not its type and not a path that
+    // happens to hold the word.
+    assert!(args.contains("--detail mine: 1 failure(s)"), "{args}");
 }
 
 #[test]
@@ -322,6 +324,30 @@ fn the_doctor_lists_a_command_lane_with_its_program_resolved() {
     assert!(
         stdout(&output).contains(&format!("found at {}", stub.display())),
         "{output:?}"
+    );
+}
+
+#[test]
+fn the_doctor_says_a_missing_program_will_fail_and_alert_every_week() {
+    let home = Home::new("command-lane-doctor-missing");
+    let missing = home.dir.join("no-such-updater");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        missing.display()
+    ));
+    let output = home.uu(&["doctor"]);
+    // Doctor REPORTS, it does not refuse: a lane whose program is missing is
+    // a finding on the way to the weekly run, not a reason to stop looking.
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let out = stdout(&output);
+    assert!(out.contains("lane mine: on (command)"), "{out}");
+    assert!(
+        out.contains("NOT FOUND; this lane will fail and alert every week"),
+        "{out}"
+    );
+    assert!(
+        out.contains("the weekly run uses the plist's own PATH"),
+        "{out}"
     );
 }
 

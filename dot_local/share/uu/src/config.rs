@@ -1053,6 +1053,9 @@ mod tests {
             ("[lanes.command]\nrun = \"x\"\n", "not a list"),
             ("[lanes.command]\nrun = [1]\n", "not a string"),
             ("[lanes.command]\nrun = [\"\"]\n", "holds a blank entry"),
+            // Whitespace is blank too: it reads as a filled-in entry and
+            // names nothing an exec can find.
+            ("[lanes.command]\nrun = [\" \"]\n", "holds a blank entry"),
         ] {
             let detail = refusal(text);
             assert!(detail.contains(expect), "case {text:?}: {detail}");
@@ -1085,6 +1088,39 @@ mod tests {
             "{detail}"
         );
         assert!(!detail.contains("names nothing to run"), "{detail}");
+    }
+
+    #[test]
+    fn a_block_named_for_one_type_that_states_another_is_the_stated_type() {
+        // The stated `type` wins over a name that happens to be a type of its
+        // own: the name is the operator's label, the type is the contract.
+        assert_eq!(
+            parsed("[lanes.herdr]\ntype = \"command\"\nrun = [\"x\"]\n")
+                .lanes
+                .get("herdr"),
+            Some(&LaneKind::Command(CommandLane {
+                run: vec!["x".to_string()],
+            }))
+        );
+    }
+
+    #[test]
+    fn the_templates_own_command_example_parses_once_uncommented() {
+        // dot_config/uu/private_config.toml.tmpl's commented `[lanes.example]`
+        // block, verbatim: an example the parser refuses is a trap for whoever
+        // uncomments it.
+        assert_eq!(
+            parsed(
+                "[lanes.example]\n\
+                 type = \"command\"\n\
+                 run = [\"/usr/local/bin/my-updater\", \"--yes\"]\n"
+            )
+            .lanes
+            .get("example"),
+            Some(&LaneKind::Command(CommandLane {
+                run: vec!["/usr/local/bin/my-updater".to_string(), "--yes".to_string()],
+            }))
+        );
     }
 
     // --- the file -------------------------------------------------------------

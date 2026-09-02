@@ -873,6 +873,14 @@ mod tests {
         let summary = crate::alert::alert_summary(&report);
         assert!(summary.contains("exit 1"), "{summary}");
         assert!(summary.contains(program), "{summary}");
+        // THE VERDICT COMES LAST: what the child printed is noted first, so
+        // the record reads as the work and then how it ended.
+        assert_eq!(
+            report.lines.last(),
+            report.last_failure.as_ref(),
+            "{:?}",
+            report.lines
+        );
     }
 
     #[test]
@@ -935,5 +943,18 @@ mod tests {
     #[test]
     fn stdout_lines_squashes_a_control_character_embedded_in_one_line() {
         assert_eq!(stdout_lines("a\rb\n"), vec!["a b".to_string()]);
+    }
+
+    #[test]
+    fn stdout_lines_says_so_when_exactly_one_line_was_dropped() {
+        // The boundary: one over the cap drops one line, and that one is
+        // still announced.
+        let text: String = (1..=STDOUT_LINES_KEPT + 1)
+            .map(|number| format!("line {number}\n"))
+            .collect();
+        let kept = stdout_lines(&text);
+        assert_eq!(kept.len(), STDOUT_LINES_KEPT + 1, "{kept:?}");
+        assert_eq!(kept[0], "... 1 earlier line(s) dropped");
+        assert_eq!(kept[1], "line 2");
     }
 }
