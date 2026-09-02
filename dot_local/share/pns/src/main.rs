@@ -4714,6 +4714,17 @@ fn sweep_leases(state: &Path, now: u64, timeout_secs: u64) -> Vec<u64> {
 /// A PUT-BACK CAN OVERWRITE A NEWER PUBLISH, and that is the residue rather than
 /// a rule: the epoch restored is live and at most one racing publish old, which
 /// is seconds against bounds measured in hours.
+///
+/// A MARKER ALREADY NAMED FOR THE WORKING GRAMMAR IS A RESIDUAL, not a case
+/// this handles: `pane_file_is_safe` and `session_id_is_safe` refuse a NEW id
+/// shaped `<x>.new.<pid>`, but a marker written under one before that guard
+/// existed is read here as that pid's own working file (`owner_is_gone`
+/// judges it, never `marker_is_live`), and is swept only once the pid is
+/// gone, never for pid 1. No id this crate's own callers produce can spell
+/// that shape (a UUID session id and a `wW:p21` pane cannot), so the operator
+/// check is `ls ~/.local/state/pns/lights-blocked ~/.local/state/pns/lights-loop`
+/// for a name ending `.new.<digits>`, removed by hand; this sweep is not
+/// weakened to reach it.
 fn sweep_markers(directory: &Path, now: u64, max_age_secs: u64) -> Vec<u64> {
     let mut live = Vec::new();
     for entry in std::fs::read_dir(directory).into_iter().flatten().flatten() {

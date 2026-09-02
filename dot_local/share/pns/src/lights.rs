@@ -1782,6 +1782,16 @@ mod tests {
             Err("pns: loop: \"../x\" is not a pane id this can key a lease to".to_string()),
             "the path-escape guard, through the predicate that backs the filename"
         );
+        assert_eq!(
+            loop_command(
+                "begin",
+                &["--pane".to_string(), "abc.new.1".to_string()],
+                None
+            ),
+            Err("pns: loop: \"abc.new.1\" is not a pane id this can key a lease to".to_string()),
+            "the working grammar guard, through the same predicate: without it \
+             this prints 'the clock cannot be read' instead of refusing the pane"
+        );
         for arguments in [
             vec!["--pain".to_string(), "wW:p9".to_string()],
             vec!["wW:p9".to_string()],
