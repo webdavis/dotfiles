@@ -18,10 +18,13 @@ Overwritten from the template on every apply, whatever the live file holds.
   `Bash(...)` globs), `permissions.deny` (`Read(.env)`, `Read(.env.*)`, `Read(secrets/**)`,
   `Read(credentials.json)`, `Read(.aws/credentials)`, `Read(.ssh/id_*)`), `permissions.defaultMode` =
   `bypassPermissions`.
-- `hooks`, eight event keys:
+- `hooks`, 12 event keys:
   - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
   - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in
     the same pass, where a second hook used to decide the tier on its own.
+  - `PostModelSwitch` runs `pns hook model-switch` async, restricted to `source == "auto"`, and redirects
+    its own stdout to `/dev/null` because this is one of the events whose exit-0 stdout reaches the
+    model's next turn regardless of the `async` flag.
   - `StopFailure` runs `pns hook stop-failure`, async for the same reason `Stop` is: it fires INSTEAD of
     `Stop` when a turn dies rather than finishing, so without it a dead pane gets no card at all.
   - `Notification` carries a QUOTA-ONLY hook: one exact pipe-separated matcher naming the three
@@ -29,15 +32,24 @@ Overwritten from the template on every apply, whatever the live file holds.
     run `alerter` directly, the last notification path that reached the operator without passing the
     presence engine, and it double-fired against the approval hook below; it was deleted rather than
     replaced, so the slot sat empty until the quota entry took it. The approval itself hangs off
-    `PermissionRequest`, which runs `pns hook blocked` NOT async, because its exit code is the operator's
-    answer, and an approval nobody answers is carried by the nag rather than by a second banner.
+    `PermissionRequest`, which runs `pns hook blocked` NOT async, because the harness waits for it and
+    registers the card before the prompt is drawn. Its exit code is NOT the operator's answer: that comes
+    back through moshi's own bridge typing into the prompt (measured 2026-08-29, `modify_settings.json`:
+    approve and deny both leave the hook exiting 0 with empty stdout).
+  - `ConfigChange` runs `pns hook config-change` async, one exact pipe-separated matcher naming the five
+    documented config sources, carding a configuration change as an audit trail rather than a turn
+    needing attention.
   - `PermissionDenied` runs `pns hook denied` async, reporting the tool call auto-mode refused without
     ever asking; async is what keeps pns out of the retry decision the harness awaits on this hook.
   - `Elicitation` runs `pns hook asked` async, carding the MCP server that stopped mid-tool-call to ask
     the operator for input; async is what keeps pns out of the answer, since this hook runs before the
     dialog is shown and exit code 2 alone would decline the request outright.
+  - `PostToolBatch` runs `pns hook resolved` async with no matcher, clearing the nag record when an
+    assistant tool batch resolves, whether the operator approved the call or the classifier denied it.
   - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, calling `pns hook asked`
     and `pns hook plan-ready`.
+  - `SessionStart` is herdr's own agent-state integration, installed by
+    `herdr integration install claude` rather than by one of this template's own hook commands.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (29 today), each set to
   `user-invocable-only`, sourced from `dot_agents/custom-skill-lock.json` and gated by
   `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.
