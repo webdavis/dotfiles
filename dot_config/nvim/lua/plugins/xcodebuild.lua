@@ -9,7 +9,7 @@ return {
     commit = "633eb71c0b354581837025581b7261dbe5361226",
     dependencies = {
       "MunifTanjim/nui.nvim", -- required: health.lua marks it optional = false
-      "folke/snacks.nvim", -- the picker: neither telescope nor fzf-lua is in this config
+      "folke/snacks.nvim", -- the picker every other surface in this config uses, selected in opts
       "stevearc/oil.nvim", -- file-tree sync into the Xcode project
       "mfussenegger/nvim-dap", -- operator-approved 2026-09-02, see the spec 12.2 correction
       { "rcarriga/nvim-dap-ui", dependencies = { "nvim-neotest/nvim-nio" } },
@@ -54,6 +54,11 @@ return {
         -- helper script this machine does not grant. Set explicitly so the config states the
         -- decision instead of relying on device_proxy's own is_installed() fallback.
         pymobiledevice = { enabled = false },
+        -- The plugin resolves its picker in order (telescope, snacks, fzf-lua) and telescope IS
+        -- in this config: it is an octo dependency (git.lua). Left on, every Xcode scheme, device
+        -- and action picker would be the one telescope window in a snacks config. Octo opts out
+        -- of it the same way, with `picker = "snacks"`.
+        telescope_nvim = { enabled = false },
       },
     },
     config = function(_, opts)
@@ -104,10 +109,10 @@ return {
       -- explicit log open/close, next/previous device and the quickfix commands are not in it.
       { "<leader>xx", "<cmd>XcodebuildPicker<cr>", desc = "Xcode: available actions" },
       -- Raw nvim-dap control, under the existing `<leader>D` "debug" group (which-key.lua:35),
-      -- not `<leader>x`: starting a session with Xg above is not "wired up" without a way to
+      -- not `<leader>x`: starting a session with xg above is not "wired up" without a way to
       -- set a breakpoint and step through it. Kept clear of the existing Ds/Dt maps and the Dp
-      -- profiler subgroup; capital second letters are variants of their lowercase neighbor, the
-      -- same pattern the rest of this config already uses (Xt/XT, Xb/XB).
+      -- profiler subgroup; a capital second letter pairs with its lowercase neighbor, the same
+      -- pattern this file already uses (xt/xT, xb/xB).
       {
         "<leader>Db",
         function()
