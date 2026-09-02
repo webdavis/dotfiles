@@ -1154,7 +1154,8 @@ carries context about a position. Keymap `<leader>Cx` "send context" (8.3). Pure
   `<leader>G` is gh; `<leader>gh` is octo.
 - Lowercase `<leader>` letters are editor features (find, search, LSP, overseer, yank, toggle);
   uppercase letters are external systems or rarer surfaces (`G` gh, `R` rest, `U` urlview, `L` lazy,
-  `D` debug, `A` herdr-nvim). `<leader>C`, `<leader>t`, `<leader>X` and `<leader>T` are free.
+  `D` debug, `A` herdr-nvim). `<leader>C`, `<leader>t` and `<leader>T` are free; `<leader>X` was
+  free until the 8.3 swap moved Trouble and todo-comments onto it.
 - Keymaps are defined with the global `map({ mode, lhs, rhs, desc })` helper outside plugin `keys`
   tables, except snacks, noice and which-key which use `keys`. Descriptions in the plugin specs mostly
   follow `Tool: action` ("Snacks (Git): branches", "Overseer: open task in floating window", "Git
