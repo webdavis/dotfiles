@@ -84,9 +84,9 @@ pub trait CommandRunner {
 pub const STDERR_TAIL: usize = 240;
 
 /// The last `keep` characters of `text`, prefixed with `...` when it was cut.
-/// Shared by `failure_reason`'s stderr tail today and a command lane's own
-/// stdout cap tomorrow: BOUNDED because both go into the record and into one
-/// alert card, and the verdict a tool prints is at the END of what it said.
+/// Shared by `failure_reason`'s stderr tail and a command lane's own stdout
+/// cap: BOUNDED because both go into the record and into one alert card, and
+/// the verdict a tool prints is at the END of what it said.
 pub fn tail(text: &str, keep: usize) -> String {
     let length = text.chars().count();
     if length <= keep {
@@ -116,11 +116,11 @@ pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
 
 /// How many of a command lane's last stdout lines the record keeps.
 ///
-/// 20 LINES AT `STDERR_TAIL` (240) CHARACTERS EACH IS 4.8 KiB, chosen against
-/// the Discord adapter that chunks a message at 2000 characters: a talkative
-/// child at the cap spans about three of those messages rather than dozens,
-/// so one command lane's stdout cannot crowd every other lane's line out of
-/// the alert channel.
+/// 20 LINES AT `STDERR_TAIL` (240) CHARACTERS EACH IS 4,800 CHARACTERS, chosen
+/// against the Discord adapter that chunks a message at 2000 characters: a
+/// talkative child at the cap spans about three of those messages rather than
+/// dozens, so one command lane's stdout cannot crowd every other lane's line
+/// out of the record.
 const STDOUT_LINES_KEPT: usize = 20;
 
 /// The last `STDOUT_LINES_KEPT` non-empty lines of a command lane's stdout,
