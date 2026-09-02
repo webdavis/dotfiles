@@ -7451,6 +7451,11 @@ fn ask(question: &str) -> Result<String, String> {
 /// still on, so an operator who types ahead of it, or this crate's own pty
 /// test, could still have a secret echoed before `TCSAFLUSH` takes hold.
 ///
+/// ONE CLIENT IS OUTSIDE THIS GUARD'S REACH: mosh, the transport under a
+/// Moshi-connected phone, predicts keystrokes locally and can draw them on
+/// that client transiently, ahead of the terminal's own echo state. Nothing
+/// here controls that.
+///
 /// Ctrl-C, Ctrl-\, Ctrl-Z, and a TERM or HUP are all held for the read rather
 /// than answered immediately, the same trade `readpassphrase(3)` makes: each
 /// is still delivered, just not until the guard drops, so Ctrl-C takes effect
