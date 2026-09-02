@@ -20,6 +20,8 @@
 //! That is what this channel is built on, and it is why there is no snapshot
 //! here and no restore engine anywhere.
 
+use std::time::Duration;
+
 /// The rooms the bash pulsed when `HUE_PULSE_ROOMS` said nothing.
 pub const DEFAULT_ROOMS: &[&str] = &["3F - Studio", "2F - Kitchen"];
 
@@ -989,6 +991,67 @@ pub fn signal_fixtures<B: Bridge>(
 /// this one would change what an unconfigured machine does without anybody
 /// asking for it.
 const UNMAPPED_SIGNAL_DURATION_MS: u64 = 3000;
+
+/// The CLIP v2 bridge over ureq.
+pub struct UreqBridge {
+    pub base: String,
+    pub key: String,
+    /// How long ONE call may take. A FIELD rather than one constant, because
+    /// the callers wait for different reasons: an unattended tick and the
+    /// doctor can spend the full transport deadline, and a human standing at a
+    /// terminal typing a mute cannot.
+    pub deadline: Duration,
+}
+
+impl UreqBridge {
+    fn agent(&self) -> ureq::Agent {
+        ureq::Agent::config_builder()
+            .timeout_global(Some(self.deadline))
+            .max_redirects(0)
+            // The bridge serves a self-signed certificate for its own LAN
+            // address, so verification is disabled here exactly as openhue
+            // does it; there is no CA that could vouch for a Hue bridge.
+            .tls_config(
+                ureq::tls::TlsConfig::builder()
+                    .disable_verification(true)
+                    .build(),
+            )
+            .build()
+            .new_agent()
+    }
+}
+
+/// How long one bridge call may take. The pulse is decoration on a
+/// notification, so it must never be what makes one slow.
+pub const BRIDGE_DEADLINE: Duration = Duration::from_secs(10);
+
+/// And how long one may take with a HUMAN waiting on it, which is the mute
+/// command's inventory read and nothing else.
+pub const TYPED_COMMAND_DEADLINE: Duration = Duration::from_secs(1);
+
+impl Bridge for UreqBridge {
+    fn get(&self, path: &str) -> Option<String> {
+        self.agent()
+            .get(format!("{}/{path}", self.base))
+            .header("hue-application-key", &self.key)
+            .call()
+            .ok()?
+            .body_mut()
+            .read_to_string()
+            .ok()
+    }
+
+    fn put(&self, path: &str, body: &str) {
+        // Nothing reads the outcome: a pulse that did not land is not worth
+        // failing, reporting or retrying on a notification path.
+        let _ = self
+            .agent()
+            .put(format!("{}/{path}", self.base))
+            .header("hue-application-key", &self.key)
+            .content_type("application/json")
+            .send(body);
+    }
+}
 
 #[cfg(test)]
 mod tests {
