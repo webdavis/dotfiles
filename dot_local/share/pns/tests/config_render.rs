@@ -259,3 +259,28 @@ fn missing_arguments_print_usage_and_exit_2() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("usage:"), "{stderr}");
 }
+
+/// THE MUTANT THIS PINS: the argv usage guard reads only the first two
+/// arguments and silently ignores a third, rather than refusing an argv
+/// shape it does not recognize.
+#[test]
+fn a_third_argument_prints_usage_and_exit_2() {
+    let scratch = Scratch::new("extra-argument");
+    let values_path = scratch.path("config-values.toml");
+    let template_path = scratch.path("private_config.toml.tmpl");
+    std::fs::write(&values_path, "").expect("write values");
+
+    let output = Command::new(BINARY)
+        .arg(&values_path)
+        .arg(&template_path)
+        .arg("unexpected")
+        .output()
+        .expect("spawn with three args");
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("usage:"), "{stderr}");
+    assert!(
+        !template_path.exists(),
+        "an unrecognized argv shape must not write anything"
+    );
+}

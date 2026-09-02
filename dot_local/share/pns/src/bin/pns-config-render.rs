@@ -53,6 +53,10 @@ fn main() -> ExitCode {
         eprintln!("usage: pns-config-render <values-file> <template-file>");
         return ExitCode::from(2);
     };
+    if arguments.next().is_some() {
+        eprintln!("usage: pns-config-render <values-file> <template-file>");
+        return ExitCode::from(2);
+    }
 
     match run(&values_path, &template_path) {
         Ok(()) => {
