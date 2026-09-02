@@ -236,7 +236,17 @@ fn a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending
 
 #[test]
 fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
-    let sandbox = Sandbox::without_config("setup-hidden-secret");
+    // EVERY BRANCH THAT ASKS FOR A SECRET IS ARMED HERE, each with its own
+    // unique value: a test that only walked the token (as this one used to)
+    // cannot tell `armed_secret` from `armed` on the hermes, hue or router
+    // branch, since either one composes a config that still looks right.
+    const TOKEN: &str = "do-not-echo-this-token";
+    const HERMES_KEY: &str = "do-not-echo-this-hermes-key";
+    const HUE_KEY: &str = "do-not-echo-this-hue-key";
+    const ROUTER_KEY: &str = "do-not-echo-this-router-key";
+    let secrets = [TOKEN, HERMES_KEY, HUE_KEY, ROUTER_KEY];
+
+    let sandbox = Sandbox::without_config("setup-hidden-secrets");
     let mut pty = Pty::open();
     let mut child = pty.spawn(sandbox.bare().args(["setup"]));
 
@@ -254,23 +264,50 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
         "the secret prompt was visible while echo was still on: {:?}",
         pty.transcript
     );
-    pty.write_all(b"do-not-echo-this-token\n");
+    pty.write_all(format!("{TOKEN}\n").as_bytes());
 
     pty.read_until("Post every event to hermes", PTY_DEADLINE)
         .expect("the hermes question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("the signing key that route verifies: ", PTY_DEADLINE)
+        .expect("the hermes key prompt");
+    pty.write_all(format!("{HERMES_KEY}\n").as_bytes());
 
     pty.read_until("Flash hue lights", PTY_DEADLINE)
         .expect("the hue question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("the hue bridge's address on the network: ", PTY_DEADLINE)
+        .expect("the hue bridge prompt");
+    pty.write_all(b"10.0.0.5\n");
+    pty.read_until("an API key the bridge issued: ", PTY_DEADLINE)
+        .expect("the hue key prompt");
+    pty.write_all(format!("{HUE_KEY}\n").as_bytes());
+    pty.read_until("the rooms to flash, comma separated", PTY_DEADLINE)
+        .expect("the hue rooms prompt");
+    pty.write_all(b"Kitchen,Office\n");
 
     pty.read_until("home wifi", PTY_DEADLINE)
         .expect("the router question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("Which router backend?", PTY_DEADLINE)
+        .expect("the router backend prompt");
+    pty.write_all(b"unifi\n");
+    pty.read_until("the router's URL: ", PTY_DEADLINE)
+        .expect("the router URL prompt");
+    pty.write_all(b"http://192.168.1.1\n");
+    pty.read_until("an API key the router issued: ", PTY_DEADLINE)
+        .expect("the router key prompt");
+    pty.write_all(format!("{ROUTER_KEY}\n").as_bytes());
+    pty.read_until("the phone's hostname on that router: ", PTY_DEADLINE)
+        .expect("the router hostname prompt");
+    pty.write_all(b"my-phone\n");
 
     pty.read_until("macOS Focus", PTY_DEADLINE)
         .expect("the focus question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("which Focus modes mean it, comma separated: ", PTY_DEADLINE)
+        .expect("the focus modes prompt");
+    pty.write_all(b"Work,Sleep\n");
 
     pty.read_until("approval left unanswered", PTY_DEADLINE)
         .expect("the nag question");
@@ -280,14 +317,16 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     let status = child.wait().expect("the wizard is reaped");
     assert_eq!(status.code(), Some(0), "transcript: {:?}", pty.transcript);
 
-    assert!(
-        !pty.transcript.contains("do-not-echo-this-token"),
-        "the secret reached the pty output: {:?}",
-        pty.transcript
-    );
+    for secret in secrets {
+        assert!(
+            !pty.transcript.contains(secret),
+            "a secret reached the pty output: {secret:?}: {:?}",
+            pty.transcript
+        );
+    }
     // THE ECHOED ANSWER, not a bare `y`: the preamble already carries that
     // letter, so only the prompt's own tail followed by the typed answer and
-    // the driver's echo of its Enter says echo was back on for the last
+    // the driver's echo of its Enter says echo was back on for an ordinary
     // question.
     assert!(
         pty.transcript.contains("[y/N]: y\r\n"),
@@ -305,10 +344,12 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
 
     let published = sandbox.root.join(".config/pns/config.toml");
     let contents = std::fs::read_to_string(&published).expect("the published config");
-    assert!(
-        contents.contains("do-not-echo-this-token"),
-        "the token did not reach the file: {contents}"
-    );
+    for secret in secrets {
+        assert!(
+            contents.contains(secret),
+            "a secret did not reach the file: {secret:?}: {contents}"
+        );
+    }
     let mode = std::fs::metadata(&published)
         .expect("the published config")
         .permissions()
