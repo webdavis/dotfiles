@@ -54,6 +54,15 @@ pub struct Record<'a> {
     /// exact question this log exists to answer. It is a BOOLEAN and no free
     /// text is added, so the file's privacy rule is untouched.
     pub nag: bool,
+    /// The harness payload's own permission mode, empty when the event carries
+    /// none: see `HookPayload::permission_mode`.
+    pub permission_mode: &'a str,
+    /// The harness payload's own subagent id, empty on the main thread: see
+    /// `HookPayload::agent_id`.
+    pub agent_id: &'a str,
+    /// The harness payload's own raw tool name, empty when the event names
+    /// none: see `HookPayload::tool_name`.
+    pub tool_name: &'a str,
 }
 
 /// One decision as one line: `<epoch> <key=value ...>`.
@@ -78,6 +87,7 @@ pub fn line(record: &Record) -> String {
     let overrides = record.overrides;
     format!(
         "{epoch} {agent}/{state} \
+         mode={mode} agent={payload_agent} tool={tool} \
          surface={surface:?} visibility={visibility:?} \
          session_visibility={session_visibility:?} \
          desk_age={desk_age} phone_age={phone_age} tap_age={tap_age} \
@@ -94,6 +104,13 @@ pub fn line(record: &Record) -> String {
             .map_or_else(|| NO_CLOCK.to_string(), |now| now.to_string()),
         agent = printable(&record.event.agent),
         state = printable(&record.event.state),
+        // THE PAYLOAD'S OWN IDENTITY, PRINTABLE-FILTERED LIKE `agent`/`state`
+        // ABOVE: `tool_name` is remote text a connected MCP server named, so
+        // it gets the same allowlist rather than a free pass into a file
+        // `pns doctor` prints straight to a terminal.
+        mode = printable(record.permission_mode),
+        payload_agent = printable(record.agent_id),
+        tool = printable(record.tool_name),
         // A FIELDLESS DERIVED `Debug` IS THE VARIANT NAME, which is exactly
         // what an enum reads as here.
         surface = inputs.surface,
@@ -415,8 +432,11 @@ mod tests {
                 overrides: &overrides,
                 legs: &[],
                 nag: false,
+                permission_mode: "",
+                agent_id: "",
+                tool_name: "",
             }),
-            "1756500000 claude/blocked surface=Mobile visibility=Hidden \
+            "1756500000 claude/blocked mode=none agent=none tool=none surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=no \
              fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
              pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
@@ -438,14 +458,82 @@ mod tests {
                 overrides: &overrides,
                 legs: &[],
                 nag: false,
+                permission_mode: "",
+                agent_id: "",
+                tool_name: "",
             }),
-            "1756500000 claude/blocked surface=Mobile visibility=Hidden \
+            "1756500000 claude/blocked mode=none agent=none tool=none surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=none \
              fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
              pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
              plan=banner:no,card:no,pulse:no legs=none"
         );
+    }
+
+    #[test]
+    fn a_line_carries_the_payloads_mode_agent_and_tool_or_says_none() {
+        // WHY: three `claude/blocked` events lined up with subagent
+        // hand-offs, not with any prompt the operator saw (OBS-4), and the
+        // decision log had no field that could ever tell those apart from an
+        // ordinary approval.
+        let plain = decision(inputs());
+        let recorded = line(&Record {
+            event: &event(),
+            decision: &plain,
+            overrides: &Overrides::default(),
+            legs: &[],
+            nag: false,
+            permission_mode: "bypassPermissions",
+            agent_id: "agent_01",
+            tool_name: "Bash",
+        });
+        assert!(
+            recorded.contains(" mode=bypassPermissions agent=agent_01 tool=Bash "),
+            "got {recorded}"
+        );
+
+        // AND EVERY FIELD A PAYLOAD DID NOT STATE READS `none`, never a blank:
+        // an empty field in the middle of a space-delimited line is
+        // indistinguishable from a line one field short.
+        let recorded = line(&Record {
+            event: &event(),
+            decision: &plain,
+            overrides: &Overrides::default(),
+            legs: &[],
+            nag: false,
+            permission_mode: "",
+            agent_id: "",
+            tool_name: "",
+        });
+        assert!(
+            recorded.contains(" mode=none agent=none tool=none "),
+            "got {recorded}"
+        );
+    }
+
+    #[test]
+    fn a_payload_field_outside_the_printable_allowlist_is_recorded_as_unprintable() {
+        // THE THREE PAYLOAD FIELDS ARE HARNESS TEXT, and `tool_name` is remote
+        // text a connected MCP server chose. A NEWLINE forges a second entry
+        // in a one-record-per-line file; an escape sequence reaches the
+        // terminal `pns doctor` prints to; a space is what the reader splits
+        // on. Each is refused the way `agent` and `state` refuse it.
+        let recorded = line(&Record {
+            event: &event(),
+            decision: &decision(inputs()),
+            overrides: &Overrides::default(),
+            legs: &[],
+            nag: false,
+            permission_mode: "bypass Permissions",
+            agent_id: "\u{1b}[31magent_01",
+            tool_name: "Bash\n1756500000 claude/done",
+        });
+        assert!(
+            recorded.contains(" mode=unprintable agent=unprintable tool=unprintable "),
+            "got {recorded}"
+        );
+        assert!(!recorded.contains('\n'), "a newline forged a second entry");
     }
 
     #[test]
@@ -463,6 +551,9 @@ mod tests {
             overrides: &Overrides::default(),
             legs: &[],
             nag: false,
+            permission_mode: "",
+            agent_id: "",
+            tool_name: "",
         });
         assert!(
             recorded.starts_with("- claude/blocked "),
@@ -501,6 +592,9 @@ mod tests {
             overrides: &Overrides::default(),
             legs: &[],
             nag: false,
+            permission_mode: "",
+            agent_id: "",
+            tool_name: "",
         });
         for content in [
             "SECRETPROJECT",
@@ -540,6 +634,9 @@ mod tests {
                 overrides: &Overrides::default(),
                 legs: &[],
                 nag: false,
+                permission_mode: "",
+                agent_id: "",
+                tool_name: "",
             });
             recorded
                 .split_whitespace()
@@ -645,6 +742,9 @@ mod tests {
             overrides: &Overrides::default(),
             legs: &legs,
             nag: false,
+            permission_mode: "",
+            agent_id: "",
+            tool_name: "",
         });
         assert!(
             recorded.ends_with(
@@ -669,6 +769,9 @@ mod tests {
             overrides: &Overrides::default(),
             legs: &[],
             nag: false,
+            permission_mode: "",
+            agent_id: "",
+            tool_name: "",
         });
         assert!(
             recorded.ends_with(" plan=banner:no,card:no,pulse:no legs=none"),

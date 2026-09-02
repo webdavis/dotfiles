@@ -253,7 +253,16 @@ fn hook_mode(event: &str) -> i32 {
     let agent = std::env::var("PNS_AGENT").unwrap_or_else(|_| "claude".to_string());
 
     match event {
-        "prompt" => start_of_turn(&payload),
+        // AND THE WAIT ENDS HERE TOO, beside the turn marker. A prompt is the
+        // operator typing, which answers ANY live wait their session could be
+        // holding: `resolved`'s PostToolBatch signal never fires for a
+        // PermissionRequest (Claude Code decides that off this hook's own
+        // stdout), so without this the lamp stayed blue until the turn's Stop,
+        // one whole tool call after the operator had already answered.
+        "prompt" => {
+            start_of_turn(&payload);
+            end_blocked_wait(&payload.session_id);
+        }
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
         "blocked" => return blocking_event(&payload, &agent, &payload_json),
@@ -265,7 +274,26 @@ fn hook_mode(event: &str) -> i32 {
         // the feature was on when the approval arrived, so clearing it is right
         // regardless of what the config says now, and that keeps this per-batch
         // path to a payload read, a parse and at most two file operations.
-        "resolved" => clear_nag(&payload.session_id),
+        //
+        // AND THE WAIT ENDS HERE TOO, GUARDED. `agent_id` is present only
+        // inside a subagent call, so a batch carrying the KEY (whatever its
+        // value; a malformed one is not proof of the main thread) resolved a
+        // SUBAGENT'S tool, not the parent session's own wait on the operator;
+        // clearing on it anyway would go dark on a wait nobody has answered.
+        // RESIDUAL, STATED HONESTLY: the parent's marker then stays lit until
+        // its own Stop, same as before this fix.
+        // AND THIS ARM IS ASYNC (PostToolBatch, `async: true`), so it is
+        // UNORDERED against the next PermissionRequest and the batch's own
+        // `asked`: a late End can unlink a newer wait's marker, an early one
+        // can leave an answered `asked` lit. The same one-file-per-session
+        // limit `update_blocked_marker` states; bounded the same way, by the
+        // backstop and the session's next event.
+        "resolved" => {
+            clear_nag(&payload.session_id);
+            if !payload.in_subagent {
+                end_blocked_wait(&payload.session_id);
+            }
+        }
         // THE MID-TURN NOTIFICATIONS, which is what makes one arm right for
         // all three. Each reports something that happened INSIDE a turn that
         // is still running, so none of them touches the turn marker: the clock
@@ -288,7 +316,7 @@ fn hook_mode(event: &str) -> i32 {
                 ..Default::default()
             },
             &system_probes(),
-            &payload.session_id,
+            &payload,
             Attempt::First,
         ),
         // An event this binary does not serve is not an error the harness
@@ -499,9 +527,8 @@ fn record_missed(
 /// about them, and nothing would ever sweep them there: the tick is the only
 /// sweeper and it does not run without the table. Removal is one unlink with
 /// nothing to accumulate, and gating it too meant a wait that ended while the
-/// lamps were off kept its marker: switching hue back on inside the thirty
-/// minute bound then put blocked on a lamp for a session nobody was waiting
-/// on.
+/// lamps were off kept its marker: switching hue back on inside the configured
+/// backstop then put blocked on a lamp for a session nobody was waiting on.
 ///
 /// THE OLDER STOP CAN REMOVE THE NEWER WAIT'S MARKER, and that is a stated
 /// limit rather than a rule. One file per SESSION carries no generation, so a
@@ -542,6 +569,23 @@ fn update_blocked_marker(
         pns::lights::Action::End => {
             let _ = std::fs::remove_file(&marker);
         }
+    }
+}
+
+/// End this session's wait on the operator directly: a state-only file move
+/// in `clear_nag`'s style, with no event built, no config loaded and no
+/// decision made.
+///
+/// TWO CALLERS NEED EXACTLY THIS, both in `hook_mode`: `prompt`, because the
+/// operator answering a live wait by typing is not `resolved`'s signal
+/// (PermissionRequest is decided off this hook's stdout, never off a later
+/// PostToolBatch), and `resolved` itself, guarded there against a subagent's
+/// batch. Ending is unconditional, unlike starting one: see
+/// `update_blocked_marker`'s comment on why an End never checks the lamp
+/// switches.
+fn end_blocked_wait(session_id: &str) {
+    if let Some(marker) = pns::lights::blocked_marker(&state_dir(), session_id) {
+        let _ = std::fs::remove_file(&marker);
     }
 }
 
@@ -1671,7 +1715,7 @@ fn end_of_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
-        &payload.session_id,
+        payload,
         Attempt::First,
     );
 }
@@ -1710,7 +1754,7 @@ fn failed_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
-        &payload.session_id,
+        payload,
         Attempt::First,
     );
 }
@@ -1915,7 +1959,7 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     // routing around: threading one view through would change three signatures
     // for a value each caller reads at the moment it needs it.
     arm_nag(&payload.session_id, &event);
-    run_event(&event, &probes, &payload.session_id, Attempt::First);
+    run_event(&event, &probes, payload, Attempt::First);
     // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
     // immediately before the wait. Threading it out of `run_event` would
     // change that function's signature for one duration, and a view torn
@@ -2272,8 +2316,13 @@ fn event_mode(argv: &[String]) {
     for warning in &warnings {
         eprintln!("pns: {warning}");
     }
-    // ARGV CARRIES NO SESSION, which is the honest no-identity case.
-    run_event(&event, &system_probes(), "", Attempt::First);
+    // ARGV CARRIES NO PAYLOAD, which is the honest no-identity case.
+    run_event(
+        &event,
+        &system_probes(),
+        &HookPayload::default(),
+        Attempt::First,
+    );
 }
 
 /// Whether this is the event's FIRST delivery or a NUDGE about one already
@@ -2293,16 +2342,17 @@ enum Attempt {
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
 ///
-/// THE SESSION ID RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split
-/// is the point: `EventArgs` is the ARGV contract, and argv has no spelling for
-/// a session id. It arrives in a harness payload or not at all, so the hook
-/// arms pass what they were given and every other caller passes an empty
-/// string, which is honestly no identity rather than a field nothing can fill.
-/// The lamps' needs marker is its one reader.
+/// THE PAYLOAD RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split is
+/// the point: `EventArgs` is the ARGV contract, and argv has no spelling for a
+/// session id, a permission mode, a subagent id or a raw tool name. Every one
+/// of those arrives in a harness payload or not at all, so the hook arms pass
+/// what they were given and every other caller passes `HookPayload::default()`,
+/// which is honestly no identity rather than fields nothing can fill. The
+/// lamps' needs marker and the decision line are its readers.
 fn run_event(
     event: &pns::args::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
-    session_id: &str,
+    payload: &HookPayload,
     attempt: Attempt,
 ) {
     let home = std::env::var("HOME").unwrap_or_default();
@@ -2458,6 +2508,9 @@ fn run_event(
         overrides: &overrides,
         legs: &outcomes,
         nag: attempt == Attempt::Nudge,
+        permission_mode: &payload.permission_mode,
+        agent_id: &payload.agent_id,
+        tool_name: &payload.tool_name,
     });
     // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge
     // returns here, so it writes no journal entry, no activity-ring line, never
@@ -2493,7 +2546,7 @@ fn run_event(
     let lamps_live = lights.is_some() && hue_table.is_some();
     update_blocked_marker(
         &state_dir(),
-        session_id,
+        &payload.session_id,
         &event.state,
         lamps_live,
         decision.inputs.now_secs,
@@ -3587,7 +3640,7 @@ fn home_mode() {
                 ..Default::default()
             },
             &system_probes(),
-            "",
+            &HookPayload::default(),
             Attempt::First,
         );
     }
@@ -3997,12 +4050,12 @@ fn nag_mode() -> i32 {
             ..Default::default()
         },
         &system_probes(),
-        // NO SESSION, and coalescing is why: one card stands for every record
+        // NO PAYLOAD, and coalescing is why: one card stands for every record
         // in `held`, so naming one of their sessions would be inventing an
         // identity the card does not have. A nudge returns before the lamps'
-        // needs marker is touched at all, so this is the honest empty string
-        // rather than a value chosen to be ignored.
-        "",
+        // needs marker is touched at all, so this is the honest default rather
+        // than a value chosen to be ignored.
+        &HookPayload::default(),
         Attempt::Nudge,
     );
     for (claim, _, _) in &held {
@@ -5279,11 +5332,7 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
         // leaves behind.
         in_flight: streak.is_some() || shell_since.is_some() || !leases.is_empty(),
         house: pns::lights::House {
-            blocked: pns::lights::any_blocked(
-                &sweep_blocked(state, now),
-                now,
-                BLOCKED_MAX_AGE_SECS,
-            ),
+            blocked: blocked_lamp(state, lights, now),
             looping: pns::lights::loop_running(&pns::lights::Loop {
                 streak: streak.as_ref(),
                 agents_working,
@@ -5488,8 +5537,23 @@ fn sweep_shell_markers(state: &Path) -> Option<u64> {
 /// ever looks in this directory: a session that ends without another event
 /// leaves a marker nothing else would ever remove, and one file per abandoned
 /// session for the life of a machine is unbounded growth.
-fn sweep_blocked(state: &Path, now: u64) -> Vec<u64> {
-    sweep_markers(&pns::lights::blocked_dir(state), now, BLOCKED_MAX_AGE_SECS)
+fn sweep_blocked(state: &Path, now: u64, give_up_after_secs: u64) -> Vec<u64> {
+    sweep_markers(&pns::lights::blocked_dir(state), now, give_up_after_secs)
+}
+
+/// The blocked lamp's reading for this tick: the sweep that removes an aged
+/// marker and the aggregate that lights the lamp, both handed the one
+/// configured backstop.
+///
+/// ITS OWN FUNCTION SO ITS TEST SPAWNS NOTHING: the rest of the house asks
+/// herdr and the idle probes, and this half never depends on either.
+fn blocked_lamp(state: &Path, lights: &pns::config::Lights, now: u64) -> bool {
+    let give_up_after_secs = lights.blocked.give_up_after_secs;
+    pns::lights::any_blocked(
+        &sweep_blocked(state, now, give_up_after_secs),
+        now,
+        give_up_after_secs,
+    )
 }
 
 /// The working streak after this tick's reading, published or removed.
@@ -5608,28 +5672,6 @@ fn sweep_legacy_state(state: &Path) {
     }
     let _ = std::fs::remove_dir_all(state.join("lights-needs"));
 }
-
-/// How long an unanswered wait may hold a lamp blue.
-///
-/// TWELVE HOURS, AND IT IS A BACKSTOP RATHER THAN AN EXPIRY. The locked
-/// behaviour is blue breathing CONTINUOUS UNTIL THE OPERATOR ANSWERS, so any
-/// bound at all is a departure from it and the only honest job left for one is
-/// releasing a bulb from a session that will never come back. At half an hour
-/// it was doing the other job as well: a question asked while the operator was
-/// at lunch went dark before they returned, and nothing anywhere said it had,
-/// which is precisely the state a lamp exists to prevent.
-///
-/// THE TRADE, STATED. Twelve hours outlasts every absence a working day
-/// contains and still gives the bulb back by the next morning, so an agent
-/// abandoned mid-question costs one lamp for one night rather than for the life
-/// of the machine. The ORDINARY end is not this at all: the session's next
-/// event clears the marker, whatever the hour.
-///
-/// NOT A CONFIG KNOB. The lock sheet fixes what a behaviour's knobs are
-/// (duration and the two ends, plus a threshold where one applies) and an
-/// abandoned-session backstop is none of those; a key here would be one more
-/// number an operator can set to something that reads as an expiry.
-const BLOCKED_MAX_AGE_SECS: u64 = 12 * 60 * 60;
 
 /// How long a run of work survives readings that say nothing is working.
 ///
@@ -8012,11 +8054,11 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        BLOCKED_MAX_AGE_SECS, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
-        LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS,
-        MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
-        drive_breaths, end_lease, held_lamps, keep_aside, lights_report, list, matches_glob,
-        means_yes, muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
+        CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
+        LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
+        end_lease, held_lamps, keep_aside, lights_report, list, matches_glob, means_yes,
+        muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
         recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
         reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
         say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
@@ -8461,7 +8503,7 @@ mod tests {
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
             assert!(
-                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked)
+                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked.breath)
                     .is_empty(),
                 "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
             );
@@ -9138,12 +9180,54 @@ mod tests {
     }
 
     #[test]
-    fn a_wait_nobody_has_answered_still_holds_its_lamp_hours_later() {
+    fn the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves() {
+        // THE TICK COMPOSES TWO READERS OF THE SAME BOUND, the sweep that
+        // deletes an aged marker and the aggregate that lights the lamp, and
+        // each is handed the knob separately. A knob past every number this
+        // bound was ever hardcoded to, and a wait older than all of them but
+        // inside it: a reader that kept an old constant on EITHER half puts
+        // the lamp out here.
+        const GIVE_UP_AFTER_SECS: u64 = 100_000;
+        let state = scratch("blocked-knob-tick");
+        let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
+        std::fs::create_dir_all(marker.parent().expect("the wait directory"))
+            .expect("the wait directory");
+        std::fs::write(&marker, "1000\n").expect("a wait in progress");
+        // THROUGH THE PARSER, not a field poked on a default: the knob the
+        // operator writes is the one the tick must read.
+        let config = pns::config::parse_config(&format!(
+            "[lights.blocked]\ngive_up_after_secs = {GIVE_UP_AFTER_SECS}\n"
+        ))
+        .expect("a config stating the knob");
+        let lights = config.lights.as_deref().expect("the lights table");
+
+        assert!(
+            blocked_lamp(&state, lights, 1_000 + 90_000),
+            "a day-old question inside the configured backstop still holds the lamp"
+        );
+        assert!(
+            !blocked_lamp(&state, lights, 1_000 + GIVE_UP_AFTER_SECS + 1),
+            "and one second past the backstop the lamp is given back"
+        );
+        assert!(
+            !marker.exists(),
+            "by the sweep, which read the same knob and removed the marker"
+        );
+    }
+
+    #[test]
+    fn a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop() {
         // THE LOCK SAYS "CONTINUOUS UNTIL THE OPERATOR ANSWERS", and half an
         // hour was not that: a question asked while they were at lunch went
         // dark before they came back, with nothing anywhere to say it had. What
         // is left is an ABANDONED-SESSION BACKSTOP and nothing else, so the
-        // lamp survives every absence a working day contains.
+        // lamp survives every absence the knob names.
+        //
+        // A KNOB THAT IS NOT THE SHIPPED DEFAULT, so a `sweep_blocked` that
+        // silently kept an old hardcoded number instead of reading the
+        // configured one would still be caught here.
+        const GIVE_UP_AFTER_SECS: u64 = 3_600;
+
         let state = scratch("blocked-bound");
         let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
         std::fs::create_dir_all(marker.parent().expect("the wait directory"))
@@ -9151,17 +9235,17 @@ mod tests {
         std::fs::write(&marker, "1000\n").expect("a wait in progress");
 
         assert_eq!(
-            sweep_blocked(&state, 1_000 + 4 * 60 * 60),
+            sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS - 1, GIVE_UP_AFTER_SECS),
             vec![1_000],
-            "a question four hours old is still a question nobody has answered"
+            "a question just short of the knob is still a question nobody has answered"
         );
         assert_eq!(
-            sweep_blocked(&state, 1_000 + BLOCKED_MAX_AGE_SECS),
+            sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS, GIVE_UP_AFTER_SECS),
             vec![1_000],
-            "exactly at the backstop it is still live: both edges closed"
+            "exactly at the backstop it is still live: the bound is closed"
         );
         assert_eq!(
-            sweep_blocked(&state, 1_000 + BLOCKED_MAX_AGE_SECS + 1),
+            sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS + 1, GIVE_UP_AFTER_SECS),
             Vec::<u64>::new(),
             "and one second past it the abandoned session gives the bulb back"
         );
@@ -9185,7 +9269,7 @@ mod tests {
         std::fs::write(needs.join("s3"), "not an epoch\n").expect("an unreadable marker");
 
         assert_eq!(
-            sweep_blocked(&state, 1000),
+            sweep_blocked(&state, 1000, 3_600),
             vec![1000],
             "the live wait is still what the sweep answers with"
         );

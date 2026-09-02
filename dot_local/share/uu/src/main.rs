@@ -10,8 +10,9 @@
 //! A config uu could not read, or a lane the operator asked for and did not
 //! get, is uu failing (1). An argument uu does not serve is usage (2).
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use pns::channels::hermes::{SignedPost, UreqSignedPost, delivered, outcome_line, sign};
@@ -20,7 +21,7 @@ use unattended_upgrades::config::{
     Config, ConfigError, LANE_TYPES, LoadOutcome, Records, config_path, load_config,
 };
 use unattended_upgrades::lanes::{
-    CommandRunner, LaneReport, enabled_lanes, failure_reason, run_lane,
+    CommandRunner, LaneReport, Ran, enabled_lanes, failure_reason, run_lane,
 };
 use unattended_upgrades::record::{
     AGENT, Marker, gap_line, marker_contents, parse_marker, record_body, record_detail,
@@ -414,30 +415,85 @@ fn resolve(command: &str) -> Option<PathBuf> {
         .find(|candidate| runnable(candidate))
 }
 
+/// The event handed to a command lane's child cannot exceed this, or
+/// `run_with_input`'s pre-filled pipe would have to write more than fits
+/// before a reader exists. XNU's own floor is 16 KiB; measured capacity on
+/// Darwin 25.2 is 64 KiB. The limit sits AT the floor, the one size a whole
+/// event is guaranteed to fit at before any reader exists.
+/// Past capacity `write_all` blocks forever with no reader and no deadline: a
+/// silent hang of an unattended job. The event uu composes today is under
+/// 1 KiB.
+const MAX_EVENT_INPUT: usize = 16 * 1024;
+
 /// The lane subjects. No deadline, matching the shell job this replaces: a
 /// plugin install has no honest upper bound and launchd is what notices a job
 /// that never ends.
 struct SystemRunner;
 
+impl SystemRunner {
+    /// The one place a lane subject is actually spawned. `run` and
+    /// `run_with_input` differ only in what `stdin` they hand it.
+    fn spawn(&self, program: &str, args: &[&str], stdin: Stdio) -> Result<Output, String> {
+        Command::new(program)
+            .args(args)
+            .stdin(stdin)
+            .output()
+            .map_err(|error| format!("could not run {program}: {error}"))
+    }
+}
+
+/// How a child ended, in the one line every failure path here reasons about.
+fn exit_description(output: &Output) -> String {
+    match output.status.code() {
+        Some(code) => format!("exit {code}"),
+        None => "killed by a signal".to_string(),
+    }
+}
+
 impl CommandRunner for SystemRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String> {
-        match Command::new(program).args(args).output() {
-            Err(error) => Err(format!("could not run {program}: {error}")),
-            Ok(output) if output.status.success() => {
-                Ok(String::from_utf8_lossy(&output.stdout).to_string())
-            }
-            // WHAT IT PRINTED, not only how it ended. `output` captured stderr
-            // either way, the child is gone by the time the record is
-            // composed, and a weekly job's own log may have rotated before
-            // anyone reads it.
-            Ok(output) => Err(failure_reason(
-                &match output.status.code() {
-                    Some(code) => format!("exit {code}"),
-                    None => "killed by a signal".to_string(),
-                },
-                &String::from_utf8_lossy(&output.stderr),
-            )),
+        let output = self.spawn(program, args, Stdio::null())?;
+        if output.status.success() {
+            return Ok(String::from_utf8_lossy(&output.stdout).to_string());
         }
+        // WHAT IT PRINTED, not only how it ended. `output` captured stderr
+        // either way, the child is gone by the time the record is composed,
+        // and a weekly job's own log may have rotated before anyone reads it.
+        Err(failure_reason(
+            &exit_description(&output),
+            &String::from_utf8_lossy(&output.stderr),
+        ))
+    }
+
+    fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String> {
+        if input.len() > MAX_EVENT_INPUT {
+            return Err(format!(
+                "the event for {program} is {} bytes, over the {MAX_EVENT_INPUT}-byte pipe limit",
+                input.len()
+            ));
+        }
+        // PRE-FILL THE PIPE. uu holds the read end until every byte is
+        // written and the writer is dropped, so uu's own write can never see
+        // EPIPE; the child then reads the event and EOF, in one pass, with no
+        // thread and no write deadline. Writing AFTER spawn is the mutant
+        // this avoids: main() resets SIGPIPE to its default disposition, so a
+        // child that exits without reading would otherwise kill uu at 141.
+        let (reader, mut writer) = std::io::pipe()
+            .map_err(|error| format!("could not open a pipe for {program}'s input: {error}"))?;
+        writer
+            .write_all(input.as_bytes())
+            .map_err(|error| format!("could not write {program}'s input: {error}"))?;
+        drop(writer);
+        let output = self.spawn(program, args, Stdio::from(reader))?;
+        Ok(Ran {
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            failure: (!output.status.success()).then(|| {
+                failure_reason(
+                    &exit_description(&output),
+                    &String::from_utf8_lossy(&output.stderr),
+                )
+            }),
+        })
     }
 }
 
@@ -539,6 +595,123 @@ mod tests {
             .expect_err("this command fails");
         assert!(failure.contains("exit 3"), "{failure}");
         assert!(failure.contains("no such repository"), "{failure}");
+    }
+
+    // --- run_with_input, against the real child process ------------------
+
+    #[test]
+    fn run_with_input_hands_the_child_its_input_on_stdin() {
+        // ON A DEADLINE. cat reads until EOF, and EOF only arrives once every
+        // write end is closed: a run_with_input that kept its writer open
+        // through the spawn would leave cat waiting for uu and uu waiting for
+        // cat, which an unbounded call would report as a hang, not a failure.
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            send.send(SystemRunner.run_with_input("/bin/cat", &[], "the run event\n"))
+        });
+        let ran = receive
+            .recv_timeout(Duration::from_secs(10))
+            .expect("cat never saw EOF: uu is still holding the pipe's write end")
+            .expect("cat runs");
+        assert_eq!(ran.stdout, "the run event\n");
+        assert_eq!(ran.failure, None);
+    }
+
+    #[test]
+    fn a_child_that_never_reads_its_stdin_is_still_a_clean_run() {
+        // The property the pre-filled pipe exists for: uu's write is finished
+        // before the child exists, so a child that exits without touching
+        // stdin cannot make that write fail. What this test CANNOT observe is
+        // the 141 itself: the harness keeps SIGPIPE ignored, and a write made
+        // after the spawn usually lands in the pipe before a child this quick
+        // has exited anyway. That the pre-filled sequence survives such a
+        // child under `main`'s SIG_DFL reset, where the write-after-spawn
+        // order dies at 141, was checked by hand outside the harness.
+        let ran = SystemRunner
+            .run_with_input("/bin/sh", &["-c", "exit 0"], "the run event\n")
+            .expect("a child that ignores stdin still runs and exits cleanly");
+        assert_eq!(ran.failure, None);
+    }
+
+    #[test]
+    fn run_with_input_reports_a_non_zero_exit_as_a_failure_carrying_the_stderr_tail() {
+        // The child prints to stdout BEFORE it fails, the way a partially
+        // successful upgrade would: a mutant that blanks stdout on any
+        // non-zero exit would still satisfy every assertion below that only
+        // looks at `failure`, so `ran.stdout` is pinned here too.
+        let ran = SystemRunner
+            .run_with_input(
+                "/bin/sh",
+                &[
+                    "-c",
+                    "printf '3 upgraded\\n'; cat >/dev/null; printf 'no such repository\\n' >&2; exit 2",
+                ],
+                "the run event\n",
+            )
+            .expect("the child ran, it just failed");
+        assert_eq!(ran.stdout, "3 upgraded\n");
+        let failure = ran.failure.expect("a non-zero exit is a failure");
+        assert!(failure.contains("exit 2"), "{failure}");
+        assert!(failure.contains("no such repository"), "{failure}");
+    }
+
+    #[test]
+    fn run_with_input_names_the_missing_program_when_it_could_not_run_at_all() {
+        let error = SystemRunner
+            .run_with_input("/no/such/uu-test-program", &[], "the run event\n")
+            .expect_err("a missing program cannot be run");
+        assert!(error.contains("could not run"), "{error}");
+        assert!(error.contains("/no/such/uu-test-program"), "{error}");
+    }
+
+    #[test]
+    fn run_with_input_refuses_an_input_over_16_kib_without_spawning_anything() {
+        let huge = "x".repeat(MAX_EVENT_INPUT + 1);
+        let error = SystemRunner
+            .run_with_input("/no/such/uu-test-program", &[], &huge)
+            .expect_err("an oversized event must be refused");
+        // Naming the actual size proves the refusal ran; a missing-program
+        // message here instead would prove the size check let the spawn
+        // through.
+        assert!(
+            error.contains(&(MAX_EVENT_INPUT + 1).to_string()),
+            "{error}"
+        );
+        assert!(!error.contains("could not run"), "{error}");
+    }
+
+    #[test]
+    fn run_with_input_refuses_by_byte_length_not_character_count() {
+        // 4096 four-byte characters plus one ASCII byte is 16385 bytes but
+        // only 4097 characters, well under MAX_EVENT_INPUT. A mutant that
+        // measured `input.chars().count()` instead of `input.len()` would let
+        // this through and only a multi-byte fixture can catch it.
+        let huge = format!("{}x", "\u{1D11E}".repeat(MAX_EVENT_INPUT / 4));
+        assert_eq!(huge.len(), MAX_EVENT_INPUT + 1);
+        assert!(huge.chars().count() < MAX_EVENT_INPUT);
+        let error = SystemRunner
+            .run_with_input("/no/such/uu-test-program", &[], &huge)
+            .expect_err("an oversized event must be refused even when it is short in characters");
+        assert!(
+            error.contains(&(MAX_EVENT_INPUT + 1).to_string()),
+            "{error}"
+        );
+        assert!(!error.contains("could not run"), "{error}");
+    }
+
+    #[test]
+    fn run_with_input_allows_an_input_of_exactly_16_kib() {
+        // The limit is a size AT which the input still fits, not one past
+        // which it starts to fit: a `>=` mutant would refuse this legal
+        // boundary case while every other test here stays green.
+        let exact = "x".repeat(MAX_EVENT_INPUT);
+        let error = SystemRunner
+            .run_with_input("/no/such/uu-test-program", &[], &exact)
+            .expect_err("the program does not exist, but the size check must have let it through");
+        assert!(
+            error.contains("could not run"),
+            "an exact-limit input must reach the spawn attempt: {error}"
+        );
     }
 
     #[test]

@@ -722,6 +722,9 @@ mod tests {
                     overrides: &Overrides::default(),
                     legs: &[],
                     nag: false,
+                    permission_mode: "",
+                    agent_id: "",
+                    tool_name: "",
                 });
             }
             [

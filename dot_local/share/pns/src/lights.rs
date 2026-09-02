@@ -503,12 +503,12 @@ pub fn marker_is_live(at: u64, now: u64, max_age_secs: u64) -> bool {
 
 /// One HELD state, and the four of them in the order they outrank each other.
 ///
-/// THE DECLARATION ORDER IS THE RANK, so the arbitration is a sort rather than a
-/// table of pairs, and adding a fifth state is one line in one place. Blocked is
-/// on top, which is the operator's own ruling: a question waiting on them
-/// outranks work in progress, and work in progress outranks news about work that
-/// has already finished.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// THE DECLARATION ORDER IS THE RANK, and `active_held` pushes in that fixed
+/// order rather than sorting: nothing here compares one `Held` to another at
+/// runtime. Blocked is on top, which is the operator's own ruling: a question
+/// waiting on them outranks work in progress, and work in progress outranks
+/// news about work that has already finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Held {
     Blocked,
     Looping,
@@ -1791,12 +1791,6 @@ mod tests {
             Vec::new(),
             "a house holding nothing is a dark house"
         );
-        // THE RANK, and it is the operator's own: a question waiting on them
-        // beats work in progress, which beats news about work already finished,
-        // and red news beats calm news.
-        assert!(Held::Blocked < Held::Looping);
-        assert!(Held::Looping < Held::UnreadFailure);
-        assert!(Held::UnreadFailure < Held::UnreadSuccess);
     }
 
     #[test]
