@@ -947,7 +947,10 @@ mod tests {
         let detail = refusal(
             "[lanes.mine]\ntype = \"herdr\"\nplugins = [{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]\n",
         );
-        assert!(detail.contains("unknown `lanes.mine` plugin key `pin`"), "{detail}");
+        assert!(
+            detail.contains("unknown `lanes.mine` plugin key `pin`"),
+            "{detail}"
+        );
         assert!(!detail.contains("lanes.herdr"), "{detail}");
     }
 
