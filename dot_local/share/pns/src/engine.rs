@@ -79,6 +79,23 @@ impl Overrides {
         self.muted || self.focus_active
     }
 
+    /// Whether the idle guard in `surface_reading` would consult the idle
+    /// probe (and, only if that answers, the lock probe qualifying it): a
+    /// stated or garbled idle clock answers the question outright, and
+    /// nothing underneath an outright answer is worth spawning.
+    ///
+    /// ONE SPELLING, read by `start` and by the guard alike, so a probe can
+    /// never be started for a reading the caller already gave.
+    fn reads_desk(&self) -> bool {
+        !self.idle_invalid && self.idle_secs.is_none()
+    }
+
+    /// The phone twin: whether the phone-input guard would run the
+    /// discovery chain instead of trusting a stated or garbled age.
+    fn reads_phone(&self) -> bool {
+        !self.phone_invalid && self.phone_input_age.is_none()
+    }
+
     /// Parse the PNS_* and PNS_* variables out of an environment map.
     pub fn from_env(vars: &BTreeMap<String, String>) -> Self {
         // A present-but-garbled value is reported alongside the None, so the
@@ -347,32 +364,28 @@ where
     // on pays that deadline serially. Nothing in this repo sets
     // `PNS_IDLE_SECS` in production (measured repo-wide 2026-08-28); a future
     // setter would silently disable the override with it.
-    let (desk_input_age, screen_locked) = if overrides.idle_invalid {
+    let (desk_input_age, screen_locked) = if overrides.reads_desk() {
+        let idle = probes.idle_secs();
+        (
+            idle,
+            idle.is_some().then(|| probes.screen_locked()).flatten(),
+        )
+    } else if overrides.idle_invalid {
         (None, None)
     } else {
-        match overrides.idle_secs {
-            Some(secs) => (Some(secs), None),
-            None => {
-                let idle = probes.idle_secs();
-                (
-                    idle,
-                    idle.is_some().then(|| probes.screen_locked()).flatten(),
-                )
-            }
-        }
+        (overrides.idle_secs, None)
     };
     // AGES, never timestamps, and both aged against the SAME clock read: an
     // unreadable clock ages nothing, which drops a phone signal out of the
     // arbitration rather than making it infinitely fresh.
     let age_of =
         |taken_at: Option<u64>| now_secs.and_then(|now| Some(now.saturating_sub(taken_at?)));
-    let phone_input_age = if overrides.phone_invalid {
+    let phone_input_age = if overrides.reads_phone() {
+        age_of(probes.phone_input_atime_secs())
+    } else if overrides.phone_invalid {
         None
     } else {
-        match overrides.phone_input_age {
-            Some(secs) => Some(secs),
-            None => age_of(probes.phone_input_atime_secs()),
-        }
+        overrides.phone_input_age
     };
     let marker_age = age_of(probes.marker_mtime_secs());
     SurfaceReading {
@@ -1559,6 +1572,51 @@ mod tests {
         };
         let decision = decide_with(&probes, &overrides, "");
         assert!(names(&decision).contains(&"mobile"));
+    }
+
+    // --- the predicates `start` and the read guards share -------------------
+
+    #[test]
+    fn reads_desk_is_true_only_when_the_idle_guard_below_would_run_the_probe() {
+        // ONE SPELLING for the override rule: this is the exact question
+        // `start` asks before spawning and the guard asks before reading, so
+        // a probe can never be started for an answer the caller already gave.
+        assert!(Overrides::default().reads_desk());
+        assert!(
+            !Overrides {
+                idle_invalid: true,
+                ..Overrides::default()
+            }
+            .reads_desk(),
+            "a garbled override answers unknown outright"
+        );
+        assert!(
+            !Overrides {
+                idle_secs: Some(5),
+                ..Overrides::default()
+            }
+            .reads_desk(),
+            "a stated idle clock answers outright"
+        );
+    }
+
+    #[test]
+    fn reads_phone_is_true_only_when_the_phone_guard_below_would_run_the_chain() {
+        assert!(Overrides::default().reads_phone());
+        assert!(
+            !Overrides {
+                phone_invalid: true,
+                ..Overrides::default()
+            }
+            .reads_phone()
+        );
+        assert!(
+            !Overrides {
+                phone_input_age: Some(5),
+                ..Overrides::default()
+            }
+            .reads_phone()
+        );
     }
 
     #[test]
