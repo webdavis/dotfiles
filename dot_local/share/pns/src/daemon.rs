@@ -271,23 +271,35 @@ impl Reason {
 
 /// Whether one job fires now, waits, or is dropped.
 ///
-/// A TOTAL FUNCTION OF THREE VALUES: the job, the second, and whether the
-/// marker exists. It opens no file and reads no clock, which is what lets the
-/// window be swept a second at a time in a unit test.
+/// A TOTAL FUNCTION OF FOUR VALUES: the job, the second, whether the marker
+/// exists, and whether a child THIS job already fired is still running. It
+/// opens no file and reads no clock, which is what lets the window be swept a
+/// second at a time in a unit test.
 ///
 /// BOTH EDGES CLOSED. `due <= now <= until` fires, so a job whose lease is
 /// exactly its due second still runs; one second past `until` never does.
 ///
-/// THE LEASE IS CHECKED FIRST, and the marker before the due second, so an
-/// expired job is dropped as expired even when its marker also arrived, and a
-/// job whose answer came in is dropped without ever being described as
-/// waiting.
-pub fn decide(job: &Job, now: u64, marker_exists: bool) -> Verdict {
+/// THE LEASE IS CHECKED FIRST, then the marker, then whether a child is still
+/// running, and the due second last: an expired job is dropped as expired
+/// even when its marker also arrived, and a job whose answer came in is
+/// dropped without ever being described as waiting.
+///
+/// A RUNNING CHILD ANSWERS `Wait`, NEVER `Drop`, so the occurrence stays due
+/// and fires the tick after that child is gone rather than being lost. THE
+/// SEAMLESS BREATH IS WHY THIS EXISTS: its last fade is issued to still be
+/// running when the child exits, so the schedule alone can no longer promise
+/// the previous child is gone before a second one starts. `rearm`'s
+/// `now + every` still governs how soon the next occurrence is due, so a job
+/// held here by a slow child does not burst once that child finally exits.
+pub fn decide(job: &Job, now: u64, marker_exists: bool, running: bool) -> Verdict {
     if now > job.until {
         return Verdict::Drop(Reason::LeaseExpired);
     }
     if marker_exists {
         return Verdict::Drop(Reason::MarkerPresent);
+    }
+    if running {
+        return Verdict::Wait;
     }
     if now < job.due {
         return Verdict::Wait;
@@ -652,7 +664,7 @@ mod tests {
                 Verdict::Drop(Reason::LeaseExpired),
             ),
         ] {
-            assert_eq!(decide(&job, now, false), expected, "case: {case}");
+            assert_eq!(decide(&job, now, false, false), expected, "case: {case}");
         }
     }
 
@@ -669,7 +681,7 @@ mod tests {
             ..full()
         };
         assert_eq!(
-            decide(&job, now, false),
+            decide(&job, now, false, false),
             Verdict::Drop(Reason::LeaseExpired)
         );
     }
@@ -682,10 +694,29 @@ mod tests {
         // Squarely inside the window, so nothing but the marker can be what
         // dropped it.
         assert_eq!(
-            decide(&job, job.due + 1, true),
+            decide(&job, job.due + 1, true, false),
             Verdict::Drop(Reason::MarkerPresent)
         );
-        assert_eq!(decide(&job, job.due + 1, false), Verdict::Fire);
+        assert_eq!(decide(&job, job.due + 1, false, false), Verdict::Fire);
+    }
+
+    /// THE SEAMLESS BREATH'S OWN GUARD. A schedule that ends with its last
+    /// fade still in flight can no longer promise the previous child is gone
+    /// by the time the next occurrence is due, so a live child answers `Wait`
+    /// rather than `Fire`, exactly like a due second that has not arrived yet.
+    #[test]
+    fn a_running_child_holds_the_next_occurrence_to_a_wait_rather_than_a_fire() {
+        let job = full();
+        assert_eq!(
+            decide(&job, job.due, false, true),
+            Verdict::Wait,
+            "due, with no marker, but its own child is still running"
+        );
+        assert_eq!(
+            decide(&job, job.due, false, false),
+            Verdict::Fire,
+            "the control: the same job, the same second, with nothing running"
+        );
     }
 
     /// A REPEAT CANNOT EXTEND ITS OWN LEASE, which is the assertion that

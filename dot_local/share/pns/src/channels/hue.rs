@@ -802,8 +802,11 @@ pub fn pulse_body(
 /// ONE WRITE RATHER THAN TWO, because a colour write followed by a fade is a
 /// visible jump: the lamp would land at whatever brightness it was already at,
 /// in the new colour, before starting to move. Stating the first fade's target
-/// here means the descent begins from wherever the lamp is, which is the
-/// seamless join between two ticks.
+/// here means the first move begins from wherever the lamp is, toward
+/// whichever end the tick's `Resume` picked, which is the seamless join
+/// between two ticks. THIS RUNS ON EVERY TICK, resumed or not: an externally
+/// switched-off lamp comes back on with its first fade whichever end the
+/// held record names.
 pub fn breath_arm_body(
     color: crate::pulse::PulseColor,
     fade: &crate::lights::Fade,
@@ -2009,7 +2012,7 @@ mod tests {
             high: 100,
             low: 30,
         };
-        let fades = crate::lights::breath_fades(12_000, &breath);
+        let fades = crate::lights::breath_fades(12_000, &breath, crate::lights::Resume::default());
         assert_eq!(
             breath_arm_body(crate::pulse::BLOCKED_COLOR, &fades[0], breath.duration_ms),
             r#"{"color":{"xy":{"x":0.1532,"y":0.0475}},"dimming":{"brightness":30.0},"dynamics":{"duration":2000},"on":{"on":true}}"#,

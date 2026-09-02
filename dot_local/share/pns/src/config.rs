@@ -149,9 +149,11 @@ pub struct Pulse {
 
 /// A breath: how long ONE fade takes, and the two ends it fades between.
 ///
-/// `high` IS THE PEAK AND IS WHERE A BREATH STOPS. The driver finishes its
-/// in-flight cycle at the peak so the next tick resumes from there, which is
-/// why `low` above `high` is refused at load rather than rendered upside down.
+/// `high` IS THE PEAK. The held record tracks which end a breath last landed
+/// on (`resume_from` in `lights.rs`), and every fade the driver issues moves
+/// toward one of these two named values, which is why `low` above `high` is
+/// refused at load: with the ends reversed, a fade to `high` would move the
+/// lamp DOWN and one to `low` would move it up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Breath {
     pub duration_ms: u64,
@@ -259,10 +261,13 @@ impl Default for Lights {
 /// How often a lamp holding a state is re-armed.
 ///
 /// TWELVE, and it is a breath budget rather than a round number: the tick's own
-/// driver fades a breathing lamp for its whole interval and stops at the peak,
-/// so the interval is what decides how many fades fit between two ticks. Twelve
-/// seconds holds three two-second cycles or one four-second one, which is what
-/// the locked shapes were measured at.
+/// driver fades a breathing lamp seamlessly across the whole interval, so the
+/// interval is what decides how many fades fit between two ticks. The count is
+/// the budget divided by a fade's own step (its duration less the seamless
+/// lead), rounded UP, because the last fade is issued inside the interval and
+/// lands after it: twelve seconds carries seven of the locked two-second
+/// shape, and three or four of the four-second one depending on what that
+/// tick's resolve took off the budget first.
 const DEFAULT_REFRESH_SECS: u64 = 12;
 
 /// The floor under it, and it is the TRANSPORT DEADLINE rather than a round
@@ -272,26 +277,26 @@ const DEFAULT_REFRESH_SECS: u64 = 12;
 /// pile of children rather than a faster lamp.
 const MIN_REFRESH_SECS: u64 = 10;
 
-/// And the ceiling: THE LONGEST A TICK'S CHILD IS ALLOWED TO LIVE.
+/// And the ceiling: THE LONGEST INTERVAL A BREATHING LAMP MAY BE GIVEN.
 ///
-/// THIRTY, AND IT IS THE DAEMON'S OWN BOUND read back rather than a round
-/// number. The daemon kills a job's child after `CHILD_TICKS` of its own tick
-/// (thirty, at the production tick of one second), and a breathing tick now
-/// SLEEPS for most of its interval issuing fades. So an interval past that is an
-/// interval whose breath is cut off part way through with nothing said anywhere:
-/// the lamp freezes at whatever brightness the last fade reached and sits there
-/// until the next tick. Refusing the interval at load is what keeps the two
-/// numbers from disagreeing silently.
+/// THE DAEMON'S CHILD BOUND IS DERIVED FROM THIS NUMBER, not the other way
+/// round, and that direction is deliberate. A breathing tick sleeps for almost
+/// all of its interval issuing fades, so the interval is the longest part of
+/// what a child has to do; `child_bound` in the daemon adds the one write that
+/// can still be in flight when the interval ends and the reap tick that
+/// notices the child afterwards. Reading the dependency the other way had the
+/// supported thirty-second refresh equal to a thirty-second child, which killed
+/// a legal last write before the tick could record where it landed.
 ///
-/// IT IS ALSO UNDER THE ORDINARY LEASE, which the old ceiling was: the tick is
-/// registered with `until` at least as far as its own first due second, so a
-/// refresh longer than that lease would EXTEND it, and the two lease lengths
-/// would stop being the fixed numbers they are documented as.
+/// IT IS ALSO UNDER THE ORDINARY LEASE: the tick is registered with `until` at
+/// least as far as its own first due second, so a refresh longer than that
+/// lease would EXTEND it, and the two lease lengths would stop being the fixed
+/// numbers they are documented as.
 ///
-/// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds seven full cycles of the
-/// locked blocked shape and three of the slow one, so nothing an operator would
+/// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds eight full cycles of the
+/// locked blocked shape and four of the slow one, so nothing an operator would
 /// want is out of reach above it.
-const MAX_REFRESH_SECS: u64 = 30;
+pub const MAX_REFRESH_SECS: u64 = 30;
 
 /// The five locked shapes. EVERY NUMBER HERE WAS SET ON A REAL LAMP under the
 /// operator's observe-adjust-lock protocol (2026-08-31 and 2026-09-01), so a
@@ -382,12 +387,11 @@ const MAX_GIVE_UP_AFTER_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// How long ONE fade may take, in milliseconds.
 ///
-/// THE CEILING IS WHAT MAKES THE DRIVER TOTAL. A breath stops at the peak, so
-/// the shortest honest run is a fade down and a fade back, and both have to fit
-/// inside `MIN_REFRESH_SECS`. At five seconds a pair fits ten with room to
-/// spare; past it a tick could be asked for a cycle longer than the interval it
-/// has, and the driver would have to either overrun the next tick or stop
-/// somewhere other than the peak.
+/// THE CEILING IS WHAT MAKES THE DRIVER TOTAL. `breath_fades` needs room for
+/// at least one fade inside a tick's budget, and that budget is what is LEFT
+/// of `MIN_REFRESH_SECS` after the resolve, so a fade past this ceiling could
+/// be asked for a schedule the shortest interval the config allows has no
+/// room left to even start.
 const MIN_FADE_MS: u64 = 200;
 const MAX_FADE_MS: u64 = 5000;
 
@@ -1322,15 +1326,14 @@ fn breath_key(
 }
 
 /// A breath whose `low` is above its `high` is REFUSED rather than rendered
-/// upside down, because the driver's stated invariant is that it stops at the
-/// peak: with the ends swapped it would stop at the fainter of the two and the
-/// next tick would resume from there, which is the opposite of what the shape
-/// promises.
+/// upside down: every fade the driver issues moves toward one of these two
+/// named values, so with the ends swapped a fade to `high` would move the
+/// lamp DOWN and one to `low` would move it up.
 fn ends_agree(where_it_is: &str, breath: &Breath) -> Result<(), ConfigError> {
     if breath.low > breath.high {
         return Err(ConfigError::Invalid(format!(
-            "`{where_it_is}` has low {} above high {}, so the breath would stop at \
-             its faintest rather than at its peak",
+            "`{where_it_is}` has low {} above high {}, so a fade to `high` would \
+             move the lamp down and one to `low` would move it up",
             breath.low, breath.high
         )));
     }
@@ -3059,9 +3062,8 @@ mod tests {
 
     #[test]
     fn a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down() {
-        // THE DRIVER'S STATED INVARIANT IS THAT IT STOPS AT THE PEAK, and with
-        // the ends swapped it would stop at the fainter of the two and the next
-        // tick would resume from there.
+        // EVERY FADE MOVES TOWARD ONE OF THE TWO NAMED ENDS, and with them
+        // swapped a fade to `high` would move the lamp down.
         for written in [
             "[lights.blocked]\nhigh = 20\nlow = 40\n",
             "[lights.unread]\nhigh = 20\nlow = 40\n",
@@ -3073,7 +3075,10 @@ mod tests {
                 said.contains("low 40") || said.contains("low 4"),
                 "{written:?} must name both ends: {said}"
             );
-            assert!(said.contains("peak"), "and say what it costs: {said}");
+            assert!(
+                said.contains("move the lamp down"),
+                "and say what it costs: {said}"
+            );
         }
         assert!(
             parse_config("[lights.blocked]\nhigh = 40\nlow = 40\n").is_ok(),
