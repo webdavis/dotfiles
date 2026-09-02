@@ -7992,12 +7992,12 @@ mod tests {
         CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
         STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, drive_breaths, end_lease,
-        held_lamps, keep_aside, lights_report, list, matches_glob, means_yes, muted_state,
-        now_secs, publish_config, publish_state_line, read_news, read_note, recap_bounds,
-        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
-        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
-        tick_bridge_deadline, update_blocked_marker,
+        held_lamps, keep_aside, lights_house, lights_report, list, matches_glob, means_yes,
+        muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
+        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
+        say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
+        sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9111,6 +9111,39 @@ mod tests {
             sweep_shell_markers(&state),
             None,
             "an empty shell directory read as work"
+        );
+    }
+
+    #[test]
+    fn the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves() {
+        // THE TICK COMPOSES TWO READERS OF THE SAME BOUND, the sweep that
+        // deletes an aged marker and the aggregate that lights the lamp, and
+        // each is handed the knob separately. A knob past every number this
+        // bound was ever hardcoded to, and a wait older than all of them but
+        // inside it: a reader that kept an old constant on EITHER half puts
+        // the lamp out here.
+        const GIVE_UP_AFTER_SECS: u64 = 100_000;
+        let state = scratch("blocked-knob-tick");
+        let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
+        std::fs::create_dir_all(marker.parent().expect("the wait directory"))
+            .expect("the wait directory");
+        std::fs::write(&marker, "1000\n").expect("a wait in progress");
+        let mut lights = pns::config::Lights::default();
+        lights.blocked.give_up_after_secs = GIVE_UP_AFTER_SECS;
+
+        assert!(
+            lights_house(&state, &lights, 1_000 + 90_000).house.blocked,
+            "a day-old question inside the configured backstop still holds the lamp"
+        );
+        assert!(
+            !lights_house(&state, &lights, 1_000 + GIVE_UP_AFTER_SECS + 1)
+                .house
+                .blocked,
+            "and one second past the backstop the lamp is given back"
+        );
+        assert!(
+            !marker.exists(),
+            "by the sweep, which read the same knob and removed the marker"
         );
     }
 
