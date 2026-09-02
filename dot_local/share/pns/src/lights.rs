@@ -700,23 +700,6 @@ pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resu
         .collect()
 }
 
-/// The end a breath's LAST fade lands on, or `None` for a schedule with no
-/// fades at all.
-///
-/// A SMALL LOOKUP RATHER THAN RE-DERIVING IT FROM THE FADE LIST AT EVERY
-/// CALLER, because the held record's phase is exactly this one value: the
-/// lamp lands on `high` when the last fade's brightness is the breath's own
-/// high end, and on `low` otherwise.
-pub fn breath_lands_on(fades: &[Fade], breath: &crate::config::Breath) -> Option<End> {
-    fades.last().map(|fade| {
-        if fade.brightness == breath.high {
-            End::High
-        } else {
-            End::Low
-        }
-    })
-}
-
 /// One lamp's line in the held record: the fixture path, and where in its
 /// breath it left off.
 ///
@@ -1221,11 +1204,11 @@ mod tests {
         Action, End, FADE_LEAD_MS, Fade, Held, HeldEntry, House, LOOP_USAGE, Loop, LoopCommand,
         MAX_MUTED_PLACES, Muted, News, QuietCommand, Resume, Say, Streak, Unread, WORKING,
         active_held, any_blocked, any_working, bare_mute_secs, blocked_marker,
-        blocked_marker_action, breath_fades, breath_lands_on, last_interaction, lease_marker,
-        loop_command, loop_running, muted_after, muted_entries, muted_places, muted_report,
-        news_after, next_streak, parse_held_token, parse_news, parse_streak, pulse_fires,
-        quiet_command, render_held_token, render_muted, render_news, render_streak, resume_from,
-        say, shown, unread_arming, working_owner, workspace_agent_statuses,
+        blocked_marker_action, breath_fades, last_interaction, lease_marker, loop_command,
+        loop_running, muted_after, muted_entries, muted_places, muted_report, news_after,
+        next_streak, parse_held_token, parse_news, parse_streak, pulse_fires, quiet_command,
+        render_held_token, render_muted, render_news, render_streak, resume_from, say, shown,
+        unread_arming, working_owner, workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -2175,28 +2158,6 @@ mod tests {
             )
             .is_empty(),
             "a resume due at or past the budget has nowhere left to fade"
-        );
-    }
-
-    #[test]
-    fn a_breath_lands_on_whichever_end_its_last_fade_targeted() {
-        assert_eq!(
-            breath_lands_on(
-                &breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default()),
-                &BLOCKED
-            ),
-            Some(End::Low),
-            "seven fades from the peak land on low"
-        );
-        assert_eq!(
-            breath_lands_on(&breath_fades(10_000, &BLOCKED, Resume::default()), &BLOCKED),
-            Some(End::High),
-            "six fades from the peak land on high"
-        );
-        assert_eq!(
-            breath_lands_on(&breath_fades(0, &BLOCKED, Resume::default()), &BLOCKED),
-            None,
-            "an empty schedule lands nowhere"
         );
     }
 

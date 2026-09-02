@@ -5155,6 +5155,14 @@ fn lights_tick() -> i32 {
     // of that question no longer exists. A house holding nothing still costs
     // nothing, which is the case that matters.
     if !active.is_empty() || held_before.as_deref().is_none_or(|held| !held.is_empty()) {
+        // THE ONE MONOTONIC CLOCK THE WHOLE TICK IS MEASURED ON, started here
+        // and read by nothing else: the resolve's cost, every fade's due
+        // millisecond and the moment each write actually happened are all
+        // offsets from this instant, so they can never disagree about when the
+        // tick began. It is a parameter for the reason the sleeper is one: the
+        // driver fills its whole interval by design, so a test that read the
+        // real clock would live the interval too.
+        let started = std::time::Instant::now();
         complaints.extend(run_tick_writes(
             &UreqBridge {
                 base: format!("https://{}/clip/v2/resource", hue.bridge),
@@ -5177,6 +5185,7 @@ fn lights_tick() -> i32 {
             },
             held_before_entries.as_deref(),
             now.saturating_mul(1000),
+            || u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
             std::thread::sleep,
         ));
     }
@@ -5264,9 +5273,9 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     reading: &pns::channels::hue::Reading<'_>,
     held_before: Option<&[pns::lights::HeldEntry]>,
     now_ms: u64,
+    mut elapsed_ms: impl FnMut() -> u64,
     sleep: impl FnMut(Duration),
 ) -> Vec<String> {
-    let started = std::time::Instant::now();
     let mut complaints = Vec::new();
     let mut breathing: Vec<Breathing> = Vec::new();
     if !active.is_empty() {
@@ -5355,12 +5364,18 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     // WHAT IS LEFT OF THE INTERVAL, and not the interval: the resolve above is
     // three bridge calls, and the fades have to be issued and finished inside
     // the time this child still has.
-    let spent_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let spent_ms = elapsed_ms();
     let budget_ms = lights
         .refresh_secs
         .saturating_mul(1000)
         .saturating_sub(spent_ms);
-    let landings = drive_breaths(bridge, budget_ms, &breathing, sleep);
+    let landings = drive_breaths(
+        bridge,
+        budget_ms,
+        &breathing,
+        || elapsed_ms().saturating_sub(spent_ms),
+        sleep,
+    );
     // THE PHASE, WRITTEN ONLY IF THE PRE-ARM LIST IS STILL THIS TICK'S OWN. A
     // return that cleared every held lamp during the breath already emptied
     // the record; resurrecting it here with a phase would hold a lamp the
@@ -5373,9 +5388,14 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
                 landings
                     .iter()
                     .find(|(landed_path, _, _)| landed_path == path)
+                    // THE RESOLVE IS PART OF THE OFFSET. A landing is reported
+                    // from the DRIVER's own start, which is `spent_ms` after
+                    // this tick's, so a record written without that term would
+                    // put every end a whole resolve early and the next tick
+                    // would take the breath over before this one finished it.
                     .map(|(path, end, end_relative_ms)| pns::lights::HeldEntry {
                         path: path.clone(),
-                        resume: Some((now_ms + end_relative_ms, *end)),
+                        resume: Some((now_ms + spent_ms + end_relative_ms, *end)),
                     })
                     .unwrap_or_else(|| pns::lights::HeldEntry::bare(path.clone()))
             })
@@ -5386,12 +5406,27 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
 }
 
 /// Issue every lamp's breath on cadence for the rest of this interval, and
-/// report which end each one landed on.
+/// report which end each one landed on and when.
 ///
 /// ONE SLEEP SCHEDULE FOR EVERY LAMP, against one clock. Each fade carries the
 /// millisecond it is due at, measured from this function's own start, so a lamp
-/// whose PUT took a moment does not push every later fade of every lamp out by
+/// whose write took a moment does not push every later fade of every lamp out by
 /// that moment: the overshoot is absorbed rather than accumulated.
+///
+/// NOTHING IS ISSUED AT OR PAST THE BUDGET, and the check is made immediately
+/// before each write rather than once from the schedule. Writes are synchronous
+/// and sequential, so the schedule is only ever NOMINAL: four slow lamps due
+/// together at 11,850ms with the first taking 150ms puts the rest of that round
+/// at or past a 12,000ms budget, and issuing them anyway would hand the bridge
+/// fades belonging to an interval this child no longer owns. A dropped fade
+/// costs the lamp one turn-around, which the next tick resumes from; an issued
+/// one costs two children writing to one lamp.
+///
+/// AND EVERY LANDING IS DERIVED FROM A WRITE THAT ACTUALLY HAPPENED, at the
+/// moment it actually started. The phase this returns is what the next tick
+/// resumes off, so a landing taken from the nominal schedule would tell that
+/// tick the lamp finished moving earlier than it did, and it would take the
+/// breath over early on every interval the bridge ran slow in.
 ///
 /// IT EXITS INSIDE THE BUDGET IT IS HANDED, WITH ITS LAST FADE STILL RUNNING.
 /// `breath_fades` issues that fade strictly before the budget ends and lets it
@@ -5404,21 +5439,22 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
 /// A LAMP WHOSE FADES ARE ALREADY DONE SIMPLY STOPS, which is how lamps with
 /// different shapes share one schedule: the blocked lamp's two-second cycles run
 /// more often than the unread lamp's four-second one, and the landing each is
-/// reported at is exactly the end its own last fade targeted.
+/// reported at is exactly the end its own last ISSUED fade targeted.
 ///
-/// THE SLEEPER IS A PARAMETER for one reason: the driver fills its whole
-/// interval BY DESIGN, so a test that let it sleep for real would live the
-/// interval too. The cadence a fake sleeper is handed is the same schedule the
-/// real one runs.
+/// THE CLOCK AND THE SLEEPER ARE PARAMETERS for one reason: the driver fills its
+/// whole interval BY DESIGN, so a test that read the real clock and slept for
+/// real would live the interval too. The cadence a fake pair is handed is the
+/// same schedule the real one runs.
 fn drive_breaths<B: pns::channels::hue::Bridge>(
     bridge: &B,
     budget_ms: u64,
     breathing: &[Breathing],
+    mut elapsed_ms: impl FnMut() -> u64,
     mut sleep: impl FnMut(Duration),
 ) -> Vec<(String, pns::lights::End, u64)> {
-    // (due millisecond, path, body), in the order they are due.
-    let mut schedule: Vec<(u64, &str, String)> = Vec::new();
-    let mut landings: Vec<(String, pns::lights::End, u64)> = Vec::new();
+    // (due millisecond, the lamp this fade belongs to, the end it moves toward,
+    // body), in the order they are due.
+    let mut schedule: Vec<(u64, &Breathing, pns::lights::End, String)> = Vec::new();
     for entry in breathing {
         let fades = pns::lights::breath_fades(budget_ms, &entry.breath, entry.resume);
         for (index, fade) in fades.iter().enumerate() {
@@ -5432,28 +5468,35 @@ fn drive_breaths<B: pns::channels::hue::Bridge>(
             } else {
                 pns::channels::hue::fade_body(fade, entry.breath.duration_ms)
             };
-            schedule.push((fade.start_ms, entry.path.as_str(), body));
-        }
-        if let Some(end) = pns::lights::breath_lands_on(&fades, &entry.breath) {
-            let last = fades.last().expect("breath_lands_on found a last fade");
-            landings.push((
-                entry.path.clone(),
-                end,
-                last.start_ms + entry.breath.duration_ms,
-            ));
+            let end = if fade.brightness == entry.breath.high {
+                pns::lights::End::High
+            } else {
+                pns::lights::End::Low
+            };
+            schedule.push((fade.start_ms, entry, end, body));
         }
     }
-    schedule.sort_by_key(|(due_ms, path, _)| (*due_ms, *path));
-    let started = std::time::Instant::now();
-    for (due_ms, path, body) in schedule {
-        let due = Duration::from_millis(due_ms);
-        // SATURATING, so a PUT that ran long simply issues the next fade at once
-        // rather than sleeping a wrapped duration.
-        let elapsed = started.elapsed();
-        if due > elapsed {
-            sleep(due - elapsed);
+    schedule.sort_by(|left, right| (left.0, &left.1.path).cmp(&(right.0, &right.1.path)));
+    let mut landings: Vec<(String, pns::lights::End, u64)> = Vec::new();
+    for (due_ms, entry, end, body) in schedule {
+        // SATURATING, so a write that ran long simply issues the next fade at
+        // once rather than sleeping a wrapped duration.
+        let now_ms = elapsed_ms();
+        if due_ms > now_ms {
+            sleep(Duration::from_millis(due_ms - now_ms));
         }
-        bridge.put(path, &body);
+        // READ AGAIN AFTER THE SLEEP, because the sleep is the one thing here
+        // that is allowed to overshoot, and this is the moment the write starts.
+        let at_ms = elapsed_ms();
+        if at_ms >= budget_ms {
+            break;
+        }
+        bridge.put(&entry.path, &body);
+        let landing = (entry.path.clone(), end, at_ms + entry.breath.duration_ms);
+        match landings.iter_mut().find(|(path, _, _)| *path == entry.path) {
+            Some(previous) => *previous = landing,
+            None => landings.push(landing),
+        }
     }
     landings
 }
@@ -8479,6 +8522,65 @@ mod tests {
         }
     }
 
+    /// The clock a tick test hands the driver when it asserts on WHAT was
+    /// written and to which lamp rather than on when: nothing takes any time,
+    /// so every fade the schedule holds is issued and none is dropped at the
+    /// budget. A test that asserts a PHASE hands over a `FakeClock` instead,
+    /// because a phase is a moment and this clock has none.
+    fn no_time_passes() -> impl FnMut() -> u64 {
+        || 0
+    }
+
+    /// A monotonic clock and its sleeper over one cell. THE SLEEPER IS THE ONLY
+    /// THING THAT ADVANCES IT, so a whole tick plays out at the milliseconds its
+    /// own schedule names, with no wall clock in the test at all.
+    #[derive(Default)]
+    struct FakeClock(std::cell::Cell<u64>);
+
+    impl FakeClock {
+        fn elapsed_ms(&self) -> u64 {
+            self.0.get()
+        }
+
+        fn slept(&self, waited: Duration) {
+            self.0
+                .set(self.0.get() + u64::try_from(waited.as_millis()).unwrap_or(0));
+        }
+    }
+
+    /// A bridge whose calls cost the tick real time on the tick's own clock,
+    /// which is what a slow LAN does to a synchronous schedule. The two costs
+    /// are separate because they buy different failures: a slow resolve eats
+    /// the budget before a single fade is issued, and a slow write pushes every
+    /// later fade past the moment it was due.
+    struct SlowBridge<'a> {
+        clock: &'a FakeClock,
+        get_cost_ms: u64,
+        put_cost_ms: u64,
+        answers: bool,
+        puts: RefCell<Vec<(String, String)>>,
+    }
+
+    impl pns::channels::hue::Bridge for SlowBridge<'_> {
+        fn get(&self, path: &str) -> Option<String> {
+            self.clock.slept(Duration::from_millis(self.get_cost_ms));
+            self.answers.then(|| {
+                match path {
+                    "light" => ONE_LAMP,
+                    "zone" => r#"{"data":[]}"#,
+                    _ => ONE_ROOM,
+                }
+                .to_string()
+            })
+        }
+        fn put(&self, path: &str, body: &str) {
+            self.puts
+                .borrow_mut()
+                .push((path.to_string(), body.to_string()));
+            self.clock.slept(Duration::from_millis(self.put_cost_ms));
+        }
+    }
+
     fn scripted(answers: bool) -> ScriptedBridge {
         ScriptedBridge {
             listings: answers.then_some(()),
@@ -8554,6 +8656,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert!(complaints.is_empty(), "{complaints:?}");
@@ -8599,6 +8702,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert_eq!(
@@ -8638,6 +8742,7 @@ mod tests {
                 resume: Some((1_700_000_000_123, pns::lights::End::High)),
             }]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert_eq!(
@@ -8670,6 +8775,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert!(
@@ -8708,6 +8814,7 @@ mod tests {
             &noon(&quieted("3F - Studio")),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert_eq!(
@@ -8741,6 +8848,7 @@ mod tests {
             &noon(&pns::channels::hue::Muting::Everything),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert_eq!(
@@ -8770,6 +8878,7 @@ mod tests {
             &noon(&nothing_muted()),
             None,
             0,
+            no_time_passes(),
             |_| {},
         );
         assert!(
@@ -8837,6 +8946,7 @@ mod tests {
             // event path has emptied since.
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert!(
@@ -8871,6 +8981,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert!(
@@ -8921,6 +9032,7 @@ mod tests {
                     resume: pns::lights::Resume::default(),
                 },
             ],
+            no_time_passes(),
             |_| {},
         );
         let order: Vec<String> = bridge
@@ -8938,6 +9050,103 @@ mod tests {
             "the fades interleave by their due milliseconds, not by lamp: the quick \
              shape's seven fades and the slow shape's four, seamless past the old \
              stop-at-the-peak count"
+        );
+    }
+
+    #[test]
+    fn a_slow_write_stops_the_schedule_at_the_budget_and_lands_where_it_really_did() {
+        // THE SCHEDULE IS NOMINAL AND THE WRITES ARE NOT. Writes are
+        // synchronous and sequential, so a lamp answering slowly pushes every
+        // later fade past the moment it was due, and the locked blocked shape's
+        // seventh fade would be issued three seconds AFTER the budget it
+        // belongs to. Two things follow, and both are asserted here: nothing is
+        // issued at or past the budget, and the phase left for the next tick is
+        // the end of a write that ACTUALLY HAPPENED, timed from when it
+        // actually started.
+        let clock = FakeClock::default();
+        let bridge = SlowBridge {
+            clock: &clock,
+            get_cost_ms: 0,
+            put_cost_ms: 3_000,
+            answers: true,
+            puts: RefCell::new(Vec::new()),
+        };
+        let landings = drive_breaths(
+            &bridge,
+            12_000,
+            &[Breathing {
+                path: "light/a".to_string(),
+                breath: pns::config::Breath {
+                    duration_ms: 2_000,
+                    high: 100,
+                    low: 30,
+                },
+                color: pns::pulse::BLOCKED_COLOR,
+                resume: pns::lights::Resume::default(),
+            }],
+            || clock.elapsed_ms(),
+            |waited| clock.slept(waited),
+        );
+        assert_eq!(
+            bridge.puts.borrow().len(),
+            4,
+            "four writes at three seconds apiece fill a twelve-second budget, and \
+             the fifth would be issued AT the budget, so it is not issued at all"
+        );
+        assert_eq!(
+            landings,
+            vec![("light/a".to_string(), pns::lights::End::High, 11_000)],
+            "the last write really happened at 9,000ms and its fade runs 2,000ms \
+             from there, so the next tick resumes off 11,000ms rather than off the \
+             13,700ms the nominal schedule would have claimed"
+        );
+    }
+
+    #[test]
+    fn the_recorded_end_counts_the_resolve_the_driver_started_after() {
+        // THE DRIVER'S TIMELINE STARTS AFTER THE RESOLVE, so a landing it
+        // reports is an offset from a moment three bridge calls later than the
+        // tick's own. Written into the record without that term, every end
+        // would be a whole resolve early and the next tick would take the
+        // breath over before this one had finished it: exactly the pause this
+        // slice exists to remove, reintroduced through the record.
+        let lights = *pns::config::parse_config(
+            "[lights]\nrefresh_secs = 12\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let state = scratch("resolve-counted-in-the-record");
+        let clock = FakeClock::default();
+        let bridge = SlowBridge {
+            clock: &clock,
+            get_cost_ms: 250,
+            put_cost_ms: 0,
+            answers: true,
+            puts: RefCell::new(Vec::new()),
+        };
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            || clock.elapsed_ms(),
+            |waited| clock.slept(waited),
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(
+            read_held(&state).expect("a record this tick wrote"),
+            vec![pns::lights::HeldEntry {
+                path: LAMP_PATH.to_string(),
+                resume: Some((12_500, pns::lights::End::High)),
+            }],
+            "three listings at 250ms leave an 11,250ms budget, whose sixth and last \
+             fade is issued 9,750ms into the DRIVER and ends 2,000ms later: 12,500ms \
+             from the moment the tick itself began"
         );
     }
 
@@ -8960,6 +9169,7 @@ mod tests {
         // TICK ONE, at N=0, with nothing yet held: the locked blocked shape's
         // seven fades (the seamless schedule at a twelve-second budget) land
         // on low, 13,700ms after this tick's own start.
+        let clock = FakeClock::default();
         let bridge = scripted(true);
         let complaints = run_tick_writes(
             &bridge,
@@ -8969,7 +9179,8 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
-            |_| {},
+            || clock.elapsed_ms(),
+            |waited| clock.slept(waited),
         );
         assert!(complaints.is_empty(), "{complaints:?}");
         let held_after_tick_one = read_held(&state).expect("a record this tick wrote");
@@ -8986,6 +9197,7 @@ mod tests {
         // finish landing on the bridge until 13,700, less the seamless
         // lead, less now, which is 1,250ms still to wait.
         let sleeps: RefCell<Vec<Duration>> = RefCell::new(Vec::new());
+        let clock = FakeClock::default();
         let bridge = scripted(true);
         let complaints = run_tick_writes(
             &bridge,
@@ -8995,19 +9207,21 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&held_after_tick_one),
             12_400,
-            |duration| sleeps.borrow_mut().push(duration),
+            || clock.elapsed_ms(),
+            |waited| {
+                sleeps.borrow_mut().push(waited);
+                clock.slept(waited);
+            },
         );
         assert!(complaints.is_empty(), "{complaints:?}");
-        let first_sleep_ms = sleeps.borrow()[0].as_millis();
-        // A TOLERANCE OF ONE MILLISECOND, not a wall-clock wait: the only
-        // real time this measures is however long this function took to
-        // reach its first `sleep` call, which is microseconds with no I/O
-        // in between; `Duration::as_millis` truncates, so any elapsed time
-        // at all reads that sleep as 1,249ms rather than a clean 1,250.
-        assert!(
-            (1_249..=1_250).contains(&first_sleep_ms),
+        // EXACTLY 1,250ms, not a tolerance: the clock this tick was handed
+        // moves only when the sleeper moves it, so nothing here reads or waits
+        // on wall-clock time and the number is the schedule's own.
+        assert_eq!(
+            sleeps.borrow()[0],
+            Duration::from_millis(1_250),
             "tick two's first fade is due 1,250ms in, and it sleeps that out \
-             before issuing anything: slept {first_sleep_ms}ms"
+             before issuing anything"
         );
         let puts = bridge.puts.borrow();
         assert!(
@@ -9043,6 +9257,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            no_time_passes(),
             |_| {},
         );
         assert_eq!(
