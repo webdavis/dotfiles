@@ -485,7 +485,7 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "duration_ms",
                 prose: "",
-                sample: Sample::Default("6000"),
+                sample: Sample::Default("4000"),
             },
             Key {
                 name: "high",
@@ -1243,7 +1243,7 @@ mod tests {
             "[lights.failed]\nduration_ms = 4000\nbrightness = 100\n",
             "[lights.blocked]\nduration_ms = 2000\nhigh = 100\nlow = 30\n",
             "[lights.unread]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
-            "[lights.loop]\nduration_ms = 6000\nhigh = 60\nlow = 10\n",
+            "[lights.loop]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
             "[lights.dim]\nduration_ms = 3000\nhigh = 7\nlow = 1\n",
         ] {
             assert!(

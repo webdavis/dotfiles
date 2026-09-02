@@ -2014,11 +2014,8 @@ mod tests {
             );
         }
         // THE LOCKED FIGURES, carried by the decision rather than echoed from a
-        // constant: magenta at 100 down to 30 in two-second fades, deep blue at
-        // 60 down to 10 in six-second ones, and the two unread colours at 60
-        // down to 10 in four-second ones. FAST MEANS ACT AND SLOW MEANS IGNORE,
-        // which is the ladder the durations spell: blocked at two seconds,
-        // unread at four, loop at six.
+        // constant: magenta at 100 down to 30 in two-second fades, and the deep
+        // blue and the two unread colours at 60 down to 10 in four-second ones.
         assert_eq!(
             held_render(crate::lights::Held::Blocked, &shipped, Showing::Full),
             (
@@ -2041,7 +2038,7 @@ mod tests {
                     y: 0.0475
                 },
                 crate::config::Breath {
-                    duration_ms: 6000,
+                    duration_ms: 4000,
                     high: 60,
                     low: 10
                 }

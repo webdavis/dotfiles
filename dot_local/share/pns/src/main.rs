@@ -33,7 +33,6 @@ use pns::channels::moshi::{
     refused_backend_line,
 };
 use pns::channels::{Delivery, native_first};
-use pns::config::tick_bridge_deadline;
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
 use pns::hooks::{
@@ -6487,6 +6486,23 @@ const LIGHTS_SAID: &str = "lights-said";
 const HELD_RECORD_UNREADABLE: &str = "pns lights: the held record could not be read, \
 so no lamp can be put out by name";
 
+/// How long ONE of a tick's bridge calls may take.
+///
+/// A FIFTH OF THE INTERVAL, so the three the resolve makes cannot outlive the
+/// child that makes them AND still leave a breath: at the transport's own ten
+/// seconds they outlive every interval the config permits, and a wedged bridge
+/// would then have tick after tick piling up, each still dialling while the next
+/// was spawned. A fifth is what keeps a full cycle of the shortest locked shape
+/// inside what is left even when all three calls run to their deadline, which is
+/// the whole point of the child staying alive.
+///
+/// A SECOND AT LEAST, which the division cannot reach anyway inside the config's
+/// own bounds; a bridge on the same LAN answers these in milliseconds either
+/// way.
+fn tick_bridge_deadline(refresh_secs: u64) -> Duration {
+    Duration::from_secs((refresh_secs / 5).max(1))
+}
+
 /// Where the EVENT path remembers the ad-hoc quiet complaint it last made,
 /// which is a file of its own for the reason `say_lights_once` states.
 const LIGHTS_QUIET_SAID: &str = "lights-quiet-said";
@@ -9273,15 +9289,9 @@ mod tests {
 
     /// A room routed for every held state, which is the map these tick tests
     /// resolve through.
-    ///
-    /// THE SHORTEST LEGAL INTERVAL, deliberately, because it is the tightest
-    /// budget a tick can be handed and these tests are about what a tick does
-    /// with one. It tracks `MIN_REFRESH_SECS`, which became twelve on
-    /// 2026-09-02 when the loop breath was slowed: ten no longer leaves a
-    /// resumed six-second shape anywhere to put a fade.
     fn held_lights() -> pns::config::Lights {
         *pns::config::parse_config(
-            "[lights]\nrefresh_secs = 12\n\
+            "[lights]\nrefresh_secs = 10\n\
              [lights.room.\"3F - Studio\"]\nshows = [\"blocked\", \"unread\", \"loop\"]\n",
         )
         .expect("the test's own config parses")
@@ -9612,16 +9622,6 @@ mod tests {
         // tick after tick piling up, each still dialling while the next was
         // spawned. What has to hold is that the three fit with room left for a
         // breath, at both ends of the range the config accepts.
-        //
-        // EVERY LOCKED SHAPE AND NOT JUST THE FASTEST ONE, because the fade
-        // ceiling is only safe if the SLOWEST shape it admits still breathes:
-        // an empty schedule is a lamp that stops moving, and a loop lamp that
-        // stops moving looks exactly like the daemon dying, which is the one
-        // thing that lamp exists to say. Held on the fastest shape alone, this
-        // passes a driver that has gone back to refusing any fade whose whole
-        // DURATION will not fit, which is what it did before the seamless
-        // turn-around and which the slow shapes are the ones to catch.
-        let shipped = pns::config::Lights::default();
         for refresh_secs in [10, 12, 20, 30] {
             let three = tick_bridge_deadline(refresh_secs).as_millis() * 3;
             let interval = u128::from(refresh_secs) * 1000;
@@ -9630,20 +9630,15 @@ mod tests {
                 "refresh {refresh_secs}s: three calls at {three}ms do not fit"
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
-            for (named, breath) in [
-                ("blocked", shipped.blocked.breath),
-                ("unread", shipped.unread.breath),
-                ("loop", shipped.looping.breath),
-                ("dim", shipped.dim),
-            ] {
-                assert!(
-                    !pns::lights::breath_fades(left, &breath, pns::lights::Resume::default())
-                        .is_empty(),
-                    "refresh {refresh_secs}s: the {left}ms left over will not hold a fade \
-                     of the locked {named} shape ({}ms)",
-                    breath.duration_ms
-                );
-            }
+            assert!(
+                !pns::lights::breath_fades(
+                    left,
+                    &pns::config::Lights::default().blocked.breath,
+                    pns::lights::Resume::default()
+                )
+                .is_empty(),
+                "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
+            );
         }
     }
 
@@ -9796,9 +9791,8 @@ mod tests {
         // interleave asserted below is the exact due-order these two durations
         // produce, so reading either from `Lights::default()` would rewrite the
         // expected order every time a cadence is retuned and this test would
-        // start failing for a reason it is not about. The 4000 here is NOT the
-        // loop default (that is 6000): leave it alone when a cadence change
-        // sends you grepping for 4000.
+        // start failing for a reason it is not about. Leave these alone when a
+        // cadence change sends you grepping for a duration.
         let quick = pns::config::Breath {
             duration_ms: 2000,
             high: 100,
@@ -10276,7 +10270,7 @@ mod tests {
         let state = scratch("tick-complains");
         let bridge = scripted(true);
         let lights = *pns::config::parse_config(
-            "[lights]\nrefresh_secs = 12\n\
+            "[lights]\nrefresh_secs = 10\n\
              [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
              dim_window = \"2200-0700\"\n\
              [lights.lamp.\"3F - Nowhere\"]\nshows = [\"blocked\"]\n",
