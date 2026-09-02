@@ -549,33 +549,48 @@ fn an_unreadable_config_directory_is_refused_by_path_and_cause() {
         eprintln!("skipped: running as root, which bypasses directory permissions");
         return;
     }
-    let sandbox = Sandbox::without_config("setup-unreadable-config-dir");
-    let config_dir = sandbox.root.join(".config/pns");
-    std::fs::create_dir_all(&config_dir).expect("the config directory");
-    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o000))
-        .expect("lock the directory down");
+    // BOTH ARGUMENT SHAPES: the arm this pins refuses FAIL-CLOSED either
+    // way, so `--force` must not buy past a directory the walk cannot even
+    // stat. With only the bare shape here, an arm that refused when
+    // `!force` and fell through otherwise still passed.
+    for arguments in [vec!["setup"], vec!["setup", "--force"]] {
+        let sandbox = Sandbox::without_config("setup-unreadable-config-dir");
+        let config_dir = sandbox.root.join(".config/pns");
+        std::fs::create_dir_all(&config_dir).expect("the config directory");
+        std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o000))
+            .expect("lock the directory down");
 
-    let output = sandbox
-        .bare()
-        .args(["setup"])
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the wizard runs");
-    // RESTORED BEFORE ANY ASSERTION CAN PANIC PAST IT: the sandbox's own
-    // Drop has to walk this directory to remove it.
-    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o700))
-        .expect("restore the directory so the sandbox can be cleaned up");
+        let output = sandbox
+            .bare()
+            .args(&arguments)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("the wizard runs");
+        // RESTORED BEFORE ANY ASSERTION CAN PANIC PAST IT: the sandbox's own
+        // Drop has to walk this directory to remove it.
+        std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o700))
+            .expect("restore the directory so the sandbox can be cleaned up");
 
-    assert_eq!(output.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("could not be checked"),
-        "an unreadable directory was not refused by its own cause: {stderr}"
-    );
-    assert!(
-        stderr.contains(&config_dir.join("config.toml").display().to_string()),
-        "the refusal does not name the config path: {stderr}"
-    );
+        assert_eq!(output.status.code(), Some(2), "arguments: {arguments:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("could not be checked"),
+            "an unreadable directory was not refused by its own cause \
+             ({arguments:?}): {stderr}"
+        );
+        assert!(
+            stderr.contains(&config_dir.join("config.toml").display().to_string()),
+            "the refusal does not name the config path ({arguments:?}): {stderr}"
+        );
+        // THE PRE-CHECK RAN FIRST, AND IT REFUSED RATHER THAN REPORTED:
+        // reaching the tty check means this arm either printed and carried
+        // on, or never fired at all.
+        assert!(
+            !stderr.contains("not a terminal"),
+            "the pre-check did not refuse before the tty check \
+             ({arguments:?}): {stderr}"
+        );
+    }
 }
 
 #[test]
