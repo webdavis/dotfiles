@@ -9945,6 +9945,62 @@ mod tests {
     }
 
     #[test]
+    fn a_landing_is_timed_by_the_fade_that_ran_and_not_by_the_cycles_first_leg() {
+        // THE ONE CYCLE WHOSE LEGS DO NOT SHARE A DURATION. Every other shape
+        // fades at one cadence throughout, so a landing timed from the shape
+        // and one timed from the fade agree and neither can be told from the
+        // other. An accent is what separates them: timed from the shape, the
+        // flash would claim to finish a whole fade out instead of at its own
+        // brief duration, and `resume_from` reads a landing that far past the
+        // accent's own step as a clock that moved. The next tick would throw
+        // the phase away and restart the breath rather than falling out of the
+        // flash.
+        //
+        // THE MOTION IS WRITTEN OUT rather than read from `Lights::default()`,
+        // for the reason the interleave test above states: the milliseconds
+        // asserted here are the exact arithmetic these durations produce, and
+        // reading them from the defaults would rewrite them on every retune.
+        let clock = FakeClock::default();
+        let bridge = SlowBridge {
+            clock: &clock,
+            get_cost_ms: 0,
+            put_cost_ms: 0,
+            answers: true,
+            puts: RefCell::new(Vec::new()),
+        };
+        // A BUDGET THAT ENDS ON THE ACCENT: the fall after it is due at
+        // 4,350ms, so 4,300ms leaves the flash as the last fade issued.
+        let landings = drive_breaths(
+            &bridge,
+            4_300,
+            &[Breathing {
+                path: "light/a".to_string(),
+                held: pns::lights::Held::Looping,
+                cycle: pns::lights::breathe_then_flare_cycle(&pns::config::BreatheThenFlare {
+                    breath: pns::config::Breath {
+                        duration_ms: 2_000,
+                        high: 80,
+                        low: 30,
+                    },
+                    flare: 100,
+                    flare_ms: 500,
+                }),
+                color: pns::pulse::LOOP_COLOR,
+                resume: pns::lights::Resume::default(),
+            }],
+            || clock.elapsed_ms(),
+            |waited| clock.slept(waited),
+        );
+        assert_eq!(
+            landings,
+            vec![("light/a".to_string(), 100, 4_400)],
+            "the flash is issued at 3,900ms and runs its OWN 500ms, so it lands at \
+             4,400ms; timed from the cycle's first leg it would claim 5,900ms, which \
+             is further out than the accent's own step and so is read as stale"
+        );
+    }
+
+    #[test]
     fn the_recorded_end_counts_the_resolve_the_driver_started_after() {
         // THE DRIVER'S TIMELINE STARTS AFTER THE RESOLVE, so a landing it
         // reports is an offset from a moment three bridge calls later than the
