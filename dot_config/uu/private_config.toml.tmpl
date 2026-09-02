@@ -63,7 +63,7 @@ plugins = [
 # own process; under the tracked LaunchAgent that is the plist's own PATH plus
 # HOME, with the working directory at `/`. The child must not leave anything
 # behind holding its stdout or stderr open (a backgrounded process, a detached
-# daemon), or uu waits for it forever: there is no deadline, by design, the
-# same as the herdr lane above.
+# daemon), or uu waits for it forever: no lane has a deadline, by design.
 # [lanes.example]
+# type = "command"
 # run = ["/usr/local/bin/my-updater", "--yes"]
