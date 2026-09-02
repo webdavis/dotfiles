@@ -1370,7 +1370,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 2  | Import unchanged: backups and their verification, drain, push, README commit and push, archive, flatten (no `.git`), ignores, `.gitignore` rules, the mdformat exclusion, the dump script, the zero-change proof | PR 1 | 45 (part), 46 (track), 51, 52, 65, 74 |
 | PR 3  | Swift stack: sourcekit config, `xcodebuild.nvim`, `<leader>x` group (moved here from `<leader>X`, which now holds Trouble), the Vapor smoke check; one package edit, `xcp` | PR 2 | 43 |
 | PR 4a | `checker.enabled = false` (`lazy.lua`)                                                                    | PR 2                  | 46 (checker)                                |
-| PR 4b | Remove the LazyVim scaffolding: delete `lazyvim.json`, rename the `lazyvim_` augroups (`autocmds.lua`), rename `<leader>L` "lazy" and its descriptions (`which-key.lua`) | PR 3 | 47, 53 |
+| PR 4b | Remove the LazyVim scaffolding: delete `lazyvim.json`, rename the `lazyvim_` augroups (`autocmds.lua`), rename `<leader>L` "lazy" (`which-key.lua`) and its descriptions (`keymaps.lua`) | PR 3 | 47, 53 |
 | PR 4c | The `<leader>A` "herdr" group row (`which-key.lua`)                                                      | PR 4b                 | none (8.2 rule 2)                           |
 | PR 4d | Lift the formatter exclusions (`treefmt.toml`) and commit the rewrap of `CLAUDE.md` and `docs/todo.md`  | PR 2                  | none (12.7 default)                         |
 | PR 5a | LSP: bug #12 via `vim.lsp.config`, the clangd `cmd` assertion (`lsp.lua`)                               | PR 3                  | 13                                          |

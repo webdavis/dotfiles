@@ -14,7 +14,7 @@ return {
       mode = "n",
       lhs = "<leader>Ul",
       rhs = "UrlView lazy action=system",
-      desc = "UrlView: open LazyVim plugin page",
+      desc = "UrlView: open an installed plugin's page",
     })
   end,
 }
