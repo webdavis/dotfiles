@@ -13,6 +13,7 @@
 //! phone, and a suite that took them would answer differently every run.
 
 use std::process::Command;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Runs a command and returns its stdout, or `None` when it cannot be run or
@@ -357,26 +358,38 @@ pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
 /// forwarded to the phone at all and again to decide what the notification
 /// delivers. Taking the measurement twice lets a freshness boundary fall
 /// between them, which cards a phone with no round trip behind it.
+/// What the desk thread hands back on join: the idle reading, and the lock
+/// reading only where idle parsed. See `join_desk`.
+type DeskHandle = std::thread::JoinHandle<(Option<u64>, Option<bool>)>;
+
 pub struct SystemProbes<R: CommandRunner> {
-    runner: R,
+    runner: Arc<R>,
     marker_path: String,
     idle: std::cell::OnceCell<Option<u64>>,
     marker_mtime: std::cell::OnceCell<Option<u64>>,
     phone_atime: std::cell::OnceCell<Option<u64>>,
     screen_locked: std::cell::OnceCell<Option<bool>>,
     now: std::cell::OnceCell<Option<u64>>,
+    /// Set by `start` and taken by the first read that needs it: see
+    /// `ProbeStart` and `join_desk`. `None` means either nothing was ever
+    /// started, or a thread already ran and was already joined.
+    desk_handle: std::cell::Cell<Option<DeskHandle>>,
+    /// The phone twin of `desk_handle`.
+    phone_handle: std::cell::Cell<Option<std::thread::JoinHandle<Option<u64>>>>,
 }
 
 impl<R: CommandRunner> SystemProbes<R> {
     pub fn new(runner: R, marker_path: String) -> Self {
         Self {
-            runner,
+            runner: Arc::new(runner),
             marker_path,
             idle: std::cell::OnceCell::new(),
             marker_mtime: std::cell::OnceCell::new(),
             phone_atime: std::cell::OnceCell::new(),
             screen_locked: std::cell::OnceCell::new(),
             now: std::cell::OnceCell::new(),
+            desk_handle: std::cell::Cell::new(None),
+            phone_handle: std::cell::Cell::new(None),
         }
     }
 
@@ -413,29 +426,42 @@ impl<R: CommandRunner> SystemProbes<R> {
     }
 }
 
-impl<R: CommandRunner> crate::probes::IdleProbe for SystemProbes<R> {
+/// The idle probe's own body, free of `&self` so `start` can run it on a
+/// spawned thread against a cloned `Arc<R>` rather than borrowing the struct
+/// across threads. The trait impl below runs the SAME function inline.
+fn idle_reading<R: CommandRunner>(runner: &R) -> Option<u64> {
+    let ioreg_output = runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
+    crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
+}
+
+/// The lock probe's own body, same reason as `idle_reading` beside it.
+///
+/// The Root node with its own properties, which is the one node carrying
+/// the console aggregate; `-d1` stops the walk there rather than printing
+/// the tree under it.
+///
+/// A SECOND `ioreg` SPAWN, not a second parse of the idle probe's output:
+/// that one asks for the `IOHIDSystem` class and the aggregate is not in
+/// it. This read is the cheaper of the two by a wide margin (92KB against
+/// 294KB, measured on dresden 2026-08-28) and only happens where the idle
+/// reading it exists to qualify was taken.
+fn lock_reading<R: CommandRunner>(runner: &R) -> Option<bool> {
+    parse_screen_locked(&runner.run(IOREG_PATH, &["-n", "Root", "-d1"])?)
+}
+
+impl<R: CommandRunner + Send + Sync + 'static> crate::probes::IdleProbe for SystemProbes<R> {
     fn idle_secs(&self) -> Option<u64> {
-        *self.idle.get_or_init(|| {
-            let ioreg_output = self.runner.run(IOREG_PATH, &["-c", "IOHIDSystem"])?;
-            crate::presence::idle_secs_from_ns(parse_idle_nanoseconds(&ioreg_output)?)
-        })
+        self.join_desk();
+        *self.idle.get_or_init(|| idle_reading(&*self.runner))
     }
 }
 
-impl<R: CommandRunner> crate::probes::ScreenLockProbe for SystemProbes<R> {
-    /// The Root node with its own properties, which is the one node carrying
-    /// the console aggregate; `-d1` stops the walk there rather than printing
-    /// the tree under it.
-    ///
-    /// A SECOND `ioreg` SPAWN, not a second parse of the idle probe's output:
-    /// that one asks for the `IOHIDSystem` class and the aggregate is not in
-    /// it. This read is the cheaper of the two by a wide margin (92KB against
-    /// 294KB, measured on dresden 2026-08-28) and only happens where the idle
-    /// reading it exists to qualify was taken.
+impl<R: CommandRunner + Send + Sync + 'static> crate::probes::ScreenLockProbe for SystemProbes<R> {
     fn screen_locked(&self) -> Option<bool> {
-        *self.screen_locked.get_or_init(|| {
-            parse_screen_locked(&self.runner.run(IOREG_PATH, &["-n", "Root", "-d1"])?)
-        })
+        self.join_desk();
+        *self
+            .screen_locked
+            .get_or_init(|| lock_reading(&*self.runner))
     }
 }
 
@@ -459,40 +485,56 @@ impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
     }
 }
 
-impl<R: CommandRunner> crate::probes::PhoneInputProbe for SystemProbes<R> {
-    /// WHEN THE PHONE LAST TYPED, SCROLLED OR TAPPED INTO THE SESSION, as the
-    /// access time of the pty its mosh client is attached to.
-    ///
-    /// THE READING IS ATIME, AND THAT IS THE WHOLE TRICK. On macOS a tty's
-    /// atime moves when something is written INTO it and its mtime moves when
-    /// something is read OUT of it, so atime is input and mtime is the agent
-    /// talking back. Proven live on 2026-08-15 in both directions: a scroll on
-    /// the phone moved the mosh pty's atime while typing at the desk left it
-    /// untouched. That is what makes this comparable with the desk's own idle
-    /// clock instead of the byte sample it replaces, which passive viewing
-    /// could not move at all.
-    ///
-    /// THREE BOUNDED SPAWNS, never one per process: `mosh-server` runs
-    /// detached with no controlling terminal of its own, so the terminal
-    /// belongs to the client it forked, and both `pgrep -P` and `ps -p` take
-    /// the whole list of ids at once.
-    ///
-    /// FRESHEST WINS across every session found, and any step coming back
-    /// empty leaves None. None is never fresh, which drops the phone out of
-    /// the arbitration rather than parking the operator on it: a phone that
-    /// cannot be read must not silence the banner.
+/// The phone chain's own body, free of `&self` for the same reason as
+/// `idle_reading` above: `start` runs it on a spawned thread.
+///
+/// WHEN THE PHONE LAST TYPED, SCROLLED OR TAPPED INTO THE SESSION, as the
+/// access time of the pty its mosh client is attached to.
+///
+/// THE READING IS ATIME, AND THAT IS THE WHOLE TRICK. On macOS a tty's
+/// atime moves when something is written INTO it and its mtime moves when
+/// something is read OUT of it, so atime is input and mtime is the agent
+/// talking back. Proven live on 2026-08-15 in both directions: a scroll on
+/// the phone moved the mosh pty's atime while typing at the desk left it
+/// untouched. That is what makes this comparable with the desk's own idle
+/// clock instead of the byte sample it replaces, which passive viewing
+/// could not move at all.
+///
+/// THREE BOUNDED SPAWNS, never one per process: `mosh-server` runs
+/// detached with no controlling terminal of its own, so the terminal
+/// belongs to the client it forked, and both `pgrep -P` and `ps -p` take
+/// the whole list of ids at once.
+///
+/// FRESHEST WINS across every session found, and any step coming back
+/// empty leaves None. None is never fresh, which drops the phone out of
+/// the arbitration rather than parking the operator on it: a phone that
+/// cannot be read must not silence the banner.
+fn phone_reading<R: CommandRunner>(runner: &R) -> Option<u64> {
+    let servers = parse_pids(&runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
+    let clients = parse_pids(&pgrep_children(runner, &servers)?);
+    if clients.is_empty() {
+        return None;
+    }
+    let terminals = runner.run(PS_PATH, &["-o", "tty=", "-p", &clients.join(",")])?;
+    newest_terminal_atime(TTY_DIR, &terminals)
+}
+
+/// Every child of the given parents, in one call. No parents means no call:
+/// `pgrep -P` with an empty list is a usage error, not a query answering
+/// "none".
+fn pgrep_children<R: CommandRunner>(runner: &R, parents: &[String]) -> Option<String> {
+    if parents.is_empty() {
+        return None;
+    }
+    runner.run(PGREP_PATH, &["-P", &parents.join(",")])
+}
+
+impl<R: CommandRunner + Send + Sync + 'static> crate::probes::PhoneInputProbe for SystemProbes<R> {
     fn phone_input_atime_secs(&self) -> Option<u64> {
-        *self.phone_atime.get_or_init(|| {
-            let servers = parse_pids(&self.runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
-            let clients = parse_pids(&self.pgrep_children(&servers)?);
-            if clients.is_empty() {
-                return None;
-            }
-            let terminals = self
-                .runner
-                .run(PS_PATH, &["-o", "tty=", "-p", &clients.join(",")])?;
-            newest_terminal_atime(TTY_DIR, &terminals)
-        })
+        self.join_phone();
+        *self
+            .phone_atime
+            .get_or_init(|| phone_reading(&*self.runner))
     }
 }
 
@@ -559,16 +601,6 @@ impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
 }
 
 impl<R: CommandRunner> SystemProbes<R> {
-    /// Every child of the given parents, in one call. No parents means no
-    /// call: `pgrep -P` with an empty list is a usage error, not a query
-    /// answering "none".
-    fn pgrep_children(&self, parents: &[String]) -> Option<String> {
-        if parents.is_empty() {
-            return None;
-        }
-        self.runner.run(PGREP_PATH, &["-P", &parents.join(",")])
-    }
-
     /// Resolved through PATH, unlike the system binaries above: the
     /// multiplexer is not at a fixed location, and a context whose PATH does
     /// not carry it reads as unknown, which fails OPEN into a notification.
@@ -576,6 +608,98 @@ impl<R: CommandRunner> SystemProbes<R> {
         let mut argv = vec![subcommand];
         argv.extend_from_slice(args);
         self.runner.run("herdr", &argv)
+    }
+}
+
+impl<R: CommandRunner + Send + Sync + 'static> crate::probes::ProbeStart for SystemProbes<R> {
+    /// Begin the desk pair and the phone chain in the background, one thread
+    /// each: see the module doc on `SystemProbes` and `join_desk`/`join_phone`
+    /// below. NEITHER OVERRIDE IS CONSULTED HERE; the caller already answered
+    /// that in `wants`, which is the one spelling of the override rule this
+    /// and the read guards in `engine::surface_reading` share.
+    fn start(&self, wants: crate::probes::Wants) {
+        if wants.desk && self.idle.get().is_none() && self.desk_handle_absent() {
+            let runner = Arc::clone(&self.runner);
+            let handle = std::thread::Builder::new()
+                .spawn(move || {
+                    // THE LOCK RIDES THIS THREAD RATHER THAN ITS OWN: the
+                    // engine's rule is "the lock is read only where idle
+                    // answered" (see `join_desk`), so running it here, gated
+                    // on the SAME idle result, is what keeps a failed idle
+                    // read from spawning a second `ioreg` for an answer
+                    // nothing can use.
+                    let idle = idle_reading(&*runner);
+                    let lock = idle.is_some().then(|| lock_reading(&*runner)).flatten();
+                    (idle, lock)
+                })
+                // A THREAD THE OS REFUSES FALLS BACK TO THE INLINE READ: `ok()`
+                // drops a spawn failure into "nothing started", which is
+                // exactly the state `join_desk` and the trait impls already
+                // treat as "compute it when asked".
+                .ok();
+            self.desk_handle.set(handle);
+        }
+        if wants.phone && self.phone_atime.get().is_none() && self.phone_handle_absent() {
+            let runner = Arc::clone(&self.runner);
+            let handle = std::thread::Builder::new()
+                .spawn(move || phone_reading(&*runner))
+                .ok();
+            self.phone_handle.set(handle);
+        }
+    }
+}
+
+impl<R: CommandRunner + Send + Sync + 'static> SystemProbes<R> {
+    /// Whether a desk thread is currently in flight, without consuming the
+    /// handle: `Cell` has no borrow for a value that is not `Copy`, so
+    /// peeking means taking it out and setting it straight back, which is
+    /// safe because only the one owning thread ever touches this cell (see
+    /// the crate's `OnceCell is !Sync` note: the struct itself stays
+    /// single-threaded, only the probe bodies run elsewhere).
+    fn desk_handle_absent(&self) -> bool {
+        let handle = self.desk_handle.take();
+        let absent = handle.is_none();
+        self.desk_handle.set(handle);
+        absent
+    }
+
+    /// The phone twin of `desk_handle_absent`.
+    fn phone_handle_absent(&self) -> bool {
+        let handle = self.phone_handle.take();
+        let absent = handle.is_none();
+        self.phone_handle.set(handle);
+        absent
+    }
+
+    /// Join the desk thread if `start` began one, filling BOTH cells it owns
+    /// from that one join. A no-op wherever nothing was started: the trait
+    /// impls' own `get_or_init` then computes inline exactly as before this
+    /// existed, which is what makes a caller that never starts answer
+    /// exactly as it always has.
+    ///
+    /// FILLING BOTH CELLS TOGETHER, even when the lock was never attempted
+    /// (idle failed to parse), is what keeps a later `screen_locked()` read
+    /// from spawning a second `ioreg` for an answer the thread already
+    /// decided nothing could give: the cell holds `None` either way, and
+    /// `None` already means "no reading" everywhere this crate reads it.
+    fn join_desk(&self) {
+        if let Some(handle) = self.desk_handle.take() {
+            let (idle, lock) = handle
+                .join()
+                .unwrap_or_else(|payload| std::panic::resume_unwind(payload));
+            let _ = self.idle.set(idle);
+            let _ = self.screen_locked.set(lock);
+        }
+    }
+
+    /// The phone twin of `join_desk`.
+    fn join_phone(&self) {
+        if let Some(handle) = self.phone_handle.take() {
+            let atime = handle
+                .join()
+                .unwrap_or_else(|payload| std::panic::resume_unwind(payload));
+            let _ = self.phone_atime.set(atime);
+        }
     }
 }
 
@@ -652,7 +776,7 @@ mod tests {
         parse_layout, parse_pids, parse_screen_locked, parse_tty_names, run_bounded, utc_timestamp,
         wait_until,
     };
-    use std::cell::RefCell;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     #[test]
@@ -781,7 +905,7 @@ mod tests {
     /// pins both the parsing and the exact argv a probe uses.
     struct FakeRunner {
         answers: Vec<(String, Option<String>)>,
-        calls: RefCell<Vec<String>>,
+        calls: Mutex<Vec<String>>,
     }
 
     impl FakeRunner {
@@ -790,14 +914,14 @@ mod tests {
             // single-command probe.
             Self {
                 answers: vec![(String::new(), Some(answer.to_string()))],
-                calls: RefCell::new(Vec::new()),
+                calls: Mutex::new(Vec::new()),
             }
         }
 
         fn failing() -> Self {
             Self {
                 answers: Vec::new(),
-                calls: RefCell::new(Vec::new()),
+                calls: Mutex::new(Vec::new()),
             }
         }
     }
@@ -805,7 +929,8 @@ mod tests {
     impl CommandRunner for FakeRunner {
         fn run(&self, program: &str, args: &[&str]) -> Option<String> {
             self.calls
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .push(format!("{program} {}", args.join(" ")));
             self.answers
                 .iter()
@@ -818,14 +943,18 @@ mod tests {
 
     /// Counts what it was asked to run, and keeps the counter reachable after
     /// the runner is handed to the probe set that owns it.
+    ///
+    /// `Arc<AtomicU32>`, not `Rc<Cell<u32>>`: `start` hands a clone of this
+    /// runner to a spawned thread, which needs `Send + Sync`, and neither
+    /// `Rc` nor `Cell` is either.
     struct CountingRunner {
         answer: String,
-        calls: std::rc::Rc<std::cell::Cell<u32>>,
+        calls: Arc<std::sync::atomic::AtomicU32>,
     }
 
     impl CommandRunner for CountingRunner {
         fn run(&self, _program: &str, _args: &[&str]) -> Option<String> {
-            self.calls.set(self.calls.get() + 1);
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Some(self.answer.clone())
         }
     }
@@ -837,12 +966,16 @@ mod tests {
         // again to decide what the notification delivers. Two spawns can
         // answer differently, and a freshness boundary crossed between them
         // cards a phone with no round trip behind it.
+        //
+        // INLINE, START-FREE, ON PURPOSE (C5): a started desk thread makes two
+        // runner calls by design (idle, then the lock it qualifies), so this
+        // stays a plain read to keep pinning "no start, no thread, one call".
         use crate::probes::IdleProbe;
-        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let calls = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let probes = SystemProbes::new(
             CountingRunner {
                 answer: "\"HIDIdleTime\" = 5000000000".to_string(),
-                calls: std::rc::Rc::clone(&calls),
+                calls: Arc::clone(&calls),
             },
             "/nonexistent/marker".to_string(),
         );
@@ -852,7 +985,11 @@ mod tests {
             Some(5),
             "and the same answer both times"
         );
-        assert_eq!(calls.get(), 1, "one probe set is one reading");
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "one probe set is one reading"
+        );
     }
 
     #[test]
@@ -860,17 +997,71 @@ mod tests {
         // An unreadable probe is an ANSWER, and re-taking it would let two
         // consumers disagree about a machine that told the first one nothing.
         use crate::probes::IdleProbe;
-        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let calls = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let probes = SystemProbes::new(
             CountingRunner {
                 answer: "nothing the parser recognizes".to_string(),
-                calls: std::rc::Rc::clone(&calls),
+                calls: Arc::clone(&calls),
             },
             "/nonexistent/marker".to_string(),
         );
         assert_eq!(probes.idle_secs(), None);
         assert_eq!(probes.idle_secs(), None);
-        assert_eq!(calls.get(), 1);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn starting_twice_and_reading_twice_spawns_each_probe_once() {
+        // PRESERVATION (C6): the concurrent path answers no differently from
+        // the sequential one it replaces, however many times `start` and the
+        // reads race each other. `forward_to_moshi` then `run_event` both
+        // call `start` on the SAME probe set (main.rs:1939, :2383), and this
+        // is that shape: start, read every probe, start again, read every
+        // probe again, every worker joined by the time the last read
+        // returns.
+        use crate::probes::{ProbeStart, ScreenLockProbe, Wants};
+        let mut scripted: Vec<(String, String)> = DISCOVERY
+            .iter()
+            .map(|(call, out)| ((*call).to_string(), (*out).to_string()))
+            .collect();
+        scripted.push((
+            "/usr/sbin/ioreg -c IOHIDSystem".to_string(),
+            "\"HIDIdleTime\" = 5000000000".to_string(),
+        ));
+        scripted.push((
+            "/usr/sbin/ioreg -n Root -d1".to_string(),
+            ROOT_LOCKED.to_string(),
+        ));
+        let probes = SystemProbes::new(
+            ExactArgvRunner {
+                answers: scripted,
+                calls: Mutex::new(Vec::new()),
+            },
+            "/marker".to_string(),
+        );
+        for _ in 0..2 {
+            probes.start(Wants {
+                desk: true,
+                phone: true,
+            });
+            probes.idle_secs();
+            probes.screen_locked();
+            probes.phone_input_atime_secs();
+        }
+        let calls = probes.runner.calls.lock().unwrap();
+        for expected in [
+            "/usr/sbin/ioreg -c IOHIDSystem",
+            "/usr/sbin/ioreg -n Root -d1",
+            "/usr/bin/pgrep -x mosh-server",
+            "/usr/bin/pgrep -P 14362",
+            "/bin/ps -o tty= -p 14363",
+        ] {
+            assert_eq!(
+                calls.iter().filter(|call| *call == expected).count(),
+                1,
+                "case: {expected}, calls were {calls:?}"
+            );
+        }
     }
 
     #[test]
@@ -1152,7 +1343,7 @@ mod tests {
                     .iter()
                     .map(|(call, out)| ((*call).to_string(), (*out).to_string()))
                     .collect(),
-                calls: RefCell::new(Vec::new()),
+                calls: Mutex::new(Vec::new()),
             },
             "/marker".to_string(),
         )
@@ -1177,7 +1368,7 @@ mod tests {
         let probes = phone_probe(&DISCOVERY);
         probes.phone_input_atime_secs();
         assert_eq!(
-            probes.runner.calls.borrow().as_slice(),
+            probes.runner.calls.lock().unwrap().as_slice(),
             &[
                 "/usr/bin/pgrep -x mosh-server".to_string(),
                 "/usr/bin/pgrep -P 14362".to_string(),
@@ -1197,7 +1388,7 @@ mod tests {
             ("/bin/ps -o tty= -p 14363,901", "ttys000 \nttys001 \n"),
         ]);
         probes.phone_input_atime_secs();
-        assert_eq!(probes.runner.calls.borrow().len(), 3);
+        assert_eq!(probes.runner.calls.lock().unwrap().len(), 3);
     }
 
     #[test]
@@ -1231,7 +1422,7 @@ mod tests {
         let probes = phone_probe(&[("/usr/bin/pgrep -x mosh-server", "\n")]);
         assert_eq!(probes.phone_input_atime_secs(), None);
         assert_eq!(
-            probes.runner.calls.borrow().as_slice(),
+            probes.runner.calls.lock().unwrap().as_slice(),
             &["/usr/bin/pgrep -x mosh-server".to_string()]
         );
     }
@@ -1349,7 +1540,7 @@ mod tests {
         let probes = probes_answering("\"HIDIdleTime\" = 5000000000\n");
         probes.idle_secs();
         assert_eq!(
-            probes.runner.calls.borrow()[0],
+            probes.runner.calls.lock().unwrap()[0],
             "/usr/sbin/ioreg -c IOHIDSystem"
         );
     }
@@ -1368,7 +1559,7 @@ mod tests {
                     "/usr/sbin/ioreg -n Root -d1".to_string(),
                     ROOT_LOCKED.to_string(),
                 )],
-                calls: RefCell::new(Vec::new()),
+                calls: Mutex::new(Vec::new()),
             },
             "/marker".to_string(),
         );
@@ -1379,9 +1570,118 @@ mod tests {
             "and the same answer both times"
         );
         assert_eq!(
-            *probes.runner.calls.borrow(),
+            *probes.runner.calls.lock().unwrap(),
             vec!["/usr/sbin/ioreg -n Root -d1".to_string()],
             "the exact argv, taken once"
+        );
+    }
+
+    #[test]
+    fn the_lock_is_not_spawned_where_idle_failed() {
+        // The desk thread's own body only reads the lock where idle parsed
+        // (`start`'s doc), so a failed idle must leave the lock cell filled
+        // from that SAME join rather than answered by a second `ioreg`
+        // spawn when `screen_locked` is read afterward: the trait-level
+        // `lock_reads == 0` assertion beside this one counts calls to the
+        // METHOD, never spawns, and this is the one that counts the spawn.
+        use crate::probes::{IdleProbe, ProbeStart, ScreenLockProbe, Wants};
+        let calls = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let probes = SystemProbes::new(
+            CountingRunner {
+                answer: "nothing the parser recognizes".to_string(),
+                calls: Arc::clone(&calls),
+            },
+            "/nonexistent/marker".to_string(),
+        );
+        probes.start(Wants {
+            desk: true,
+            phone: false,
+        });
+        assert_eq!(probes.idle_secs(), None);
+        assert_eq!(
+            probes.screen_locked(),
+            None,
+            "never attempted, not merely unreadable"
+        );
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "one ioreg spawn total: the desk thread never asked for the lock, \
+             and the later read found the cell the join already filled"
+        );
+    }
+
+    /// A runner whose `ioreg -c IOHIDSystem` blocks until the phone chain's
+    /// first `pgrep` releases it, or 200ms passes: see
+    /// `a_slow_probe_does_not_hold_up_a_fast_one` (C4).
+    struct GateRunner {
+        release: std::sync::mpsc::Sender<()>,
+        // MUTEX-WRAPPED SOLELY FOR `Sync`: an `mpsc::Receiver` is `Send` but
+        // never `Sync` (it has exactly one consumer by design), and `Arc<R>`
+        // needs `R: Sync` to cross into the spawned thread. Only the desk
+        // thread ever locks this, once.
+        wait: Mutex<std::sync::mpsc::Receiver<()>>,
+        idle_answer: String,
+    }
+
+    impl CommandRunner for GateRunner {
+        fn run(&self, program: &str, args: &[&str]) -> Option<String> {
+            let call = format!("{program} {}", args.join(" "));
+            match call.as_str() {
+                "/usr/sbin/ioreg -c IOHIDSystem" => {
+                    // A CONCURRENT phone thread's own `pgrep` releases this;
+                    // a sequential, desk-only, or join-at-start mutant never
+                    // reaches that `pgrep` before this deadline.
+                    self.wait
+                        .lock()
+                        .unwrap()
+                        .recv_timeout(Duration::from_millis(200))
+                        .ok()?;
+                    Some(self.idle_answer.clone())
+                }
+                "/usr/bin/pgrep -x mosh-server" => {
+                    let _ = self.release.send(());
+                    Some("14362\n".to_string())
+                }
+                "/usr/sbin/ioreg -n Root -d1" => Some(ROOT_LOCKED.to_string()),
+                "/usr/bin/pgrep -P 14362" => Some("14363\n".to_string()),
+                "/bin/ps -o tty= -p 14363" => Some("ttys000 \n".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    #[test]
+    fn a_slow_probe_does_not_hold_up_a_fast_one() {
+        // PROVEN BY ORDER, NEVER BY TIME (C4). Concurrent: the phone
+        // thread's `pgrep` releases the desk thread's blocked `ioreg`
+        // within microseconds, so idle reads its fixture value and this
+        // test returns at once. A sequential, desk-only, or
+        // join-at-start mutant never starts the phone thread before
+        // blocking on idle, so `ioreg` times out at 200ms into no reading
+        // at all, and the assertion below is what turns that into red.
+        use crate::probes::{IdleProbe, PhoneInputProbe, ProbeStart, ScreenLockProbe, Wants};
+        let (release, wait) = std::sync::mpsc::channel();
+        let probes = SystemProbes::new(
+            GateRunner {
+                release,
+                wait: Mutex::new(wait),
+                idle_answer: "\"HIDIdleTime\" = 5000000000".to_string(),
+            },
+            "/marker".to_string(),
+        );
+        probes.start(Wants {
+            desk: true,
+            phone: true,
+        });
+        // PRODUCTION ORDER: idle, then the lock it qualifies, then phone.
+        let idle = probes.idle_secs();
+        let _ = probes.screen_locked();
+        let _ = probes.phone_input_atime_secs();
+        assert_eq!(
+            idle,
+            Some(5),
+            "the phone thread's own pgrep released the blocked ioreg"
         );
     }
 
@@ -1421,13 +1721,13 @@ mod tests {
     /// as that herdr subcommand failing rather than as a silent default.
     struct ExactArgvRunner {
         answers: Vec<(String, String)>,
-        calls: RefCell<Vec<String>>,
+        calls: Mutex<Vec<String>>,
     }
 
     impl CommandRunner for ExactArgvRunner {
         fn run(&self, program: &str, args: &[&str]) -> Option<String> {
             let call = format!("{program} {}", args.join(" "));
-            self.calls.borrow_mut().push(call.clone());
+            self.calls.lock().unwrap().push(call.clone());
             self.answers
                 .iter()
                 .find(|(scripted, _)| *scripted == call)
@@ -1439,7 +1739,7 @@ mod tests {
         SystemProbes::new(
             ExactArgvRunner {
                 answers,
-                calls: RefCell::new(Vec::new()),
+                calls: Mutex::new(Vec::new()),
             },
             String::new(),
         )
@@ -1491,7 +1791,7 @@ mod tests {
         let probes = viewer(answers(WORKSPACE_LIST, "wW:p3K", LAYOUT_ZOOMED_ON_SIBLING));
         probes.session_view("wW:p3K").expect("a readable view");
         assert_eq!(
-            probes.runner.calls.borrow().as_slice(),
+            probes.runner.calls.lock().unwrap().as_slice(),
             &[
                 "herdr workspace list".to_string(),
                 "herdr pane layout --pane wW:p3K".to_string(),
