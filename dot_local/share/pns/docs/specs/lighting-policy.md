@@ -835,23 +835,25 @@ Then it lays out fades at `resume.first_due_ms + index * step_ms`, alternating b
 
 ### 22. A phase resumes the breath across two ticks
 
-Given a `lights-held` entry `<path>@<end-unix-ms>:<h|l>:<state>`,
+Given a `lights-held` entry `<path>@<end-unix-ms>:<brightness>:<state>`,
 
 When `src/lights.rs:resume_from` is asked for a lamp now showing state S,
 
-Then `first_due_ms` is `end_unix_ms - now_ms - FADE_LEAD_MS`, saturating at zero, and `from_high` is whether the recorded end was `High`.
+Then `first_due_ms` is `end_unix_ms - now_ms - FADE_LEAD_MS`, saturating at zero, and `next_leg` is the leg after the one whose brightness the record names.
 
 - Success: the schedule this tick issues is the next leg of the breath the previous tick was already
   running, not a fresh one restarted at the interval's zero
   (`src/main.rs:a_resumed_breath_composes_across_two_ticks_on_a_fake_clock`).
-- Failure sources: no entry, no phase, a phase belonging to ANOTHER state, or a phase more than one step
-  ahead. All four return `Resume::default()` (due at once, moving toward low first).
+- Failure sources: no entry, no phase, a phase belonging to ANOTHER state, a phase naming a brightness
+  the cycle about to run has no leg for, or a phase more than one step ahead. All five return
+  `Resume::default()` (due at once, taking leg zero, which every cycle builds as its low end).
 - Fail direction: not the delivery path.
-- Thresholds: STALENESS is one `step_ms`. A `first_due_ms` of exactly one step resumes; one millisecond
-  past it starts over. The bound is a LAW and not a tolerance: the tick that wrote the phase issued its
-  last fade strictly inside its own budget, that fade lands one duration later, and the next tick begins
-  at most the daemon's slop after that budget ended
-  (`src/lights.rs:a_phase_sitting_further_ahead_than_one_step_reads_as_stale`).
+- Thresholds: STALENESS is one `step_ms`, of the LEG THE RECORD NAMES rather than of the cycle at large.
+  A `first_due_ms` of exactly that step resumes; one millisecond past it starts over. The bound is a LAW
+  and not a tolerance: the tick that wrote the phase issued that leg's fade strictly inside its own
+  budget, that fade lands one leg-duration later, and the next tick begins at most the daemon's slop
+  after that budget ended (`src/lights.rs:a_phase_sitting_further_ahead_than_one_step_reads_as_stale`,
+  `src/lights.rs:a_tick_that_ended_on_the_accent_falls_next_and_inherits_only_the_accents_own_step`).
 - Required side effects: the phase is written with `now_ms + spent_ms + end_relative_ms`, because a
   landing is reported from the DRIVER's start, which is `spent_ms` after the tick's. Dropping that term
   would put every end a whole resolve early and the next tick would take the breath over before this one
@@ -950,8 +952,9 @@ When `src/channels/hue.rs:held_render` runs,
 Then it returns that state's own locked colour with the ONE shared `[lights.dim]` shape.
 
 - Success: the locked figures. Blocked: `x 0.1532, y 0.0475`, 2000 ms, high 100, low 30. Loop:
-  `x 0.213, y 0.0766`, 4000 ms, high 60, low 10. Unread failure: `x 0.675, y 0.322`, 4000 ms, high 60,
-  low 10. Unread success: `x 0.50, y 0.40`, same shape. Dim: 3000 ms, high 7, low 1
+  `x 0.213, y 0.0766`, 4000 ms, high 80, low 10, with a 200 ms flash to 100 at the peak
+  (`breathe_then_flare`, the one shape carrying an accent). Unread failure: `x 0.675, y 0.322`, 4000 ms,
+  high 60, low 10. Unread success: `x 0.50, y 0.40`, same shape. Dim: 3000 ms, high 7, low 1
   (`src/config.rs:DEFAULT_DIM`; drill D4 measured a lamp asked for one percent reporting 1.19, which is
   its own floor rather than a rounding).
 - Failure sources: none. `held_render` is total over the four states.
