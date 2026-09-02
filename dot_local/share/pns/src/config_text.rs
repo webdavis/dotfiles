@@ -972,18 +972,20 @@ fn render_value(value: &toml::Value) -> Result<String, String> {
 
 /// The keepassxc entry fields that may stand as a secret's `field`. Anything
 /// else is refused, because `field` becomes a chezmoi method call verbatim.
-const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
+pub(crate) const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
 
 /// A secret marker, `{ keepassxc = "<entry>", field = "Password" | "UserName" }`,
-/// as the chezmoi action `"{{ (keepassxc "<entry>").<field> }}"`, quoted the
-/// way the shipped template quotes every secret it carries.
+/// as the chezmoi action `{{ (keepassxc "<entry>").<field> | toToml }}`, with
+/// NO author quotes: `toToml` supplies its own once chezmoi resolves the
+/// value, and those are the quotes that end up in the deployed file.
 ///
-/// A RENDERED SECRET IS NOT TOML, which is exactly why the quotes are part of
-/// this text rather than added by the ordinary string path: chezmoi replaces
-/// the `{{ ... }}` action with the vault value's own bytes, unescaped, inside
-/// whatever quotes the template already wrote around it. Only what comes back
-/// from THAT substitution is TOML; this render's own job is to write the
-/// template text, not the file chezmoi eventually produces.
+/// A RENDERED SECRET IS NOT TOML UNTIL `toToml` RUNS. Go's `quote` (`%q`)
+/// would emit escapes TOML does not define (`\a`, `\v`, `\xNN`) for a secret
+/// holding a control byte, breaking the whole deployed file from that line
+/// on; `toToml` emits `\uXXXX` for the same bytes and round-trips every one
+/// of them. Author quotes around the action would only duplicate what
+/// `toToml` already writes, so this render's job is to write the bare
+/// action, not to quote it.
 ///
 /// NEITHER STRING IS TRUSTED. `field` is checked against the two chezmoi
 /// methods a keepassxc entry actually exposes, and the entry name is refused
@@ -1031,14 +1033,12 @@ fn secret_action(table: &toml::Table) -> Result<String, String> {
     // text is thick with literal `{`, `}` and `"` characters, and escaping all
     // of them inside a format string is exactly the kind of place a stray
     // brace goes unnoticed.
-    let mut action = String::with_capacity(entry.len() + field.len() + 20);
-    action.push('"');
+    let mut action = String::with_capacity(entry.len() + field.len() + 28);
     action.push_str("{{ (keepassxc \"");
     action.push_str(entry);
     action.push_str("\").");
     action.push_str(field);
-    action.push_str(" }}");
-    action.push('"');
+    action.push_str(" | toToml }}");
     Ok(action)
 }
 
@@ -1281,17 +1281,21 @@ mod tests {
 
         let text = render(&values).expect("a secret marker renders");
         assert!(
-            text.contains("token = \"{{ (keepassxc \"Moshi :: Webhook Secret\").Password }}\""),
+            text.contains(
+                "token = {{ (keepassxc \"Moshi :: Webhook Secret\").Password | toToml }}"
+            ),
             "{text}"
         );
         // AND A LITERAL RENDERS QUOTED, right beside it: `type` still comes
         // off the layout's own `Default`, escaped the ordinary way.
         assert!(text.contains("type = \"moshi\""), "{text}");
 
-        // A RENDERED SECRET IS NOT TOML: the action's own `"` sits unescaped
-        // inside what would otherwise be a basic string, so it has to be
-        // faked into vault output before the whole file can parse.
-        let rendered = crate::config::strip_chezmoi_actions(&text, "from-the-vault");
+        // A RENDERED SECRET IS NOT TOML: the action carries no author quotes
+        // of its own, since `toToml` is what supplies them once chezmoi
+        // substitutes the vault value, so the stub's placeholder has to
+        // supply a quoted string in its place before the whole file can
+        // parse.
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1323,15 +1327,60 @@ mod tests {
 
         let text = render(&values).expect("a UserName secret marker renders");
         assert!(
-            text.contains("key = \"{{ (keepassxc \"Hue Bridge\").UserName }}\""),
+            text.contains("key = {{ (keepassxc \"Hue Bridge\").UserName | toToml }}"),
             "{text}"
         );
-        let rendered = crate::config::strip_chezmoi_actions(&text, "from-the-vault");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
             config.plugins["hue"].settings["key"].as_str(),
             Some("from-the-vault")
+        );
+    }
+
+    #[test]
+    fn a_secret_holding_a_quote_and_a_backslash_round_trips_through_the_totoml_stub() {
+        // WHAT `toToml` ACTUALLY EMITS for the byte sequence `a"b\c`, per the
+        // sol-1 probe table: `"a\"b\\c"`. The stub stands in for chezmoi
+        // having already run `| toToml` on the vault value, so it is handed
+        // that exact TOML text rather than the raw secret.
+        let mut mobile = toml::Table::new();
+        mobile.insert(
+            "token".to_string(),
+            secret("Quote Backslash Secret", "Password"),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a secret marker renders");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"a\\\"b\\\\c\"");
+        let config =
+            parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
+        assert_eq!(
+            config.plugins["mobile"].settings["token"].as_str(),
+            Some("a\"b\\c")
+        );
+    }
+
+    #[test]
+    fn a_plain_secret_round_trips_through_the_totoml_stub_too() {
+        let mut mobile = toml::Table::new();
+        mobile.insert("token".to_string(), secret("Plain Secret", "Password"));
+        let mut plugins = toml::Table::new();
+        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a secret marker renders");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"plain\"");
+        let config =
+            parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
+        assert_eq!(
+            config.plugins["mobile"].settings["token"].as_str(),
+            Some("plain")
         );
     }
 

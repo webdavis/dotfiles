@@ -3,8 +3,9 @@
 //! THE FILE SELECTS; it never defines. A lane runs only when its
 //! `[lanes.<name>]` block exists, records post only when `[records]` exists,
 //! and alerts leave the machine only when `[alerts]` exists. With no file at
-//! all uu runs nothing, logs what it found and exits clean, which is what
-//! makes a fresh install harmless.
+//! all a bare `uu run` runs nothing, logs what it found and exits clean,
+//! which is what makes a fresh install harmless; `uu run <lane>` still asks
+//! for that lane by name and is refused with exit 1.
 //!
 //! EVERY UNKNOWN KEY IS REFUSED BY NAME, and so is every lane whose `type`
 //! this build does not serve, or that states none on a name that is not itself
@@ -490,7 +491,7 @@ fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, 
         admits(table_label, "lanes.herdr", &name)?;
         match name.as_str() {
             "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
-            "plugins" => lane.plugins = parse_plugins(&setting)?,
+            "plugins" => lane.plugins = parse_plugins(table_label, &setting)?,
             // Read by `lane_type` before this block was dispatched; nothing
             // is left to do with it here.
             "type" => {}
@@ -565,10 +566,10 @@ fn parse_run(table_label: &str, setting: &toml::Value) -> Result<Vec<String>, Co
 /// BOTH FIELDS ARE REQUIRED AND NEITHER MAY BE EMPTY. The refresh is an
 /// uninstall by id followed by an install from the repo, so half an entry
 /// uninstalls a plugin nothing can put back.
-fn parse_plugins(setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
+fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
     let Some(entries) = setting.as_array() else {
         return Err(ConfigError::Invalid(format!(
-            "`lanes.herdr` key `plugins` has type `{}`, not a list of plugins",
+            "`{table_label}` key `plugins` has type `{}`, not a list of plugins",
             setting.type_str()
         )));
     };
@@ -577,14 +578,14 @@ fn parse_plugins(setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
         .map(|entry| {
             let Some(fields) = entry.as_table() else {
                 return Err(ConfigError::Invalid(format!(
-                    "`lanes.herdr` key `plugins` holds a `{}`, not a plugin table",
+                    "`{table_label}` key `plugins` holds a `{}`, not a plugin table",
                     entry.type_str()
                 )));
             };
             for key in fields.keys() {
                 if key != "id" && key != "repo" {
                     return Err(ConfigError::Invalid(format!(
-                        "unknown `lanes.herdr` plugin key `{key}`; a plugin serves id, repo"
+                        "unknown `{table_label}` plugin key `{key}`; a plugin serves id, repo"
                     )));
                 }
             }
@@ -596,7 +597,7 @@ fn parse_plugins(setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
                     .map(str::to_string)
                     .ok_or_else(|| {
                         ConfigError::Invalid(format!(
-                            "`lanes.herdr` plugin entry has no usable `{key}` (missing, empty or \
+                            "`{table_label}` plugin entry has no usable `{key}` (missing, empty or \
                              only whitespace), so it names nothing to refresh"
                         ))
                     })
@@ -744,33 +745,6 @@ mod tests {
             "{detail}"
         );
         assert!(detail.contains("a `herdr` lane serves"), "{detail}");
-    }
-
-    #[test]
-    fn the_templates_own_herdr_lane_shape_parses() {
-        // dot_config/uu/private_config.toml.tmpl's [lanes.herdr] block,
-        // verbatim, with its two templated values stood in for by a
-        // placeholder: this cannot render headless (it reads the vault), so
-        // this is what proves the SHAPE the template ships is one the parser
-        // still accepts once `type` is added.
-        let config = parsed(
-            "[lanes.herdr]\n\
-             type = \"herdr\"\n\
-             binary = \"/home/example/.local/bin/herdr\"\n\
-             plugins = [\n\
-               { id = \"worktrunk\", repo = \"owner/herdr-worktrunk\" },\n\
-             ]\n",
-        );
-        assert_eq!(
-            config.lanes.get("herdr"),
-            Some(&LaneKind::Herdr(HerdrLane {
-                binary: "/home/example/.local/bin/herdr".to_string(),
-                plugins: vec![Plugin {
-                    id: "worktrunk".to_string(),
-                    repo: "owner/herdr-worktrunk".to_string(),
-                }],
-            }))
-        );
     }
 
     #[test]
@@ -1037,6 +1011,31 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_user_named_lanes_plugin_refusals_name_its_own_table_not_lanes_herdr() {
+        // ONE CASE PER REFUSAL IN `parse_plugins`, because each spells the
+        // table on its own and restoring the literal in any one of them
+        // leaves the other three green.
+        for (plugins, says) in [
+            ("1", "`lanes.mine` key `plugins` has type `integer`"),
+            ("[\"a\"]", "`lanes.mine` key `plugins` holds a `string`"),
+            (
+                "[{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]",
+                "unknown `lanes.mine` plugin key `pin`",
+            ),
+            (
+                "[{ id = \"a\" }]",
+                "`lanes.mine` plugin entry has no usable `repo`",
+            ),
+        ] {
+            let detail = refusal(&format!(
+                "[lanes.mine]\ntype = \"herdr\"\nplugins = {plugins}\n"
+            ));
+            assert!(detail.contains(says), "{detail}");
+            assert!(!detail.contains("lanes.herdr"), "{detail}");
+        }
+    }
+
     // --- the command lane -------------------------------------------------------
 
     #[test]
@@ -1110,20 +1109,71 @@ mod tests {
         );
     }
 
-    /// The shipped config template, included at compile time under
-    /// `cfg(test)` only, mirroring pns's `SHIPPED_TEMPLATE` pattern: the test
-    /// build reaches four levels out of this crate into the repo checkout
-    /// around it, which only works from inside this repo, and stops
-    /// compiling the day uu moves to its own repo (see pns's config.rs for
-    /// the full reasoning, not duplicated here).
+    // --- the shipped template ------------------------------------------------
+
+    /// The config this repo ships, INCLUDED ONLY UNDER `cfg(test)` so the
+    /// binary the apply builds out of the deployed crate never asks for a file
+    /// that is not there (the same arrangement pns uses for its template): the
+    /// test build reaches four levels out of this crate into the repo checkout
+    /// around it, which only works from inside this repo, and stops compiling
+    /// the day uu moves to its own repo (see pns's config.rs for the full
+    /// reasoning, not duplicated here). Two helpers below share it: one stands
+    /// in for the template's chezmoi actions, the other uncomments its command
+    /// example; neither reaches into the other's part of the file.
     const SHIPPED_TEMPLATE: &str =
         include_str!("../../../../dot_config/uu/private_config.toml.tmpl");
+
+    /// The template with its chezmoi actions stood in for: a `{{-` directive
+    /// standing on its own line goes with the line (the plugin `range` and its
+    /// `end`), a `| quote` action becomes a quoted stand-in, and any other
+    /// action becomes a bare one, which is what the two inside a `"..."` need.
+    fn rendered_template() -> String {
+        SHIPPED_TEMPLATE
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("{{-"))
+            .map(|line| {
+                let mut rendered = line.to_string();
+                while let Some(start) = rendered.find("{{") {
+                    let end = start + rendered[start..].find("}}").expect("a closed action") + 2;
+                    let stand_in = if rendered[start..end].contains("| quote") {
+                        "\"stand-in\""
+                    } else {
+                        "stand-in"
+                    };
+                    rendered.replace_range(start..end, stand_in);
+                }
+                rendered
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn the_shipped_template_still_parses_and_selects_what_it_selects() {
+        // The only uu config anyone has is this file. A key the template
+        // writes that the parser refuses blocks the whole weekly job at load,
+        // and nothing but this test says so before an apply.
+        let config = parse_config(&rendered_template())
+            .unwrap_or_else(|error| panic!("the shipped template must load: {error:?}"));
+        assert!(config.records.is_some());
+        assert!(config.alerts.is_some());
+        assert_eq!(
+            config.lanes.get("herdr"),
+            Some(&LaneKind::Herdr(HerdrLane {
+                binary: "stand-in/.local/bin/herdr".to_string(),
+                plugins: vec![Plugin {
+                    id: "stand-in".to_string(),
+                    repo: "stand-in".to_string(),
+                }],
+            }))
+        );
+    }
 
     /// The template's commented `[lanes.example]` block, uncommented by
     /// stripping each line's leading `#`: what an operator gets after
     /// following the template's own instruction to "uncomment and rename the
-    /// block." The block holds no chezmoi action, so unlike pns's
-    /// `rendered_template`, nothing needs a stand-in before parsing.
+    /// block." The block holds no chezmoi action, so unlike `rendered_template`
+    /// above, nothing needs a stand-in before parsing.
     fn shipped_command_example_uncommented() -> String {
         SHIPPED_TEMPLATE
             .lines()
