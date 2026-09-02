@@ -4090,13 +4090,14 @@ fn an_observation_does_not_clear_a_live_wait() {
     let missed_before = state_lines(&sandbox, "missed-notifications");
     let spool_before = spool_entries(&sandbox);
 
-    hook_with(
+    let output = hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4130,13 +4131,14 @@ fn an_observation_arms_no_unread_news() {
     let missed_before = state_lines(&sandbox, "missed-notifications");
     let spool_before = spool_entries(&sandbox);
 
-    hook_with(
+    let output = hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4159,13 +4161,14 @@ fn an_observation_writes_no_activity_line() {
     let missed_before = state_lines(&sandbox, "missed-notifications");
     let spool_before = spool_entries(&sandbox);
 
-    hook_with(
+    let output = hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4206,13 +4209,14 @@ fn an_observation_moves_no_presence_edge() {
 
     let mut command = with_state_dir(&sandbox);
     command.env("PNS_IDLE_SECS", "0");
-    hook_with(
+    let output = hook_with(
         command,
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4253,13 +4257,14 @@ fn an_observation_renews_no_loop_lease() {
 
     let mut command = with_state_dir(&sandbox);
     command.env("HERDR_PANE_ID", "wW:p1");
-    hook_with(
+    let output = hook_with(
         command,
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4296,13 +4301,14 @@ fn an_observation_journals_no_missed_notification() {
     std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
     let journal = sandbox.path("state/missed-notifications");
 
-    hook_with(
+    let output = hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4343,13 +4349,14 @@ fn an_observation_replays_no_journal_entry() {
 
     let mut command = with_state_dir(&sandbox);
     command.env("PNS_IDLE_SECS", "0");
-    hook_with(
+    let output = hook_with(
         command,
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4382,13 +4389,14 @@ fn an_observation_registers_no_lights_tick() {
     sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
     counted_channels(&sandbox);
 
-    hook_with(
+    let output = hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4423,13 +4431,14 @@ fn an_observation_still_delivers_and_is_logged() {
     // must scrub through the same filter every other rendered field passes:
     // a payload field reaches a banner and a Discord message verbatim
     // otherwise, and the harness is not the only thing that can write one.
-    hook_with(
+    let output = hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
         r#"{"session_id":"s1","cwd":"/a/dotfiles","from_model":"claude-sonnet-4-5\u0007","to_model":"claude-opus-4-6\r\n","source":"auto"}"#,
     );
 
+    assert!(output.status.success(), "an observation still exits 0");
     assert_eq!(
         deliveries(&sandbox, "hermes"),
         1,
@@ -4540,12 +4549,13 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
     sandbox.write_config(&nag_config(300));
     counted_channels(&sandbox);
 
-    hook_with(
+    let output = hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
         &model_switch_payload("s1", "auto"),
     );
+    assert!(output.status.success(), "auto still exits 0");
     assert_eq!(deliveries(&sandbox, "hermes"), 1, "auto delivers");
     let deliveries_after_auto = deliveries(&sandbox, "hermes");
     let decisions_after_auto =
@@ -4585,7 +4595,8 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
     ]
     .map(|(label, payload)| (label.to_string(), payload.to_string()));
     for (source, payload) in documented.into_iter().chain(unlisted) {
-        hook_with(with_state_dir(&sandbox), &sandbox, "model-switch", &payload);
+        let output = hook_with(with_state_dir(&sandbox), &sandbox, "model-switch", &payload);
+        assert!(output.status.success(), "{source}: still exits 0");
         assert_eq!(
             deliveries(&sandbox, "hermes"),
             deliveries_after_auto,
