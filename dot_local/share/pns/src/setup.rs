@@ -36,6 +36,96 @@ pub struct Answers {
     pub nag: bool,
 }
 
+impl Answers {
+    /// This walk's answers, as the values table `config_text::render` walks.
+    ///
+    /// ONLY WHAT WAS ARMED IS HERE. A table this method never inserts is one
+    /// `render` writes at its layout default, commented for an opt-in table
+    /// and live at the CORE default for `mobile`, `macos-banner`, `daemon`
+    /// and `recap`, none of which this wizard even asks about.
+    pub fn values(&self) -> toml::Table {
+        let mut plugins = toml::Table::new();
+        if !self.mobile_token.is_empty() {
+            let mut mobile = toml::Table::new();
+            mobile.insert(
+                "token".to_string(),
+                toml::Value::String(self.mobile_token.clone()),
+            );
+            plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+        }
+        if !self.hermes_key.is_empty() {
+            let mut hermes = toml::Table::new();
+            hermes.insert(
+                "key".to_string(),
+                toml::Value::String(self.hermes_key.clone()),
+            );
+            plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        }
+        if hue_is_armed(self) {
+            let mut hue = toml::Table::new();
+            hue.insert(
+                "bridge".to_string(),
+                toml::Value::String(self.hue_bridge.clone()),
+            );
+            hue.insert("key".to_string(), toml::Value::String(self.hue_key.clone()));
+            hue.insert(
+                "rooms".to_string(),
+                toml::Value::Array(
+                    self.hue_rooms
+                        .iter()
+                        .cloned()
+                        .map(toml::Value::String)
+                        .collect(),
+                ),
+            );
+            plugins.insert("hue".to_string(), toml::Value::Table(hue));
+        }
+        if router_is_armed(self) {
+            let mut router = toml::Table::new();
+            router.insert(
+                "type".to_string(),
+                toml::Value::String(self.router_type.clone()),
+            );
+            router.insert(
+                "router_url".to_string(),
+                toml::Value::String(self.router_url.clone()),
+            );
+            router.insert(
+                "api_key".to_string(),
+                toml::Value::String(self.router_api_key.clone()),
+            );
+            router.insert(
+                "device_hostname".to_string(),
+                toml::Value::String(self.router_device_hostname.clone()),
+            );
+            plugins.insert("router".to_string(), toml::Value::Table(router));
+        }
+
+        let mut values = toml::Table::new();
+        if !plugins.is_empty() {
+            values.insert("plugins".to_string(), toml::Value::Table(plugins));
+        }
+        if !self.focus_modes.is_empty() {
+            let mut focus = toml::Table::new();
+            focus.insert(
+                "silence".to_string(),
+                toml::Value::Array(
+                    self.focus_modes
+                        .iter()
+                        .cloned()
+                        .map(toml::Value::String)
+                        .collect(),
+                ),
+            );
+            values.insert("focus".to_string(), toml::Value::Table(focus));
+        }
+        if self.nag {
+            values.insert("nag".to_string(), toml::Value::Table(toml::Table::new()));
+        }
+        values
+    }
+}
+
 /// The whole config file, composed from one walk's answers.
 ///
 /// EVERY DEFAULT IT RELIES ON IS WRITTEN OUT, because a loaded config is
@@ -43,26 +133,13 @@ pub struct Answers {
 /// core implicit would hand a fresh machine a file that turns the banner and
 /// the card off. A declined feature is present too, as a commented block with
 /// empty values, so the file says what it could carry as well as what it does.
+///
+/// `crate::config_text::render` NEVER REFUSES A WALK'S OWN ANSWERS: every
+/// value this method's `values()` composes is a plain literal off the roster
+/// this wizard's own layout serves, so the only way this expect fires is a
+/// bug in `values()` itself, not an operator's input.
 pub fn compose_config(answers: &Answers) -> String {
-    let mut sections = vec![
-        HEADER.to_string(),
-        mobile_section(&answers.mobile_token),
-        hermes_section(&answers.hermes_key),
-        BANNER_SECTION.to_string(),
-        hue_section(answers),
-        router_section(answers),
-        DAEMON_SECTION.to_string(),
-        RECAP_SECTION.to_string(),
-        focus_section(&answers.focus_modes),
-        nag_section(answers.nag),
-    ];
-    // THE LAMP MAP FOLLOWS HUE and nothing else: it is inert without the
-    // transport, so offering it to a machine with no bridge would be a block
-    // of example lines that can never do anything.
-    if hue_is_armed(answers) {
-        sections.push(LIGHTS_STARTER.to_string());
-    }
-    sections.join("\n")
+    crate::config_text::render(&answers.values()).expect("a wizard's own answers always render")
 }
 
 /// Where an existing config is kept when `--force` replaces it: a sibling of
@@ -102,279 +179,6 @@ fn router_is_armed(answers: &Answers) -> bool {
         && !answers.router_api_key.is_empty()
         && !answers.router_device_hostname.is_empty()
 }
-
-/// One answer as a TOML basic string.
-///
-/// A PASTED SECRET IS UNTRUSTED TEXT and is escaped rather than refused: raw
-/// interpolation composes a file that will not load at best, and at worst one
-/// whose value stops where the operator's own quote did.
-fn quoted(value: &str) -> String {
-    let mut quoted = String::with_capacity(value.len() + 2);
-    quoted.push('"');
-    for character in value.chars() {
-        match character {
-            '\\' => quoted.push_str("\\\\"),
-            '"' => quoted.push_str("\\\""),
-            // TOML admits no bare control character inside a basic string.
-            control if control < ' ' || control == '\u{7f}' => {
-                quoted.push_str(&format!("\\u{:04X}", control as u32));
-            }
-            plain => quoted.push(plain),
-        }
-    }
-    quoted.push('"');
-    quoted
-}
-
-/// One answer as a TOML array of basic strings.
-fn quoted_list(values: &[String]) -> String {
-    let quoted: Vec<String> = values.iter().map(|value| quoted(value)).collect();
-    format!("[{}]", quoted.join(", "))
-}
-
-/// The phone card. ENABLED EITHER WAY, because it is core beside the banner,
-/// and the token is what a pairing supplies.
-fn mobile_section(token: &str) -> String {
-    let token_line = if token.is_empty() {
-        MOBILE_WITHOUT_A_TOKEN.to_string()
-    } else {
-        format!("token = {}\n", quoted(token))
-    };
-    format!("{MOBILE_HEAD}{token_line}{MOBILE_TAIL}")
-}
-
-/// The durable paper trail.
-fn hermes_section(key: &str) -> String {
-    if key.is_empty() {
-        return format!("{HERMES_PREAMBLE}{DECLINED}{HERMES_DECLINED}");
-    }
-    format!("[plugins.hermes]\nenabled = true\nkey = {}\n", quoted(key))
-}
-
-/// The light pulse.
-fn hue_section(answers: &Answers) -> String {
-    if !hue_is_armed(answers) {
-        return format!("{HUE_PREAMBLE}{DECLINED}{HUE_DECLINED}{HUE_QUIET_HOURS}");
-    }
-    format!(
-        "[plugins.hue]\nenabled = true\nbridge = {}\nkey = {}\nrooms = {}\n{HUE_QUIET_HOURS}",
-        quoted(&answers.hue_bridge),
-        quoted(&answers.hue_key),
-        quoted_list(&answers.hue_rooms)
-    )
-}
-
-/// The home probe.
-fn router_section(answers: &Answers) -> String {
-    if !router_is_armed(answers) {
-        return format!("{ROUTER_PREAMBLE}{DECLINED}{ROUTER_DECLINED}");
-    }
-    format!(
-        "{ROUTER_PREAMBLE}[plugins.router]\nenabled = true\ntype = {}\nrouter_url = {}\n\
-         api_key = {}\n{ROUTER_DEVICE}device_hostname = {}\n",
-        quoted(&answers.router_type),
-        quoted(&answers.router_url),
-        quoted(&answers.router_api_key),
-        quoted(&answers.router_device_hostname)
-    )
-}
-
-/// The Focus modes that mean "not now". NAMING NO MODE IS THE FEATURE OFF, so
-/// a walk that named none writes the example commented rather than an empty
-/// list that reads as configured.
-fn focus_section(modes: &[String]) -> String {
-    if modes.is_empty() {
-        return format!("{FOCUS_PREAMBLE}{FOCUS_DECLINED}");
-    }
-    format!(
-        "{FOCUS_PREAMBLE}[focus]\nsilence = {}\n",
-        quoted_list(modes)
-    )
-}
-
-/// The nudge about an approval nobody answered.
-fn nag_section(on: bool) -> String {
-    let table = if on {
-        format!("[nag]\nafter_secs = {NAG_SUGGESTED_SECS}\n")
-    } else {
-        format!("# [nag]\n# after_secs = {NAG_SUGGESTED_SECS}\n")
-    };
-    format!("{NAG_PREAMBLE}{table}")
-}
-
-/// What the nag is set to when the walk asks for one.
-///
-/// FIVE MINUTES rather than the floor, because the signal pns gets is the tool
-/// batch RESOLVING rather than the operator answering: a tool approved at once
-/// that then runs longer than this cards them about their own approval.
-const NAG_SUGGESTED_SECS: u64 = 300;
-
-/// The line every declined block carries, saying why it is commented rather
-/// than written with empty values.
-const DECLINED: &str = r##"# COMMENTED OUT BECAUSE NOTHING ARMED IT: an empty value parses as absent, so
-# writing one would read as set up here and deliver nothing.
-"##;
-
-const HEADER: &str = r##"# The pns engine's plugin selection, as `pns setup` first wrote it. A plugin
-# runs only when its table here says enabled = true, and a key this schema does
-# not serve is refused by name at load, which blocks the whole file until it is
-# fixed.
-#
-# THE BANNER AND THE PHONE CARD ARE THE CORE and are written on. Everything
-# else is armed with a credential, so a commented-out block below is a feature
-# nothing is set up for yet: fill its values in and uncomment it.
-"##;
-
-const MOBILE_HEAD: &str = r##"[plugins.mobile]
-enabled = true
-# Which compiled-in backend carries the card.
-type = "moshi"
-"##;
-
-const MOBILE_WITHOUT_A_TOKEN: &str = r##"# Pair with moshi and put the webhook secret it issues here: that pairing is
-# what completes the phone card.
-# token = ""
-"##;
-
-const MOBILE_TAIL: &str = r##"# Whether a long command's card still fires while you are watching that pane
-# on the phone.
-mobile_watch_card = false
-# How long pns waits for moshi to acknowledge a submitted permission prompt, in
-# seconds. The harness draws the prompt only once the hook returns, so this is
-# time the question is off your screen.
-submit_deadline_secs = 5
-"##;
-
-const HERMES_PREAMBLE: &str = r##"# The durable paper trail: every event posted to a hermes route, signed with
-# the key that route verifies.
-"##;
-
-const HERMES_DECLINED: &str = r##"# [plugins.hermes]
-# enabled = true
-# key = ""
-"##;
-
-const BANNER_SECTION: &str = r##"# The macOS banner, which is what a machine you are sitting at says.
-[plugins.macos-banner]
-enabled = true
-"##;
-
-const HUE_PREAMBLE: &str = r##"# The light pulse: the named rooms flash green when work finishes and red when
-# it dies. Needs the bridge's address, a key it issued, and the rooms spelled
-# the way the bridge spells them.
-"##;
-
-const HUE_DECLINED: &str = r##"# [plugins.hue]
-# enabled = true
-# bridge = ""
-# key = ""
-# rooms = []
-"##;
-
-const HUE_QUIET_HOURS: &str = r##"# The hours the room pulse stays dark: local wall clock, the start inclusive
-# and the end exclusive, and it may wrap midnight.
-# quiet_hours = "22:00-07:00"
-"##;
-
-const ROUTER_PREAMBLE: &str = r##"# The home probe: whether the phone is on the home wifi, answered by the
-# router's own client list. A SENSOR rather than a destination, so no event
-# ever routes to it; `pns home` is how it is read.
-"##;
-
-const ROUTER_DEVICE: &str = r##"# The device is named by device_hostname, device_mac or device_ipv4, at least
-# one of them, and on disagreement the strongest of those three names the
-# match. A phone is matched by NAME, because iOS rotates its wifi address.
-"##;
-
-const ROUTER_DECLINED: &str = r##"# [plugins.router]
-# enabled = true
-# type = "unifi"
-# router_url = ""
-# api_key = ""
-# device_hostname = ""
-"##;
-
-const DAEMON_SECTION: &str = r##"# The clock: what runs BETWEEN events, for the two things that are not
-# reactions to one, saying something when nothing happened and keeping a lamp
-# alive while an agent loop is. It holds no state of its own, so a restart
-# loses nothing and a stopped daemon costs those ambient features and never a
-# card. ON UNLESS YOU SAY OTHERWISE, because it delivers nothing by itself.
-[daemon]
-enabled = true
-"##;
-
-const RECAP_SECTION: &str = r##"# The return recap: what you missed while you were away. THE UNCOMMENTED LINES
-# ARE THE DEFAULTS, written out so they can be seen; each switch gates only its
-# own delivery.
-[recap]
-# The catch-up card: the misses queued while you were away, put in front of you
-# on the first event you are present for.
-replay_card = true
-# The recap of the whole window posted to hermes, rendered and posted by a
-# second process that nothing waits for.
-digest = true
-# Whether that recap posts to the `pns-recap` route rather than the default
-# one. The route has to exist in hermes first.
-digest_as_thread = true
-# How many events a window needs before it is worth a recap rather than the
-# catch-up card alone. Every recap's header prints the window's real count,
-# which is how the number gets settled.
-min_events = 8
-# How long the summarizer may take before it is killed and the plain list is
-# posted instead. It is the whole recap's budget rather than each question's.
-summarizer_deadline_secs = 240
-# The command that turns the window into the night-in-order lines: ARGV, NEVER
-# A SHELL STRING, handed the timeline on stdin and answering on stdout. UNSET
-# IS A WORKING SETTING and posts the plain mechanical list. THE THREE OLLAMA
-# FLAGS ARE NOT OPTIONAL: without them `ollama run` interleaves terminal
-# control bytes and a preamble into its output, and those are posted verbatim.
-# summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
-# The repositories whose merged pull requests become the recap's "what it does
-# now" section. UNSET MEANS NO `gh` IS EVER STARTED.
-# repos = ["owner/name"]
-# The directory of review notes behind the "caught by review" section: ONE
-# directory named in full, and a file name that may hold one `*`.
-# review_notes = "/absolute/path/notes-*.md"
-"##;
-
-const FOCUS_PREAMBLE: &str = r##"# The macOS Focus modes that pns reads as your own instruction not to be
-# interrupted. While one of them is active, banners, cards and light pulses are
-# held back and handed over when it ends; approvals never are. NAMING NO MODE
-# IS THE FEATURE OFF, which is the same statement as no table at all.
-"##;
-
-const FOCUS_DECLINED: &str = r##"# [focus]
-# silence = ["Sleep"]
-"##;
-
-const NAG_PREAMBLE: &str = r##"# The nag: one more card when an approval has been sitting unanswered. IT IS A
-# STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the prompt
-# appeared is still the one carrying Allow and Deny. It needs the daemon
-# running, and several approvals waiting are one card rather than several.
-# THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING; no table at all, and
-# after_secs of zero, are the same statement.
-"##;
-
-const LIGHTS_STARTER: &str = r##"# The lamp map: WHICH LAMP says what. A declaration names a place at one of
-# three levels, `[lights.lamp."<name>"]`, `[lights.room."<name>"]` or
-# `[lights.zone."<name>"]`, spelled as the bridge spells it, and says which of
-# the five behaviours it carries: `done` and `failed` blink, and `blocked`,
-# `unread` and `loop` breathe while their condition lasts. The most specific
-# declaration naming a lamp wins, and levels never merge.
-# WITH NO TABLE AT ALL the pulse is the `rooms` array above and nothing else,
-# so this is a starter to fill in rather than something to uncomment as it is.
-# [lights]
-# refresh_secs = 12
-#
-# [lights.done]
-# duration_ms = 4000
-# brightness = 100
-#
-# [lights.room."Studio"]
-# shows = ["done", "failed"]
-# dim_window = "22:00-07:00"
-# dim_behaviours = ["blocked", "unread", "loop"]
-"##;
 
 #[cfg(test)]
 mod tests {
@@ -593,17 +397,21 @@ mod tests {
     }
 
     #[test]
-    fn the_lamp_map_starter_is_offered_with_hue_alone_and_is_wholly_commented_out() {
+    fn the_lamp_map_starter_is_always_offered_and_is_wholly_commented_out() {
+        // ALWAYS PRESENT AND COMMENTED, whether or not hue is armed: this
+        // wizard never asks about the lamp map at all, so the starter reads
+        // as inert documentation rather than a question the walk answered.
         // AN EMPTY `[lights]` IS A DISTINCT STATE, the operator asking for the
         // lamps and naming none, so the starter is an example to fill in and
         // never a heading standing on its own.
-        let armed = compose_config(&every_feature_armed());
-        assert!(armed.contains("# [lights]"), "{armed}");
-        assert!(!armed.contains("\n[lights"), "{armed}");
-        assert!(parsed(&armed).lights.is_none());
-
-        let declined = compose_config(&Answers::default());
-        assert!(!declined.contains("[lights"), "{declined}");
+        for text in [
+            compose_config(&every_feature_armed()),
+            compose_config(&Answers::default()),
+        ] {
+            assert!(text.contains("# [lights]"), "{text}");
+            assert!(!text.contains("\n[lights"), "{text}");
+            assert!(parsed(&text).lights.is_none());
+        }
     }
 
     #[test]
@@ -677,6 +485,20 @@ mod tests {
                 shaped.len(),
                 shaped.join("\n")
             );
+        }
+    }
+
+    #[test]
+    fn a_wizard_render_carries_no_chezmoi_action_because_every_answer_is_a_literal() {
+        // `Answers` NEVER PRODUCE A SECRET MARKER: every credential the walk
+        // collects is a plain string handed straight to `values()`, so a
+        // wizard's own composed text is real TOML from the first line, never
+        // a template `render` fills in only after chezmoi runs.
+        for text in [
+            compose_config(&Answers::default()),
+            compose_config(&every_feature_armed()),
+        ] {
+            assert!(!text.contains("{{"), "{text}");
         }
     }
 
