@@ -11,6 +11,7 @@
 //! get, is uu failing (1). An argument uu does not serve is usage (2).
 
 use std::io::Write;
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -105,6 +106,29 @@ fn run_mode(only: Option<&str>) -> i32 {
         }
         Err(code) => return code,
     };
+
+    // ONE RUN AT A TIME. Everything below reads, then writes, the marker and
+    // every lane's own streak file with no other guard: two overlapping runs
+    // can both read the same streak count and both write the same next
+    // value, which is the one mechanism whose entire job is noticing a lane
+    // gone quiet, so a delayed or duplicated staleness alert is the exact
+    // failure this verdict exists to prevent. Non-blocking, matching the two
+    // weekly jobs this ported from (`/usr/bin/lockf -s -t 0`, kernel-backed
+    // and released automatically on exit or a crash): a second run says so
+    // and exits rather than pretending it ran.
+    let _lock = match acquire_run_lock(&home) {
+        Ok(lock) => lock,
+        Err(why) => {
+            eprintln!("uu: {why}; not running, to avoid racing the run that already holds it");
+            return 1;
+        }
+    };
+
+    // A LANE NO LONGER DECLARED IS PRUNED HERE, under the same lock: its
+    // directory (and whatever streak it held) would otherwise leak forever,
+    // and a NEW lane that reuses the old name would inherit that streak and
+    // could alert on its very first miss.
+    prune_removed_lane_state(&home, &config);
 
     // The header is captured BEFORE the lanes run and before the marker is
     // rewritten: a gap sampled at delivery reports zero on every run. A clock
@@ -390,6 +414,62 @@ fn streak_path(home: &str, lane: &str) -> PathBuf {
         .join(".local/state/uu/lanes")
         .join(lane)
         .join("streak")
+}
+
+/// Where the whole run's own lock lives, held for as long as `run_mode` is
+/// on the stack.
+fn run_lock_path(home: &str) -> PathBuf {
+    Path::new(home).join(".local/state/uu/run.lock")
+}
+
+/// The run-wide lock. Held only by virtue of the open file descriptor: the
+/// kernel drops the `flock` the moment it closes, on a normal return or a
+/// crash alike, so there is no stale-lock file to clean up by hand.
+struct RunLock(#[allow(dead_code)] std::fs::File);
+
+/// Take the run lock, or say why not. NON-BLOCKING (`LOCK_NB`): a second run
+/// finding this one still going must say so and exit, never wait its turn
+/// and then run stale.
+fn acquire_run_lock(home: &str) -> Result<RunLock, String> {
+    let path = run_lock_path(home);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+    }
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|error| format!("could not open {}: {error}", path.display()))?;
+    // SAFETY: `file`'s descriptor is open and owned by this frame for the
+    // whole call; `flock`'s only effect is the kernel's own lock table.
+    let refused = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0;
+    if refused {
+        return Err(format!("another run already holds {}", path.display()));
+    }
+    Ok(RunLock(file))
+}
+
+/// The lane names this config no longer declares are dropped here, under the
+/// run lock: a directory left behind by a removed or renamed lane would leak
+/// forever otherwise, and a NEW lane reusing the old name would inherit its
+/// streak and could alert on its very first miss. Best effort and silent on
+/// its own failure, matching every other piece of this bookkeeping: a stale
+/// directory that resists cleanup costs nothing but a few bytes, never a
+/// wrong verdict.
+fn prune_removed_lane_state(home: &str, config: &Config) {
+    let lanes_dir = Path::new(home).join(".local/state/uu/lanes");
+    let Ok(entries) = std::fs::read_dir(&lanes_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let Some(name) = entry.file_name().to_str().map(str::to_string) else {
+            continue;
+        };
+        if !config.lanes.contains_key(&name) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
 }
 
 /// A lane's current non-success streak: 0 for a machine that has never
