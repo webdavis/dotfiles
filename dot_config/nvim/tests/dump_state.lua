@@ -15,7 +15,9 @@
 -- only (opening $DOTFILES/justfile); filetype-local maps (markdown, octo, etc.) are
 -- not captured here.
 --
--- Covered: keymaps, which-key group metadata, and each plugin's lazy/loaded flags.
+-- Covered: keymaps, which-key group metadata declared in lua/plugins/which-key.lua
+-- (not octo's dynamic <localleader> groups, registered on the octo FileType below the
+-- buffer-local pass; PR 24 checks those by hand), and each plugin's lazy/loaded flags.
 -- NOT covered, at all: Vim options, autocmds, user commands, LSP server config, the
 -- colorscheme, and a plugin's own `opts` table. A change confined to that uncovered
 -- set moves zero rows here (measured: flipping opt.ignorecase produced no diff). A
