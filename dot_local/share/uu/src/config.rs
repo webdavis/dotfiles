@@ -963,6 +963,60 @@ mod tests {
         }
     }
 
+    // --- the shipped template ------------------------------------------------
+
+    /// The config this repo ships, INCLUDED ONLY UNDER `cfg(test)` so the
+    /// binary the apply builds out of the deployed crate never asks for a file
+    /// that is not there (the same arrangement pns uses for its template).
+    const SHIPPED_TEMPLATE: &str =
+        include_str!("../../../../dot_config/uu/private_config.toml.tmpl");
+
+    /// The template with its chezmoi actions stood in for: a `{{-` directive
+    /// standing on its own line goes with the line (the plugin `range` and its
+    /// `end`), a `| quote` action becomes a quoted stand-in, and any other
+    /// action becomes a bare one, which is what the two inside a `"..."` need.
+    fn rendered_template() -> String {
+        SHIPPED_TEMPLATE
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("{{-"))
+            .map(|line| {
+                let mut rendered = line.to_string();
+                while let Some(start) = rendered.find("{{") {
+                    let end = start + rendered[start..].find("}}").expect("a closed action") + 2;
+                    let stand_in = if rendered[start..end].contains("| quote") {
+                        "\"stand-in\""
+                    } else {
+                        "stand-in"
+                    };
+                    rendered.replace_range(start..end, stand_in);
+                }
+                rendered
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn the_shipped_template_still_parses_and_selects_what_it_selects() {
+        // The only uu config anyone has is this file. A key the template
+        // writes that the parser refuses blocks the whole weekly job at load,
+        // and nothing but this test says so before an apply.
+        let config = parse_config(&rendered_template())
+            .unwrap_or_else(|error| panic!("the shipped template must load: {error:?}"));
+        assert!(config.records.is_some());
+        assert!(config.alerts.is_some());
+        assert_eq!(
+            config.lanes.get("herdr"),
+            Some(&LaneKind::Herdr(HerdrLane {
+                binary: "stand-in/.local/bin/herdr".to_string(),
+                plugins: vec![Plugin {
+                    id: "stand-in".to_string(),
+                    repo: "stand-in".to_string(),
+                }],
+            }))
+        );
+    }
+
     // --- the file -------------------------------------------------------------
 
     #[test]
