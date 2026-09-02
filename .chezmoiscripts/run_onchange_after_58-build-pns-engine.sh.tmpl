@@ -39,6 +39,10 @@ crate_dir="$HOME/.local/share/pns"
 # the shell notifier do.
 install_dir="$HOME/.local/libexec/pns"
 retry_marker="$HOME/.cache/pns-build/engine.retry"
+# A kickstart failure leaves the daemon on the old binary. This marker forces
+# the NEXT apply to retry the kickstart even if that apply rebuilds bytes
+# identical to this one, which it otherwise would skip as a no-op.
+pending_marker="$HOME/.cache/pns-build/restart-pending"
 
 # Deterministic path, never a PATH probe: a fresh machine provisions rustup
 # during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
@@ -103,10 +107,31 @@ report_line "installed $install_dir/pns"
 # 58 runs before 70 in chezmoi's ASCII script ordering, so on a first install
 # the LaunchAgent is not loaded yet: kickstart then fails with "Could not
 # find service" (exit 113), which this treats as "not loaded yet" and stays
-# quiet about, rather than as an error.
-if [[ $binary_changed == 1 ]] &&
-  launchctl kickstart -k "gui/$(id -u)/com.webdavis.pns-daemon" 2>/dev/null; then
-  report_line 'pns: daemon restarted on a new binary'
+# quiet about, rather than as an error. Any OTHER status (EIO, EPERM, a wrong
+# label) leaves the daemon on the old binary and must be loud: capture the
+# status once (a bare `if` condition would read every non-zero the same as
+# 113), print one attributed line to stderr, leave the pending marker so the
+# next apply retries even on identical bytes, and exit non-zero so chezmoi
+# does not record success.
+if [[ $binary_changed == 1 ]] || [[ -e $pending_marker ]]; then
+  status=0
+  output="$(launchctl kickstart -k "gui/$(id -u)/com.webdavis.pns-daemon" 2>&1)" || status=$?
+  case "$status" in
+  0)
+    report_line 'pns: daemon restarted on a new binary'
+    rm -f "$pending_marker"
+    ;;
+  113)
+    rm -f "$pending_marker"
+    ;;
+  *)
+    mkdir -p "$(dirname "$pending_marker")"
+    touch "$pending_marker"
+    printf 'pns: daemon NOT restarted on the new binary (launchctl kickstart exited %s: %s)\n' \
+      "$status" "$output" >&2
+    exit 1
+    ;;
+  esac
 fi
 
 rm -f "$retry_marker"
