@@ -394,19 +394,25 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
 Lane: second. Depends on: PR 2. Brief: `brief-nvim-swift.md`. Closes 43.
 
 **Files:** Create `lua/plugins/xcodebuild.lua`. Modify `lua/plugins/lsp.lua` (sourcekit),
-`lua/plugins/which-key.lua` (`{ "<leader>X", group = "xcode" }`), `lazy-lock.json`. No package edits.
+`lua/plugins/which-key.lua` (`{ "<leader>x", group = "xcode" }`), `lazy-lock.json`, and (for the prefix
+swap) `lua/plugins/trouble.lua` and `lua/plugins/todo-comments.lua`. One package edit: `xcp`
+(XcodeProjectCLI) in `.chezmoidata/system_packages_autoinstall.yaml`, without which the project manager
+and the oil.nvim project-file sync both fail with "xcp tool not found".
 
 - [ ] **Step 1:** `vim.lsp.config("sourcekit", { cmd = { "sourcekit-lsp" }, root_markers = {
   "buildServer.json", ".bsp", "*.xcodeproj", "*.xcworkspace", "compile_commands.json",
   "Package.swift", ".git" } })` and `vim.lsp.enable("sourcekit")` inside `if vim.fn.has("mac") == 1`.
 - [ ] **Step 2:** the `xcodebuild.nvim` spec: `commit = "633eb71"`, deps `MunifTanjim/nui.nvim`,
   `folke/snacks.nvim`, `stevearc/oil.nvim`, `ft = "swift"`, `cmd`, `cond = vim.fn.has("mac") == 1`,
-  `keys` for `<leader>Xb` build, `Xr` run, `Xt` test, `XT` test current, `Xs` scheme, `Xd` device,
-  `Xl` logs, `Xp` project manager, each `desc = "Xcode: …"`. The group row is unconditional (8.4).
+  `keys` for `<leader>xb` build, `xr` run, `xt` test, `xT` test current, `xs` scheme, `xd` device,
+  `xl` logs, `xp` project manager, each `desc = "Xcode: …"`. The group row is unconditional (8.4).
+  These eight are the floor, not the ceiling: the implementer's audit of the plugin's 66 commands
+  widened the set, and what shipped is 19 maps under `<leader>x` plus 8 nvim-dap maps under the
+  existing `<leader>D` group. `lua/plugins/xcodebuild.lua` is the list.
 - [ ] **Step 3, live (10.7), pasted:** hover on a UIKit symbol in an Xcode project with
   `buildServer.json`; `:XcodebuildBuild` through `xcbeautify`; save runs swiftformat and swiftlint;
   the Vapor smoke check exactly as 10.7 states, `swift test` from a shell, exit 0.
-- [ ] **Step 4:** Gates G1 to G6. G4 shows exactly the eight `<leader>X` maps and the group row.
+- [ ] **Step 4:** Gates G1 to G6. G4 shows the `<leader>x` maps and the group row.
   Commits: `feat(nvim): configure sourcekit-lsp on macOS`, `feat(nvim): add xcodebuild.nvim`.
 
 ### Task 4: PR 4a, the lazy checker off (spec 3.5)

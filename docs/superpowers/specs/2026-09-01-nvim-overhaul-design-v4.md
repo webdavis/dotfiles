@@ -112,8 +112,9 @@ Non-goals, stated so nobody widens the program:
   is not force-bumped; if a bump is ever needed it is its own commit with `0b45795` as the rollback
   anchor (item 34).
 - SP5 (xonsh) and the SP4 bash-setup work come AFTER this program. Nothing here touches the shell.
-- No nvim-dap. `xcodebuild.nvim` can drive a debugger, but nvim-dap is not on the inventory and is
-  not installed; it is an open question with a default of no (section 12).
+- nvim-dap is wired (operator decision 2026-09-02, overruling the earlier "no" default in section 12):
+  `xcodebuild.nvim`'s own checkhealth cannot pass without a dap module present, and the plugin's four
+  debugger commands do not exist at all without it.
 - No removal mechanisms in the dotfiles repo (operator ruling 2026-08-02): the old `~/.config/nvim/.git`
   and any file the flatten leaves behind are removed by hand, by the operator, with `trash`.
 - No changes to herdr's config, the pns engine, or moshi. The custom plugins are producers and
@@ -715,8 +716,8 @@ buffer-local pass (3.7, check 5b) reads them as present; PR 23's body shows both
 | Plugin or tool                  | Spec and pin                                                                                        | Notes                                                                                           | PR    |
 | ------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----- |
 | `sourcekit-lsp`                 | `vim.lsp.config("sourcekit", { cmd = { "sourcekit-lsp" } })` and `vim.lsp.enable("sourcekit")`, darwin only | not a Mason package (verified: the registry has no `sourcekit-lsp`); the Xcode toolchain binary is used. Root markers per nvim-lspconfig: `buildServer.json`, `.bsp`, `*.xcodeproj`, `*.xcworkspace`, `compile_commands.json`, `Package.swift`, `.git` | PR 3 |
-| `xcode-build-server`, `xcbeautify`, `swiftformat`, `swiftlint` | already in `.chezmoidata/system_packages_autoinstall.yaml` (lines 169, 170, 187, 188) and installed | no YAML edit and no Mason entry: none-ls already declares `formatting.swiftformat` and `formatting.swiftlint` (`lsp.lua:287-288`) against the PATH binaries; `xcode-build-server` generates `buildServer.json` for an `.xcodeproj` or `.xcworkspace` (not needed for a SwiftPM package); `xcodebuild.nvim` requires `xcbeautify` | PR 3 (nothing to add) |
-| `wojciech-kulik/xcodebuild.nvim` | `commit = "633eb71"` (main HEAD today, `git ls-remote`); deps `MunifTanjim/nui.nvim` (present via noice), `folke/snacks.nvim` (picker), `stevearc/oil.nvim` (present); `ft = "swift"` plus `cmd`; `cond = vim.fn.has("mac") == 1` | supports Swift Packages (build and test) as well as Xcode projects, and has its own Test Explorer; no nvim-dap | PR 3 |
+| `xcode-build-server`, `xcbeautify`, `swiftformat`, `swiftlint` | already in `.chezmoidata/system_packages_autoinstall.yaml` (lines 171, 172, 189, 190) and installed; `xcp` (XcodeProjectCLI) is the one addition PR 3 makes to that file | no YAML edit and no Mason entry: none-ls already declares `formatting.swiftformat` and `formatting.swiftlint` (`lsp.lua:305-306`) against the PATH binaries; `xcode-build-server` generates `buildServer.json` for an `.xcodeproj` or `.xcworkspace` (not needed for a SwiftPM package); `xcodebuild.nvim` requires `xcbeautify` | PR 3 (nothing to add) |
+| `wojciech-kulik/xcodebuild.nvim` | `commit = "633eb71"` (main HEAD today, `git ls-remote`); deps `MunifTanjim/nui.nvim` (present via noice), `folke/snacks.nvim` (picker), `stevearc/oil.nvim` (present), `mfussenegger/nvim-dap` and `rcarriga/nvim-dap-ui` (operator decision 2026-09-02); `ft = "swift"` plus `cmd`; `cond = vim.fn.has("mac") == 1` | supports Swift Packages (build and test) as well as Xcode projects, and has its own Test Explorer | PR 3 |
 | `gopls` and `go`                | `"gopls"` in mason-lspconfig `ensure_installed`; `go` Homebrew formula in the YAML                   | Mason installs `gopls` with `go install`, and the health check shows Go absent today, so the formula is part of decision D | PR 27 |
 | `nvim-neotest/neotest` + `nvim-neotest/nvim-nio` | `commit = "27bf921"` (neotest main HEAD today); `keys` under `<leader>t`; adapters per the open question in section 12 |                                                                          | PR 28 |
 | `okuuva/auto-save.nvim`         | already installed (`version = "^1.0.0"`, disabled by default with the `<leader>uv` toggle)         | item 42: the save condition gains the two `claudecode.nvim` exclusions its README documents (buffer name matching `(proposed)` or `(NEW FILE - proposed)`, buftype `acwrite`); formatting on autosave is suppressed: the `AutoSaveWritePre` user event sets `vim.b.autosave_write`, lsp-format's `BufWritePre` handler returns early when it is set, `AutoSaveWritePost` clears it. Explicit `:w` keeps formatting | PR 12 |
@@ -1153,7 +1154,8 @@ carries context about a position. Keymap `<leader>Cx` "send context" (8.3). Pure
   `<leader>G` is gh; `<leader>gh` is octo.
 - Lowercase `<leader>` letters are editor features (find, search, LSP, overseer, yank, toggle);
   uppercase letters are external systems or rarer surfaces (`G` gh, `R` rest, `U` urlview, `L` lazy,
-  `D` debug, `A` herdr-nvim). `<leader>C`, `<leader>t`, `<leader>X` and `<leader>T` are free.
+  `D` debug, `A` herdr-nvim). `<leader>C`, `<leader>t` and `<leader>T` are free; `<leader>X` was
+  free until the 8.3 swap moved Trouble and todo-comments onto it.
 - Keymaps are defined with the global `map({ mode, lhs, rhs, desc })` helper outside plugin `keys`
   tables, except snacks, noice and which-key which use `keys`. Descriptions in the plugin specs mostly
   follow `Tool: action` ("Snacks (Git): branches", "Overseer: open task in floating window", "Git
@@ -1190,17 +1192,17 @@ becomes "do" (its two survivors are actions), and the new groups follow the nami
 | `<leader>d` group           | renamed "do"; `<leader>dt`, `<leader>dp`, `<leader>ds` (delegate) removed                          |
 | `<leader>L` group           | renamed "lazy"; descriptions "LazyVim: …" become "Lazy: …"                                         |
 | `<leader>A` group           | row added, "herdr" (PR 4c)                                                                         |
-| Swift                       | `<leader>X` group "xcode": `Xb` build, `Xr` run, `Xt` test (all), `XT` test (current), `Xs` select scheme, `Xd` select device, `Xl` toggle logs, `Xp` project manager; `cond` on darwin |
+| Swift                       | `<leader>x` group "xcode" (operator decision 2026-09-02 swapped this from `<leader>X`, see below): `xb` build, `xr` run, `xt` test (all), `xT` test (current), `xs` select scheme, `xd` select device, `xl` toggle logs, `xp` project manager; `cond` on darwin. Shipped wider than this proposal after the 66-command audit: 19 maps under `<leader>x` and 8 nvim-dap maps under `<leader>D`, listed in `lua/plugins/xcodebuild.lua` |
 | Tests                       | `<leader>t` group "test": `tt` nearest, `tf` file, `ta` all, `ts` summary, `to` output, `tS` stop |
 | Agent                       | `<leader>C` group "claude": `Cs` send selection (visual), `Ca` add current file, `Cy` accept diff, `Cn` deny diff, `Cc` launch or attach `claude --ide` (7.2), `Cx` send context (7.7 #3), `Cp` slime: pipe selection or paragraph to the target pane, `CP` slime: set target pane |
-| Review ledger               | `:ReviewLedger` command only, no keymap; it is a quickfix producer and `<leader>x` already holds the quickfix maps |
+| Review ledger               | `:ReviewLedger` command only, no keymap; it is a quickfix producer and `<leader>X` (moved here from `<leader>x` by the same swap) already holds the quickfix maps |
 
 The implementer finalizes the letters under the rule; the table is the proposal the plan starts from.
 
 ### 8.4 How groups stay discoverable
 
 Groups keep living in the one `opts.spec` table so `<leader>` alone shows every namespace and
-`<leader>b?` still lists buffer-local maps. A group whose plugin is darwin-only (`<leader>X`) is
+`<leader>b?` still lists buffer-local maps. A group whose plugin is darwin-only (`<leader>x`) is
 declared unconditionally with its name so the popup is the same on both operating systems; the keymaps
 under it carry the `cond`.
 
@@ -1366,7 +1368,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | ----- | -------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------- |
 | PR 1  | Lint infrastructure: stylua and luacheck in treefmt (scoped to `dot_config/nvim/**`), the machine YAML, `Brewfile.dev`, the CI toolchain step; inert until the import | none | 71 (lint half) |
 | PR 2  | Import unchanged: backups and their verification, drain, push, README commit and push, archive, flatten (no `.git`), ignores, `.gitignore` rules, the mdformat exclusion, the dump script, the zero-change proof | PR 1 | 45 (part), 46 (track), 51, 52, 65, 74 |
-| PR 3  | Swift stack: sourcekit config, `xcodebuild.nvim`, `<leader>X` group, the Vapor smoke check; no package edits | PR 2 | 43 |
+| PR 3  | Swift stack: sourcekit config, `xcodebuild.nvim`, `<leader>x` group (moved here from `<leader>X`, which now holds Trouble), the Vapor smoke check; one package edit, `xcp` | PR 2 | 43 |
 | PR 4a | `checker.enabled = false` (`lazy.lua`)                                                                    | PR 2                  | 46 (checker)                                |
 | PR 4b | Remove the LazyVim scaffolding: delete `lazyvim.json`, rename the `lazyvim_` augroups (`autocmds.lua`), rename `<leader>L` "lazy" and its descriptions (`which-key.lua`) | PR 3 | 47, 53 |
 | PR 4c | The `<leader>A` "herdr" group row (`which-key.lua`)                                                      | PR 4b                 | none (8.2 rule 2)                           |
@@ -1487,8 +1489,11 @@ re-gated since its last merge of `main` is not a verdict.
    `xcodebuild.nvim`'s own Test Explorer for Xcode projects; Rust through a `cargo test` adapter; no
    Python, Go or Lua adapters until a project needs one. Adapter repository names are verified at plan
    time, not here.
-2. **nvim-dap for xcodebuild.nvim.** Default: no. It is not on the inventory; `codelldb` is already in
-   Mason if this changes later.
+2. **nvim-dap for xcodebuild.nvim.** RESOLVED 2026-09-02: yes, operator decision overruling the
+   earlier default of no. `codelldb` stays declared in Mason's `ensure_installed` for c/cpp/rust only:
+   the pinned plugin leaves its own `integrations.codelldb.enabled` at the upstream default of false
+   and debugs Swift through Xcode's own `xcrun lldb-dap` instead (verified against the plugin's
+   `dap.lua` and `debugger.lua` at the pinned commit).
 3. **The MCP server choice.** Default: `linw1995/nvim-mcp` plus the resolver script when any of
    criteria 1 to 3 fail; the custom crate only on a criterion 4, 5 or 6 failure. The evaluation in
    PR 9 decides, by the 7.3 table, inside its one-day budget; PR 10a or PR 10b ships and registers.

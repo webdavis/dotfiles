@@ -11,6 +11,24 @@ return {
         update_in_insert = false, -- don't update while typing
       })
       -- stylua: ignore end
+
+      -- sourcekit-lsp: the Xcode toolchain's own LSP for Swift, ObjC and C/C++ in a Swift
+      -- project. Not a Mason package; the binary ships with Xcode/the Swift toolchain.
+      if vim.fn.has("mac") == 1 then
+        vim.lsp.config("sourcekit", {
+          cmd = { "sourcekit-lsp" },
+          root_markers = {
+            "buildServer.json",
+            ".bsp",
+            "*.xcodeproj",
+            "*.xcworkspace",
+            "compile_commands.json",
+            "Package.swift",
+            ".git",
+          },
+        })
+        vim.lsp.enable("sourcekit")
+      end
     end),
   },
   {
