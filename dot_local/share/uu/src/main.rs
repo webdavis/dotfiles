@@ -1064,16 +1064,23 @@ mod tests {
     #[test]
     fn run_with_input_treats_any_other_non_zero_exit_as_failed_never_deferred() {
         // A mutant widening DEFERRED_EXIT_CODE's check to "any non-zero" would
-        // pass every other test here; this pins a neighboring exit code (74,
-        // one below 75) as still Failed.
-        let ran = SystemRunner
-            .run_with_input("/bin/sh", &["-c", "exit 74"], "the run event\n")
-            .expect("the child ran, it just failed");
-        assert!(
-            matches!(ran.verdict, Verdict::Failed(_)),
-            "{:?}",
-            ran.verdict
-        );
+        // pass with only 74 tested; a mutant narrowing it to `>= 75` would
+        // pass with only 74 and 75 tested and misclassify 76 as deferred. Both
+        // neighbors of 75 are pinned here as still Failed.
+        for code in [74, 76] {
+            let ran = SystemRunner
+                .run_with_input(
+                    "/bin/sh",
+                    &["-c", &format!("exit {code}")],
+                    "the run event\n",
+                )
+                .expect("the child ran, it just failed");
+            assert!(
+                matches!(ran.verdict, Verdict::Failed(_)),
+                "exit {code}: {:?}",
+                ran.verdict
+            );
+        }
     }
 
     #[test]
