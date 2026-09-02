@@ -1110,19 +1110,45 @@ mod tests {
         );
     }
 
+    /// The shipped config template, included at compile time under
+    /// `cfg(test)` only, mirroring pns's `SHIPPED_TEMPLATE` pattern: the test
+    /// build reaches four levels out of this crate into the repo checkout
+    /// around it, which only works from inside this repo, and stops
+    /// compiling the day uu moves to its own repo (see pns's config.rs for
+    /// the full reasoning, not duplicated here).
+    const SHIPPED_TEMPLATE: &str =
+        include_str!("../../../../dot_config/uu/private_config.toml.tmpl");
+
+    /// The template's commented `[lanes.example]` block, uncommented by
+    /// stripping each line's leading `#`: what an operator gets after
+    /// following the template's own instruction to "uncomment and rename the
+    /// block." The block holds no chezmoi action, so unlike pns's
+    /// `rendered_template`, nothing needs a stand-in before parsing.
+    fn shipped_command_example_uncommented() -> String {
+        SHIPPED_TEMPLATE
+            .lines()
+            .skip_while(|line| line.trim() != "# [lanes.example]")
+            .take_while(|line| line.trim_start().starts_with('#'))
+            .map(|line| {
+                let trimmed = line.trim_start();
+                trimmed
+                    .strip_prefix("# ")
+                    .or_else(|| trimmed.strip_prefix('#'))
+                    .unwrap_or(trimmed)
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     #[test]
-    fn the_templates_own_command_example_parses_once_uncommented() {
-        // dot_config/uu/private_config.toml.tmpl's commented `[lanes.example]`
-        // block, verbatim: an example the parser refuses is a trap for whoever
-        // uncomments it.
+    fn the_templates_command_example_still_loads_once_uncommented() {
+        // Read from the shipped file itself, not transcribed: an edit to the
+        // template that breaks the example (like dropping `type =
+        // "command"`) fails this test without anyone keeping a copy here in
+        // sync.
+        let config = parsed(&shipped_command_example_uncommented());
         assert_eq!(
-            parsed(
-                "[lanes.example]\n\
-                 type = \"command\"\n\
-                 run = [\"/usr/local/bin/my-updater\", \"--yes\"]\n"
-            )
-            .lanes
-            .get("example"),
+            config.lanes.get("example"),
             Some(&LaneKind::Command(CommandLane {
                 run: vec!["/usr/local/bin/my-updater".to_string(), "--yes".to_string()],
             }))
