@@ -1280,6 +1280,41 @@ mod tests {
     }
 
     #[test]
+    fn a_username_secret_marker_renders_the_exact_action_and_round_trips_through_the_stub() {
+        // SECRET_FIELDS HOLDS TWO NAMES, and hue's key is the shipped table
+        // that actually needs the second one: a `SECRET_FIELDS` narrowed to
+        // `Password` alone would pass every other test in this module, since
+        // none of them exercises `UserName`.
+        let mut hue = toml::Table::new();
+        hue.insert(
+            "bridge".to_string(),
+            toml::Value::String("192.168.1.9".to_string()),
+        );
+        hue.insert("key".to_string(), secret("Hue Bridge", "UserName"));
+        hue.insert(
+            "rooms".to_string(),
+            toml::Value::Array(vec![toml::Value::String("Studio".to_string())]),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("hue".to_string(), toml::Value::Table(hue));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a UserName secret marker renders");
+        assert!(
+            text.contains("key = \"{{ (keepassxc \"Hue Bridge\").UserName }}\""),
+            "{text}"
+        );
+        let rendered = crate::config::strip_chezmoi_actions(&text, "from-the-vault");
+        let config =
+            parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
+        assert_eq!(
+            config.plugins["hue"].settings["key"].as_str(),
+            Some("from-the-vault")
+        );
+    }
+
+    #[test]
     fn a_secret_tables_unknown_member_is_named_rather_than_only_counted() {
         // `table.len() != 2` ALONE only counts members, so `{ keepassxc,
         // field, typo }` reports the pair-count rule and never says which
