@@ -38,11 +38,16 @@ installed="$home/.local/libexec/pns/pns"
 stubbin="$scratch/stubbin"
 kickstarts="$scratch/kickstarts"
 launchctl_status="$scratch/launchctl.status"
+marker_during_kickstart="$scratch/marker-during-kickstart"
 mkdir -p "$stubbin"
 : >"$kickstarts"
+: >"$marker_during_kickstart"
 cat >"$stubbin/launchctl" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$kickstarts"
+if [[ -e "$pending" ]]; then
+  printf 'present\n' >>"$marker_during_kickstart"
+fi
 if [[ -f "$launchctl_status" ]]; then
   exit "\$(cat "$launchctl_status")"
 fi
@@ -147,6 +152,37 @@ expected_kickstart="kickstart -k gui/$(id -u)/com.webdavis.pns-daemon"
   printf 'the kickstart must target the exact label; got: %s\n' "$(head -n1 "$kickstarts")" >&2
   exit 1
 }
+# The marker is armed before the binary is published, not after a kickstart
+# failure, so it must already exist by the time the kickstart itself runs.
+[[ -s $marker_during_kickstart ]] || {
+  echo "the restart-pending marker must exist by the time the kickstart runs" >&2
+  exit 1
+}
+[[ ! -e $pending ]] || {
+  echo "a first-install kickstart (113) must clear the restart-pending marker" >&2
+  exit 1
+}
+
+# --- the marker cannot be armed: refuse to publish rather than install a ---
+# --- binary the daemon has no forced way to pick up -------------------------
+kickstarts_before="$(wc -l <"$kickstarts" | tr -d ' ')"
+touch "$home/.stub-build-sleeper"
+rm -rf "$home/.cache/pns-build"
+touch "$home/.cache/pns-build"
+run_script && {
+  echo "a marker that cannot be written must refuse to publish the binary" >&2
+  exit 1
+}
+[[ "$("$installed")" == pns-engine ]] || {
+  echo "a refused publish must leave the previously installed binary in place" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq $kickstarts_before ]] || {
+  echo "a refused publish must never reach the kickstart" >&2
+  exit 1
+}
+rm -f "$home/.cache/pns-build"
+rm -f "$home/.stub-build-sleeper"
 
 # --- a rebuild while the old binary is RUNNING still replaces it -----------
 # The real mid-apply hazard: a producer (an agent hook, a long command, a
