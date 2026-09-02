@@ -635,16 +635,21 @@ mod tests {
 
     #[test]
     fn run_with_input_reports_a_non_zero_exit_as_a_failure_carrying_the_stderr_tail() {
+        // The child prints to stdout BEFORE it fails, the way a partially
+        // successful upgrade would: a mutant that blanks stdout on any
+        // non-zero exit would still satisfy every assertion below that only
+        // looks at `failure`, so `ran.stdout` is pinned here too.
         let ran = SystemRunner
             .run_with_input(
                 "/bin/sh",
                 &[
                     "-c",
-                    "cat >/dev/null; printf 'no such repository\\n' >&2; exit 2",
+                    "printf '3 upgraded\\n'; cat >/dev/null; printf 'no such repository\\n' >&2; exit 2",
                 ],
                 "the run event\n",
             )
             .expect("the child ran, it just failed");
+        assert_eq!(ran.stdout, "3 upgraded\n");
         let failure = ran.failure.expect("a non-zero exit is a failure");
         assert!(failure.contains("exit 2"), "{failure}");
         assert!(failure.contains("no such repository"), "{failure}");
