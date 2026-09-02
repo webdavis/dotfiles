@@ -3492,11 +3492,22 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// failing exit code. Reading the word first means `--help` and a bad code
 /// both answer with no machine read at all.
 fn pulse_mode() -> i32 {
-    let word = second_argument();
-    if pns::args::is_help_flag(&word) {
+    // THE WHOLE TAIL IS READ, not just the word right after `pulse`: H-B
+    // requires help to win in flag position anywhere, and an unknown extra
+    // word to be refused rather than silently dropped.
+    let tail: Vec<String> = std::env::args_os()
+        .skip(2)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    if tail.iter().any(|token| pns::args::is_help_flag(token)) {
         println!("{PULSE_USAGE}");
         return 0;
     }
+    if tail.len() > 1 {
+        eprintln!("{PULSE_USAGE}");
+        return 2;
+    }
+    let word = tail.first().cloned().unwrap_or_default();
     let Some(behaviour) = pns::pulse::exit_behaviour(&word) else {
         eprintln!("{PULSE_USAGE}");
         return 2;
