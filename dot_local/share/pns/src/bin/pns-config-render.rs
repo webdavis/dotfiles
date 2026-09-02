@@ -17,7 +17,7 @@
 
 use std::process::ExitCode;
 
-use pns::config::{parse_config, strip_chezmoi_actions};
+use pns::config::{identity_placeholder, parse_config, strip_chezmoi_actions};
 use pns::config_text::render;
 
 /// The one banner, duplicated by hand in this crate's tests rather than
@@ -81,7 +81,7 @@ fn run(values_path: &str, template_path: &str) -> Result<(), String> {
     // valid TOML on its own (`{{` is not a TOML token), so the same stub the
     // crate's own template tests use stands in for chezmoi's substitution
     // first.
-    let stubbed = strip_chezmoi_actions(&rendered, "\"from-the-vault\"")
+    let stubbed = strip_chezmoi_actions(&rendered, identity_placeholder)
         .map_err(|error| format!("the render carries a malformed secret action: {error}"))?;
     parse_config(&stubbed)
         .map_err(|error| format!("the render does not self-parse: {}", error.detail()))?;

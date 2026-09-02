@@ -603,7 +603,19 @@ pub const TOP_LEVEL: &str = "";
 /// NOT TEST-ONLY: `pns-config-render` calls this at runtime too, to stand in
 /// for chezmoi before self-parsing its own render, so it returns a refusal
 /// naming the offender rather than panicking.
-pub fn strip_chezmoi_actions(text: &str, placeholder: &str) -> Result<String, String> {
+///
+/// `placeholder` IS HANDED THE MATCHED ACTION'S OWN ENTRY AND FIELD, not a
+/// fixed string chosen by the caller: a single fixed placeholder stubs every
+/// secret in a multi-secret text to the SAME value, so a table-comparison
+/// test built on top of it cannot tell a swapped entry from an unswapped
+/// one, sol-1 finding 1 (two tables comparing equal after their secrets
+/// traded places). A caller that genuinely wants one fixed value back for
+/// every action (the round-trip tests below, each with exactly one secret)
+/// just ignores the two arguments.
+pub fn strip_chezmoi_actions(
+    text: &str,
+    placeholder: impl Fn(&str, &str) -> String,
+) -> Result<String, String> {
     let mut lines = Vec::new();
     for line in text
         .lines()
@@ -620,23 +632,36 @@ pub fn strip_chezmoi_actions(text: &str, placeholder: &str) -> Result<String, St
                 ));
             };
             let action = &rendered[start..end];
-            let is_secret_action = action
+            let secret_identity = action
                 .strip_prefix("{{ (keepassxc \"")
                 .and_then(|rest| rest.split_once("\")."))
-                .is_some_and(|(entry, rest)| {
-                    !entry.contains('"')
-                        && crate::config_text::SECRET_FIELDS
-                            .iter()
-                            .any(|field| rest == format!("{field} | toToml }}}}"))
+                .filter(|(entry, _)| !entry.contains('"'))
+                .and_then(|(entry, rest)| {
+                    crate::config_text::SECRET_FIELDS
+                        .iter()
+                        .find(|field| rest == format!("{field} | toToml }}}}"))
+                        .map(|field| (entry, *field))
                 });
-            if !is_secret_action {
+            let Some((entry, field)) = secret_identity else {
                 return Err(format!("not a `| toToml` secret action: {action}"));
-            }
-            rendered.replace_range(start..end, placeholder);
+            };
+            rendered.replace_range(start..end, &placeholder(entry, field));
         }
         lines.push(rendered);
     }
     Ok(lines.join("\n"))
+}
+
+/// A `strip_chezmoi_actions` placeholder that carries the action's own entry
+/// and field, so no two DIFFERENT secrets in a multi-secret text can stub to
+/// the same value: a comparison built on top of this stub can tell a secret
+/// that moved to a different table apart from one that did not, which the
+/// single fixed string every caller used before could not (sol-1 finding 1).
+/// The backslash escape is defensive: `entry` is already known quote-free by
+/// the caller above, but not backslash-free, and this keeps the result a
+/// valid TOML basic string either way.
+pub fn identity_placeholder(entry: &str, field: &str) -> String {
+    format!("\"from-the-vault:{}:{field}\"", entry.replace('\\', "\\\\"))
 }
 
 /// How many `key = value` pairs a config-shaped text documents, commented
@@ -3498,7 +3523,7 @@ mod tests {
     /// KEYS the file names and under which tables, and no action in it is a key
     /// or a table; they are one conditional wrapper and five secrets.
     fn rendered_template() -> String {
-        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "\"from-the-vault\"")
+        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, super::identity_placeholder)
             .expect("the shipped template's own actions are well-formed")
     }
 
@@ -3512,7 +3537,7 @@ mod tests {
         // renderer writes, and refuses the rest out loud.
         let error = super::strip_chezmoi_actions(
             "token = {{ (keepassxc \"Moshi :: Webhook Secret\").Password }}",
-            "\"from-the-vault\"",
+            |_, _| "\"from-the-vault\"".to_string(),
         )
         .expect_err("a bare action with no `| toToml` is not a secret action");
         assert!(error.contains("not a `| toToml` secret action"), "{error}");
@@ -3531,20 +3556,50 @@ mod tests {
     /// `config_text::render` and compares the two byte for byte. The list is
     /// exact rather than a `contains` per line, so a sixth secret appearing,
     /// or one of these five going away, is the same red.
+    ///
+    /// EACH LINE CARRIES ITS OWN TABLE, not just its text: a bare line
+    /// comparison cannot tell hermes's secret sitting under `[plugins.hue]`
+    /// from hermes's secret sitting under `[plugins.hermes]`, since the line
+    /// text alone never says which heading it fell under (sol-1 finding 1).
     #[test]
     fn the_shipped_template_names_the_entry_and_field_of_every_secret() {
-        let secrets: Vec<&str> = SHIPPED_TEMPLATE
+        let mut table = String::new();
+        let secrets: Vec<(String, &str)> = SHIPPED_TEMPLATE
             .lines()
-            .filter(|line| line.contains("keepassxc"))
+            .filter_map(|line| {
+                if let Some(heading) = line
+                    .strip_prefix('[')
+                    .and_then(|rest| rest.strip_suffix(']'))
+                {
+                    table = heading.to_string();
+                    return None;
+                }
+                line.contains("keepassxc").then(|| (table.clone(), line))
+            })
             .collect();
         assert_eq!(
             secrets,
             [
-                r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#,
-                r#"key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}"#,
-                r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#,
-                r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#,
-                r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#,
+                (
+                    "plugins.mobile".to_string(),
+                    r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#
+                ),
+                (
+                    "plugins.hermes".to_string(),
+                    r#"key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}"#
+                ),
+                (
+                    "plugins.hue".to_string(),
+                    r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#
+                ),
+                (
+                    "plugins.hue".to_string(),
+                    r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#
+                ),
+                (
+                    "plugins.router".to_string(),
+                    r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#
+                ),
             ]
         );
     }
