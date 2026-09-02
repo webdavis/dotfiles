@@ -502,29 +502,48 @@ fn an_unreadable_config_directory_is_refused_by_path_and_cause() {
 
 #[test]
 fn an_empty_home_is_refused_by_name_before_anything_is_written() {
-    let sandbox = Sandbox::without_config("setup-empty-home");
-    let output = sandbox
-        .bare()
-        // `bare()` points HOME at the sandbox; this overrides it back to
-        // empty, which is what a launchd-less, misconfigured shell can hand
-        // a process. `current_dir` keeps a still-unfixed run's relative
-        // `.config/pns/config.toml` write inside the sandbox rather than
-        // wherever this test binary happens to run from.
-        .env("HOME", "")
-        .current_dir(&sandbox.root)
-        .args(["setup"])
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the wizard runs");
+    // BOTH SHAPES A LAUNCHD-LESS, MISCONFIGURED SHELL CAN HAND A PROCESS:
+    // set-but-empty and absent are different environments, and a build that
+    // catches only one (the empty check with `unwrap_or_default` in place of
+    // `.ok()`, say) still passed with only one case here.
+    for home_is_absent in [false, true] {
+        let sandbox = Sandbox::without_config(if home_is_absent {
+            "setup-home-absent"
+        } else {
+            "setup-empty-home"
+        });
+        let mut command = sandbox.bare();
+        if home_is_absent {
+            command.env_remove("HOME");
+        } else {
+            // `bare()` points HOME at the sandbox; this overrides it back to
+            // empty.
+            command.env("HOME", "");
+        }
+        let output = command
+            // KEEPS A STILL-UNFIXED RUN'S RELATIVE `.config/pns/config.toml`
+            // write inside the sandbox rather than wherever this test binary
+            // happens to run from.
+            .current_dir(&sandbox.root)
+            .args(["setup"])
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("the wizard runs");
 
-    assert_eq!(output.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("HOME"),
-        "the refusal does not name HOME: {stderr}"
-    );
-    assert!(
-        !sandbox.root.join(".config").exists(),
-        "something was written under an empty HOME: {stderr}"
-    );
+        assert_eq!(output.status.code(), Some(2));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("HOME"),
+            "the refusal does not name HOME: {stderr}"
+        );
+        assert!(
+            !sandbox.root.join(".config").exists(),
+            "something was written under {} HOME: {stderr}",
+            if home_is_absent {
+                "an absent"
+            } else {
+                "an empty"
+            }
+        );
+    }
 }

@@ -7260,7 +7260,7 @@ fn setup_mode() -> i32 {
     // the current directory, which is not the operator's own machine-wide
     // config no matter where this happened to be run from.
     let Some(home) = std::env::var("HOME").ok().filter(|home| !home.is_empty()) else {
-        eprintln!("pns setup: HOME is empty; nothing was written");
+        eprintln!("pns setup: HOME is unset or empty; nothing was written");
         return 2;
     };
     // THE CONFIG IS CHECKED BEFORE THE TERMINAL IS, because it is the more
