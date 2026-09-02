@@ -71,6 +71,31 @@ impl Pty {
         let slave = self.slave;
         unsafe {
             command.pre_exec(move || {
+                // A KNOWN SIGNAL STATE, NEVER AN INHERITED ONE. Rust hands a
+                // spawned child the PARENT'S OWN signal mask untouched
+                // ("Inherit the signal mask from the parent rather than
+                // resetting it", library/std/src/sys/process/unix/unix.rs)
+                // and resets only SIGPIPE's disposition. A suite launched
+                // with SIGINT blocked or ignored (a `trap '' INT` shell, a
+                // job-control-less runner) would otherwise hand the wizard
+                // that state, and the test that sends it a real signal would
+                // then time out against a CORRECT build.
+                let mut empty: libc::sigset_t = std::mem::zeroed();
+                if libc::sigemptyset(&mut empty) < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                let masked =
+                    libc::pthread_sigmask(libc::SIG_SETMASK, &empty, std::ptr::null_mut());
+                if masked != 0 {
+                    // POSIX: `pthread_sigmask` RETURNS its error number
+                    // rather than setting errno.
+                    return Err(std::io::Error::from_raw_os_error(masked));
+                }
+                for signal in [libc::SIGINT, libc::SIGALRM] {
+                    if libc::signal(signal, libc::SIG_DFL) == libc::SIG_ERR {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
                 for target in [0, 1, 2] {
                     if libc::dup2(slave, target) < 0 {
                         return Err(std::io::Error::last_os_error());
@@ -380,9 +405,11 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
 #[test]
 fn a_signal_sent_during_the_hidden_read_is_held_until_the_guard_drops() {
     // KILL, THEN OBSERVE, rather than a pty-level tty-stop test: SIGINT is
-    // not a tty-stop signal and Rust empties a spawned child's own mask
-    // before exec, so the mask this observes is the wizard's own rather
-    // than something inherited. `ps -o sigmask` reads 0 for a blocked
+    // not a tty-stop signal and `Pty::spawn` gives the child a default
+    // disposition and an empty mask, so the mask this observes is the
+    // wizard's own rather than whatever launched the suite. Rust itself
+    // does NOT do that: it hands a child the parent's mask verbatim.
+    // `ps -o sigmask` reads 0 for a blocked
     // process on macOS, so a live process cannot be asked directly; sending
     // a real SIGINT and watching when it lands is the only external read
     // left. SIGTTIN is NOT covered here: a pending tty-stop signal is
