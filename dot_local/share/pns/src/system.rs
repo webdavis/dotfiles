@@ -342,6 +342,10 @@ pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
     })
 }
 
+/// What the desk thread hands back on join: the idle reading, and the lock
+/// reading only where idle parsed. See `join_desk`.
+type DeskHandle = std::thread::JoinHandle<(Option<u64>, Option<bool>)>;
+
 /// The five probes: four read the machine through commands, and the marker
 /// reads the filesystem directly, because an mtime needs no subprocess.
 ///
@@ -358,10 +362,6 @@ pub fn parse_layout(layout_json: &str) -> Option<TabLayout> {
 /// forwarded to the phone at all and again to decide what the notification
 /// delivers. Taking the measurement twice lets a freshness boundary fall
 /// between them, which cards a phone with no round trip behind it.
-/// What the desk thread hands back on join: the idle reading, and the lock
-/// reading only where idle parsed. See `join_desk`.
-type DeskHandle = std::thread::JoinHandle<(Option<u64>, Option<bool>)>;
-
 pub struct SystemProbes<R: CommandRunner> {
     runner: Arc<R>,
     marker_path: String,
