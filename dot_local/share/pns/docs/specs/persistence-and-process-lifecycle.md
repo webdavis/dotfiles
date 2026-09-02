@@ -262,7 +262,7 @@ nothing." The directory is never created up front; each writer creates its own p
 `create_dir_all` immediately before it needs it (`src/main.rs:publish_state_line`,
 `src/main.rs:append_ring_line`, `src/main.rs:write_marker`, `src/daemon.rs:stage`).
 
-- Success: `tests/dispatch.rs:an_empty_channels_dir_variable_means_the_default_not_the_current_dir` pins
+- Success: `src/main.rs:an_empty_channels_dir_variable_means_the_default_not_the_current_dir` pins
   the same `resolve_path` rule on its sibling variable.
 - Failure sources: an unwritable `$HOME`, a symlink where the directory should be, a missing `$HOME`
   entirely (which resolves to `/.local/state/pns`).

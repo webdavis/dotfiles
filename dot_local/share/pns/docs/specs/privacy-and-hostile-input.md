@@ -940,7 +940,7 @@ Then every value in it came from the test's own sandbox, never from the operator
   every new override had to be added here too or it would leak in silently"; it now states what a test
   keeps, "and a new override is excluded by default".
 - Thresholds: Not applicable.
-- Required side effects: `tests/support/mod.rs:Daemon::start` asserts the state directory starts with the
+- Required side effects: `tests/support/mod.rs:DaemonGuard::start` asserts the state directory starts with the
   sandbox root AND is not `$HOME/.local/state/pns`, because "a tick against the operator's real
   `~/.local/state/pns` would run their jobs, write their heartbeat and leave their spool drained".
 - Forbidden side effects: environment is NEVER set through `std::env::set_var`, "the test binary is
