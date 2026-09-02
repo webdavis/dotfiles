@@ -389,9 +389,13 @@
        machine. The marketplaces themselves are declared in the block below.
 
        `pns@pns` IS THIS REPO'S OWN, out of a marketplace deployed under
-       ~/.claude/pns-marketplace rather than fetched from anywhere. Installing it
-       is still one deliberate `claude plugin install pns@pns`, exactly like the
-       five above. --- */ -}}
+       ~/.claude/pns-marketplace rather than fetched from anywhere. Installing
+       it is still one deliberate command: `claude plugin install pns@pns`
+       fails on 2.1.257 with "Invalid channel" (the release-channel parser
+       takes the `@marketplace` suffix as a channel name), even though
+       `--help` still documents that `plugin@marketplace` spelling. The
+       WORKAROUND on 2.1.257 is the bare `claude plugin install pns`, which is
+       what worked on this machine on 2026-09-01. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"

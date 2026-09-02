@@ -76,6 +76,20 @@ report_line 'building the release binary'
 # binary is ever installed. Without the flag every apply compiles both.
 "$cargo_bin" build --release --locked --quiet --bin pns --manifest-path "$crate_dir/Cargo.toml"
 
+# The build above is unconditional and can reinstall a binary byte-identical
+# to what's already deployed (a deferred build bumps the retry marker above
+# and settles later, which fires this script again for a binary that never
+# changed), so only an ACTUAL change bounces the daemon: compare the freshly
+# built binary against what's currently deployed BEFORE installing. A missing
+# deployed binary (first install) counts as changed. The pns daemon writes no
+# pid file and a kill mid-tick is safe by design (no durable state, no
+# SIGTERM handler), so this does not need the atuin bounce script's pid-file
+# compare.
+binary_changed=1
+if [[ -f "$install_dir/pns" ]] && cmp -s "$crate_dir/target/release/pns" "$install_dir/pns"; then
+  binary_changed=0
+fi
+
 mkdir -p "$install_dir"
 # install(1) replaces the target through a temporary file and a rename
 # ("Temporary files are no longer optional", install(1) under -S), so a
@@ -85,6 +99,15 @@ mkdir -p "$install_dir"
 # reproducible in a unit test, and the man page is the evidence.
 /usr/bin/install -m 755 "$crate_dir/target/release/pns" "$install_dir/pns"
 report_line "installed $install_dir/pns"
+
+# 58 runs before 70 in chezmoi's ASCII script ordering, so on a first install
+# the LaunchAgent is not loaded yet: kickstart then fails with "Could not
+# find service" (exit 113), which this treats as "not loaded yet" and stays
+# quiet about, rather than as an error.
+if [[ $binary_changed == 1 ]] &&
+  launchctl kickstart -k "gui/$(id -u)/com.webdavis.pns-daemon" 2>/dev/null; then
+  report_line 'pns: daemon restarted on a new binary'
+fi
 
 rm -f "$retry_marker"
 {{ end -}}

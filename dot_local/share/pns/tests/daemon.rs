@@ -17,6 +17,13 @@ use support::{DaemonGuard, Sandbox, poll_until, run, stdout};
 /// A tick fast enough that a whole test costs a fraction of a second.
 const TICK_MS: u64 = 25;
 
+/// The floor `main.rs`'s `MIN_TICK_MS` accepts: below this the daemon
+/// silently falls back to its one-SECOND production default, which would
+/// make a test slower rather than faster. Used only by the two tests whose
+/// cost is `SWITCH_TICKS` or `CHILD_TICKS` (both 30) ticks deep, where
+/// `TICK_MS` costs 750 ms; at this floor the same wait is 300 ms.
+const FAST_TICK_MS: u64 = 10;
+
 fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -117,6 +124,15 @@ fn a_scheduled_job_runs_once_and_its_effect_is_observable() {
 #[test]
 fn a_repeating_job_keeps_firing_until_its_lease_runs_out_then_stops() {
     let sandbox = Sandbox::new("daemon-repeats-until-the-lease");
+    // STRUCTURAL, at ~5.4 s: the `--until +3` lease below (the comment there
+    // explains why +1 flaked), plus `every` at MIN_EVERY_SECS (1 s,
+    // daemon.rs: an epoch-second lease cannot lapse faster), plus a 1.2 s
+    // settle that has to outlast one `every` to prove firing really stopped.
+    // Three numbers add to the floor; the settle alone understates it by
+    // four seconds.
+    sandbox.allow_slow(
+        "a 3s lease, a 1s minimum `every`, and a 1.2s settle past one `every`: ~5.4s, not just the settle",
+    );
     sandbox.write_config(ONE_CHANNEL);
     count_fires(&sandbox);
     let scheduled = schedule(
@@ -224,7 +240,10 @@ fn a_hung_child_does_not_stall_the_tick_and_is_killed() {
         .status
         .success()
     );
-    let guard = DaemonGuard::start(&sandbox, TICK_MS);
+    // FAST_TICK_MS, not TICK_MS: the kill bound below is CHILD_TICKS (30)
+    // ticks deep, so the ordinary tick would cost 750 ms proving the same
+    // thing this floor proves in 300.
+    let guard = DaemonGuard::start(&sandbox, FAST_TICK_MS);
     let hung = poll_until(|| std::fs::read_to_string(sandbox.path("hung.ppid")).ok())
         .expect("the hung job never started");
 
@@ -277,8 +296,21 @@ fn process_lives(pid: &str) -> bool {
 fn the_daemon_does_not_write_a_log_line_per_tick() {
     let sandbox = Sandbox::new("daemon-does-not-chatter");
     let guard = DaemonGuard::start(&sandbox, TICK_MS);
-    // Many ticks, an empty spool, nothing to say.
-    std::thread::sleep(Duration::from_millis(TICK_MS * 40));
+    // FIRST, THE EVIDENCE A TICK HAPPENED AT ALL: "said nothing" is vacuous
+    // about a daemon that never got going, so wait for its own heartbeat
+    // (written every tick, main.rs) before sleeping through more of them.
+    assert!(
+        poll_until(|| sandbox
+            .state()
+            .join("daemon-heartbeat")
+            .exists()
+            .then_some(()))
+        .is_some(),
+        "the daemon never beat; it said: {}",
+        guard.said()
+    );
+    // THEN many more ticks, an empty spool, nothing to say.
+    std::thread::sleep(Duration::from_millis(TICK_MS * 8));
     assert_eq!(guard.said(), "", "an idle daemon must say nothing at all");
 }
 
@@ -626,7 +658,10 @@ fn turning_the_config_switch_off_stops_a_running_daemon() {
 enabled = true
 "
     ));
-    let mut guard = DaemonGuard::start(&sandbox, TICK_MS);
+    // FAST_TICK_MS, not TICK_MS: the switch is re-read every SWITCH_TICKS
+    // (30) ticks, so the ordinary tick would cost 750 ms proving the same
+    // thing this floor proves in 300.
+    let mut guard = DaemonGuard::start(&sandbox, FAST_TICK_MS);
     // Up and beating before the switch moves, so the exit below is the config
     // and not a daemon that never started.
     assert!(

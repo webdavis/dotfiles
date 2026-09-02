@@ -27,7 +27,22 @@ home="$scratch/home"
 marker="$home/.cache/pns-build/engine.retry"
 installed="$home/.local/libexec/pns/pns"
 
-run_script() { HOME="$home" "$script" >/dev/null 2>&1; }
+# The script kickstarts the pns LaunchAgent after installing a CHANGED binary,
+# and a sandboxed HOME does nothing to launchctl: without a stub on PATH this
+# test bounces the operator's live daemon on every run. The stub answers as an
+# unloaded label (exit 113, "Could not find service") and records the attempt.
+stubbin="$scratch/stubbin"
+kickstarts="$scratch/kickstarts"
+mkdir -p "$stubbin"
+: >"$kickstarts"
+cat >"$stubbin/launchctl" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$kickstarts"
+exit 113
+STUB
+chmod +x "$stubbin/launchctl"
+
+run_script() { HOME="$home" PATH="$stubbin:$PATH" "$script" >/dev/null 2>&1; }
 
 # --- no toolchain: nothing installed, and the trigger stays retryable ------
 mkdir -p "$home"
@@ -127,5 +142,16 @@ run_script || {
 }
 kill "$running" 2>/dev/null || true
 wait "$running" 2>/dev/null || true
+
+# --- only a CHANGED binary bounces the daemon ------------------------------
+# The installs above changed the deployed bytes twice (the first install, then
+# the bash stub giving way to /bin/sleep) and the last rebuild reinstalled
+# identical bytes, so exactly two kickstarts may have been attempted.
+attempts="$(wc -l <"$kickstarts" | tr -d ' ')"
+[[ $attempts -eq 2 ]] || {
+  printf 'the daemon is kickstarted once per changed binary and never for an identical reinstall; attempts: %s\n' \
+    "$attempts" >&2
+  exit 1
+}
 
 exit 0
