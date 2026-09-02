@@ -796,11 +796,11 @@ Then it calls `src/main.rs:schedule_lights_tick` with `ORDINARY_LEASE_SECS`.
 
 ### 21. A breath fills the interval, each fade leading the one before it
 
-Given a budget in milliseconds, a `[lights.<state>]` breath shape and a `Resume`,
+Given a budget in milliseconds, a cycle of `src/lights.rs:Leg`s and a `Resume`,
 
 When `src/lights.rs:breath_fades` runs,
 
-Then it lays out fades at `resume.first_due_ms + index * step_ms`, alternating between `low` and `high`, where `src/lights.rs:step_ms` is `duration_ms - FADE_LEAD_MS`, floored at 1.
+Then it walks the cycle from `resume.next_leg`, issuing the first fade at `resume.first_due_ms` and each one after it a step later, where the step is THAT LEG'S OWN `src/lights.rs:step_ms` (`duration_ms - FADE_LEAD_MS`, floored at 1).
 
 - Success: a schedule where every fade is issued strictly INSIDE the budget and the LAST one ends after
   it, so the lamp is still moving when the child exits.
@@ -810,8 +810,10 @@ Then it lays out fades at `resume.first_due_ms + index * step_ms`, alternating b
 - Fail direction: not the delivery path.
 - Thresholds: `src/lights.rs:FADE_LEAD_MS` = 50 milliseconds, operator-locked on a real lamp. The doc
   states plainly that nothing measured what a lead of zero looks like. Fade duration bounds are
-  `MIN_FADE_MS` = 200 to `MAX_FADE_MS` = 5000 (`src/config.rs`). Count is
-  `remaining_ms.div_ceil(step_ms)`, rounded UP.
+  `MIN_FADE_MS` = 200 to `MAX_FADE_MS` = 5000 (`src/config.rs`). There is no fade COUNT: the walk stops
+  at the first start that would fall at or past the budget, which is what lets a cycle whose legs differ
+  in duration contribute a shorter step at the short leg
+  (`src/lights.rs:the_accent_leads_the_fades_around_it_by_the_same_lead_every_other_fade_gets`).
 - Required side effects: `start_ms` is measured from the TICK's own start, never from the fade before it,
   because a per-fade delay accumulates every sleep's overshoot and the breath drifts past its interval.
 - Forbidden side effects: `src/main.rs:drive_breaths` checks the budget IMMEDIATELY BEFORE each write
