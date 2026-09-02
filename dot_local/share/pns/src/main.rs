@@ -7526,9 +7526,42 @@ fn read_answer() -> Result<String, String> {
     let mut typed = String::new();
     match std::io::stdin().read_line(&mut typed) {
         Ok(0) => Err("the answers ended before the walk did".to_string()),
-        Err(error) => Err(format!("the answers could not be read: {error}")),
+        Err(error) => Err(read_failure(&error, reading_from_the_background())),
         Ok(_) => Ok(answered(&typed)),
     }
+}
+
+/// Whether stdin's terminal is currently owned by some OTHER process group.
+///
+/// A FAILED `tcgetpgrp` IS NOT THIS CASE: a terminal that hung up answers -1
+/// as well, and a read that failed on a dead terminal really did fail for its
+/// own reason. A zero is no foreground group at all, which is not this either.
+fn reading_from_the_background() -> bool {
+    let foreground = unsafe { libc::tcgetpgrp(libc::STDIN_FILENO) };
+    foreground > 0 && foreground != unsafe { libc::getpgrp() }
+}
+
+/// Why a read failed, in terms the operator can act on.
+///
+/// EIO FROM A BACKGROUND JOB IS NOT AN I/O FAULT, it is job control. The
+/// hidden read blocks SIGTTIN, which is the set `readpassphrase(3)` holds and
+/// what stops a suspension from stranding the terminal echo-off. termios(4)
+/// names the trade directly: a background process that blocks or ignores
+/// SIGTTIN gets `EIO` from the read "and no signal is sent", where an
+/// unblocked one would have been stopped and could be resumed with `fg`.
+///
+/// Passed straight through, `pns setup &` therefore refuses with "Input/output
+/// error", which names the symptom and hides the only thing the operator can
+/// do about it. BOTH HALVES ARE REQUIRED: a bare EIO on a hung-up terminal is
+/// a real failure, and a non-EIO error from the background (a non-UTF-8 paste,
+/// say) still has its own honest reason to give.
+fn read_failure(error: &std::io::Error, in_background: bool) -> String {
+    if in_background && error.raw_os_error() == Some(libc::EIO) {
+        return "this walk cannot read the terminal from the background; \
+                bring it to the foreground with fg"
+            .to_string();
+    }
+    format!("the answers could not be read: {error}")
 }
 
 /// Turns the terminal's echo off for as long as it lives. `Drop` restores
@@ -8177,11 +8210,11 @@ mod tests {
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
         STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
         end_lease, held_lamps, keep_aside, keep_aside_at, lights_report, list, matches_glob,
-        means_yes, muted_state, publish_config, publish_state_line, read_news, read_note,
-        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
-        say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
-        sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
+        means_yes, muted_state, publish_config, publish_state_line, read_failure, read_news,
+        read_note, recap_bounds, record_news, renew_loop_lease, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, router_backend, run_pulse_writes,
+        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
+        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -10107,6 +10140,36 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&path).expect("the config"),
             "# composed\n"
+        );
+    }
+
+    #[test]
+    fn a_background_read_names_job_control_rather_than_an_io_fault() {
+        // TERMIOS(4): a background process that BLOCKS SIGTTIN, which the
+        // hidden read does, gets EIO from the read "and no signal is sent",
+        // where an unblocked one would have stopped and could be resumed.
+        // Passed through raw, `pns setup &` blames an I/O fault for what is
+        // job control, and hides the one thing the operator can do about it.
+        let eio = std::io::Error::from_raw_os_error(libc::EIO);
+        assert!(
+            read_failure(&eio, true).contains("bring it to the foreground with fg"),
+            "a backgrounded walk was not told why the terminal cannot be read"
+        );
+        // A HUNG-UP TERMINAL ANSWERS EIO TOO, and that read really did fail
+        // for its own reason rather than for job control.
+        assert!(
+            read_failure(&eio, false).contains("the answers could not be read"),
+            "an EIO in the foreground was blamed on job control"
+        );
+        // AND A BACKGROUND JOB'S OTHER FAILURES KEEP THEIR OWN REASON: a
+        // non-UTF-8 paste still has to say that is what happened.
+        let other = std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        );
+        assert!(
+            read_failure(&other, true).contains("valid UTF-8"),
+            "a background job's real read failure was replaced by the job-control line"
         );
     }
 
