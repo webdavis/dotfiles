@@ -4785,14 +4785,32 @@ fn sweep_leases(state: &Path, now: u64, timeout_secs: u64) -> Vec<u64> {
 ///
 /// A MARKER ALREADY NAMED FOR THE WORKING GRAMMAR IS A RESIDUAL, not a case
 /// this handles: `pane_file_is_safe` and `session_id_is_safe` refuse a NEW id
-/// shaped `<x>.new.<pid>`, but a marker written under one before that guard
-/// existed is read here as that pid's own working file (`owner_is_gone`
-/// judges it, never `marker_is_live`), and is swept only once the pid is
-/// gone, never for pid 1. No id this crate's own callers produce can spell
-/// that shape (a UUID session id and a `wW:p21` pane cannot), so the operator
-/// check is `ls ~/.local/state/pns/lights-blocked ~/.local/state/pns/lights-loop`
-/// for a name ending `.new.<digits>`, removed by hand; this sweep is not
-/// weakened to reach it.
+/// `working_owner` would read as a working file, but a marker written under one
+/// before that guard existed is read here as that pid's own working file
+/// (`owner_is_gone` judges it, never `marker_is_live`), so it neither lights a
+/// lamp nor ages out. No id this crate's own callers produce can spell the
+/// shape (a UUID session id and a `wW:p21` pane cannot).
+///
+/// THE SHAPE IS `working_owner`'S, NOT `.new.<digits>` ALONE, which is what the
+/// operator check has to match: the RIGHTMOST of `.new.` and `.sweep.` decides,
+/// so `s.sweep.7` and a mixed `a.new.b.sweep.1` are residuals exactly as
+/// `s.new.4321` is, and `a.new.b` (no pid after the last marker) is an ordinary
+/// marker that sweeps normally. The check is therefore
+/// `ls ~/.local/state/pns/lights-blocked ~/.local/state/pns/lights-loop` for any
+/// name whose last `.new.` or `.sweep.` is followed by digits alone, removed by
+/// hand.
+///
+/// AND THE SWEEP IS NOT WEAKENED TO REACH IT, which is a statement about this
+/// function rather than a claim that the residual gets collected: while the pid
+/// in the name belongs to a LIVE process it is never swept at all, and pid 1 is
+/// launchd, so that name in particular is permanent until the operator removes
+/// it. A code fix was weighed and refused. Sweeping a working file whose owner
+/// is alive is the one thing this must never do, because it unlinks a publish
+/// caught between its open and its rename and loses a wait with the agent still
+/// waiting; and moving working files to a directory of their own is a state
+/// layout migration that leaves the same legacy names behind at the other end.
+/// The residual costs one stale file per legacy name and never grows, which is
+/// less than either fix.
 fn sweep_markers(directory: &Path, now: u64, max_age_secs: u64) -> Vec<u64> {
     let mut live = Vec::new();
     for entry in std::fs::read_dir(directory).into_iter().flatten().flatten() {
