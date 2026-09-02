@@ -419,7 +419,7 @@ and the oil.nvim project-file sync both fail with "xcp tool not found".
 
 Lane: standalone. Depends on: PR 2. Brief: `brief-nvim-checker-off.md`. Closes 46 (checker).
 
-- [ ] **Step 1:** `lua/config/lazy.lua:48` `checker.enabled = false`. Commit: `chore(nvim): turn the
+- [ ] **Step 1:** `lua/config/lazy.lua:49` `checker.enabled = false`. Commit: `chore(nvim): turn the
   lazy update checker off`.
 - [ ] **Step 2:** Gates G1 to G6; G4 unchanged. No test: config only.
 
@@ -430,7 +430,7 @@ Closes 47, 53.
 
 **Files:** Delete `lazyvim.json`. Modify `lua/config/autocmds.lua` (`lazyvim_` to `nvim_config_`,
 `lazyvim_last_loc` to `nvim_config_last_loc`), `lua/plugins/which-key.lua` (`<leader>L` group
-"lazy"), the `<leader>L` descs ("LazyVim: …" to "Lazy: …").
+"lazy"), `lua/config/keymaps.lua` (the `<leader>L` descs, "LazyVim: …" to "Lazy: …").
 
 - [ ] **Step 1:** two commits: `refactor(nvim): rename the lazyvim augroups and drop lazyvim.json`,
   `refactor(nvim): rename the <leader>L group to lazy`.
