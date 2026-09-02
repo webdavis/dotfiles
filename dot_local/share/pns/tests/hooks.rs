@@ -2035,10 +2035,11 @@ fn a_transcript_that_never_ends_is_not_read_at_all() {
             .success()
     );
     for path in ["/dev/zero".to_string(), fifo.display().to_string()] {
-        // ONE ATTEMPT, not the default four: the property under test is that
-        // a non-regular transcript never holds the hook open at all, not how
-        // many times the reread loop retries an empty reply, so the retry
-        // count is not what this pins.
+        // ONE REREAD, not the default four extra rereads after the first
+        // read: the property under test is that a non-regular transcript
+        // never holds the hook open at all, not how many times the reread
+        // loop retries an empty reply, so the retry count is not what this
+        // pins.
         let mut command = sandbox.pns();
         command.env("PNS_REPLY_REREAD_ATTEMPTS", "1");
         let mut child = spawn_hook(command, "stop");
@@ -2558,7 +2559,7 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     std::fs::create_dir_all(&bin).expect("stub bin");
     // THE MARKER IS BACKDATED RATHER THAN WAITED PAST: the condenser stub
     // re-dates it ten seconds into the past the instant it runs, so the
-    // dispatch-time read is already older than the one-second desk reading
+    // dispatch-time read is already older than the two-second desk reading
     // without this test spending any real time getting there.
     write_script(
         &bin.join("codex"),
