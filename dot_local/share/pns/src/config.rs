@@ -274,26 +274,26 @@ const DEFAULT_REFRESH_SECS: u64 = 12;
 /// pile of children rather than a faster lamp.
 const MIN_REFRESH_SECS: u64 = 10;
 
-/// And the ceiling: THE LONGEST A TICK'S CHILD IS ALLOWED TO LIVE.
+/// And the ceiling: THE LONGEST INTERVAL A BREATHING LAMP MAY BE GIVEN.
 ///
-/// THIRTY, AND IT IS THE DAEMON'S OWN BOUND read back rather than a round
-/// number. The daemon kills a job's child after `CHILD_TICKS` of its own tick
-/// (thirty, at the production tick of one second), and a breathing tick now
-/// SLEEPS for most of its interval issuing fades. So an interval past that is an
-/// interval whose breath is cut off part way through with nothing said anywhere:
-/// the lamp freezes at whatever brightness the last fade reached and sits there
-/// until the next tick. Refusing the interval at load is what keeps the two
-/// numbers from disagreeing silently.
+/// THE DAEMON'S CHILD BOUND IS DERIVED FROM THIS NUMBER, not the other way
+/// round, and that direction is deliberate. A breathing tick sleeps for almost
+/// all of its interval issuing fades, so the interval is the longest part of
+/// what a child has to do; `child_bound` in the daemon adds the one write that
+/// can still be in flight when the interval ends and the reap tick that
+/// notices the child afterwards. Reading the dependency the other way had the
+/// supported thirty-second refresh equal to a thirty-second child, which killed
+/// a legal last write before the tick could record where it landed.
 ///
-/// IT IS ALSO UNDER THE ORDINARY LEASE, which the old ceiling was: the tick is
-/// registered with `until` at least as far as its own first due second, so a
-/// refresh longer than that lease would EXTEND it, and the two lease lengths
-/// would stop being the fixed numbers they are documented as.
+/// IT IS ALSO UNDER THE ORDINARY LEASE: the tick is registered with `until` at
+/// least as far as its own first due second, so a refresh longer than that
+/// lease would EXTEND it, and the two lease lengths would stop being the fixed
+/// numbers they are documented as.
 ///
 /// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds seven full cycles of the
 /// locked blocked shape and three of the slow one, so nothing an operator would
 /// want is out of reach above it.
-const MAX_REFRESH_SECS: u64 = 30;
+pub const MAX_REFRESH_SECS: u64 = 30;
 
 /// The five locked shapes. EVERY NUMBER HERE WAS SET ON A REAL LAMP under the
 /// operator's observe-adjust-lock protocol (2026-08-31 and 2026-09-01), so a

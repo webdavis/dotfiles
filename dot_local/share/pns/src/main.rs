@@ -6283,7 +6283,7 @@ fn fire(
             children.push(Bounded {
                 id: job.id.clone(),
                 child,
-                expires_at: std::time::Instant::now() + tick * CHILD_TICKS,
+                expires_at: std::time::Instant::now() + child_bound(tick, &job.id),
             });
         }
         Err(error) => eprintln!("pns daemon: `{}` could not start ({error})", job.id),
@@ -6372,14 +6372,49 @@ fn kill_group(pid: u32) {
     unsafe { libc::kill(-pid, libc::SIGKILL) };
 }
 
-/// How many ticks a spawned job may run before it is killed.
+/// How many ticks a spawned job may run before it is killed, as a FLOOR.
 ///
 /// THIRTY, so the bound moves with the tick and there is ONE knob rather than
 /// two. In production that is thirty seconds, which is generous for the event
-/// dispatch these children are: every channel inside one already carries its
-/// own deadline, so a child still alive at this point is wedged rather than
-/// slow.
+/// dispatch most of these children are: every channel inside one already
+/// carries its own deadline, so a child still alive at this point is wedged
+/// rather than slow. The LIGHTS tick is the exception, and `child_bound` is
+/// where its own arithmetic lives.
 const CHILD_TICKS: u32 = 30;
+
+/// How long a spawned job may actually run before it is killed.
+///
+/// THE LIGHTS TICK IS THE ONE JOB WHOSE WORK IS AN INTERVAL, and it is named
+/// here rather than generalised over every repeat. Every other child is an
+/// event delivery whose channels each carry their own deadline, so one still
+/// alive at `CHILD_TICKS` is wedged rather than slow and the tick-scaled bound
+/// is exactly right for it. Widening the floor to all of them would only make a
+/// wedged delivery take longer to kill.
+///
+/// THE TICK'S OWN ARITHMETIC, STATED: the longest interval it can be given
+/// (`MAX_REFRESH_SECS`, thirty seconds), plus the longest a single write may
+/// take at that interval (`tick_bridge_deadline`, a fifth of it, so six), plus
+/// one reap tick, because a child is only noticed as gone on the pass after it
+/// exits. Thirty-seven seconds at the production clock.
+///
+/// WHY IT IS NOT `CHILD_TICKS` ALONE: that made the tick's child life equal to
+/// the longest interval a tick can be given, and a seamless breath issues its
+/// last fade strictly INSIDE that interval and lets it finish after. At a
+/// thirty-second refresh with 749ms spent resolving, the last write starts at
+/// child time 29,999ms and its legal six-second reply was killed before the
+/// tick could record where the lamp landed, leaving the next tick to resume
+/// from a phase nothing had written. `max` keeps the tick-scaled bound wherever
+/// it is the larger of the two, so a deliberately slow clock still gets the
+/// generous child it always had.
+fn child_bound(tick: Duration, id: &str) -> Duration {
+    if id != LIGHTS_JOB {
+        return tick * CHILD_TICKS;
+    }
+    let one_lights_tick = Duration::from_secs(pns::config::MAX_REFRESH_SECS)
+        + tick_bridge_deadline(pns::config::MAX_REFRESH_SECS)
+        + tick;
+    (tick * CHILD_TICKS).max(one_lights_tick)
+}
 
 /// How many ticks pass between two reads of the config's own switch.
 ///
@@ -8312,14 +8347,15 @@ impl Bridge for UreqBridge {
 mod tests {
     use super::{
         Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
-        LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
-        end_lease, held_lamps, keep_aside, lights_report, list, matches_glob, means_yes,
-        muted_state, now_secs, publish_config, publish_state_line, read_held, read_news, read_note,
-        recap_bounds, record_news, remember_held, renew_loop_lease, republish_after,
-        reread_attempts_from, reread_interval_from, resolve_path, router_backend, run_pulse_writes,
-        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
-        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
+        LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS,
+        MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
+        blocked_lamp, child_bound, drive_breaths, end_lease, held_lamps, keep_aside, lights_report,
+        list, matches_glob, means_yes, muted_state, now_secs, publish_config, publish_state_line,
+        read_held, read_news, read_note, recap_bounds, record_news, remember_held,
+        renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
+        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
+        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
+        tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -8891,6 +8927,37 @@ mod tests {
                 .iter()
                 .any(|said| said.contains("the held record could not be written")),
             "and the tick says so rather than carrying on quietly: {complaints:?}"
+        );
+    }
+
+    #[test]
+    fn a_child_outlives_the_longest_interval_plus_the_write_and_the_reap_that_follow_it() {
+        // THE SEAMLESS BREATH ISSUES ITS LAST FADE INSIDE THE BUDGET AND LETS
+        // IT FINISH AFTER, so a tick's child is alive for its whole interval,
+        // then for however long that last write takes, and it is only noticed
+        // as gone on the reap tick after that. Bounded at the interval alone,
+        // the supported thirty-second refresh equalled a thirty-second child,
+        // and a legal last write was killed before the tick could record where
+        // its breath had landed.
+        assert_eq!(
+            child_bound(Duration::from_secs(1), LIGHTS_JOB),
+            Duration::from_secs(37),
+            "at the production clock: thirty seconds of interval, the six-second \
+             write deadline that ceiling implies, and one reap tick"
+        );
+        assert_eq!(
+            child_bound(Duration::from_secs(60), LIGHTS_JOB),
+            Duration::from_secs(1800),
+            "and a slow clock keeps the tick-scaled bound, which is the larger of \
+             the two there"
+        );
+        // AND NO OTHER JOB IS WIDENED BY IT. An event delivery's channels each
+        // carry their own deadline, so one still alive at `CHILD_TICKS` is
+        // wedged; giving it thirty-seven seconds would only delay the kill.
+        assert_eq!(
+            child_bound(Duration::from_millis(10), "nag:a-session"),
+            Duration::from_millis(300),
+            "every job but the lights tick keeps the tick-scaled bound exactly"
         );
     }
 
