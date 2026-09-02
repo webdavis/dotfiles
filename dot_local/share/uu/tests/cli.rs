@@ -80,6 +80,16 @@ impl Home {
         self.with_config(&text)
     }
 
+    /// An executable shell script written into the scratch HOME, for a
+    /// command lane's `run` (or `[alerts]`'s `binary`) to point at.
+    fn write_stub(&self, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let stub = self.dir.join(name);
+        std::fs::write(&stub, format!("#!/bin/sh\n{body}")).expect("stub");
+        std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).expect("mode");
+        stub
+    }
+
     fn uu(&self, args: &[&str]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_uu"))
             .args(args)
@@ -254,6 +264,64 @@ fn the_marker_stamps_when_the_run_finished_and_not_when_it_started() {
     assert!(
         stamped > began,
         "the marker stamped {stamped}, which is not after the second the lane began in ({began})"
+    );
+}
+
+// --- the command lane -------------------------------------------------------
+
+#[test]
+fn a_command_lane_runs_end_to_end_and_the_record_carries_what_it_printed() {
+    let home = Home::new("command-lane");
+    let stub = home.write_stub("updater", "cat >\"$HOME/event\"; printf '3 upgraded\\n'\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        stub.display()
+    ));
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let event = std::fs::read_to_string(home.dir.join("event")).expect("the event file");
+    assert!(event.contains("\"lane\":\"mine\""), "{event}");
+    assert!(
+        stdout(&output).contains("3 upgraded"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn a_failed_command_lane_alerts_through_the_configured_engine() {
+    let home = Home::new("command-lane-failed");
+    let stub = home.write_stub("updater", "cat >/dev/null; exit 1\n");
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let args = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert!(args.contains("--state failed"), "{args}");
+    assert!(args.contains("mine"), "{args}");
+}
+
+#[test]
+fn the_doctor_lists_a_command_lane_with_its_program_resolved() {
+    let home = Home::new("command-lane-doctor");
+    let stub = home.write_stub("updater", "exit 0\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\", \"--yes\"]\n",
+        stub.display()
+    ));
+    let output = home.uu(&["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        stdout(&output).contains("lane mine: on (command)"),
+        "{output:?}"
+    );
+    assert!(
+        stdout(&output).contains(&format!("found at {}", stub.display())),
+        "{output:?}"
     );
 }
 

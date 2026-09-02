@@ -18,13 +18,13 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use pns::channels::hermes::{SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 use unattended_upgrades::alert::{Alerter, alert_argv, alert_summary};
 use unattended_upgrades::config::{
-    Config, ConfigError, LANE_TYPES, LoadOutcome, Records, config_path, load_config,
+    Config, ConfigError, LANE_TYPES, LaneKind, LoadOutcome, Records, config_path, load_config,
 };
 use unattended_upgrades::lanes::{
     CommandRunner, LaneReport, Ran, enabled_lanes, failure_reason, run_lane,
 };
 use unattended_upgrades::record::{
-    AGENT, Marker, gap_line, marker_contents, parse_marker, record_body, record_detail,
+    AGENT, Marker, RunFacts, gap_line, marker_contents, parse_marker, record_body, record_detail,
     record_state,
 };
 use unattended_upgrades::schedule::{DEFAULT_LABEL, render_plist};
@@ -110,12 +110,17 @@ fn run_mode(only: Option<&str>) -> i32 {
     // that cannot be read renders as the epoch itself, which is a date no
     // reader mistakes for a real one.
     let started = now_epoch().unwrap_or(0);
+    let started_iso = iso(started);
     let marker_path = marker_path(&home);
-    let gap = gap_line(
-        &read_marker(&marker_path),
-        &marker_path.display().to_string(),
-        started,
-    );
+    let marker = read_marker(&marker_path);
+    let gap = gap_line(&marker, &marker_path.display().to_string(), started);
+    let host_name = host();
+    let facts = RunFacts {
+        host: &host_name,
+        started_epoch: started,
+        started_iso: &started_iso,
+        marker: &marker,
+    };
 
     let runner = SystemRunner;
     let mut reports: Vec<LaneReport> = Vec::new();
@@ -125,7 +130,7 @@ fn run_mode(only: Option<&str>) -> i32 {
         }
         // CONTINUE ON FAILURE: nothing here inspects the report before moving
         // to the next lane.
-        if let Some(report) = run_lane(name, &config, &runner) {
+        if let Some(report) = run_lane(name, &config, &facts, &runner) {
             reports.push(report);
         }
     }
@@ -224,6 +229,18 @@ fn doctor_mode() -> i32 {
     } else {
         for (name, kind) in &config.lanes {
             println!("uu: lane {name}: on ({})", kind.type_name());
+            if let LaneKind::Command(command) = kind {
+                let program = &command.run[0];
+                let reachable = match resolve(program) {
+                    Some(found) => format!("found at {}", found.display()),
+                    None => "NOT FOUND; this lane will fail and alert every week".to_string(),
+                };
+                println!(
+                    "uu: lane {name}: program `{program}`, {reachable} (doctor resolves on \
+                     this shell's PATH; the weekly run uses the plist's own PATH, which can \
+                     differ)"
+                );
+            }
         }
     }
     match config.records.as_ref() {
