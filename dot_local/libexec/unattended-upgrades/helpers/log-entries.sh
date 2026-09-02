@@ -1,11 +1,17 @@
 # shellcheck shell=bash
-# unattended-log-lib.sh, the shared entry shape for the weekly UNATTENDED jobs
-# (update-skills.sh and homebrew-weekly-upgrade.sh). Sourced, never executed, so
-# it carries no shebang and no executable bit, exactly like macos-defaults-lib.sh
-# beside it. Each caller sources it as
-#   source "$(dirname "${BASH_SOURCE[0]}")/unattended-log-lib.sh"
-# which resolves in BOTH the chezmoi source tree (dot_local/bin/) and the applied
-# ~/.local/bin/ layout, because this file carries no executable_ or dot_ prefix.
+# log-entries.sh, the shared entry shape for the weekly UNATTENDED jobs. THREE
+# callers source it: homebrew-weekly-upgrade.sh beside this helpers/ directory,
+# and agent-skills/update-skills.sh and claude/report-plugin-updates.sh one
+# level down. (uu, the fourth weekly job, is a standalone Rust binary and shares
+# none of this.) Sourced, never executed, so it carries no shebang and no
+# executable bit, the same shape as macos-defaults/helpers/defaults-records.sh
+# in the sibling tree. Each caller sources it by relative path,
+#   source "$(dirname "${BASH_SOURCE[0]}")/helpers/log-entries.sh"      # or
+#   source "$(dirname "${BASH_SOURCE[0]}")/../helpers/log-entries.sh"
+# which resolves in BOTH the chezmoi source tree
+# (dot_local/libexec/unattended-upgrades/helpers/) and the applied
+# ~/.local/libexec/unattended-upgrades/helpers/ layout, because this file
+# carries no executable_ or dot_ prefix.
 #
 # WHAT THIS IS FOR. The weekly jobs upgrade things unattended. When a machine
 # later misbehaves there is nothing to investigate against, because a clean week
@@ -39,9 +45,10 @@
 # fields on one line: "<epoch-seconds> <iso-8601-utc>". The epoch is what the gap
 # arithmetic uses, so nothing ever has to PARSE a timestamp back. That matters
 # here: BSD date (the macOS host and the CI runner) needs
-# `date -j -f <format>` while GNU date needs `date -d`, and the flake devshell
-# and the host disagree about which one `date` is. Storing the number removes the
-# question. The ISO field is for the human reading the entry.
+# `date -j -f <format>` while GNU date needs `date -d`, and both are on this
+# machine, since the toolchain installs coreutils and its GNU `gdate` sits
+# beside the system BSD `date`. Storing the number removes the question. The ISO
+# field is for the human reading the entry.
 #
 # NOTHING HERE IS EVER SILENT. A missing marker, an unparseable marker, an
 # unwritable guard, an absent pns.sh: each produces a stated line. A quiet
