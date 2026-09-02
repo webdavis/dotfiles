@@ -165,6 +165,14 @@ test-rust:
   cargo fmt --check --manifest-path dot_local/share/uu/Cargo.toml
   cargo clippy --locked --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
 
+# The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
+# `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. This is
+# the focused-iteration entry point; test/unit/nvim-custom-api.bats spawns the
+# same runner one spec at a time, so `just test-unit` already covers it and
+# `test` does not depend on this recipe.
+test-nvim:
+  nvim --headless --clean -l dot_config/nvim/tests/run.lua
+
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,
 # test/integration, test/e2e, test/test-system); suite *.sh must be executable;
