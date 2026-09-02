@@ -1340,6 +1340,51 @@ mod tests {
     }
 
     #[test]
+    fn a_secret_holding_a_quote_and_a_backslash_round_trips_through_the_totoml_stub() {
+        // WHAT `toToml` ACTUALLY EMITS for the byte sequence `a"b\c`, per the
+        // sol-1 probe table: `"a\"b\\c"`. The stub stands in for chezmoi
+        // having already run `| toToml` on the vault value, so it is handed
+        // that exact TOML text rather than the raw secret.
+        let mut mobile = toml::Table::new();
+        mobile.insert(
+            "token".to_string(),
+            secret("Quote Backslash Secret", "Password"),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a secret marker renders");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"a\\\"b\\\\c\"");
+        let config =
+            parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
+        assert_eq!(
+            config.plugins["mobile"].settings["token"].as_str(),
+            Some("a\"b\\c")
+        );
+    }
+
+    #[test]
+    fn a_plain_secret_round_trips_through_the_totoml_stub_too() {
+        let mut mobile = toml::Table::new();
+        mobile.insert("token".to_string(), secret("Plain Secret", "Password"));
+        let mut plugins = toml::Table::new();
+        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a secret marker renders");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"plain\"");
+        let config =
+            parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
+        assert_eq!(
+            config.plugins["mobile"].settings["token"].as_str(),
+            Some("plain")
+        );
+    }
+
+    #[test]
     fn a_secret_tables_unknown_member_is_named_rather_than_only_counted() {
         // `table.len() != 2` ALONE only counts members, so `{ keepassxc,
         // field, typo }` reports the pair-count rule and never says which
