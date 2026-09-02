@@ -91,10 +91,27 @@ impl Pty {
                     // rather than setting errno.
                     return Err(std::io::Error::from_raw_os_error(masked));
                 }
-                for signal in [libc::SIGINT, libc::SIGALRM] {
+                for signal in [
+                    libc::SIGINT,
+                    libc::SIGALRM,
+                    libc::SIGTERM,
+                    libc::SIGQUIT,
+                    libc::SIGHUP,
+                ] {
                     if libc::signal(signal, libc::SIG_DFL) == libc::SIG_ERR {
                         return Err(std::io::Error::last_os_error());
                     }
+                }
+                // NO CORE FILES FROM A TEST: SIGQUIT's default action dumps
+                // one, and a suite that scatters cores across a machine
+                // whose `ulimit -c` happens to be unset is a side effect
+                // nobody asked this test for.
+                let no_cores = libc::rlimit {
+                    rlim_cur: 0,
+                    rlim_max: 0,
+                };
+                if libc::setrlimit(libc::RLIMIT_CORE, &no_cores) < 0 {
+                    return Err(std::io::Error::last_os_error());
                 }
                 for target in [0, 1, 2] {
                     if libc::dup2(slave, target) < 0 {
@@ -421,14 +438,18 @@ fn a_signal_sent_during_the_hidden_read_is_held_until_the_guard_drops() {
     // and there is no moment of delivery to observe. Both are reviewed
     // rather than pinned.
     //
-    // SIGALRM RIDES THE SAME WALK: it is the other signal `readpassphrase(3)`
-    // holds that an ordinary kill can deliver, and an alarm landing mid-read
-    // would otherwise end the process before `Drop` ever restored echo.
+    // EVERY SIGNAL A PLAIN `kill` CAN DELIVER RIDES THE SAME WALK. Five of
+    // the nine end the process by default and are observable this way, so
+    // dropping any one of them from the guard's array is caught here rather
+    // than only by review.
     use std::os::unix::process::ExitStatusExt;
 
     for (name, signal) in [
         ("setup-signal-pending-interrupt", libc::SIGINT),
         ("setup-signal-pending-alarm", libc::SIGALRM),
+        ("setup-signal-pending-terminate", libc::SIGTERM),
+        ("setup-signal-pending-quit", libc::SIGQUIT),
+        ("setup-signal-pending-hangup", libc::SIGHUP),
     ] {
         let sandbox = Sandbox::without_config(name);
         let mut pty = Pty::open();

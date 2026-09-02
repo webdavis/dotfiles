@@ -7509,10 +7509,11 @@ fn ask(question: &str) -> Result<String, String> {
 /// that client transiently, ahead of the terminal's own echo state. Nothing
 /// here controls that.
 ///
-/// Ctrl-C, Ctrl-\, Ctrl-Z, and a TERM or HUP are all held for the read rather
-/// than answered immediately, the same trade `readpassphrase(3)` makes: each
-/// is still delivered, just not until the guard drops, so Ctrl-C takes effect
-/// at the next Enter rather than instantly.
+/// Ctrl-C, Ctrl-\, Ctrl-Z, a TERM or HUP, an alarm, and the two tty-stop
+/// signals a backgrounded read raises are all held for the read rather than
+/// answered immediately, the same trade `readpassphrase(3)` makes: each is
+/// still delivered, just not until the guard drops, so Ctrl-C takes effect at
+/// the next Enter rather than instantly.
 fn ask_hidden(question: &str) -> Result<String, String> {
     let _hushed = Hushed::arm()?;
     print!("{question}: ");
