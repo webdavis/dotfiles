@@ -1050,6 +1050,10 @@ mod tests {
                 "the run event\n",
             )
             .expect("the child ran, it just deferred");
+        // A mutant that blanks stdout ONLY on the deferred path (leaving the
+        // clean and failed paths alone) would satisfy every other assertion
+        // here, since none of them look at `ran.stdout` at all.
+        assert_eq!(ran.stdout, "nothing was attempted\n");
         let Verdict::Deferred(reason) = ran.verdict else {
             panic!("exit 75 is a deferral, not {:?}", ran.verdict);
         };

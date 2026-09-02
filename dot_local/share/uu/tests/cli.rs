@@ -232,6 +232,11 @@ fn a_deferred_command_lane_leaves_the_marker_unmoved_even_with_zero_failures() {
         !record.contains("mine: 0 failure(s)"),
         "a deferral must not read as a clean lane: {record}"
     );
+    // The child's own STDOUT and STDERR text, not just the word "deferred":
+    // a mutant that blanks stdout on this path, or replaces the deferred
+    // reason with a fixed string, would still satisfy every assertion above.
+    assert!(record.contains("nothing was attempted"), "{record}");
+    assert!(record.contains("another run holds the lock"), "{record}");
     assert!(
         !home.marker().exists(),
         "a deferred lane did no work and must not advance the marker: {output:?}"

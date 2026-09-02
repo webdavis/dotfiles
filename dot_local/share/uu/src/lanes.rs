@@ -342,6 +342,12 @@ mod tests {
     struct ScriptedRunner {
         failing: Vec<Vec<String>>,
         deferring: Vec<Vec<String>>,
+        /// A deferral whose REASON TEXT is the test's own choice, checked
+        /// before `deferring`'s fixed "exit 75": proves `run_command` carries
+        /// `Verdict::Deferred`'s own text through rather than a fixed string
+        /// of its own, which a call keyed only by `deferring` cannot, since
+        /// every one of those already answers the identical "exit 75".
+        deferring_because: Vec<(Vec<String>, String)>,
         unrunnable: Vec<Vec<String>>,
         stdout: String,
         calls: RefCell<Vec<Vec<String>>>,
@@ -356,6 +362,7 @@ mod tests {
                     .map(|call| call.iter().map(|word| word.to_string()).collect())
                     .collect(),
                 deferring: Vec::new(),
+                deferring_because: Vec::new(),
                 unrunnable: Vec::new(),
                 stdout: String::new(),
                 calls: RefCell::new(Vec::new()),
@@ -373,6 +380,16 @@ mod tests {
         fn deferring(mut self, call: &[&str]) -> Self {
             self.deferring
                 .push(call.iter().map(|word| word.to_string()).collect());
+            self
+        }
+
+        /// The same deferral, with a reason unique to the call rather than
+        /// `deferring`'s fixed "exit 75".
+        fn deferring_because(mut self, call: &[&str], reason: &str) -> Self {
+            self.deferring_because.push((
+                call.iter().map(|word| word.to_string()).collect(),
+                reason.to_string(),
+            ));
             self
         }
 
@@ -417,7 +434,11 @@ mod tests {
             if self.unrunnable.contains(&call) {
                 return Err(format!("could not run {program}: stubbed as unrunnable"));
             }
-            let verdict = if self.deferring.contains(&call) {
+            let verdict = if let Some((_, reason)) =
+                self.deferring_because.iter().find(|(key, _)| key == &call)
+            {
+                Verdict::Deferred(reason.clone())
+            } else if self.deferring.contains(&call) {
                 Verdict::Deferred("exit 75".to_string())
             } else if self.failing.contains(&call) {
                 Verdict::Failed("exit 1".to_string())
@@ -1016,6 +1037,28 @@ mod tests {
         let report = run_command("mine", &lane, &stub_facts(), &runner);
         assert!(
             report.lines.iter().any(|line| line.contains("exit 75")),
+            "{:?}",
+            report.lines
+        );
+    }
+
+    #[test]
+    fn a_deferred_lines_reason_is_the_childs_own_text_not_a_fixed_string() {
+        // A mutant that hardcodes the deferred line's reason regardless of
+        // what `Verdict::Deferred` actually carries would still satisfy
+        // every OTHER deferred-lane test here: they all defer through
+        // `deferring`, whose stub reason is itself the fixed "exit 75". A
+        // reason unique to THIS call is the only way to tell the two apart.
+        let program = "/usr/local/bin/updater";
+        let runner =
+            ScriptedRunner::new(&[]).deferring_because(&[program], "UNIQUE-DEFER-REASON-42");
+        let lane = command_lane(&[program]);
+        let report = run_command("mine", &lane, &stub_facts(), &runner);
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|line| line.contains("UNIQUE-DEFER-REASON-42")),
             "{:?}",
             report.lines
         );
