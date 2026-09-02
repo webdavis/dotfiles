@@ -630,6 +630,13 @@ impl<R: CommandRunner + Send + Sync + 'static> crate::probes::ProbeStart for Sys
     fn start(&self, wants: crate::probes::Wants) {
         if wants.desk && self.idle.get().is_none() && self.desk_handle_absent() {
             let runner = Arc::clone(&self.runner);
+            // CAPTURED BEFORE THE SPAWN, not read from inside the thread: a
+            // caller that already read the lock inline (nothing in
+            // production does, but nothing forbade it either) filled
+            // `screen_locked` before `start` ever ran, and the thread must
+            // not run `ioreg -n Root -d1` a second time for an answer
+            // `join_desk`'s `OnceCell::set` would only discard.
+            let lock_already_known = self.screen_locked.get().is_some();
             let handle = std::thread::Builder::new()
                 .spawn(move || {
                     // THE LOCK RIDES THIS THREAD RATHER THAN ITS OWN: the
@@ -639,7 +646,9 @@ impl<R: CommandRunner + Send + Sync + 'static> crate::probes::ProbeStart for Sys
                     // read from spawning a second `ioreg` for an answer
                     // nothing can use.
                     let idle = idle_reading(&*runner);
-                    let lock = idle.is_some().then(|| lock_reading(&*runner)).flatten();
+                    let lock = (!lock_already_known && idle.is_some())
+                        .then(|| lock_reading(&*runner))
+                        .flatten();
                     (idle, lock)
                 })
                 // A THREAD THE OS REFUSES FALLS BACK TO THE INLINE READ: `ok()`
@@ -1072,6 +1081,47 @@ mod tests {
                 "case: {expected}, calls were {calls:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_lock_probe_already_answered_inline_is_not_retaken_by_a_later_start() {
+        // sol review, ROW 1: `start` gated the desk spawn on the idle cell
+        // only, so a caller reading the lock BEFORE starting the desk pair
+        // ran `ioreg -n Root -d1` a second time on the spawned thread, and
+        // `join_desk`'s `OnceCell::set` silently dropped that second answer.
+        // No production caller reads in this order, but nothing enforced it.
+        use crate::probes::{ProbeStart, ScreenLockProbe, Wants};
+        let probes = SystemProbes::new(
+            ExactArgvRunner {
+                answers: vec![
+                    (
+                        "/usr/sbin/ioreg -n Root -d1".to_string(),
+                        ROOT_LOCKED.to_string(),
+                    ),
+                    (
+                        "/usr/sbin/ioreg -c IOHIDSystem".to_string(),
+                        "\"HIDIdleTime\" = 5000000000".to_string(),
+                    ),
+                ],
+                calls: Mutex::new(Vec::new()),
+            },
+            "/marker".to_string(),
+        );
+        assert_eq!(probes.screen_locked(), Some(true));
+        probes.start(Wants {
+            desk: true,
+            phone: false,
+        });
+        assert_eq!(probes.idle_secs(), Some(5));
+        let calls = probes.runner.calls.lock().unwrap();
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| *call == "/usr/sbin/ioreg -n Root -d1")
+                .count(),
+            1,
+            "a lock answer already taken inline must not be retaken: {calls:?}"
+        );
     }
 
     #[test]
