@@ -6158,25 +6158,57 @@ fn daemon_run() -> i32 {
             println!("pns daemon: disabled in the config; exiting");
             return 0;
         }
-        // REAPED BEFORE THE SPOOL IS DRAINED, so a child `decide` finds still
-        // in `children` really is alive THIS tick: reaped the other way round,
-        // a child that just exited would still read as running and hold a due
-        // occurrence to one more `Wait` than it needed.
-        reap(&mut children);
-        // FAIL-QUIET, in `remember_staleness`'s style: a heartbeat that did not
-        // land costs one doctor line, and complaining about it every tick is
-        // the chatter this daemon must never produce.
-        if let Some(now) = now_secs() {
-            let _ = pns::daemon::publish_heartbeat(
-                &state,
-                &pns::daemon::Heartbeat {
-                    pid: std::process::id(),
-                    at: now,
-                },
-            );
-            drain_spool(&spool, &state, now, tick, &mut children, &mut reported);
-        }
+        daemon_pass(
+            &spool,
+            &state,
+            now_secs(),
+            tick,
+            &mut children,
+            &mut reported,
+        );
     }
+}
+
+/// Everything one turn of the daemon's loop does, in the ONE ORDER that makes
+/// `decide`'s running answer true.
+///
+/// REAPED BEFORE THE SPOOL IS DRAINED, so a child `decide` finds still in
+/// `children` really is alive THIS pass. Reaped the other way round, a child
+/// that exited moments ago still reads as running and holds its own due
+/// occurrence to one more `Wait` than it needed, which on the lights job is a
+/// tick of a lamp that has stopped breathing.
+///
+/// IT IS A FUNCTION AND NOT FOUR LINES IN THE LOOP for exactly that reason:
+/// the order is the behaviour, so a test has to be able to run it in the
+/// order production runs it rather than in one of its own.
+///
+/// A SECOND THAT COULD NOT BE READ STOPS THE DRAIN AND NEVER THE REAP. A bound
+/// is still a bound with no wall clock to publish against, and a child left
+/// running past its own because the clock would not answer is the one failure
+/// here that accumulates.
+fn daemon_pass(
+    spool: &Path,
+    state: &Path,
+    now: Option<u64>,
+    tick: Duration,
+    children: &mut Vec<Bounded>,
+    reported: &mut std::collections::BTreeSet<std::path::PathBuf>,
+) {
+    reap(children);
+    let Some(now) = now else {
+        return;
+    };
+    // FAIL-QUIET, in `remember_staleness`'s style: a heartbeat that did not
+    // land costs one doctor line, and complaining about it every tick is
+    // the chatter this daemon must never produce.
+    let _ = pns::daemon::publish_heartbeat(
+        state,
+        &pns::daemon::Heartbeat {
+            pid: std::process::id(),
+            at: now,
+        },
+    );
+    drain_spool(spool, state, now, tick, children, reported);
 }
 
 /// One child the daemon started, and the moment it stops being allowed to run.
@@ -6293,6 +6325,12 @@ fn act(
             release(claim);
         }
         pns::daemon::Peeked::Job(job) => {
+            // ASKED AGAIN, AND REDUNDANT WHILE THE PEEK ASKS IT TOO: the peek
+            // stands a running job down before anything is claimed, so this is
+            // only ever reached with no child of this id alive, and no test can
+            // tell this argument from a literal `false`. It stays because the
+            // peek is an optimisation over a re-read and this is the decision
+            // the claim is actually acted on.
             let running = children.iter().any(|bounded| bounded.id == job.id);
             match pns::daemon::decide(&job, now, pns::daemon::marker_exists(state, &job), running) {
                 // The refresh this daemon claimed is not due yet, so it goes
@@ -8439,16 +8477,16 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
-        LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK,
+        Bounded, Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
+        LIGHTS_HELD, LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK,
         MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered,
-        asks_the_bridge, blocked_lamp, child_bound, drive_breaths, end_lease, held_lamps,
-        keep_aside, lights_report, list, matches_glob, means_yes, muted_state, now_secs,
-        publish_config, publish_state_line, read_held, read_news, read_note, recap_bounds,
-        record_news, remember_held, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
-        say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
-        sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
+        asks_the_bridge, blocked_lamp, child_bound, daemon_pass, drive_breaths, end_lease,
+        held_lamps, keep_aside, lights_report, list, matches_glob, means_yes, muted_state,
+        now_secs, publish_config, publish_state_line, read_held, read_news, read_note,
+        recap_bounds, record_news, remember_held, renew_loop_lease, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, router_backend, run_pulse_writes,
+        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
+        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9536,6 +9574,171 @@ mod tests {
             "the first blue fade is issued before anything is slept for, so the \
              first sleep is the blocked shape's own step"
         );
+    }
+
+    #[test]
+    fn the_phase_reaches_disk_only_after_the_breath_that_earned_it_has_run() {
+        // THE PRE-ARM WRITE IS BARE, AND THE PHASE IS A SECOND WRITE. A record
+        // written with its phase BEFORE the fades are issued is a promise about
+        // a breath that has not happened: a child killed mid-interval would
+        // leave the next tick resuming from an end no lamp ever reached, and
+        // the whole point of the bare token is that a killed child leaves
+        // something this run cannot promise anything about.
+        let state = scratch("phase-lands-after-the-breath");
+        let clock = FakeClock::default();
+        let bridge = scripted(true);
+        let seen_mid_breath: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            || clock.elapsed_ms(),
+            |waited| {
+                seen_mid_breath
+                    .borrow_mut()
+                    .push(recorded(&state).unwrap_or_default());
+                clock.slept(waited);
+            },
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(
+            seen_mid_breath.borrow().first().map(String::as_str),
+            Some(LAMP_PATH),
+            "the record carried a phase while the breath was still being issued"
+        );
+        assert!(
+            recorded(&state).is_some_and(|line| line.starts_with(&format!("{LAMP_PATH}@"))),
+            "and the phase never landed once the breath had actually run: {:?}",
+            recorded(&state)
+        );
+    }
+
+    #[test]
+    fn a_record_cleared_during_the_breath_is_left_cleared_rather_than_resurrected() {
+        // THE OPERATOR'S RETURN, ARRIVING MID-BREATH. It clears every held lamp
+        // and empties this record from a process that holds no lock, and the
+        // phase write comes seconds later: written unguarded it would put the
+        // lamp back into the record with a phase attached, so the pulse gate
+        // would go on treating a lamp the operator just put out as held.
+        let state = scratch("record-cleared-mid-breath");
+        let clock = FakeClock::default();
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            || clock.elapsed_ms(),
+            |waited| {
+                let _ = std::fs::remove_file(state.join(LIGHTS_HELD));
+                clock.slept(waited);
+            },
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(
+            recorded(&state),
+            None,
+            "the phase write resurrected a hold the return had already ended"
+        );
+    }
+
+    #[test]
+    fn a_job_waits_while_its_own_child_lives_and_fires_once_that_child_has_gone() {
+        // THE TWO HALVES OF THE ONE-CHILD RULE, run in the order the daemon
+        // runs them. A seamless breath is issued to still be running when its
+        // child exits, so the schedule alone can no longer promise the previous
+        // child is gone: `decide` is told whether one is, and it is told the
+        // truth only because the reap happens first.
+        let state = scratch("daemon-pass-one-child");
+        let spool = pns::daemon::spool_dir(&state);
+        std::fs::create_dir_all(&spool).expect("the spool");
+        let job = pns::daemon::Job {
+            id: "lights".to_string(),
+            due: 100,
+            until: 100_000,
+            every: Some(12),
+            unless_marker: None,
+            // THE HARNESS'S OWN LISTING FLAG: a fired job re-executes THIS
+            // binary, which under test is the test binary, and listing its
+            // tests exits at once with nothing on either stream.
+            args: vec!["--list".to_string()],
+        };
+        pns::daemon::hand_back(&spool, &job).expect("the record lands");
+        let record = spool.join("lights");
+        let armed = std::fs::read_to_string(&record).expect("the record is readable");
+        // THE RECORD'S IDENTITY, not just its bytes. A wait must never CLAIM,
+        // because a claim is a rename out and a write back, and a refresh that
+        // landed in between would be overwritten by the copy this daemon was
+        // already holding. The inode is what says the file was never replaced.
+        let armed_inode = std::os::unix::fs::MetadataExt::ino(
+            &std::fs::metadata(&record).expect("the record is there"),
+        );
+
+        let mut children = vec![Bounded {
+            id: "lights".to_string(),
+            child: std::process::Command::new("/bin/sleep")
+                .arg("30")
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("a child that is still running"),
+            expires_at: std::time::Instant::now() + Duration::from_secs(300),
+        }];
+        let mut reported = std::collections::BTreeSet::new();
+        daemon_pass(
+            &spool,
+            &state,
+            Some(200),
+            Duration::from_secs(1),
+            &mut children,
+            &mut reported,
+        );
+        assert_eq!(
+            std::fs::read_to_string(&record).ok().as_deref(),
+            Some(armed.as_str()),
+            "a job due while its own child was still running fired anyway, so two \
+             children were driving one house"
+        );
+        assert_eq!(children.len(), 1, "and the live child was not reaped");
+        assert_eq!(
+            std::os::unix::fs::MetadataExt::ino(
+                &std::fs::metadata(&record).expect("the record is still there")
+            ),
+            armed_inode,
+            "a waiting job's record was claimed and written back, which is the one \
+             write that can lose a refresh a client landed in the meantime"
+        );
+
+        // THE CHILD IS GONE NOW, and the occurrence that was held fires on the
+        // very next pass rather than being lost.
+        let _ = children[0].child.kill();
+        let _ = children[0].child.wait();
+        daemon_pass(
+            &spool,
+            &state,
+            Some(200),
+            Duration::from_secs(1),
+            &mut children,
+            &mut reported,
+        );
+        assert_ne!(
+            std::fs::read_to_string(&record).ok().as_deref(),
+            Some(armed.as_str()),
+            "the job never fired once its child had exited, which is a reap that \
+             ran after the drain rather than before it"
+        );
+        for bounded in &mut children {
+            let _ = bounded.child.kill();
+            let _ = bounded.child.wait();
+        }
     }
 
     #[test]
