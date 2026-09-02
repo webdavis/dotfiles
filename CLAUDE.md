@@ -55,7 +55,7 @@ just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
 Four formatters rewrite files (shfmt, mdformat, taplo, stylua); the other eight only read and fail the
-run on bad input, and the four render-then-validate ones are plain scripts under `scripts/treefmt/`.
+run on bad input, and the three render-then-validate ones are plain scripts under `scripts/treefmt/`.
 
 `just l` auto-formats in place. `just lint-check` is the drift gate at pre-push and in CI; standalone
 treefmt has no dry-run mode and no sandbox, so a red gate has ALSO already written the fixes into the
