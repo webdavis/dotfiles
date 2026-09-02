@@ -94,7 +94,7 @@ pub fn tail(text: &str, keep: usize) -> String {
     let cut = text
         .char_indices()
         .nth(length - keep)
-        .map_or(0, |(index, _)| index);
+        .map_or(text.len(), |(index, _)| index);
     format!("...{}", &text[cut..])
 }
 
@@ -368,6 +368,12 @@ mod tests {
     #[test]
     fn tail_keeps_the_last_keep_characters_and_prefixes_the_cut() {
         assert_eq!(tail("0123456789ABCDEF", 4), "...CDEF");
+    }
+
+    #[test]
+    fn tail_with_nothing_to_keep_is_only_the_cut_mark() {
+        // Asking for zero characters must not hand back the whole text.
+        assert_eq!(tail("abc", 0), "...");
     }
 
     // --- why a command failed -------------------------------------------------
