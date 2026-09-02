@@ -410,9 +410,41 @@ done
 diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim
 diff "$B/lazy-lock.json" ~/.config/nvim/lazy-lock.json
 diff "$S/before/health.norm" "$S/after/health.norm" || true   # advisory, see above
-RACING='"lhs":"\[s"|"lhs":"\]s"|"lhs":"as"'                   # advisory rows, see above
+RACING='"lhs":"\[s"|"lhs":"\]s"|"lhs":"as"'
+SORT_NVIM_WINS='{"kind":"keymap","mode":"n","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+{"kind":"keymap","mode":"n","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+{"kind":"keymap","mode":"o","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+{"kind":"keymap","mode":"o","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+{"kind":"keymap","mode":"o","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}
+{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}
+{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}'
+TEXTOBJECTS_WINS='{"kind":"keymap","mode":"n","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"n","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"o","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"o","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"o","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}
+{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}
+{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}'
+check_racing_variant() {
+  local label="$1" file="$2" subset
+  subset="$(grep -E "$RACING" "$file" | sort)"
+  if [[ "$subset" != "$SORT_NVIM_WINS" && "$subset" != "$TEXTOBJECTS_WINS" ]]; then
+    printf 'FATAL: %s racing rows match neither known race variant:\n%s\n' "$label" "$subset" >&2
+    exit 1
+  fi
+}
 diff <(grep -Ev "$RACING" "$S/before/state.json") <(grep -Ev "$RACING" "$S/after/state.json")
-diff <(grep -E "$RACING" "$S/before/state.json") <(grep -E "$RACING" "$S/after/state.json") || true
+diff <(grep -E "$RACING" "$S/before/state.json" | sort) <(grep -E "$RACING" "$S/after/state.json" | sort) || true
+check_racing_variant before "$S/before/state.json"
+check_racing_variant after "$S/after/state.json"
 err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
 [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
 median() {
@@ -422,7 +454,8 @@ median() {
   grep -h "NVIM STARTED" "$1"/st-{2,3,4,5}.log | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
 }
 before_median="$(median "$S/before")"; after_median="$(median "$S/after")"
-printf 'before %s after %s (advisory)\n' "$before_median" "$after_median"
+printf 'before %s after %s (synthetic, VeryLazy fired by hand), advisory: agents may be running\n' \
+  "$before_median" "$after_median"
 ```
 
 A diff of two MISSING files is empty, and a grep over a missing file inside a process substitution
@@ -432,7 +465,11 @@ The median function used to return 0 from zero samples and half a real value fro
 missing log nor a nonempty diff forced the whole comparison to fail; this version requires exactly four
 warm samples per phase (a possibility opened by a real bug: `--startuptime` appends rather than
 overwrites, so a re-run against the same `P` without truncating first silently doubles the sample count
-and corrupts the median without erroring) and treats a nonempty stderr log as fatal.
+and corrupts the median without erroring) and treats a nonempty stderr log as fatal. The `[s`, `]s` and
+`as` rows are checked against the two known race outcomes rather than dropped from the gate wholesale:
+exempting them made a genuine new regression on any of the three invisible, so each side's racing
+subset must equal one of the two byte-for-byte, and anything else fails the gate the same way every
+other row does.
 
 1. **Bytes.** The first diff. `README.md` is excluded because the README commit (3.6 step 2) is the
    ONE working-tree change between the backup and the flatten: the three drain commits and the stash

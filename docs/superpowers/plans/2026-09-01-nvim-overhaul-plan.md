@@ -302,9 +302,41 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
   diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim
   diff "$B/lazy-lock.json" ~/.config/nvim/lazy-lock.json
   diff "$S/before/health.norm" "$S/after/health.norm" || true   # advisory, see step 5
-  RACING='"lhs":"\[s"|"lhs":"\]s"|"lhs":"as"'                   # advisory rows, see step 5
+  RACING='"lhs":"\[s"|"lhs":"\]s"|"lhs":"as"'
+  SORT_NVIM_WINS='{"kind":"keymap","mode":"n","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+  {"kind":"keymap","mode":"n","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+  {"kind":"keymap","mode":"o","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+  {"kind":"keymap","mode":"o","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+  {"kind":"keymap","mode":"o","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}
+  {"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+  {"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"Previous delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:80>"}
+  {"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+  {"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
+  {"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}
+  {"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}'
+  TEXTOBJECTS_WINS='{"kind":"keymap","mode":"n","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+  {"kind":"keymap","mode":"n","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+  {"kind":"keymap","mode":"o","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+  {"kind":"keymap","mode":"o","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+  {"kind":"keymap","mode":"o","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}
+  {"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+  {"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+  {"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+  {"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+  {"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}
+  {"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}'
+  check_racing_variant() {
+    local label="$1" file="$2" subset
+    subset="$(grep -E "$RACING" "$file" | sort)"
+    if [[ "$subset" != "$SORT_NVIM_WINS" && "$subset" != "$TEXTOBJECTS_WINS" ]]; then
+      printf 'FATAL: %s racing rows match neither known race variant:\n%s\n' "$label" "$subset" >&2
+      exit 1
+    fi
+  }
   diff <(grep -Ev "$RACING" "$S/before/state.json") <(grep -Ev "$RACING" "$S/after/state.json")
-  diff <(grep -E "$RACING" "$S/before/state.json") <(grep -E "$RACING" "$S/after/state.json") || true
+  diff <(grep -E "$RACING" "$S/before/state.json" | sort) <(grep -E "$RACING" "$S/after/state.json" | sort) || true
+  check_racing_variant before "$S/before/state.json"
+  check_racing_variant after "$S/after/state.json"
   err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
   [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
   median() {
@@ -314,19 +346,22 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
     grep -h "NVIM STARTED" "$1"/st-{2,3,4,5}.log | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
   }
   before_median="$(median "$S/before")"; after_median="$(median "$S/after")"
-  printf 'before %s after %s (advisory)\n' "$before_median" "$after_median"
+  printf 'before %s after %s (synthetic, VeryLazy fired by hand), advisory: agents may be running\n' \
+    "$before_median" "$after_median"
   ```
 
   A proof that cannot fail is not a proof: the median function used to return 0 from zero samples and
   half a real value from two, and neither a missing log nor a nonempty diff forced a failure. This
   version requires exactly four warm samples per phase and treats a nonempty stderr log as fatal. The
-  `[s`, `]s` and `as` rows are printed rather than gated: `sort.nvim` and
-  `nvim-treesitter-textobjects` both map them and plugin load order picks the winner, so 2 of 12 dumps
-  of the identical unchanged config named the other one (measured 2026-09-02, spec 3.7). A diff of
-  two MISSING files is empty and a grep over a missing file inside a process substitution reports
-  nothing, so every comparison input is checked to exist before any of them is read.
-  The dump's own stderr goes to `$P/dump.err`, printed by the comparison but not gated: 6 of 10
-  dumps of the identical unchanged config wrote the same `aerial.nvim` treesitter stack trace
+  `[s`, `]s` and `as` rows are checked against the two known outcomes rather than dropped from the gate:
+  `sort.nvim` and `nvim-treesitter-textobjects` both map them and plugin load order picks the winner,
+  so 2 of 12 dumps of the identical unchanged config named the other one (measured 2026-09-02, spec
+  3.7); exempting the rows wholesale made a genuine new regression on any of the three invisible, so
+  each side's racing subset must equal one of the two byte-for-byte, and anything else fails the same
+  way every other row does. A diff of two MISSING files is empty and a grep over a missing file inside
+  a process substitution reports nothing, so every comparison input is checked to exist before any of
+  them is read. The dump's own stderr goes to `$P/dump.err`, printed by the comparison but not gated: 6
+  of 10 dumps of the identical unchanged config wrote the same `aerial.nvim` treesitter stack trace
   from a scheduled callback (measured 2026-09-02). Uncaptured, a scheduled error could change
   what the capture sees while nothing recorded that it happened.
 - [ ] **Step 12, OPERATOR:** when the three 3.6 guards (`status --porcelain`, `rev-list
