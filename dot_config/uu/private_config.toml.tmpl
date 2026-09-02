@@ -78,10 +78,11 @@ plugins = [
 # record the gateway never received alerts regardless of what any lane did,
 # and three straight non-successes (deferred, failed, or a mix) still fire
 # uu's own staleness alert below. Any other non-zero exit is a real failure.
-# THE COLLISION: 75 is also what a completed hermes gateway response uses, so
-# a program that IS hermes, or that forwards hermes's own exit code unchanged,
-# could exit 75 for a reason that has nothing to do with deferral; write your
-# own exit code rather than passing one through.
+# THE COLLISION: 75 is also the exit code hermes's own gateway process uses
+# to ask its service manager for a planned restart, so a program that IS
+# hermes, or that forwards hermes's own exit code unchanged, could exit 75
+# for a reason that has nothing to do with deferral; write your own exit
+# code rather than passing one through.
 #
 # A lane that goes three straight runs without a real success (deferred,
 # failed, or both) fires one staleness alert of its own, whatever each
