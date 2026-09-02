@@ -25,24 +25,48 @@ chmod +x "$script"
 
 home="$scratch/home"
 marker="$home/.cache/pns-build/engine.retry"
+pending="$home/.cache/pns-build/restart-pending"
 installed="$home/.local/libexec/pns/pns"
 
 # The script kickstarts the pns LaunchAgent after installing a CHANGED binary,
 # and a sandboxed HOME does nothing to launchctl: without a stub on PATH this
-# test bounces the operator's live daemon on every run. The stub answers as an
-# unloaded label (exit 113, "Could not find service") and records the attempt.
+# test bounces the operator's live daemon on every run. The stub records the
+# exact invocation and answers whatever status the test puts in
+# launchctl.status, defaulting to 113 ("Could not find service", the unloaded-
+# label case) when that file is absent, so a phase that never sets it keeps
+# the original quiet behavior.
 stubbin="$scratch/stubbin"
 kickstarts="$scratch/kickstarts"
+launchctl_status="$scratch/launchctl.status"
+marker_during_kickstart="$scratch/marker-during-kickstart"
+target_label="gui/$(id -u)/com.webdavis.pns-daemon"
 mkdir -p "$stubbin"
 : >"$kickstarts"
+: >"$marker_during_kickstart"
+# "$*" flattens argument boundaries: a mutant that passes "-k $target_label"
+# as ONE argument prints the same joined text as the correct three separate
+# arguments, so the stub validates $#, $1, $2 and $3 individually before it
+# ever trusts $* to describe what it was called with.
 cat >"$stubbin/launchctl" <<STUB
 #!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$kickstarts"
+if [[ \$# -eq 3 ]] && [[ "\$1" == kickstart ]] && [[ "\$2" == -k ]] && [[ "\$3" == "$target_label" ]]; then
+  printf '%s\n' "\$*" >>"$kickstarts"
+else
+  printf 'unexpected-invocation argc=%s: %s\n' "\$#" "\$*" >>"$kickstarts"
+fi
+if [[ -e "$pending" ]]; then
+  printf 'present\n' >>"$marker_during_kickstart"
+fi
+if [[ -f "$launchctl_status" ]]; then
+  exit "\$(cat "$launchctl_status")"
+fi
 exit 113
 STUB
 chmod +x "$stubbin/launchctl"
 
-run_script() { HOME="$home" PATH="$stubbin:$PATH" "$script" >/dev/null 2>&1; }
+stdout_log="$scratch/stdout"
+stderr_log="$scratch/stderr"
+run_script() { HOME="$home" PATH="$stubbin:$PATH" "$script" >"$stdout_log" 2>"$stderr_log"; }
 
 # --- no toolchain: nothing installed, and the trigger stays retryable ------
 mkdir -p "$home"
@@ -124,14 +148,74 @@ run_script || {
   echo "a successful build must settle the trigger" >&2
   exit 1
 }
+# A cumulative total cannot tell a reversed change verdict from a correct one
+# (skip-when-changed plus restart-when-identical can total the same count as
+# restart-when-changed plus skip-when-identical), so each phase asserts its
+# own running count rather than one check at the end.
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 1 ]] || {
+  echo "the first install must kickstart the daemon exactly once" >&2
+  exit 1
+}
+expected_kickstart="kickstart -k $target_label"
+[[ "$(head -n1 "$kickstarts")" == "$expected_kickstart" ]] || {
+  printf 'the kickstart must target the exact label; got: %s\n' "$(head -n1 "$kickstarts")" >&2
+  exit 1
+}
+# The marker is armed before the binary is published, not after a kickstart
+# failure, so it must already exist by the time the kickstart itself runs.
+[[ -s $marker_during_kickstart ]] || {
+  echo "the restart-pending marker must exist by the time the kickstart runs" >&2
+  exit 1
+}
+[[ ! -e $pending ]] || {
+  echo "a first-install kickstart (113) must clear the restart-pending marker" >&2
+  exit 1
+}
+# A 113 on a first install is the ONLY silent-success path left in the
+# script: it must never leak the restart-success line onto either stream.
+grep -q 'daemon restarted on a new binary' "$stdout_log" "$stderr_log" && {
+  echo "a first-install 113 must stay silent about restarting the daemon" >&2
+  exit 1
+}
+# From here on the binary is already installed, so a 113 is no longer the
+# fresh-machine no-op; default every later phase to a clean success and let
+# each one override the status it actually wants to test.
+echo 0 >"$launchctl_status"
+
+# --- the marker cannot be armed: refuse to publish rather than install a ---
+# --- binary the daemon has no forced way to pick up -------------------------
+kickstarts_before="$(wc -l <"$kickstarts" | tr -d ' ')"
+touch "$home/.stub-build-sleeper"
+rm -rf "$home/.cache/pns-build"
+touch "$home/.cache/pns-build"
+run_script && {
+  echo "a marker that cannot be written must refuse to publish the binary" >&2
+  exit 1
+}
+[[ "$("$installed")" == pns-engine ]] || {
+  echo "a refused publish must leave the previously installed binary in place" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq $kickstarts_before ]] || {
+  echo "a refused publish must never reach the kickstart" >&2
+  exit 1
+}
+rm -f "$home/.cache/pns-build"
+rm -f "$home/.stub-build-sleeper"
 
 # --- a rebuild while the old binary is RUNNING still replaces it -----------
 # The real mid-apply hazard: a producer (an agent hook, a long command, a
 # LaunchAgent) is executing the installed engine when the next apply lands.
-# Replacing the file in place fails with ETXTBSY; unlinking and creating
-# anew does not.
+# macOS does not refuse an in-place overwrite of a running binary (no
+# ETXTBSY; measured), so this phase only pins that a reinstall while the
+# engine is running succeeds; the install(1) man page, not this test, is the
+# evidence that it lands through a temporary file and a rename.
 touch "$home/.stub-build-sleeper"
 run_script
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
+  echo "a changed binary must kickstart again" >&2
+  exit 1
+}
 "$installed" 5 >/dev/null 2>&1 &
 running=$!
 sleep 0.3
@@ -142,15 +226,76 @@ run_script || {
 }
 kill "$running" 2>/dev/null || true
 wait "$running" 2>/dev/null || true
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
+  echo "an identical reinstall must not kickstart the daemon" >&2
+  exit 1
+}
 
-# --- only a CHANGED binary bounces the daemon ------------------------------
-# The installs above changed the deployed bytes twice (the first install, then
-# the bash stub giving way to /bin/sleep) and the last rebuild reinstalled
-# identical bytes, so exactly two kickstarts may have been attempted.
-attempts="$(wc -l <"$kickstarts" | tr -d ' ')"
-[[ $attempts -eq 2 ]] || {
-  printf 'the daemon is kickstarted once per changed binary and never for an identical reinstall; attempts: %s\n' \
-    "$attempts" >&2
+# --- a kickstart failure is loud: nonzero exit, a stderr line, and a marker
+# that forces the next apply to retry regardless of what it rebuilds --------
+echo 5 >"$launchctl_status"
+# Drop the sleeper stub so the rebuild changes bytes again (back to the plain
+# script binary) and the kickstart is attempted.
+rm -f "$home/.stub-build-sleeper"
+# The deferral phases above created the cache directory. A machine whose
+# first apply already has the toolchain never ran a deferral, so the failure
+# arm must create it itself; run this phase without it.
+rmdir "$home/.cache/pns-build"
+run_script && {
+  echo "a kickstart failure must fail the apply" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 3 ]] || {
+  echo "a failed kickstart is still attempted once" >&2
+  exit 1
+}
+grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 5:' "$stderr_log" || {
+  echo "a kickstart failure must print an attributed line to stderr" >&2
+  exit 1
+}
+[[ -e $pending ]] || {
+  echo "a kickstart failure must leave a restart-pending marker" >&2
+  exit 1
+}
+
+# --- 113 on an EXISTING installation is a real failure, not the fresh-
+# machine no-op: "not loaded" on a daemon that was already running means the
+# kickstart never reached it, so it must fail the apply and keep the marker
+echo 113 >"$launchctl_status"
+run_script && {
+  echo "a 113 on an existing installation must fail the apply" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 4 ]] || {
+  echo "the existing-installation 113 must still attempt the kickstart" >&2
+  exit 1
+}
+grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 113:' "$stderr_log" || {
+  echo "a 113 on an existing installation must print an attributed line to stderr" >&2
+  exit 1
+}
+[[ -e $pending ]] || {
+  echo "a 113 on an existing installation must keep the restart-pending marker" >&2
+  exit 1
+}
+
+# --- the pending marker forces a retry even on an IDENTICAL rebuild, and a
+# successful kickstart clears it and prints the restarted line -------------
+echo 0 >"$launchctl_status"
+run_script || {
+  echo "the retried kickstart must succeed and the apply must exit 0" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 5 ]] || {
+  echo "the pending marker must force one more kickstart on an unchanged binary" >&2
+  exit 1
+}
+grep -q 'daemon restarted on a new binary' "$stdout_log" || {
+  echo "a successful kickstart must print the restarted line" >&2
+  exit 1
+}
+[[ ! -e $pending ]] || {
+  echo "a successful kickstart must clear the restart-pending marker" >&2
   exit 1
 }
 

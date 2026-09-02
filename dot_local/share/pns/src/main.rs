@@ -7324,6 +7324,45 @@ const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>
 /// as a time, so the timeline still lines up.
 const NO_WALL_CLOCK: &str = "--:--";
 
+/// The first ancestor of `path` that exists in its own right but resolves to
+/// nothing, and why it does not resolve.
+///
+/// WHAT THIS IS FOR: `NotFound` at the config path is not proof the config is
+/// absent. A dangling link ANYWHERE ABOVE it (`~/.config/pns` naming a
+/// directory that was moved or never created) fails the leaf's own stat with
+/// ENOENT, exactly as a genuinely missing config does. Told apart nowhere,
+/// that reading walks the whole questionnaire and only fails at publication,
+/// with every answer already typed and every secret already handed over.
+///
+/// IT CLIMBS ONLY AS FAR AS THE FIRST COMPONENT THAT EXISTS. Above that
+/// everything resolves by definition, and below it the components really are
+/// missing, which is the ordinary first run this must not refuse.
+fn unresolvable_ancestor(path: &Path) -> Option<(PathBuf, std::io::Error)> {
+    // `skip(1)`: `path` ITSELF has already been stated by the caller, and it
+    // is the leaf's own `NotFound` that brought us here.
+    for ancestor in path.ancestors().skip(1) {
+        match ancestor.symlink_metadata() {
+            // NOT THERE AS A NAME AT ALL: keep climbing. The component under
+            // it is genuinely missing rather than broken.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            // UNREADABLE, NOT ABSENT: refuse by the same rule the leaf's own
+            // non-NotFound arm refuses under.
+            Err(error) => return Some((ancestor.to_path_buf(), error)),
+            // A NAME IS STANDING HERE. Whether it LEADS anywhere is the whole
+            // question: `metadata` follows the link `symlink_metadata` did
+            // not, so a dangling one (or a loop, or a file where a directory
+            // belongs) answers with its own cause here.
+            Ok(_) => {
+                return match ancestor.metadata() {
+                    Ok(_) => None,
+                    Err(error) => Some((ancestor.to_path_buf(), error)),
+                };
+            }
+        }
+    }
+    None
+}
+
 /// The `setup` mode: the first-run walk, and the only writer of the config.
 ///
 /// A THIN EDGE OVER A PURE COMPOSER. Everything about what lands in the file
@@ -7357,7 +7396,7 @@ fn setup_mode() -> i32 {
     // the current directory, which is not the operator's own machine-wide
     // config no matter where this happened to be run from.
     let Some(home) = std::env::var("HOME").ok().filter(|home| !home.is_empty()) else {
-        eprintln!("pns setup: HOME is empty; nothing was written");
+        eprintln!("pns setup: HOME is unset or empty; nothing was written");
         return 2;
     };
     // THE CONFIG IS CHECKED BEFORE THE TERMINAL IS, because it is the more
@@ -7369,13 +7408,41 @@ fn setup_mode() -> i32 {
     // nothing at all here and the whole walk runs before the publish refuses
     // it with a claim that it "appeared while the questions were being
     // answered", which would not be true.
-    if path.symlink_metadata().is_ok() && !force {
-        eprintln!(
-            "pns setup: {} already exists; pass --force to replace it, \
-             which keeps the old file beside it",
-            path.display()
-        );
-        return 2;
+    match path.symlink_metadata() {
+        Ok(_) if !force => {
+            eprintln!(
+                "pns setup: {} already exists; pass --force to replace it, \
+                 which keeps the old file beside it",
+                path.display()
+            );
+            return 2;
+        }
+        Ok(_) => {}
+        // NOTHING AT THE NAME IS NOT YET NOTHING IN THE WAY: a dangling link
+        // above the config reports `NotFound` here too, and it refuses
+        // REGARDLESS OF `--force`, because what `--force` agrees to replace
+        // is a config, not a path that leads nowhere.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if let Some((ancestor, cause)) = unresolvable_ancestor(&path) {
+                eprintln!(
+                    "pns setup: {} could not be checked: {} does not resolve ({cause}); \
+                     nothing was written",
+                    path.display(),
+                    ancestor.display()
+                );
+                return 2;
+            }
+        }
+        // ANY OTHER ERROR REFUSES REGARDLESS OF --force: the comment above
+        // only holds for NotFound, and a directory this walk cannot even
+        // stat is not one it can safely publish into either.
+        Err(error) => {
+            eprintln!(
+                "pns setup: {} could not be checked: {error}; nothing was written",
+                path.display()
+            );
+            return 2;
+        }
     }
     if !std::io::stdin().is_terminal() {
         eprintln!(
@@ -7534,10 +7601,16 @@ fn ask(question: &str) -> Result<String, String> {
 /// still on, so an operator who types ahead of it, or this crate's own pty
 /// test, could still have a secret echoed before `TCSAFLUSH` takes hold.
 ///
-/// Ctrl-C, Ctrl-\, Ctrl-Z, and a TERM or HUP are all held for the read rather
-/// than answered immediately, the same trade `readpassphrase(3)` makes: each
-/// is still delivered, just not until the guard drops, so Ctrl-C takes effect
-/// at the next Enter rather than instantly.
+/// ONE CLIENT IS OUTSIDE THIS GUARD'S REACH: mosh, the transport under a
+/// Moshi-connected phone, predicts keystrokes locally and can draw them on
+/// that client transiently, ahead of the terminal's own echo state. Nothing
+/// here controls that.
+///
+/// Ctrl-C, Ctrl-\, Ctrl-Z, a TERM or HUP, an alarm, and the two tty-stop
+/// signals a backgrounded read raises are all held for the read rather than
+/// answered immediately, the same trade `readpassphrase(3)` makes: each is
+/// still delivered, just not until the guard drops, so Ctrl-C takes effect at
+/// the next Enter rather than instantly.
 fn ask_hidden(question: &str) -> Result<String, String> {
     let _hushed = Hushed::arm()?;
     print!("{question}: ");
@@ -7550,9 +7623,42 @@ fn read_answer() -> Result<String, String> {
     let mut typed = String::new();
     match std::io::stdin().read_line(&mut typed) {
         Ok(0) => Err("the answers ended before the walk did".to_string()),
-        Err(error) => Err(format!("the answers could not be read: {error}")),
+        Err(error) => Err(read_failure(&error, reading_from_the_background())),
         Ok(_) => Ok(answered(&typed)),
     }
+}
+
+/// Whether stdin's terminal is currently owned by some OTHER process group.
+///
+/// A FAILED `tcgetpgrp` IS NOT THIS CASE: a terminal that hung up answers -1
+/// as well, and a read that failed on a dead terminal really did fail for its
+/// own reason. A zero is no foreground group at all, which is not this either.
+fn reading_from_the_background() -> bool {
+    let foreground = unsafe { libc::tcgetpgrp(libc::STDIN_FILENO) };
+    foreground > 0 && foreground != unsafe { libc::getpgrp() }
+}
+
+/// Why a read failed, in terms the operator can act on.
+///
+/// EIO FROM A BACKGROUND JOB IS NOT AN I/O FAULT, it is job control. The
+/// hidden read blocks SIGTTIN, which is the set `readpassphrase(3)` holds and
+/// what stops a suspension from stranding the terminal echo-off. termios(4)
+/// names the trade directly: a background process that blocks or ignores
+/// SIGTTIN gets `EIO` from the read "and no signal is sent", where an
+/// unblocked one would have been stopped and could be resumed with `fg`.
+///
+/// Passed straight through, `pns setup &` therefore refuses with "Input/output
+/// error", which names the symptom and hides the only thing the operator can
+/// do about it. BOTH HALVES ARE REQUIRED: a bare EIO on a hung-up terminal is
+/// a real failure, and a non-EIO error from the background (a non-UTF-8 paste,
+/// say) still has its own honest reason to give.
+fn read_failure(error: &std::io::Error, in_background: bool) -> String {
+    if in_background && error.raw_os_error() == Some(libc::EIO) {
+        return "this walk cannot read the terminal from the background; \
+                bring it to the foreground with fg"
+            .to_string();
+    }
+    format!("the answers could not be read: {error}")
 }
 
 /// Turns the terminal's echo off for as long as it lives. `Drop` restores
@@ -7587,13 +7693,31 @@ impl Hushed {
             ));
         }
         // BLOCKED FOR THE READ, not disabled: each one is still delivered,
-        // once the guard drops and the mask is restored.
+        // once the guard drops and the mask is restored. THIS IS THE WHOLE
+        // SET `readpassphrase(3)` HOLDS, all nine of them, because the doc
+        // comment above cites that function as the model and a quietly
+        // shorter set is the model's holes without its name. SIGTTIN and
+        // SIGTTOU: a read that becomes a background job would otherwise be
+        // stopped by SIGTTIN with echo still off, and Drop's own
+        // `tcsetattr` from a background group can raise SIGTTOU before it
+        // gets the chance to restore. SIGALRM: an alarm armed before the
+        // walk began would otherwise end the process mid-prompt, and a
+        // process that dies before `Drop` leaves the operator's terminal
+        // echo-off with no prompt in front of it. SIGPIPE is inert today
+        // (the Rust runtime sets it to `SIG_IGN` before `main`, so it ends
+        // nothing to begin with) and is held anyway, so this set does not
+        // have to be re-argued against the manual page every time the
+        // runtime's own default moves.
         for signal in [
             libc::SIGINT,
             libc::SIGQUIT,
             libc::SIGTSTP,
             libc::SIGTERM,
             libc::SIGHUP,
+            libc::SIGTTIN,
+            libc::SIGTTOU,
+            libc::SIGALRM,
+            libc::SIGPIPE,
         ] {
             if unsafe { libc::sigaddset(&mut blocked, signal) } != 0 {
                 return Err(format!(
@@ -7603,10 +7727,15 @@ impl Hushed {
             }
         }
         let mut original_mask: libc::sigset_t = unsafe { std::mem::zeroed() };
-        if unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, &mut original_mask) } != 0 {
+        // `pthread_sigmask` IS POSIX, NOT BSD `errno`-STYLE: it RETURNS its
+        // error number directly rather than setting errno, so the result
+        // itself, not `last_os_error()`, is the only honest source for one.
+        let masked =
+            unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, &mut original_mask) };
+        if masked != 0 {
             return Err(format!(
                 "signals could not be held for the read (pthread_sigmask: {})",
-                std::io::Error::last_os_error()
+                std::io::Error::from_raw_os_error(masked)
             ));
         }
         let mut hushed = original;
@@ -7814,13 +7943,31 @@ fn also_kept(kept: Option<&Path>) -> String {
 /// NOTHING TO MOVE IS NOT A FAILURE: `--force` on a machine with no config is
 /// an ordinary first run.
 fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
-    let backup = now_secs()
-        .and_then(|now| pns::setup::backup_path(path, now))
-        .ok_or_else(|| {
-            "the clock cannot be read, so the config already there cannot be named \
-             and kept; nothing was written"
-                .to_string()
-        })?;
+    let now = now_secs().ok_or_else(|| {
+        "the clock cannot be read, so the config already there cannot be named \
+         and kept; nothing was written"
+            .to_string()
+    })?;
+    keep_aside_at(path, now)
+}
+
+/// `keep_aside` with the moment NAMED rather than read.
+///
+/// THE SPLIT EXISTS FOR THE TEST, and the test is what makes it worth having.
+/// With the clock read in here, a test that pre-claims a backup name has to
+/// read the clock itself and hope neither read lands on the far side of a
+/// second boundary. Pre-claiming both candidate names only narrows that
+/// window: a thread parked across more than one boundary still picks a third
+/// name and the test fails on a working build. Naming the second removes the
+/// race instead of shrinking it.
+fn keep_aside_at(path: &Path, epoch_secs: u64) -> Result<Option<PathBuf>, String> {
+    let backup = pns::setup::backup_path(path, epoch_secs).ok_or_else(|| {
+        format!(
+            "{} cannot be named for keeping, so the config already there \
+             cannot be kept; nothing was written",
+            path.display()
+        )
+    })?;
     // THE NAME IS CLAIMED BEFORE ANYTHING MOVES ONTO IT, so a second forced run
     // inside the same second refuses rather than writing over the copy the
     // first one kept: a rename would replace that copy without a word.
@@ -7830,8 +7977,13 @@ fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
         .mode(CONFIG_FILE_MODE)
         .open(&backup)
         .map_err(|error| match error.kind() {
+            // THE NAME BEING TAKEN PROVES NOTHING ABOUT WHAT IT HOLDS: a run
+            // killed between this claim and the rename that follows it
+            // leaves an empty file at the same name, so the refusal says
+            // only that the name is spoken for, not what a prior run "kept"
+            // there.
             std::io::ErrorKind::AlreadyExists => format!(
-                "{} already exists, kept by a run earlier this same second; \
+                "{} is already claimed by another run this same second; \
                  nothing was written",
                 backup.display()
             ),
@@ -8154,12 +8306,12 @@ mod tests {
         CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
         STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
-        end_lease, held_lamps, keep_aside, lights_report, list, matches_glob, means_yes,
-        muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
-        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
-        say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
-        sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
+        end_lease, held_lamps, keep_aside, keep_aside_at, lights_report, list, matches_glob,
+        means_yes, muted_state, publish_config, publish_state_line, read_failure, read_news,
+        read_note, recap_bounds, record_news, renew_loop_lease, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, router_backend, run_pulse_writes,
+        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
+        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -10113,26 +10265,62 @@ mod tests {
     }
 
     #[test]
+    fn a_background_read_names_job_control_rather_than_an_io_fault() {
+        // TERMIOS(4): a background process that BLOCKS SIGTTIN, which the
+        // hidden read does, gets EIO from the read "and no signal is sent",
+        // where an unblocked one would have stopped and could be resumed.
+        // Passed through raw, `pns setup &` blames an I/O fault for what is
+        // job control, and hides the one thing the operator can do about it.
+        let eio = std::io::Error::from_raw_os_error(libc::EIO);
+        assert!(
+            read_failure(&eio, true).contains("bring it to the foreground with fg"),
+            "a backgrounded walk was not told why the terminal cannot be read"
+        );
+        // A HUNG-UP TERMINAL ANSWERS EIO TOO, and that read really did fail
+        // for its own reason rather than for job control.
+        assert!(
+            read_failure(&eio, false).contains("the answers could not be read"),
+            "an EIO in the foreground was blamed on job control"
+        );
+        // AND A BACKGROUND JOB'S OTHER FAILURES KEEP THEIR OWN REASON: a
+        // non-UTF-8 paste still has to say that is what happened.
+        let other = std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        );
+        assert!(
+            read_failure(&other, true).contains("valid UTF-8"),
+            "a background job's real read failure was replaced by the job-control line"
+        );
+    }
+
+    #[test]
     fn a_same_second_backup_collision_names_the_backup_it_could_not_claim() {
         // THE NAME IS CLAIMED WITH `create_new`, so a second forced run inside
         // the same second finds its own stamp already taken; this pre-creates
         // that collision instead of running two forced publishes back to back
         // and hoping they land in the same wall-clock second.
+        //
+        // THE MOMENT IS NAMED, NOT READ, on both sides: `keep_aside_at`
+        // takes the epoch, so this test and the code under it cannot
+        // disagree about which second they are in, and exactly one backup
+        // name is in play.
+        const FIXED_EPOCH: u64 = 1_700_000_000;
         let home = scratch("setup-keep-aside-collision");
         let path = home.join(".config/pns/config.toml");
         std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
         std::fs::write(&path, "# the one it replaces\n").expect("the config");
-        let now = now_secs().expect("the clock");
-        let backup = pns::setup::backup_path(&path, now).expect("the backup name");
-        std::fs::write(&backup, "# an earlier run's own backup\n").expect("the earlier backup");
+        let claimed = pns::setup::backup_path(&path, FIXED_EPOCH).expect("the backup name");
+        std::fs::write(&claimed, "# an earlier run's own backup\n").expect("the earlier backup");
 
-        let refusal = keep_aside(&path).expect_err("the backup name is already claimed");
+        let refusal =
+            keep_aside_at(&path, FIXED_EPOCH).expect_err("the backup name is already claimed");
         assert!(
-            refusal.contains(&backup.display().to_string()),
-            "the refusal does not name the backup it could not claim: {refusal}"
+            refusal.contains(&claimed.display().to_string()),
+            "the refusal does not name the pre-claimed backup: {refusal}"
         );
         assert!(
-            refusal.contains("already exists"),
+            refusal.contains("already claimed"),
             "the reason is a raw io::Error instead of naming the same-second collision: {refusal}"
         );
         assert_eq!(
@@ -10141,7 +10329,7 @@ mod tests {
             "the config was moved even though its backup name could not be claimed"
         );
         assert_eq!(
-            std::fs::read_to_string(&backup).expect("the earlier backup"),
+            std::fs::read_to_string(&claimed).expect("the earlier backup"),
             "# an earlier run's own backup\n",
             "an earlier run's own backup was overwritten rather than left alone"
         );
@@ -10163,7 +10351,7 @@ mod tests {
             "the refusal does not say the claim itself failed: {refusal}"
         );
         assert!(
-            !refusal.contains("earlier this same second"),
+            !refusal.contains("this same second"),
             "a missing directory was blamed on a same-second collision: {refusal}"
         );
     }
@@ -10196,6 +10384,15 @@ mod tests {
         assert!(
             path.is_dir(),
             "the directory standing at the config path was moved"
+        );
+        // THE CLAIMED BACKUP NAME IS RELEASED, not left behind empty: the
+        // rename that would have moved the directory onto it never happened,
+        // so a `.backup` entry surviving here would be a claim this run made
+        // and never used.
+        let leftover = leftovers(&path);
+        assert!(
+            leftover.is_empty(),
+            "a backup claim was left behind after the refusal: {leftover:?}"
         );
     }
 }

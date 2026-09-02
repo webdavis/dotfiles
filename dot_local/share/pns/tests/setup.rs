@@ -71,6 +71,47 @@ impl Pty {
         let slave = self.slave;
         unsafe {
             command.pre_exec(move || {
+                // A KNOWN SIGNAL STATE, NEVER AN INHERITED ONE. Rust hands a
+                // spawned child the PARENT'S OWN signal mask untouched
+                // ("Inherit the signal mask from the parent rather than
+                // resetting it", library/std/src/sys/process/unix/unix.rs)
+                // and resets only SIGPIPE's disposition. A suite launched
+                // with SIGINT blocked or ignored (a `trap '' INT` shell, a
+                // job-control-less runner) would otherwise hand the wizard
+                // that state, and the test that sends it a real signal would
+                // then time out against a CORRECT build.
+                let mut empty: libc::sigset_t = std::mem::zeroed();
+                if libc::sigemptyset(&mut empty) < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                let masked = libc::pthread_sigmask(libc::SIG_SETMASK, &empty, std::ptr::null_mut());
+                if masked != 0 {
+                    // POSIX: `pthread_sigmask` RETURNS its error number
+                    // rather than setting errno.
+                    return Err(std::io::Error::from_raw_os_error(masked));
+                }
+                for signal in [
+                    libc::SIGINT,
+                    libc::SIGALRM,
+                    libc::SIGTERM,
+                    libc::SIGQUIT,
+                    libc::SIGHUP,
+                ] {
+                    if libc::signal(signal, libc::SIG_DFL) == libc::SIG_ERR {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
+                // NO CORE FILES FROM A TEST: SIGQUIT's default action dumps
+                // one, and a suite that scatters cores across a machine
+                // whose `ulimit -c` happens to be unset is a side effect
+                // nobody asked this test for.
+                let no_cores = libc::rlimit {
+                    rlim_cur: 0,
+                    rlim_max: 0,
+                };
+                if libc::setrlimit(libc::RLIMIT_CORE, &no_cores) < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
                 for target in [0, 1, 2] {
                     if libc::dup2(slave, target) < 0 {
                         return Err(std::io::Error::last_os_error());
@@ -226,6 +267,15 @@ fn a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending
         "the real reason was not reported: {:?}",
         pty.transcript
     );
+    // THE DETAIL, not only the generic prefix: the underlying io::Error's
+    // own text is "stream did not contain valid UTF-8", and a build that
+    // reports the same generic prefix for every read failure would still
+    // pass without this.
+    assert!(
+        pty.transcript.contains("valid UTF-8"),
+        "the UTF-8 detail was not carried into the refusal: {:?}",
+        pty.transcript
+    );
     assert!(
         !pty.transcript
             .contains("the answers ended before the walk did"),
@@ -236,7 +286,17 @@ fn a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending
 
 #[test]
 fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
-    let sandbox = Sandbox::without_config("setup-hidden-secret");
+    // EVERY BRANCH THAT ASKS FOR A SECRET IS ARMED HERE, each with its own
+    // unique value: a test that only walked the token (as this one used to)
+    // cannot tell `armed_secret` from `armed` on the hermes, hue or router
+    // branch, since either one composes a config that still looks right.
+    const TOKEN: &str = "do-not-echo-this-token";
+    const HERMES_KEY: &str = "do-not-echo-this-hermes-key";
+    const HUE_KEY: &str = "do-not-echo-this-hue-key";
+    const ROUTER_KEY: &str = "do-not-echo-this-router-key";
+    let secrets = [TOKEN, HERMES_KEY, HUE_KEY, ROUTER_KEY];
+
+    let sandbox = Sandbox::without_config("setup-hidden-secrets");
     let mut pty = Pty::open();
     let mut child = pty.spawn(sandbox.bare().args(["setup"]));
 
@@ -254,23 +314,50 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
         "the secret prompt was visible while echo was still on: {:?}",
         pty.transcript
     );
-    pty.write_all(b"do-not-echo-this-token\n");
+    pty.write_all(format!("{TOKEN}\n").as_bytes());
 
     pty.read_until("Post every event to hermes", PTY_DEADLINE)
         .expect("the hermes question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("the signing key that route verifies: ", PTY_DEADLINE)
+        .expect("the hermes key prompt");
+    pty.write_all(format!("{HERMES_KEY}\n").as_bytes());
 
     pty.read_until("Flash hue lights", PTY_DEADLINE)
         .expect("the hue question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("the hue bridge's address on the network: ", PTY_DEADLINE)
+        .expect("the hue bridge prompt");
+    pty.write_all(b"10.0.0.5\n");
+    pty.read_until("an API key the bridge issued: ", PTY_DEADLINE)
+        .expect("the hue key prompt");
+    pty.write_all(format!("{HUE_KEY}\n").as_bytes());
+    pty.read_until("the rooms to flash, comma separated", PTY_DEADLINE)
+        .expect("the hue rooms prompt");
+    pty.write_all(b"Kitchen,Office\n");
 
     pty.read_until("home wifi", PTY_DEADLINE)
         .expect("the router question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("Which router backend?", PTY_DEADLINE)
+        .expect("the router backend prompt");
+    pty.write_all(b"unifi\n");
+    pty.read_until("the router's URL: ", PTY_DEADLINE)
+        .expect("the router URL prompt");
+    pty.write_all(b"http://192.168.1.1\n");
+    pty.read_until("an API key the router issued: ", PTY_DEADLINE)
+        .expect("the router key prompt");
+    pty.write_all(format!("{ROUTER_KEY}\n").as_bytes());
+    pty.read_until("the phone's hostname on that router: ", PTY_DEADLINE)
+        .expect("the router hostname prompt");
+    pty.write_all(b"my-phone\n");
 
     pty.read_until("macOS Focus", PTY_DEADLINE)
         .expect("the focus question");
-    pty.write_all(b"n\n");
+    pty.write_all(b"y\n");
+    pty.read_until("which Focus modes mean it, comma separated: ", PTY_DEADLINE)
+        .expect("the focus modes prompt");
+    pty.write_all(b"Work,Sleep\n");
 
     pty.read_until("approval left unanswered", PTY_DEADLINE)
         .expect("the nag question");
@@ -280,14 +367,16 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     let status = child.wait().expect("the wizard is reaped");
     assert_eq!(status.code(), Some(0), "transcript: {:?}", pty.transcript);
 
-    assert!(
-        !pty.transcript.contains("do-not-echo-this-token"),
-        "the secret reached the pty output: {:?}",
-        pty.transcript
-    );
+    for secret in secrets {
+        assert!(
+            !pty.transcript.contains(secret),
+            "a secret reached the pty output: {secret:?}: {:?}",
+            pty.transcript
+        );
+    }
     // THE ECHOED ANSWER, not a bare `y`: the preamble already carries that
     // letter, so only the prompt's own tail followed by the typed answer and
-    // the driver's echo of its Enter says echo was back on for the last
+    // the driver's echo of its Enter says echo was back on for an ordinary
     // question.
     assert!(
         pty.transcript.contains("[y/N]: y\r\n"),
@@ -305,10 +394,12 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
 
     let published = sandbox.root.join(".config/pns/config.toml");
     let contents = std::fs::read_to_string(&published).expect("the published config");
-    assert!(
-        contents.contains("do-not-echo-this-token"),
-        "the token did not reach the file: {contents}"
-    );
+    for secret in secrets {
+        assert!(
+            contents.contains(secret),
+            "a secret did not reach the file: {secret:?}: {contents}"
+        );
+    }
     let mode = std::fs::metadata(&published)
         .expect("the published config")
         .permissions()
@@ -325,6 +416,80 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
         0,
         "echo was not restored once the wizard exited"
     );
+}
+
+#[test]
+fn a_signal_sent_during_the_hidden_read_is_held_until_the_guard_drops() {
+    // KILL, THEN OBSERVE, rather than a pty-level tty-stop test: SIGINT is
+    // not a tty-stop signal and `Pty::spawn` gives the child a default
+    // disposition and an empty mask, so the mask this observes is the
+    // wizard's own rather than whatever launched the suite. Rust itself
+    // does NOT do that: it hands a child the parent's mask verbatim.
+    // `ps -o sigmask` reads 0 for a blocked
+    // process on macOS, so a live process cannot be asked directly; sending
+    // a real SIGINT and watching when it lands is the only external read
+    // left. SIGTTIN is NOT covered here: a pending tty-stop signal is
+    // discarded rather than delivered once the process group is orphaned,
+    // and this harness (like CI) starts as its own session leader, so a
+    // `waitpid(WUNTRACED)` on it would hang to the deadline instead of
+    // observing anything. SIGPIPE is not covered either: the Rust runtime
+    // sets it to `SIG_IGN` before `main`, so a delivered one ends nothing
+    // and there is no moment of delivery to observe. Both are reviewed
+    // rather than pinned.
+    //
+    // EVERY SIGNAL A PLAIN `kill` CAN DELIVER RIDES THE SAME WALK. Five of
+    // the nine end the process by default and are observable this way, so
+    // dropping any one of them from the guard's array is caught here rather
+    // than only by review.
+    use std::os::unix::process::ExitStatusExt;
+
+    for (name, signal) in [
+        ("setup-signal-pending-interrupt", libc::SIGINT),
+        ("setup-signal-pending-alarm", libc::SIGALRM),
+        ("setup-signal-pending-terminate", libc::SIGTERM),
+        ("setup-signal-pending-quit", libc::SIGQUIT),
+        ("setup-signal-pending-hangup", libc::SIGHUP),
+    ] {
+        let sandbox = Sandbox::without_config(name);
+        let mut pty = Pty::open();
+        let mut child = pty.spawn(sandbox.bare().args(["setup"]));
+
+        pty.read_until("or press enter to pair later: ", PTY_DEADLINE)
+            .expect("the first prompt");
+
+        // THE GUARD IS ALREADY ARMED HERE, so a correct build holds this
+        // rather than acting on it immediately.
+        let sent = unsafe { libc::kill(child.id() as libc::pid_t, signal) };
+        assert_eq!(sent, 0, "kill: {}", std::io::Error::last_os_error());
+        // NO POLL, NO SLEEP: on a correct build the signal is blocked, so
+        // the child is deterministically still alive the instant after
+        // `kill` returns, rather than something that has to be waited out.
+        assert!(
+            matches!(child.try_wait(), Ok(None)),
+            "the child died from signal {signal}, which the guard should still be holding"
+        );
+
+        pty.write_all(b"do-not-echo-this-token\n");
+        pty.read_to_eof(PTY_DEADLINE).expect("the wizard exits");
+        let status = child.wait().expect("the wizard is reaped");
+
+        // THE HELD SIGNAL LANDS ONCE THE GUARD DROPS: `Drop` restores the
+        // terminal before it unblocks the mask, so the pending signal is
+        // delivered only after echo is already back on, and it is what ends
+        // the process rather than a normal exit.
+        assert_eq!(
+            status.signal(),
+            Some(signal),
+            "the held signal {signal} was not delivered once the guard dropped: {:?}",
+            pty.transcript
+        );
+        let after_exit = pty.tcgetattr();
+        assert_ne!(
+            after_exit.c_lflag & libc::ECHO,
+            0,
+            "the terminal was not restored before signal {signal} was delivered"
+        );
+    }
 }
 
 #[test]
@@ -358,30 +523,143 @@ fn a_dangling_symlink_at_the_config_path_is_refused_before_the_first_question() 
 }
 
 #[test]
-fn an_empty_home_is_refused_by_name_before_anything_is_written() {
-    let sandbox = Sandbox::without_config("setup-empty-home");
-    let output = sandbox
-        .bare()
-        // `bare()` points HOME at the sandbox; this overrides it back to
-        // empty, which is what a launchd-less, misconfigured shell can hand
-        // a process. `current_dir` keeps a still-unfixed run's relative
-        // `.config/pns/config.toml` write inside the sandbox rather than
-        // wherever this test binary happens to run from.
-        .env("HOME", "")
-        .current_dir(&sandbox.root)
-        .args(["setup"])
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the wizard runs");
+fn a_dangling_link_above_the_config_is_refused_before_the_first_question() {
+    // THE LEAF REPORTS `NotFound` WITHOUT BEING ABSENT: resolving
+    // `config.toml` walks through `pns`, which resolves to nothing, so the
+    // stat fails with ENOENT exactly the way a genuinely missing config
+    // does. Reading that as absence walks all ten questions and only then
+    // fails to publish, with every answer already typed and every secret
+    // already handed over.
+    for arguments in [vec!["setup"], vec!["setup", "--force"]] {
+        let sandbox = Sandbox::without_config("setup-dangling-parent");
+        let config_root = sandbox.root.join(".config");
+        std::fs::create_dir_all(&config_root).expect("the config root");
+        let link = config_root.join("pns");
+        std::os::unix::fs::symlink(config_root.join("nowhere"), &link)
+            .expect("the dangling parent link");
 
-    assert_eq!(output.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("HOME"),
-        "the refusal does not name HOME: {stderr}"
-    );
-    assert!(
-        !sandbox.root.join(".config").exists(),
-        "something was written under an empty HOME: {stderr}"
-    );
+        let output = sandbox
+            .bare()
+            .args(&arguments)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("the wizard runs");
+
+        assert_eq!(output.status.code(), Some(2), "arguments: {arguments:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(&link.display().to_string()),
+            "the refusal does not name the link that resolves to nothing \
+             ({arguments:?}): {stderr}"
+        );
+        // ORDERING, AND THAT `--force` CANNOT BUY PAST IT: reaching the tty
+        // check means the pre-check took the dangling link for absence.
+        assert!(
+            !stderr.contains("not a terminal"),
+            "the dangling parent was accepted as absence ({arguments:?}): {stderr}"
+        );
+    }
+}
+
+#[test]
+fn an_unreadable_config_directory_is_refused_by_path_and_cause() {
+    // ROOT READS THROUGH ANY MODE, so this trick cannot produce the
+    // permission error the precheck is being asked to name.
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: running as root, which bypasses directory permissions");
+        return;
+    }
+    // BOTH ARGUMENT SHAPES: the arm this pins refuses FAIL-CLOSED either
+    // way, so `--force` must not buy past a directory the walk cannot even
+    // stat. With only the bare shape here, an arm that refused when
+    // `!force` and fell through otherwise still passed.
+    for arguments in [vec!["setup"], vec!["setup", "--force"]] {
+        let sandbox = Sandbox::without_config("setup-unreadable-config-dir");
+        let config_dir = sandbox.root.join(".config/pns");
+        std::fs::create_dir_all(&config_dir).expect("the config directory");
+        std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o000))
+            .expect("lock the directory down");
+
+        let output = sandbox
+            .bare()
+            .args(&arguments)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("the wizard runs");
+        // RESTORED BEFORE ANY ASSERTION CAN PANIC PAST IT: the sandbox's own
+        // Drop has to walk this directory to remove it.
+        std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o700))
+            .expect("restore the directory so the sandbox can be cleaned up");
+
+        assert_eq!(output.status.code(), Some(2), "arguments: {arguments:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("could not be checked"),
+            "an unreadable directory was not refused by its own cause \
+             ({arguments:?}): {stderr}"
+        );
+        assert!(
+            stderr.contains(&config_dir.join("config.toml").display().to_string()),
+            "the refusal does not name the config path ({arguments:?}): {stderr}"
+        );
+        // THE PRE-CHECK RAN FIRST, AND IT REFUSED RATHER THAN REPORTED:
+        // reaching the tty check means this arm either printed and carried
+        // on, or never fired at all.
+        assert!(
+            !stderr.contains("not a terminal"),
+            "the pre-check did not refuse before the tty check \
+             ({arguments:?}): {stderr}"
+        );
+    }
+}
+
+#[test]
+fn an_empty_home_is_refused_by_name_before_anything_is_written() {
+    // BOTH SHAPES A LAUNCHD-LESS, MISCONFIGURED SHELL CAN HAND A PROCESS:
+    // set-but-empty and absent are different environments, and a build that
+    // catches only one (the empty check with `unwrap_or_default` in place of
+    // `.ok()`, say) still passed with only one case here.
+    for home_is_absent in [false, true] {
+        let sandbox = Sandbox::without_config(if home_is_absent {
+            "setup-home-absent"
+        } else {
+            "setup-empty-home"
+        });
+        let mut command = sandbox.bare();
+        if home_is_absent {
+            command.env_remove("HOME");
+        } else {
+            // `bare()` points HOME at the sandbox; this overrides it back to
+            // empty.
+            command.env("HOME", "");
+        }
+        let output = command
+            // KEEPS A STILL-UNFIXED RUN'S RELATIVE `.config/pns/config.toml`
+            // write inside the sandbox rather than wherever this test binary
+            // happens to run from.
+            .current_dir(&sandbox.root)
+            .args(["setup"])
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("the wizard runs");
+
+        assert_eq!(output.status.code(), Some(2));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // THE EXACT SENTENCE, not just the word: with `HOME` alone, a build
+        // that went back to saying "HOME is empty" for BOTH shapes stayed
+        // green, and an absent HOME was then reported as an empty one.
+        assert!(
+            stderr.contains("HOME is unset or empty"),
+            "the refusal does not name HOME as unset or empty: {stderr}"
+        );
+        assert!(
+            !sandbox.root.join(".config").exists(),
+            "something was written under {} HOME: {stderr}",
+            if home_is_absent {
+                "an absent"
+            } else {
+                "an empty"
+            }
+        );
+    }
 }

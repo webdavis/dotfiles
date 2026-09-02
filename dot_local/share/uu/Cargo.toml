@@ -5,9 +5,10 @@
 # crates.io belong to the uutils project, so the package carries the long name
 # and the binary keeps the short one the operator types.
 #
-# WHAT THIS BINARY IS ALLOWED TO SPAWN: the lane subjects themselves (`herdr`
-# today) and the deployed pns binary for alerts. Nothing else. Records do not
-# spawn anything at all: they are one signed POST made in process.
+# WHAT THIS BINARY IS ALLOWED TO SPAWN: the lane subjects themselves (`herdr`,
+# and whatever program a `command` lane's own config declares) and the
+# deployed pns binary for alerts. Nothing else. Records do not spawn anything
+# at all: they are one signed POST made in process.
 #
 # pns IS A PATH DEPENDENCY rather than a duplicated hermes client. The signing,
 # the transport and the POST seam are already written, reviewed and tested
