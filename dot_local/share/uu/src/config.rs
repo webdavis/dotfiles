@@ -940,18 +940,27 @@ mod tests {
 
     #[test]
     fn a_user_named_lanes_plugin_refusals_name_its_own_table_not_lanes_herdr() {
-        let detail = refusal("[lanes.mine]\ntype = \"herdr\"\nplugins = 1\n");
-        assert!(detail.contains("lanes.mine"), "{detail}");
-        assert!(!detail.contains("lanes.herdr"), "{detail}");
-
-        let detail = refusal(
-            "[lanes.mine]\ntype = \"herdr\"\nplugins = [{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]\n",
-        );
-        assert!(
-            detail.contains("unknown `lanes.mine` plugin key `pin`"),
-            "{detail}"
-        );
-        assert!(!detail.contains("lanes.herdr"), "{detail}");
+        // ONE CASE PER REFUSAL IN `parse_plugins`, because each spells the
+        // table on its own and restoring the literal in any one of them
+        // leaves the other three green.
+        for (plugins, says) in [
+            ("1", "`lanes.mine` key `plugins` has type `integer`"),
+            ("[\"a\"]", "`lanes.mine` key `plugins` holds a `string`"),
+            (
+                "[{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]",
+                "unknown `lanes.mine` plugin key `pin`",
+            ),
+            (
+                "[{ id = \"a\" }]",
+                "`lanes.mine` plugin entry has no usable `repo`",
+            ),
+        ] {
+            let detail = refusal(&format!(
+                "[lanes.mine]\ntype = \"herdr\"\nplugins = {plugins}\n"
+            ));
+            assert!(detail.contains(says), "{detail}");
+            assert!(!detail.contains("lanes.herdr"), "{detail}");
+        }
     }
 
     // --- the file -------------------------------------------------------------
