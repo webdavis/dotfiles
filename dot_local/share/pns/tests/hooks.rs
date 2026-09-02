@@ -4275,6 +4275,145 @@ fn an_observation_renews_no_loop_lease() {
 }
 
 #[test]
+fn an_observation_journals_no_missed_notification() {
+    // SOL 2a: the five negative assertions above prove nothing about
+    // `record_missed` by themselves. `was_missed` needs BOTH the plan's
+    // banner and phone card false, and those two are the SURFACE MATRIX's
+    // own output: Away always plans a card and Desk with an unreadable pane
+    // always plans a banner, whether or not a channel exists to carry it, so
+    // no combination of enabled plugins alone reaches this. The operator's
+    // own mute is the one thing that zeroes both unconditionally, which is
+    // what a First-attempt control proves is reachable under it.
+    let sandbox = Sandbox::new("observation-no-journal-write");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let expiry = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+        + 600;
+    std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
+    let journal = sandbox.path("state/missed-notifications");
+
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired: hermes is the durable log and rides even a muted event"
+    );
+    assert!(!journal.exists(), "an observation writes no journal entry");
+
+    // THE CONTROL, run AFTER on the SAME sandbox: proves a First `stop`
+    // event under this exact muted config DOES journal a miss, so the
+    // assertion above is not vacuously true under every attempt.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s-control"}"#,
+    );
+    assert!(
+        journal.exists(),
+        "the control: a First `stop` event under this config journals a miss"
+    );
+}
+
+#[test]
+fn an_observation_replays_no_journal_entry() {
+    // SOL 2b: `should_replay` needs the plan to decorate (macos-banner or
+    // mobile), which `nag_config`'s enabled plugins do at the desk, and a
+    // seeded entry is what `claim_journal` would otherwise consume: without
+    // one, "the journal survives" is true whether or not the guard works,
+    // because there is nothing in it to lose.
+    let sandbox = Sandbox::new("observation-no-journal-replay");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let journal = sandbox.path("state/missed-notifications");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let seeded = "{\"at\":1756499000,\"agent\":\"claude\",\"state\":\"done\",\
+                  \"project\":\"p\",\"branch\":\"b\",\"detail\":\"planted\"}\n";
+    std::fs::write(&journal, seeded).expect("the journal");
+
+    let mut command = with_state_dir(&sandbox);
+    command.env("PNS_IDLE_SECS", "0");
+    hook_with(
+        command,
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&journal).unwrap_or_default(),
+        seeded,
+        "an observation replays no journal entry"
+    );
+
+    // THE CONTROL, run AFTER on the SAME seeded journal: proves a First
+    // `stop` event under this exact env DOES consume it, so the assertion
+    // above is not vacuously true under every attempt.
+    let mut control = with_state_dir(&sandbox);
+    control.env("PNS_IDLE_SECS", "0");
+    hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
+    assert!(
+        !journal.exists(),
+        "the control: a First `stop` event under this env consumes the journal"
+    );
+}
+
+#[test]
+fn an_observation_registers_no_lights_tick() {
+    // SOL 2c: `nag_config`'s three channels enable no lamps at all, so tick
+    // registration cannot run under it whichever attempt fires. This needs
+    // its own `[lights]`/`[plugins.hue]` table, LAMPS_ON's own fixture.
+    let sandbox = Sandbox::new("observation-no-lights-tick");
+    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    counted_channels(&sandbox);
+
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert!(
+        spool_entries(&sandbox).is_empty(),
+        "an observation registers no lights tick"
+    );
+
+    // THE CONTROL, run AFTER on the SAME sandbox: proves a First `stop`
+    // event under this exact lamps-live config DOES register the tick.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s-control"}"#,
+    );
+    assert!(
+        !spool_entries(&sandbox).is_empty(),
+        "the control: a First `stop` event under this config registers the lights tick"
+    );
+}
+
+#[test]
 fn an_observation_still_delivers_and_is_logged() {
     let sandbox = Sandbox::new("observation-delivers-and-logs");
     sandbox.write_config(&nag_config(300));
