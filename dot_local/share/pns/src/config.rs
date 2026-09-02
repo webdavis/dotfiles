@@ -271,12 +271,29 @@ impl Default for Lights {
 /// six-second one.
 const DEFAULT_REFRESH_SECS: u64 = 12;
 
-/// The floor under it, and it is the TRANSPORT DEADLINE rather than a round
-/// number: a tick makes bounded bridge calls whose own limit is ten seconds
-/// (`BRIDGE_DEADLINE`), so an interval shorter than one call can start a tick
-/// while the last one is still dialling. Below this the knob is asking for a
-/// pile of children rather than a faster lamp.
-pub const MIN_REFRESH_SECS: u64 = 10;
+/// The floor under it: THE SMALLEST INTERVAL THE SLOWEST LEGAL BREATH CAN
+/// RESUME IN. Whoever lowers it needs this sentence, so it is spelled out.
+///
+/// A tick resolves before it breathes, three bridge calls each bounded by
+/// `tick_bridge_deadline`, and what is left of the interval is the budget the
+/// fades are issued into. A RESUMED breath does not start at zero: `resume_from`
+/// caps its first fade one step ahead, so a shape whose step does not fit that
+/// budget schedules nothing and the lamp holds still for a whole interval
+/// instead of breathing. At twelve seconds the budget is 6,000ms and the
+/// slowest shape `MAX_FADE_MS` allows steps 5,950, which fits by one fade lead.
+/// At ten or eleven it does not.
+///
+/// THIS AND `MAX_FADE_MS` ARE A PAIR. The legal space they define is a finite
+/// rectangle, and a test below sweeps the whole of it rather than sampling it,
+/// so raising the fade ceiling without raising this floor fails there rather
+/// than in the room.
+///
+/// IT WAS TEN UNTIL 2026-09-02, when the loop breath was slowed to six seconds.
+/// Ten was chosen as the TRANSPORT DEADLINE (a tick's bridge calls are bounded,
+/// and an interval shorter than one call can start a tick while the last is
+/// still dialling); that reason still holds and is simply no longer the binding
+/// one.
+pub const MIN_REFRESH_SECS: u64 = 12;
 
 /// And the ceiling: THE LONGEST INTERVAL A BREATHING LAMP MAY BE GIVEN.
 ///
@@ -385,6 +402,39 @@ const MIN_LEASE_TIMEOUT_SECS: u64 = 60;
 /// can span a weekend away, so this one gets a week instead of sharing that
 /// ceiling.
 const MAX_GIVE_UP_AFTER_SECS: u64 = 7 * 24 * 60 * 60;
+
+/// How long ONE of a tick's bridge calls may take.
+///
+/// IT LIVES HERE RATHER THAN IN THE DAEMON because `MIN_REFRESH_SECS` is
+/// derived from it: the floor is the smallest interval whose leftover budget
+/// fits the slowest legal breath, and the sweep that proves that reads this.
+/// A second copy of the arithmetic would let the floor and the tick disagree
+/// about the same budget.
+///
+/// A FIFTH OF THE INTERVAL, so the three the resolve makes cannot outlive the
+/// child that makes them AND still leave a breath: at the transport's own ten
+/// seconds they outlive every interval the config permits, and a wedged bridge
+/// would then have tick after tick piling up, each still dialling while the next
+/// was spawned. A fifth is what keeps a full cycle of the shortest locked shape
+/// inside what is left even when all three calls run to their deadline, which is
+/// the whole point of the child staying alive.
+///
+/// A SECOND AT LEAST, which the division cannot reach anyway inside the config's
+/// own bounds; a bridge on the same LAN answers these in milliseconds either
+/// way.
+pub fn tick_bridge_deadline(refresh_secs: u64) -> Duration {
+    Duration::from_secs((refresh_secs / 5).max(1))
+}
+
+/// What one tick has left for fades, in milliseconds, once its resolve has run.
+///
+/// THE RESOLVE IS THREE BRIDGE CALLS and the budget is what is left of the
+/// interval after them, which is exactly what `lights_tick` hands the driver.
+/// Stated once, so the refusal below and the daemon compute the same number.
+pub fn breath_budget_ms(refresh_secs: u64) -> u64 {
+    let resolve_ms = 3 * tick_bridge_deadline(refresh_secs).as_millis();
+    (refresh_secs * 1000).saturating_sub(u64::try_from(resolve_ms).unwrap_or(u64::MAX))
+}
 
 /// How long ONE fade may take, in milliseconds.
 ///
@@ -2979,7 +3029,7 @@ mod tests {
         // BOTH ENDS, ALWAYS. A floor alone leaves a value that parses and cannot
         // work; a ceiling alone leaves the same at the other end.
         for (written, key) in [
-            ("[lights]\nrefresh_secs = 9\n", "refresh_secs"),
+            ("[lights]\nrefresh_secs = 11\n", "refresh_secs"),
             ("[lights]\nrefresh_secs = 31\n", "refresh_secs"),
             ("[lights.done]\nduration_ms = 199\n", "duration_ms"),
             ("[lights.done]\nduration_ms = 6001\n", "duration_ms"),
@@ -3016,7 +3066,7 @@ mod tests {
         // THE ENDS THEMSELVES ARE ACCEPTED, which is what makes the bound a
         // bound rather than an off-by-one.
         for written in [
-            "[lights]\nrefresh_secs = 10\n",
+            "[lights]\nrefresh_secs = 12\n",
             "[lights]\nrefresh_secs = 30\n",
             "[lights.done]\nduration_ms = 200\nbrightness = 1\n",
             "[lights.done]\nduration_ms = 6000\nbrightness = 100\n",
@@ -3029,6 +3079,50 @@ mod tests {
                 parse_config(written).is_ok(),
                 "{written:?} sits on a bound and must be accepted"
             );
+        }
+    }
+
+    #[test]
+    fn no_legal_pairing_of_cadence_and_interval_can_starve_a_resumed_breath() {
+        // WHAT MAKES THE FLOOR A GUARANTEE RATHER THAN A VALUE THAT HAPPENS TO
+        // WORK. The legal space is a finite rectangle now: every cadence from
+        // `MIN_FADE_MS` to `MAX_FADE_MS` against every interval from
+        // `MIN_REFRESH_SECS` to `MAX_REFRESH_SECS`. This walks all of it.
+        //
+        // SWEPT AND NOT SAMPLED, because `tick_bridge_deadline` divides the
+        // interval by five: the budget is a STEP FUNCTION of the refresh, so
+        // sample points can sit either side of a hole without landing in one.
+        //
+        // THE RESUMED CASE IS THE ONLY ONE AT RISK. A fresh fade is due at zero
+        // and schedules against any budget above nothing, whatever the cadence.
+        // A resumed one starts up to a step late (`resume_from` caps it there),
+        // so a step that does not fit the budget is a lamp that holds still for
+        // a whole interval rather than breathing, which is indistinguishable
+        // from the daemon having died.
+        //
+        // RAISING `MAX_FADE_MS` WITHOUT RAISING `MIN_REFRESH_SECS` FAILS HERE,
+        // which is the whole point of sweeping the pair rather than the shapes
+        // that happen to be locked today.
+        for duration_ms in super::MIN_FADE_MS..=super::MAX_FADE_MS {
+            let breath = Breath {
+                duration_ms,
+                high: 60,
+                low: 10,
+            };
+            let resumed_a_whole_step_late = crate::lights::Resume {
+                first_due_ms: crate::lights::step_ms(&breath),
+                from_high: true,
+            };
+            for refresh_secs in super::MIN_REFRESH_SECS..=super::MAX_REFRESH_SECS {
+                let budget_ms = super::breath_budget_ms(refresh_secs);
+                assert!(
+                    !crate::lights::breath_fades(budget_ms, &breath, resumed_a_whole_step_late)
+                        .is_empty(),
+                    "a {duration_ms}ms breath resumed a whole step late has no room in the \
+                     {budget_ms}ms a {refresh_secs}s interval leaves after three bridge \
+                     calls at their full deadline"
+                );
+            }
         }
     }
 
