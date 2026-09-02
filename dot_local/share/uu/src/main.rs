@@ -246,7 +246,9 @@ fn doctor_mode() -> i32 {
                 } else {
                     let reachable = match resolve(program) {
                         Some(found) => format!("found at {}", found.display()),
-                        None => "NOT FOUND; this lane will fail and alert every week".to_string(),
+                        None => "NOT FOUND; every scheduled run of this lane will fail, and it \
+                                 alerts only when [alerts] is configured"
+                            .to_string(),
                     };
                     println!(
                         "uu: lane {name}: program `{program}`, {reachable} (doctor resolves on \

@@ -328,7 +328,7 @@ fn the_doctor_lists_a_command_lane_with_its_program_resolved() {
 }
 
 #[test]
-fn the_doctor_says_a_missing_program_will_fail_and_alert_every_week() {
+fn the_doctor_says_a_missing_program_will_fail_weekly_and_alert_only_if_configured() {
     let home = Home::new("command-lane-doctor-missing");
     let missing = home.dir.join("no-such-updater");
     let home = home.with_config(&format!(
@@ -342,7 +342,10 @@ fn the_doctor_says_a_missing_program_will_fail_and_alert_every_week() {
     let out = stdout(&output);
     assert!(out.contains("lane mine: on (command)"), "{out}");
     assert!(
-        out.contains("NOT FOUND; this lane will fail and alert every week"),
+        out.contains(
+            "NOT FOUND; every scheduled run of this lane will fail, and it alerts only when \
+             [alerts] is configured"
+        ),
         "{out}"
     );
     assert!(
