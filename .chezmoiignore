@@ -54,6 +54,10 @@ tmp.*
 # Same, for the uu crate.
 .local/share/uu/target
 
+# The committed input to `just pns-config-render`, never a deploy target:
+# the shipped template it generates is what chezmoi applies.
+.config/pns/config-values.toml
+
 {{- if eq .chezmoi.os "linux" }}
 Library
 .local/libexec/macos-defaults/macos-defaults-drift.sh

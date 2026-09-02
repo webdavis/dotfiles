@@ -370,9 +370,13 @@ pub const LAYOUT: &[Table] = &[
         opt_in: true,
         keys: &[Key {
             name: "refresh_secs",
-            prose: "# How often the daemon re-arms the lamps, in seconds. It is also the\n\
-                     # breath budget: a breathing lamp is faded by the tick itself for the\n\
-                     # whole interval and stops at its peak. The range is 10 to 30.\n",
+            prose: "# How often the daemon re-arms the lamps, in seconds. It is also the breath\n\
+                     # budget: a breathing lamp is faded by the tick itself, seamlessly, across the\n\
+                     # whole interval, so this decides how many fades fit between two ticks. The\n\
+                     # range is 10 to 30. The floor is one bridge call, so a tick cannot start while\n\
+                     # the last one is still dialling; the ceiling is what the daemon derives a\n\
+                     # tick's own lifetime from, and an interval past it would be a breath cut off\n\
+                     # part way through.\n",
             sample: Sample::Default("12"),
         }],
     },
@@ -589,10 +593,10 @@ const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A declaration 
 /// armed, because the command exists whichever way that table reads.
 const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:\n\
      #\n\
-     #   pns lights quiet \"Studio\" 2h   quiet that place's lamps for two hours\n\
-     #   pns lights quiet \"Studio\"      quiet them until quiet hours end\n\
-     #   pns lights quiet \"Studio\" off  loud again\n\
-     #   pns lights quiet               what is quiet right now\n\
+     #   pns lights quiet \"3F - Studio\" 2h   quiet that place's lamps for two hours\n\
+     #   pns lights quiet \"3F - Studio\"      quiet them until quiet hours end\n\
+     #   pns lights quiet \"3F - Studio\" off  loud again\n\
+     #   pns lights quiet                    what is quiet right now\n\
      #\n\
      # It silences EVERY behaviour on the target and reaches the lamps of one\n\
      # lamp, room or zone and nothing else: cards, banners and the durable log\n\
@@ -1020,6 +1024,13 @@ fn secret_action(table: &toml::Table) -> Result<String, String> {
             "a secret's `field` must be one of {SECRET_FIELDS:?}, not `{field}`"
         ));
     }
+    if entry.trim().is_empty() {
+        // AN EMPTY OR WHITESPACE-ONLY ENTRY IS NOT A NAME, and writing it
+        // through defers the failure to an apply-time vault lookup for
+        // `keepassxc ""`, which the operator hits far from wherever the
+        // values file went wrong.
+        return Err("a secret's `keepassxc` entry name cannot be blank".to_string());
+    }
     if entry.contains('"')
         || entry.contains('\\')
         || entry.contains("}}")
@@ -1295,7 +1306,9 @@ mod tests {
         // substitutes the vault value, so the stub's placeholder has to
         // supply a quoted string in its place before the whole file can
         // parse.
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"");
+        let rendered =
+            crate::config::strip_chezmoi_actions(&text, |_, _| "\"from-the-vault\"".to_string())
+                .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1330,7 +1343,9 @@ mod tests {
             text.contains("key = {{ (keepassxc \"Hue Bridge\").UserName | toToml }}"),
             "{text}"
         );
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"");
+        let rendered =
+            crate::config::strip_chezmoi_actions(&text, |_, _| "\"from-the-vault\"".to_string())
+                .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1356,7 +1371,9 @@ mod tests {
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
         let text = render(&values).expect("a secret marker renders");
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"a\\\"b\\\\c\"");
+        let rendered =
+            crate::config::strip_chezmoi_actions(&text, |_, _| "\"a\\\"b\\\\c\"".to_string())
+                .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1375,7 +1392,8 @@ mod tests {
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
         let text = render(&values).expect("a secret marker renders");
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"plain\"");
+        let rendered = crate::config::strip_chezmoi_actions(&text, |_, _| "\"plain\"".to_string())
+            .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1423,6 +1441,19 @@ mod tests {
                     "`{hostile}` can break out of the action and must be refused"
                 ));
             assert!(error.contains(hostile), "{error}");
+        }
+    }
+
+    /// THE MUTANT THIS PINS: the blank-entry refusal removed, letting
+    /// `keepassxc ""` (or all-whitespace) reach the shipped template and
+    /// defer the failure to an apply-time vault lookup nobody is standing in
+    /// front of.
+    #[test]
+    fn a_blank_or_whitespace_only_entry_name_is_refused_rather_than_written() {
+        for blank in ["", "   ", "\t"] {
+            let error = super::secret_action(secret(blank, "Password").as_table().unwrap())
+                .expect_err(&format!("`{blank:?}` names no entry and must be refused"));
+            assert!(error.contains("blank"), "{error}");
         }
     }
 

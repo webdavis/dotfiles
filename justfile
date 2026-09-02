@@ -278,3 +278,11 @@ defaults-dump:
 # or --install-only to only install absent manifest skills (fresh-machine bootstrap).
 update-skills *args:
   ~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh {{args}}
+
+# Regenerate the shipped pns config template from the committed values file.
+# `just test-rust` pins the result byte for byte, so a hand edit to the
+# template (or an honest edit to the values file) fails there; this recipe is
+# what makes it green again. Dev-only: `pns-config-render` is never installed.
+pns-config-render:
+  cargo run --locked --quiet --manifest-path dot_local/share/pns/Cargo.toml --bin pns-config-render -- \
+    dot_config/pns/config-values.toml dot_config/pns/private_config.toml.tmpl

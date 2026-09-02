@@ -407,6 +407,12 @@ moshi's own generated pi and omp extensions are stuck with: their `helperBinary`
 and has no room for a subcommand. `hooks/codex/install-hooks.sh` is the last bash left under `pns/`,
 because writing another tool's config file is what it does.
 
+**The shipped config template is a GENERATED FILE.** `dot_config/pns/private_config.toml.tmpl` is
+`render`'s own output over the committed `dot_config/pns/config-values.toml`, produced by
+`just pns-config-render`; a hand edit to the template fails a byte-equality test in `just test-rust`. The
+values file carries only what differs from the shipped posture, plus the keepassxc entry name behind each
+secret, and never a secret value itself.
+
 **Moving a script is never just a move.** Its path is referenced by LaunchAgent plists, `.chezmoiscripts`
 runners, Claude Code hook declarations in `modify_settings.json`, aerospace and herdr keybindings, the
 `.chezmoiignore` OS-conditional block, the justfile, and osquery's file-integrity watch paths plus the

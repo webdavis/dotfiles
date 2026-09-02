@@ -599,39 +599,73 @@ pub const TOP_LEVEL: &str = "";
 ///
 /// ONLY THAT ONE ACTION IS STOOD IN FOR. An action in value position must
 /// read exactly `{{ (keepassxc "<entry>").<field> | toToml }}`, the text
-/// `config_text::secret_action` writes; anything else panics. Swapping a
+/// `config_text::secret_action` writes; anything else is refused. Swapping a
 /// quoted placeholder in for ANY action would let a template line that
 /// dropped `| toToml` keep every template test green while chezmoi splices
 /// the raw vault bytes in unquoted.
-#[cfg(test)]
-pub(crate) fn strip_chezmoi_actions(text: &str, placeholder: &str) -> String {
-    text.lines()
+///
+/// NOT TEST-ONLY: `pns-config-render` calls this at runtime too, to stand in
+/// for chezmoi before self-parsing its own render, so it returns a refusal
+/// naming the offender rather than panicking.
+///
+/// `placeholder` IS HANDED THE MATCHED ACTION'S OWN ENTRY AND FIELD, not a
+/// fixed string chosen by the caller: a single fixed placeholder stubs every
+/// secret in a multi-secret text to the SAME value, so a table-comparison
+/// test built on top of it cannot tell a swapped entry from an unswapped
+/// one, sol-1 finding 1 (two tables comparing equal after their secrets
+/// traded places). A caller that genuinely wants one fixed value back for
+/// every action (the round-trip tests below, each with exactly one secret)
+/// just ignores the two arguments.
+pub fn strip_chezmoi_actions(
+    text: &str,
+    placeholder: impl Fn(&str, &str) -> String,
+) -> Result<String, String> {
+    let mut lines = Vec::new();
+    for line in text
+        .lines()
         .filter(|line| !line.trim_start().starts_with("{{-"))
-        .map(|line| {
-            let mut rendered = line.to_string();
-            while let Some(start) = rendered.find("{{") {
-                let end = rendered[start..]
-                    .find("}}")
-                    .expect("a chezmoi action is closed on its own line")
-                    + start
-                    + 2;
-                let action = &rendered[start..end];
-                let is_secret_action = action
-                    .strip_prefix("{{ (keepassxc \"")
-                    .and_then(|rest| rest.split_once("\")."))
-                    .is_some_and(|(entry, rest)| {
-                        !entry.contains('"')
-                            && crate::config_text::SECRET_FIELDS
-                                .iter()
-                                .any(|field| rest == format!("{field} | toToml }}}}"))
-                    });
-                assert!(is_secret_action, "not a `| toToml` secret action: {action}");
-                rendered.replace_range(start..end, placeholder);
-            }
-            rendered
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    {
+        let mut rendered = line.to_string();
+        while let Some(start) = rendered.find("{{") {
+            let Some(end) = rendered[start..]
+                .find("}}")
+                .map(|offset| start + offset + 2)
+            else {
+                return Err(format!(
+                    "a chezmoi action is not closed on its own line: {rendered}"
+                ));
+            };
+            let action = &rendered[start..end];
+            let secret_identity = action
+                .strip_prefix("{{ (keepassxc \"")
+                .and_then(|rest| rest.split_once("\")."))
+                .filter(|(entry, _)| !entry.contains('"'))
+                .and_then(|(entry, rest)| {
+                    crate::config_text::SECRET_FIELDS
+                        .iter()
+                        .find(|field| rest == format!("{field} | toToml }}}}"))
+                        .map(|field| (entry, *field))
+                });
+            let Some((entry, field)) = secret_identity else {
+                return Err(format!("not a `| toToml` secret action: {action}"));
+            };
+            rendered.replace_range(start..end, &placeholder(entry, field));
+        }
+        lines.push(rendered);
+    }
+    Ok(lines.join("\n"))
+}
+
+/// A `strip_chezmoi_actions` placeholder that carries the action's own entry
+/// and field, so no two DIFFERENT secrets in a multi-secret text can stub to
+/// the same value: a comparison built on top of this stub can tell a secret
+/// that moved to a different table apart from one that did not, which the
+/// single fixed string every caller used before could not (sol-1 finding 1).
+/// The backslash escape is defensive: `entry` is already known quote-free by
+/// the caller above, but not backslash-free, and this keeps the result a
+/// valid TOML basic string either way.
+pub fn identity_placeholder(entry: &str, field: &str) -> String {
+    format!("\"from-the-vault:{}:{field}\"", entry.replace('\\', "\\\\"))
 }
 
 /// How many `key = value` pairs a config-shaped text documents, commented
@@ -3557,6 +3591,188 @@ mod tests {
     const SHIPPED_TEMPLATE: &str =
         include_str!("../../../../dot_config/pns/private_config.toml.tmpl");
 
+    /// The one committed input `pns-config-render` walks to produce
+    /// `SHIPPED_TEMPLATE`. Same four-levels-out caveat as `SHIPPED_TEMPLATE`
+    /// itself.
+    const CONFIG_VALUES: &str = include_str!("../../../../dot_config/pns/config-values.toml");
+
+    #[test]
+    fn the_committed_template_is_render_over_the_committed_values_file() {
+        // THE WRAPPER TEXT IS DUPLICATED BY HAND rather than imported from
+        // `pns-config-render`, on purpose: if that binary's own copy were
+        // ever deleted or gutted to an empty string, importing it here would
+        // make both sides agree on nothing and this test would still pass.
+        // A hand-kept second copy is what turns that mutant red.
+        const BANNER: &str = "\
+# GENERATED FILE: this is `render`'s own text over the committed
+# `dot_config/pns/config-values.toml`, produced by `just pns-config-render`.
+# EDIT THE VALUES FILE AND REGENERATE; a hand edit here fails this test.
+{{- if eq .chezmoi.os \"darwin\" }}
+
+";
+        const FOOTER: &str = "{{- end }}\n";
+
+        let values: toml::Table = CONFIG_VALUES
+            .parse()
+            .expect("the committed values file is valid TOML");
+        let rendered =
+            crate::config_text::render(&values).expect("the committed values file renders");
+        let expected = format!("{BANNER}{rendered}{FOOTER}");
+        assert_eq!(
+            expected, SHIPPED_TEMPLATE,
+            "the shipped template drifted from `render` over the committed values file; \
+             regenerate with `just pns-config-render`"
+        );
+    }
+
+    /// The tables the shipped template leaves LIVE, enumerated rather than
+    /// counted and kept by hand, because a count cannot say WHICH table went
+    /// (recurring bug class 10, completeness over counts).
+    ///
+    /// THE MUTANT THIS PINS is the one the byte-equality test above cannot
+    /// see. A table ABSENT from the committed values file renders COMMENTED
+    /// OUT rather than refused, so dropping `[nag]` from that file and
+    /// running `just pns-config-render` writes a template with the nag the
+    /// operator runs switched OFF, and the byte-equality test stays green
+    /// because both sides moved together. Measured: with `[nag]` dropped the
+    /// whole Rust suite passes. An emptied values file renders exit 0 with
+    /// four live tables instead of twenty-two. Only a list held OUTSIDE the
+    /// values file tells a deliberate retirement from an accidental deletion,
+    /// and this is that list: a table retired on purpose is retired here too,
+    /// in the same commit, where a reviewer sees it.
+    ///
+    /// THE CEILING: this pins WHICH tables are live, not what every live key
+    /// holds. A key dropped from the values file renders at its schema
+    /// DEFAULT rather than commented, which this does not catch. That case
+    /// still reads as a changed value in the template's own diff, where a
+    /// whole table going commented reads as a comment reflow.
+    const LIVE_TABLES: [&str; 22] = [
+        "plugins.mobile",
+        "plugins.hermes",
+        "plugins.macos-banner",
+        "plugins.hue",
+        "plugins.router",
+        "daemon",
+        "recap",
+        "nag",
+        "lights",
+        "lights.done",
+        "lights.failed",
+        "lights.blocked",
+        "lights.unread",
+        "lights.loop",
+        "lights.dim",
+        r#"lights.lamp."1F - Front door - HCL1""#,
+        r#"lights.lamp."2F - Kitchen - HCD6""#,
+        r#"lights.lamp."3F - Master Bedroom - HCL3""#,
+        r#"lights.lamp."3F - Studio - HCL3""#,
+        r#"lights.room."2F - Kitchen""#,
+        r#"lights.room."3F - Master Bedroom""#,
+        r#"lights.room."3F - Studio""#,
+    ];
+
+    #[test]
+    fn every_table_the_operator_runs_is_still_live_in_the_shipped_template() {
+        // A COMMENTED heading (`# [nag]`) does not start with `[` once
+        // trimmed, which is exactly the difference being measured here.
+        let live: Vec<&str> = SHIPPED_TEMPLATE
+            .lines()
+            .map(str::trim)
+            .filter_map(|line| {
+                line.strip_prefix('[')
+                    .and_then(|rest| rest.strip_suffix(']'))
+            })
+            .collect();
+        assert_eq!(
+            live, LIVE_TABLES,
+            "a table the operator runs is no longer live in the shipped template; a table \
+             missing from `dot_config/pns/config-values.toml` renders COMMENTED OUT, so check \
+             that file before changing this list"
+        );
+    }
+
+    /// The last-known-good PARSED configuration, `render(&CONFIG_VALUES)` run
+    /// through the real `parse_config`, `{:#?}` printed. Committed on purpose
+    /// SEPARATELY from `config-values.toml` and `SHIPPED_TEMPLATE`, because a
+    /// snapshot regenerated the same way those two are would move in lockstep
+    /// with every values-file edit and never disagree with anything.
+    const RESOLVED_CONFIG_SNAPSHOT: &str =
+        include_str!("../tests/fixtures/resolved-config.snapshot");
+
+    /// Absolute so the failure message below can hand back a `cp` command
+    /// that runs from anywhere, the way `cargo test` output itself does.
+    const RESOLVED_CONFIG_SNAPSHOT_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/resolved-config.snapshot"
+    );
+
+    /// THE MUTANT `LIVE_TABLES` CANNOT SEE (measured, this slice's second
+    /// review round). `plugins.hue.rooms`, `plugins.hue.quiet_hours`,
+    /// `plugins.router.router_url` and `plugins.router.device_hostname` all
+    /// render COMMENTED when dropped from the values file, never touching a
+    /// table heading, so the live-table count stays 22 and the test above
+    /// cannot see it: dropping `rooms` or `router_url` removes both from the
+    /// resolved `Config` outright, the room pulse and the router target
+    /// simply gone. A fifth key, `lights.loop.threshold_secs`, renders LIVE
+    /// but at its schema default (300) when dropped, which changes a value
+    /// the same way as if the operator had typed `300` in the values file
+    /// themselves. Neither shape moves a table heading, so both need the
+    /// PARSED config compared, not the template text.
+    ///
+    /// TO UPDATE AFTER A DELIBERATE CHANGE to `config-values.toml`: run
+    /// `cargo test -p pns --lib \
+    /// config::tests::the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot`
+    /// from `dot_local/share/pns`, note the scratch path the failure names,
+    /// `diff` that path against `tests/fixtures/resolved-config.snapshot` and
+    /// read what moved, then `cp` the scratch file over the committed one (the
+    /// panic prints both commands verbatim) and commit the new snapshot. A
+    /// snapshot updated without reading that diff is a guard bypassed rather
+    /// than obeyed.
+    ///
+    /// THE REMAINING CEILING, measured rather than assumed: this pins the
+    /// `Debug` text of the whole resolved `Config`, so it catches any change
+    /// that reaches `Config`, which is every plugin's raw settings table, the
+    /// four top-level tables and the whole lamp map, and it catches a secret
+    /// moving to a different entry or field too (`identity_placeholder`
+    /// stubs each one to a string carrying its own entry and field, so a
+    /// swapped secret changes the printed text). It does NOT catch a change
+    /// that never reaches `Config` at all: a plugin's own runtime reading of
+    /// its `settings` table (`channels/hue.rs` deciding what a room NAME
+    /// means, for one) is downstream of this layer and out of its reach, the
+    /// same boundary `config.rs`'s own module doc draws. And it is only as
+    /// honest as whoever updates it: nothing stops a `cp` run without reading
+    /// the diff first, which is why the diff step is spelled out above rather
+    /// than folded into one command.
+    #[test]
+    fn the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot() {
+        let values: toml::Table = CONFIG_VALUES
+            .parse()
+            .expect("the committed values file is valid TOML");
+        let rendered =
+            crate::config_text::render(&values).expect("the committed values file renders");
+        let stripped = super::strip_chezmoi_actions(&rendered, super::identity_placeholder)
+            .expect("render's own output is well-formed");
+        let config = parse_config(&stripped)
+            .unwrap_or_else(|error| panic!("the rendered config must load: {error:?}"));
+        let actual = format!("{config:#?}\n");
+
+        if actual == RESOLVED_CONFIG_SNAPSHOT {
+            return;
+        }
+        let scratch = std::env::temp_dir().join(format!(
+            "pns-resolved-config-{}.snapshot",
+            std::process::id()
+        ));
+        std::fs::write(&scratch, &actual).ok();
+        let scratch = scratch.display();
+        panic!(
+            "the resolved configuration drifted from the committed snapshot; run `diff \
+             {RESOLVED_CONFIG_SNAPSHOT_PATH} {scratch}` to see exactly what changed. If \
+             `dot_config/pns/config-values.toml` changed on purpose, after reading that diff run \
+             `cp {scratch} {RESOLVED_CONFIG_SNAPSHOT_PATH}` and commit the new snapshot."
+        );
+    }
+
     /// The template with its chezmoi actions taken out: a directive standing on
     /// its own line goes with the line, and an action inside a value becomes
     /// the string the vault would have put there.
@@ -3565,11 +3781,11 @@ mod tests {
     /// KEYS the file names and under which tables, and no action in it is a key
     /// or a table; they are one conditional wrapper and five secrets.
     fn rendered_template() -> String {
-        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "\"from-the-vault\"")
+        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, super::identity_placeholder)
+            .expect("the shipped template's own actions are well-formed")
     }
 
     #[test]
-    #[should_panic(expected = "not a `| toToml` secret action")]
     fn the_stub_refuses_a_secret_action_that_forgot_totoml() {
         // THE MUTANT THIS PINS: a template secret line with `| toToml`
         // dropped. Chezmoi would then splice the raw vault bytes in unquoted
@@ -3577,10 +3793,12 @@ mod tests {
         // action for a quoted placeholder would keep every template test
         // green. So the stub only stands in for the one action grammar the
         // renderer writes, and refuses the rest out loud.
-        super::strip_chezmoi_actions(
+        let error = super::strip_chezmoi_actions(
             "token = {{ (keepassxc \"Moshi :: Webhook Secret\").Password }}",
-            "\"from-the-vault\"",
-        );
+            |_, _| "\"from-the-vault\"".to_string(),
+        )
+        .expect_err("a bare action with no `| toToml` is not a secret action");
+        assert!(error.contains("not a `| toToml` secret action"), "{error}");
     }
 
     /// THE STUB ONLY READS THE GRAMMAR of a secret action, which is what
@@ -3596,20 +3814,50 @@ mod tests {
     /// `config_text::render` and compares the two byte for byte. The list is
     /// exact rather than a `contains` per line, so a sixth secret appearing,
     /// or one of these five going away, is the same red.
+    ///
+    /// EACH LINE CARRIES ITS OWN TABLE, not just its text: a bare line
+    /// comparison cannot tell hermes's secret sitting under `[plugins.hue]`
+    /// from hermes's secret sitting under `[plugins.hermes]`, since the line
+    /// text alone never says which heading it fell under (sol-1 finding 1).
     #[test]
     fn the_shipped_template_names_the_entry_and_field_of_every_secret() {
-        let secrets: Vec<&str> = SHIPPED_TEMPLATE
+        let mut table = String::new();
+        let secrets: Vec<(String, &str)> = SHIPPED_TEMPLATE
             .lines()
-            .filter(|line| line.contains("keepassxc"))
+            .filter_map(|line| {
+                if let Some(heading) = line
+                    .strip_prefix('[')
+                    .and_then(|rest| rest.strip_suffix(']'))
+                {
+                    table = heading.to_string();
+                    return None;
+                }
+                line.contains("keepassxc").then(|| (table.clone(), line))
+            })
             .collect();
         assert_eq!(
             secrets,
             [
-                r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#,
-                r#"key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}"#,
-                r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#,
-                r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#,
-                r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#,
+                (
+                    "plugins.mobile".to_string(),
+                    r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#
+                ),
+                (
+                    "plugins.hermes".to_string(),
+                    r#"key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}"#
+                ),
+                (
+                    "plugins.hue".to_string(),
+                    r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#
+                ),
+                (
+                    "plugins.hue".to_string(),
+                    r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#
+                ),
+                (
+                    "plugins.router".to_string(),
+                    r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#
+                ),
             ]
         );
     }
@@ -3649,33 +3897,6 @@ mod tests {
             "the template must state the blocked backstop, uncommented, at 57600"
         );
     }
-
-    #[test]
-    fn every_key_the_template_documents_is_a_key_the_roster_serves() {
-        // THE SCANNER IS THE SHARED ONE, so the template and what `pns setup`
-        // composes are held to the roster by the same reader rather than by
-        // two that can drift apart. The count is pinned HERE and only here,
-        // because the template is the text whose key list is a fixed document.
-        assert_eq!(
-            super::documented_keys_the_roster_serves(&rendered_template()),
-            TEMPLATE_KEY_PAIRS,
-            "the scan read a different number of keys than the template documents"
-        );
-    }
-
-    /// How many `key = value` pairs the scan above finds in the shipped
-    /// template, commented lines included.
-    ///
-    /// EXACT, NOT A FLOOR. The number is here to catch a SCANNER that quietly
-    /// stopped reading, and a floor with room under it is a scanner allowed to
-    /// lose a quarter of the file and still pass: the scan is whitespace-exact
-    /// in two places (`# ` and ` = `), so a template edit writing `key= value`
-    /// on a run of lines drops exactly that run and nothing says so.
-    ///
-    /// THE ONE EDIT THAT MOVES IT is the template documenting a key more or a
-    /// key fewer, in which case this number moves with it. A change here for
-    /// any other reason is the scan breaking rather than the template changing.
-    const TEMPLATE_KEY_PAIRS: usize = 66;
 
     #[test]
     fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
