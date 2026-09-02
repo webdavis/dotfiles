@@ -353,7 +353,7 @@ fn a_mixed_run_records_each_lanes_own_verdict_alerts_only_the_failed_one_and_sta
 /// The run lock's own path, matching `run_lock_path` in `main.rs`
 /// (duplicated rather than exported: a lock path only a test needs is not
 /// part of the binary's public surface).
-fn lock_path(home: &PathBuf) -> PathBuf {
+fn lock_path(home: &std::path::Path) -> PathBuf {
     home.join(".local/state/uu/run.lock")
 }
 
