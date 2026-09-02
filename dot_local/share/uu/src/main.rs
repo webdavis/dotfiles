@@ -11,6 +11,7 @@
 //! get, is uu failing (1). An argument uu does not serve is usage (2).
 
 use std::io::Write;
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -21,11 +22,12 @@ use unattended_upgrades::config::{
     Config, ConfigError, LANE_TYPES, LaneKind, LoadOutcome, Records, config_path, load_config,
 };
 use unattended_upgrades::lanes::{
-    CommandRunner, LaneReport, Ran, enabled_lanes, failure_reason, run_lane,
+    CommandRunner, DEFERRED_EXIT_CODE, LaneReport, Ran, Verdict, enabled_lanes, failure_reason,
+    run_lane,
 };
 use unattended_upgrades::record::{
-    AGENT, Marker, RunFacts, gap_line, marker_contents, parse_marker, record_body, record_detail,
-    record_state,
+    AGENT, Marker, RunFacts, STALE_AFTER_RUNS, gap_line, marker_contents, next_streak,
+    parse_marker, record_body, record_detail, record_state,
 };
 use unattended_upgrades::schedule::{DEFAULT_LABEL, render_plist};
 
@@ -105,6 +107,33 @@ fn run_mode(only: Option<&str>) -> i32 {
         Err(code) => return code,
     };
 
+    // ONE RUN AT A TIME. Everything below reads, then writes, the marker and
+    // every lane's own streak file with no other guard: two overlapping runs
+    // can both read the same streak count and both write the same next
+    // value, which is the one mechanism whose entire job is noticing a lane
+    // gone quiet, so a delayed or duplicated staleness alert is the exact
+    // failure this verdict exists to prevent. Non-blocking, matching the two
+    // weekly jobs this ported from (`/usr/bin/lockf -s -t 0`, kernel-backed
+    // and released automatically on exit or a crash): a second run says so
+    // and exits rather than pretending it ran.
+    let _lock = match acquire_run_lock(&home) {
+        Ok(lock) => lock,
+        Err(LockFailure::Contended(why)) => {
+            eprintln!("uu: {why}; not running, to avoid racing the run that already holds it");
+            return 1;
+        }
+        Err(LockFailure::Unavailable(why)) => {
+            eprintln!("uu: {why}; not running");
+            return 1;
+        }
+    };
+
+    // A LANE NO LONGER DECLARED IS PRUNED HERE, under the same lock: its
+    // directory (and whatever streak it held) would otherwise leak forever,
+    // and a NEW lane that reuses the old name would inherit that streak and
+    // could alert on its very first miss.
+    prune_removed_lane_state(&home, &config);
+
     // The header is captured BEFORE the lanes run and before the marker is
     // rewritten: a gap sampled at delivery reports zero on every run. A clock
     // that cannot be read renders as the epoch itself, which is a date no
@@ -145,6 +174,7 @@ fn run_mode(only: Option<&str>) -> i32 {
     }
 
     let failures: usize = reports.iter().map(|report| report.failures).sum();
+    let deferred: usize = reports.iter().filter(|report| report.deferred).count();
     let detail = record_detail(&host_name, &started_iso, &gap, &reports);
     print!("{detail}");
 
@@ -158,6 +188,88 @@ fn run_mode(only: Option<&str>) -> i32 {
         );
     }
 
+    // THE STALENESS BOUND: a lane deferring or failing every week is silent
+    // by design (a deferral never alerts on its own, and even a failure's
+    // alert says nothing about HOW LONG this has been going on), so nothing
+    // else says a lane has gone quiet for good. Tracked PER LANE, across
+    // runs, independent of whatever else this run's own verdict says.
+    for report in &reports {
+        let succeeded = !report.deferred && report.failures == 0;
+        let path = streak_path(&home, &report.name);
+        // A STREAK THIS RUN COULD NOT TRUST is never read as zero: zero would
+        // silently forgive whatever history the file held, which is the
+        // opposite of what a mechanism built to notice a lane going quiet
+        // may ever do. Treated as one short of the threshold instead, so a
+        // non-success run still gets its chance to trip rather than starting
+        // a fresh count nobody asked for.
+        let previous = match read_streak(&path) {
+            Streak::Absent => 0,
+            Streak::Value(value) => value,
+            Streak::Unreadable(why) => {
+                send_alert(
+                    &PnsAlerter,
+                    engine.as_deref(),
+                    &report.name,
+                    &format!(
+                        "this lane's non-success streak at {} could not be trusted ({why}); \
+                         treating it as already close to stale rather than silently starting \
+                         over",
+                        path.display()
+                    ),
+                );
+                STALE_AFTER_RUNS - 1
+            }
+        };
+        let (next, tripped) = next_streak(previous, succeeded);
+        // AN UNDELIVERED TRIP IS RETRIED, NEVER LOST. This alert fires once
+        // per streak, so an engine that was down for the one run that trips
+        // would otherwise leave a deferring lane silent for good: a deferral
+        // raises nothing else, and the streak only climbs from here. Holding
+        // the count one short of the threshold makes the next run trip again.
+        // The count is read by nothing but this trip, so a run spent short of
+        // its true value costs no reader anything.
+        let recorded = if tripped
+            && !send_alert(
+                &PnsAlerter,
+                engine.as_deref(),
+                &report.name,
+                &format!(
+                    "no successful run in {STALE_AFTER_RUNS} consecutive attempt(s); the last \
+                     one {}",
+                    if report.deferred {
+                        "deferred"
+                    } else {
+                        "failed"
+                    }
+                ),
+            ) {
+            STALE_AFTER_RUNS - 1
+        } else {
+            next
+        };
+        // A WRITE FAILURE IS LOUD, never just an eprintln nobody reads from a
+        // headless launchd job: this file IS the mechanism, so losing it
+        // silently would be exactly the fail-open this whole capability
+        // exists to refuse.
+        if let Err(why) = write_streak(&path, recorded) {
+            eprintln!(
+                "uu: could not record lane `{}`'s non-success streak at {}: {why}",
+                report.name,
+                path.display()
+            );
+            send_alert(
+                &PnsAlerter,
+                engine.as_deref(),
+                &report.name,
+                &format!(
+                    "this lane's non-success streak at {} could not be recorded ({why}); \
+                     staleness tracking for it is unreliable until this is fixed",
+                    path.display()
+                ),
+            );
+        }
+    }
+
     // A RECORD THE GATEWAY NEVER RECEIVED IS A FAILED RUN, even when every
     // lane passed. The entry is the whole point of the week's work, and the
     // marker is what the NEXT entry measures its gap from: stamping a success
@@ -169,7 +281,7 @@ fn run_mode(only: Option<&str>) -> i32 {
             &UreqSignedPost,
             &PnsAlerter,
             records,
-            records_body(failures, &detail),
+            records_body(failures, deferred, &detail),
             engine.as_deref(),
         ),
         None => {
@@ -182,13 +294,20 @@ fn run_mode(only: Option<&str>) -> i32 {
     // the last time everything actually worked rather than the last time uu
     // woke up.
     //
+    // A DEFERRAL IS NOT A CLEAN RUN EITHER. A deferred lane did no work, so it
+    // must not count as the run that advances the marker: the marker means
+    // the last time everything actually ran and succeeded, and letting a
+    // deferral through would have a lane that never runs read as healthy
+    // forever, which is exactly the failure mode this verdict exists to make
+    // visible instead.
+    //
     // AND IT STAMPS THE MOMENT THE RUN FINISHED, read here rather than reused
     // from the header. Lanes have no upper bound, so the header's instant can
     // be an hour old by now, and every following gap would carry that hour on
     // top of its own. A clock that will not answer at this instant leaves the
     // marker alone: an unmoved marker overstates the next gap, while a
     // guessed timestamp understates it silently.
-    if failures == 0 && !record_lost {
+    if failures == 0 && deferred == 0 && !record_lost {
         match now_epoch() {
             Some(finished) => write_marker(&marker_path, finished),
             None => eprintln!(
@@ -202,8 +321,8 @@ fn run_mode(only: Option<&str>) -> i32 {
     0
 }
 
-fn records_body(failures: usize, detail: &str) -> String {
-    record_body(record_state(failures), &host(), detail)
+fn records_body(failures: usize, deferred: usize, detail: &str) -> String {
+    record_body(record_state(failures, deferred), &host(), detail)
 }
 
 // --- the doctor ------------------------------------------------------------
@@ -334,6 +453,148 @@ fn home() -> Option<String> {
 
 fn marker_path(home: &str) -> PathBuf {
     Path::new(home).join(".local/state/uu/last-success")
+}
+
+/// Where a lane's non-success streak lives: one small file per lane, named for
+/// the lane itself so two lanes never share bookkeeping.
+fn streak_path(home: &str, lane: &str) -> PathBuf {
+    Path::new(home)
+        .join(".local/state/uu/lanes")
+        .join(lane)
+        .join("streak")
+}
+
+/// Where the whole run's own lock lives, held for as long as `run_mode` is
+/// on the stack.
+fn run_lock_path(home: &str) -> PathBuf {
+    Path::new(home).join(".local/state/uu/run.lock")
+}
+
+/// The run-wide lock. Held only by virtue of the open file descriptor: the
+/// kernel drops the `flock` the moment it closes, on a normal return or a
+/// crash alike, so there is no stale-lock file to clean up by hand.
+struct RunLock(#[allow(dead_code)] std::fs::File);
+
+/// Why `acquire_run_lock` could not hand back a lock: the ONE arm that is
+/// genuine contention, and everything else. The call site says something
+/// different for each, because "to avoid racing the run that already holds
+/// it" is only true for `Contended`: a directory that could not be created
+/// or a lock file that could not even be opened is an environment problem
+/// with its own real cause, and this is the one place the operator hears
+/// about it, so blaming a race that never happened would send them chasing
+/// the wrong thing.
+enum LockFailure {
+    /// `flock` itself refused: another run genuinely holds the lock right
+    /// now.
+    Contended(String),
+    /// The lock file, or the directory it lives in, could not even be
+    /// opened.
+    Unavailable(String),
+}
+
+/// Take the run lock, or say why not. NON-BLOCKING (`LOCK_NB`): a second run
+/// finding this one still going must say so and exit, never wait its turn
+/// and then run stale.
+fn acquire_run_lock(home: &str) -> Result<RunLock, LockFailure> {
+    let path = run_lock_path(home);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            LockFailure::Unavailable(format!("could not create {}: {error}", parent.display()))
+        })?;
+    }
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|error| {
+            LockFailure::Unavailable(format!("could not open {}: {error}", path.display()))
+        })?;
+    // SAFETY: `file`'s descriptor is open and owned by this frame for the
+    // whole call; `flock`'s only effect is the kernel's own lock table.
+    let refused = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0;
+    if refused {
+        return Err(LockFailure::Contended(format!(
+            "another run already holds {}",
+            path.display()
+        )));
+    }
+    Ok(RunLock(file))
+}
+
+/// The lane names this config no longer declares are dropped here, under the
+/// run lock: a directory left behind by a removed or renamed lane would leak
+/// forever otherwise, and a NEW lane reusing the old name would inherit its
+/// streak and could alert on its very first miss. Best effort and silent on
+/// its own failure, matching every other piece of this bookkeeping: a stale
+/// directory that resists cleanup costs nothing but a few bytes, never a
+/// wrong verdict.
+fn prune_removed_lane_state(home: &str, config: &Config) {
+    let lanes_dir = Path::new(home).join(".local/state/uu/lanes");
+    let Ok(entries) = std::fs::read_dir(&lanes_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let Some(name) = entry.file_name().to_str().map(str::to_string) else {
+            continue;
+        };
+        if !config.lanes.contains_key(&name) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// What reading a lane's streak file found.
+///
+/// `Absent` COVERS ONLY `NotFound`: that is the one case that legitimately
+/// means a fresh lane, or one that has never had a non-success run. Anything
+/// else the file could say (unreadable, a directory sitting where the file
+/// belongs, content that is not a plain count) is `Unreadable`, never a
+/// silent zero: zero would forgive whatever streak the file actually held,
+/// which is the fail-open this whole capability exists to refuse.
+#[derive(Debug, PartialEq, Eq)]
+enum Streak {
+    Absent,
+    Value(u32),
+    Unreadable(String),
+}
+
+fn read_streak(path: &Path) -> Streak {
+    match std::fs::read_to_string(path) {
+        Ok(text) => match text.trim().parse() {
+            Ok(value) => Streak::Value(value),
+            Err(_) => Streak::Unreadable(format!("{:?} is not a plain count", text.trim())),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Streak::Absent,
+        Err(error) => Streak::Unreadable(error.to_string()),
+    }
+}
+
+/// Publish a lane's streak, ATOMICALLY: a sibling temp file, written in full
+/// and then renamed over the target. `rename` only needs write permission on
+/// the DIRECTORY, never on the file it replaces, so a streak file an earlier
+/// run left read-only no longer blocks every write after it the way
+/// truncating in place did; only a directory this run cannot write to still
+/// fails, and that failure is returned rather than swallowed, so the caller
+/// can make it loud instead of silent.
+fn write_streak(path: &Path, value: u32) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "the streak path has no parent directory".to_string())?;
+    std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    // NAMED FOR THE TARGET, not only the process: every lane's own streak
+    // lives in its own directory in production, but the unit tests below
+    // exercise several DIFFERENT target files under the same shared temp
+    // parent, in the same process, in parallel. A temp name keyed on the
+    // process id alone collided across those targets; keying it on the
+    // target's own file name as well makes two DIFFERENT targets in the SAME
+    // directory use different temp files even when the process id matches.
+    let target_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("streak");
+    let temp = parent.join(format!(".{target_name}-{}.tmp", std::process::id()));
+    std::fs::write(&temp, format!("{value}\n")).map_err(|error| error.to_string())?;
+    std::fs::rename(&temp, path).map_err(|error| error.to_string())
 }
 
 /// This instant in epoch seconds, or `None` for a clock set before 1970. The
@@ -518,14 +779,25 @@ impl CommandRunner for SystemRunner {
             .map_err(|error| format!("could not write {program}'s input: {error}"))?;
         drop(writer);
         let output = self.spawn(program, args, Stdio::from(reader))?;
+        let verdict = if output.status.success() {
+            Verdict::Clean
+        } else {
+            let reason = failure_reason(
+                &exit_description(&output),
+                &String::from_utf8_lossy(&output.stderr),
+            );
+            // DEFERRED_EXIT_CODE, not "any non-zero": the two weekly jobs
+            // this ported from use it to mean "nothing was attempted, try
+            // later", and every other non-zero code stays a real failure.
+            if output.status.code() == Some(DEFERRED_EXIT_CODE) {
+                Verdict::Deferred(reason)
+            } else {
+                Verdict::Failed(reason)
+            }
+        };
         Ok(Ran {
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-            failure: (!output.status.success()).then(|| {
-                failure_reason(
-                    &exit_description(&output),
-                    &String::from_utf8_lossy(&output.stderr),
-                )
-            }),
+            verdict,
         })
     }
 }
@@ -546,15 +818,24 @@ impl Alerter for PnsAlerter {
 /// One alert, FAIL OPEN at every rung: no `[alerts]` block, an engine that is
 /// not there, and an engine that refused are each stated here and none of them
 /// ends the run.
-fn send_alert(alerter: &dyn Alerter, engine: Option<&str>, lane: &str, summary: &str) {
+///
+/// ANSWERS WHETHER THE ALERT IS OWED ANY LONGER, which is not the same as
+/// whether an engine ran. With no `[alerts]` block nothing was owed and the
+/// log line IS the delivery, so that is `true`; only a configured engine that
+/// refused leaves something still to say. The per-run failure alert ignores
+/// this, because it fires again next run either way; the staleness alert
+/// fires once per streak and has to know.
+fn send_alert(alerter: &dyn Alerter, engine: Option<&str>, lane: &str, summary: &str) -> bool {
     let Some(binary) = engine else {
         println!("uu: no [alerts] block; `{lane}: {summary}` was logged and nothing else");
-        return;
+        return true;
     };
     let argv = alert_argv(&host(), lane, summary);
     if let Err(why) = alerter.alert(binary, &argv) {
         println!("uu: the alert for `{lane}` was NOT delivered ({why}); it is logged here instead");
+        return false;
     }
+    true
 }
 
 /// The record, posted in process, ANSWERING WHETHER IT LANDED. The caller
@@ -602,6 +883,7 @@ fn deliver_record(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
 
     /// A path of this test's own under the temp directory, with nothing at it.
     fn scratch(name: &str) -> PathBuf {
@@ -613,6 +895,95 @@ mod tests {
     #[test]
     fn a_path_with_no_marker_at_it_is_a_machine_that_never_recorded_a_run() {
         assert_eq!(read_marker(&scratch("absent")), Marker::NeverRecorded);
+    }
+
+    // --- the staleness streak's file I/O ----------------------------------
+
+    #[test]
+    fn a_path_with_no_streak_at_it_is_absent_which_is_the_only_case_that_reads_as_zero() {
+        assert_eq!(read_streak(&scratch("streak-absent")), Streak::Absent);
+    }
+
+    #[test]
+    fn a_streak_file_that_does_not_parse_as_a_count_is_unreadable_not_a_silent_zero() {
+        // BEFORE THIS FIX this read as zero, which silently forgives whatever
+        // streak a half-written or corrupted file actually held: a lane one
+        // run short of tripping would quietly restart its count from
+        // scratch instead of the operator ever hearing about it.
+        let path = scratch("streak-garbage");
+        std::fs::write(&path, "not-a-number\n").expect("the file");
+        let read = read_streak(&path);
+        std::fs::remove_file(&path).ok();
+        assert!(matches!(read, Streak::Unreadable(_)), "{read:?}");
+    }
+
+    #[test]
+    fn a_streak_file_this_process_cannot_read_is_unreadable_not_absent() {
+        // Distinct from `Absent`: the file IS there, so a lane whose history
+        // this run cannot see must not be told it has none.
+        let path = scratch("streak-unreadable-mode");
+        std::fs::write(&path, "2\n").expect("the file");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("mode");
+        let read = read_streak(&path);
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).ok();
+        std::fs::remove_file(&path).ok();
+        assert!(matches!(read, Streak::Unreadable(_)), "{read:?}");
+    }
+
+    #[test]
+    fn a_written_streak_is_the_streak_read_back() {
+        let path = scratch("streak-roundtrip");
+        write_streak(&path, 2).expect("the write");
+        let read = read_streak(&path);
+        std::fs::remove_file(&path).ok();
+        assert_eq!(read, Streak::Value(2));
+    }
+
+    #[test]
+    fn writing_a_streak_creates_its_parent_directory() {
+        let path = std::env::temp_dir().join(format!(
+            "uu-main-streak-parent-{}/lanes/mine/streak",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap());
+        write_streak(&path, 1).expect("the write");
+        let read = read_streak(&path);
+        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).ok();
+        assert_eq!(read, Streak::Value(1));
+    }
+
+    #[test]
+    fn a_streak_file_made_read_only_is_still_overwritten_by_the_next_run() {
+        // ROW 2, DIRECTION B reproduced by hand before this fix: a streak
+        // file made read-only after being written stayed stuck at its old
+        // value forever, because a plain `fs::write` truncates the EXISTING
+        // file in place and needs write permission on it. Publishing through
+        // a rename needs write permission on the DIRECTORY only, so the same
+        // read-only file no longer blocks the write at all.
+        let path = scratch("streak-readonly-file");
+        write_streak(&path, 2).expect("the first write");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).expect("mode");
+        let result = write_streak(&path, 3);
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).ok();
+        result.expect("a rename over a read-only file must still succeed");
+        let read = read_streak(&path);
+        std::fs::remove_file(&path).ok();
+        assert_eq!(read, Streak::Value(3));
+    }
+
+    #[test]
+    fn a_streak_write_whose_directory_cannot_be_created_reports_why_rather_than_staying_silent() {
+        // ROW 2, DIRECTION A reproduced by hand before this fix: a plain FILE
+        // sitting where the lane's directory belongs makes `create_dir_all`
+        // fail on every run, and the old `write_streak` only printed to
+        // stderr and moved on, so a lane stuck this way never once reached
+        // the staleness threshold: the count could never actually persist.
+        let blocker = scratch("streak-blocked-parent");
+        std::fs::write(&blocker, "").expect("a plain file occupying the would-be directory");
+        let path = blocker.join("streak");
+        let error = write_streak(&path, 1).expect_err("a file cannot become a directory");
+        std::fs::remove_file(&blocker).ok();
+        assert!(!error.is_empty(), "{error:?}");
     }
 
     #[test]
@@ -647,7 +1018,7 @@ mod tests {
             .expect("cat never saw EOF: uu is still holding the pipe's write end")
             .expect("cat runs");
         assert_eq!(ran.stdout, "the run event\n");
-        assert_eq!(ran.failure, None);
+        assert_eq!(ran.verdict, Verdict::Clean);
     }
 
     #[test]
@@ -663,7 +1034,7 @@ mod tests {
         let ran = SystemRunner
             .run_with_input("/bin/sh", &["-c", "exit 0"], "the run event\n")
             .expect("a child that ignores stdin still runs and exits cleanly");
-        assert_eq!(ran.failure, None);
+        assert_eq!(ran.verdict, Verdict::Clean);
     }
 
     #[test]
@@ -671,7 +1042,7 @@ mod tests {
         // The child prints to stdout BEFORE it fails, the way a partially
         // successful upgrade would: a mutant that blanks stdout on any
         // non-zero exit would still satisfy every assertion below that only
-        // looks at `failure`, so `ran.stdout` is pinned here too.
+        // looks at `verdict`, so `ran.stdout` is pinned here too.
         let ran = SystemRunner
             .run_with_input(
                 "/bin/sh",
@@ -683,9 +1054,60 @@ mod tests {
             )
             .expect("the child ran, it just failed");
         assert_eq!(ran.stdout, "3 upgraded\n");
-        let failure = ran.failure.expect("a non-zero exit is a failure");
+        let Verdict::Failed(failure) = ran.verdict else {
+            panic!("exit 2 is a failure, not {:?}", ran.verdict);
+        };
         assert!(failure.contains("exit 2"), "{failure}");
         assert!(failure.contains("no such repository"), "{failure}");
+    }
+
+    #[test]
+    fn run_with_input_reports_the_deferred_exit_code_as_deferred_not_failed() {
+        // The distinction this whole capability exists for: DEFERRED_EXIT_CODE
+        // (75) is a verdict of its own, never lumped in with every other
+        // non-zero exit.
+        let ran = SystemRunner
+            .run_with_input(
+                "/bin/sh",
+                &[
+                    "-c",
+                    "printf 'nothing was attempted\\n'; cat >/dev/null; \
+                     printf 'another run holds the lock\\n' >&2; exit 75",
+                ],
+                "the run event\n",
+            )
+            .expect("the child ran, it just deferred");
+        // A mutant that blanks stdout ONLY on the deferred path (leaving the
+        // clean and failed paths alone) would satisfy every other assertion
+        // here, since none of them look at `ran.stdout` at all.
+        assert_eq!(ran.stdout, "nothing was attempted\n");
+        let Verdict::Deferred(reason) = ran.verdict else {
+            panic!("exit 75 is a deferral, not {:?}", ran.verdict);
+        };
+        assert!(reason.contains("exit 75"), "{reason}");
+        assert!(reason.contains("another run holds the lock"), "{reason}");
+    }
+
+    #[test]
+    fn run_with_input_treats_any_other_non_zero_exit_as_failed_never_deferred() {
+        // A mutant widening DEFERRED_EXIT_CODE's check to "any non-zero" would
+        // pass with only 74 tested; a mutant narrowing it to `>= 75` would
+        // pass with only 74 and 75 tested and misclassify 76 as deferred. Both
+        // neighbors of 75 are pinned here as still Failed.
+        for code in [74, 76] {
+            let ran = SystemRunner
+                .run_with_input(
+                    "/bin/sh",
+                    &["-c", &format!("exit {code}")],
+                    "the run event\n",
+                )
+                .expect("the child ran, it just failed");
+            assert!(
+                matches!(ran.verdict, Verdict::Failed(_)),
+                "exit {code}: {:?}",
+                ran.verdict
+            );
+        }
     }
 
     #[test]
@@ -759,6 +1181,27 @@ mod tests {
         let marker = read_marker(&link);
         std::fs::remove_file(&link).ok();
         assert_eq!(marker, Marker::Unreadable);
+    }
+
+    // --- the posted record body -------------------------------------------
+
+    #[test]
+    fn a_deferred_only_run_posts_a_body_stated_deferred_not_completed() {
+        // record_state itself is pinned directly in record.rs; this instead
+        // guards the CALL SITE here in `records_body`, where a mutant
+        // passing `record_state(failures, 0)` would post every deferred-only
+        // run as "completed" while leaving every `record_state` unit test
+        // green.
+        let body = records_body(0, 1, "detail");
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["state"], "deferred");
+    }
+
+    #[test]
+    fn a_mixed_run_posts_a_body_stated_failed_not_deferred() {
+        let body = records_body(1, 1, "detail");
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["state"], "failed");
     }
 
     // --- the record and alert seams --------------------------------------

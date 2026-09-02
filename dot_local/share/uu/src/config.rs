@@ -427,6 +427,18 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     Ok(Alerts { binary })
 }
 
+/// Whether a lane's own NAME is safe to use as a directory component. A
+/// lane's name flows straight into a path (`streak_path` in `main.rs`) with
+/// no other guard between the config and the filesystem, so a name that is
+/// not a single plain component could escape the state directory (`..`) or
+/// land somewhere unsurprising (an absolute name, a leading `/`). A config
+/// already names arbitrary programs to run, so this grants nothing a hostile
+/// config does not already have; the point is that an honest TYPO must not
+/// be able to truncate an unrelated file.
+fn is_plain_path_segment(name: &str) -> bool {
+    !name.is_empty() && !name.contains('/') && name != "." && name != ".."
+}
+
 /// `[lanes]`, whose blocks are keyed by an operator-chosen NAME and dispatch
 /// on the TYPE each one states.
 ///
@@ -439,6 +451,13 @@ fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
     let table = table_of("lanes", value)?;
     let mut lanes = Lanes::new();
     for (name, block) in table {
+        if !is_plain_path_segment(&name) {
+            return Err(ConfigError::Invalid(format!(
+                "lane name `{name}` is not a plain path segment; a lane's own name becomes a \
+                 directory under its state path, so it must not contain `/` and must not be `.` \
+                 or `..`"
+            )));
+        }
         let table_label = format!("lanes.{name}");
         let fields = table_of(&table_label, block)?;
         let kind = match lane_type(&name, &table_label, &fields)?.as_str() {
@@ -693,6 +712,27 @@ mod tests {
         let detail = refusal("[lanes.hedr]\n");
         assert!(detail.contains("lane `hedr` names no `type`"), "{detail}");
         assert!(detail.contains("herdr"), "{detail}");
+    }
+
+    #[test]
+    fn a_lane_name_that_is_not_a_plain_path_segment_is_refused_at_load() {
+        // Confirmed live (4b's review): `[lanes."../../../../pwned"]` created
+        // `$HOME/pwned/streak`, escaping the state directory entirely. A lane
+        // name flows straight into a path with no other guard, so a typo
+        // must not be able to truncate an unrelated file.
+        for name in ["..", ".", "../escaped", "a/b", "/absolute"] {
+            let detail = refusal(&format!("[lanes.{name:?}]\ntype = \"herdr\"\n"));
+            assert!(
+                detail.contains("is not a plain path segment"),
+                "case {name:?}: {detail}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_ordinary_lane_name_is_unaffected_by_the_path_segment_check() {
+        assert!(parse_config("[lanes.mine]\ntype = \"herdr\"\n").is_ok());
+        assert!(parse_config("[lanes.my-lane_2]\ntype = \"herdr\"\n").is_ok());
     }
 
     #[test]

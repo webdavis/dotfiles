@@ -126,6 +126,7 @@ mod tests {
         let report = LaneReport {
             name: "herdr".to_string(),
             failures: 1,
+            deferred: false,
             lines: Vec::new(),
             last_failure: None,
         };
