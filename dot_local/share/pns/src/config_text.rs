@@ -80,14 +80,18 @@ pub const LAYOUT: &[Table] = &[
                 name: "mobile_watch_card",
                 prose: "# Whether a long command's card still fires while you are watching that\n\
                          # pane on the phone. OFF: a card describing the pane already filling the\n\
-                         # screen is noise, and the light pulse alone marks the command finishing.\n",
+                         # screen is noise, and the light pulse alone marks the command finishing;\n\
+                         # set true to be carded anyway.\n",
                 sample: Sample::Default("false"),
             },
             Key {
                 name: "submit_deadline_secs",
                 prose: "# How long pns waits for moshi to acknowledge a submitted permission\n\
                          # prompt, in seconds. The harness draws the prompt only once the hook\n\
-                         # returns, so this is time the question is off your screen.\n",
+                         # returns, so this is time the question is off your screen. On expiry\n\
+                         # the submission is killed and its pending card dies with it, and\n\
+                         # nothing is said either way. There is no off switch: zero, a negative,\n\
+                         # a fraction and anything past 3600 are refused by name.\n",
                 sample: Sample::Default("5"),
             },
         ],
@@ -150,7 +154,12 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "quiet_hours",
                 prose: "# The hours the room pulse stays dark: local wall clock, the start\n\
-                         # inclusive and the end exclusive, and it may wrap midnight.\n",
+                         # inclusive and the end exclusive, and it may wrap midnight. A hand-run\n\
+                         # `pns pulse` is exempt, so a bridge and key can be checked in-window.\n\
+                         # A bare `pns lights quiet <place>` mutes until this window ends and is\n\
+                         # refused when none is set. With a `[lights]` table below, each place's\n\
+                         # own `dim_window` decides the night instead and this window is the\n\
+                         # mute's schedule alone.\n",
                 sample: Sample::Example("\"22:00-07:00\""),
             },
         ],
@@ -169,7 +178,8 @@ pub const LAYOUT: &[Table] = &[
             },
             Key {
                 name: "type",
-                prose: "",
+                prose: "# Which compiled-in backend answers. \"unifi\" is the only one today, and\n\
+                         # a table naming none, or naming one nothing answers, is refused out loud.\n",
                 sample: Sample::Default("\"unifi\""),
             },
             Key {
@@ -179,10 +189,11 @@ pub const LAYOUT: &[Table] = &[
             },
             Key {
                 name: "device_hostname",
-                prose: "# The device is named by device_hostname, device_mac or device_ipv4, at\n\
-                         # least one of them, and on disagreement the strongest of those three\n\
-                         # names the match. A phone is matched by NAME, because iOS rotates its\n\
-                         # wifi address.\n",
+                prose: "# The device is named by device_mac, device_hostname or device_ipv4, at\n\
+                         # least one of them; any one matching a client reads home, and on\n\
+                         # disagreement the strongest, in that order, names the match. A phone is\n\
+                         # matched by NAME, because iOS rotates its wifi address; device_mac is\n\
+                         # for a device whose address stays put.\n",
                 sample: Sample::Example("\"\""),
             },
             Key {
@@ -203,7 +214,9 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "stale_alert_channel",
                 prose: "# The hermes route a stale-identifier alert posts to. UNSET IS THE\n\
-                         # WORKING SETTING: the alert posts to the default route.\n",
+                         # WORKING SETTING: the alert posts to the default route. Naming another\n\
+                         # needs that hermes route prepared first, with the pns signing secret\n\
+                         # and a pns-shaped prompt, or the POST is rejected and the leg is silent.\n",
                 sample: Sample::Example("\"priority\""),
             },
         ],
@@ -226,26 +239,33 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "replay_card",
                 prose: "# The catch-up card: the misses queued while you were away, put in front\n\
-                         # of you on the first event you are present for.\n",
+                         # of you on the first event you are present for. Off never cards from\n\
+                         # the journal; the misses stay recorded whatever this says, so switching\n\
+                         # the card back on has something to deliver.\n",
                 sample: Sample::Default("true"),
             },
             Key {
                 name: "digest",
                 prose: "# The recap of the whole window posted to hermes, rendered and posted\n\
-                         # by a second process that nothing waits for.\n",
+                         # by a second process that nothing waits for. Off records the window\n\
+                         # just the same; only the posting stops.\n",
                 sample: Sample::Default("true"),
             },
             Key {
                 name: "digest_as_thread",
                 prose: "# Whether that recap posts to the `pns-recap` route rather than the\n\
-                         # default one. The route has to exist in hermes first.\n",
+                         # default one. The route has to exist in hermes first, prepared with\n\
+                         # the pns signing secret and a prompt of bare `{detail}`; a route that\n\
+                         # refuses the post is not silent, the recap goes to the default route\n\
+                         # instead, carrying one line saying why it landed there.\n",
                 sample: Sample::Default("true"),
             },
             Key {
                 name: "min_events",
                 prose: "# How many events a window needs before it is worth a recap rather than\n\
                          # the catch-up card alone. Every recap's header prints the window's real\n\
-                         # count, which is how the number gets settled.\n",
+                         # count, which is how the number gets settled. One is the floor and\n\
+                         # means any activity at all; zero is refused.\n",
                 sample: Sample::Default("8"),
             },
             Key {
@@ -253,7 +273,10 @@ pub const LAYOUT: &[Table] = &[
                 prose: "# The command that turns the window into the night-in-order lines:\n\
                          # ARGV, NEVER A SHELL STRING, handed the timeline on stdin and answering\n\
                          # on stdout. UNSET IS A WORKING SETTING and posts the plain mechanical\n\
-                         # list.\n",
+                         # list, and so does a summarizer that fails, is missing, says nothing\n\
+                         # or runs long, which the list's own heading says. THE THREE OLLAMA\n\
+                         # FLAGS ARE NOT OPTIONAL: without them `ollama run` interleaves terminal\n\
+                         # control bytes and a preamble into its output, posted verbatim.\n",
                 sample: Sample::Example(
                     "[\"ollama\", \"run\", \"qwen3.5:4b\", \"--think=false\", \"--hidethinking\", \"--nowordwrap\"]",
                 ),
@@ -262,19 +285,25 @@ pub const LAYOUT: &[Table] = &[
                 name: "summarizer_deadline_secs",
                 prose: "# How long that command may take before it is killed and the plain list\n\
                          # is posted instead. It is the whole recap's budget rather than each\n\
-                         # question's.\n",
+                         # question's, and AN HOUR IS THE CEILING: a bigger number is refused by\n\
+                         # name.\n",
                 sample: Sample::Default("240"),
             },
             Key {
                 name: "repos",
                 prose: "# The repositories whose merged pull requests become the recap's \"what\n\
-                         # it does now\" section. UNSET MEANS NO `gh` IS EVER STARTED.\n",
+                         # it does now\" section. UNSET MEANS NO `gh` IS EVER STARTED. Named, the\n\
+                         # recap runs one read-only `gh pr list` per repo, authorized by `gh`'s\n\
+                         # own login and never a token; a `gh` that is missing, refuses or runs\n\
+                         # long costs this section and nothing else.\n",
                 sample: Sample::Example("[\"owner/name\"]"),
             },
             Key {
                 name: "review_notes",
                 prose: "# The directory of review notes behind the \"caught by review\" section:\n\
-                         # ONE directory named in full, and a file name that may hold one `*`.\n",
+                         # ONE directory named in full, and a file name that may hold one `*`. A\n\
+                         # relative path, or a `*` in the directory, is refused. Only notes whose\n\
+                         # own clock falls inside the window are read, newest first.\n",
                 sample: Sample::Example("\"/absolute/path/notes-*.md\""),
             },
         ],
@@ -283,7 +312,10 @@ pub const LAYOUT: &[Table] = &[
         name: "focus",
         prose: "# The macOS Focus modes that pns reads as your own instruction not to be\n\
                  # interrupted. While one of them is active, banners, cards and light\n\
-                 # pulses are held back and handed over when it ends; approvals never are.\n\
+                 # pulses are held back and handed over when it ends; approvals never are,\n\
+                 # and neither is the durable log. A name matches however you capitalised\n\
+                 # it, a mode's raw modeIdentifier works too, and an empty entry is refused\n\
+                 # by name. An unreadable Focus store reads as no Focus, never as silence.\n\
                  # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\
                  # table at all.\n",
         opt_in: true,
@@ -298,9 +330,18 @@ pub const LAYOUT: &[Table] = &[
         prose: "# The nag: one more card when an approval has been sitting unanswered. IT\n\
                  # IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the\n\
                  # prompt appeared is still the one carrying Allow and Deny. It needs the\n\
-                 # daemon running, and several approvals waiting are one card rather than\n\
-                 # several. THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING; no table\n\
-                 # at all, and after_secs of zero, are the same statement.\n",
+                 # daemon running and the PostToolBatch hook entry that tells pns an\n\
+                 # approval was dealt with; without that entry the only clearing signal\n\
+                 # is the end of the turn. It respects every mute the first card respects,\n\
+                 # a `pns quiet`, a Focus, the quiet window, and a nag held back is LOST\n\
+                 # rather than queued. Several approvals waiting are one card rather than\n\
+                 # several, each approval is nagged at most once, and a card counts every\n\
+                 # approval outstanding at that moment, so a fresh one can be named early\n\
+                 # and is then done. The signal is the tool batch RESOLVING rather than\n\
+                 # your answer, so a tool approved at once that then runs longer than this\n\
+                 # is nagged about anyway; if that bites, raise the number. THIRTY SECONDS\n\
+                 # IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by\n\
+                 # name; no table at all, and after_secs of zero, are the same statement.\n",
         opt_in: true,
         keys: &[Key {
             name: "after_secs",
@@ -323,7 +364,8 @@ pub const LAYOUT: &[Table] = &[
     Table {
         name: "lights.done",
         prose: "# The five behaviour shapes. Every number below was set on a real lamp;\n\
-                 # only the knobs that APPLY to a behaviour exist.\n",
+                 # only the knobs that APPLY to a behaviour exist, so a blink has a\n\
+                 # duration and one brightness and a breath has a duration and two ends.\n",
         opt_in: true,
         keys: &[
             Key {
@@ -427,7 +469,9 @@ pub const LAYOUT: &[Table] = &[
             },
             Key {
                 name: "threshold_secs",
-                prose: "# How long work must run continuously before the lamp arms itself.\n",
+                prose: "# How long work must run continuously before the lamp arms itself, in\n\
+                         # seconds. Both an agent herdr calls working and a tracked shell command\n\
+                         # count.\n",
                 sample: Sample::Default("300"),
             },
             Key {
@@ -467,48 +511,70 @@ pub const LAYOUT: &[Table] = &[
 const HEADER: &str = "# The pns engine's plugin selection, as `pns setup` first wrote it. A\n\
      # plugin runs only when its table here says enabled = true, and a key this\n\
      # schema does not serve is refused by name at load, which blocks the whole\n\
-     # file until it is fixed.\n\
+     # file until it is fixed: pns falls back to its built-in roster, every\n\
+     # secret in here goes unread, and the refusal on stderr names the key.\n\
      #\n\
      # THE BANNER AND THE PHONE CARD ARE THE CORE and are written on.\n\
      # Everything else is armed with a credential, so a commented-out block\n\
      # below is a feature nothing is set up for yet: fill its values in and\n\
-     # uncomment it.\n";
+     # uncomment it. A plugin names its backend with `type`, and the key is\n\
+     # required: nothing guesses which implementation a table meant.\n";
 
 const DAEMON_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
      # reactions to one, saying something when nothing happened and keeping a\n\
      # lamp alive while an agent loop is. It holds no state of its own, so a\n\
      # restart loses nothing and a stopped daemon costs those ambient features\n\
      # and never a card. ON UNLESS YOU SAY OTHERWISE, because it delivers\n\
-     # nothing by itself.\n";
+     # nothing by itself; deleting the table is the same statement, and\n\
+     # `pns doctor` says which state it is in.\n";
 
 const RECAP_PROSE: &str = "# The return recap: what you missed while you were away. THE UNCOMMENTED\n\
      # LINES ARE THE DEFAULTS, written out so they can be seen; each switch\n\
-     # gates only its own delivery.\n";
+     # gates only its own delivery, and deleting the whole table gets exactly\n\
+     # the same behaviour.\n";
 
 const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A declaration names a place at one\n\
      # of three levels, `[lights.lamp.\"<name>\"]`, `[lights.room.\"<name>\"]` or\n\
      # `[lights.zone.\"<name>\"]`, spelled as the bridge spells it, and says\n\
      # which of the five behaviours it carries: `done` and `failed` blink, and\n\
      # `blocked`, `unread` and `loop` breathe while their condition lasts. The\n\
-     # most specific declaration naming a lamp wins, and levels never merge.\n\
-     # WITH NO TABLE AT ALL the pulse is the `rooms` array above and nothing\n\
-     # else.\n";
+     # most specific declaration naming a lamp wins, lamp over room over zone,\n\
+     # and levels never merge; each question resolves on its own, so a lamp\n\
+     # can state its behaviours and still inherit its room's dim window. On\n\
+     # one lamp the held states rank blocked, loop, then unread, and a held\n\
+     # state preempts a blink on the lamp holding it. `unread` is one word\n\
+     # carrying two colours, one for a run that finished and red for one that\n\
+     # died; a lamp carries both or neither. An unknown key at any level, and\n\
+     # a behaviour word outside the five, are refused by name.\n\
+     #\n\
+     # `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE: hue is the\n\
+     # transport and this is the policy. WITH NO TABLE AT ALL the pulse is the\n\
+     # `rooms` array above and nothing else; uncommenting `[lights]` with no\n\
+     # declaration replaces that pulse with an empty lamp map, so name a place\n\
+     # before you do. Switching hue off while a lamp is held leaves that lamp\n\
+     # to the wall switch, since putting it out takes a bridge.\n";
 
 /// The closing prose: the ad-hoc mute command, which reads about the config
 /// rather than being one. IT IS ALWAYS SHOWN, whether or not `[lights]` is
 /// armed, because the command exists whichever way that table reads.
-const TRAILER: &str = "\n# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:\n\
+const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:\n\
      #\n\
-     #   pns lights quiet \"3F - Studio\" 2h   quiet that place's lamps for two hours\n\
-     #   pns lights quiet \"3F - Studio\"      quiet them until quiet hours end\n\
-     #   pns lights quiet \"3F - Studio\" off  loud again\n\
-     #   pns lights quiet                    what is quiet right now\n\
+     #   pns lights quiet \"Studio\" 2h   quiet that place's lamps for two hours\n\
+     #   pns lights quiet \"Studio\"      quiet them until quiet hours end\n\
+     #   pns lights quiet \"Studio\" off  loud again\n\
+     #   pns lights quiet               what is quiet right now\n\
      #\n\
      # It silences EVERY behaviour on the target and reaches the lamps of one\n\
-     # lamp, room or zone and nothing else. THE NAMES IT TAKES ARE EVERY LAMP,\n\
-     # ROOM AND ZONE, whether a declaration above writes it or the bridge\n\
-     # merely holds it, and a name neither knows is refused with the list of\n\
-     # the ones that work.\n";
+     # lamp, room or zone and nothing else: cards, banners and the durable log\n\
+     # carry on, and `pns quiet`, which mutes all of them, is a different\n\
+     # command with a different file that neither reads. A bare mute reads\n\
+     # `[plugins.hue] quiet_hours` above as the schedule and is refused when\n\
+     # none is set; an explicit duration is the same 1s to 24h `pns quiet`\n\
+     # takes. A state file nobody can parse mutes EVERY lamp and says so: dark\n\
+     # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY\n\
+     # LAMP, ROOM AND ZONE, whether a declaration above writes it or the\n\
+     # bridge merely holds it, and a name neither knows is refused with the\n\
+     # list of the ones that work.\n";
 
 /// One answer as a TOML basic string.
 ///
