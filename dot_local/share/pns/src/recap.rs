@@ -711,10 +711,16 @@ fn safe_line(line: &str, max_chars: usize) -> String {
 /// EVERY Cf CODE POINT, not the bidi and zero-width ones alone: U+061C ARABIC
 /// LETTER MARK was found missing (neither whitespace nor `char::is_control`,
 /// same as the ranges beside it) by a review that read this doc comment's own
-/// claim literally and checked it against the category it names. The set
-/// below is the full category as of Unicode 17.0, transcribed from the
-/// standard's own `DerivedGeneralCategory.txt`, so the next character this
-/// crate cannot render is one Unicode adds, not one this list forgot.
+/// claim literally and checked it against the category it names. A second
+/// review then found the claim still overstated after that fix: two of the
+/// ranges disagreed with the standard (U+0890..U+0891 absent, U+13430
+/// range truncated at U+13438), nine code points short of the 170 the
+/// category actually holds. The set below is the full category as of
+/// Unicode 17.0, transcribed again from the standard's own
+/// `DerivedGeneralCategory.txt`, and `is_invisible_agrees_with_unicode_17_0_across_every_code_point`
+/// checks it against an independently transcribed copy of that same file for
+/// every valid `char`, so a third gap fails a test rather than waiting on a
+/// third review.
 ///
 /// PUB FOR ONE OTHER READER, `main.rs`'s automatic model-switch card and its
 /// `ConfigChange` sibling: a payload field that is not free text still
@@ -729,6 +735,7 @@ pub fn is_invisible(character: char) -> bool {
             | '\u{061c}'
             | '\u{06dd}'
             | '\u{070f}'
+            | '\u{0890}'..='\u{0891}'
             | '\u{08e2}'
             | '\u{180e}'
             | '\u{200b}'..='\u{200f}'
@@ -739,7 +746,7 @@ pub fn is_invisible(character: char) -> bool {
             | '\u{fff9}'..='\u{fffb}'
             | '\u{110bd}'
             | '\u{110cd}'
-            | '\u{13430}'..='\u{13438}'
+            | '\u{13430}'..='\u{1343f}'
             | '\u{1bca0}'..='\u{1bca3}'
             | '\u{1d173}'..='\u{1d17a}'
             | '\u{e0001}'
@@ -1760,6 +1767,61 @@ mod tests {
         );
         let lines = answer("left\u{061c}right").expect("an answer");
         assert_eq!(lines, ["leftright"], "{lines:?}");
+    }
+
+    #[test]
+    fn is_invisible_agrees_with_unicode_17_0_across_every_code_point() {
+        // A DATA-DRIVEN CHECK, independent of `is_invisible`'s own ranges.
+        // The Arabic letter mark case above pins one character the previous
+        // transcription missed; a review found the miss went deeper, two of
+        // the doc comment's 21 Cf ranges were wrong (one absent, one
+        // truncated), nine code points short of the category the comment
+        // claims to cover in full. A table that reused `is_invisible`'s own
+        // ranges would have missed the same nine, so this one is copied
+        // straight from the standard's own Cf listing instead, fetched from
+        // https://www.unicode.org/Public/17.0.0/ucd/extracted/DerivedGeneralCategory.txt
+        // on 2026-09-02, and every valid `char` is checked against it.
+        const CF_RANGES: &[(u32, u32)] = &[
+            (0x00AD, 0x00AD),
+            (0x0600, 0x0605),
+            (0x061C, 0x061C),
+            (0x06DD, 0x06DD),
+            (0x070F, 0x070F),
+            (0x0890, 0x0891),
+            (0x08E2, 0x08E2),
+            (0x180E, 0x180E),
+            (0x200B, 0x200F),
+            (0x202A, 0x202E),
+            (0x2060, 0x2064),
+            (0x2066, 0x206F),
+            (0xFEFF, 0xFEFF),
+            (0xFFF9, 0xFFFB),
+            (0x110BD, 0x110BD),
+            (0x110CD, 0x110CD),
+            (0x13430, 0x1343F),
+            (0x1BCA0, 0x1BCA3),
+            (0x1D173, 0x1D17A),
+            (0xE0001, 0xE0001),
+            (0xE0020, 0xE007F),
+        ];
+
+        let total_cf_code_points: u32 = CF_RANGES.iter().map(|(lo, hi)| hi - lo + 1).sum();
+        assert_eq!(
+            total_cf_code_points, 170,
+            "the fixture itself should name all 170 Cf code points in Unicode 17.0"
+        );
+
+        for codepoint in 0u32..=0x10FFFF {
+            let Some(character) = char::from_u32(codepoint) else {
+                continue;
+            };
+            let should_be_invisible = CF_RANGES.iter().any(|(lo, hi)| (*lo..=*hi).contains(&codepoint));
+            assert_eq!(
+                is_invisible(character),
+                should_be_invisible,
+                "U+{codepoint:04X} disagrees with the standard's own Cf category"
+            );
+        }
     }
 
     #[test]
