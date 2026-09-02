@@ -39,12 +39,21 @@ stubbin="$scratch/stubbin"
 kickstarts="$scratch/kickstarts"
 launchctl_status="$scratch/launchctl.status"
 marker_during_kickstart="$scratch/marker-during-kickstart"
+target_label="gui/$(id -u)/com.webdavis.pns-daemon"
 mkdir -p "$stubbin"
 : >"$kickstarts"
 : >"$marker_during_kickstart"
+# "$*" flattens argument boundaries: a mutant that passes "-k $target_label"
+# as ONE argument prints the same joined text as the correct three separate
+# arguments, so the stub validates $#, $1, $2 and $3 individually before it
+# ever trusts $* to describe what it was called with.
 cat >"$stubbin/launchctl" <<STUB
 #!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$kickstarts"
+if [[ \$# -eq 3 ]] && [[ "\$1" == kickstart ]] && [[ "\$2" == -k ]] && [[ "\$3" == "$target_label" ]]; then
+  printf '%s\n' "\$*" >>"$kickstarts"
+else
+  printf 'unexpected-invocation argc=%s: %s\n' "\$#" "\$*" >>"$kickstarts"
+fi
 if [[ -e "$pending" ]]; then
   printf 'present\n' >>"$marker_during_kickstart"
 fi
@@ -147,7 +156,7 @@ run_script || {
   echo "the first install must kickstart the daemon exactly once" >&2
   exit 1
 }
-expected_kickstart="kickstart -k gui/$(id -u)/com.webdavis.pns-daemon"
+expected_kickstart="kickstart -k $target_label"
 [[ "$(head -n1 "$kickstarts")" == "$expected_kickstart" ]] || {
   printf 'the kickstart must target the exact label; got: %s\n' "$(head -n1 "$kickstarts")" >&2
   exit 1
