@@ -315,7 +315,7 @@ pub fn condenser_prompt(reply: &str) -> String {
     format!(
         "Summarize this AI coding agent's last turn for a brief phone notification, then classify it.
 Output EXACTLY one line and nothing else: STATE|SUMMARY
-STATE is one of: done (finished its work, or is only reporting status while it waits on OTHER AGENTS OR TOOLS), asking (has a question or choice that needs YOU, the human operator, to answer before it can continue), blocked (needs your permission or input to proceed).
+STATE is one of: done (finished its work, or is only reporting status while it waits on other agents or tools, with nothing needed from you), asking (has a question or choice for YOU, the human operator, to answer), blocked (needs your permission or input to proceed).
 SUMMARY is two or three sentences, up to 320 characters, plain text, no newlines, covering what was done plus any decision or question raised.
 
 Turn:
