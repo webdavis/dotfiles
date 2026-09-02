@@ -645,7 +645,10 @@ It lands in PR 31, after the Mason race is removed (PR 5b) and the lock is final
 ## 4. The bug list as a floor
 
 Every open bug from the inventory, by number, with its fix and the pull request that lands it. Items
-7 and 13 stay struck. Line numbers are today's (`d45b190`).
+7 and 13 stay struck. Line numbers below were taken against `d45b190`, the pre-import
+`~/.config/nvim` repo, which is not a commit in this repository: they are stale by construction
+and every row's numbers must be verified against the tree before its PR edits anything. Bug #12's
+range was re-anchored on 2026-09-02; the rest have not been.
 
 | #   | Sev      | Bug                                                                   | Fix                                                                                          | PR    |
 | --- | -------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----- |
@@ -660,7 +663,7 @@ Every open bug from the inventory, by number, with its fix and the pull request 
 | 9   | medium   | literal `"\\<Esc>"` (`delegate.lua:100`)                              | moot: `delegate.lua` is deleted                                                              | PR 8  |
 | 10  | low      | `nvim_win_get_width(0)` at spec load (`harpoon.lua:6`)                | `opts = function() … end`                                                                    | PR 22a |
 | 11  | high     | hardcoded `mkdp_open_ip = "dresden.home.webdavis.io"` (`markdown.lua:314`) | `vim.fn.hostname()` plus the MagicDNS suffix read from `vim.env.NVIM_MKDP_HOST` when set; falls back to `127.0.0.1` off dresden | PR 21 |
-| 12  | critical | mason-lspconfig v2 never reads the `servers` block (`lsp.lua:50-148`) | move every per-server table to `vim.lsp.config("<name>", {…})`; mason-lspconfig keeps `ensure_installed` and `automatic_enable`; assert clangd's `cmd` carries `--clang-tidy` and `--header-insertion=iwyu` | PR 5a |
+| 12  | critical | mason-lspconfig v2 never reads the `servers` block (`lsp.lua:68-166`) | move every per-server table to `vim.lsp.config("<name>", {…})`; mason-lspconfig keeps `ensure_installed` and `automatic_enable`; assert clangd's `cmd` carries `--clang-tidy` and `--header-insertion=iwyu` | PR 5a |
 | 14  | medium   | Overseer: `run_template` alias, dead `bundles` and `log` config       | rename to `run_task`; delete the dead tables (`overseer.lua:192-200`, the `log` block)        | PR 19b |
 | 15  | low      | hlslens pin `4254054` one commit behind the `vim.validate` fix        | bump to `be2d7b2`; closes the one `vim.deprecated` warning                                   | PR 26b |
 | 16  | low      | catppuccin colorscheme rename past `605b460`                          | bump the pin and change `vim.cmd.colorscheme("catppuccin")` at `ui.lua:60` to `"catppuccin-nvim"` in the same commit; `name = "catppuccin"` at `ui.lua:7` stays | PR 26c |
@@ -843,8 +846,16 @@ The clangd `cmd` assertion (bug #12) is not a unit test: it needs the full confi
 line in the bootstrap's verification and an acceptance item in section 10:
 
 ```bash
-nvim --headless -c 'lua assert(vim.tbl_contains(vim.lsp.config.clangd.cmd, "--clang-tidy"))' +qa
+nvim --headless -c 'lua os.exit(pcall(function()
+  assert(vim.tbl_contains(vim.lsp.config.clangd.cmd, "--clang-tidy")) end) and 0 or 1)'
 ```
+
+The `os.exit` and the `pcall` are both load-bearing, because the bootstrap reads this command's exit
+status. The shape this spec carried until 2026-09-02,
+`nvim --headless -c 'lua assert(...)' +qa`, exits 0 whether the assertion holds or not: `+qa` quits
+before the failure reaches the exit status, so the bootstrap would have passed a config with none of
+clangd's flags. Measured that day on a false assertion and on a nil `vim.lsp.config.<name>`, both of
+which the shape above exits 1 on.
 
 ## 7. Agent integration against herdr
 
