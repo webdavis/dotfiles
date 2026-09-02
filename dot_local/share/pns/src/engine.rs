@@ -463,6 +463,10 @@ mod tests {
         /// nothing to race: this double never spawns a thread, it only
         /// records what it was told.
         wants: Cell<Option<Wants>>,
+        /// How many times `start` was called: `wants` alone only records
+        /// the LAST call, so a caller that starts twice for one event
+        /// passes every assertion on `wants` unnoticed.
+        start_calls: Cell<u32>,
     }
 
     impl IdleProbe for CountingProbes {
@@ -498,6 +502,7 @@ mod tests {
     impl ProbeStart for CountingProbes {
         fn start(&self, wants: Wants) {
             self.wants.set(Some(wants));
+            self.start_calls.set(self.start_calls.get() + 1);
         }
     }
 
@@ -1670,6 +1675,11 @@ mod tests {
             }),
             "a stated idle clock must start no desk thread"
         );
+        assert_eq!(
+            probes.start_calls.get(),
+            1,
+            "one event asks probes.start exactly once"
+        );
 
         let probes = CountingProbes {
             idle: Some(2),
@@ -1691,6 +1701,11 @@ mod tests {
                 phone: false
             }),
             "a stated phone age must start no phone thread"
+        );
+        assert_eq!(
+            probes.start_calls.get(),
+            1,
+            "one event asks probes.start exactly once"
         );
 
         // sol review, ROW 3: only VALID overrides reached this test. A
@@ -1717,6 +1732,11 @@ mod tests {
             }),
             "a garbled idle override must start no desk thread"
         );
+        assert_eq!(
+            probes.start_calls.get(),
+            1,
+            "one event asks probes.start exactly once"
+        );
 
         let probes = CountingProbes {
             idle: Some(2),
@@ -1738,6 +1758,11 @@ mod tests {
                 phone: false
             }),
             "a garbled phone override must start no phone thread"
+        );
+        assert_eq!(
+            probes.start_calls.get(),
+            1,
+            "one event asks probes.start exactly once"
         );
     }
 
