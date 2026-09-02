@@ -50,21 +50,31 @@
 
 # The webhook route name, which is also the URL path segment hermes serves it on
 # (.platforms.webhook.extra.routes.<name> in the encrypted hermes config). The
-# apply-time status check reads this same name out of this file rather than
-# repeating it, because a rename in one place alone is a 404 on every entry
-# forever and nothing else would notice.
+# apply-time status check keeps its OWN copy of this name rather than reading
+# this one: .chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl
+# hardcodes `expected_routes=(pns unattended-upgrades)` and carries a comment
+# telling the next reader to keep the two in step BY HAND. Nothing compares
+# them, so a rename here alone is a 404 on every entry forever while the status
+# check goes on probing the old name and reporting nothing.
 UNATTENDED_LOG_ROUTE="unattended-upgrades"
 
 # The gateway URL is pns's business for THIS caller: the post below names the
 # ROUTE with --channel and pns derives the endpoint from its own default
-# gateway (DEFAULT_HERMES_URL in dot_local/share/pns/src/channels/hermes.rs).
-# That is NOT the only copy of the host:port, though: uu's own config template
-# hardcodes the identical gateway URL separately, in its [records] block at
-# dot_config/uu/private_config.toml.tmpl, because uu posts its own weekly
-# record straight to hermes rather than through this library. Deriving one
-# from the other is a design question, not settled here. run_after_68 probes
-# the live hermes config's real port, which is the check that catches a drift
-# between either hardcoded copy and the real gateway.
+# gateway. THE HOST AND PORT SIT IN FOUR PLACES, kept in step BY HAND, with
+# nothing comparing any two of them:
+#   private_dot_hermes/private_dot_env.tmpl      WEBHOOK_PORT=8644, the
+#     gateway-side declaration this repo owns in plaintext.
+#   dot_local/share/pns/src/channels/hermes.rs   DEFAULT_HERMES_URL, the
+#     compiled client default this library's own post travels on.
+#   dot_config/uu/private_config.toml.tmpl       [records].url, in uu's shipped
+#     config: uu posts its weekly record straight to hermes, not through here.
+#   dot_local/share/uu/src/config.rs             DEFAULT_RECORD_URL, dormant
+#     while the shipped config above states the url explicitly.
+# Deriving one from the other is a design question, not settled here, and
+# run_after_68 does not stand in for it: it reads the port out of the LIVE
+# hermes config and probes THAT port, so it never compares a client's copy
+# against the gateway and a client left on a stale port is invisible to it. It
+# reports a 404 only, discarding curl's 000 when nothing is listening at all.
 
 # The machine this entry is about. The channel aggregates unattended jobs, and
 # the daemon-host role is expected to move to a second Mac, so an entry that does
