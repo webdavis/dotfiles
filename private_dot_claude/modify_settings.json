@@ -197,11 +197,15 @@
      PermissionRequest entry in
      hooks/codex/install-hooks.sh. Notification carries a QUOTA-ONLY entry:
      alerter held the slot for a local sound and was the last notification
-     path on this machine that bypassed the presence engine, and the
-     PermissionRequest hook above and the unanswered-approval nag already
-     raise what it raised, so it was deleted rather than kept for a second
-     opinion (5d30d362) and the slot sat empty until this one. alerter itself
-     stays installed: the osquery pipeline is its real caller.
+     path on this machine that bypassed the presence engine, and for TOOL
+     approvals the PermissionRequest hook above and the unanswered-approval
+     nag already raise what it raised, so it was deleted rather than kept
+     for a second opinion (5d30d362) and the slot sat empty until this one.
+     Sandbox NETWORK approvals are covered by neither: Claude Code's
+     PermissionRequest hooks do not run for them, so deleting alerter left
+     that class with no repository-managed alert and no nag. That gap is
+     known and filed (backlog B39), not fixed here. alerter itself stays
+     installed: the osquery pipeline is its real caller.
 
      THE ONE MATCHER IS AN EXACT PIPE-SEPARATED ALLOWLIST OF THREE QUOTA
      AUTO-RESUME TYPES, never a wildcard: a wildcard entry here would
