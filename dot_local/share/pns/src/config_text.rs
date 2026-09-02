@@ -589,10 +589,10 @@ const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A declaration 
 /// armed, because the command exists whichever way that table reads.
 const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:\n\
      #\n\
-     #   pns lights quiet \"Studio\" 2h   quiet that place's lamps for two hours\n\
-     #   pns lights quiet \"Studio\"      quiet them until quiet hours end\n\
-     #   pns lights quiet \"Studio\" off  loud again\n\
-     #   pns lights quiet               what is quiet right now\n\
+     #   pns lights quiet \"3F - Studio\" 2h   quiet that place's lamps for two hours\n\
+     #   pns lights quiet \"3F - Studio\"      quiet them until quiet hours end\n\
+     #   pns lights quiet \"3F - Studio\" off  loud again\n\
+     #   pns lights quiet                    what is quiet right now\n\
      #\n\
      # It silences EVERY behaviour on the target and reaches the lamps of one\n\
      # lamp, room or zone and nothing else: cards, banners and the durable log\n\
