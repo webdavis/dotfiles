@@ -292,18 +292,33 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "repos",
                 prose: "# The repositories whose merged pull requests become the recap's \"what\n\
-                         # it does now\" section. UNSET MEANS NO `gh` IS EVER STARTED. Named, the\n\
-                         # recap runs one read-only `gh pr list` per repo, authorized by `gh`'s\n\
-                         # own login and never a token; a `gh` that is missing, refuses or runs\n\
-                         # long costs this section and nothing else.\n",
+                         # it does now\" section. UNSET IS THE WORKING SETTING and it is a fence:\n\
+                         # with no repo named, no `gh` process is started at all. Named, the recap\n\
+                         # runs one read-only `gh pr list` per repo, bounded in count and in time,\n\
+                         # over the window alone; it never touches a token, and `gh`'s own login is\n\
+                         # what authorizes it. Each line carries the pull request number it came\n\
+                         # from, and a line that cannot be traced back to one pns actually fetched\n\
+                         # is dropped rather than posted. A `gh` that is missing, refuses or runs\n\
+                         # long costs this section and nothing else. `gh` IS FOUND ON PATH, and the\n\
+                         # PATH is the one the event that started the recap was handed: a hook\n\
+                         # environment without /opt/homebrew/bin reads `gh` as permanently\n\
+                         # unavailable, and the section says so on every window until the harness's\n\
+                         # own PATH carries it.\n",
                 sample: Sample::Example("[\"owner/name\"]"),
             },
             Key {
                 name: "review_notes",
-                prose: "# The directory of review notes behind the \"caught by review\" section:\n\
-                         # ONE directory named in full, and a file name that may hold one `*`. A\n\
-                         # relative path, or a `*` in the directory, is refused. Only notes whose\n\
-                         # own clock falls inside the window are read, newest first.\n",
+                prose: "# The review notes whose findings become the recap's \"caught by review\"\n\
+                         # section: ONE directory, named in full, and a file name that may hold\n\
+                         # one `*`. A relative path and a `*` in a directory are both refused,\n\
+                         # because this pattern is the whole of what pns is allowed to open. Only\n\
+                         # files whose own clock falls inside the window are read, so a note you\n\
+                         # had already seen before you left is not news. UNSET IS THE WORKING\n\
+                         # SETTING and, as with `repos`, unset means the directory is never\n\
+                         # opened. Twenty-five notes is what one recap considers, NEWEST FIRST,\n\
+                         # and a window holding more says \"at least\" in its own count rather than\n\
+                         # printing a total it cannot back; a matched note that will not open is\n\
+                         # named as one that could not be read rather than left out.\n",
                 sample: Sample::Example("\"/absolute/path/notes-*.md\""),
             },
         ],
@@ -514,10 +529,14 @@ const HEADER: &str = "# The pns engine's plugin selection, as `pns setup` first 
      # file until it is fixed: pns falls back to its built-in roster, every\n\
      # secret in here goes unread, and the refusal on stderr names the key.\n\
      #\n\
-     # THE BANNER AND THE PHONE CARD ARE THE CORE and are written on.\n\
-     # Everything else is armed with a credential, so a commented-out block\n\
-     # below is a feature nothing is set up for yet: fill its values in and\n\
-     # uncomment it. A plugin names its backend with `type`, and the key is\n\
+     # THE BANNER AND THE PHONE CARD ARE THE CORE and are written on. Three of\n\
+     # the plugins below are OPT-INS you arm with a credential first: hue needs\n\
+     # a bridge and key, hermes needs a signed route, and the home probe needs\n\
+     # a router API key, so switching them on by default would deliver nothing\n\
+     # and report three failures. Focus, the nag and the lamp map are separate\n\
+     # opt-ins below `[plugins]` and need no credential at all. A commented-out\n\
+     # block below is a feature nothing is set up for yet: fill its values in\n\
+     # and uncomment it. A plugin names its backend with `type`, and the key is\n\
      # required: nothing guesses which implementation a table meant.\n";
 
 const DAEMON_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
@@ -1534,6 +1553,34 @@ mod tests {
                 assert!(error.contains("note"), "{error}");
             }
         }
+    }
+
+    #[test]
+    fn the_recap_prose_keeps_the_hook_path_and_note_limit_facts_the_template_carries() {
+        // X2's template-prose rule: the shipped template's facts win except
+        // where they name the operator's own environment. Dropping the hook
+        // PATH explanation on `repos` or the twenty-five note limit on
+        // `review_notes` loses a real fact nothing else states.
+        let text = render(&toml::Table::new()).expect("an empty walk still renders");
+        assert!(text.contains("FOUND ON PATH"), "{text}");
+        assert!(text.contains("Twenty-five notes"), "{text}");
+    }
+
+    #[test]
+    fn the_header_scopes_the_credential_arming_claim_to_the_plugins_it_names() {
+        // Focus, the nag and the lamp map are opt-in tables that need no
+        // credential at all; only three of the plugins do (hue, hermes,
+        // router), so a blanket "everything else is armed with a
+        // credential" misstates all three of them.
+        let text = render(&toml::Table::new()).expect("an empty walk still renders");
+        assert!(
+            !text.contains("Everything else is armed with a credential"),
+            "{text}"
+        );
+        assert!(
+            text.contains("need no credential at all"),
+            "{text}"
+        );
     }
 
     #[test]
