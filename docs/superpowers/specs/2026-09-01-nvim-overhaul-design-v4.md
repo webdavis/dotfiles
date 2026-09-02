@@ -397,6 +397,9 @@ gate's 10ms tolerance):
 
 ```bash
 set -euo pipefail
+for required in "$S"/{before,after}/{health.norm,state.json}; do
+  [[ -f "$required" ]] || { echo "FATAL: comparison input is missing: $required" >&2; exit 1; }
+done
 diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim
 diff "$B/lazy-lock.json" ~/.config/nvim/lazy-lock.json
 diff "$S/before/health.norm" "$S/after/health.norm" || true   # advisory, see above
@@ -414,6 +417,9 @@ median() {
 before_median="$(median "$S/before")"; after_median="$(median "$S/after")"
 printf 'before %s after %s (advisory)\n' "$before_median" "$after_median"
 ```
+
+A diff of two MISSING files is empty, and a grep over a missing file inside a process substitution
+reports nothing at all, so every comparison input is checked to exist before any of them is read.
 
 The median function used to return 0 from zero samples and half a real value from two, and neither a
 missing log nor a nonempty diff forced the whole comparison to fail; this version requires exactly four

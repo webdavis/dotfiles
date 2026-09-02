@@ -295,6 +295,9 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
 
   ```bash
   set -euo pipefail
+  for required in "$S"/{before,after}/{health.norm,state.json}; do
+    [[ -f "$required" ]] || { echo "FATAL: comparison input is missing: $required" >&2; exit 1; }
+  done
   diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim
   diff "$B/lazy-lock.json" ~/.config/nvim/lazy-lock.json
   diff "$S/before/health.norm" "$S/after/health.norm" || true   # advisory, see step 5
@@ -318,7 +321,9 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
   version requires exactly four warm samples per phase and treats a nonempty stderr log as fatal. The
   `[s`, `]s` and `as` rows are printed rather than gated: `sort.nvim` and
   `nvim-treesitter-textobjects` both map them and plugin load order picks the winner, so 2 of 12 dumps
-  of the identical unchanged config named the other one (measured 2026-09-02, spec 3.7).
+  of the identical unchanged config named the other one (measured 2026-09-02, spec 3.7). A diff of
+  two MISSING files is empty and a grep over a missing file inside a process substitution reports
+  nothing, so every comparison input is checked to exist before any of them is read.
 - [ ] **Step 12, OPERATOR:** when the three 3.6 guards (`status --porcelain`, `rev-list
   origin/main..HEAD`, `stash list`, all in `~/.config/nvim`) print nothing, `trash ~/.config/nvim/.git`.
   Task 3 waits for steps 10 to 12.
