@@ -2199,31 +2199,86 @@ mod tests {
 
     #[test]
     fn a_resumed_breath_moves_toward_low_from_high_and_toward_high_from_low() {
-        let from_the_peak = breath_fades(
+        // THE WHOLE VECTOR AND NOT ITS FIRST FADE. A resume that flipped only
+        // the fade it starts with would breathe the right direction once and
+        // then run the same parity as an unresumed tick, which is a lamp
+        // fading to the end it is already sitting at every other cycle: no
+        // motion at all for two seconds, at the join this slice exists to
+        // close. The numbers are the seamless schedule resumed 1,250ms in,
+        // which is what a twelve-second tick hands the one after it.
+        let resumed_from_the_peak = breath_fades(
             FULL_INTERVAL_MS,
             &BLOCKED,
             Resume {
-                first_due_ms: 0,
+                first_due_ms: 1_250,
                 from_high: true,
             },
         );
         assert_eq!(
-            from_the_peak.first().map(|fade| fade.brightness),
-            Some(BLOCKED.low),
-            "a lamp resuming from the high end moves down first"
+            resumed_from_the_peak,
+            vec![
+                Fade {
+                    brightness: BLOCKED.low,
+                    start_ms: 1_250
+                },
+                Fade {
+                    brightness: BLOCKED.high,
+                    start_ms: 3_200
+                },
+                Fade {
+                    brightness: BLOCKED.low,
+                    start_ms: 5_150
+                },
+                Fade {
+                    brightness: BLOCKED.high,
+                    start_ms: 7_100
+                },
+                Fade {
+                    brightness: BLOCKED.low,
+                    start_ms: 9_050
+                },
+                Fade {
+                    brightness: BLOCKED.high,
+                    start_ms: 11_000
+                },
+            ],
+            "a lamp resuming from the high end moves down first, and alternates \
+             from there"
         );
-        let from_the_floor = breath_fades(
+        let resumed_from_the_floor = breath_fades(
             FULL_INTERVAL_MS,
             &BLOCKED,
             Resume {
-                first_due_ms: 0,
+                first_due_ms: 1_250,
                 from_high: false,
             },
         );
         assert_eq!(
-            from_the_floor.first().map(|fade| fade.brightness),
-            Some(BLOCKED.high),
-            "and vice versa"
+            resumed_from_the_floor
+                .iter()
+                .map(|fade| fade.brightness)
+                .collect::<Vec<u8>>(),
+            vec![
+                BLOCKED.high,
+                BLOCKED.low,
+                BLOCKED.high,
+                BLOCKED.low,
+                BLOCKED.high,
+                BLOCKED.low
+            ],
+            "and vice versa, for every fade rather than the first"
+        );
+        assert_eq!(
+            resumed_from_the_floor
+                .iter()
+                .map(|fade| fade.start_ms)
+                .collect::<Vec<u64>>(),
+            resumed_from_the_peak
+                .iter()
+                .map(|fade| fade.start_ms)
+                .collect::<Vec<u64>>(),
+            "the direction moves the brightnesses and nothing else: both schedules \
+             are issued at the same milliseconds"
         );
     }
 
@@ -2260,7 +2315,23 @@ mod tests {
                 }
             )
             .is_empty(),
-            "a resume due at or past the budget has nowhere left to fade"
+            "a resume due exactly AT the budget has nowhere left to fade"
+        );
+        // AND PAST IT, which is the half of "at or past" the equality case
+        // cannot reach. Without the guard the remaining budget is computed by
+        // subtracting a larger number from a smaller one, so this is the case
+        // that separates a schedule which refuses from one that wraps.
+        assert!(
+            breath_fades(
+                1_000,
+                &BLOCKED,
+                Resume {
+                    first_due_ms: 1_001,
+                    from_high: true
+                }
+            )
+            .is_empty(),
+            "a resume due PAST the budget has nowhere left to fade either"
         );
     }
 
