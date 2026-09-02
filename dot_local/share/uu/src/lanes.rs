@@ -840,23 +840,32 @@ mod tests {
     #[test]
     fn a_command_lane_hands_the_run_event_to_the_child_on_stdin_and_records_what_it_printed() {
         let runner = ScriptedRunner::new(&[]).answering("3 upgraded\n");
-        let lane = command_lane(&["/usr/local/bin/updater", "--yes"]);
+        // Two arguments, so a mutant that reverses run[1..] or drops the
+        // second one changes what the runner recorded.
+        let lane = command_lane(&["/usr/local/bin/updater", "--yes", "--now"]);
         let report = run_command("mine", &lane, &stub_facts(), &runner);
         assert_eq!(report.failures, 0);
         assert_eq!(
             runner.calls(),
             vec![vec![
                 "/usr/local/bin/updater".to_string(),
-                "--yes".to_string()
+                "--yes".to_string(),
+                "--now".to_string(),
             ]],
-            "the program is run[0], its arguments are run[1..]"
+            "the program is run[0], its arguments are run[1..], in order"
         );
         let inputs = runner.inputs();
         let input = &inputs[0];
         assert!(input.ends_with('\n'), "{input:?}");
         let event: serde_json::Value =
             serde_json::from_str(input.trim_end()).expect("the event is JSON");
-        assert_eq!(event["lane"], "mine");
+        // The COMPLETE parsed event against the same facts `lane_event`
+        // itself would produce, not just one field: a mutant that swaps the
+        // event for `{"lane":"mine"}` still has a correct `lane` field.
+        let recorded: serde_json::Value =
+            serde_json::from_str(lane_event("mine", &stub_facts()).trim_end())
+                .expect("the reference event is JSON");
+        assert_eq!(event, recorded);
         assert!(
             report.lines.contains(&"3 upgraded".to_string()),
             "{:?}",
