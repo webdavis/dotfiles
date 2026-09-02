@@ -338,7 +338,9 @@ refresh_secs = 12
 
 # The five behaviour shapes. Every number below was set on a real lamp; only the
 # knobs that APPLY to a behaviour exist, so a blink has a duration and one
-# brightness and a breath has a duration and two ends.
+# brightness and a breath has a duration and two ends; some behaviours carry
+# one knob more besides (unread's delay, loop's threshold and lease, blocked's
+# give-up backstop below).
 [lights.done]
 duration_ms = 4000
 brightness = 100
@@ -351,6 +353,14 @@ brightness = 100
 duration_ms = 2000
 high = 100
 low = 30
+# How long an unanswered wait may hold the lamp before the daemon gives up on
+# an abandoned session, in seconds. This is a BACKSTOP, not an expiry: the
+# locked behaviour is blue breathing continuous until you answer, and the
+# ordinary end is your session's next event, whatever the hour. 57600 (16
+# hours) outlasts a long day away and still gives the lamp back before the
+# next one starts. The range is 60 to 604800 (a week), since an abandoned wait
+# can span a weekend away.
+give_up_after_secs = 57600
 
 [lights.unread]
 duration_ms = 4000

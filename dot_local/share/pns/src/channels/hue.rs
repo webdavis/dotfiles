@@ -867,7 +867,7 @@ pub fn held_render(
     showing: Showing,
 ) -> (crate::pulse::PulseColor, crate::config::Breath) {
     let (color, breath) = match held {
-        crate::lights::Held::Blocked => (crate::pulse::BLOCKED_COLOR, lights.blocked),
+        crate::lights::Held::Blocked => (crate::pulse::BLOCKED_COLOR, lights.blocked.breath),
         crate::lights::Held::Looping => (crate::pulse::LOOP_COLOR, lights.looping.breath),
         crate::lights::Held::UnreadFailure => (crate::pulse::FAILURE_COLOR, lights.unread.breath),
         crate::lights::Held::UnreadSuccess => {
@@ -1914,7 +1914,7 @@ mod tests {
             (
                 crate::lights::Held::Blocked,
                 crate::pulse::BLOCKED_COLOR,
-                shipped.blocked,
+                shipped.blocked.breath,
             ),
             (
                 crate::lights::Held::Looping,

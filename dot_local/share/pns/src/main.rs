@@ -527,9 +527,8 @@ fn record_missed(
 /// about them, and nothing would ever sweep them there: the tick is the only
 /// sweeper and it does not run without the table. Removal is one unlink with
 /// nothing to accumulate, and gating it too meant a wait that ended while the
-/// lamps were off kept its marker: switching hue back on inside the thirty
-/// minute bound then put blocked on a lamp for a session nobody was waiting
-/// on.
+/// lamps were off kept its marker: switching hue back on inside the configured
+/// backstop then put blocked on a lamp for a session nobody was waiting on.
 ///
 /// THE OLDER STOP CAN REMOVE THE NEWER WAIT'S MARKER, and that is a stated
 /// limit rather than a rule. One file per SESSION carries no generation, so a
@@ -5333,11 +5332,7 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
         // leaves behind.
         in_flight: streak.is_some() || shell_since.is_some() || !leases.is_empty(),
         house: pns::lights::House {
-            blocked: pns::lights::any_blocked(
-                &sweep_blocked(state, now),
-                now,
-                BLOCKED_MAX_AGE_SECS,
-            ),
+            blocked: blocked_lamp(state, lights, now),
             looping: pns::lights::loop_running(&pns::lights::Loop {
                 streak: streak.as_ref(),
                 agents_working,
@@ -5542,8 +5537,23 @@ fn sweep_shell_markers(state: &Path) -> Option<u64> {
 /// ever looks in this directory: a session that ends without another event
 /// leaves a marker nothing else would ever remove, and one file per abandoned
 /// session for the life of a machine is unbounded growth.
-fn sweep_blocked(state: &Path, now: u64) -> Vec<u64> {
-    sweep_markers(&pns::lights::blocked_dir(state), now, BLOCKED_MAX_AGE_SECS)
+fn sweep_blocked(state: &Path, now: u64, give_up_after_secs: u64) -> Vec<u64> {
+    sweep_markers(&pns::lights::blocked_dir(state), now, give_up_after_secs)
+}
+
+/// The blocked lamp's reading for this tick: the sweep that removes an aged
+/// marker and the aggregate that lights the lamp, both handed the one
+/// configured backstop.
+///
+/// ITS OWN FUNCTION SO ITS TEST SPAWNS NOTHING: the rest of the house asks
+/// herdr and the idle probes, and this half never depends on either.
+fn blocked_lamp(state: &Path, lights: &pns::config::Lights, now: u64) -> bool {
+    let give_up_after_secs = lights.blocked.give_up_after_secs;
+    pns::lights::any_blocked(
+        &sweep_blocked(state, now, give_up_after_secs),
+        now,
+        give_up_after_secs,
+    )
 }
 
 /// The working streak after this tick's reading, published or removed.
@@ -5662,28 +5672,6 @@ fn sweep_legacy_state(state: &Path) {
     }
     let _ = std::fs::remove_dir_all(state.join("lights-needs"));
 }
-
-/// How long an unanswered wait may hold a lamp blue.
-///
-/// TWELVE HOURS, AND IT IS A BACKSTOP RATHER THAN AN EXPIRY. The locked
-/// behaviour is blue breathing CONTINUOUS UNTIL THE OPERATOR ANSWERS, so any
-/// bound at all is a departure from it and the only honest job left for one is
-/// releasing a bulb from a session that will never come back. At half an hour
-/// it was doing the other job as well: a question asked while the operator was
-/// at lunch went dark before they returned, and nothing anywhere said it had,
-/// which is precisely the state a lamp exists to prevent.
-///
-/// THE TRADE, STATED. Twelve hours outlasts every absence a working day
-/// contains and still gives the bulb back by the next morning, so an agent
-/// abandoned mid-question costs one lamp for one night rather than for the life
-/// of the machine. The ORDINARY end is not this at all: the session's next
-/// event clears the marker, whatever the hour.
-///
-/// NOT A CONFIG KNOB. The lock sheet fixes what a behaviour's knobs are
-/// (duration and the two ends, plus a threshold where one applies) and an
-/// abandoned-session backstop is none of those; a key here would be one more
-/// number an operator can set to something that reads as an expiry.
-const BLOCKED_MAX_AGE_SECS: u64 = 12 * 60 * 60;
 
 /// How long a run of work survives readings that say nothing is working.
 ///
@@ -8066,11 +8054,11 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        BLOCKED_MAX_AGE_SECS, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
-        LIGHTS_HELD, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS,
-        MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
-        drive_breaths, end_lease, held_lamps, keep_aside, lights_report, list, matches_glob,
-        means_yes, muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
+        CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
+        LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
+        end_lease, held_lamps, keep_aside, lights_report, list, matches_glob, means_yes,
+        muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
         recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
         reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
         say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
@@ -8515,7 +8503,7 @@ mod tests {
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
             assert!(
-                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked)
+                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked.breath)
                     .is_empty(),
                 "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
             );
@@ -9192,12 +9180,54 @@ mod tests {
     }
 
     #[test]
-    fn a_wait_nobody_has_answered_still_holds_its_lamp_hours_later() {
+    fn the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves() {
+        // THE TICK COMPOSES TWO READERS OF THE SAME BOUND, the sweep that
+        // deletes an aged marker and the aggregate that lights the lamp, and
+        // each is handed the knob separately. A knob past every number this
+        // bound was ever hardcoded to, and a wait older than all of them but
+        // inside it: a reader that kept an old constant on EITHER half puts
+        // the lamp out here.
+        const GIVE_UP_AFTER_SECS: u64 = 100_000;
+        let state = scratch("blocked-knob-tick");
+        let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
+        std::fs::create_dir_all(marker.parent().expect("the wait directory"))
+            .expect("the wait directory");
+        std::fs::write(&marker, "1000\n").expect("a wait in progress");
+        // THROUGH THE PARSER, not a field poked on a default: the knob the
+        // operator writes is the one the tick must read.
+        let config = pns::config::parse_config(&format!(
+            "[lights.blocked]\ngive_up_after_secs = {GIVE_UP_AFTER_SECS}\n"
+        ))
+        .expect("a config stating the knob");
+        let lights = config.lights.as_deref().expect("the lights table");
+
+        assert!(
+            blocked_lamp(&state, lights, 1_000 + 90_000),
+            "a day-old question inside the configured backstop still holds the lamp"
+        );
+        assert!(
+            !blocked_lamp(&state, lights, 1_000 + GIVE_UP_AFTER_SECS + 1),
+            "and one second past the backstop the lamp is given back"
+        );
+        assert!(
+            !marker.exists(),
+            "by the sweep, which read the same knob and removed the marker"
+        );
+    }
+
+    #[test]
+    fn a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop() {
         // THE LOCK SAYS "CONTINUOUS UNTIL THE OPERATOR ANSWERS", and half an
         // hour was not that: a question asked while they were at lunch went
         // dark before they came back, with nothing anywhere to say it had. What
         // is left is an ABANDONED-SESSION BACKSTOP and nothing else, so the
-        // lamp survives every absence a working day contains.
+        // lamp survives every absence the knob names.
+        //
+        // A KNOB THAT IS NOT THE SHIPPED DEFAULT, so a `sweep_blocked` that
+        // silently kept an old hardcoded number instead of reading the
+        // configured one would still be caught here.
+        const GIVE_UP_AFTER_SECS: u64 = 3_600;
+
         let state = scratch("blocked-bound");
         let marker = pns::lights::blocked_marker(&state, "s1").expect("a usable session id");
         std::fs::create_dir_all(marker.parent().expect("the wait directory"))
@@ -9205,17 +9235,17 @@ mod tests {
         std::fs::write(&marker, "1000\n").expect("a wait in progress");
 
         assert_eq!(
-            sweep_blocked(&state, 1_000 + 4 * 60 * 60),
+            sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS - 1, GIVE_UP_AFTER_SECS),
             vec![1_000],
-            "a question four hours old is still a question nobody has answered"
+            "a question just short of the knob is still a question nobody has answered"
         );
         assert_eq!(
-            sweep_blocked(&state, 1_000 + BLOCKED_MAX_AGE_SECS),
+            sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS, GIVE_UP_AFTER_SECS),
             vec![1_000],
-            "exactly at the backstop it is still live: both edges closed"
+            "exactly at the backstop it is still live: the bound is closed"
         );
         assert_eq!(
-            sweep_blocked(&state, 1_000 + BLOCKED_MAX_AGE_SECS + 1),
+            sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS + 1, GIVE_UP_AFTER_SECS),
             Vec::<u64>::new(),
             "and one second past it the abandoned session gives the bulb back"
         );
@@ -9239,7 +9269,7 @@ mod tests {
         std::fs::write(needs.join("s3"), "not an epoch\n").expect("an unreadable marker");
 
         assert_eq!(
-            sweep_blocked(&state, 1000),
+            sweep_blocked(&state, 1000, 3_600),
             vec![1000],
             "the live wait is still what the sweep answers with"
         );
