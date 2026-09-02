@@ -162,6 +162,10 @@ expected_kickstart="kickstart -k gui/$(id -u)/com.webdavis.pns-daemon"
   echo "a first-install kickstart (113) must clear the restart-pending marker" >&2
   exit 1
 }
+# From here on the binary is already installed, so a 113 is no longer the
+# fresh-machine no-op; default every later phase to a clean success and let
+# each one override the status it actually wants to test.
+echo 0 >"$launchctl_status"
 
 # --- the marker cannot be armed: refuse to publish rather than install a ---
 # --- binary the daemon has no forced way to pick up -------------------------
@@ -239,6 +243,27 @@ grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 5:' 
   exit 1
 }
 
+# --- 113 on an EXISTING installation is a real failure, not the fresh-
+# machine no-op: "not loaded" on a daemon that was already running means the
+# kickstart never reached it, so it must fail the apply and keep the marker
+echo 113 >"$launchctl_status"
+run_script && {
+  echo "a 113 on an existing installation must fail the apply" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 4 ]] || {
+  echo "the existing-installation 113 must still attempt the kickstart" >&2
+  exit 1
+}
+grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 113:' "$stderr_log" || {
+  echo "a 113 on an existing installation must print an attributed line to stderr" >&2
+  exit 1
+}
+[[ -e $pending ]] || {
+  echo "a 113 on an existing installation must keep the restart-pending marker" >&2
+  exit 1
+}
+
 # --- the pending marker forces a retry even on an IDENTICAL rebuild, and a
 # successful kickstart clears it and prints the restarted line -------------
 echo 0 >"$launchctl_status"
@@ -246,7 +271,7 @@ run_script || {
   echo "the retried kickstart must succeed and the apply must exit 0" >&2
   exit 1
 }
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 4 ]] || {
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 5 ]] || {
   echo "the pending marker must force one more kickstart on an unchanged binary" >&2
   exit 1
 }
