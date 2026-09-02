@@ -2850,6 +2850,16 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
         "prompt",
         r#"{"session_id":"s1"}"#,
     );
+    // THE HANDSHAKE'S OWN PRECONDITION: nothing below proves Prompt ran
+    // while Stop was still condensing unless Stop is provably still alive
+    // right here, before the release is written. Without this, a stub that
+    // fell through early would still leave the persistent "condensing" file
+    // behind and let a consume-at-end regression pass unnoticed.
+    assert!(
+        stop.try_wait().expect("poll").is_none(),
+        "Stop must still be running when Prompt returns, or this test proves \
+         nothing about the handshake"
+    );
     std::fs::write(sandbox.path("release"), "").expect("the release");
     assert_eq!(finished_within(stop, HANG_LIMIT), Some(0));
     assert!(
