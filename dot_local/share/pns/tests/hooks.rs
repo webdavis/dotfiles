@@ -5011,6 +5011,50 @@ fn quota_auto_resume_stale_arms_the_needs_marker_for_its_own_session() {
 }
 
 #[test]
+fn a_stale_wait_arms_the_needs_marker_before_the_card_is_delivered() {
+    // THE ORDER IS THE RACE. The declaration is `async: true`, so this hook
+    // runs beside the session rather than in front of it, and the operator
+    // presses Enter on a screen that is already telling them to. Arming
+    // AFTER the delivery plan means a whole plan of network legs runs first,
+    // and an Enter inside that window clears nothing (there is no marker yet)
+    // and then gets a marker published behind it: a blue lamp for a session
+    // that is already working again, held until its turn's own Stop.
+    // Arming first cannot close the race, which is the harness's to close,
+    // but it shrinks the window from a delivery plan to one file write.
+    let sandbox = Sandbox::new("quota-stale-arms-before-delivery");
+    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    counted_channels(&sandbox);
+    // The delivery itself reports what the state directory held WHILE it ran.
+    sandbox.stub_channel(
+        "hermes",
+        &format!(
+            "ls \"{s}/state/lights-blocked\" >\"{s}/waiting-at-delivery\" 2>&1; \
+             printf 'x' >>\"{s}/hermes.count\"; cat >\"{s}/hermes.event\"",
+            s = sandbox.display()
+        ),
+    );
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_stale", "press enter to continue"),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control: the observation itself delivered"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("waiting-at-delivery")).unwrap_or_default(),
+        "s1\n",
+        "the marker is already published when the first leg runs"
+    );
+}
+
+#[test]
 fn quota_auto_resume_fired_and_disabled_arm_no_needs_marker() {
     // THE MIRROR OF THE TEST ABOVE: proving stale arms the marker says
     // nothing about whether the other two also do, and a mutant that arms it

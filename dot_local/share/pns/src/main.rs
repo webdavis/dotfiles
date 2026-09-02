@@ -305,6 +305,15 @@ fn quota_observation_detail(notification_type: &str, message: &str) -> Option<St
 /// whole event through `Attempt::First` and picking up the journal, the
 /// presence edge and the loop-lease renewal that come with it.
 ///
+/// AND IT RUNS BEFORE THE DELIVERY, not after it. The declaration is
+/// `async: true`, so this hook runs BESIDE the session it reports on while the
+/// screen is already telling the operator to press Enter. Arming after the
+/// delivery plan would let an Enter inside that window clear nothing, because
+/// there would be no marker yet, and then take a marker published behind it:
+/// a blue lamp for a session that is working again, held until that turn's own
+/// Stop. Ordering cannot CLOSE that race, which is the harness's to close, but
+/// it shrinks the window from a plan of network legs to one file write.
+///
 /// KEYED BY SESSION, like every other wait: `blocked_marker_action("blocked")`
 /// is `Action::Start` (it is one of `pulse::LAMP_BLOCKED`), so this reuses the
 /// exact mechanism `blocking_event` uses rather than inventing a second one.
@@ -462,6 +471,11 @@ fn hook_mode(event: &str) -> i32 {
                 quota_observation_detail(&payload.notification_type, &payload.message)
             {
                 let probes = system_probes();
+                // THE ONE EXCEPTION, AND IT GOES FIRST: see
+                // `arm_quota_stale_wait` for both halves of why.
+                if payload.notification_type == "quota_auto_resume_stale" {
+                    arm_quota_stale_wait(&payload.session_id, &probes);
+                }
                 run_event(
                     &pns::args::EventArgs {
                         agent,
@@ -475,10 +489,6 @@ fn hook_mode(event: &str) -> i32 {
                     &payload,
                     Attempt::Observation,
                 );
-                // THE ONE EXCEPTION: see `arm_quota_stale_wait`.
-                if payload.notification_type == "quota_auto_resume_stale" {
-                    arm_quota_stale_wait(&payload.session_id, &probes);
-                }
             }
         }
         // An event this binary does not serve is not an error the harness
