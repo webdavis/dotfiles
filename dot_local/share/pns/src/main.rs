@@ -303,7 +303,7 @@ fn hook_mode(event: &str) -> i32 {
                 ..Default::default()
             },
             &system_probes(),
-            &payload.session_id,
+            &payload,
             Attempt::First,
         ),
         // An event this binary does not serve is not an error the harness
@@ -1703,7 +1703,7 @@ fn end_of_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
-        &payload.session_id,
+        payload,
         Attempt::First,
     );
 }
@@ -1742,7 +1742,7 @@ fn failed_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
-        &payload.session_id,
+        payload,
         Attempt::First,
     );
 }
@@ -1947,7 +1947,7 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     // routing around: threading one view through would change three signatures
     // for a value each caller reads at the moment it needs it.
     arm_nag(&payload.session_id, &event);
-    run_event(&event, &probes, &payload.session_id, Attempt::First);
+    run_event(&event, &probes, payload, Attempt::First);
     // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
     // immediately before the wait. Threading it out of `run_event` would
     // change that function's signature for one duration, and a view torn
@@ -2301,8 +2301,13 @@ fn event_mode() {
     for warning in &warnings {
         eprintln!("pns: {warning}");
     }
-    // ARGV CARRIES NO SESSION, which is the honest no-identity case.
-    run_event(&event, &system_probes(), "", Attempt::First);
+    // ARGV CARRIES NO PAYLOAD, which is the honest no-identity case.
+    run_event(
+        &event,
+        &system_probes(),
+        &HookPayload::default(),
+        Attempt::First,
+    );
 }
 
 /// Whether this is the event's FIRST delivery or a NUDGE about one already
@@ -2322,16 +2327,17 @@ enum Attempt {
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
 ///
-/// THE SESSION ID RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split
-/// is the point: `EventArgs` is the ARGV contract, and argv has no spelling for
-/// a session id. It arrives in a harness payload or not at all, so the hook
-/// arms pass what they were given and every other caller passes an empty
-/// string, which is honestly no identity rather than a field nothing can fill.
-/// The lamps' needs marker is its one reader.
+/// THE PAYLOAD RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split is
+/// the point: `EventArgs` is the ARGV contract, and argv has no spelling for a
+/// session id, a permission mode, a subagent id or a raw tool name. Every one
+/// of those arrives in a harness payload or not at all, so the hook arms pass
+/// what they were given and every other caller passes `HookPayload::default()`,
+/// which is honestly no identity rather than fields nothing can fill. The
+/// lamps' needs marker and the decision line are its readers.
 fn run_event(
     event: &pns::args::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
-    session_id: &str,
+    payload: &HookPayload,
     attempt: Attempt,
 ) {
     let home = std::env::var("HOME").unwrap_or_default();
@@ -2487,6 +2493,9 @@ fn run_event(
         overrides: &overrides,
         legs: &outcomes,
         nag: attempt == Attempt::Nudge,
+        permission_mode: &payload.permission_mode,
+        agent_id: &payload.agent_id,
+        tool_name: &payload.tool_name,
     });
     // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge
     // returns here, so it writes no journal entry, no activity-ring line, never
@@ -2522,7 +2531,7 @@ fn run_event(
     let lamps_live = lights.is_some() && hue_table.is_some();
     update_blocked_marker(
         &state_dir(),
-        session_id,
+        &payload.session_id,
         &event.state,
         lamps_live,
         decision.inputs.now_secs,
@@ -3605,7 +3614,7 @@ fn home_mode() {
                 ..Default::default()
             },
             &system_probes(),
-            "",
+            &HookPayload::default(),
             Attempt::First,
         );
     }
@@ -4015,12 +4024,12 @@ fn nag_mode() -> i32 {
             ..Default::default()
         },
         &system_probes(),
-        // NO SESSION, and coalescing is why: one card stands for every record
+        // NO PAYLOAD, and coalescing is why: one card stands for every record
         // in `held`, so naming one of their sessions would be inventing an
         // identity the card does not have. A nudge returns before the lamps'
-        // needs marker is touched at all, so this is the honest empty string
-        // rather than a value chosen to be ignored.
-        "",
+        // needs marker is touched at all, so this is the honest default rather
+        // than a value chosen to be ignored.
+        &HookPayload::default(),
         Attempt::Nudge,
     );
     for (claim, _, _) in &held {

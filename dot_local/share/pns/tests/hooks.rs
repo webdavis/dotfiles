@@ -1202,6 +1202,25 @@ fn an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed()
 }
 
 #[test]
+fn the_decision_log_carries_the_payloads_mode_agent_and_tool() {
+    // WHY: three `claude/blocked` events lined up with subagent hand-offs,
+    // not with any prompt the operator saw (OBS-4), and the decision log had
+    // no field that could ever tell those apart from an ordinary approval.
+    // `CLAUDE_APPROVAL` states `permission_mode: "default"`,
+    // `agent_id: "agent_01"` and `tool_name: "Bash"`.
+    let sandbox = Sandbox::new("hook-blocked-payload-fields");
+    let mut command = approval(&sandbox, 42);
+    command.env("PNS_STATE_DIR", sandbox.path("state"));
+    hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
+    let recorded =
+        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+    assert!(
+        recorded.contains(" mode=default agent=agent_01 tool=Bash "),
+        "got {recorded:?}"
+    );
+}
+
+#[test]
 fn an_approval_leaves_the_turn_marker_alone() {
     // THE TURN CONTINUES PAST AN APPROVAL. The harness resumes the tool call
     // and the turn ends later, at the Stop that follows, so consuming the

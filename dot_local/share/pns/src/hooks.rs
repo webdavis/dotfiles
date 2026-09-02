@@ -24,6 +24,22 @@ pub struct HookPayload {
     /// subagent call", so an empty value here is the ordinary main-thread
     /// case, never a parse failure.
     pub agent_id: String,
+    /// The agent name, for example "Explore" or "security-reviewer". The same
+    /// reference states it is present "when the session uses `--agent` or the
+    /// hook fires inside a subagent", so it arrives together with `agent_id`
+    /// more often than alone.
+    pub agent_type: String,
+    /// The current permission mode: `default`, `plan`, `acceptEdits`, `auto`,
+    /// `dontAsk` or `bypassPermissions`. The reference states "not all events
+    /// receive this field", so empty is the ordinary case for most of them.
+    pub permission_mode: String,
+    /// Which tool a `PermissionRequest` is about, RAW and unflattened, unlike
+    /// the composed `message` below. A connected Model Context Protocol
+    /// server names its own tools, so this is remote text; it is safe to
+    /// record on its own because, like `agent_id` and `state`, it is a NAME
+    /// rather than free text, filtered the same way before it is ever
+    /// printed.
+    pub tool_name: String,
     /// What a non-turn event (a permission prompt, a plan) is about.
     pub message: String,
 }
@@ -46,6 +62,9 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         transcript_path: text("transcript_path"),
         last_assistant_message: text("last_assistant_message"),
         agent_id: text("agent_id"),
+        agent_type: text("agent_type"),
+        permission_mode: text("permission_mode"),
+        tool_name: text("tool_name"),
         // The asking MCP server in front of its own prompt, then `.message //
         // .detail` as the bash read it, then the error a dead turn reports,
         // and then the tool the request is about for the harnesses that send
@@ -348,6 +367,35 @@ mod tests {
         // payload naming none is the ordinary case, never something to guess
         // at or report on.
         assert_eq!(parse_payload(r#"{"session_id":"s1"}"#).agent_id, "");
+    }
+
+    #[test]
+    fn a_permission_request_yields_its_mode_agent_and_raw_tool_name() {
+        // THE BINARY'S OWN FIELD SET (2.1.241, `CLAUDE_APPROVAL` in
+        // tests/hooks.rs), so this is the real shape rather than a reduction
+        // of it.
+        let payload = parse_payload(
+            r#"{"session_id":"s1","transcript_path":"/dev/null","cwd":"/a/dotfiles",
+                "prompt_id":"prompt_01","permission_mode":"default","agent_id":"agent_01",
+                "agent_type":"main","effort":"medium","hook_event_name":"PermissionRequest",
+                "tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/x"}}"#,
+        );
+        assert_eq!(payload.permission_mode, "default");
+        assert_eq!(payload.agent_id, "agent_01");
+        assert_eq!(payload.agent_type, "main");
+        assert_eq!(payload.tool_name, "Bash");
+    }
+
+    #[test]
+    fn permission_mode_agent_type_and_tool_name_are_absent_rather_than_guessed() {
+        // "NOT ALL EVENTS RECEIVE THIS FIELD," the reference says of
+        // `permission_mode`, and `agent_type` arrives only with `--agent` or a
+        // subagent: absent is the ordinary case for most events, never a
+        // parse failure.
+        let payload = parse_payload(r#"{"session_id":"s1"}"#);
+        assert_eq!(payload.permission_mode, "");
+        assert_eq!(payload.agent_type, "");
+        assert_eq!(payload.tool_name, "");
     }
 
     #[test]
