@@ -1295,7 +1295,8 @@ mod tests {
         // substitutes the vault value, so the stub's placeholder has to
         // supply a quoted string in its place before the whole file can
         // parse.
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"")
+            .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1330,7 +1331,8 @@ mod tests {
             text.contains("key = {{ (keepassxc \"Hue Bridge\").UserName | toToml }}"),
             "{text}"
         );
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"from-the-vault\"")
+            .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1356,7 +1358,8 @@ mod tests {
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
         let text = render(&values).expect("a secret marker renders");
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"a\\\"b\\\\c\"");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"a\\\"b\\\\c\"")
+            .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(
@@ -1375,7 +1378,8 @@ mod tests {
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
         let text = render(&values).expect("a secret marker renders");
-        let rendered = crate::config::strip_chezmoi_actions(&text, "\"plain\"");
+        let rendered = crate::config::strip_chezmoi_actions(&text, "\"plain\"")
+            .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
         let config =
             parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
         assert_eq!(

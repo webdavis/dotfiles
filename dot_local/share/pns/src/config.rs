@@ -595,39 +595,48 @@ pub const TOP_LEVEL: &str = "";
 ///
 /// ONLY THAT ONE ACTION IS STOOD IN FOR. An action in value position must
 /// read exactly `{{ (keepassxc "<entry>").<field> | toToml }}`, the text
-/// `config_text::secret_action` writes; anything else panics. Swapping a
+/// `config_text::secret_action` writes; anything else is refused. Swapping a
 /// quoted placeholder in for ANY action would let a template line that
 /// dropped `| toToml` keep every template test green while chezmoi splices
 /// the raw vault bytes in unquoted.
-#[cfg(test)]
-pub(crate) fn strip_chezmoi_actions(text: &str, placeholder: &str) -> String {
-    text.lines()
+///
+/// NOT TEST-ONLY: `pns-config-render` calls this at runtime too, to stand in
+/// for chezmoi before self-parsing its own render, so it returns a refusal
+/// naming the offender rather than panicking.
+pub fn strip_chezmoi_actions(text: &str, placeholder: &str) -> Result<String, String> {
+    let mut lines = Vec::new();
+    for line in text
+        .lines()
         .filter(|line| !line.trim_start().starts_with("{{-"))
-        .map(|line| {
-            let mut rendered = line.to_string();
-            while let Some(start) = rendered.find("{{") {
-                let end = rendered[start..]
-                    .find("}}")
-                    .expect("a chezmoi action is closed on its own line")
-                    + start
-                    + 2;
-                let action = &rendered[start..end];
-                let is_secret_action = action
-                    .strip_prefix("{{ (keepassxc \"")
-                    .and_then(|rest| rest.split_once("\")."))
-                    .is_some_and(|(entry, rest)| {
-                        !entry.contains('"')
-                            && crate::config_text::SECRET_FIELDS
-                                .iter()
-                                .any(|field| rest == format!("{field} | toToml }}}}"))
-                    });
-                assert!(is_secret_action, "not a `| toToml` secret action: {action}");
-                rendered.replace_range(start..end, placeholder);
+    {
+        let mut rendered = line.to_string();
+        while let Some(start) = rendered.find("{{") {
+            let Some(end) = rendered[start..]
+                .find("}}")
+                .map(|offset| start + offset + 2)
+            else {
+                return Err(format!(
+                    "a chezmoi action is not closed on its own line: {rendered}"
+                ));
+            };
+            let action = &rendered[start..end];
+            let is_secret_action = action
+                .strip_prefix("{{ (keepassxc \"")
+                .and_then(|rest| rest.split_once("\")."))
+                .is_some_and(|(entry, rest)| {
+                    !entry.contains('"')
+                        && crate::config_text::SECRET_FIELDS
+                            .iter()
+                            .any(|field| rest == format!("{field} | toToml }}}}"))
+                });
+            if !is_secret_action {
+                return Err(format!("not a `| toToml` secret action: {action}"));
             }
-            rendered
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+            rendered.replace_range(start..end, placeholder);
+        }
+        lines.push(rendered);
+    }
+    Ok(lines.join("\n"))
 }
 
 /// How many `key = value` pairs a config-shaped text documents, commented
@@ -3456,10 +3465,10 @@ mod tests {
     /// or a table; they are one conditional wrapper and five secrets.
     fn rendered_template() -> String {
         super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "\"from-the-vault\"")
+            .expect("the shipped template's own actions are well-formed")
     }
 
     #[test]
-    #[should_panic(expected = "not a `| toToml` secret action")]
     fn the_stub_refuses_a_secret_action_that_forgot_totoml() {
         // THE MUTANT THIS PINS: a template secret line with `| toToml`
         // dropped. Chezmoi would then splice the raw vault bytes in unquoted
@@ -3467,10 +3476,12 @@ mod tests {
         // action for a quoted placeholder would keep every template test
         // green. So the stub only stands in for the one action grammar the
         // renderer writes, and refuses the rest out loud.
-        super::strip_chezmoi_actions(
+        let error = super::strip_chezmoi_actions(
             "token = {{ (keepassxc \"Moshi :: Webhook Secret\").Password }}",
             "\"from-the-vault\"",
-        );
+        )
+        .expect_err("a bare action with no `| toToml` is not a secret action");
+        assert!(error.contains("not a `| toToml` secret action"), "{error}");
     }
 
     /// THE STUB ONLY READS THE GRAMMAR of a secret action, which is what
