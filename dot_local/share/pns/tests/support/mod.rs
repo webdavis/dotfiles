@@ -7,11 +7,49 @@
 
 #![allow(dead_code)] // each test binary uses its own subset of this harness.
 
+use std::cell::Cell;
 use std::ffi::OsString;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+/// The REVIEW line: a sandbox alive longer than this at drop deserves a
+/// look, so `Drop for Sandbox` prints a line to stderr naming the sandbox and
+/// the elapsed ms, greppable as "test budget". Never fails the build on its
+/// own; see `TEST_CEILING_MS`.
+///
+/// THIS IS A LOWER BOUND ON THE TEST, NOT AN UPPER BOUND ON THE CODE: the
+/// guard measures the sandbox's own LIFETIME (construction to drop), so a
+/// test that builds and drops several short-lived sandboxes in a loop
+/// (`lamp_run`, dispatch.rs:1742; the `held_after` closure, dispatch.rs:8284)
+/// is invisible to it no matter how many it makes, because no single one is
+/// held past the line.
+const TEST_BUDGET_MS: u128 = 1_000;
+
+/// The FAILURE line, calibrated from `--report-time --ensure-time` evidence
+/// gathered for this slice (2026-09-01): under libtest's parallel scheduler,
+/// wall time is contention, not cost, and CI's runner has fewer, slower cores
+/// than this one. The worst legitimate parallel reading measured here was
+/// ~1.19 s; the slowest STRUCTURAL sandbox (the daemon lease test, excused
+/// with `allow_slow`) measured ~5.4 s alone. 5 s hard-fails a real
+/// regression while giving contention a margin neither reading is close to.
+const TEST_CEILING_MS: u128 = 5_000;
+
+/// Whether a sandbox that lived `elapsed_ms` has earned the review warning.
+/// Pulled out of `Drop` so a twin can pin the boundary without spending real
+/// wall clock to get a sandbox there.
+fn over_budget(elapsed_ms: u128) -> bool {
+    elapsed_ms > TEST_BUDGET_MS
+}
+
+/// Whether a sandbox that lived `elapsed_ms` fails the build: past the
+/// ceiling, not excused, and not already unwinding (a panic mid-panic
+/// aborts the process instead of failing one test).
+fn over_ceiling(elapsed_ms: u128, excused: bool, panicking: bool) -> bool {
+    elapsed_ms > TEST_CEILING_MS && !excused && !panicking
+}
 
 pub const ENGINE: &str = env!("CARGO_BIN_EXE_pns");
 pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
@@ -27,6 +65,8 @@ pub const STUB_CHANNELS: &str = "[plugins.mobile]\nenabled = true\ntype = \"mosh
 /// event files those stubs record into. Removed on drop.
 pub struct Sandbox {
     pub root: PathBuf,
+    created: Instant,
+    excused: Cell<bool>,
 }
 
 impl Sandbox {
@@ -51,7 +91,11 @@ impl Sandbox {
         let root = std::env::temp_dir().join(format!("pns-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("channels")).expect("sandbox");
-        let sandbox = Sandbox { root };
+        let sandbox = Sandbox {
+            root,
+            created: Instant::now(),
+            excused: Cell::new(false),
+        };
         for channel in ["mobile", "hermes", "macos-banner"] {
             sandbox.stub_channel(
                 channel,
@@ -59,6 +103,18 @@ impl Sandbox {
             );
         }
         sandbox
+    }
+
+    /// Excuse THIS sandbox from `TEST_CEILING_MS` because its cost is
+    /// structural rather than a regression (an epoch-second lease that
+    /// cannot lapse faster, say). `&self`: tests hold their sandbox
+    /// immutably, so the excuse is a `Cell`. Never silences the WARNING at
+    /// `TEST_BUDGET_MS`, only the failure at the ceiling: a test that KNOWS
+    /// it is slow still deserves the same review flag as one that got slow
+    /// by accident.
+    pub fn allow_slow(&self, reason: &'static str) {
+        debug_assert!(!reason.is_empty(), "allow_slow needs a real reason");
+        self.excused.set(true);
     }
 
     /// The engine's state directory for this test, INSIDE the sandbox.
@@ -489,6 +545,26 @@ impl Drop for DaemonGuard {
 impl Drop for Sandbox {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.root);
+        let elapsed = self.created.elapsed().as_millis();
+        if over_budget(elapsed) {
+            // THE PROCESS'S OWN STDERR, not `eprintln!`: libtest captures the
+            // print macros of a passing test and shows them only on failure or
+            // under `--show-output`, which would swallow the one line the
+            // review rule exists to print.
+            use std::io::Write as _;
+            let _ = writeln!(
+                std::io::stderr(),
+                "test budget: sandbox {:?} took {elapsed} ms, over the {TEST_BUDGET_MS} ms budget",
+                self.root
+            );
+        }
+        if over_ceiling(elapsed, self.excused.get(), std::thread::panicking()) {
+            panic!(
+                "test budget: sandbox {:?} took {elapsed} ms, over the {TEST_CEILING_MS} ms \
+                 ceiling (call allow_slow(\"reason\") if this is structural)",
+                self.root
+            );
+        }
     }
 }
 
@@ -537,4 +613,81 @@ pub fn stdout(output: &Output) -> String {
 
 pub fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+#[cfg(test)]
+mod guard_tests {
+    //! The guard's own twins. The pure predicates are pinned with literal
+    //! inputs rather than the constants they check, so a mutated constant
+    //! cannot also move what a twin calls "past the line". The two end to
+    //! end tests backdate a real sandbox's construction instant instead of
+    //! sleeping past it, so proving the wiring works costs no real wall
+    //! clock either. The two backdated twins each print one budget line to
+    //! stderr on every run, by construction (past the ceiling is past the
+    //! budget); the sandbox name in that line says "guard-twin".
+    use super::*;
+
+    #[test]
+    fn a_fast_sandbox_is_not_over_budget() {
+        assert!(!over_budget(10));
+    }
+
+    #[test]
+    fn a_sandbox_past_the_budget_is_over_budget() {
+        assert!(over_budget(1_500));
+    }
+
+    #[test]
+    fn a_sandbox_past_the_ceiling_with_no_excuse_is_over_ceiling() {
+        assert!(over_ceiling(6_000, false, false));
+    }
+
+    #[test]
+    fn an_excused_sandbox_is_never_over_ceiling() {
+        assert!(!over_ceiling(6_000, true, false));
+    }
+
+    #[test]
+    fn an_already_panicking_thread_is_never_double_panicked() {
+        assert!(!over_ceiling(6_000, false, true));
+    }
+
+    /// Drop a real sandbox whose construction instant was pushed back by
+    /// `age_ms`, optionally excused, and say what its own drop panicked
+    /// with, if anything.
+    fn drop_backdated(name: &str, age_ms: u64, excuse: Option<&'static str>) -> Option<String> {
+        let mut sandbox = Sandbox::without_config(name);
+        sandbox.created = Instant::now() - std::time::Duration::from_millis(age_ms);
+        if let Some(reason) = excuse {
+            sandbox.allow_slow(reason);
+        }
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(sandbox)))
+            .err()
+            .map(|payload| {
+                payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .unwrap_or_default()
+            })
+    }
+
+    #[test]
+    fn a_real_sandbox_past_the_ceiling_fails_naming_the_test_budget() {
+        let message = drop_backdated("guard-twin-ceiling", TEST_CEILING_MS as u64 + 1, None)
+            .expect("a sandbox over the ceiling must fail its own drop");
+        assert!(message.starts_with("test budget:"), "{message}");
+    }
+
+    #[test]
+    fn a_real_sandbox_past_the_ceiling_with_allow_slow_does_not_fail() {
+        assert!(
+            drop_backdated(
+                "guard-twin-ceiling-excused",
+                TEST_CEILING_MS as u64 + 1,
+                Some("a structural reason, for this twin alone")
+            )
+            .is_none(),
+            "allow_slow must lift the ceiling"
+        );
+    }
 }

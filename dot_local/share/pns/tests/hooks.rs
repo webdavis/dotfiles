@@ -2016,7 +2016,13 @@ fn a_transcript_that_never_ends_is_not_read_at_all() {
             .success()
     );
     for path in ["/dev/zero".to_string(), fifo.display().to_string()] {
-        let mut child = spawn_hook(sandbox.pns(), "stop");
+        // ONE ATTEMPT, not the default four: the property under test is that
+        // a non-regular transcript never holds the hook open at all, not how
+        // many times the reread loop retries an empty reply, so the retry
+        // count is not what this pins.
+        let mut command = sandbox.pns();
+        command.env("PNS_REPLY_REREAD_ATTEMPTS", "1");
+        let mut child = spawn_hook(command, "stop");
         let payload =
             format!(r#"{{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"{path}"}}"#);
         write_payload(&mut child, payload.as_bytes());
@@ -2392,10 +2398,11 @@ fn a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi() {
         ("../../etc/passwd", 2),
         ("pi-hook; rm -rf /", 2),
         ("Pi-hook", 2),
-        // A leading `-` is a flag as far as argv is concerned, so this one is
-        // still the producer contract's empty event on its always-exit-0 edge
-        // rather than a word refused for naming no command.
-        ("-hook", 0),
+        // A leading `-` used to be a free pass into the producer contract's
+        // empty event, so a mistyped harness word delivered in silence. It is
+        // now the operator's rule, not a regression: `-hook` names no flag
+        // this parser recognizes, so it is refused like any other typo.
+        ("-hook", 2),
     ] {
         let output = gate(&sandbox, word, "{}");
         assert_eq!(output.status.code(), Some(code), "word {word:?}");
@@ -2515,22 +2522,32 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     // the turn then spends seconds in the condenser; by the time anything is
     // delivered the tap is the older signal and the desk is where they are.
     //
-    // The marker is touched as this hook starts and the desk is stated at one
-    // second, so the two swap places DURING the condense: a reading taken at
+    // The marker is touched as this hook starts and the desk is stated at two
+    // seconds, so the two swap places DURING the condense: a reading taken at
     // process start says mobile and cards the phone, and a reading taken at
     // dispatch says desk and raises the banner. The banner is therefore the
     // whole assertion.
+    //
+    // TWO, NOT ONE: ages are whole seconds and a tie goes to the desk, so a
+    // desk stated at one second read Desk whenever the fresh marker's own age
+    // had just rolled over to one, and a hook reading the world at start
+    // passed this test about one run in twenty (measured 2026-09-01).
     let sandbox = Sandbox::new("hook-snapshot-timing");
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("stub bin");
-    // Long enough for the marker to age past the stated desk reading, which
-    // is whole seconds, and no longer.
-    write_script(&bin.join("codex"), "sleep 2");
+    // THE MARKER IS BACKDATED RATHER THAN WAITED PAST: the condenser stub
+    // re-dates it ten seconds into the past the instant it runs, so the
+    // dispatch-time read is already older than the one-second desk reading
+    // without this test spending any real time getting there.
+    write_script(
+        &bin.join("codex"),
+        &format!("touch -A -000010 \"{}\"", marker.display()),
+    );
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "1")
+        .env("PNS_IDLE_SECS", "2")
         .env("PNS_DESK_IDLE_SECS", "120")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("CODEX_BIN", bin.join("codex"))
@@ -2612,18 +2629,32 @@ fn a_malformed_reread_interval_falls_back_instead_of_panicking() {
     // filter that guarded the other four and panicked in the constructor
     // anyway; sol reproduced exit 101 from 1e300 on 2026-08-19.
     let sandbox = Sandbox::new("hook-bad-interval");
-    for value in ["NaN", "inf", "-1", "not-a-number", "1e30", "1e300"] {
-        let mut command = sandbox.pns();
-        command
-            .env("PNS_REPLY_REREAD_INTERVAL", value)
-            .env("PNS_REPLY_REREAD_ATTEMPTS", "1");
-        let output = hook_with(
-            command,
-            &sandbox,
-            "stop",
-            r#"{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"/dev/null"}"#,
+    let values = ["NaN", "inf", "-1", "not-a-number", "1e30", "1e300"];
+    // ALL SIX SPAWNED BEFORE ANY IS WAITED ON: the property under test is
+    // that each value exits 0, not that six spawns run one after another, so
+    // the six process starts overlap instead of paying their own overhead
+    // six times over.
+    let children: Vec<_> = values
+        .iter()
+        .map(|value| {
+            let mut command = sandbox.pns();
+            command
+                .env("PNS_REPLY_REREAD_INTERVAL", value)
+                .env("PNS_REPLY_REREAD_ATTEMPTS", "1");
+            let mut child = spawn_hook(command, "stop");
+            write_payload(
+                &mut child,
+                br#"{"session_id":"s1","cwd":"/a/dotfiles","transcript_path":"/dev/null"}"#,
+            );
+            child
+        })
+        .collect();
+    for (value, child) in values.into_iter().zip(children) {
+        assert_eq!(
+            finished_within(child, HANG_LIMIT),
+            Some(0),
+            "interval {value:?}"
         );
-        assert_eq!(output.status.code(), Some(0), "interval {value:?}");
     }
 }
 
@@ -2761,9 +2792,21 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
     let sandbox = Sandbox::new("hook-prompt-during-condense");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
+    // A HANDSHAKE, not a fixed sleep: the stub signals "condensing" the
+    // instant it starts and blocks on "release" rather than a timed sleep,
+    // so "mid-condense" is a fact this test observes instead of a duration
+    // it guesses (the pattern at dispatch.rs's summarizer-parks test).
+    // BOUNDED ANYWAY at ten seconds, so a broken build fails rather than
+    // hangs.
     write_script(
         &bin.join("codex"),
-        "cat >/dev/null; sleep 1; printf 'done|late\\n'",
+        &format!(
+            "cat >/dev/null\n\
+             touch \"{root}/condensing\"\n\
+             for _ in $(seq 1 200); do [ -e \"{root}/release\" ] && break; sleep 0.05; done\n\
+             printf 'done|late\\n'",
+            root = sandbox.display()
+        ),
     );
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     std::fs::write(marker(&sandbox, "s1"), "1").expect("marker");
@@ -2776,14 +2819,19 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
         &mut stop,
         br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
     );
-    // The next prompt lands mid-condense.
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    // The next prompt lands mid-condense: proven by the stub's own signal
+    // rather than a guess about how long condensing takes.
+    assert!(
+        support::poll_until(|| sandbox.path("condensing").exists().then_some(())).is_some(),
+        "the condenser never started"
+    );
     hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "prompt",
         r#"{"session_id":"s1"}"#,
     );
+    std::fs::write(sandbox.path("release"), "").expect("the release");
     assert_eq!(finished_within(stop, HANG_LIMIT), Some(0));
     assert!(
         marker(&sandbox, "s1").exists(),
