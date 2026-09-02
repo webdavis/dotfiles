@@ -4635,12 +4635,14 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
 // D7's cheapest shape: the ONE `Notification` matcher this binary recognises
 // is the three quota auto-resume types, routed through `Attempt::Observation`
 // exactly like the model-switch arm above. `quota_auto_resume_stale` is the
-// one exception (Q3): Claude Code's interactive-mode reference documents that
-// a stale wait continues when the operator presses Enter, and that
-// continuation is a fixed prompt through `UserPromptSubmit`
-// (`pns hook prompt`), whose own arm already calls `end_blocked_wait`. So
-// `stale` alone also arms the needs marker directly; `fired` and `disabled`
-// stay marker-neutral because neither has a verified matching clear.
+// one exception (Q3): the interactive-mode reference documents that after a
+// long sleep the session stops and reads `press enter to continue`, which is a
+// wait on the operator, so `stale` alone also arms the needs marker directly.
+// `fired` and `disabled` stay marker-neutral because neither reports a session
+// waiting on anybody. What CLEARS the marker is pinned by two tests, not by
+// one: the reference does not say whether Claude Code's own continuation
+// prompt reaches the `UserPromptSubmit` hook, so the prompt hook is tested as
+// the fast path and the turn's Stop as the guarantee that holds without it.
 
 const QUOTA_TYPES: [&str; 3] = [
     "quota_auto_resume_fired",
@@ -5086,9 +5088,10 @@ fn quota_auto_resume_fired_and_disabled_arm_no_needs_marker() {
 
 #[test]
 fn the_prompt_hook_clears_a_stale_quota_marker() {
-    // Q3'S OWN CLOSE. Claude Code's interactive-mode reference: a stale wait
-    // continues when the operator presses Enter, and that continuation is a
-    // fixed prompt through `UserPromptSubmit`, which is `pns hook prompt`.
+    // Q3'S OWN CLOSE, THE FAST PATH. Whatever Claude Code's own continuation
+    // prompt does, the operator typing anything in that session ends the wait
+    // the way any other prompt does. The guarantee that does not depend on a
+    // prompt at all is the test below.
     let sandbox = Sandbox::new("quota-stale-cleared-by-prompt");
     sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
     counted_channels(&sandbox);
@@ -5117,5 +5120,46 @@ fn the_prompt_hook_clears_a_stale_quota_marker() {
     assert!(
         waiting_sessions(&sandbox).is_empty(),
         "the operator's continuation clears the marker the way any other prompt does"
+    );
+}
+
+#[test]
+fn a_stale_quota_marker_clears_at_the_turns_stop_without_any_prompt_hook() {
+    // Q3'S GUARANTEE, AND WHY IT IS SEPARATE FROM THE TEST ABOVE. Claude Code
+    // continues a wait by sending Claude a fixed prompt of its own, and its
+    // reference does not say whether that internal prompt reaches the
+    // `UserPromptSubmit` hook. If it does not, the marker armed here would be
+    // cleared by nothing at all unless something else ends it. Something else
+    // does: every event from that session except the four that start a wait
+    // ends one, so the continued turn's own Stop clears it with no prompt hook
+    // in the sequence at all.
+    let sandbox = Sandbox::new("quota-stale-cleared-by-stop");
+    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    counted_channels(&sandbox);
+
+    let armed = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_stale", "press enter to continue"),
+    );
+    assert!(armed.status.success());
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "the precondition: a stale wait armed the marker"
+    );
+
+    let stopped = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles"}"#,
+    );
+
+    assert!(stopped.status.success());
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "the continued turn ending clears the marker with no prompt hook in the sequence"
     );
 }

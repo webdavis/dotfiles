@@ -294,16 +294,28 @@ fn quota_observation_detail(notification_type: &str, message: &str) -> Option<St
 ///
 /// `Attempt::Observation` never reaches `update_blocked_marker` (`run_event`
 /// returns before it for anything but `Attempt::First`), which is the whole
-/// point for `fired` and `disabled`: neither has a verified matching event
-/// that would clear a marker, and an unclearable blue lamp is worse than no
-/// lamp. `stale` is different: Claude Code's interactive-mode reference
-/// documents that a stale wait continues when the operator presses Enter, and
-/// that continuation is a fixed prompt Claude Code sends through
-/// `UserPromptSubmit`, which is `pns hook prompt`, whose own arm already calls
-/// `end_blocked_wait`. So this calls the marker's own Start operation
-/// directly, a state-only file write in D1's style, rather than routing the
-/// whole event through `Attempt::First` and picking up the journal, the
-/// presence edge and the loop-lease renewal that come with it.
+/// point for `fired` and `disabled`: neither reports a session waiting on the
+/// operator, so neither should colour a lamp that says one is. `stale` does:
+/// Claude Code's interactive-mode reference documents that after a sleep of
+/// more than about thirty minutes the session stops and reads `Your usage
+/// limit has reset - press enter to continue`, which is a wait on the operator
+/// by the same definition every other blue lamp here uses. So this calls the
+/// marker's own Start operation directly, a state-only file write in D1's
+/// style, rather than routing the whole event through `Attempt::First` and
+/// picking up the journal, the presence edge and the loop-lease renewal that
+/// come with it.
+///
+/// AND WHAT CLEARS IT IS NOT THE PROMPT HOOK, or not only. The reference says
+/// Claude Code continues by sending Claude a fixed prompt of its own; it does
+/// NOT say whether that internal prompt reaches the `UserPromptSubmit` hook,
+/// and this repository has no capture that settles it either way, so a marker
+/// whose only clear was `pns hook prompt` would be a bet on an undocumented
+/// detail of another program. It is not one: EVERY event from that session
+/// except the four that start a wait ends one (`blocked_marker_action`), so
+/// the continued turn's own Stop clears this marker whether or not the
+/// continuation ever reached the prompt hook, and the operator typing anything
+/// at all clears it sooner. The prompt hook is the FAST path and the Stop is
+/// the guarantee, which is why both are pinned by a test.
 ///
 /// AND IT RUNS BEFORE THE DELIVERY, not after it. The declaration is
 /// `async: true`, so this hook runs BESIDE the session it reports on while the
