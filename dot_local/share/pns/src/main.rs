@@ -1768,16 +1768,73 @@ fn take_claim(claim: &Path) -> Claimed {
     Claimed::Taken(pns::missed_notifications::entries(&contents))
 }
 
+/// How many times an append waits for a ring's own lock before giving up
+/// rather than risk the very race the lock exists to prevent.
+///
+/// A HANDFUL OF SHORT SLEEPS PAST WHAT THE CRITICAL SECTION ITSELF EVER
+/// TAKES: the whole locked span is one small read, one rewrite and one
+/// rename, so a live holder clears in microseconds. Giving up costs the ONE
+/// event that could not get in, in `record_decision`'s own fail-quiet style;
+/// it never risks publishing over a sibling's newer state, which is the loss
+/// this lock exists to prevent.
+const RING_LOCK_ATTEMPTS: u32 = 200;
+
+/// How long a ring's own lock is believed before a holder that died on it is
+/// read as an orphan. Long past any real critical section, so this only ever
+/// fires for a crash, in `lights_tick_stale_secs`'s own style for its own
+/// job.
+const RING_LOCK_STALE_SECS: u64 = 5;
+
+/// The path beside a ring's own that arbitrates between two processes
+/// touching it at once.
+fn ring_lock_path(path: &Path) -> std::path::PathBuf {
+    let mut name = path.as_os_str().to_os_string();
+    name.push(".lock");
+    std::path::PathBuf::from(name)
+}
+
+/// One ring's lock, WAITED FOR rather than skipped: unlike a lights tick,
+/// which safely stands down from a busy window and picks the lamp up again
+/// next interval, standing down here means silently losing whichever event
+/// is mid-append. Reuses `claim_lock`, the one shape every lock in this
+/// binary uses (see its own doc comment), rather than a second mechanism.
+/// Bounded anyway, in this binary's own style: `RING_LOCK_ATTEMPTS` short
+/// sleeps, and a hold that outlasts all of them is read as broken rather than
+/// waited on forever.
+fn claim_ring_lock(path: &Path) -> Option<HeldLock> {
+    let lock = ring_lock_path(path);
+    // A CLOCK THAT CANNOT BE READ COUNTS AS ZERO, which is `lock_aged_out`'s
+    // own safe direction under a different name: a held lock is never read as
+    // older than it is, so a broken clock can stand this caller down but
+    // never lets it steal a live holder's claim.
+    let now = now_secs().unwrap_or(0);
+    for attempt in 0..RING_LOCK_ATTEMPTS {
+        if claim_lock(&lock, now, RING_LOCK_STALE_SECS) {
+            return Some(HeldLock(lock));
+        }
+        if attempt + 1 < RING_LOCK_ATTEMPTS {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    None
+}
+
 /// The append and the prune behind it, for ANY of this tool's bounded state
 /// rings. The caller names the file and its own depth; everything below is
 /// one hardening serving every one of them, because a second hand-written
 /// copy of it is how one ring ends up without the FIFO guard.
 ///
-/// WRITTEN BY APPEND, never read-modify-write: an append needs no read, so two
-/// events firing at once (a Stop hook and the long-running notifier are a
-/// normal pair) cannot lose each other's line. The prune only runs when the
-/// file went over the caller's cap, and republishes the last `kept` lines
-/// through the same atomic publish every other state file uses.
+/// THE WHOLE OPERATION IS ONE CLAIM: append, read-back, prune and publish all
+/// happen while this process alone holds the ring's own lock. Two events
+/// firing at once (a Stop hook and the long-running notifier are a normal
+/// pair) used to be safe only for the append itself; the prune's read and its
+/// publish were NOT one atomic step, so a racer that read before a sibling's
+/// append could still publish its stale, smaller window AFTER the sibling
+/// published a newer one, silently dropping the sibling's line and keeping
+/// the wrong oldest entry. The lock is what makes the four steps indivisible,
+/// which is also what retires the old accepted limit below: an append can no
+/// longer land during a sibling's rename, because no sibling is ever inside
+/// this section at the same time.
 ///
 /// NOTHING ABOUT THE FILE IS TRUSTED, because none of it is this tool's word:
 /// the ring is a plain file in a directory an operator, a backup tool or
@@ -1791,11 +1848,6 @@ fn take_claim(claim: &Path) -> Claimed {
 /// is refused untouched, and a file this cannot read back whole is replaced
 /// by the one line it does have.
 ///
-/// ACCEPTED LIMIT: an append landing exactly during a rename, whether the
-/// prune's or a heal's, is lost. It costs ONE RECORD at a rare boundary,
-/// never a card and never a torn file, because the rename is atomic and the
-/// text it publishes is always whole lines.
-///
 /// `read_max` IS THE CALLER'S TOO, and it travels with `kept` because the two
 /// are one decision. The prune runs on the READ-BACK, so a ring deep enough to
 /// exceed the reader's ceiling can never be pruned again: the heal fires and
@@ -1803,9 +1855,19 @@ fn take_claim(claim: &Path) -> Claimed {
 /// is fullest. Every caller states both numbers together, and the doc comment
 /// on each depth does the arithmetic.
 fn append_ring_line(path: &Path, line: &str, kept: usize, read_max: u64) -> std::io::Result<()> {
+    // BEFORE THE CLAIM: the lock lives beside the ring, so a state directory
+    // that does not exist yet fails the lock's own exclusive create with the
+    // same `NotFound` the ring's own open used to paper over here. A first
+    // event has nowhere else to make this directory.
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
+    let Some(_lock) = claim_ring_lock(path) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "the ring's lock stayed held past every attempt",
+        ));
+    };
     // BEFORE THE OPEN, and with `symlink_metadata` so the link itself is what
     // is judged rather than whatever it points at. Refused and never
     // repaired: deleting something this tool did not put there, on a path it
@@ -1852,6 +1914,13 @@ fn append_ring_line(path: &Path, line: &str, kept: usize, read_max: u64) -> std:
         // there is nothing to do.
         Err(_) => return Ok(()),
     };
+    // A TEST-ONLY STALL, in `env_deadline`'s own words: it exists so a test
+    // can prove this section is exclusive rather than hope a real race lands
+    // in a window that is normally microseconds wide. Unset in every real
+    // invocation, so production takes no delay here at all.
+    if let Some(delay) = env_deadline("PNS_RING_LOCK_TEST_DELAY_MS") {
+        std::thread::sleep(delay);
+    }
     let entries: Vec<&str> = contents.lines().collect();
     if entries.len() <= kept {
         return Ok(());
@@ -6363,19 +6432,27 @@ fn lights_tick_stale_secs() -> u64 {
 }
 
 /// A lock held for as long as this value is alive, and given back when it is
-/// dropped.
+/// dropped. Shared by every `claim_lock` caller with more than one exit path
+/// (the lights tick and a ring append today), not just the tick: a second
+/// hand-written guard is how one of them ends up leaking its lock on a path
+/// the other already covered.
 ///
-/// A GUARD RATHER THAN A RELEASE AT EVERY EXIT: the tick stands down from four
-/// places, and a lock left behind stands every later tick down for a whole
-/// stale window. `Drop` is the one exit all of them share.
+/// A GUARD RATHER THAN A RELEASE AT EVERY EXIT: the lights tick stands down
+/// from four places and a ring append from several early returns, and a lock
+/// left behind stands every later claimant down for a whole stale window.
+/// `Drop` is the one exit all of them share.
+///
+/// THE MESSAGE NAMES NEITHER CALLER, deliberately: it is printed by the type
+/// both share, and naming one subsystem in it would misdescribe the other's
+/// failure the day this is reused a third time.
 struct HeldLock(std::path::PathBuf);
 
 impl Drop for HeldLock {
     fn drop(&mut self) {
         if let Err(error) = std::fs::remove_file(&self.0) {
             eprintln!(
-                "pns lights: the tick lock {} could not be given up ({error}); \
-                 the next tick waits it out",
+                "pns: the lock {} could not be given up ({error}); \
+                 the next claimant waits it out",
                 self.0.display()
             );
         }

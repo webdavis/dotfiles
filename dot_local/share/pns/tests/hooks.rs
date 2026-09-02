@@ -5975,6 +5975,99 @@ fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
 }
 
 #[test]
+fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
+    // THE HIGH FINDING, driven ON DEMAND rather than hoped for.
+    // `append_ring_line`'s read, prune and publish were not one atomic step:
+    // with the ring already at its twenty-entry cap, a SLOW event could
+    // append its line and read the twenty-one-entry window, a FAST sibling
+    // could then append its own, read a twenty-two-entry window, prune and
+    // publish it, and the slow one would finally wake and publish its own
+    // now-stale twenty-one-entry window last, silently dropping the fast
+    // sibling's line and resurrecting a planted entry the fast sibling had
+    // already, correctly, dropped. Sol's own words: "the audit ring is not
+    // atomic across concurrent events."
+    //
+    // THE RACE WINDOW IS NORMALLY MICROSECONDS, so two ordinary processes
+    // hit this by luck, not by design: measured across three hundred
+    // concurrent real events with no help, in an earlier draft of this test,
+    // it never once reproduced. `PNS_RING_LOCK_TEST_DELAY_MS` stalls one
+    // process exactly where sol's own scenario stalls it (see its doc
+    // comment in `append_ring_line`), which is the only way to drive this
+    // interleaving deterministically rather than accept a test that would
+    // pass by timing luck.
+    const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
+    let sandbox = Sandbox::new("config-change-policy-audit-two-racers");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let planted: String = (0..POLICY_SETTINGS_AUDIT_KEPT)
+        .map(|which| format!("1756499000 session=s0 file=planted-{which}\n"))
+        .collect();
+    std::fs::write(sandbox.path("state/policy-settings-audit"), planted).expect("the audit trail");
+
+    // THE SLOW ONE STARTS FIRST AND STALLS AFTER ITS OWN READ, so its
+    // snapshot is the ring's state BEFORE the fast sibling's append.
+    let mut slow_command = with_state_dir(&sandbox);
+    slow_command.env("PNS_RING_LOCK_TEST_DELAY_MS", "150");
+    let mut slow = slow_command
+        .args(["hook", "config-change"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the engine runs");
+    slow.stdin
+        .take()
+        .expect("stdin")
+        .write_all(config_change_payload("s1", "policy_settings", Some("racer-slow")).as_bytes())
+        .expect("payload");
+
+    // A SMALL HEAD START ON THE SLOW ONE'S OWN STALL, not its whole run, so
+    // the fast sibling's append, read, prune and publish all land while the
+    // slow one is still asleep.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let fast = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("racer-fast")),
+    );
+    assert!(fast.status.success());
+
+    assert!(
+        slow.wait().expect("the slow event ends").success(),
+        "the stalled event still runs to completion"
+    );
+
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(
+        lines.len(),
+        POLICY_SETTINGS_AUDIT_KEPT,
+        "the trail keeps its own bound under a race exactly as it does one at a time: {recorded:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("racer-fast")),
+        "the sibling that read and published FIRST is not clobbered by the one that \
+         published last: {recorded:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("racer-slow")),
+        "the stalled event still lands once it wakes: {recorded:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.ends_with("file=planted-0")),
+        "the oldest planted entry is dropped, exactly as it is outside a race: {recorded:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.ends_with("file=planted-1")),
+        "two new events push the kept window forward by two, so the SECOND-oldest \
+         planted entry is also dropped rather than resurrected by a stale publish: {recorded:?}"
+    );
+}
+
+#[test]
 fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
     // THE TRAIL'S OTHER BOUND, and the one that decides whether W6 holds at
     // all: `append_ring_line` prunes on a read-back capped at `RING_READ_MAX`
