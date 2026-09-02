@@ -5958,9 +5958,12 @@ fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
         POLICY_SETTINGS_AUDIT_KEPT,
         "the trail keeps its own bound rather than growing without limit: {recorded:?}"
     );
+    // PINNED AS THE WINDOW, not as the absence of one string: the planted
+    // lines end at their own number, so `planted-0` is a prefix of nothing
+    // and any absence check for it holds whichever end the prune kept.
     assert!(
-        !recorded.contains("planted-0 "),
-        "the oldest entry was dropped: {recorded:?}"
+        lines[0].ends_with("file=planted-1"),
+        "the window kept is the NEWEST twenty, so the oldest entry is the dropped one: {recorded:?}"
     );
     assert!(
         lines
