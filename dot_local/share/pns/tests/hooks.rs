@@ -4741,6 +4741,12 @@ fn an_unrecognised_notification_type_delivers_nothing() {
     // A wildcard matcher would duplicate every one of these against the
     // lifecycle hooks that already cover it (D7's whole reason to exist), and
     // the two deferred D7 types are named explicitly among them.
+    // AND THE NEAR MISSES, which is what makes this an EXACT allowlist rather
+    // than a prefix one. The declaration's matcher is exact by the hooks
+    // reference's own rule (letters, digits, `_`, `-`, spaces, `,` and `|`
+    // only), but this binary keeps its own second allowlist, and a `quota`
+    // arm widened to `starts_with("quota_auto_resume_")` passed every one of
+    // these tests while none of the unrelated types below could reach it.
     for notification_type in [
         "permission_prompt",
         "idle_prompt",
@@ -4750,6 +4756,11 @@ fn an_unrecognised_notification_type_delivers_nothing() {
         "agent_needs_input",
         "agent_completed",
         "",
+        "quota_auto_resume_",
+        "quota_auto_resume_paused",
+        "quota_auto_resume_firedly",
+        "quota_auto_resume_stale_again",
+        "pre_quota_auto_resume_fired",
     ] {
         let output = hook_with(
             with_state_dir(&sandbox),
