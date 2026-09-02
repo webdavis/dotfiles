@@ -66,17 +66,22 @@ plugins = [
 # behind holding its stdout or stderr open (a backgrounded process, a detached
 # daemon), or uu waits for it forever: no lane has a deadline, by design.
 #
-# EXIT 75 MEANS DEFERRED, not failed: nothing was attempted, so try again next
-# week. This is the exit code the program itself chooses to return, matching
+# EXIT 75 MEANS DEFERRED, not failed: nothing was attempted, so try again
+# later. This is the exit code the program itself chooses to return, matching
 # the two weekly jobs uu's command lane can eventually replace, both of which
-# already use 75 for "another run holds the lock". A deferred lane does not
-# alert, does not count as a failure and does not advance the last-success
-# marker; the record still names it "deferred" so a quiet week reads
-# differently from a week nothing needed to happen. Any other non-zero exit is
-# a real failure. THE COLLISION: 75 is also what a completed hermes gateway
-# response uses, so a program that IS hermes, or that forwards hermes's own
-# exit code unchanged, could exit 75 for a reason that has nothing to do with
-# deferral; write your own exit code rather than passing one through.
+# already use 75 for "another run holds the lock". A deferred lane never
+# counts as a failure and never advances the last-success marker; the record
+# still names it "deferred" so a quiet week reads differently from a week
+# nothing needed to happen. What a deferral withholds is specifically uu's OWN
+# per-run failure alert, because the lane did not run: it is not a promise of
+# silence. The lane's own program may still alert on its own account, a
+# record the gateway never received alerts regardless of what any lane did,
+# and three straight non-successes (deferred, failed, or a mix) still fire
+# uu's own staleness alert below. Any other non-zero exit is a real failure.
+# THE COLLISION: 75 is also what a completed hermes gateway response uses, so
+# a program that IS hermes, or that forwards hermes's own exit code unchanged,
+# could exit 75 for a reason that has nothing to do with deferral; write your
+# own exit code rather than passing one through.
 #
 # A lane that goes three straight runs without a real success (deferred,
 # failed, or both) fires one staleness alert of its own, whatever each
