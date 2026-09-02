@@ -84,8 +84,7 @@ impl Pty {
                 if libc::sigemptyset(&mut empty) < 0 {
                     return Err(std::io::Error::last_os_error());
                 }
-                let masked =
-                    libc::pthread_sigmask(libc::SIG_SETMASK, &empty, std::ptr::null_mut());
+                let masked = libc::pthread_sigmask(libc::SIG_SETMASK, &empty, std::ptr::null_mut());
                 if masked != 0 {
                     // POSIX: `pthread_sigmask` RETURNS its error number
                     // rather than setting errno.
