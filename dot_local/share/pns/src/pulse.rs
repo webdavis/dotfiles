@@ -134,11 +134,10 @@ pub const LAMP_BLOCKED: [&str; 5] = ["blocked", "asked", "plan-ready", "denied",
 ///
 /// `lamps_are_mapped` IS THE `[lights]` TABLE'S PRESENCE, and `blocked` exists
 /// only behind it. Without the map there is one room-shaped pulse and two
-/// colours,
-/// which is what has shipped since the bash; a long-running turn that ends
-/// `blocked` has earned a pulse all along and flashed GREEN for it. Turning
-/// that flash blocked would be a new behaviour arriving on a machine that wrote
-/// no map and asked for nothing.
+/// colours, which is what has shipped since the bash; a long-running turn that
+/// ends `blocked` has earned a pulse all along and flashed GREEN for it.
+/// Turning that flash into the blocked colour would be a new behaviour arriving
+/// on a machine that wrote no map and asked for nothing.
 ///
 /// IT IS ONE ANSWER RATHER THAN A COLOUR AND A SEPARATE OPT-IN GATE. The
 /// composition root asks this once and reads the opt-in off the answer, so
@@ -244,10 +243,11 @@ mod tests {
         // because the event path asked one question ("is this failed?") and
         // handed everything else the success branch.
         //
-        // BLUE IS A FEATURE OF THE MAP, not of the state word. Without the map
-        // there is no third colour to show, no lamp that means "waiting" rather
-        // than "finished", and turning that flash blocked would be a new behaviour
-        // arriving on a machine that asked for nothing.
+        // THE BLOCKED LAMP IS A FEATURE OF THE MAP, not of the state word.
+        // Without the map there is no third colour to show, no lamp that means
+        // "waiting" rather than "finished", and turning that flash into the
+        // blocked colour would be a new behaviour arriving on a machine that
+        // asked for nothing.
         for state in LAMP_BLOCKED {
             assert_eq!(
                 state_behaviour(state, false),

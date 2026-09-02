@@ -14,7 +14,7 @@
 ///
 /// The enum is `idle`, `working`, `blocked`, `unknown`, read off the binary's
 /// own serde variant table on 0.8.2. Only `working` lights a lamp: `blocked`
-/// is the operator's turn, which is the BLUE lamp's business, and the other
+/// is the operator's turn, which is the BLOCKED lamp's business, and the other
 /// two are nothing happening.
 pub const WORKING: &str = "working";
 
