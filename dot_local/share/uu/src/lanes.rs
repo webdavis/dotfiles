@@ -15,7 +15,8 @@
 //! plugins until restart, so a failure costs the next restart rather than the
 //! current session.
 
-use crate::config::{Config, HerdrLane, LaneKind};
+use crate::config::{CommandLane, Config, HerdrLane, LaneKind};
+use crate::record::{RunFacts, lane_event};
 
 /// What one lane did: how many things went wrong, the lines the record
 /// carries about it, and the last of those lines that reported a FAILURE.
@@ -83,9 +84,9 @@ pub trait CommandRunner {
 pub const STDERR_TAIL: usize = 240;
 
 /// The last `keep` characters of `text`, prefixed with `...` when it was cut.
-/// Shared by `failure_reason`'s stderr tail today and a command lane's own
-/// stdout cap tomorrow: BOUNDED because both go into the record and into one
-/// alert card, and the verdict a tool prints is at the END of what it said.
+/// Shared by `failure_reason`'s stderr tail and a command lane's own stdout
+/// cap: BOUNDED because both go into the record and into one alert card, and
+/// the verdict a tool prints is at the END of what it said.
 pub fn tail(text: &str, keep: usize) -> String {
     let length = text.chars().count();
     if length <= keep {
@@ -110,11 +111,96 @@ pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
     if said.is_empty() {
         return how_it_ended.to_string();
     }
-    let one_line: String = said
-        .chars()
-        .map(|letter| if letter.is_control() { ' ' } else { letter })
+    format!("{how_it_ended}: {}", tail(&squash(said), STDERR_TAIL))
+}
+
+/// How many of a command lane's last stdout lines the record keeps.
+///
+/// 20 LINES AT `STDERR_TAIL` (240) CHARACTERS EACH IS 4,800 CHARACTERS, chosen
+/// against the Discord adapter that chunks a message at 2000 characters: a
+/// talkative child at the cap spans about three of those messages rather than
+/// dozens, so one command lane's stdout cannot crowd every other lane's line
+/// out of the record.
+const STDOUT_LINES_KEPT: usize = 20;
+
+/// The last `STDOUT_LINES_KEPT` non-empty lines of a command lane's stdout,
+/// each squashed to one line and cut to `STDERR_TAIL` characters, with a
+/// count of what was dropped when there was more than that to keep.
+///
+/// NON-EMPTY, because a talkative child pads its output with blank lines that
+/// would otherwise crowd out the ones that say something.
+fn stdout_lines(stdout: &str) -> Vec<String> {
+    let lines: Vec<&str> = stdout
+        .lines()
+        .filter(|line| !line.trim().is_empty())
         .collect();
-    format!("{how_it_ended}: {}", tail(&one_line, STDERR_TAIL))
+    let dropped = lines.len().saturating_sub(STDOUT_LINES_KEPT);
+    let mut kept: Vec<String> = lines
+        .iter()
+        .skip(dropped)
+        .map(|line| tail(&squash(line), STDERR_TAIL))
+        .collect();
+    if dropped > 0 {
+        kept.insert(0, format!("... {dropped} earlier line(s) dropped"));
+    }
+    kept
+}
+
+/// Text with every control character (embedded CR, stray control bytes)
+/// mapped to a space and every backtick mapped to a plain quote, shared by
+/// `failure_reason` and a command lane's stdout lines: untrusted child
+/// output crosses into the record and out to Discord, where a control
+/// character would reflow or truncate a line and three backticks would open
+/// or close a code fence around every record line after it.
+fn squash(line: &str) -> String {
+    line.chars()
+        .map(|letter| match letter {
+            _ if letter.is_control() => ' ',
+            '`' => '\'',
+            _ => letter,
+        })
+        .collect()
+}
+
+/// The command lane: hands the run event to the child on stdin under the
+/// locked contract, keeps its stdout as record lines, and turns a non-zero
+/// exit or a child that could not run at all into a failure the alert
+/// summary names.
+///
+/// STDOUT IS KEPT EVEN ON A FAILED EXIT. `run_with_input`'s `Ran::failure`
+/// already carries the reason (the exit description and the stderr tail);
+/// what the child printed on the way there is still worth recording, and
+/// `report.noted` runs before `report.failed` so it does.
+///
+/// THE CHILD'S WORLD: `run[0]` is the program, `run[1..]` its arguments, and
+/// argv[0] the child sees is `run[0]` verbatim. Env and working directory are
+/// INHERITED from uu's own process; under the tracked LaunchAgent that is the
+/// plist's own PATH plus HOME, with the working directory at `/`. The child
+/// must not leave anything behind holding its stdout or stderr open (a
+/// backgrounded process, a detached daemon), or uu waits for it forever:
+/// no lane has a deadline, by design (`SystemRunner` in main.rs says why).
+pub fn run_command(
+    name: &str,
+    lane: &CommandLane,
+    facts: &RunFacts,
+    runner: &dyn CommandRunner,
+) -> LaneReport {
+    let mut report = LaneReport::new(name);
+    let program = lane.run[0].as_str();
+    let args: Vec<&str> = lane.run[1..].iter().map(String::as_str).collect();
+    let event = lane_event(name, facts);
+    match runner.run_with_input(program, &args, &event) {
+        Ok(ran) => {
+            for line in stdout_lines(&ran.stdout) {
+                report.noted(line);
+            }
+            if let Some(reason) = ran.failure {
+                report.failed(format!("{program}: {reason}"));
+            }
+        }
+        Err(could_not_run) => report.failed(could_not_run),
+    }
+    report
 }
 
 /// The lanes this config declares, in NAME order.
@@ -131,9 +217,16 @@ pub fn enabled_lanes(config: &Config) -> Vec<&str> {
 /// Dispatches on the lane's own kind; a name the parser accepted always
 /// carries a kind this build knows how to run, because an unrecognized `type`
 /// was already refused at load.
-pub fn run_lane(name: &str, config: &Config, runner: &dyn CommandRunner) -> Option<LaneReport> {
+pub fn run_lane(
+    name: &str,
+    config: &Config,
+    facts: &RunFacts,
+    runner: &dyn CommandRunner,
+) -> Option<LaneReport> {
     match config.lanes.get(name)? {
+        // The herdr lane predates the run event and has no use for it.
         LaneKind::Herdr(lane) => Some(run_herdr(name, lane, runner)),
+        LaneKind::Command(lane) => Some(run_command(name, lane, facts, runner)),
     }
 }
 
@@ -191,6 +284,7 @@ pub fn run_herdr(name: &str, lane: &HerdrLane, runner: &dyn CommandRunner) -> La
 mod tests {
     use super::*;
     use crate::config::{Plugin, parse_config};
+    use crate::record::Marker;
     use std::cell::RefCell;
 
     /// A runner that answers from a script and records every call. The script
@@ -198,6 +292,7 @@ mod tests {
     /// invocation fails without depending on call order.
     struct ScriptedRunner {
         failing: Vec<Vec<String>>,
+        unrunnable: Vec<Vec<String>>,
         stdout: String,
         calls: RefCell<Vec<Vec<String>>>,
         inputs: RefCell<Vec<String>>,
@@ -210,6 +305,7 @@ mod tests {
                     .iter()
                     .map(|call| call.iter().map(|word| word.to_string()).collect())
                     .collect(),
+                unrunnable: Vec::new(),
                 stdout: String::new(),
                 calls: RefCell::new(Vec::new()),
                 inputs: RefCell::new(Vec::new()),
@@ -218,6 +314,15 @@ mod tests {
 
         fn answering(mut self, stdout: &str) -> Self {
             self.stdout = stdout.to_string();
+            self
+        }
+
+        /// A `run_with_input` call the runner cannot make at all, the
+        /// could-not-run path (a missing executable), distinct from
+        /// `failing`'s "ran, but exited non-zero".
+        fn unable_to_run(mut self, call: &[&str]) -> Self {
+            self.unrunnable
+                .push(call.iter().map(|word| word.to_string()).collect());
             self
         }
 
@@ -250,10 +355,27 @@ mod tests {
             call.extend(args.iter().map(|word| word.to_string()));
             self.calls.borrow_mut().push(call.clone());
             self.inputs.borrow_mut().push(input.to_string());
+            if self.unrunnable.contains(&call) {
+                return Err(format!("could not run {program}: stubbed as unrunnable"));
+            }
             Ok(Ran {
                 stdout: self.stdout.clone(),
                 failure: self.failing.contains(&call).then(|| "exit 1".to_string()),
             })
+        }
+    }
+
+    /// The one fixed `RunFacts` every test here that does not care about its
+    /// contents can share; `record.rs` owns the tests that pin `lane_event`
+    /// itself against varied facts.
+    const STUB_MARKER: Marker = Marker::NeverRecorded;
+
+    fn stub_facts() -> RunFacts<'static> {
+        RunFacts {
+            host: "test-host",
+            started_epoch: 0,
+            started_iso: "1970-01-01T00:00:00Z",
+            marker: &STUB_MARKER,
         }
     }
 
@@ -270,6 +392,12 @@ mod tests {
         }
     }
 
+    fn command_lane(run: &[&str]) -> CommandLane {
+        CommandLane {
+            run: run.iter().map(|word| word.to_string()).collect(),
+        }
+    }
+
     // --- the registry ---------------------------------------------------------
 
     #[test]
@@ -277,7 +405,7 @@ mod tests {
         let config = parse_config("").unwrap();
         assert!(enabled_lanes(&config).is_empty());
         assert_eq!(
-            run_lane("herdr", &config, &ScriptedRunner::new(&[])),
+            run_lane("herdr", &config, &stub_facts(), &ScriptedRunner::new(&[])),
             None,
             "a lane with no block must not run just because it was named"
         );
@@ -287,13 +415,16 @@ mod tests {
     fn a_lane_block_with_nothing_in_it_turns_the_lane_on() {
         let config = parse_config("[lanes.herdr]\n").unwrap();
         assert_eq!(enabled_lanes(&config), vec!["herdr"]);
-        assert!(run_lane("herdr", &config, &ScriptedRunner::new(&[])).is_some());
+        assert!(run_lane("herdr", &config, &stub_facts(), &ScriptedRunner::new(&[])).is_some());
     }
 
     #[test]
     fn a_lane_this_build_does_not_have_runs_nothing() {
         let config = parse_config("[lanes.herdr]\n").unwrap();
-        assert_eq!(run_lane("brew", &config, &ScriptedRunner::new(&[])), None);
+        assert_eq!(
+            run_lane("brew", &config, &stub_facts(), &ScriptedRunner::new(&[])),
+            None
+        );
     }
 
     #[test]
@@ -301,12 +432,16 @@ mod tests {
         // One minimal block per BUILT-IN TYPE (the WEEKDAY_NAMES pattern): a
         // type in `LANE_TYPES` that dispatches to nothing, or that loses the
         // lane's own name along the way, would accept a lane it never truly
-        // runs.
-        let fixtures: &[(&str, &str)] = &[("herdr", "herdr")];
+        // runs. `command` needs a `run` to be valid at all, so the block is
+        // spelled out per fixture rather than derived from the name alone.
+        let fixtures: &[(&str, &str, &str)] = &[
+            ("command", "[lanes.command]\nrun = [\"x\"]\n", "command"),
+            ("herdr", "[lanes.herdr]\n", "herdr"),
+        ];
         assert_eq!(crate::config::LANE_TYPES.len(), fixtures.len());
-        for (kind, name) in fixtures {
-            let config = parse_config(&format!("[lanes.{name}]\n")).unwrap();
-            let report = run_lane(name, &config, &ScriptedRunner::new(&[]))
+        for (kind, block, name) in fixtures {
+            let config = parse_config(block).unwrap();
+            let report = run_lane(name, &config, &stub_facts(), &ScriptedRunner::new(&[]))
                 .unwrap_or_else(|| panic!("the roster names `{kind}` but nothing dispatches it"));
             assert_eq!(&report.name, name);
         }
@@ -318,7 +453,7 @@ mod tests {
         // report carrying the ACTUAL name apart from one hardcoding the type's
         // own literal. A lane named something else closes that gap.
         let config = parse_config("[lanes.mine]\ntype = \"herdr\"\n").unwrap();
-        let report = run_lane("mine", &config, &ScriptedRunner::new(&[])).unwrap();
+        let report = run_lane("mine", &config, &stub_facts(), &ScriptedRunner::new(&[])).unwrap();
         assert_eq!(report.name, "mine");
     }
 
@@ -698,5 +833,161 @@ mod tests {
             runner.calls().first().map(|call| call[1].clone()),
             Some("update".to_string())
         );
+    }
+
+    // --- the command lane -------------------------------------------------------
+
+    #[test]
+    fn a_command_lane_hands_the_run_event_to_the_child_on_stdin_and_records_what_it_printed() {
+        let runner = ScriptedRunner::new(&[]).answering("3 upgraded\n");
+        // Two arguments, so a mutant that reverses run[1..] or drops the
+        // second one changes what the runner recorded.
+        let lane = command_lane(&["/usr/local/bin/updater", "--yes", "--now"]);
+        let report = run_command("mine", &lane, &stub_facts(), &runner);
+        assert_eq!(report.failures, 0);
+        assert_eq!(
+            runner.calls(),
+            vec![vec![
+                "/usr/local/bin/updater".to_string(),
+                "--yes".to_string(),
+                "--now".to_string(),
+            ]],
+            "the program is run[0], its arguments are run[1..], in order"
+        );
+        let inputs = runner.inputs();
+        let input = &inputs[0];
+        assert!(input.ends_with('\n'), "{input:?}");
+        let event: serde_json::Value =
+            serde_json::from_str(input.trim_end()).expect("the event is JSON");
+        // The COMPLETE parsed event against the same facts `lane_event`
+        // itself would produce, not just one field: a mutant that swaps the
+        // event for `{"lane":"mine"}` still has a correct `lane` field.
+        let recorded: serde_json::Value =
+            serde_json::from_str(lane_event("mine", &stub_facts()).trim_end())
+                .expect("the reference event is JSON");
+        assert_eq!(event, recorded);
+        assert!(
+            report.lines.contains(&"3 upgraded".to_string()),
+            "{:?}",
+            report.lines
+        );
+    }
+
+    #[test]
+    fn a_child_that_exits_non_zero_is_a_failure_the_alert_summary_names() {
+        let program = "/usr/local/bin/updater";
+        let runner = ScriptedRunner::new(&[&[program]]).answering("did some work\n");
+        let lane = command_lane(&[program]);
+        let report = run_command("mine", &lane, &stub_facts(), &runner);
+        assert_eq!(report.failures, 1);
+        assert!(
+            report.lines.contains(&"did some work".to_string()),
+            "a failed child's stdout is not lost: {:?}",
+            report.lines
+        );
+        let summary = crate::alert::alert_summary(&report);
+        assert!(summary.contains("exit 1"), "{summary}");
+        assert!(summary.contains(program), "{summary}");
+        // THE VERDICT COMES LAST: what the child printed is noted first, so
+        // the record reads as the work and then how it ended.
+        assert_eq!(
+            report.lines.last(),
+            report.last_failure.as_ref(),
+            "{:?}",
+            report.lines
+        );
+    }
+
+    #[test]
+    fn a_child_that_could_not_be_run_is_a_failure_naming_the_program() {
+        let program = "/no/such/uu-command-lane-test-program";
+        let runner = ScriptedRunner::new(&[]).unable_to_run(&[program]);
+        let lane = command_lane(&[program]);
+        let report = run_command("mine", &lane, &stub_facts(), &runner);
+        assert_eq!(report.failures, 1);
+        assert!(
+            report
+                .last_failure
+                .as_ref()
+                .is_some_and(|failure| failure.contains(program)),
+            "{:?}",
+            report.last_failure
+        );
+    }
+
+    #[test]
+    fn a_talkative_child_keeps_its_last_lines_and_says_how_many_were_dropped() {
+        let lines: Vec<String> = (1..=25).map(|number| format!("line {number}")).collect();
+        let runner = ScriptedRunner::new(&[]).answering(&format!("{}\n", lines.join("\n")));
+        let lane = command_lane(&["/bin/x"]);
+        let report = run_command("mine", &lane, &stub_facts(), &runner);
+        assert_eq!(report.failures, 0);
+        assert_eq!(
+            report.lines.len(),
+            STDOUT_LINES_KEPT + 1,
+            "{:?}",
+            report.lines
+        );
+        assert_eq!(report.lines[0], "... 5 earlier line(s) dropped");
+        assert_eq!(report.lines.last(), Some(&"line 25".to_string()));
+        assert!(
+            !report.lines.contains(&"line 1".to_string()),
+            "{:?}",
+            report.lines
+        );
+    }
+
+    // --- stdout_lines -----------------------------------------------------------
+
+    #[test]
+    fn stdout_lines_keeps_everything_when_there_is_little_to_drop() {
+        assert_eq!(
+            stdout_lines("a\nb\n"),
+            vec!["a".to_string(), "b".to_string()]
+        );
+    }
+
+    #[test]
+    fn stdout_lines_drops_blank_lines_rather_than_counting_them_as_content() {
+        assert_eq!(
+            stdout_lines("a\n\n\nb\n"),
+            vec!["a".to_string(), "b".to_string()]
+        );
+    }
+
+    #[test]
+    fn stdout_lines_squashes_a_control_character_embedded_in_one_line() {
+        assert_eq!(stdout_lines("a\rb\n"), vec!["a b".to_string()]);
+    }
+
+    #[test]
+    fn stdout_lines_cuts_an_overlong_multibyte_line_to_its_exact_tail() {
+        // Every OTHER stdout_lines test here is short enough that dropping the
+        // `tail(..., STDERR_TAIL)` cut still passes; a mutant like that needs
+        // a line over the 240-character cap, and multibyte so a byte-indexed
+        // cut would panic or land mid-character instead of matching this.
+        let filler = "é".repeat(300);
+        let line = format!("{filler}TAIL-MARKER");
+        let expected = format!("...{}TAIL-MARKER", "é".repeat(229));
+        assert_eq!(stdout_lines(&format!("{line}\n")), vec![expected]);
+    }
+
+    #[test]
+    fn squash_replaces_backticks_so_no_child_line_can_open_or_close_a_code_fence() {
+        let squashed = squash("before ``` after");
+        assert!(!squashed.contains('`'), "{squashed:?}");
+    }
+
+    #[test]
+    fn stdout_lines_says_so_when_exactly_one_line_was_dropped() {
+        // The boundary: one over the cap drops one line, and that one is
+        // still announced.
+        let text: String = (1..=STDOUT_LINES_KEPT + 1)
+            .map(|number| format!("line {number}\n"))
+            .collect();
+        let kept = stdout_lines(&text);
+        assert_eq!(kept.len(), STDOUT_LINES_KEPT + 1, "{kept:?}");
+        assert_eq!(kept[0], "... 1 earlier line(s) dropped");
+        assert_eq!(kept[1], "line 2");
     }
 }
