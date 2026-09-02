@@ -7272,13 +7272,27 @@ fn setup_mode() -> i32 {
     // nothing at all here and the whole walk runs before the publish refuses
     // it with a claim that it "appeared while the questions were being
     // answered", which would not be true.
-    if path.symlink_metadata().is_ok() && !force {
-        eprintln!(
-            "pns setup: {} already exists; pass --force to replace it, \
-             which keeps the old file beside it",
-            path.display()
-        );
-        return 2;
+    match path.symlink_metadata() {
+        Ok(_) if !force => {
+            eprintln!(
+                "pns setup: {} already exists; pass --force to replace it, \
+                 which keeps the old file beside it",
+                path.display()
+            );
+            return 2;
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        // ANY OTHER ERROR REFUSES REGARDLESS OF --force: the comment above
+        // only holds for NotFound, and a directory this walk cannot even
+        // stat is not one it can safely publish into either.
+        Err(error) => {
+            eprintln!(
+                "pns setup: {} could not be checked: {error}; nothing was written",
+                path.display()
+            );
+            return 2;
+        }
     }
     if !std::io::stdin().is_terminal() {
         eprintln!(

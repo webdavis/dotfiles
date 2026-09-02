@@ -358,6 +358,43 @@ fn a_dangling_symlink_at_the_config_path_is_refused_before_the_first_question() 
 }
 
 #[test]
+fn an_unreadable_config_directory_is_refused_by_path_and_cause() {
+    // ROOT READS THROUGH ANY MODE, so this trick cannot produce the
+    // permission error the precheck is being asked to name.
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: running as root, which bypasses directory permissions");
+        return;
+    }
+    let sandbox = Sandbox::without_config("setup-unreadable-config-dir");
+    let config_dir = sandbox.root.join(".config/pns");
+    std::fs::create_dir_all(&config_dir).expect("the config directory");
+    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o000))
+        .expect("lock the directory down");
+
+    let output = sandbox
+        .bare()
+        .args(["setup"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the wizard runs");
+    // RESTORED BEFORE ANY ASSERTION CAN PANIC PAST IT: the sandbox's own
+    // Drop has to walk this directory to remove it.
+    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o700))
+        .expect("restore the directory so the sandbox can be cleaned up");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("could not be checked"),
+        "an unreadable directory was not refused by its own cause: {stderr}"
+    );
+    assert!(
+        stderr.contains(&config_dir.join("config.toml").display().to_string()),
+        "the refusal does not name the config path: {stderr}"
+    );
+}
+
+#[test]
 fn an_empty_home_is_refused_by_name_before_anything_is_written() {
     let sandbox = Sandbox::without_config("setup-empty-home");
     let output = sandbox
