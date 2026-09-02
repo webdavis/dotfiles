@@ -7526,10 +7526,15 @@ impl Hushed {
             }
         }
         let mut original_mask: libc::sigset_t = unsafe { std::mem::zeroed() };
-        if unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, &mut original_mask) } != 0 {
+        // `pthread_sigmask` IS POSIX, NOT BSD `errno`-STYLE: it RETURNS its
+        // error number directly rather than setting errno, so the result
+        // itself, not `last_os_error()`, is the only honest source for one.
+        let masked =
+            unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, &mut original_mask) };
+        if masked != 0 {
             return Err(format!(
                 "signals could not be held for the read (pthread_sigmask: {})",
-                std::io::Error::last_os_error()
+                std::io::Error::from_raw_os_error(masked)
             ));
         }
         let mut hushed = original;
