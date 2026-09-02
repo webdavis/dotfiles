@@ -72,35 +72,52 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
     );
 }
 
-/// THE MUTANT THIS PINS: the literal-secret refusal check removed (or
-/// narrowed to a scan of the rendered text, which `render` would happily
-/// pass since it accepts a plain string for any key, secret-bearing or
-/// not).
+/// THE MUTANT THIS PINS: the literal-secret refusal check removed, OR
+/// narrowed by dropping any one of the five paths out of
+/// `SECRET_BEARING_KEYS`. A single case covering only `plugins.hue.bridge`
+/// stays green if the other four are removed from that list; table-driving
+/// across all five is what catches a narrowed roster.
 #[test]
-fn a_literal_value_at_a_secret_bearing_key_is_refused_without_writing() {
-    let scratch = Scratch::new("literal-secret-refusal");
-    let values_path = scratch.path("config-values.toml");
-    let template_path = scratch.path("private_config.toml.tmpl");
-    std::fs::write(
-        &values_path,
-        "[plugins.hue]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
-    )
-    .expect("write values");
+fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
+    for (key, values) in [
+        (
+            "plugins.mobile.token",
+            "[plugins.mobile]\ntoken = \"a-literal-token\"\n",
+        ),
+        (
+            "plugins.hermes.key",
+            "[plugins.hermes]\nkey = \"a-literal-key\"\n",
+        ),
+        (
+            "plugins.hue.bridge",
+            "[plugins.hue]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
+        ),
+        (
+            "plugins.hue.key",
+            "[plugins.hue]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
+        ),
+        (
+            "plugins.router.api_key",
+            "[plugins.router]\napi_key = \"a-literal-key\"\n",
+        ),
+    ] {
+        let scratch = Scratch::new(&format!("literal-secret-refusal-{}", key.replace('.', "-")));
+        let values_path = scratch.path("config-values.toml");
+        let template_path = scratch.path("private_config.toml.tmpl");
+        std::fs::write(&values_path, values).expect("write values");
 
-    let output = run(&values_path, &template_path);
-    assert!(
-        !output.status.success(),
-        "a literal at a secret-bearing key must refuse rather than exit 0"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("plugins.hue.bridge"),
-        "stderr should name the offending key: {stderr}"
-    );
-    assert!(
-        !template_path.exists(),
-        "nothing should be written once a literal secret is refused"
-    );
+        let output = run(&values_path, &template_path);
+        assert!(
+            !output.status.success(),
+            "a literal at `{key}` must refuse rather than exit 0"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(key), "stderr should name `{key}`: {stderr}");
+        assert!(
+            !template_path.exists(),
+            "nothing should be written once `{key}`'s literal is refused"
+        );
+    }
 }
 
 /// THE MUTANT THIS PINS: the roster refusal in `render` disabled or
