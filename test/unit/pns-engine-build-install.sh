@@ -180,6 +180,10 @@ echo 5 >"$launchctl_status"
 # Drop the sleeper stub so the rebuild changes bytes again (back to the plain
 # script binary) and the kickstart is attempted.
 rm -f "$home/.stub-build-sleeper"
+# The deferral phases above created the cache directory. A machine whose
+# first apply already has the toolchain never ran a deferral, so the failure
+# arm must create it itself; run this phase without it.
+rmdir "$home/.cache/pns-build"
 run_script && {
   echo "a kickstart failure must fail the apply" >&2
   exit 1
