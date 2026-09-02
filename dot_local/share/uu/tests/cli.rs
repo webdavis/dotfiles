@@ -263,7 +263,10 @@ fn a_deferred_command_lane_never_fires_the_per_run_failure_alert() {
 #[test]
 fn a_mixed_run_records_each_lanes_own_verdict_alerts_only_the_failed_one_and_stays_exit_zero() {
     let home = Home::new("mixed-run");
-    let clean = home.write_stub("clean-updater", "cat >/dev/null\nprintf 'clean lane ok\\n'\n");
+    let clean = home.write_stub(
+        "clean-updater",
+        "cat >/dev/null\nprintf 'clean lane ok\\n'\n",
+    );
     let failing = home.write_stub(
         "failing-updater",
         "cat >/dev/null\nprintf 'boom: disk full\\n' >&2\nexit 2\n",
@@ -305,6 +308,99 @@ fn a_mixed_run_records_each_lanes_own_verdict_alerts_only_the_failed_one_and_sta
     assert!(
         !home.marker().exists(),
         "a run carrying any failure or deferral must not advance the marker: {output:?}"
+    );
+}
+
+// --- the staleness bound -----------------------------------------------------
+
+#[test]
+fn a_lane_deferring_stale_after_runs_times_in_a_row_fires_one_staleness_alert() {
+    let home = Home::new("stale-trip");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    // Two deferrals: below the threshold, so no staleness alert yet (only the
+    // per-run failure alert would fire, and a deferral never does that
+    // either).
+    home.uu(&["run"]);
+    home.uu(&["run"]);
+    assert!(
+        !home.dir.join("alert-args").exists(),
+        "the staleness alert must not fire before the threshold"
+    );
+    // The third deferral crosses it.
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert!(alerts.contains("mine"), "{alerts}");
+    assert!(alerts.contains("3 consecutive"), "{alerts}");
+}
+
+#[test]
+fn the_staleness_alert_fires_once_at_the_threshold_and_not_again_while_still_deferring() {
+    let home = Home::new("stale-once");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    for _ in 0..3 {
+        home.uu(&["run"]);
+    }
+    let after_third = std::fs::read_to_string(home.dir.join("alert-args")).expect("alert args");
+    let times_after_third = after_third.matches("mine").count();
+    assert_eq!(times_after_third, 1, "{after_third}");
+    home.uu(&["run"]);
+    let after_fourth = std::fs::read_to_string(home.dir.join("alert-args")).expect("alert args");
+    assert_eq!(
+        after_fourth.matches("mine").count(),
+        1,
+        "a fourth straight deferral must not alert again: {after_fourth}"
+    );
+}
+
+#[test]
+fn a_success_between_deferrals_resets_the_staleness_streak() {
+    let home = Home::new("stale-reset");
+    let counter = home.dir.join("call-count");
+    let stub = home.write_stub(
+        "updater",
+        &format!(
+            "cat >/dev/null\n\
+             count=$(( $(cat {counter:?} 2>/dev/null || printf 0) + 1 ))\n\
+             printf '%s' \"$count\" >{counter:?}\n\
+             if [ \"$count\" -eq 2 ]; then exit 0; fi\n\
+             printf 'nothing was attempted\\n' >&2\n\
+             exit 75\n",
+        ),
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    // defer, succeed (resets the streak to zero), defer, defer: never three
+    // in a row, so the staleness alert must never fire.
+    for _ in 0..4 {
+        home.uu(&["run"]);
+    }
+    assert!(
+        !home.dir.join("alert-args").exists(),
+        "a success in the middle must reset the streak, so three total \
+         deferrals spread across a reset must not trip the alert"
     );
 }
 

@@ -25,8 +25,8 @@ use unattended_upgrades::lanes::{
     run_lane,
 };
 use unattended_upgrades::record::{
-    AGENT, Marker, RunFacts, gap_line, marker_contents, parse_marker, record_body, record_detail,
-    record_state,
+    AGENT, Marker, RunFacts, STALE_AFTER_RUNS, gap_line, marker_contents, next_streak,
+    parse_marker, record_body, record_detail, record_state,
 };
 use unattended_upgrades::schedule::{DEFAULT_LABEL, render_plist};
 
@@ -158,6 +158,34 @@ fn run_mode(only: Option<&str>) -> i32 {
             &report.name,
             &alert_summary(report),
         );
+    }
+
+    // THE STALENESS BOUND: a lane deferring or failing every week is silent
+    // by design (a deferral never alerts on its own, and even a failure's
+    // alert says nothing about HOW LONG this has been going on), so nothing
+    // else says a lane has gone quiet for good. Tracked PER LANE, across
+    // runs, independent of whatever else this run's own verdict says.
+    for report in &reports {
+        let succeeded = !report.deferred && report.failures == 0;
+        let path = streak_path(&home, &report.name);
+        let (next, tripped) = next_streak(read_streak(&path), succeeded);
+        write_streak(&path, &report.name, next);
+        if tripped {
+            send_alert(
+                &PnsAlerter,
+                engine.as_deref(),
+                &report.name,
+                &format!(
+                    "no successful run in {STALE_AFTER_RUNS} consecutive attempt(s); the last \
+                     one {}",
+                    if report.deferred {
+                        "deferred"
+                    } else {
+                        "failed"
+                    }
+                ),
+            );
+        }
     }
 
     // A RECORD THE GATEWAY NEVER RECEIVED IS A FAILED RUN, even when every
@@ -343,6 +371,43 @@ fn home() -> Option<String> {
 
 fn marker_path(home: &str) -> PathBuf {
     Path::new(home).join(".local/state/uu/last-success")
+}
+
+/// Where a lane's non-success streak lives: one small file per lane, named for
+/// the lane itself so two lanes never share bookkeeping.
+fn streak_path(home: &str, lane: &str) -> PathBuf {
+    Path::new(home)
+        .join(".local/state/uu/lanes")
+        .join(lane)
+        .join("streak")
+}
+
+/// A lane's current non-success streak: 0 for a machine that has never
+/// recorded one, whether the file is simply absent or holds something that
+/// does not parse as a plain count. Unlike the run marker, a corrupted streak
+/// is not a fact worth reporting on its own: the worst it costs is one
+/// staleness alert firing a run or two later than it should have.
+fn read_streak(path: &Path) -> u32 {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| text.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// Best effort, matching `write_marker`: a job must not fail because it could
+/// not write its own bookkeeping.
+fn write_streak(path: &Path, lane: &str, value: u32) {
+    let written = path
+        .parent()
+        .map(std::fs::create_dir_all)
+        .transpose()
+        .and_then(|_| std::fs::write(path, format!("{value}\n")));
+    if let Err(error) = written {
+        eprintln!(
+            "uu: could not record lane `{lane}`'s non-success streak at {}: {error}",
+            path.display()
+        );
+    }
 }
 
 /// This instant in epoch seconds, or `None` for a clock set before 1970. The
@@ -633,6 +698,44 @@ mod tests {
     #[test]
     fn a_path_with_no_marker_at_it_is_a_machine_that_never_recorded_a_run() {
         assert_eq!(read_marker(&scratch("absent")), Marker::NeverRecorded);
+    }
+
+    // --- the staleness streak's file I/O ----------------------------------
+
+    #[test]
+    fn a_path_with_no_streak_at_it_reads_as_zero() {
+        assert_eq!(read_streak(&scratch("streak-absent")), 0);
+    }
+
+    #[test]
+    fn a_streak_file_that_does_not_parse_as_a_count_reads_as_zero() {
+        let path = scratch("streak-garbage");
+        std::fs::write(&path, "not-a-number\n").expect("the file");
+        let read = read_streak(&path);
+        std::fs::remove_file(&path).ok();
+        assert_eq!(read, 0);
+    }
+
+    #[test]
+    fn a_written_streak_is_the_streak_read_back() {
+        let path = scratch("streak-roundtrip");
+        write_streak(&path, "mine", 2);
+        let read = read_streak(&path);
+        std::fs::remove_file(&path).ok();
+        assert_eq!(read, 2);
+    }
+
+    #[test]
+    fn writing_a_streak_creates_its_parent_directory() {
+        let path = std::env::temp_dir().join(format!(
+            "uu-main-streak-parent-{}/lanes/mine/streak",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap());
+        write_streak(&path, "mine", 1);
+        let read = read_streak(&path);
+        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).ok();
+        assert_eq!(read, 1);
     }
 
     #[test]

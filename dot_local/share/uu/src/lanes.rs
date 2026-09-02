@@ -979,7 +979,10 @@ mod tests {
             .answering("nothing was attempted: another run holds the lock\n");
         let lane = command_lane(&[program]);
         let report = run_command("mine", &lane, &stub_facts(), &runner);
-        assert_eq!(report.failures, 0, "a deferral is not a failure: {report:?}");
+        assert_eq!(
+            report.failures, 0,
+            "a deferral is not a failure: {report:?}"
+        );
         assert!(report.deferred, "{report:?}");
         assert_eq!(
             report.last_failure, None,
@@ -1012,10 +1015,7 @@ mod tests {
         let lane = command_lane(&[program]);
         let report = run_command("mine", &lane, &stub_facts(), &runner);
         assert!(
-            report
-                .lines
-                .iter()
-                .any(|line| line.contains("exit 75")),
+            report.lines.iter().any(|line| line.contains("exit 75")),
             "{:?}",
             report.lines
         );
