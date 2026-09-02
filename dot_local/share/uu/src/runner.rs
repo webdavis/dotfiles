@@ -1,13 +1,18 @@
-//! The lane subjects: the one process boundary that actually spawns one.
+//! The lane subjects, spawned under the deadline their lane declared.
 //!
-//! Everything the library decides is a total function of its arguments; this
-//! is where a lane's own program runs, which is why it sits outside the lib
-//! beside `main` rather than next to the policy it carries out.
+//! THE ONE PROCESS BOUNDARY THAT SPAWNS. Everything the library decides is a
+//! total function of its arguments; this is where a lane subject actually
+//! runs, which is why the whole watchdog lives here rather than beside the
+//! policy it enforces.
 
 use std::io::Write;
-use std::process::{Command, Output, Stdio};
+use std::os::unix::process::CommandExt;
+use std::process::{Command, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
 
 use unattended_upgrades::lanes::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict, failure_reason};
+
+use crate::watchdog::{Finished, bounded_output};
 
 /// The event handed to a command lane's child cannot exceed this, or
 /// `run_with_input`'s pre-filled pipe would have to write more than fits
@@ -19,26 +24,78 @@ use unattended_upgrades::lanes::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict
 /// 1 KiB.
 pub const MAX_EVENT_INPUT: usize = 16 * 1024;
 
-/// The lane subjects. No deadline, matching the shell job this replaces: a
-/// plugin install has no honest upper bound and launchd is what notices a job
-/// that never ends.
-pub struct SystemRunner;
+/// The lane subjects, each spawn bounded by what is LEFT of its lane's
+/// deadline.
+///
+/// ONE BUDGET FOR THE WHOLE LANE, not one per spawn. The herdr lane spawns
+/// two commands per plugin on top of its own self-update, so a per-spawn
+/// bound would let a twenty-plugin roster hold the run lock for sixty
+/// deadlines and the lock is the thing this exists to protect.
+pub struct SystemRunner {
+    lane: String,
+    budget: Duration,
+    started: Instant,
+}
 
 impl SystemRunner {
+    /// The runner for one lane, its clock starting now.
+    pub fn for_lane(lane: &str, budget: Duration) -> Self {
+        SystemRunner {
+            lane: lane.to_string(),
+            budget,
+            started: Instant::now(),
+        }
+    }
+
+    /// What is left of this lane's budget.
+    fn remaining(&self) -> Duration {
+        self.budget.saturating_sub(self.started.elapsed())
+    }
+
+    /// What the record and the alert say when this lane ran out of time. The
+    /// stderr tail rides along the way it does on every other failure: the
+    /// child is gone by the time the record is composed, and what it printed
+    /// on the way to the deadline is the only clue to where it stopped.
+    fn overrun(&self, stderr: &[u8]) -> String {
+        failure_reason(
+            &format!(
+                "lane `{}` exceeded its {:?} deadline, so its process group was killed",
+                self.lane, self.budget
+            ),
+            &String::from_utf8_lossy(stderr),
+        )
+    }
+
     /// The one place a lane subject is actually spawned. `run` and
     /// `run_with_input` differ only in what `stdin` they hand it.
-    fn spawn(&self, program: &str, args: &[&str], stdin: Stdio) -> Result<Output, String> {
-        Command::new(program)
+    fn spawn(&self, program: &str, args: &[&str], stdin: Stdio) -> Result<Finished, String> {
+        // NOTHING RUNS ON A SPENT BUDGET. A lane out of time that still
+        // spawned would take another whole deadline per remaining command,
+        // which is what the herdr lane's two-per-plugin loop would turn into.
+        let budget = self.remaining();
+        if budget.is_zero() {
+            return Err(self.overrun(b""));
+        }
+        let mut child = Command::new(program)
             .args(args)
             .stdin(stdin)
-            .output()
-            .map_err(|error| format!("could not run {program}: {error}"))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            // A PROCESS GROUP OF ITS OWN, which is what lets the watchdog
+            // reach whatever the child leaves behind. The cost is that an
+            // interactive Ctrl-C no longer reaches the subject through uu's
+            // own group; under the launchd job that carries these lanes there
+            // is no terminal to send one.
+            .process_group(0)
+            .spawn()
+            .map_err(|error| format!("could not run {program}: {error}"))?;
+        Ok(bounded_output(&mut child, budget))
     }
 }
 
 /// How a child ended, in the one line every failure path here reasons about.
-fn exit_description(output: &Output) -> String {
-    match output.status.code() {
+fn exit_description(status: &ExitStatus) -> String {
+    match status.code() {
         Some(code) => format!("exit {code}"),
         None => "killed by a signal".to_string(),
     }
@@ -46,16 +103,19 @@ fn exit_description(output: &Output) -> String {
 
 impl CommandRunner for SystemRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String> {
-        let output = self.spawn(program, args, Stdio::null())?;
-        if output.status.success() {
-            return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+        let finished = self.spawn(program, args, Stdio::null())?;
+        let Some(status) = finished.status else {
+            return Err(self.overrun(&finished.stderr));
+        };
+        if status.success() {
+            return Ok(String::from_utf8_lossy(&finished.stdout).to_string());
         }
-        // WHAT IT PRINTED, not only how it ended. `output` captured stderr
+        // WHAT IT PRINTED, not only how it ended. The spawn captured stderr
         // either way, the child is gone by the time the record is composed,
         // and a weekly job's own log may have rotated before anyone reads it.
         Err(failure_reason(
-            &exit_description(&output),
-            &String::from_utf8_lossy(&output.stderr),
+            &exit_description(&status),
+            &String::from_utf8_lossy(&finished.stderr),
         ))
     }
 
@@ -78,25 +138,30 @@ impl CommandRunner for SystemRunner {
             .write_all(input.as_bytes())
             .map_err(|error| format!("could not write {program}'s input: {error}"))?;
         drop(writer);
-        let output = self.spawn(program, args, Stdio::from(reader))?;
-        let verdict = if output.status.success() {
-            Verdict::Clean
-        } else {
-            let reason = failure_reason(
-                &exit_description(&output),
-                &String::from_utf8_lossy(&output.stderr),
-            );
-            // DEFERRED_EXIT_CODE, not "any non-zero": the two weekly jobs
-            // this ported from use it to mean "nothing was attempted, try
-            // later", and every other non-zero code stays a real failure.
-            if output.status.code() == Some(DEFERRED_EXIT_CODE) {
-                Verdict::Deferred(reason)
-            } else {
-                Verdict::Failed(reason)
+        let finished = self.spawn(program, args, Stdio::from(reader))?;
+        let verdict = match finished.status {
+            // AN OVERRUN IS A FAILURE THAT STILL KEEPS ITS STDOUT. Those lines
+            // are the record of how far the lane got before it stopped, which
+            // is the whole of what anyone has to diagnose a hang with.
+            None => Verdict::Failed(self.overrun(&finished.stderr)),
+            Some(status) if status.success() => Verdict::Clean,
+            Some(status) => {
+                let reason = failure_reason(
+                    &exit_description(&status),
+                    &String::from_utf8_lossy(&finished.stderr),
+                );
+                // DEFERRED_EXIT_CODE, not "any non-zero": the two weekly jobs
+                // this ported from use it to mean "nothing was attempted, try
+                // later", and every other non-zero code stays a real failure.
+                if status.code() == Some(DEFERRED_EXIT_CODE) {
+                    Verdict::Deferred(reason)
+                } else {
+                    Verdict::Failed(reason)
+                }
             }
         };
         Ok(Ran {
-            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stdout: String::from_utf8_lossy(&finished.stdout).to_string(),
             verdict,
         })
     }
@@ -105,14 +170,19 @@ impl CommandRunner for SystemRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use crate::watchdog::tests::within;
+
+    /// A runner whose budget no honest test child comes near.
+    fn runner() -> SystemRunner {
+        SystemRunner::for_lane("test", Duration::from_secs(30))
+    }
 
     #[test]
     fn a_failed_command_reports_what_it_printed_and_not_only_its_status() {
         // The one place stderr is still readable is here: the child is gone by
         // the time the record is composed, and a weekly job's log may have
         // rotated before anyone reads it.
-        let failure = SystemRunner
+        let failure = runner()
             .run(
                 "/bin/sh",
                 &["-c", "printf 'no such repository\\n' >&2; exit 3"],
@@ -132,7 +202,7 @@ mod tests {
         // cat, which an unbounded call would report as a hang, not a failure.
         let (send, receive) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            send.send(SystemRunner.run_with_input("/bin/cat", &[], "the run event\n"))
+            send.send(runner().run_with_input("/bin/cat", &[], "the run event\n"))
         });
         let ran = receive
             .recv_timeout(Duration::from_secs(10))
@@ -152,7 +222,7 @@ mod tests {
         // has exited anyway. That the pre-filled sequence survives such a
         // child under `main`'s SIG_DFL reset, where the write-after-spawn
         // order dies at 141, was checked by hand outside the harness.
-        let ran = SystemRunner
+        let ran = runner()
             .run_with_input("/bin/sh", &["-c", "exit 0"], "the run event\n")
             .expect("a child that ignores stdin still runs and exits cleanly");
         assert_eq!(ran.verdict, Verdict::Clean);
@@ -164,7 +234,7 @@ mod tests {
         // successful upgrade would: a mutant that blanks stdout on any
         // non-zero exit would still satisfy every assertion below that only
         // looks at `verdict`, so `ran.stdout` is pinned here too.
-        let ran = SystemRunner
+        let ran = runner()
             .run_with_input(
                 "/bin/sh",
                 &[
@@ -187,7 +257,7 @@ mod tests {
         // The distinction this whole capability exists for: DEFERRED_EXIT_CODE
         // (75) is a verdict of its own, never lumped in with every other
         // non-zero exit.
-        let ran = SystemRunner
+        let ran = runner()
             .run_with_input(
                 "/bin/sh",
                 &[
@@ -216,7 +286,7 @@ mod tests {
         // pass with only 74 and 75 tested and misclassify 76 as deferred. Both
         // neighbors of 75 are pinned here as still Failed.
         for code in [74, 76] {
-            let ran = SystemRunner
+            let ran = runner()
                 .run_with_input(
                     "/bin/sh",
                     &["-c", &format!("exit {code}")],
@@ -233,7 +303,7 @@ mod tests {
 
     #[test]
     fn run_with_input_names_the_missing_program_when_it_could_not_run_at_all() {
-        let error = SystemRunner
+        let error = runner()
             .run_with_input("/no/such/uu-test-program", &[], "the run event\n")
             .expect_err("a missing program cannot be run");
         assert!(error.contains("could not run"), "{error}");
@@ -243,7 +313,7 @@ mod tests {
     #[test]
     fn run_with_input_refuses_an_input_over_16_kib_without_spawning_anything() {
         let huge = "x".repeat(MAX_EVENT_INPUT + 1);
-        let error = SystemRunner
+        let error = runner()
             .run_with_input("/no/such/uu-test-program", &[], &huge)
             .expect_err("an oversized event must be refused");
         // Naming the actual size proves the refusal ran; a missing-program
@@ -265,7 +335,7 @@ mod tests {
         let huge = format!("{}x", "\u{1D11E}".repeat(MAX_EVENT_INPUT / 4));
         assert_eq!(huge.len(), MAX_EVENT_INPUT + 1);
         assert!(huge.chars().count() < MAX_EVENT_INPUT);
-        let error = SystemRunner
+        let error = runner()
             .run_with_input("/no/such/uu-test-program", &[], &huge)
             .expect_err("an oversized event must be refused even when it is short in characters");
         assert!(
@@ -281,12 +351,79 @@ mod tests {
         // which it starts to fit: a `>=` mutant would refuse this legal
         // boundary case while every other test here stays green.
         let exact = "x".repeat(MAX_EVENT_INPUT);
-        let error = SystemRunner
+        let error = runner()
             .run_with_input("/no/such/uu-test-program", &[], &exact)
             .expect_err("the program does not exist, but the size check must have let it through");
         assert!(
             error.contains("could not run"),
             "an exact-limit input must reach the spawn attempt: {error}"
         );
+    }
+
+    // --- the lane deadline, against real children -------------------------
+
+    /// A runner whose budget is spent almost at once, so a deadline test is
+    /// over in a fraction of a second.
+    fn impatient(lane: &str) -> SystemRunner {
+        SystemRunner::for_lane(lane, Duration::from_millis(200))
+    }
+
+    #[test]
+    fn a_child_that_runs_past_the_lane_deadline_fails_naming_it() {
+        let failure = within(Duration::from_secs(3), || {
+            impatient("slow").run("/bin/sh", &["-c", "sleep 30"])
+        })
+        .expect_err("this command outlives its lane's deadline");
+        assert!(failure.contains("lane `slow`"), "{failure}");
+        assert!(failure.contains("200ms deadline"), "{failure}");
+    }
+
+    #[test]
+    fn a_child_that_exits_while_a_grandchild_holds_the_pipe_still_hits_the_deadline() {
+        // THE HANG THIS EXISTS FOR, and it is not simply a slow child: the
+        // child exits at once and something it left behind keeps stdout open,
+        // so waiting on the child returns immediately and the READ is what
+        // blocks. A deadline that only bounded the wait would not bound this
+        // at all.
+        //
+        // THE GRANDCHILD OUTLIVES THE WHOLE WATCHDOG on purpose. At 30 seconds
+        // it cannot exit on its own inside the deadline plus both kill graces,
+        // so a run that finishes here finished because something killed it.
+        let ran = within(Duration::from_secs(3), || {
+            impatient("orphan").run_with_input(
+                "/bin/sh",
+                &["-c", "sleep 30 & printf 'got this far\\n'; exit 0"],
+                "the run event\n",
+            )
+        })
+        .expect("the child ran, it just left something behind");
+        // WHAT IT PRINTED IS KEPT. Those lines are how far the lane got, and
+        // a mutant that dropped stdout on the overrun path alone would satisfy
+        // every assertion below.
+        assert_eq!(ran.stdout, "got this far\n");
+        let Verdict::Failed(reason) = ran.verdict else {
+            panic!("an overrun is a failure, not {:?}", ran.verdict);
+        };
+        assert!(reason.contains("lane `orphan`"), "{reason}");
+        assert!(reason.contains("200ms deadline"), "{reason}");
+    }
+
+    #[test]
+    fn a_lane_that_spent_its_budget_refuses_the_next_command_without_running_it() {
+        // The budget belongs to the LANE, not to each spawn: the herdr lane
+        // alone spawns two commands per plugin, and a bound that reset every
+        // time would let a long roster hold the run lock for a multiple of the
+        // deadline the operator wrote.
+        let runner = impatient("spent");
+        std::thread::sleep(Duration::from_millis(250));
+        // A PROGRAM THAT IS NOT THERE, so the refusal proves nothing was
+        // spawned: a runner that attempted the spawn would report the missing
+        // program instead of the deadline it had already blown.
+        let refused = runner
+            .run("/no/such/uu-test-program", &[])
+            .expect_err("nothing may run once the lane is out of time");
+        assert!(refused.contains("lane `spent`"), "{refused}");
+        assert!(refused.contains("200ms deadline"), "{refused}");
+        assert!(!refused.contains("could not run"), "{refused}");
     }
 }

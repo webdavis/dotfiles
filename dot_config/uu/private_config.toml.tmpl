@@ -48,6 +48,7 @@ binary = "{{ .chezmoi.homeDir }}/.local/libexec/pns/pns"
 [lanes.herdr]
 type = "herdr"
 binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
+deadline_secs = 21600
 plugins = [
 {{- range .packages.herdr_plugins }}
   { id = {{ .id | quote }}, repo = {{ .repo | quote }} },
@@ -62,9 +63,18 @@ plugins = [
 # `run[0]` is the program, `run[1..]` its arguments, and argv[0] the child
 # sees is `run[0]` verbatim. Env and working directory are INHERITED from uu's
 # own process; under the tracked LaunchAgent that is the plist's own PATH plus
-# HOME, with the working directory at `/`. The child must not leave anything
+# HOME, with the working directory at `/`.
+#
+# `deadline_secs` bounds the WHOLE LANE, not each command it runs, and every
+# lane has one whether or not its block says so (six hours by default). The
+# child runs in a process group of its own, so a child that leaves something
 # behind holding its stdout or stderr open (a backgrounded process, a detached
-# daemon), or uu waits for it forever: no lane has a deadline, by design.
+# daemon) has that group killed at the deadline instead of stalling uu
+# forever; the lane then reports the overrun as an ordinary failure. Six hours
+# is roughly three times the slowest honest run measured here and a small
+# fraction of the weekly period, so it fires on a hang and on nothing else.
+# The run lock is held across lane execution, which is why the bound matters:
+# a lane that never ends is a lock every later run waits on and never gets.
 #
 # EXIT 75 MEANS DEFERRED, not failed: nothing was attempted, so try again
 # later. This is the exit code the program itself chooses to return, matching
@@ -90,3 +100,4 @@ plugins = [
 # [lanes.example]
 # type = "command"
 # run = ["/usr/local/bin/my-updater", "--yes"]
+# deadline_secs = 21600

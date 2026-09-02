@@ -20,7 +20,7 @@ use unattended_upgrades::alert::{Alerter, alert_argv, alert_summary};
 use unattended_upgrades::config::{
     Config, ConfigError, LANE_TYPES, LaneKind, LoadOutcome, Records, config_path, load_config,
 };
-use unattended_upgrades::lanes::{LaneReport, enabled_lanes, run_lane};
+use unattended_upgrades::lanes::{LaneReport, run_lane};
 use unattended_upgrades::record::{
     AGENT, Marker, RunFacts, STALE_AFTER_RUNS, gap_line, marker_contents, next_streak,
     parse_marker, record_body, record_detail, record_state,
@@ -28,6 +28,7 @@ use unattended_upgrades::record::{
 use unattended_upgrades::schedule::{DEFAULT_LABEL, render_plist};
 
 mod runner;
+mod watchdog;
 use runner::SystemRunner;
 
 fn main() {
@@ -150,12 +151,17 @@ fn run_mode(only: Option<&str>) -> i32 {
         marker: &marker,
     };
 
-    let runner = SystemRunner;
     let mut reports: Vec<LaneReport> = Vec::new();
-    for name in enabled_lanes(&config) {
+    // IN NAME ORDER, never the file's: `lanes` is a `BTreeMap`, and a run
+    // whose sequence changes when a block moves is a run nobody can reason
+    // about.
+    for (name, lane) in &config.lanes {
         if only.is_some_and(|wanted| wanted != name) {
             continue;
         }
+        // ONE RUNNER PER LANE, holding that lane's own deadline: the budget is
+        // the whole lane's, and its clock starts here.
+        let runner = SystemRunner::for_lane(name, lane.deadline);
         // CONTINUE ON FAILURE: nothing here inspects the report before moving
         // to the next lane.
         if let Some(report) = run_lane(name, &config, &facts, &runner) {
@@ -345,9 +351,9 @@ fn doctor_mode() -> i32 {
     if config.lanes.is_empty() {
         println!("uu: lanes: none declared");
     } else {
-        for (name, kind) in &config.lanes {
-            println!("uu: lane {name}: on ({})", kind.type_name());
-            if let LaneKind::Command(command) = kind {
+        for (name, lane) in &config.lanes {
+            println!("uu: lane {name}: on ({})", lane.kind.type_name());
+            if let LaneKind::Command(command) = &lane.kind {
                 let program = &command.run[0];
                 // A SLASH-RELATIVE PROGRAM (`./updater`) is answered from
                 // DOCTOR'S OWN cwd, wherever the operator happens to be
