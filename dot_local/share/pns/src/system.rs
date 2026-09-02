@@ -1622,7 +1622,7 @@ mod tests {
     }
 
     /// A runner whose `ioreg -c IOHIDSystem` blocks until the phone chain's
-    /// first `pgrep` releases it, or 200ms passes: see
+    /// first `pgrep` releases it, or 2 s pass: see
     /// `a_slow_probe_does_not_hold_up_a_fast_one` (C4).
     struct GateRunner {
         release: std::sync::mpsc::Sender<()>,
@@ -1641,11 +1641,13 @@ mod tests {
                 "/usr/sbin/ioreg -c IOHIDSystem" => {
                     // A CONCURRENT phone thread's own `pgrep` releases this;
                     // a sequential, desk-only, or join-at-start mutant never
-                    // reaches that `pgrep` before this deadline.
+                    // reaches that `pgrep` before this deadline. GREEN NEVER
+                    // WAITS ON IT, so it is sized for a starved test thread on
+                    // a loaded runner rather than for a fast red.
                     self.wait
                         .lock()
                         .unwrap()
-                        .recv_timeout(Duration::from_millis(200))
+                        .recv_timeout(Duration::from_secs(2))
                         .ok()?;
                     Some(self.idle_answer.clone())
                 }
@@ -1668,7 +1670,7 @@ mod tests {
         // within microseconds, so idle reads its fixture value and this
         // test returns at once. A sequential, desk-only, or
         // join-at-start mutant never starts the phone thread before
-        // blocking on idle, so `ioreg` times out at 200ms into no reading
+        // blocking on idle, so `ioreg` times out at 2 s into no reading
         // at all, and the assertion below is what turns that into red.
         use crate::probes::{IdleProbe, PhoneInputProbe, ProbeStart, ScreenLockProbe, Wants};
         let (release, wait) = std::sync::mpsc::channel();
