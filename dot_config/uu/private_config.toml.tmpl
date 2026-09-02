@@ -52,3 +52,18 @@ plugins = [
   { id = {{ .id | quote }}, repo = {{ .repo | quote }} },
 {{- end }}
 ]
+
+# A `command` lane is the PRODUCER API: it runs ANY executable under uu's
+# locked contract (a JSON run event on stdin, the exit code as the verdict),
+# with no core code to touch. Uncomment and rename the block to turn one on;
+# the lane's name is your own choice.
+#
+# `run[0]` is the program, `run[1..]` its arguments, and argv[0] the child
+# sees is `run[0]` verbatim. Env and working directory are INHERITED from uu's
+# own process; under the tracked LaunchAgent that is the plist's own PATH plus
+# HOME, with the working directory at `/`. The child must not leave anything
+# behind holding its stdout or stderr open (a backgrounded process, a detached
+# daemon), or uu waits for it forever: there is no deadline, by design, the
+# same as the herdr lane above.
+# [lanes.example]
+# run = ["/usr/local/bin/my-updater", "--yes"]
