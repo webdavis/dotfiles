@@ -5856,3 +5856,117 @@ fn a_config_change_observation_replays_no_journal_entry() {
         "the control: a First `stop` event under this env consumes the journal"
     );
 }
+
+// --- W6: the bounded, state-only policy-settings audit trail ----------------
+
+#[test]
+fn a_policy_settings_change_is_recorded_to_a_bounded_audit_trail() {
+    let sandbox = Sandbox::new("config-change-policy-audit-write");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let audit = sandbox.path("state/policy-settings-audit");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("/etc/claude/policy.json")),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the ordinary observation card still fires, on top of the audit line"
+    );
+    let recorded = std::fs::read_to_string(&audit).expect("the audit trail");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(
+        lines.len(),
+        1,
+        "one received policy change, one line: {recorded:?}"
+    );
+    assert!(
+        lines[0].contains("/etc/claude/policy.json"),
+        "the record names the changed file: {recorded:?}"
+    );
+}
+
+#[test]
+fn a_non_policy_config_change_writes_no_policy_audit_entry() {
+    // ONLY `policy_settings` OUTLIVES THE DECISION RING. The other four
+    // sources are still logged as ordinary observations, but they must not
+    // start a second durable file this binary has no bound in mind for.
+    let sandbox = Sandbox::new("config-change-no-policy-audit-for-others");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    for source in [
+        "user_settings",
+        "project_settings",
+        "local_settings",
+        "skills",
+    ] {
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "config-change",
+            &config_change_payload("s1", source, Some("/a/file.json")),
+        );
+        assert!(output.status.success(), "{source}");
+    }
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        4,
+        "the four ordinary cards fired"
+    );
+    assert!(
+        !sandbox.path("state/policy-settings-audit").exists(),
+        "only a policy_settings change writes the audit trail"
+    );
+}
+
+#[test]
+fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
+    // THE TRAIL'S OWN DEPTH, stated here rather than imported: a test that
+    // read the constant it is checking would agree with any value the source
+    // held. Twenty is `main.rs`'s `POLICY_SETTINGS_AUDIT_KEPT`.
+    const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
+    let sandbox = Sandbox::new("config-change-policy-audit-bound");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let planted: String = (0..POLICY_SETTINGS_AUDIT_KEPT)
+        .map(|which| format!("1756499000 session=s0 file=planted-{which}\n"))
+        .collect();
+    std::fs::write(sandbox.path("state/policy-settings-audit"), planted).expect("the audit trail");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("/etc/claude/policy.json")),
+    );
+
+    assert!(output.status.success());
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(
+        lines.len(),
+        POLICY_SETTINGS_AUDIT_KEPT,
+        "the trail keeps its own bound rather than growing without limit: {recorded:?}"
+    );
+    assert!(
+        !recorded.contains("planted-0 "),
+        "the oldest entry was dropped: {recorded:?}"
+    );
+    assert!(
+        lines
+            .last()
+            .expect("a line")
+            .contains("/etc/claude/policy.json"),
+        "the newest entry is this event's: {recorded:?}"
+    );
+}

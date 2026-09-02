@@ -306,6 +306,42 @@ fn config_change_detail(source: &str, file_path: &str) -> Option<String> {
     })
 }
 
+/// How many received `policy_settings` changes the audit trail remembers,
+/// comfortably past the five-entry decision ring (`decision_log::KEPT`): a
+/// policy change is rarer and more consequential than an ordinary observed
+/// event, and it must outlive more than a handful of intervening turns rather
+/// than vanish with them the moment the ring rolls over.
+const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
+
+/// The policy-settings audit trail's file name, beside `DECISIONS` and
+/// `ACTIVITY`.
+const POLICY_SETTINGS_AUDIT: &str = "policy-settings-audit";
+
+/// Append one received `policy_settings` change to a bounded, state-only
+/// audit record, so it outlives the five-entry decision ring an ordinary
+/// observed event is logged to. STATE-ONLY, in `record_missed`'s style: no
+/// card of its own, no marker, no lease; the routing this rides beside stays
+/// marker-neutral, and this is purely a durable trace of receipt for a class
+/// of change worth remembering past the next few turns.
+///
+/// FAIL-QUIET, in `record_decision`'s exact style and for its exact reason:
+/// an event path whose stdout a harness hook reads must not gain a line about
+/// the state directory, and a record that did not land costs a read of this
+/// file later, never a card.
+fn record_policy_settings_change(session_id: &str, file_path: &str, now: Option<u64>) {
+    let now = now.unwrap_or_default();
+    let session = rendered_plainly(session_id);
+    let path = rendered_plainly(file_path);
+    let path = if path.is_empty() { "none" } else { &path };
+    let line = format!("{now} session={session} file={path}");
+    let _ = append_ring_line(
+        &state_dir().join(POLICY_SETTINGS_AUDIT),
+        &line,
+        POLICY_SETTINGS_AUDIT_KEPT,
+        RING_READ_MAX,
+    );
+}
+
 /// The three quota-notification labels this binary recognises, and nothing
 /// else: an exact allowlist, matching the exact matcher declared beside it in
 /// `modify_settings.json`. A `Notification` carrying any other
@@ -563,6 +599,17 @@ fn hook_mode(event: &str) -> i32 {
         "config-change" => {
             if let Some(detail) = config_change_detail(&payload.source, &payload.file_path) {
                 let probes = system_probes();
+                // THE ONE SOURCE THAT OUTLIVES THE CARD: see
+                // `record_policy_settings_change` for why a policy change
+                // gets a bounded audit line on top of the ordinary decision
+                // ring every observation is logged to.
+                if payload.source == "policy_settings" {
+                    record_policy_settings_change(
+                        &payload.session_id,
+                        &payload.file_path,
+                        probes.now_secs(),
+                    );
+                }
                 run_event(
                     &pns::args::EventArgs {
                         agent,
