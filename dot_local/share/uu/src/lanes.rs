@@ -961,6 +961,18 @@ mod tests {
     }
 
     #[test]
+    fn stdout_lines_cuts_an_overlong_multibyte_line_to_its_exact_tail() {
+        // Every OTHER stdout_lines test here is short enough that dropping the
+        // `tail(..., STDERR_TAIL)` cut still passes; a mutant like that needs
+        // a line over the 240-character cap, and multibyte so a byte-indexed
+        // cut would panic or land mid-character instead of matching this.
+        let filler = "é".repeat(300);
+        let line = format!("{filler}TAIL-MARKER");
+        let expected = format!("...{}TAIL-MARKER", "é".repeat(229));
+        assert_eq!(stdout_lines(&format!("{line}\n")), vec![expected]);
+    }
+
+    #[test]
     fn squash_replaces_backticks_so_no_child_line_can_open_or_close_a_code_fence() {
         let squashed = squash("before ``` after");
         assert!(!squashed.contains('`'), "{squashed:?}");
