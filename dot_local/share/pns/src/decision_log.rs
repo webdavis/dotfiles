@@ -513,6 +513,30 @@ mod tests {
     }
 
     #[test]
+    fn a_payload_field_outside_the_printable_allowlist_is_recorded_as_unprintable() {
+        // THE THREE PAYLOAD FIELDS ARE HARNESS TEXT, and `tool_name` is remote
+        // text a connected MCP server chose. A NEWLINE forges a second entry
+        // in a one-record-per-line file; an escape sequence reaches the
+        // terminal `pns doctor` prints to; a space is what the reader splits
+        // on. Each is refused the way `agent` and `state` refuse it.
+        let recorded = line(&Record {
+            event: &event(),
+            decision: &decision(inputs()),
+            overrides: &Overrides::default(),
+            legs: &[],
+            nag: false,
+            permission_mode: "bypass Permissions",
+            agent_id: "\u{1b}[31magent_01",
+            tool_name: "Bash\n1756500000 claude/done",
+        });
+        assert!(
+            recorded.contains(" mode=unprintable agent=unprintable tool=unprintable "),
+            "got {recorded}"
+        );
+        assert!(!recorded.contains('\n'), "a newline forged a second entry");
+    }
+
+    #[test]
     fn a_line_with_no_readable_clock_leads_with_a_dash_rather_than_epoch_zero() {
         // A RECOGNIZED VALUE, so the reader can tell it from a line it could
         // not parse. Epoch zero would parse cleanly and render as 56 years
