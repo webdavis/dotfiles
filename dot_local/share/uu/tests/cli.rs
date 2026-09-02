@@ -205,6 +205,110 @@ fn a_failed_lane_leaves_the_exit_at_zero_and_the_marker_unmoved() {
 }
 
 #[test]
+fn a_deferred_command_lane_leaves_the_marker_unmoved_even_with_zero_failures() {
+    // THE MUTANT THAT MATTERS MOST (brief D7): a deferral must never look
+    // like the clean run that advances the marker, or a lane that never
+    // truly runs reads as healthy forever. `failures` alone is 0 here, so
+    // this is the one case that catches a marker gate that forgot to also
+    // check `deferred`.
+    let home = Home::new("deferred-marker");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\n\
+         printf 'nothing was attempted\\n'\n\
+         printf 'another run holds the lock\\n' >&2\n\
+         exit 75\n",
+    );
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        stub.display()
+    ));
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let record = stdout(&output);
+    assert!(record.contains("mine: deferred"), "{record}");
+    assert!(
+        !record.contains("mine: 0 failure(s)"),
+        "a deferral must not read as a clean lane: {record}"
+    );
+    assert!(
+        !home.marker().exists(),
+        "a deferred lane did no work and must not advance the marker: {output:?}"
+    );
+}
+
+#[test]
+fn a_deferred_command_lane_never_fires_the_per_run_failure_alert() {
+    // D2: deferral is not a failure, so it must never reach the same alert
+    // path a failed lane's non-zero exit does.
+    let home = Home::new("deferred-no-alert");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        !home.dir.join("alert-args").exists(),
+        "a deferred lane must not fire the per-run failure alert"
+    );
+}
+
+#[test]
+fn a_mixed_run_records_each_lanes_own_verdict_alerts_only_the_failed_one_and_stays_exit_zero() {
+    let home = Home::new("mixed-run");
+    let clean = home.write_stub("clean-updater", "cat >/dev/null\nprintf 'clean lane ok\\n'\n");
+    let failing = home.write_stub(
+        "failing-updater",
+        "cat >/dev/null\nprintf 'boom: disk full\\n' >&2\nexit 2\n",
+    );
+    let deferring = home.write_stub(
+        "deferring-updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n'\nprintf 'lock held\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.a-clean]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [lanes.b-failing]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [lanes.c-deferring]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [alerts]\nbinary = \"{}\"\n",
+        clean.display(),
+        failing.display(),
+        deferring.display(),
+        pns_stub.display(),
+    ));
+    let output = home.uu(&["run"]);
+    // No consumer reads uu's own exit status today (D5), so a mixed run
+    // stays exit 0 exactly like an all-failed run: nothing is invented for a
+    // code nothing checks.
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let record = stdout(&output);
+    assert!(record.contains("a-clean: 0 failure(s)"), "{record}");
+    assert!(record.contains("b-failing: 1 failure(s)"), "{record}");
+    assert!(record.contains("c-deferring: deferred"), "{record}");
+    assert!(
+        record.contains("=== done, 1 failure(s), 1 deferred ==="),
+        "{record}"
+    );
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert!(alerts.contains("b-failing"), "{alerts}");
+    assert!(
+        !alerts.contains("c-deferring"),
+        "the deferred lane must not alert: {alerts}"
+    );
+    assert!(
+        !home.marker().exists(),
+        "a run carrying any failure or deferral must not advance the marker: {output:?}"
+    );
+}
+
+#[test]
 fn a_record_the_gateway_never_received_leaves_the_marker_unmoved() {
     // The marker is what the NEXT record measures its gap from, so a run
     // stamped successful after its entry was refused makes the following entry

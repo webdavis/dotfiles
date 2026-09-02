@@ -146,6 +146,7 @@ fn run_mode(only: Option<&str>) -> i32 {
     }
 
     let failures: usize = reports.iter().map(|report| report.failures).sum();
+    let deferred: usize = reports.iter().filter(|report| report.deferred).count();
     let detail = record_detail(&host_name, &started_iso, &gap, &reports);
     print!("{detail}");
 
@@ -170,7 +171,7 @@ fn run_mode(only: Option<&str>) -> i32 {
             &UreqSignedPost,
             &PnsAlerter,
             records,
-            records_body(failures, &detail),
+            records_body(failures, deferred, &detail),
             engine.as_deref(),
         ),
         None => {
@@ -183,13 +184,20 @@ fn run_mode(only: Option<&str>) -> i32 {
     // the last time everything actually worked rather than the last time uu
     // woke up.
     //
+    // A DEFERRAL IS NOT A CLEAN RUN EITHER. A deferred lane did no work, so it
+    // must not count as the run that advances the marker: the marker means
+    // the last time everything actually ran and succeeded, and letting a
+    // deferral through would have a lane that never runs read as healthy
+    // forever, which is exactly the failure mode this verdict exists to make
+    // visible instead.
+    //
     // AND IT STAMPS THE MOMENT THE RUN FINISHED, read here rather than reused
     // from the header. Lanes have no upper bound, so the header's instant can
     // be an hour old by now, and every following gap would carry that hour on
     // top of its own. A clock that will not answer at this instant leaves the
     // marker alone: an unmoved marker overstates the next gap, while a
     // guessed timestamp understates it silently.
-    if failures == 0 && !record_lost {
+    if failures == 0 && deferred == 0 && !record_lost {
         match now_epoch() {
             Some(finished) => write_marker(&marker_path, finished),
             None => eprintln!(
@@ -203,8 +211,8 @@ fn run_mode(only: Option<&str>) -> i32 {
     0
 }
 
-fn records_body(failures: usize, detail: &str) -> String {
-    record_body(record_state(failures), &host(), detail)
+fn records_body(failures: usize, deferred: usize, detail: &str) -> String {
+    record_body(record_state(failures, deferred), &host(), detail)
 }
 
 // --- the doctor ------------------------------------------------------------
