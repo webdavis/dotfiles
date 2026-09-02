@@ -345,7 +345,7 @@ const DEFAULT_UNREAD_AFTER_SECS: u64 = 300;
 /// outlasts a long day away and still gives the bulb back before the next one
 /// starts. The ORDINARY end is not this at all: the session's next event
 /// clears the marker, whatever the hour.
-const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
+pub(crate) const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
 
 /// How long work must run continuously before the loop lamp arms itself.
 const DEFAULT_LOOP_THRESHOLD_SECS: u64 = 300;
@@ -580,6 +580,36 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
 /// the file itself, so there is no name a lookup could use.
 pub const TOP_LEVEL: &str = "";
 
+/// A chezmoi-templated text with its actions taken out: a directive standing
+/// on its own line goes with the line, and an action inside a value becomes
+/// `placeholder`.
+///
+/// THE SHARED STUB, lifted out of this module's own test for the shipped
+/// template so `config_text`'s tests can fake-render a secret action the same
+/// way: a rendered secret is not TOML (the action's own `"` sits unescaped
+/// inside a basic string), so a round-trip test has to stand in for chezmoi
+/// before it hands the text to `parse_config`, and one stub is what keeps that
+/// standing-in from drifting between the two callers.
+#[cfg(test)]
+pub(crate) fn strip_chezmoi_actions(text: &str, placeholder: &str) -> String {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("{{-"))
+        .map(|line| {
+            let mut rendered = line.to_string();
+            while let Some(start) = rendered.find("{{") {
+                let end = rendered[start..]
+                    .find("}}")
+                    .expect("a chezmoi action is closed on its own line")
+                    + start
+                    + 2;
+                rendered.replace_range(start..end, placeholder);
+            }
+            rendered
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// How many `key = value` pairs a config-shaped text documents, commented
 /// lines included, having checked each one against the roster row of the
 /// heading above it.
@@ -614,7 +644,11 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         let Some((key, _)) = bare.split_once(" = ") else {
             continue;
         };
-        if !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') || key.is_empty() {
+        if !key
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            || key.is_empty()
+        {
             continue;
         }
         // A nested table carries the operator's own name; the roster holds
@@ -641,7 +675,7 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
 /// a lamp, a room and a zone answer the same questions and differ only in how
 /// specific they are. Three rows would be one list to keep in agreement with
 /// two others, which is the drift this roster exists to prevent.
-const TARGET_KEYS: &str = "lights.<level>";
+pub(crate) const TARGET_KEYS: &str = "lights.<level>";
 
 /// What one table serves, or `None` for a table this schema has no vocabulary
 /// for (a plugin nothing registered; see `TABLE_KEYS`).
@@ -3401,23 +3435,7 @@ mod tests {
     /// KEYS the file names and under which tables, and no action in it is a key
     /// or a table; they are one conditional wrapper and six secrets.
     fn rendered_template() -> String {
-        SHIPPED_TEMPLATE
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("{{-"))
-            .map(|line| {
-                let mut rendered = line.to_string();
-                while let Some(start) = rendered.find("{{") {
-                    let end = rendered[start..]
-                        .find("}}")
-                        .expect("a chezmoi action is closed on its own line")
-                        + start
-                        + 2;
-                    rendered.replace_range(start..end, "from-the-vault");
-                }
-                rendered
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "from-the-vault")
     }
 
     #[test]
