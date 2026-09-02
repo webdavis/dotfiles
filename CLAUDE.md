@@ -388,11 +388,12 @@ Four rules decide the shape below `libexec`, in this order:
    code (`osquery-converge/desired/` is the state the tool installs; `osquery/posture-controls.json` is
    the flat-file version of the same idea), because the alternative is data under `share/` that none of
    the integrity coverage anchored on this tree reaches.
-1. **`helpers/` holds code shared ACROSS a group**; a helper used by exactly one tool lives in that
-   tool's own directory. `unattended-upgrades/helpers/log-entries.sh` is shared by the three bash weekly
-   jobs (`uu`, the fourth weekly job, is a standalone Rust binary and shares none of it), while
-   `agent-skills/assert-hermes-superpowers-routing.sh` sits with the updater that is its only caller.
-   This mirrors the `test/<suite>/helpers/` split.
+1. **`helpers/` holds code shared ACROSS a group**; a helper every caller of which sits in one
+   subdirectory lives in that subdirectory instead. `unattended-upgrades/helpers/log-entries.sh` is
+   shared by the three bash weekly jobs (`uu`, the fourth weekly job, is a standalone Rust binary and
+   shares none of it), while `agent-skills/assert-hermes-superpowers-routing.sh` stays in `agent-skills/`
+   because both of its callers, `update-skills.sh` and `live-reconcile.sh`, are there too. This mirrors
+   the `test/<suite>/helpers/` split.
 
 Names are verb-first where a bare noun would not say what happens (`compress-and-truncate-local-logs.sh`,
 `control-hue-lights.sh`). A stutter is accepted when removing it would leave a meaningless basename:
