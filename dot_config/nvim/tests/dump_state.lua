@@ -150,19 +150,39 @@ table.sort(keymap_rows, function(a, b)
   return a.buffer < b.buffer
 end)
 
+-- A block's own `mode` field (a string or a list) applies to every item nested
+-- inside it that does not set its own; which-key itself defaults to normal mode
+-- when nothing in the chain sets one. Returned sorted, so the JSON encoding of
+-- an unordered set is stable across runs.
+local function sorted_modes(mode)
+  local list = type(mode) == "table" and mode or { mode or "n" }
+  local copy = {}
+  for _, m in ipairs(list) do
+    table.insert(copy, m)
+  end
+  table.sort(copy)
+  return copy
+end
+
 -- Which-key pass. `opts.spec` is a list of blocks; each block carries a shared
 -- `mode` and nests its actual group rows one level deeper as its own array part
 -- (`{ mode = {...}, { "<C-g>", group = "git-1" }, ... }`). A read of `opts.spec`
 -- itself finds no `.group` fields on either side and compares equal on zero
 -- groups (amendment I4), so this walks every nesting depth instead of assuming
--- exactly one.
-local function collect_groups(node, out)
+-- exactly one. `inherited_mode` carries the nearest enclosing block's `mode`
+-- down to its nested rows: a naive read of only the row's own (absent) `.mode`
+-- field left every row's mode blank regardless of the block's, so narrowing
+-- `which-key.lua:10` from normal-plus-visual to normal-only left all 52 group
+-- rows identical (sol finding 6).
+local function collect_groups(node, out, inherited_mode)
+  local mode = node.mode or inherited_mode
   for _, item in ipairs(node) do
     if type(item) == "table" then
+      local item_mode = item.mode or mode
       if type(item[1]) == "string" and item.group ~= nil then
-        table.insert(out, { prefix = item[1], name = item.group })
+        table.insert(out, { prefix = item[1], name = item.group, mode = sorted_modes(item_mode) })
       end
-      collect_groups(item, out)
+      collect_groups(item, out, item_mode)
     end
   end
 end
@@ -234,6 +254,7 @@ for _, row in ipairs(groups) do
     json_line("whichkey_group", {
       { "prefix", row.prefix },
       { "name", row.name },
+      { "mode", row.mode },
     }),
     "\n"
   )
