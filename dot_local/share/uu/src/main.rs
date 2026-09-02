@@ -145,7 +145,7 @@ fn run_mode(only: Option<&str>) -> i32 {
     }
 
     let failures: usize = reports.iter().map(|report| report.failures).sum();
-    let detail = record_detail(&host(), &iso(started), &gap, &reports);
+    let detail = record_detail(&host_name, &started_iso, &gap, &reports);
     print!("{detail}");
 
     let engine = config.alerts.as_ref().map(|alerts| alerts.binary.clone());

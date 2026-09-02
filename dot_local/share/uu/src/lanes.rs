@@ -111,11 +111,7 @@ pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
     if said.is_empty() {
         return how_it_ended.to_string();
     }
-    let one_line: String = said
-        .chars()
-        .map(|letter| if letter.is_control() { ' ' } else { letter })
-        .collect();
-    format!("{how_it_ended}: {}", tail(&one_line, STDERR_TAIL))
+    format!("{how_it_ended}: {}", tail(&squash(said), STDERR_TAIL))
 }
 
 /// How many of a command lane's last stdout lines the record keeps.
@@ -150,10 +146,10 @@ fn stdout_lines(stdout: &str) -> Vec<String> {
     kept
 }
 
-/// A line with every control character (embedded CR, stray control bytes)
-/// mapped to a space, mirroring `failure_reason`'s own squash: untrusted
-/// child output crosses into the record and out to Discord, and either would
-/// reflow or truncate on a raw control character.
+/// Text with every control character (embedded CR, stray control bytes)
+/// mapped to a space, shared by `failure_reason` and a command lane's stdout
+/// lines: untrusted child output crosses into the record and out to Discord,
+/// and either would reflow or truncate on a raw control character.
 fn squash(line: &str) -> String {
     line.chars()
         .map(|letter| if letter.is_control() { ' ' } else { letter })
@@ -176,7 +172,7 @@ fn squash(line: &str) -> String {
 /// plist's own PATH plus HOME, with the working directory at `/`. The child
 /// must not leave anything behind holding its stdout or stderr open (a
 /// backgrounded process, a detached daemon), or uu waits for it forever:
-/// there is no deadline, by design, the same as the herdr lane above.
+/// no lane has a deadline, by design (`SystemRunner` in main.rs says why).
 pub fn run_command(
     name: &str,
     lane: &CommandLane,
