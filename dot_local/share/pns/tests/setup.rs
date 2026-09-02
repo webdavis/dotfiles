@@ -503,6 +503,45 @@ fn a_dangling_symlink_at_the_config_path_is_refused_before_the_first_question() 
 }
 
 #[test]
+fn a_dangling_link_above_the_config_is_refused_before_the_first_question() {
+    // THE LEAF REPORTS `NotFound` WITHOUT BEING ABSENT: resolving
+    // `config.toml` walks through `pns`, which resolves to nothing, so the
+    // stat fails with ENOENT exactly the way a genuinely missing config
+    // does. Reading that as absence walks all ten questions and only then
+    // fails to publish, with every answer already typed and every secret
+    // already handed over.
+    for arguments in [vec!["setup"], vec!["setup", "--force"]] {
+        let sandbox = Sandbox::without_config("setup-dangling-parent");
+        let config_root = sandbox.root.join(".config");
+        std::fs::create_dir_all(&config_root).expect("the config root");
+        let link = config_root.join("pns");
+        std::os::unix::fs::symlink(config_root.join("nowhere"), &link)
+            .expect("the dangling parent link");
+
+        let output = sandbox
+            .bare()
+            .args(&arguments)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("the wizard runs");
+
+        assert_eq!(output.status.code(), Some(2), "arguments: {arguments:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(&link.display().to_string()),
+            "the refusal does not name the link that resolves to nothing \
+             ({arguments:?}): {stderr}"
+        );
+        // ORDERING, AND THAT `--force` CANNOT BUY PAST IT: reaching the tty
+        // check means the pre-check took the dangling link for absence.
+        assert!(
+            !stderr.contains("not a terminal"),
+            "the dangling parent was accepted as absence ({arguments:?}): {stderr}"
+        );
+    }
+}
+
+#[test]
 fn an_unreadable_config_directory_is_refused_by_path_and_cause() {
     // ROOT READS THROUGH ANY MODE, so this trick cannot produce the
     // permission error the precheck is being asked to name.

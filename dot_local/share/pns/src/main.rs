@@ -7227,6 +7227,45 @@ const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>
 /// as a time, so the timeline still lines up.
 const NO_WALL_CLOCK: &str = "--:--";
 
+/// The first ancestor of `path` that exists in its own right but resolves to
+/// nothing, and why it does not resolve.
+///
+/// WHAT THIS IS FOR: `NotFound` at the config path is not proof the config is
+/// absent. A dangling link ANYWHERE ABOVE it (`~/.config/pns` naming a
+/// directory that was moved or never created) fails the leaf's own stat with
+/// ENOENT, exactly as a genuinely missing config does. Told apart nowhere,
+/// that reading walks the whole questionnaire and only fails at publication,
+/// with every answer already typed and every secret already handed over.
+///
+/// IT CLIMBS ONLY AS FAR AS THE FIRST COMPONENT THAT EXISTS. Above that
+/// everything resolves by definition, and below it the components really are
+/// missing, which is the ordinary first run this must not refuse.
+fn unresolvable_ancestor(path: &Path) -> Option<(PathBuf, std::io::Error)> {
+    // `skip(1)`: `path` ITSELF has already been stated by the caller, and it
+    // is the leaf's own `NotFound` that brought us here.
+    for ancestor in path.ancestors().skip(1) {
+        match ancestor.symlink_metadata() {
+            // NOT THERE AS A NAME AT ALL: keep climbing. The component under
+            // it is genuinely missing rather than broken.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            // UNREADABLE, NOT ABSENT: refuse by the same rule the leaf's own
+            // non-NotFound arm refuses under.
+            Err(error) => return Some((ancestor.to_path_buf(), error)),
+            // A NAME IS STANDING HERE. Whether it LEADS anywhere is the whole
+            // question: `metadata` follows the link `symlink_metadata` did
+            // not, so a dangling one (or a loop, or a file where a directory
+            // belongs) answers with its own cause here.
+            Ok(_) => {
+                return match ancestor.metadata() {
+                    Ok(_) => None,
+                    Err(error) => Some((ancestor.to_path_buf(), error)),
+                };
+            }
+        }
+    }
+    None
+}
+
 /// The `setup` mode: the first-run walk, and the only writer of the config.
 ///
 /// A THIN EDGE OVER A PURE COMPOSER. Everything about what lands in the file
@@ -7282,7 +7321,21 @@ fn setup_mode() -> i32 {
             return 2;
         }
         Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        // NOTHING AT THE NAME IS NOT YET NOTHING IN THE WAY: a dangling link
+        // above the config reports `NotFound` here too, and it refuses
+        // REGARDLESS OF `--force`, because what `--force` agrees to replace
+        // is a config, not a path that leads nowhere.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if let Some((ancestor, cause)) = unresolvable_ancestor(&path) {
+                eprintln!(
+                    "pns setup: {} could not be checked: {} does not resolve ({cause}); \
+                     nothing was written",
+                    path.display(),
+                    ancestor.display()
+                );
+                return 2;
+            }
+        }
         // ANY OTHER ERROR REFUSES REGARDLESS OF --force: the comment above
         // only holds for NotFound, and a directory this walk cannot even
         // stat is not one it can safely publish into either.
