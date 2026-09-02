@@ -769,8 +769,10 @@ fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Result<(), St
     let mut lights = take_table(remaining, "lights")?;
 
     let mut own_keys = toml::Table::new();
-    if let Some(refresh_secs) = lights.remove("refresh_secs") {
-        own_keys.insert("refresh_secs".to_string(), refresh_secs);
+    for key in ["note", "refresh_secs"] {
+        if let Some(value) = lights.remove(key) {
+            own_keys.insert(key.to_string(), value);
+        }
     }
     let mut clusters = Vec::new();
     for cluster in ["done", "failed", "blocked", "unread", "loop", "dim"] {
@@ -1364,6 +1366,31 @@ mod tests {
         assert_eq!(studio.shows, Some(vec![crate::config::Behaviour::Done]));
         assert_eq!(studio.dim_window.as_deref(), Some("22:00-07:00"));
         assert_eq!(studio.dim_behaviours, vec![crate::config::Behaviour::Done]);
+    }
+
+    #[test]
+    fn a_note_above_the_bare_lights_heading_renders_like_any_other_tables() {
+        // `lights` IS TAKEN APART BEFORE IT IS WRITTEN, so its own `note` has
+        // to be pulled out with `refresh_secs` or the leftover check refuses
+        // it as an unknown key, the one table a values file could not comment.
+        let mut lights = toml::Table::new();
+        lights.insert(
+            "note".to_string(),
+            toml::Value::String("the lamps this machine drives".to_string()),
+        );
+        let mut values = toml::Table::new();
+        values.insert("lights".to_string(), toml::Value::Table(lights));
+
+        let text = render(&values).expect("a noted lights table renders");
+        assert!(
+            text.contains("# the lamps this machine drives\n[lights]\n"),
+            "{text}"
+        );
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        assert_eq!(
+            *config.lights.expect("lights was armed"),
+            crate::config::Lights::default()
+        );
     }
 
     #[test]
