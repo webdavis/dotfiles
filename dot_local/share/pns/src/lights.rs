@@ -615,55 +615,202 @@ pub struct Fade {
 /// looked at; nothing here measured what a lead of zero looks like.
 pub const FADE_LEAD_MS: u64 = 50;
 
+/// Which end of a breath a lamp is fading TOWARD, or landed ON.
+///
+/// TWO VALUES, NEVER A BARE BOOL, because this crosses a file boundary (the
+/// held record's `:h`/`:l` suffix): a field that only this module reads can
+/// afford to be self-documenting at the call site instead of at its
+/// declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum End {
+    High,
+    Low,
+}
+
+/// Where a breath resumes: the millisecond its first fade is due, measured
+/// from THIS tick's own start, and which end it moves toward first.
+///
+/// A ZERO-VALUED `Resume` (due at once, moving toward low first) REPRODUCES
+/// THE ORIGINAL, UNBROKEN BREATH: a lamp with no record to resume from is a
+/// lamp that has never breathed, and starting it down at the tick's first
+/// millisecond is the only honest answer for one.
+///
+/// A NAMED STRUCT, NOT TWO POSITIONAL `u64`S, because a resume built with the
+/// fields swapped would compile and breathe the wrong way from the wrong
+/// moment; the two are never interchangeable so the type keeps them apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resume {
+    pub first_due_ms: u64,
+    pub from_high: bool,
+}
+
+impl Default for Resume {
+    fn default() -> Self {
+        Resume {
+            first_due_ms: 0,
+            from_high: true,
+        }
+    }
+}
+
 /// The whole breath one tick issues: the fades, in order, with the second one
 /// leading the first by `FADE_LEAD_MS` and so on.
 ///
-/// IT STARTS DOWN AND ENDS AT THE PEAK. Ending high is what lets the next tick
-/// resume the breath rather than restart it: the lamp is already where the next
-/// descent begins, so the join between two ticks is one more turn-around rather
-/// than a jump. The cost is a slightly longer hold at the peak once per
-/// interval, which is accepted.
+/// EVERY FADE IS ISSUED STRICTLY INSIDE THE BUDGET, AND THE LAST ONE ENDS
+/// AFTER IT. That is what makes the breath seamless rather than paused at its
+/// peak: the driver used to stop issuing once a fade's whole DURATION could
+/// not fit, which left the lamp holding an end for whatever was left of the
+/// interval (a third of it, at the shipped refresh). Ending the schedule at
+/// the last ISSUE instead means the lamp is still moving when this tick's
+/// child exits; the fade in flight simply keeps running on the bridge with no
+/// child left to interrupt it, and the next tick's own first fade is timed to
+/// take over `FADE_LEAD_MS` before that one would have ended (`resume_from`
+/// reads that from the held record). The residual pause this leaves is bounded
+/// by one step of slack plus the next tick's own resolve and the daemon's
+/// second of scheduling slop, worst case, and it is zero on most ticks: the
+/// two resolves do not cancel every time, so the bound is a ceiling and not
+/// an average.
 ///
-/// AN EVEN NUMBER OF FADES, ALWAYS, because odd would end at the low end. That
-/// is why the count is computed and then rounded DOWN to even rather than fitted
-/// exactly: an extra half cycle that does not fit is a fade the next tick would
-/// interrupt mid-descent.
+/// A RESUME SHIFTS EVERY FADE'S DUE MILLISECOND by `first_due_ms` and its
+/// FIRST TARGET by `from_high` (moving toward `low` when `from_high`, and
+/// toward `high` otherwise), so the schedule this tick issues is the next leg
+/// of the breath the previous tick was already running, not a fresh one
+/// restarted at the interval's zero.
 ///
-/// THE LAST FADE COMPLETES INSIDE THE INTERVAL. The driver has to be gone before
-/// the next tick starts, and a fade still running when it does would be replaced
-/// mid-flight from an unknown brightness, so the budget covers the final fade's
-/// whole duration rather than only its issue.
-///
-/// THE BUDGET IS WHAT IS LEFT OF THE INTERVAL, in milliseconds, and NOT the
-/// interval itself. A tick spends part of its interval resolving the map on the
-/// bridge before the first fade is issued, and three calls under a transport
-/// deadline are not free: fitted to the whole interval instead, the breath ran
-/// past the moment the next tick started and two children issued fades to one
-/// lamp, each writing a brightness the other did not expect.
-///
-/// A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING, which is the honest answer
-/// rather than a half breath: the lamp keeps whatever the last tick left it at
-/// and the next tick, which has its whole interval, arms it. Two fades fit any
-/// ORDINARY tick, which the config's own bounds guarantee rather than this
-/// function: `MAX_FADE_MS` is five seconds and `MIN_REFRESH_SECS` is ten.
-pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath) -> Vec<Fade> {
+/// A SCHEDULE THAT WOULD START AT OR PAST THE BUDGET IS EMPTY, which is the
+/// same honest answer a schedule with no room for even one fade always gave:
+/// the lamp keeps whatever it was last told and the next tick, with its whole
+/// interval ahead of it, picks the breath back up.
+pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resume) -> Vec<Fade> {
     let step_ms = breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1);
-    // How many fades fit: the first costs its whole duration, and each one after
-    // it costs a step, because it is issued while its predecessor is still
-    // running.
-    let after_the_first = budget_ms.saturating_sub(breath.duration_ms) / step_ms;
-    let count = after_the_first.saturating_add(1);
-    let even = count - count % 2;
-    (0..even)
+    if resume.first_due_ms >= budget_ms {
+        return Vec::new();
+    }
+    let remaining_ms = budget_ms - resume.first_due_ms;
+    let count = remaining_ms.div_ceil(step_ms);
+    (0..count)
         .map(|index| Fade {
-            brightness: if index % 2 == 0 {
+            brightness: if (index % 2 == 0) == resume.from_high {
                 breath.low
             } else {
                 breath.high
             },
-            start_ms: index * step_ms,
+            start_ms: resume.first_due_ms + index * step_ms,
         })
         .collect()
+}
+
+/// The end a breath's LAST fade lands on, or `None` for a schedule with no
+/// fades at all.
+///
+/// A SMALL LOOKUP RATHER THAN RE-DERIVING IT FROM THE FADE LIST AT EVERY
+/// CALLER, because the held record's phase is exactly this one value: the
+/// lamp lands on `high` when the last fade's brightness is the breath's own
+/// high end, and on `low` otherwise.
+pub fn breath_lands_on(fades: &[Fade], breath: &crate::config::Breath) -> Option<End> {
+    fades.last().map(|fade| {
+        if fade.brightness == breath.high {
+            End::High
+        } else {
+            End::Low
+        }
+    })
+}
+
+/// One lamp's line in the held record: the fixture path, and where in its
+/// breath it left off.
+///
+/// `resume` IS `None` FOR A BARE PATH, which is a lamp the record holds with
+/// no phase attached: a fresh arm, a phase write a race stood down, or a
+/// token an older build or a hand edit left without one. All three read the
+/// same way, as a breath that starts fresh.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeldEntry {
+    pub path: String,
+    pub resume: Option<(u64, End)>,
+}
+
+impl HeldEntry {
+    /// A lamp held with no phase recorded for it.
+    pub fn bare(path: impl Into<String>) -> HeldEntry {
+        HeldEntry {
+            path: path.into(),
+            resume: None,
+        }
+    }
+}
+
+/// One held-record token, rendered: the bare path, or the path with its
+/// phase, `@<end-unix-ms>:h` or `@<end-unix-ms>:l`.
+///
+/// `@` AND `:` NEITHER APPEAR IN A FIXTURE PATH (`light/<id>` or
+/// `grouped_light/<id>`, the id a bridge-issued UUID), so the token round
+/// trips through the same whitespace-separated line the bare record always
+/// used, with nothing to escape.
+pub fn render_held_token(entry: &HeldEntry) -> String {
+    match entry.resume {
+        Some((end_unix_ms, End::High)) => format!("{}@{end_unix_ms}:h", entry.path),
+        Some((end_unix_ms, End::Low)) => format!("{}@{end_unix_ms}:l", entry.path),
+        None => entry.path.clone(),
+    }
+}
+
+/// One held-record token, parsed.
+///
+/// A MALFORMED SUFFIX IS NO PHASE, NEVER UNREADABLE: the record as a whole
+/// already has an unreadable answer (`None`, held_lamps' own `Err(_)` arm) for
+/// a file nothing here could open at all, and a token that arrived from an
+/// older build, a hand edit, or a write this tick's own guard cut short is a
+/// path this run still knows how to put out. Losing the phase costs one fade
+/// of resume; inventing an unreadable path would cost the lamp.
+pub fn parse_held_token(token: &str) -> HeldEntry {
+    let Some((path, suffix)) = token.split_once('@') else {
+        return HeldEntry::bare(token);
+    };
+    let phase = suffix.split_once(':').and_then(|(end_ms, flag)| {
+        let end_unix_ms: u64 = end_ms.parse().ok()?;
+        let end = match flag {
+            "h" => End::High,
+            "l" => End::Low,
+            _ => return None,
+        };
+        Some((end_unix_ms, end))
+    });
+    match phase {
+        Some(resume) => HeldEntry {
+            path: path.to_string(),
+            resume: Some(resume),
+        },
+        None => HeldEntry::bare(path),
+    }
+}
+
+/// The `Resume` a lamp's next breath starts from, off what its held entry
+/// last recorded.
+///
+/// `first_due_ms` IS THE RECORDED END, LESS THE SEAMLESS LEAD, LESS NOW,
+/// SATURATING AT ZERO: the previous tick's last fade does not finish landing
+/// on the bridge until that instant, and the next one has to be issued
+/// `FADE_LEAD_MS` before it, exactly as every fade inside one tick already is.
+/// A `now_ms` past that moment (a tick that ran late, or the bridge holding
+/// the lamp at its recorded end since nothing else has moved it) saturates to
+/// zero: due at once, not due in the past.
+///
+/// NO ENTRY AND NO PHASE BOTH GIVE THE DEFAULT `Resume`, which starts the
+/// breath down at once: the lamp has never breathed, or something else put it
+/// somewhere this record does not describe (an external switch, a killed
+/// child's bare token, a dim-window shape change), and starting fresh from the
+/// low end costs at most one fade of motion, never a pause.
+pub fn resume_from(entry: Option<&HeldEntry>, now_ms: u64) -> Resume {
+    let Some((end_unix_ms, end)) = entry.and_then(|entry| entry.resume) else {
+        return Resume::default();
+    };
+    Resume {
+        first_due_ms: end_unix_ms
+            .saturating_sub(now_ms)
+            .saturating_sub(FADE_LEAD_MS),
+        from_high: matches!(end, End::High),
+    }
 }
 
 /// What one harness event does to its session's needs marker.
@@ -1071,13 +1218,14 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Action, FADE_LEAD_MS, Fade, Held, House, LOOP_USAGE, Loop, LoopCommand, MAX_MUTED_PLACES,
-        Muted, News, QuietCommand, Say, Streak, Unread, WORKING, active_held, any_blocked,
-        any_working, bare_mute_secs, blocked_marker, blocked_marker_action, breath_fades,
-        last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
-        muted_places, muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
-        quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
-        working_owner, workspace_agent_statuses,
+        Action, End, FADE_LEAD_MS, Fade, Held, HeldEntry, House, LOOP_USAGE, Loop, LoopCommand,
+        MAX_MUTED_PLACES, Muted, News, QuietCommand, Resume, Say, Streak, Unread, WORKING,
+        active_held, any_blocked, any_working, bare_mute_secs, blocked_marker,
+        blocked_marker_action, breath_fades, breath_lands_on, last_interaction, lease_marker,
+        loop_command, loop_running, muted_after, muted_entries, muted_places, muted_report,
+        news_after, next_streak, parse_held_token, parse_news, parse_streak, pulse_fires,
+        quiet_command, render_held_token, render_muted, render_news, render_streak, resume_from,
+        say, shown, unread_arming, working_owner, workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1873,8 +2021,11 @@ mod tests {
     };
 
     #[test]
-    fn a_breath_starts_down_alternates_and_ends_at_the_peak() {
-        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+    fn a_zero_resume_reproduces_the_original_breath_with_one_more_fade_added() {
+        // THE ORIGINAL SIX-FADE VECTOR, PRESERVED AS A PREFIX. The seamless
+        // schedule does not restart the breath, it simply keeps issuing into
+        // the slack the old, stop-at-the-peak schedule left unused.
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default());
         assert_eq!(
             fades,
             vec![
@@ -1902,19 +2053,19 @@ mod tests {
                     brightness: 100,
                     start_ms: 9_750
                 },
+                Fade {
+                    brightness: 30,
+                    start_ms: 11_700
+                },
             ],
-            "three full cycles of the locked blocked shape inside a twelve-second interval"
+            "three full cycles of the locked blocked shape, plus the seventh \
+             fade the seamless schedule now fits into a twelve-second interval"
         );
-        // ENDS AT THE PEAK, which is what lets the next tick resume the breath
-        // rather than restart it, and is the property an odd count would break.
-        assert_eq!(fades.len() % 2, 0);
-        assert_eq!(fades.last().map(|fade| fade.brightness), Some(BLOCKED.high));
-        assert_eq!(fades.first().map(|fade| fade.brightness), Some(BLOCKED.low));
     }
 
     #[test]
     fn each_fade_leads_the_one_before_it_so_the_lamp_never_pauses_at_an_end() {
-        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default());
         for pair in fades.windows(2) {
             assert_eq!(
                 pair[1].start_ms - pair[0].start_ms,
@@ -1925,58 +2076,128 @@ mod tests {
     }
 
     #[test]
-    fn the_last_fade_finishes_before_the_next_tick_and_a_half_cycle_that_would_not_is_dropped() {
-        // THE BUDGET COVERS THE FINAL FADE'S WHOLE DURATION, because the driver
-        // has to be gone before the next tick starts: a fade still running then
-        // would be replaced mid-flight from a brightness nothing recorded.
-        for refresh_secs in [10, 12, 20, 25, 30] {
-            for breath in [BLOCKED, SLOW] {
-                let fades = breath_fades(refresh_secs * 1000, &breath);
-                let last = fades.last().expect("a breath is never empty");
+    fn every_last_fade_is_issued_inside_the_budget_and_lands_after_it() {
+        // THE LAW, NOT A COINCIDENCE (verified at every quarter-second budget
+        // the config's own bounds ever hand this function): the slack before
+        // the last issue always sits in (0, step], and that fade's own
+        // duration always carries the lamp past the budget it was issued
+        // in. A schedule that instead FIT the last fade's whole duration
+        // inside the budget (the old, stop-at-the-peak shape, and a
+        // completion-fitted rewrite of this one) fails the second assertion
+        // at every budget, and the old EVEN-rounded count fails the first at
+        // 11_500ms.
+        for breath in [BLOCKED, SLOW] {
+            let step_ms = breath.duration_ms - FADE_LEAD_MS;
+            let mut budget_ms = 8_000;
+            while budget_ms <= 12_000 {
+                let fades = breath_fades(budget_ms, &breath, Resume::default());
+                let last = fades.last().expect("8s or more is never empty");
+                let slack = budget_ms - last.start_ms;
                 assert!(
-                    last.start_ms + breath.duration_ms <= refresh_secs * 1000,
-                    "refresh {refresh_secs}s, {}ms fades: the last fade must finish inside \
-                     the interval, and it starts at {}ms",
-                    breath.duration_ms,
-                    last.start_ms
+                    slack > 0 && slack <= step_ms,
+                    "{}ms fades at budget {budget_ms}ms: slack {slack}ms is outside \
+                     (0, {step_ms}]",
+                    breath.duration_ms
                 );
-                assert_eq!(fades.len() % 2, 0, "and it must end at the peak");
-                assert!(fades.len() >= 2, "a breath is at least one full cycle");
+                assert!(
+                    last.start_ms + breath.duration_ms > budget_ms,
+                    "{}ms fades at budget {budget_ms}ms: the last fade must still be \
+                     running when the budget ends, and it ends at {}ms",
+                    breath.duration_ms,
+                    last.start_ms + breath.duration_ms
+                );
+                budget_ms += 250;
             }
         }
-        // THE DROPPED HALF CYCLE, named: a twelve-second interval fits three
-        // two-second cycles but only ONE four-second cycle, so the slow shape
-        // holds its peak for the rest of the interval. That is the accepted
-        // cost of stopping at the peak.
-        assert_eq!(breath_fades(FULL_INTERVAL_MS, &SLOW).len(), 2);
-        assert_eq!(breath_fades(20_000, &SLOW).len(), 4);
     }
 
     #[test]
-    fn a_breath_fits_what_is_left_of_the_interval_rather_than_the_whole_of_it() {
-        // THE RESOLVE IS PART OF THE CHILD'S LIFE. A tick spends the first
-        // seconds of its interval resolving the map on the bridge, and fades
-        // fitted to the WHOLE interval therefore ran past the moment the next
-        // tick started: two children then issued fades to one lamp, each
-        // writing a brightness the other did not expect.
-        let whole = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
-        let after_a_slow_resolve = breath_fades(FULL_INTERVAL_MS - 4_000, &BLOCKED);
-        assert!(
-            after_a_slow_resolve.len() < whole.len(),
-            "four seconds spent resolving has to cost fades: {} against {}",
-            after_a_slow_resolve.len(),
-            whole.len()
+    fn a_resumed_breath_moves_toward_low_from_high_and_toward_high_from_low() {
+        let from_the_peak = breath_fades(
+            FULL_INTERVAL_MS,
+            &BLOCKED,
+            Resume {
+                first_due_ms: 0,
+                from_high: true,
+            },
         );
-        let last = after_a_slow_resolve.last().expect("a cycle still fits");
-        assert!(
-            last.start_ms + BLOCKED.duration_ms <= FULL_INTERVAL_MS - 4_000,
-            "and the last fade still finishes inside what was left: {last:?}"
+        assert_eq!(
+            from_the_peak.first().map(|fade| fade.brightness),
+            Some(BLOCKED.low),
+            "a lamp resuming from the high end moves down first"
         );
-        // A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING AT ALL, which is the
-        // honest answer rather than a half breath: the lamp keeps whatever the
-        // last tick left it at, and the next tick has its whole interval.
-        assert!(breath_fades(BLOCKED.duration_ms, &BLOCKED).is_empty());
-        assert!(breath_fades(0, &BLOCKED).is_empty());
+        let from_the_floor = breath_fades(
+            FULL_INTERVAL_MS,
+            &BLOCKED,
+            Resume {
+                first_due_ms: 0,
+                from_high: false,
+            },
+        );
+        assert_eq!(
+            from_the_floor.first().map(|fade| fade.brightness),
+            Some(BLOCKED.high),
+            "and vice versa"
+        );
+    }
+
+    #[test]
+    fn a_resumes_first_due_ms_shifts_every_fades_start_by_the_same_amount() {
+        let shifted = breath_fades(
+            FULL_INTERVAL_MS,
+            &BLOCKED,
+            Resume {
+                first_due_ms: 500,
+                from_high: true,
+            },
+        );
+        let unshifted = breath_fades(FULL_INTERVAL_MS - 500, &BLOCKED, Resume::default());
+        let shifted_starts: Vec<u64> = shifted.iter().map(|fade| fade.start_ms - 500).collect();
+        let unshifted_starts: Vec<u64> = unshifted.iter().map(|fade| fade.start_ms).collect();
+        assert_eq!(
+            shifted_starts, unshifted_starts,
+            "a resume due 500ms late issues the same schedule 500ms later, against \
+             a budget 500ms shorter"
+        );
+    }
+
+    #[test]
+    fn a_budget_that_cannot_fit_even_one_fade_is_empty() {
+        assert!(breath_fades(0, &BLOCKED, Resume::default()).is_empty());
+        assert!(
+            breath_fades(
+                1_000,
+                &BLOCKED,
+                Resume {
+                    first_due_ms: 1_000,
+                    from_high: true
+                }
+            )
+            .is_empty(),
+            "a resume due at or past the budget has nowhere left to fade"
+        );
+    }
+
+    #[test]
+    fn a_breath_lands_on_whichever_end_its_last_fade_targeted() {
+        assert_eq!(
+            breath_lands_on(
+                &breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default()),
+                &BLOCKED
+            ),
+            Some(End::Low),
+            "seven fades from the peak land on low"
+        );
+        assert_eq!(
+            breath_lands_on(&breath_fades(10_000, &BLOCKED, Resume::default()), &BLOCKED),
+            Some(End::High),
+            "six fades from the peak land on high"
+        );
+        assert_eq!(
+            breath_lands_on(&breath_fades(0, &BLOCKED, Resume::default()), &BLOCKED),
+            None,
+            "an empty schedule lands nowhere"
+        );
     }
 
     #[test]
@@ -1989,7 +2210,7 @@ mod tests {
             high: 7,
             low: 1,
         };
-        let fades = breath_fades(FULL_INTERVAL_MS, &dim);
+        let fades = breath_fades(FULL_INTERVAL_MS, &dim, Resume::default());
         assert_eq!(
             fades,
             vec![
@@ -2009,7 +2230,87 @@ mod tests {
                     brightness: 7,
                     start_ms: 8_850
                 },
+                Fade {
+                    brightness: 1,
+                    start_ms: 11_800
+                },
             ],
+        );
+    }
+
+    // --- the held record's phase --------------------------------------------
+
+    #[test]
+    fn a_held_entrys_phase_round_trips_through_its_rendered_token() {
+        let high = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some((1_234_567, End::High)),
+        };
+        assert_eq!(render_held_token(&high), "light/l1@1234567:h");
+        assert_eq!(parse_held_token("light/l1@1234567:h"), high);
+
+        let low = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some((1_234_567, End::Low)),
+        };
+        assert_eq!(render_held_token(&low), "light/l1@1234567:l");
+        assert_eq!(parse_held_token("light/l1@1234567:l"), low);
+    }
+
+    #[test]
+    fn a_bare_token_reads_as_no_phase_and_a_malformed_one_falls_back_to_bare() {
+        assert_eq!(
+            parse_held_token("light/l1"),
+            HeldEntry::bare("light/l1"),
+            "a token with no `@` at all is a lamp with no phase recorded"
+        );
+        for malformed in [
+            "light/l1@notanumber:h",
+            "light/l1@1234567:sideways",
+            "light/l1@1234567",
+            "light/l1@",
+        ] {
+            assert_eq!(
+                parse_held_token(malformed),
+                HeldEntry::bare("light/l1"),
+                "{malformed} is unreadable, never unparseable: it reads as no phase"
+            );
+        }
+    }
+
+    #[test]
+    fn resuming_off_no_entry_or_no_phase_starts_the_breath_fresh() {
+        assert_eq!(resume_from(None, 1_000), Resume::default());
+        assert_eq!(
+            resume_from(Some(&HeldEntry::bare("light/l1")), 1_000),
+            Resume::default(),
+            "a bare entry is a lamp this record holds with no phase recorded"
+        );
+    }
+
+    #[test]
+    fn resuming_off_a_recorded_phase_shifts_the_next_fade_and_flips_its_direction() {
+        let held = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some((13_700, End::Low)),
+        };
+        assert_eq!(
+            resume_from(Some(&held), 12_400),
+            Resume {
+                first_due_ms: 1_250,
+                from_high: false
+            },
+            "due FADE_LEAD_MS before the recorded end, moving away from the end it \
+             landed on"
+        );
+        // A `now_ms` past the recorded end saturates at zero rather than going
+        // negative: due at once, not due in the past.
+        assert_eq!(
+            resume_from(Some(&held), 20_000),
+            Resume {
+                first_due_ms: 0,
+                from_high: false
+            }
         );
     }
 

@@ -149,9 +149,11 @@ pub struct Pulse {
 
 /// A breath: how long ONE fade takes, and the two ends it fades between.
 ///
-/// `high` IS THE PEAK AND IS WHERE A BREATH STOPS. The driver finishes its
-/// in-flight cycle at the peak so the next tick resumes from there, which is
-/// why `low` above `high` is refused at load rather than rendered upside down.
+/// `high` IS THE PEAK. The held record tracks which end a breath last landed
+/// on (`resume_from` in `lights.rs`), and every fade the driver issues moves
+/// toward one of these two named values, which is why `low` above `high` is
+/// refused at load: with the ends reversed, a fade to `high` would move the
+/// lamp DOWN and one to `low` would move it up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Breath {
     pub duration_ms: u64,
@@ -259,9 +261,9 @@ impl Default for Lights {
 /// How often a lamp holding a state is re-armed.
 ///
 /// TWELVE, and it is a breath budget rather than a round number: the tick's own
-/// driver fades a breathing lamp for its whole interval and stops at the peak,
-/// so the interval is what decides how many fades fit between two ticks. Twelve
-/// seconds holds three two-second cycles or one four-second one, which is what
+/// driver fades a breathing lamp seamlessly across the whole interval, so the
+/// interval is what decides how many fades fit between two ticks. Twelve
+/// seconds holds six two-second fades or three four-second ones, which is what
 /// the locked shapes were measured at.
 const DEFAULT_REFRESH_SECS: u64 = 12;
 
@@ -382,12 +384,11 @@ const MAX_GIVE_UP_AFTER_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// How long ONE fade may take, in milliseconds.
 ///
-/// THE CEILING IS WHAT MAKES THE DRIVER TOTAL. A breath stops at the peak, so
-/// the shortest honest run is a fade down and a fade back, and both have to fit
-/// inside `MIN_REFRESH_SECS`. At five seconds a pair fits ten with room to
-/// spare; past it a tick could be asked for a cycle longer than the interval it
-/// has, and the driver would have to either overrun the next tick or stop
-/// somewhere other than the peak.
+/// THE CEILING IS WHAT MAKES THE DRIVER TOTAL. `breath_fades` needs room for
+/// at least one fade inside a tick's budget, and that budget is what is LEFT
+/// of `MIN_REFRESH_SECS` after the resolve, so a fade past this ceiling could
+/// be asked for a schedule the shortest interval the config allows has no
+/// room left to even start.
 const MIN_FADE_MS: u64 = 200;
 const MAX_FADE_MS: u64 = 5000;
 
@@ -1217,15 +1218,14 @@ fn breath_key(
 }
 
 /// A breath whose `low` is above its `high` is REFUSED rather than rendered
-/// upside down, because the driver's stated invariant is that it stops at the
-/// peak: with the ends swapped it would stop at the fainter of the two and the
-/// next tick would resume from there, which is the opposite of what the shape
-/// promises.
+/// upside down: every fade the driver issues moves toward one of these two
+/// named values, so with the ends swapped a fade to `high` would move the
+/// lamp DOWN and one to `low` would move it up.
 fn ends_agree(where_it_is: &str, breath: &Breath) -> Result<(), ConfigError> {
     if breath.low > breath.high {
         return Err(ConfigError::Invalid(format!(
-            "`{where_it_is}` has low {} above high {}, so the breath would stop at \
-             its faintest rather than at its peak",
+            "`{where_it_is}` has low {} above high {}, so a fade to `high` would \
+             move the lamp down and one to `low` would move it up",
             breath.low, breath.high
         )));
     }
@@ -2900,9 +2900,8 @@ mod tests {
 
     #[test]
     fn a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down() {
-        // THE DRIVER'S STATED INVARIANT IS THAT IT STOPS AT THE PEAK, and with
-        // the ends swapped it would stop at the fainter of the two and the next
-        // tick would resume from there.
+        // EVERY FADE MOVES TOWARD ONE OF THE TWO NAMED ENDS, and with them
+        // swapped a fade to `high` would move the lamp down.
         for written in [
             "[lights.blocked]\nhigh = 20\nlow = 40\n",
             "[lights.unread]\nhigh = 20\nlow = 40\n",
@@ -2914,7 +2913,10 @@ mod tests {
                 said.contains("low 40") || said.contains("low 4"),
                 "{written:?} must name both ends: {said}"
             );
-            assert!(said.contains("peak"), "and say what it costs: {said}");
+            assert!(
+                said.contains("move the lamp down"),
+                "and say what it costs: {said}"
+            );
         }
         assert!(
             parse_config("[lights.blocked]\nhigh = 40\nlow = 40\n").is_ok(),

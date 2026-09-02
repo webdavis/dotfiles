@@ -5039,7 +5039,14 @@ fn lights_tick() -> i32 {
     // derived, which is what repairs the file. The residue is stated: a lamp
     // held under a name this run could not read stays lit until the repaired
     // record names it again or the operator's next return clears it.
-    let held_before = held_lamps(&state);
+    // ONE READ FOR BOTH THE BARE GATE AND THE PHASE A RESUMED BREATH NEEDS,
+    // rather than two: `held_lamps` is `read_held` with the phase dropped, and
+    // reading the record twice here would be two disk reads of one fact this
+    // tick only ever reads once.
+    let held_before_entries = read_held(&state);
+    let held_before: Option<Vec<String>> = held_before_entries
+        .as_deref()
+        .map(|entries| entries.iter().map(|entry| entry.path.clone()).collect());
     if held_before.is_none() {
         complaints.push(HELD_RECORD_UNREADABLE.to_string());
     }
@@ -5075,7 +5082,8 @@ fn lights_tick() -> i32 {
                 minutes_now: local_minutes_since_midnight(now),
                 muted: &muted,
             },
-            held_before.as_deref(),
+            held_before_entries.as_deref(),
+            now.saturating_mul(1000),
             std::thread::sleep,
         ));
     }
@@ -5102,31 +5110,51 @@ fn lights_tick() -> i32 {
     0
 }
 
+/// One lamp's breath for this tick: what to send, and where in its own
+/// schedule it resumes.
+///
+/// A NAMED STRUCT, NOT A TUPLE, once a fourth field (`resume`) joined the
+/// three the routing loop already carried: a positional fourth slot is a
+/// silent transposition waiting to happen, and every field here already has
+/// a name at its own call site.
+struct Breathing {
+    path: String,
+    breath: pns::config::Breath,
+    color: pns::pulse::PulseColor,
+    resume: pns::lights::Resume,
+}
+
 /// The tick's writes, in the ONE ORDER that cannot leave a lamp lit and
 /// unaccounted for: arm every lamp, clear only what the arm did not write to,
-/// record what is held, and only then breathe.
+/// record what is held (bare), breathe, and only then record the phase each
+/// lamp landed on.
 ///
 /// THE ORDER IS THE BEHAVIOUR, which is why these are one function rather than
 /// five lines at the bottom of the tick. Every held body is a plain state write
 /// that does NOT expire, so a clear computed before the arm, or a record written
 /// before the clear, is a lamp left lit with nothing that knows its name.
 ///
+/// THE PRE-ARM WRITE IS BARE, deliberately dropping any phase this tick read:
+/// it is what a killed child leaves behind, and a killed child cannot finish a
+/// fade, so a bare token is a lamp this run cannot promise landed anywhere in
+/// particular. The PHASE is a SECOND write, after the breath returns, guarded
+/// by a re-read of the SAME bare list this tick's own pre-arm write left: a
+/// return that cleared the record mid-breath already emptied it, and writing
+/// the phase over that would resurrect a hold the operator just ended.
+///
 /// THE BREATHING RUNS LAST AND HOLDS THIS PROCESS OPEN until the last fade has
-/// been ISSUED, which is one fade's duration before the interval ends. That is
+/// been ISSUED, one seamless turn-around's lead before the budget ends. That is
 /// what makes the lamp a liveness signal: the fades are issued by this process
 /// on a cadence, so a daemon that dies, a machine that sleeps and a pns that
 /// crashes all stop the motion within one interval. The record and the clear are
 /// already on disk before the first sleep, so a driver killed mid-breath costs a
 /// lamp frozen at its last brightness and never a lamp nothing can put out.
 ///
-/// AND IT IS GONE BEFORE THE NEXT TICK STARTS, which is measured here rather
-/// than assumed. THE WHOLE CHILD IS THE THING BOUNDED, not the fade schedule:
-/// the map is resolved on the bridge before the first fade is issued, three
-/// calls under a transport deadline are not free, and a breath fitted to the
-/// WHOLE interval therefore ran past the moment the next tick started. Two
-/// children fading one lamp at once each write a brightness the other did not
-/// expect. What is left of the interval after the resolve is what the fades get,
-/// and a budget too short for one cycle issues nothing at all.
+/// AND THE CHILD IS GONE BEFORE THE NEXT TICK'S CHILD RUNS, which the daemon's
+/// own `running` check now enforces rather than the schedule alone: the last
+/// fade routinely still be running on the bridge when this budget ends (that is
+/// the seamless join), so a wedged PUT past its lead can no longer be met by a
+/// second child.
 ///
 /// A BRIDGE THAT ANSWERED NO LISTING CHANGES NOTHING AT ALL. It is direct
 /// evidence the transport is down, and both halves of acting on it are wrong: a
@@ -5134,18 +5162,20 @@ fn lights_tick() -> i32 {
 /// lamp lit with nothing in the system that knows about it.
 ///
 /// IT PRINTS NOTHING. The complaints are answered for the caller to say once.
+#[allow(clippy::too_many_arguments)]
 fn run_tick_writes<B: pns::channels::hue::Bridge>(
     bridge: &B,
     state: &Path,
     lights: &pns::config::Lights,
     active: &[pns::lights::Held],
     reading: &pns::channels::hue::Reading<'_>,
-    held_before: Option<&[String]>,
+    held_before: Option<&[pns::lights::HeldEntry]>,
+    now_ms: u64,
     sleep: impl FnMut(Duration),
 ) -> Vec<String> {
     let started = std::time::Instant::now();
     let mut complaints = Vec::new();
-    let mut breathing: Vec<(String, pns::config::Breath, pns::pulse::PulseColor)> = Vec::new();
+    let mut breathing: Vec<Breathing> = Vec::new();
     if !active.is_empty() {
         // The doctor is where an unreachable bridge is REPORTED; this process
         // runs unattended and has no reader for that sentence.
@@ -5169,13 +5199,24 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
                 continue;
             }
             let (color, breath) = pns::channels::hue::held_render(held, lights, showing);
-            breathing.push((
-                pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path(),
+            let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
+            // A LAMP NOT NAMED IN LAST TICK'S RECORD, OR NAMED THERE WITH NO
+            // PHASE, RESUMES AT THE DEFAULT: a fresh arm, an external switch,
+            // a killed child's bare token and a dim-window shape change all
+            // read the same way, and all cost at most one fade of motion.
+            let previous =
+                held_before.and_then(|entries| entries.iter().find(|entry| entry.path == path));
+            let resume = pns::lights::resume_from(previous, now_ms);
+            breathing.push(Breathing {
+                path,
                 breath,
                 color,
-            ));
+                resume,
+            });
         }
     }
+    let held_before_bare: Option<Vec<String>> =
+        held_before.map(|entries| entries.iter().map(|entry| entry.path.clone()).collect());
     // THE RECORD IS READ AGAIN BEFORE ANYTHING IS WRITTEN, and this run stands
     // down if it moved. The states above were derived BEFORE the bridge work,
     // which is seconds of network, and the event path clears every held lamp and
@@ -5184,15 +5225,15 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     // taken before the clear, and the operator would watch a lamp they had just
     // put out come back on. The other writer has already done the clearing, so
     // there is nothing left here to do.
-    if held_lamps(state).as_deref() != held_before {
+    if held_lamps(state).as_deref() != held_before_bare.as_deref() {
         return complaints;
     }
-    let held_now: Vec<String> = breathing.iter().map(|(path, _, _)| path.clone()).collect();
+    let held_now: Vec<String> = breathing.iter().map(|entry| entry.path.clone()).collect();
     // WHATEVER WAS HELD AND IS NOT HELD NOW GETS PUT OUT BY NAME. Written as a
     // difference rather than as a special case, so a lamp dropped by a dim
     // window, a mute, a config edit or the condition simply ending is covered by
     // one line rather than four.
-    let stale: Vec<String> = held_before
+    let stale: Vec<String> = held_before_bare
         .unwrap_or_default()
         .iter()
         .filter(|path| !held_now.contains(path))
@@ -5206,7 +5247,12 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     // by name off this file, not the return from an absence, and not the
     // operator's own mute. Nothing armed is one interval of a dark lamp, which
     // the next tick fixes by itself.
-    if let Err(error) = remember_held(state, &held_now) {
+    let pre_arm: Vec<pns::lights::HeldEntry> = held_now
+        .iter()
+        .cloned()
+        .map(pns::lights::HeldEntry::bare)
+        .collect();
+    if let Err(error) = remember_held(state, &pre_arm) {
         complaints.push(format!(
             "pns lights: the held record could not be written ({error}); no lamp \
              was armed, because nothing would have been able to put one out"
@@ -5221,27 +5267,52 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
         .refresh_secs
         .saturating_mul(1000)
         .saturating_sub(spent_ms);
-    drive_breaths(bridge, budget_ms, &breathing, sleep);
+    let landings = drive_breaths(bridge, budget_ms, &breathing, sleep);
+    // THE PHASE, WRITTEN ONLY IF THE PRE-ARM LIST IS STILL THIS TICK'S OWN. A
+    // return that cleared every held lamp during the breath already emptied
+    // the record; resurrecting it here with a phase would hold a lamp the
+    // operator just put out. A lamp whose schedule came back empty (a budget
+    // too short to fit even one fade) keeps its bare, phaseless entry.
+    if held_lamps(state).as_deref() == Some(held_now.as_slice()) {
+        let phased: Vec<pns::lights::HeldEntry> = held_now
+            .iter()
+            .map(|path| {
+                landings
+                    .iter()
+                    .find(|(landed_path, _, _)| landed_path == path)
+                    .map(|(path, end, end_relative_ms)| pns::lights::HeldEntry {
+                        path: path.clone(),
+                        resume: Some((now_ms + end_relative_ms, *end)),
+                    })
+                    .unwrap_or_else(|| pns::lights::HeldEntry::bare(path.clone()))
+            })
+            .collect();
+        let _ = remember_held(state, &phased);
+    }
     complaints
 }
 
-/// Issue every lamp's breath on cadence for the rest of this interval.
+/// Issue every lamp's breath on cadence for the rest of this interval, and
+/// report which end each one landed on.
 ///
 /// ONE SLEEP SCHEDULE FOR EVERY LAMP, against one clock. Each fade carries the
 /// millisecond it is due at, measured from this function's own start, so a lamp
 /// whose PUT took a moment does not push every later fade of every lamp out by
 /// that moment: the overshoot is absorbed rather than accumulated.
 ///
-/// IT EXITS INSIDE THE BUDGET IT IS HANDED, which `breath_fades` guarantees by
-/// fitting the last fade's whole duration inside it. The budget is what the
-/// caller has LEFT of its interval, not the interval, because the map is
-/// resolved before the first fade is issued. Two ticks fading one lamp at once
-/// would each be writing a brightness the other did not expect.
+/// IT EXITS INSIDE THE BUDGET IT IS HANDED, WITH ITS LAST FADE STILL RUNNING.
+/// `breath_fades` issues that fade strictly before the budget ends and lets it
+/// finish after, which is the seamless join: the fade keeps moving on the
+/// bridge with no child left to interrupt it, and the caller's second held-
+/// record write is what lets the next tick pick the join up where this one
+/// left it. The budget is what the caller has LEFT of its interval, not the
+/// interval, because the map is resolved before the first fade is issued.
 ///
 /// A LAMP WHOSE FADES ARE ALREADY DONE SIMPLY STOPS, which is how lamps with
 /// different shapes share one schedule: the blocked lamp's two-second cycles run
-/// three times while the unread lamp's four-second one runs once, and the slower
-/// lamp holds its peak for the rest of the interval.
+/// more often than the unread lamp's four-second one, and the landing each is
+/// reported at is exactly the end its own last fade targeted.
+///
 /// THE SLEEPER IS A PARAMETER for one reason: the driver fills its whole
 /// interval BY DESIGN, so a test that let it sleep for real would live the
 /// interval too. The cadence a fake sleeper is handed is the same schedule the
@@ -5249,25 +5320,34 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
 fn drive_breaths<B: pns::channels::hue::Bridge>(
     bridge: &B,
     budget_ms: u64,
-    breathing: &[(String, pns::config::Breath, pns::pulse::PulseColor)],
+    breathing: &[Breathing],
     mut sleep: impl FnMut(Duration),
-) {
+) -> Vec<(String, pns::lights::End, u64)> {
     // (due millisecond, path, body), in the order they are due.
     let mut schedule: Vec<(u64, &str, String)> = Vec::new();
-    for (path, breath, color) in breathing {
-        for (index, fade) in pns::lights::breath_fades(budget_ms, breath)
-            .iter()
-            .enumerate()
-        {
+    let mut landings: Vec<(String, pns::lights::End, u64)> = Vec::new();
+    for entry in breathing {
+        let fades = pns::lights::breath_fades(budget_ms, &entry.breath, entry.resume);
+        for (index, fade) in fades.iter().enumerate() {
             // THE FIRST FADE CARRIES THE COLOUR AND THE `on`, which is what arms
             // the lamp; every one after it states brightness and duration alone,
-            // so the bridge has nothing else to reconcile mid-transition.
+            // so the bridge has nothing else to reconcile mid-transition. THIS
+            // HOLDS ON A RESUMED TICK TOO: an externally switched-off lamp comes
+            // back on with its first fade whichever end the record names.
             let body = if index == 0 {
-                pns::channels::hue::breath_arm_body(*color, fade, breath.duration_ms)
+                pns::channels::hue::breath_arm_body(entry.color, fade, entry.breath.duration_ms)
             } else {
-                pns::channels::hue::fade_body(fade, breath.duration_ms)
+                pns::channels::hue::fade_body(fade, entry.breath.duration_ms)
             };
-            schedule.push((fade.start_ms, path.as_str(), body));
+            schedule.push((fade.start_ms, entry.path.as_str(), body));
+        }
+        if let Some(end) = pns::lights::breath_lands_on(&fades, &entry.breath) {
+            let last = fades.last().expect("breath_lands_on found a last fade");
+            landings.push((
+                entry.path.clone(),
+                end,
+                last.start_ms + entry.breath.duration_ms,
+            ));
         }
     }
     schedule.sort_by_key(|(due_ms, path, _)| (*due_ms, *path));
@@ -5282,6 +5362,7 @@ fn drive_breaths<B: pns::channels::hue::Bridge>(
         }
         bridge.put(path, &body);
     }
+    landings
 }
 
 /// What one tick found: the states the house is holding, and whether anything
@@ -5576,28 +5657,46 @@ fn advance_streak(state: &Path, working: bool, now: u64) -> Option<pns::lights::
     next
 }
 
-/// The fixture paths a held write is currently holding, or None for a record
-/// this cannot read.
+/// The held record's entries, path and phase both, or None for a record this
+/// cannot read.
 ///
 /// ABSENT AND UNREADABLE ARE DIFFERENT ANSWERS, and collapsing them into an
 /// empty list is what made a corrupt record read as a house holding nothing.
 /// The event path's pulse gate then flashed straight over a lamp that was
 /// breathing, and no reader was told. The ordinary case, a machine holding
 /// nothing at all, is an ABSENT file and still answers with an empty list.
-fn held_lamps(state: &Path) -> Option<Vec<String>> {
+///
+/// THE ONE PARSE, shared by every reader: `held_lamps` is this with the phase
+/// dropped, so the three path-only consumers (the event path's pulse gate, the
+/// operator's return, and the mute) read bare paths off the very same tokens
+/// the breath's resume reads a phase from, and neither can drift from the
+/// other's idea of what a token means.
+fn read_held(state: &Path) -> Option<Vec<pns::lights::HeldEntry>> {
     match std::fs::read_to_string(state.join(LIGHTS_HELD)) {
-        Ok(line) => Some(line.split_whitespace().map(str::to_string).collect()),
+        Ok(line) => Some(
+            line.split_whitespace()
+                .map(pns::lights::parse_held_token)
+                .collect(),
+        ),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(Vec::new()),
         Err(_) => None,
     }
 }
 
+/// The fixture paths a held write is currently holding, bare, or None for a
+/// record this cannot read. See `read_held` for the phase this drops.
+fn held_lamps(state: &Path) -> Option<Vec<String>> {
+    read_held(state).map(|entries| entries.into_iter().map(|entry| entry.path).collect())
+}
+
 /// Record what is held now, or forget the file when nothing is.
 ///
 /// ONE LINE, SPACE SEPARATED, because a fixture path is `light/<id>` or
-/// `grouped_light/<id>` and neither can carry a space. That keeps this a
-/// `publish_state_line` write like every other state file rather than a second
-/// file format.
+/// `grouped_light/<id>` and neither can carry a space, and neither can carry
+/// `@` or `:` either, which is what lets a phased token
+/// (`light/<id>@<end-unix-ms>:h` or `:l`) share the line with a bare one. That
+/// keeps this a `publish_state_line` write like every other state file rather
+/// than a second file format.
 ///
 /// A TICK CAN REPUBLISH A GLOW THE RETURN JUST CLEARED, and that is a stated
 /// limit rather than a rule. The tick reads its condition before it reaches the
@@ -5614,7 +5713,7 @@ fn held_lamps(state: &Path) -> Option<Vec<String>> {
 /// lamp armed after a record that did not land is a lamp nothing in the system
 /// knows the name of, and the return from an absence, the next tick and the
 /// operator's own mute all put lamps out BY NAME off this file.
-fn remember_held(state: &Path, held: &[String]) -> std::io::Result<()> {
+fn remember_held(state: &Path, held: &[pns::lights::HeldEntry]) -> std::io::Result<()> {
     let marker = state.join(LIGHTS_HELD);
     if held.is_empty() {
         return match std::fs::remove_file(&marker) {
@@ -5622,7 +5721,12 @@ fn remember_held(state: &Path, held: &[String]) -> std::io::Result<()> {
             _ => Ok(()),
         };
     }
-    publish_state_line(&marker, &held.join(" "))
+    let line = held
+        .iter()
+        .map(pns::lights::render_held_token)
+        .collect::<Vec<_>>()
+        .join(" ");
+    publish_state_line(&marker, &line)
 }
 
 /// Say a complaint ONCE, and say it again only when it changes.
@@ -5821,6 +5925,11 @@ fn daemon_run() -> i32 {
             println!("pns daemon: disabled in the config; exiting");
             return 0;
         }
+        // REAPED BEFORE THE SPOOL IS DRAINED, so a child `decide` finds still
+        // in `children` really is alive THIS tick: reaped the other way round,
+        // a child that just exited would still read as running and hold a due
+        // occurrence to one more `Wait` than it needed.
+        reap(&mut children);
         // FAIL-QUIET, in `remember_staleness`'s style: a heartbeat that did not
         // land costs one doctor line, and complaining about it every tick is
         // the chatter this daemon must never produce.
@@ -5834,12 +5943,14 @@ fn daemon_run() -> i32 {
             );
             drain_spool(&spool, &state, now, tick, &mut children, &mut reported);
         }
-        reap(&mut children);
     }
 }
 
 /// One child the daemon started, and the moment it stops being allowed to run.
 struct Bounded {
+    /// The job's own id, so `decide` can ask whether THIS job's child is
+    /// still running rather than merely whether any child is.
+    id: String,
     child: std::process::Child,
     expires_at: std::time::Instant,
 }
@@ -5902,8 +6013,12 @@ fn drain_spool(
             // NOTHING TO DO, DECIDED WITHOUT TOUCHING IT. This is the only
             // verdict a peek is allowed to be the last word on.
             pns::daemon::Peeked::Job(job)
-                if pns::daemon::decide(&job, now, pns::daemon::marker_exists(state, &job))
-                    == pns::daemon::Verdict::Wait => {}
+                if pns::daemon::decide(
+                    &job,
+                    now,
+                    pns::daemon::marker_exists(state, &job),
+                    children.iter().any(|bounded| bounded.id == job.id),
+                ) == pns::daemon::Verdict::Wait => {}
             // Anything else is an ACTION, so the record is taken first and read
             // again afterwards. A failed claim means another run got there,
             // which is exactly what the rename is for.
@@ -5945,7 +6060,8 @@ fn act(
             release(claim);
         }
         pns::daemon::Peeked::Job(job) => {
-            match pns::daemon::decide(&job, now, pns::daemon::marker_exists(state, &job)) {
+            let running = children.iter().any(|bounded| bounded.id == job.id);
+            match pns::daemon::decide(&job, now, pns::daemon::marker_exists(state, &job), running) {
                 // The refresh this daemon claimed is not due yet, so it goes
                 // back CREATE-IF-ABSENT: a client that registered again in the
                 // meantime keeps its own record and this copy is dropped.
@@ -6025,6 +6141,7 @@ fn fire(
     match spawn_job(job) {
         Ok(child) => {
             children.push(Bounded {
+                id: job.id.clone(),
                 child,
                 expires_at: std::time::Instant::now() + tick * CHILD_TICKS,
             });
@@ -8054,15 +8171,15 @@ impl Bridge for UreqBridge {
 #[cfg(test)]
 mod tests {
     use super::{
-        CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
+        Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
         STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
         end_lease, held_lamps, keep_aside, lights_report, list, matches_glob, means_yes,
-        muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
-        recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
-        say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers,
-        sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
+        muted_state, now_secs, publish_config, publish_state_line, read_held, read_news, read_note,
+        recap_bounds, record_news, remember_held, renew_loop_lease, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, router_backend, run_pulse_writes,
+        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
+        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -8195,6 +8312,45 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_held_records_phase_round_trips_through_remember_held_and_read_held() {
+        // ONE PARSER, ONE RENDERER, so a phase written by `remember_held`
+        // reads back exactly through `read_held`, and `held_lamps` (the three
+        // bare-path consumers' own read) sees the same path with the phase
+        // silently dropped.
+        let state = scratch("held-record-phase-round-trip");
+        let phased = pns::lights::HeldEntry {
+            path: LAMP_PATH.to_string(),
+            resume: Some((1_700_000_000_123, pns::lights::End::High)),
+        };
+        remember_held(&state, std::slice::from_ref(&phased)).expect("the write lands");
+        assert_eq!(
+            read_held(&state),
+            Some(vec![phased]),
+            "the phase round-trips through the same file"
+        );
+        assert_eq!(
+            held_lamps(&state),
+            Some(vec![LAMP_PATH.to_string()]),
+            "and the bare consumers see only the path"
+        );
+    }
+
+    #[test]
+    fn a_bare_token_on_disk_still_reads_as_a_held_lamp_with_no_phase() {
+        // THE FORMAT A HAND-WRITTEN OR OLDER-BUILD RECORD USES, and every test
+        // above that writes `LAMP_PATH\n` directly to the file: a bare token
+        // is a lamp this record holds with no phase, never an unreadable
+        // record.
+        let state = scratch("held-record-bare-token");
+        std::fs::write(state.join(LIGHTS_HELD), format!("{LAMP_PATH}\n")).expect("the record");
+        assert_eq!(
+            read_held(&state),
+            Some(vec![pns::lights::HeldEntry::bare(LAMP_PATH)])
+        );
+        assert_eq!(held_lamps(&state), Some(vec![LAMP_PATH.to_string()]));
+    }
+
     /// The bridge the tick's writes are driven against: three listings,
     /// answered or not, and every PUT recorded IN ORDER.
     ///
@@ -8300,6 +8456,7 @@ mod tests {
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
             Some(&[]),
+            0,
             |_| {},
         );
         assert!(complaints.is_empty(), "{complaints:?}");
@@ -8321,9 +8478,16 @@ mod tests {
             "and every fade after it states brightness and duration alone"
         );
         assert_eq!(
-            recorded(&state).as_deref(),
-            Some(LAMP_PATH),
+            held_lamps(&state).as_deref(),
+            Some([LAMP_PATH.to_string()].as_slice()),
             "the record carries the lamp, or nothing will ever put it out"
+        );
+        assert!(
+            recorded(&state)
+                .expect("a record is on disk")
+                .starts_with(&format!("{LAMP_PATH}@")),
+            "and the second write, after the breath returns, carries the phase \
+             the lamp landed on"
         );
 
         // THE OTHER DIRECTION, which is what the clear exists for: a house with
@@ -8336,7 +8500,8 @@ mod tests {
             &held_lights(),
             &[],
             &noon(&nothing_muted()),
-            Some(&[LAMP_PATH.to_string()]),
+            Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
+            0,
             |_| {},
         );
         assert_eq!(
@@ -8351,6 +8516,39 @@ mod tests {
             None,
             "and the tick stops claiming to hold it"
         );
+    }
+
+    #[test]
+    fn a_phased_record_clears_by_its_bare_path_never_by_the_suffix() {
+        // THE SUFFIX A RESUMED BREATH WRITES MUST NEVER LEAK INTO A PUT PATH.
+        // A lamp the previous tick recorded with a phase is cleared exactly
+        // like a bare one: by the fixture path alone.
+        let state = scratch("tick-phased-record-clears-bare");
+        std::fs::write(
+            state.join(LIGHTS_HELD),
+            format!("{LAMP_PATH}@1700000000123:h\n"),
+        )
+        .expect("a phased record");
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &held_lights(),
+            &[],
+            &noon(&nothing_muted()),
+            Some(&[pns::lights::HeldEntry {
+                path: LAMP_PATH.to_string(),
+                resume: Some((1_700_000_000_123, pns::lights::End::High)),
+            }]),
+            0,
+            |_| {},
+        );
+        assert_eq!(
+            bridge.puts.borrow().as_slice(),
+            &[(LAMP_PATH.to_string(), CLEAR_BODY.to_string())],
+            "the clear addresses the bare path, never `{LAMP_PATH}@1700000000123:h`"
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
     }
 
     #[test]
@@ -8373,7 +8571,8 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
-            Some(&[LAMP_PATH.to_string()]),
+            Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
+            0,
             |_| {},
         );
         assert!(
@@ -8386,8 +8585,8 @@ mod tests {
             bridge.puts.borrow()
         );
         assert_eq!(
-            recorded(&state).as_deref(),
-            Some(LAMP_PATH),
+            held_lamps(&state).as_deref(),
+            Some([LAMP_PATH.to_string()].as_slice()),
             "and it is still recorded as held, or nothing will ever put it out"
         );
     }
@@ -8410,7 +8609,8 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&quieted("3F - Studio")),
-            Some(&[LAMP_PATH.to_string()]),
+            Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
+            0,
             |_| {},
         );
         assert_eq!(
@@ -8442,7 +8642,8 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&pns::channels::hue::Muting::Everything),
-            Some(&[LAMP_PATH.to_string()]),
+            Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
+            0,
             |_| {},
         );
         assert_eq!(
@@ -8471,6 +8672,7 @@ mod tests {
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
             None,
+            0,
             |_| {},
         );
         assert!(
@@ -8503,8 +8705,12 @@ mod tests {
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
             assert!(
-                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked.breath)
-                    .is_empty(),
+                !pns::lights::breath_fades(
+                    left,
+                    &pns::config::Lights::default().blocked.breath,
+                    pns::lights::Resume::default()
+                )
+                .is_empty(),
                 "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
             );
         }
@@ -8532,7 +8738,8 @@ mod tests {
             &noon(&nothing_muted()),
             // WHAT THIS TICK READ before the bridge work, against a record the
             // event path has emptied since.
-            Some(&[LAMP_PATH.to_string()]),
+            Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
+            0,
             |_| {},
         );
         assert!(
@@ -8565,7 +8772,8 @@ mod tests {
             &held_lights(),
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
-            Some(&[LAMP_PATH.to_string()]),
+            Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
+            0,
             |_| {},
         );
         assert!(
@@ -8603,8 +8811,18 @@ mod tests {
             &bridge,
             12_000,
             &[
-                ("light/a".to_string(), quick, pns::pulse::BLOCKED_COLOR),
-                ("light/b".to_string(), slow, pns::pulse::LOOP_COLOR),
+                Breathing {
+                    path: "light/a".to_string(),
+                    breath: quick,
+                    color: pns::pulse::BLOCKED_COLOR,
+                    resume: pns::lights::Resume::default(),
+                },
+                Breathing {
+                    path: "light/b".to_string(),
+                    breath: slow,
+                    color: pns::pulse::LOOP_COLOR,
+                    resume: pns::lights::Resume::default(),
+                },
             ],
             |_| {},
         );
@@ -8618,9 +8836,88 @@ mod tests {
             order,
             [
                 "light/a", "light/b", "light/a", "light/a", "light/b", "light/a", "light/a",
-                "light/a"
+                "light/b", "light/a", "light/a", "light/b",
             ],
-            "the fades interleave by their due milliseconds, not by lamp"
+            "the fades interleave by their due milliseconds, not by lamp: the quick \
+             shape's seven fades and the slow shape's four, seamless past the old \
+             stop-at-the-peak count"
+        );
+    }
+
+    #[test]
+    fn a_resumed_breath_composes_across_two_ticks_on_a_fake_clock() {
+        // THE HANDOFF, END TO END, on numbers a real clock never has to
+        // supply: both ticks are handed their own `now_ms`, so nothing here
+        // sleeps or waits for real time. Tick one's breath lands on an end
+        // and records it; tick two reads that record and picks the breath
+        // back up from exactly where it left off.
+        let lights = *pns::config::parse_config(
+            "[lights]\nrefresh_secs = 12\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let state = scratch("resumed-breath-two-ticks");
+
+        // TICK ONE, at N=0, with nothing yet held: the locked blocked shape's
+        // seven fades (the seamless schedule at a twelve-second budget) land
+        // on low, 13,700ms after this tick's own start.
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            |_| {},
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        let held_after_tick_one = read_held(&state).expect("a record this tick wrote");
+        assert_eq!(
+            held_after_tick_one,
+            vec![pns::lights::HeldEntry {
+                path: LAMP_PATH.to_string(),
+                resume: Some((13_700, pns::lights::End::Low)),
+            }],
+            "seven fades of the locked blocked shape land on low at 13,700ms"
+        );
+
+        // TICK TWO, at N=12,400: the previous tick's last fade does not
+        // finish landing on the bridge until 13,700, less the seamless
+        // lead, less now, which is 1,250ms still to wait.
+        let sleeps: RefCell<Vec<Duration>> = RefCell::new(Vec::new());
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&held_after_tick_one),
+            12_400,
+            |duration| sleeps.borrow_mut().push(duration),
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        let first_sleep_ms = sleeps.borrow()[0].as_millis();
+        // A TOLERANCE OF ONE MILLISECOND, not a wall-clock wait: the only
+        // real time this measures is however long this function took to
+        // reach its first `sleep` call, which is microseconds with no I/O
+        // in between; `Duration::as_millis` truncates, so any elapsed time
+        // at all reads that sleep as 1,249ms rather than a clean 1,250.
+        assert!(
+            (1_249..=1_250).contains(&first_sleep_ms),
+            "tick two's first fade is due 1,250ms in, and it sleeps that out \
+             before issuing anything: slept {first_sleep_ms}ms"
+        );
+        let puts = bridge.puts.borrow();
+        assert!(
+            puts[0].1.contains(r#""brightness":100.0"#) && puts[0].1.contains("color"),
+            "tick one landed on low, so tick two resumes toward high, armed with \
+             the colour and `on` again: {}",
+            puts[0].1
         );
     }
 
@@ -8648,6 +8945,7 @@ mod tests {
             &[pns::lights::Held::Blocked],
             &noon(&nothing_muted()),
             Some(&[]),
+            0,
             |_| {},
         );
         assert_eq!(
@@ -8777,6 +9075,29 @@ mod tests {
             held.puts.borrow().is_empty(),
             "a held lamp is not flashed over: {:?}",
             held.puts.borrow()
+        );
+        // AND A PHASED RECORD ON DISK GATES EXACTLY LIKE A BARE ONE: the
+        // suffix a resumed breath now writes must never leak into this gate,
+        // which reads bare paths off `held_lamps`, the same parser the breath
+        // itself reads a phase from.
+        let state = scratch("pulse-gate-phased-record");
+        std::fs::write(
+            state.join(LIGHTS_HELD),
+            format!("{LAMP_PATH}@1700000000123:h\n"),
+        )
+        .expect("a phased record");
+        let phased = scripted(true);
+        run_pulse_writes(
+            &phased,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&nothing_muted()),
+            held_lamps(&state).as_deref(),
+        );
+        assert!(
+            phased.puts.borrow().is_empty(),
+            "a phased record still gates the pulse over the lamp it names: {:?}",
+            phased.puts.borrow()
         );
         // AND A HELD RECORD NOBODY COULD READ HOLDS EVERY LAMP, for the same
         // reason: read as nothing held, a corrupt record let a blink write
