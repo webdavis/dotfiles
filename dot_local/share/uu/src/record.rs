@@ -165,6 +165,44 @@ pub fn record_body(state: &str, host: &str, detail: &str) -> String {
 /// The agent name every uu record and alert carries.
 pub const AGENT: &str = "uu";
 
+/// What a command lane's own run event needs that `run_lane` cannot reach
+/// today: `main` computes `started` and drops the `Marker` inside `gap_line`
+/// before the lane loop runs.
+pub struct RunFacts<'a> {
+    pub host: &'a str,
+    pub started_epoch: i64,
+    pub started_iso: &'a str,
+    pub marker: &'a Marker,
+}
+
+/// The `last_successful_run` field: the same three states `gap_line` renders
+/// as a sentence, but as DATA. NEVER a zero epoch standing in for "none
+/// recorded yet": the two "no usable timestamp" states carry no `epoch` key
+/// at all, so a reader cannot mistake either for a real, very old run.
+fn last_successful_run(marker: &Marker) -> serde_json::Value {
+    match marker {
+        Marker::NeverRecorded => serde_json::json!({ "state": "never-recorded" }),
+        Marker::Unreadable => serde_json::json!({ "state": "unreadable" }),
+        Marker::Recorded { epoch, iso } => {
+            serde_json::json!({ "state": "recorded", "epoch": epoch, "iso": iso })
+        }
+    }
+}
+
+/// The JSON event handed to a command lane's child on its stdin, newline
+/// terminated. A CONTRACT another program parses: never the prose sentence
+/// `gap_line` composes for a human reading the doctor output or the record.
+pub fn lane_event(lane: &str, facts: &RunFacts) -> String {
+    let event = serde_json::json!({
+        "agent": AGENT,
+        "lane": lane,
+        "host": facts.host,
+        "started": { "epoch": facts.started_epoch, "iso": facts.started_iso },
+        "last_successful_run": last_successful_run(facts.marker),
+    });
+    format!("{event}\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,5 +425,54 @@ mod tests {
         let body = record_body("failed", "dresden", "plugin \"a\": {broken}\nnext");
         let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(parsed["detail"], "plugin \"a\": {broken}\nnext");
+    }
+
+    // --- the command lane's run event ------------------------------------------
+
+    #[test]
+    fn the_lane_event_names_the_lane_the_host_the_start_and_the_last_successful_run() {
+        let marker = Marker::Recorded {
+            epoch: 1_787_659_200,
+            iso: "2026-08-24T12:00:00Z".to_string(),
+        };
+        let facts = RunFacts {
+            host: "dresden",
+            started_epoch: 1_788_264_000,
+            started_iso: "2026-08-31T12:00:00Z",
+            marker: &marker,
+        };
+        let event = lane_event("example", &facts);
+        assert!(event.ends_with('\n'), "{event:?}");
+        let parsed: serde_json::Value = serde_json::from_str(event.trim_end()).unwrap();
+        assert_eq!(parsed["agent"], "uu");
+        assert_eq!(parsed["lane"], "example");
+        assert_eq!(parsed["host"], "dresden");
+        assert_eq!(parsed["started"]["epoch"], 1_788_264_000);
+        assert_eq!(parsed["started"]["iso"], "2026-08-31T12:00:00Z");
+        assert_eq!(parsed["last_successful_run"]["state"], "recorded");
+        assert_eq!(parsed["last_successful_run"]["epoch"], 1_787_659_200);
+        assert_eq!(parsed["last_successful_run"]["iso"], "2026-08-24T12:00:00Z");
+    }
+
+    #[test]
+    fn a_never_recorded_marker_is_a_state_in_the_event_and_never_a_zero_epoch() {
+        for (marker, state) in [
+            (Marker::NeverRecorded, "never-recorded"),
+            (Marker::Unreadable, "unreadable"),
+        ] {
+            let facts = RunFacts {
+                host: "dresden",
+                started_epoch: 1_788_264_000,
+                started_iso: "2026-08-31T12:00:00Z",
+                marker: &marker,
+            };
+            let event = lane_event("example", &facts);
+            let parsed: serde_json::Value = serde_json::from_str(event.trim_end()).unwrap();
+            assert_eq!(parsed["last_successful_run"]["state"], state, "{event}");
+            assert!(
+                parsed["last_successful_run"].get("epoch").is_none(),
+                "a {state} marker must never carry an epoch key: {event}"
+            );
+        }
     }
 }
