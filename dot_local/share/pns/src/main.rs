@@ -7490,13 +7490,19 @@ impl Hushed {
             ));
         }
         // BLOCKED FOR THE READ, not disabled: each one is still delivered,
-        // once the guard drops and the mask is restored.
+        // once the guard drops and the mask is restored. SIGTTIN AND SIGTTOU
+        // JOIN THE SET `readpassphrase(3)` HOLDS: a read that becomes a
+        // background job would otherwise be stopped by SIGTTIN with echo
+        // still off, and Drop's own `tcsetattr` from a background group can
+        // raise SIGTTOU before it gets the chance to restore.
         for signal in [
             libc::SIGINT,
             libc::SIGQUIT,
             libc::SIGTSTP,
             libc::SIGTERM,
             libc::SIGHUP,
+            libc::SIGTTIN,
+            libc::SIGTTOU,
         ] {
             if unsafe { libc::sigaddset(&mut blocked, signal) } != 0 {
                 return Err(format!(
