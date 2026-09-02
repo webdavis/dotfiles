@@ -5340,7 +5340,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
             // read the same way, and all cost at most one fade of motion.
             let previous =
                 held_before.and_then(|entries| entries.iter().find(|entry| entry.path == path));
-            let resume = pns::lights::resume_from(previous, now_ms, held);
+            let resume = pns::lights::resume_from(previous, now_ms, held, &breath);
             breathing.push(Breathing {
                 path,
                 held,

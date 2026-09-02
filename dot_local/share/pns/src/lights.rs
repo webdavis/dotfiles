@@ -682,6 +682,17 @@ impl Default for Resume {
     }
 }
 
+/// How long one fade of a breath occupies the schedule: its own duration, less
+/// the lead the next fade is issued by.
+///
+/// ONE DEFINITION, read by the schedule that lays the fades out and by the
+/// resume that decides how far ahead a recorded phase may honestly sit. Two
+/// copies of this arithmetic would let the two disagree about what a step is,
+/// and the resume's staleness rule is stated in steps.
+pub fn step_ms(breath: &crate::config::Breath) -> u64 {
+    breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1)
+}
+
 /// The whole breath one tick issues: the fades, in order, with the second one
 /// leading the first by `FADE_LEAD_MS` and so on.
 ///
@@ -711,7 +722,7 @@ impl Default for Resume {
 /// the lamp keeps whatever it was last told and the next tick, with its whole
 /// interval ahead of it, picks the breath back up.
 pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resume) -> Vec<Fade> {
-    let step_ms = breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1);
+    let step_ms = step_ms(breath);
     if resume.first_due_ms >= budget_ms {
         return Vec::new();
     }
@@ -852,18 +863,38 @@ pub fn parse_held_token(token: &str) -> HeldEntry {
 /// looping and is now blocked would wait that fade out before its first blue
 /// body reached the bridge: the locked precedence, arriving up to a whole fade
 /// late. A state change starts down at once instead.
-pub fn resume_from(entry: Option<&HeldEntry>, now_ms: u64, showing: Held) -> Resume {
+///
+/// AND A PHASE MORE THAN ONE STEP AHEAD IS STALE, NOT PATIENT. `now_ms` is
+/// wall time and so is the recorded end, so an hour lost to a time-zone edit,
+/// an NTP correction or a resumed sleep leaves a valid record looking like a
+/// fade due an hour from now: a schedule that starts past the budget, issues
+/// nothing, and holds the lamp still for a whole interval. One cadence step is
+/// the ceiling because it is a law and not a tolerance: the tick that wrote
+/// the phase issued its last fade strictly inside its own budget, that fade
+/// lands one duration later, and the next tick begins at most the daemon's
+/// slop after that budget ended, so `first_due_ms` is always under one step.
+/// Past it, the clock moved and the honest answer is to start over now.
+pub fn resume_from(
+    entry: Option<&HeldEntry>,
+    now_ms: u64,
+    showing: Held,
+    breath: &crate::config::Breath,
+) -> Resume {
     let Some(phase) = entry.and_then(|entry| entry.resume) else {
         return Resume::default();
     };
     if phase.held != showing {
         return Resume::default();
     }
+    let first_due_ms = phase
+        .end_unix_ms
+        .saturating_sub(now_ms)
+        .saturating_sub(FADE_LEAD_MS);
+    if first_due_ms > step_ms(breath) {
+        return Resume::default();
+    }
     Resume {
-        first_due_ms: phase
-            .end_unix_ms
-            .saturating_sub(now_ms)
-            .saturating_sub(FADE_LEAD_MS),
+        first_due_ms,
         from_high: matches!(phase.end, End::High),
     }
 }
@@ -2348,9 +2379,17 @@ mod tests {
 
     #[test]
     fn resuming_off_no_entry_or_no_phase_starts_the_breath_fresh() {
-        assert_eq!(resume_from(None, 1_000, Held::Blocked), Resume::default());
         assert_eq!(
-            resume_from(Some(&HeldEntry::bare("light/l1")), 1_000, Held::Blocked),
+            resume_from(None, 1_000, Held::Blocked, &BLOCKED),
+            Resume::default()
+        );
+        assert_eq!(
+            resume_from(
+                Some(&HeldEntry::bare("light/l1")),
+                1_000,
+                Held::Blocked,
+                &BLOCKED
+            ),
             Resume::default(),
             "a bare entry is a lamp this record holds with no phase recorded"
         );
@@ -2372,13 +2411,13 @@ mod tests {
             }),
         };
         assert_eq!(
-            resume_from(Some(&looping), 12_400, Held::Blocked),
+            resume_from(Some(&looping), 12_400, Held::Blocked, &BLOCKED),
             Resume::default(),
             "a state change starts down at once instead of finishing the shape it \
              is replacing"
         );
         assert_eq!(
-            resume_from(Some(&looping), 12_400, Held::Looping),
+            resume_from(Some(&looping), 12_400, Held::Looping, &SLOW),
             Resume {
                 first_due_ms: 3_400,
                 from_high: true
@@ -2397,8 +2436,70 @@ mod tests {
             }),
         };
         assert_eq!(
-            resume_from(Some(&success), 12_400, Held::UnreadFailure),
+            resume_from(Some(&success), 12_400, Held::UnreadFailure, &SLOW),
             Resume::default()
+        );
+    }
+
+    #[test]
+    fn a_phase_sitting_further_ahead_than_one_step_reads_as_stale() {
+        // A CLOCK THAT WENT BACKWARDS. `now_ms` is wall time, and a phase is
+        // recorded in wall time too, so an hour lost to a time-zone edit, an
+        // NTP correction or a resumed sleep leaves a perfectly valid record
+        // looking like a fade due an hour from now. That schedule starts past
+        // the budget, issues nothing at all, and the lamp holds one whole
+        // interval: exactly the pause this slice exists to remove.
+        //
+        // ONE CADENCE STEP IS THE CEILING, and it is a law rather than a
+        // tolerance: the previous tick issued its last fade strictly inside its
+        // own budget, that fade lands one duration later, and the next tick
+        // begins at most the daemon's slop after that budget ended. So a live
+        // phase is never due more than a step ahead.
+        let end_unix_ms = 1_700_000_000_000;
+        let held = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms,
+                end: End::Low,
+                held: Held::Blocked,
+            }),
+        };
+        let step_ms = BLOCKED.duration_ms - FADE_LEAD_MS;
+        assert_eq!(
+            resume_from(
+                Some(&held),
+                end_unix_ms - FADE_LEAD_MS - step_ms,
+                Held::Blocked,
+                &BLOCKED
+            ),
+            Resume {
+                first_due_ms: step_ms,
+                from_high: false
+            },
+            "a phase due exactly one step out is the furthest a live one reaches, \
+             and it is still resumed"
+        );
+        assert_eq!(
+            resume_from(
+                Some(&held),
+                end_unix_ms - FADE_LEAD_MS - step_ms - 1,
+                Held::Blocked,
+                &BLOCKED
+            ),
+            Resume::default(),
+            "one millisecond further out than any tick could have left it is a \
+             clock that moved, so the breath starts over at once"
+        );
+        assert_eq!(
+            resume_from(
+                Some(&held),
+                end_unix_ms - 3_600_000,
+                Held::Blocked,
+                &BLOCKED
+            ),
+            Resume::default(),
+            "and an hour lost to a clock correction is the case that costs a whole \
+             interval of a still lamp"
         );
     }
 
@@ -2413,7 +2514,7 @@ mod tests {
             }),
         };
         assert_eq!(
-            resume_from(Some(&held), 12_400, Held::Blocked),
+            resume_from(Some(&held), 12_400, Held::Blocked, &BLOCKED),
             Resume {
                 first_due_ms: 1_250,
                 from_high: false
@@ -2424,7 +2525,7 @@ mod tests {
         // A `now_ms` past the recorded end saturates at zero rather than going
         // negative: due at once, not due in the past.
         assert_eq!(
-            resume_from(Some(&held), 20_000, Held::Blocked),
+            resume_from(Some(&held), 20_000, Held::Blocked, &BLOCKED),
             Resume {
                 first_due_ms: 0,
                 from_high: false
