@@ -3,10 +3,6 @@
 ---`map` supports multiple keys, automatic silent handling, and merging user-provided options.
 local M = {}
 
-local helpers = require("custom_api.helpers")
-
-local module_name = "custom_api.util"
-
 -- ╭───────────────────╮
 -- │  Helper Functions │
 -- ╰───────────────────╯
@@ -149,7 +145,7 @@ function M.map(opts)
   end
 end
 
-local function run_shell_command(opts)
+function M.run_shell_command(opts)
   opts = opts or error("Missing `command` argument. Provide a table with a `command` field.")
   local cmd = opts.cmd
   local notify_error = opts.notify_error
@@ -203,10 +199,5 @@ function M.overseer_runner(opts)
     })
     :start()
 end
-
--- ╭─────────────────────╮
--- │  Wrapped Functions  │
--- ╰─────────────────────╯
-M.run_shell_command = helpers.wrap(module_name, run_shell_command)
 
 return M
