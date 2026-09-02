@@ -5377,10 +5377,13 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
 /// sample, so the edge would land earlier than the true touch and news the
 /// operator had already seen could arm the lamp. Reading it last puts the
 /// residual the other way: `t_now` is later than the sample by at most the
-/// probe spawns above this line, 0-1 second, so the desk touch reads that
-/// much YOUNGER than it was, never older. The direction is DARK: news that
-/// landed inside that residual reads as seen and the lamp stays off, and no
-/// edge can arm it early.
+/// four bounded spawns above this line (one `ioreg` for idle, then the phone
+/// probe's `pgrep`, `pgrep -P` and `ps`), each capped at `PROBE_DEADLINE`
+/// (5 seconds in `system.rs`), so the true bound is 20 seconds and
+/// sub-second in the common case. The desk touch reads that much YOUNGER
+/// than it was, never older. The direction is DARK: news that landed inside
+/// that residual reads as seen and the lamp stays off, and no edge can arm
+/// it early.
 ///
 /// HOISTING `let now = now_secs()?;` ABOVE THE SAMPLES WOULD BREAK THIS
 /// SILENTLY: no test can catch a clock read moving a few hundred milliseconds
