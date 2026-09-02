@@ -4280,11 +4280,15 @@ fn an_observation_still_delivers_and_is_logged() {
     sandbox.write_config(&nag_config(300));
     counted_channels(&sandbox);
 
+    // THE MODEL NAMES CARRY CONTROL BYTES (a BEL, a CRLF), which the card
+    // must scrub through the same filter every other rendered field passes:
+    // a payload field reaches a banner and a Discord message verbatim
+    // otherwise, and the harness is not the only thing that can write one.
     hook_with(
         with_state_dir(&sandbox),
         &sandbox,
         "model-switch",
-        &model_switch_payload("s1", "auto"),
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","from_model":"claude-sonnet-4-5\u0007","to_model":"claude-opus-4-6\r\n","source":"auto"}"#,
     );
 
     assert_eq!(
