@@ -70,11 +70,14 @@ plugins = [
 # child runs in a process group of its own, so a child that leaves something
 # behind holding its stdout or stderr open (a backgrounded process, a detached
 # daemon) has that group killed at the deadline instead of stalling uu
-# forever; the lane then reports the overrun as an ordinary failure. Six hours
-# is roughly three times the slowest honest run measured here and a small
-# fraction of the weekly period, so it fires on a hang and on nothing else.
-# The run lock is held across lane execution, which is why the bound matters:
-# a lane that never ends is a lock every later run waits on and never gets.
+# forever; the lane then reports the overrun as an ordinary failure. The run
+# lock is held across lane execution, which is why the bound matters: a lane
+# that never ends is a lock every later run waits on and never gets.
+#
+# THE WHOLE RUN IS BOUNDED AT 24 HOURS as well, and that is not configurable.
+# Lanes run in sequence under one lock, so enough lanes at six hours each
+# would outlast the week; a lane starting late gets what is left of the day
+# rather than its own full deadline, and says so when it is stopped there.
 #
 # EXIT 75 MEANS DEFERRED, not failed: nothing was attempted, so try again
 # later. This is the exit code the program itself chooses to return, matching

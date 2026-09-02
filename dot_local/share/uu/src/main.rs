@@ -13,13 +13,14 @@
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use pns::channels::hermes::{SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 use unattended_upgrades::alert::{Alerter, alert_argv, alert_summary};
 use unattended_upgrades::config::{
     Config, ConfigError, LANE_TYPES, LaneKind, LoadOutcome, Records, config_path, load_config,
 };
+use unattended_upgrades::deadline::lane_budget;
 use unattended_upgrades::lanes::{LaneReport, run_lane};
 use unattended_upgrades::record::{
     AGENT, Marker, RunFacts, STALE_AFTER_RUNS, gap_line, marker_contents, next_streak,
@@ -152,6 +153,10 @@ fn run_mode(only: Option<&str>) -> i32 {
     };
 
     let mut reports: Vec<LaneReport> = Vec::new();
+    // THE RUN'S OWN CLOCK, started under the lock this loop holds. Lanes run in
+    // sequence and nothing caps how many a config declares, so each lane's
+    // budget is capped by what is left of the run's (`lane_budget`).
+    let run_started = Instant::now();
     // IN NAME ORDER, never the file's: `lanes` is a `BTreeMap`, and a run
     // whose sequence changes when a block moves is a run nobody can reason
     // about.
@@ -159,9 +164,13 @@ fn run_mode(only: Option<&str>) -> i32 {
         if only.is_some_and(|wanted| wanted != name) {
             continue;
         }
-        // ONE RUNNER PER LANE, holding that lane's own deadline: the budget is
-        // the whole lane's, and its clock starts here.
-        let runner = SystemRunner::for_lane(name, lane.deadline);
+        // ONE RUNNER PER LANE, holding that lane's own budget: it is the whole
+        // lane's, and its clock starts here.
+        let runner = SystemRunner::for_lane(
+            name,
+            lane_budget(lane.deadline, run_started.elapsed()),
+            lane.deadline,
+        );
         // CONTINUE ON FAILURE: nothing here inspects the report before moving
         // to the next lane.
         if let Some(report) = run_lane(name, &config, &facts, &runner) {

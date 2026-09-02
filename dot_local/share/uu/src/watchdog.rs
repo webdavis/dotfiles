@@ -13,7 +13,8 @@
 //! TERM the group, wait a grace, then KILL.
 
 use std::io::Read;
-use std::process::{Child, ExitStatus};
+use std::os::unix::process::CommandExt;
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -28,26 +29,53 @@ const WATCHDOG_TICK: Duration = Duration::from_millis(25);
 /// the same two seconds ssh-hardening.sh waits.
 const TERM_GRACE: Duration = Duration::from_secs(2);
 
-/// Wait for the child AND both of its pipes, or `None` once `budget` runs out,
-/// in which case the child's whole process group has been killed.
+/// How a bounded spawn ended, which is not the same question as how the child
+/// exited: a deadline that fired and a deadline that fired and did NOT stop
+/// what it aimed at are different facts, and only one of them is safe to
+/// report as "killed".
+#[derive(Debug, PartialEq, Eq)]
+pub enum Ended {
+    /// The child finished on its own, inside the budget.
+    Exited(ExitStatus),
+    /// The budget ran out and the group is gone: both pipes reached EOF, so
+    /// the collected output is everything the child produced.
+    Stopped,
+    /// The budget ran out and something in the group outlived TERM and KILL (a
+    /// descendant that changed session, a process in uninterruptible sleep).
+    /// It may still be running and still writing, so the collected output is
+    /// whatever had arrived by the time this gave up.
+    Escaped,
+}
+
+/// Wait for the child AND both of its pipes, or stop the whole group once
+/// `budget` runs out.
 fn wait_bounded(
     child: &mut Child,
     output: &Drain,
     errors: &Drain,
     budget: Duration,
-) -> Option<ExitStatus> {
+    grace: Duration,
+) -> Ended {
     if let Some(status) = settle(child, output, errors, budget) {
-        return Some(status);
+        return Ended::Exited(status);
     }
     // TERM, A GRACE, THEN KILL, the shape ssh-hardening.sh uses: a subject
     // given the chance to unwind releases what it holds, and one that ignores
     // the signal still goes.
     signal_group(child.id(), libc::SIGTERM);
-    if settle(child, output, errors, TERM_GRACE).is_none() {
+    let mut settled = settle(child, output, errors, grace).is_some();
+    if !settled {
         signal_group(child.id(), libc::SIGKILL);
-        settle(child, output, errors, TERM_GRACE);
+        settled = settle(child, output, errors, grace).is_some();
     }
-    None
+    // The reap comes AFTER both kills and never before (see `settle`). By here
+    // no further signal is aimed at this group, so releasing its id is safe.
+    let _ = child.try_wait();
+    if settled {
+        Ended::Stopped
+    } else {
+        Ended::Escaped
+    }
 }
 
 /// Poll until the child has exited and both pipes have reached EOF, or `grace`
@@ -60,10 +88,7 @@ fn settle(
 ) -> Option<ExitStatus> {
     let started = Instant::now();
     loop {
-        if let Ok(Some(status)) = child.try_wait()
-            && output.at_eof()
-            && errors.at_eof()
-        {
+        if let Some(status) = exited_with_its_pipes_closed(child, output, errors) {
             return Some(status);
         }
         if started.elapsed() >= grace {
@@ -73,31 +98,108 @@ fn settle(
     }
 }
 
+/// The child's status, ASKED FOR ONLY once both pipes are at EOF.
+///
+/// THE PIPE CHECKS ARE A PRECONDITION OF ASKING, never a filter on the answer,
+/// because `try_wait` REAPS. ssh-hardening.sh's watchdog leaves its child
+/// un-reaped until after both kills for this reason and says why: a process
+/// group id stays reserved only while the group still has a member, and a
+/// reaped leader whose descendants have all called `setsid` leaves the group
+/// empty and its id free to be handed to somebody else. Signalling that
+/// negative id would then reach an unrelated group. In the hang this watchdog
+/// exists for the pipes never reach EOF, so the reap below is never reached,
+/// so the id cannot be recycled underneath the kills. A child that outlives
+/// its own closed pipes keeps the group alive on its own account.
+fn exited_with_its_pipes_closed(
+    child: &mut Child,
+    output: &Drain,
+    errors: &Drain,
+) -> Option<ExitStatus> {
+    if !output.at_eof() || !errors.at_eof() {
+        return None;
+    }
+    child.try_wait().ok().flatten()
+}
+
 /// Signal the child's whole PROCESS GROUP, which is what makes the deadline
 /// bound the hang rather than only the child: the pipe is held open by what
 /// the child left behind, and a kill aimed at the child alone leaves that
 /// running and the read blocked.
 ///
-/// SAFE EVEN THOUGH THE CHILD MAY ALREADY BE REAPED. A pid is never handed to
-/// a new process while it is still in use as a process group id, so the
-/// negative pid either reaches the group members still running or fails with
-/// ESRCH. It cannot reach an unrelated process.
+/// The caller must not have reaped the leader yet; `settle` says why.
 fn signal_group(child: u32, signal: i32) {
     let Ok(group) = i32::try_from(child) else {
         return;
     };
-    // SAFETY: `kill` against a process group this process created, with a
-    // signal number out of libc's own constants.
+    // SAFETY: `kill` against a process group this process created and still
+    // holds un-reaped, with a signal number out of libc's own constants.
     unsafe { libc::kill(-group, signal) };
 }
 
-/// What one bounded spawn produced. `status` is `None` when the DEADLINE is
-/// what ended it: the child's whole process group was killed, and the two
-/// buffers hold whatever it managed to print before that.
+/// What one bounded spawn produced.
 pub struct Finished {
-    pub status: Option<ExitStatus>,
+    pub ended: Ended,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+}
+
+/// How long past its own budget a bounded spawn may take to answer before the
+/// SPAWN itself is judged stuck. `bounded_output`'s own worst case is the
+/// budget plus both kill graces, so anything past this means `Command::spawn`
+/// never returned.
+const SPAWN_SLACK: Duration = Duration::from_secs(8);
+
+/// What came of trying to run one program under a budget.
+pub enum Spawned {
+    Ran(Finished),
+    /// The program could not be started at all, already fit to print.
+    NotRunnable(String),
+    /// `Command::spawn` ITSELF never returned. No pid exists in that case, so
+    /// nothing can be signalled and only the caller giving up bounds it.
+    SpawnStuck,
+}
+
+/// Run `program` under `budget`, in a process group of its own, collecting
+/// both of its pipes.
+///
+/// THE SPAWN IS INSIDE THE BOUND, on a thread the caller can give up on.
+/// `Command::spawn` is synchronous and its exec can block on a filesystem that
+/// stopped answering, and until it returns there is no pid to signal, so a
+/// watchdog started afterwards would never run and uu's run lock would be held
+/// for good. An abandoned thread finishes the job itself: by the time its
+/// spawn returns the budget is spent, so the `bounded_output` it then enters
+/// stops the group it just created.
+pub fn bounded_spawn(program: &str, args: &[&str], stdin: Stdio, budget: Duration) -> Spawned {
+    let (send, receive) = std::sync::mpsc::channel();
+    let owned_program = program.to_string();
+    let owned_args: Vec<String> = args.iter().map(|word| (*word).to_string()).collect();
+    std::thread::spawn(move || {
+        let started = Instant::now();
+        let spawned = Command::new(&owned_program)
+            .args(&owned_args)
+            .stdin(stdin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            // A PROCESS GROUP OF ITS OWN, which is what lets the kill below
+            // reach whatever the child leaves behind. The cost is that an
+            // interactive Ctrl-C no longer reaches the subject through uu's
+            // own group; under the launchd job that carries these lanes there
+            // is no terminal to send one.
+            .process_group(0)
+            .spawn();
+        // WHAT THE SPAWN ITSELF COST comes off the budget, so a spawn that
+        // took half an hour does not hand the child a fresh one.
+        let _ = send.send(match spawned {
+            Ok(mut child) => Spawned::Ran(bounded_output(
+                &mut child,
+                budget.saturating_sub(started.elapsed()),
+            )),
+            Err(error) => Spawned::NotRunnable(format!("could not run {owned_program}: {error}")),
+        });
+    });
+    receive
+        .recv_timeout(budget + SPAWN_SLACK)
+        .unwrap_or(Spawned::SpawnStuck)
 }
 
 /// Drive `child` to its end inside `budget`, draining both of its pipes.
@@ -105,12 +207,12 @@ pub struct Finished {
 /// THE CHILD MUST ALREADY BE IN A PROCESS GROUP OF ITS OWN (the caller spawns
 /// it with `process_group(0)`), because the kill below is aimed at that group
 /// and a shared one would take the caller with it.
-pub fn bounded_output(child: &mut Child, budget: Duration) -> Finished {
+fn bounded_output(child: &mut Child, budget: Duration) -> Finished {
     let output = Drain::new(child.stdout.take());
     let errors = Drain::new(child.stderr.take());
-    let status = wait_bounded(child, &output, &errors, budget);
+    let ended = wait_bounded(child, &output, &errors, budget, TERM_GRACE);
     Finished {
-        status,
+        ended,
         stdout: output.taken(),
         stderr: errors.taken(),
     }
@@ -220,23 +322,111 @@ pub(crate) mod tests {
     /// of a second.
     const IMPATIENT: Duration = Duration::from_millis(200);
 
+    /// The kill grace under test, short for the same reason: the production
+    /// two seconds is a courtesy to a subject unwinding, and nothing here
+    /// unwinds.
+    const BRIEF_GRACE: Duration = Duration::from_millis(200);
+
+    /// `bounded_output` with the grace shortened, which is the only thing a
+    /// test needs to move.
+    fn bounded(child: &mut std::process::Child, budget: Duration) -> Finished {
+        let output = Drain::new(child.stdout.take());
+        let errors = Drain::new(child.stderr.take());
+        let ended = wait_bounded(child, &output, &errors, budget, BRIEF_GRACE);
+        Finished {
+            ended,
+            stdout: output.taken(),
+            stderr: errors.taken(),
+        }
+    }
+
     #[test]
     fn a_child_that_outlives_the_budget_is_stopped_at_it() {
         let mut child = grouped("sleep 30");
-        let finished = bounded_output(&mut child, IMPATIENT);
-        assert!(
-            finished.status.is_none(),
-            "a child stopped by the budget has no status of its own"
-        );
+        assert_eq!(bounded(&mut child, IMPATIENT).ended, Ended::Stopped);
     }
 
     #[test]
     fn a_child_that_finishes_inside_the_budget_keeps_its_own_status_and_output() {
         let mut child = grouped("printf 'said this\\n'; printf 'and this\\n' >&2; exit 3");
-        let finished = bounded_output(&mut child, Duration::from_secs(30));
-        assert_eq!(finished.status.and_then(|status| status.code()), Some(3));
+        let finished = bounded(&mut child, Duration::from_secs(30));
+        let Ended::Exited(status) = finished.ended else {
+            panic!(
+                "this child exits on its own, it was not {:?}",
+                finished.ended
+            );
+        };
+        assert_eq!(status.code(), Some(3));
         assert_eq!(finished.stdout, b"said this\n");
         assert_eq!(finished.stderr, b"and this\n");
+    }
+
+    #[test]
+    fn a_child_that_ignores_term_is_killed_rather_than_left_running() {
+        // TERM ALONE IS NOT ENOUGH, and every other fixture here is a `sleep`,
+        // which dies on the first signal: without a subject that IGNORES TERM
+        // the KILL escalation is unreachable and could be deleted unnoticed.
+        let mut child = grouped("trap '' TERM; sleep 30");
+        let started = Instant::now();
+        assert_eq!(bounded(&mut child, IMPATIENT).ended, Ended::Stopped);
+        // The TERM had to be given its whole grace first, so a run that came
+        // back inside it would mean the first signal is what stopped this.
+        assert!(
+            started.elapsed() >= IMPATIENT + BRIEF_GRACE,
+            "this returned in {:?}, too soon to have waited out the TERM grace",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn a_pipe_holder_outside_the_group_is_reported_as_escaped_not_as_killed() {
+        // The kill reaches a GROUP, so anything that left the group (a
+        // descendant that called setsid) outlives it and keeps writing after
+        // uu drops the run lock. Reporting that as "its process group was
+        // killed" would be a clean stop uu never verified, so the holder here
+        // is put in a group of its own and the pipe never reaches EOF.
+        let (reader, writer) = std::io::pipe().expect("a pipe");
+        let held = writer
+            .try_clone()
+            .expect("a second handle on the write end");
+        let mut holder = Command::new("/bin/sh")
+            .args(["-c", "sleep 30"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(held))
+            .process_group(0)
+            .spawn()
+            .expect("the holder");
+        let mut child = Command::new("/bin/sh")
+            .args(["-c", "exit 0"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(writer))
+            .stderr(Stdio::null())
+            .process_group(0)
+            .spawn()
+            .expect("the subject");
+        let output = Drain::new(Some(reader));
+        let errors = Drain::new(None::<std::process::ChildStderr>);
+        let ended = within(Duration::from_secs(3), move || {
+            wait_bounded(&mut child, &output, &errors, IMPATIENT, BRIEF_GRACE)
+        });
+        let _ = holder.kill();
+        let _ = holder.wait();
+        assert_eq!(ended, Ended::Escaped);
+    }
+
+    #[test]
+    fn a_grandchild_holding_only_stderr_still_hits_the_budget() {
+        // EACH PIPE IS ITS OWN CONDITION. Every other hanging fixture holds
+        // stdout, so the stderr half of the wait could be dropped and the
+        // suite would stay green. Here `sleep` sends its own stdout to the
+        // stderr pipe, so stdout reaches EOF when the shell exits and only
+        // stderr is still held.
+        let finished = within(Duration::from_secs(3), || {
+            let mut child = grouped("sleep 30 >&2 & printf 'on stdout\\n'; exit 0");
+            bounded(&mut child, IMPATIENT)
+        });
+        assert_eq!(finished.ended, Ended::Stopped);
+        assert_eq!(finished.stdout, b"on stdout\n");
     }
 
     #[test]
@@ -249,9 +439,9 @@ pub(crate) mod tests {
         // graces, so a call that returns here returned because uu stopped it.
         let finished = within(Duration::from_secs(3), || {
             let mut child = grouped("sleep 30 & printf 'got this far\\n'; exit 0");
-            bounded_output(&mut child, IMPATIENT)
+            bounded(&mut child, IMPATIENT)
         });
-        assert!(finished.status.is_none(), "the budget is what ended this");
+        assert_eq!(finished.ended, Ended::Stopped);
         // WHAT IT PRINTED IS KEPT: those lines are how far the child got, and
         // they are the whole of what anyone has to diagnose a hang with.
         assert_eq!(finished.stdout, b"got this far\n");
@@ -263,7 +453,7 @@ pub(crate) mod tests {
         // aimed at the child alone leaves it running and the read blocked.
         let finished = within(Duration::from_secs(3), || {
             let mut child = grouped("sleep 30 & echo $!; exit 0");
-            bounded_output(&mut child, IMPATIENT)
+            bounded(&mut child, IMPATIENT)
         });
         let grandchild: i32 = String::from_utf8_lossy(&finished.stdout)
             .trim()
