@@ -344,6 +344,11 @@ mod tests {
             .unwrap();
         runner.run_with_input("cmd", &["a", "b"], "second\n").ok();
         assert_eq!(runner.inputs(), vec!["first\n", "second\n"]);
+        assert_eq!(
+            runner.calls(),
+            vec![vec!["cmd", "a", "b"], vec!["cmd", "a", "b"]],
+            "the program and its arguments are recorded beside the input"
+        );
     }
 
     #[test]

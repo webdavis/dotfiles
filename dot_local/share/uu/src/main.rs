@@ -600,21 +600,32 @@ mod tests {
 
     #[test]
     fn run_with_input_hands_the_child_its_input_on_stdin() {
-        let ran = SystemRunner
-            .run_with_input("/bin/cat", &[], "the run event\n")
+        // ON A DEADLINE. cat reads until EOF, and EOF only arrives once every
+        // write end is closed: a run_with_input that kept its writer open
+        // through the spawn would leave cat waiting for uu and uu waiting for
+        // cat, which an unbounded call would report as a hang, not a failure.
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            send.send(SystemRunner.run_with_input("/bin/cat", &[], "the run event\n"))
+        });
+        let ran = receive
+            .recv_timeout(Duration::from_secs(10))
+            .expect("cat never saw EOF: uu is still holding the pipe's write end")
             .expect("cat runs");
         assert_eq!(ran.stdout, "the run event\n");
         assert_eq!(ran.failure, None);
     }
 
     #[test]
-    fn a_child_that_never_reads_its_stdin_does_not_hang_or_kill_uu() {
-        // The property the pre-filled pipe exists for: uu holds the read end
-        // until it is done writing, so a child that exits immediately without
-        // touching stdin sees a clean EOF on its own time, and uu's own write
-        // never happens after the child could have gone away. Before the
-        // pre-filled pipe, writing the event AFTER spawn to a child like this
-        // one killed uu at 141 (SIGPIPE, reset to its default in `main`).
+    fn a_child_that_never_reads_its_stdin_is_still_a_clean_run() {
+        // The property the pre-filled pipe exists for: uu's write is finished
+        // before the child exists, so a child that exits without touching
+        // stdin cannot make that write fail. What this test CANNOT observe is
+        // the 141 itself: the harness keeps SIGPIPE ignored, and a write made
+        // after the spawn usually lands in the pipe before a child this quick
+        // has exited anyway. That the pre-filled sequence survives such a
+        // child under `main`'s SIG_DFL reset, where the write-after-spawn
+        // order dies at 141, was checked by hand outside the harness.
         let ran = SystemRunner
             .run_with_input("/bin/sh", &["-c", "exit 0"], "the run event\n")
             .expect("a child that ignores stdin still runs and exits cleanly");
