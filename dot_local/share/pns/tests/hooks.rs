@@ -2995,6 +2995,34 @@ fn a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit() {
 }
 
 #[test]
+fn a_resolved_batch_with_a_malformed_agent_id_still_leaves_the_parents_wait_lit() {
+    // PRESENCE IS THE SIGNAL, NOT SHAPE: the reference promises only that
+    // the key is ABSENT on the main thread, so null, a number or an empty
+    // string is not proof the operator answered, and the guard fails closed.
+    let sandbox = Sandbox::new("lights-blocked-resolved-malformed-agent");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    for shape in ["null", "7", "\"\""] {
+        hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "resolved",
+            &format!(r#"{{"session_id":"s1","agent_id":{shape}}}"#),
+        );
+        assert_eq!(
+            waiting_sessions(&sandbox),
+            vec!["s1".to_string()],
+            "agent_id:{shape} must not clear the parent's wait"
+        );
+    }
+}
+
+#[test]
 fn a_prompt_ends_only_its_own_sessions_wait() {
     // ONE FILE PER SESSION IS THE WHOLE POINT: the operator typing in s1 says
     // nothing about s2, which is still waiting on them.

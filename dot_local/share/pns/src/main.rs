@@ -276,14 +276,15 @@ fn hook_mode(event: &str) -> i32 {
         // path to a payload read, a parse and at most two file operations.
         //
         // AND THE WAIT ENDS HERE TOO, GUARDED. `agent_id` is present only
-        // inside a subagent call, so a batch carrying one resolved a
+        // inside a subagent call, so a batch carrying the KEY (whatever its
+        // value; a malformed one is not proof of the main thread) resolved a
         // SUBAGENT'S tool, not the parent session's own wait on the operator;
         // clearing on it anyway would go dark on a wait nobody has answered.
         // RESIDUAL, STATED HONESTLY: the parent's marker then stays lit until
         // its own Stop, same as before this fix.
         "resolved" => {
             clear_nag(&payload.session_id);
-            if payload.agent_id.is_empty() {
+            if !payload.in_subagent {
                 end_blocked_wait(&payload.session_id);
             }
         }

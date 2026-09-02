@@ -40,6 +40,12 @@ pub struct HookPayload {
     /// rather than free text, filtered the same way before it is ever
     /// printed.
     pub tool_name: String,
+    /// Whether the payload CARRIED an `agent_id` key at all, whatever its
+    /// value. The reference promises only ABSENCE on the main thread, so a
+    /// key that is present but null, numeric or empty is still a subagent
+    /// signal: `resolved` reads this, never the string, to decide whose wait
+    /// a batch answered, so a malformed field fails closed (clears nothing).
+    pub in_subagent: bool,
     /// What a non-turn event (a permission prompt, a plan) is about.
     pub message: String,
 }
@@ -65,6 +71,7 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         agent_type: text("agent_type"),
         permission_mode: text("permission_mode"),
         tool_name: text("tool_name"),
+        in_subagent: payload.get("agent_id").is_some(),
         // The asking MCP server in front of its own prompt, then `.message //
         // .detail` as the bash read it, then the error a dead turn reports,
         // and then the tool the request is about for the harnesses that send
@@ -367,6 +374,19 @@ mod tests {
         // payload naming none is the ordinary case, never something to guess
         // at or report on.
         assert_eq!(parse_payload(r#"{"session_id":"s1"}"#).agent_id, "");
+    }
+
+    #[test]
+    fn a_present_agent_id_of_any_shape_marks_a_subagent_and_absence_does_not() {
+        // THE REFERENCE PROMISES ONLY ABSENCE ON THE MAIN THREAD, so a key
+        // that is there but null, numeric or empty is not proof of the main
+        // thread; only a missing key is.
+        for shape in ["null", "7", "\"\"", "\"agent_01\""] {
+            let payload = parse_payload(&format!(r#"{{"session_id":"s1","agent_id":{shape}}}"#));
+            assert!(payload.in_subagent, "agent_id:{shape} is a present key");
+        }
+        assert!(!parse_payload(r#"{"session_id":"s1"}"#).in_subagent);
+        assert!(!parse_payload("not json").in_subagent);
     }
 
     #[test]
