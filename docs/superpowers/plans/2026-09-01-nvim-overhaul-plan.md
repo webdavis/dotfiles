@@ -126,7 +126,9 @@ Lane: first. Depends on: none. Brief: `brief-nvim-lint-infra.md`. Closes 71 (lin
 `.chezmoidata/system_packages_autoinstall.yaml` (formulae, alphabetical; the weekly cleanup removes
 undeclared formulae).
 
-**Interfaces:** Two treefmt formatters, `stylua` (rewrites, `includes = ["dot_config/nvim/**/*.lua"]`)
+**Interfaces:** Two treefmt formatters, `stylua` (rewrites,
+`includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]`, both the flat and recursive
+patterns since treefmt 2.5.0's `**/*.lua` alone misses a direct child of the directory it is rooted in)
 and `luacheck` (check only, `options = ["--config", "dot_config/nvim/dot_luacheckrc"]`, same
 includes). Both match nothing until PR 2.
 

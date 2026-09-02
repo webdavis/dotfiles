@@ -565,9 +565,12 @@ stderr is read and printed by the comparison, not only captured.
 
 The standalone CI ran `stylua --check` and `luacheck`. PR 1, before the import, gives treefmt a
 `stylua` formatter (rewrites in place, like shfmt) and a `luacheck` check-only formatter, both with
-`includes = ["dot_config/nvim/**/*.lua"]` (a glob that matches nothing until PR 2 lands, so PR 1 is
-inert on the tree it ships in), both Homebrew formulae (`stylua` 2.5.2, `luacheck` 1.2.0, verified
-with `brew info`) added in three places by hand: `.chezmoidata/system_packages_autoinstall.yaml` under
+`includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]` (treefmt 2.5.0's `**/*.lua` glob
+does not match a direct child of the directory it is rooted in, only files at least one level deeper, so
+both the flat and the recursive pattern are needed to cover the whole tree; matches nothing until PR 2
+lands, so PR 1 is inert on the tree it ships in), both Homebrew formulae (`stylua` 2.5.2, `luacheck`
+1.2.0, verified with `brew info`) added in three places by hand:
+`.chezmoidata/system_packages_autoinstall.yaml` under
 `packages.macos.homebrew.formulae` in alphabetical order (the weekly bundle's guarded
 `brew bundle cleanup` removes any formula that file does not declare, so without this line the lint
 prerequisites disappear from dresden on the next Monday), `Brewfile.dev`, and the toolchain step of
