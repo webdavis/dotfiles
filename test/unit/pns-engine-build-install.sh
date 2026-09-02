@@ -171,6 +171,12 @@ expected_kickstart="kickstart -k $target_label"
   echo "a first-install kickstart (113) must clear the restart-pending marker" >&2
   exit 1
 }
+# A 113 on a first install is the ONLY silent-success path left in the
+# script: it must never leak the restart-success line onto either stream.
+grep -q 'daemon restarted on a new binary' "$stdout_log" "$stderr_log" && {
+  echo "a first-install 113 must stay silent about restarting the daemon" >&2
+  exit 1
+}
 # From here on the binary is already installed, so a 113 is no longer the
 # fresh-machine no-op; default every later phase to a clean success and let
 # each one override the status it actually wants to test.
