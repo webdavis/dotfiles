@@ -5064,8 +5064,12 @@ fn publish_muted(state: &Path, kept: &[pns::lights::Muted]) -> std::io::Result<(
 /// never been run, or its last mute expired and took the file with it. EVERY
 /// OTHER READ FAILURE IS A COMPLAINT, and the distinction is the point: a file
 /// that is unreadable, not UTF-8, or a directory standing where it should be
-/// mutes nothing at all, exactly as a corrupt one does, and an operator who is
-/// not told believes a mute is on while every lamp goes loud.
+/// says NOTHING about which places are quiet, exactly as a corrupt one does,
+/// and the two readers of that complaint take opposite directions with it.
+/// `ad_hoc_quiet` mutes EVERYTHING (a lamp path fails dark), and the command
+/// prints it and rebuilds from an empty list. Either way the operator is told,
+/// which is what a complaint is for: a mute nobody can see, in either
+/// direction, is the state worth a sentence.
 fn muted_state(state: &Path) -> (Vec<pns::lights::Muted>, Vec<String>) {
     let contents = match std::fs::read_to_string(state.join(LIGHTS_QUIET)) {
         Ok(contents) => contents,

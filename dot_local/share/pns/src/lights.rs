@@ -782,10 +782,14 @@ pub struct Muted {
 /// The entries the state file holds, or ONE complaint naming what is wrong
 /// with it.
 ///
-/// FAIL OPEN, which is `quiet.rs`'s direction and the OPPOSITE of the quiet
-/// window's: a file this cannot vouch for mutes NOTHING, because a lights mute
-/// nobody can see is the dangerous state. The caller prints the complaint and
-/// carries on with every lamp loud.
+/// IT REPORTS RATHER THAN GUESSES, and the fail DIRECTION is the caller's,
+/// which is why it is not stated here: the two callers take opposite ones and
+/// both are deliberate. `ad_hoc_quiet`, the lamp path, turns any complaint into
+/// `Muting::Everything`, because a house with every lamp loud is the 3am the
+/// mute was armed to prevent. `pns lights quiet`, the command, prints the
+/// complaint and rebuilds from an empty list, because an operator standing in
+/// front of it is losing what the file held and gets to see that rather than a
+/// silent repair.
 ///
 /// A LINE IS `<epoch> <place>` AND NOTHING ELSE, with the only leniency the ONE
 /// trailing newline the publish itself writes. Padding is not something this
