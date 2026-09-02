@@ -3625,6 +3625,72 @@ mod tests {
         );
     }
 
+    /// The tables the shipped template leaves LIVE, enumerated rather than
+    /// counted and kept by hand, because a count cannot say WHICH table went
+    /// (recurring bug class 10, completeness over counts).
+    ///
+    /// THE MUTANT THIS PINS is the one the byte-equality test above cannot
+    /// see. A table ABSENT from the committed values file renders COMMENTED
+    /// OUT rather than refused, so dropping `[nag]` from that file and
+    /// running `just pns-config-render` writes a template with the nag the
+    /// operator runs switched OFF, and the byte-equality test stays green
+    /// because both sides moved together. Measured: with `[nag]` dropped the
+    /// whole Rust suite passes. An emptied values file renders exit 0 with
+    /// four live tables instead of twenty-two. Only a list held OUTSIDE the
+    /// values file tells a deliberate retirement from an accidental deletion,
+    /// and this is that list: a table retired on purpose is retired here too,
+    /// in the same commit, where a reviewer sees it.
+    ///
+    /// THE CEILING: this pins WHICH tables are live, not what every live key
+    /// holds. A key dropped from the values file renders at its schema
+    /// DEFAULT rather than commented, which this does not catch. That case
+    /// still reads as a changed value in the template's own diff, where a
+    /// whole table going commented reads as a comment reflow.
+    const LIVE_TABLES: [&str; 22] = [
+        "plugins.mobile",
+        "plugins.hermes",
+        "plugins.macos-banner",
+        "plugins.hue",
+        "plugins.router",
+        "daemon",
+        "recap",
+        "nag",
+        "lights",
+        "lights.done",
+        "lights.failed",
+        "lights.blocked",
+        "lights.unread",
+        "lights.loop",
+        "lights.dim",
+        r#"lights.lamp."1F - Front door - HCL1""#,
+        r#"lights.lamp."2F - Kitchen - HCD6""#,
+        r#"lights.lamp."3F - Master Bedroom - HCL3""#,
+        r#"lights.lamp."3F - Studio - HCL3""#,
+        r#"lights.room."2F - Kitchen""#,
+        r#"lights.room."3F - Master Bedroom""#,
+        r#"lights.room."3F - Studio""#,
+    ];
+
+    #[test]
+    fn every_table_the_operator_runs_is_still_live_in_the_shipped_template() {
+        // A COMMENTED heading (`# [nag]`) does not start with `[` once
+        // trimmed, which is exactly the difference being measured here.
+        let live: Vec<&str> = SHIPPED_TEMPLATE
+            .lines()
+            .map(str::trim)
+            .filter_map(|line| {
+                line.strip_prefix('[')
+                    .and_then(|rest| rest.strip_suffix(']'))
+            })
+            .collect();
+        assert_eq!(
+            live, LIVE_TABLES,
+            "a table the operator runs is no longer live in the shipped template; a table \
+             missing from `dot_config/pns/config-values.toml` renders COMMENTED OUT, so check \
+             that file before changing this list"
+        );
+    }
+
     /// The template with its chezmoi actions taken out: a directive standing on
     /// its own line goes with the line, and an action inside a value becomes
     /// the string the vault would have put there.
