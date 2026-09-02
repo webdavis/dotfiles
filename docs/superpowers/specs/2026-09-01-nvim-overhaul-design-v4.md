@@ -565,6 +565,16 @@ stderr is read and printed by the comparison, not only captured.
      key orders on two runs of the identical config), which would make every line compare unequal for a
      reason that has nothing to do with the config. Rows are sorted by `mode` then `lhs` then `buffer`
      and written one JSON object per line, so a diff names the changed map.
+   - **Scope, stated once for every later PR that leans on this gate.** Covered: keymaps (the global
+     pass plus the gitsigns buffer-local surface), which-key group metadata, and each plugin's `lazy`
+     and `loaded` flags. NOT covered: Vim options, autocmds, user commands, LSP server configuration,
+     the colorscheme, and a plugin's own `opts` table. A change confined to the uncovered set is
+     byte-invisible to this diff (measured: flipping `opt.ignorecase` moves zero rows) and must be
+     verified by hand or by a check this program adds later. The import PR (task 1-9) can rest the
+     whole zero-behavior-change claim on the byte diff instead, because the imported tree is
+     byte-identical; PR 4d (the Lua reformat) and PR 20 (the `autocmds.lua` rewrite) change files
+     whose content this dump does not project at all, so their own body must say how they verify
+     behavior did not change, not point at check 5.
 
 ### 3.8 Lint in the dotfiles repo
 
