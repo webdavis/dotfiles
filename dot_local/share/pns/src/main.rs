@@ -8283,7 +8283,7 @@ mod tests {
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
             assert!(
-                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked)
+                !pns::lights::breath_fades(left, &pns::config::Lights::default().blocked.breath)
                     .is_empty(),
                 "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
             );

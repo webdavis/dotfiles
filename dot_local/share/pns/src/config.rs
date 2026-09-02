@@ -113,14 +113,16 @@ impl Default for Recap {
 /// derive would make the empty table unrepresentable through its own parser.
 ///
 /// ONLY THE KNOBS THAT APPLY TO A BEHAVIOUR EXIST (operator ruling): a pulse
-/// has a duration and one brightness, a breathing state has a duration and two,
-/// and there is no dead knob anywhere for a reader to set and watch do nothing.
+/// has a duration and one brightness, a breathing state has a duration and two
+/// ends, and some of them carry one knob more besides (unread's delay, loop's
+/// threshold and lease, blocked's give-up backstop). There is no dead knob
+/// anywhere for a reader to set and watch do nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lights {
     pub refresh_secs: u64,
     pub done: Pulse,
     pub failed: Pulse,
-    pub blocked: Breath,
+    pub blocked: Blocked,
     pub unread: Unread,
     /// `[lights.loop]`. NOT SPELLED `r#loop` AT THE FIELD, because every reader
     /// would then carry the raw identifier through; the TOML key is `loop` and
@@ -155,6 +157,14 @@ pub struct Breath {
     pub duration_ms: u64,
     pub high: u8,
     pub low: u8,
+}
+
+/// The blocked lamp: its breath, plus how long an unanswered wait may hold it
+/// before the daemon gives up on an abandoned session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Blocked {
+    pub breath: Breath,
+    pub give_up_after_secs: u64,
 }
 
 /// The unread lamp: its breath, plus how old SUCCESS news must be before it
@@ -225,7 +235,10 @@ impl Default for Lights {
             refresh_secs: DEFAULT_REFRESH_SECS,
             done: DEFAULT_DONE,
             failed: DEFAULT_FAILED,
-            blocked: DEFAULT_BLOCKED,
+            blocked: Blocked {
+                breath: DEFAULT_BLOCKED,
+                give_up_after_secs: DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS,
+            },
             unread: Unread {
                 breath: DEFAULT_UNREAD_BREATH,
                 after_secs: DEFAULT_UNREAD_AFTER_SECS,
@@ -322,6 +335,18 @@ const DEFAULT_DIM: Breath = Breath {
 /// FAILURE news has no such delay and no knob.
 const DEFAULT_UNREAD_AFTER_SECS: u64 = 300;
 
+/// How long an unanswered wait may hold the blocked lamp before the daemon
+/// gives up on an abandoned session (operator ruling 2026-09-01).
+///
+/// SIXTEEN HOURS, AND IT IS STILL A BACKSTOP RATHER THAN AN EXPIRY. The locked
+/// behaviour is blue breathing CONTINUOUS UNTIL THE OPERATOR ANSWERS, so any
+/// bound at all is a departure from it and the only honest job left for one is
+/// releasing a bulb from a session that will never come back. Sixteen hours
+/// outlasts a long day away and still gives the bulb back before the next one
+/// starts. The ORDINARY end is not this at all: the session's next event
+/// clears the marker, whatever the hour.
+const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
+
 /// How long work must run continuously before the loop lamp arms itself.
 const DEFAULT_LOOP_THRESHOLD_SECS: u64 = 300;
 
@@ -343,7 +368,17 @@ const MAX_THRESHOLD_SECS: u64 = 86_400;
 
 /// The floor under a lease timeout. A minute, because the lease is renewed by
 /// event traffic and anything shorter drops a live loop between two turns.
+///
+/// SHARED WITH THE BLOCKED BACKSTOP'S OWN FLOOR, which needs no separate
+/// number: a minute is the same floor for the same reason, a value too small
+/// to mean anything below the granularity real event traffic arrives at.
 const MIN_LEASE_TIMEOUT_SECS: u64 = 60;
+
+/// The ceiling on the blocked backstop alone. Every OTHER threshold or timeout
+/// in this table caps at a day (`MAX_THRESHOLD_SECS`), but an abandoned wait
+/// can span a weekend away, so this one gets a week instead of sharing that
+/// ceiling.
+const MAX_GIVE_UP_AFTER_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// How long ONE fade may take, in milliseconds.
 ///
@@ -489,7 +524,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("lights.done", &["brightness", "duration_ms"]),
     ("lights.failed", &["brightness", "duration_ms"]),
-    ("lights.blocked", &["duration_ms", "high", "low"]),
+    (
+        "lights.blocked",
+        &["duration_ms", "give_up_after_secs", "high", "low"],
+    ),
     ("lights.dim", &["duration_ms", "high", "low"]),
     (
         "lights.unread",
@@ -1044,7 +1082,7 @@ fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
             "done" => lights.done = parse_pulse("lights.done", &setting, lights.done)?,
             "failed" => lights.failed = parse_pulse("lights.failed", &setting, lights.failed)?,
             "blocked" => {
-                lights.blocked = parse_breath("lights.blocked", &setting, lights.blocked)?;
+                lights.blocked = parse_blocked(&setting, lights.blocked)?;
             }
             "dim" => lights.dim = parse_breath("lights.dim", &setting, lights.dim)?,
             "unread" => lights.unread = parse_unread(&setting, lights.unread)?,
@@ -1095,6 +1133,26 @@ fn parse_breath(
     }
     ends_agree(where_it_is, &breath)?;
     Ok(breath)
+}
+
+fn parse_blocked(setting: &toml::Value, mut blocked: Blocked) -> Result<Blocked, ConfigError> {
+    const WHERE: &str = "lights.blocked";
+    for (key, stated) in behaviour_table(WHERE, setting)? {
+        admits_flat(WHERE, key)?;
+        if key == "give_up_after_secs" {
+            blocked.give_up_after_secs = bounded(
+                WHERE,
+                key,
+                stated,
+                MIN_LEASE_TIMEOUT_SECS,
+                MAX_GIVE_UP_AFTER_SECS,
+            )?;
+            continue;
+        }
+        breath_key(WHERE, key, stated, &mut blocked.breath)?;
+    }
+    ends_agree(WHERE, &blocked.breath)?;
+    Ok(blocked)
 }
 
 fn parse_unread(setting: &toml::Value, mut unread: Unread) -> Result<Unread, ConfigError> {
@@ -1654,8 +1712,8 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Behaviour, Breath, ConfigError, Lights, LoadOutcome, Looping, Pulse, Target, Unread,
-        config_path, load_config, parse_config, submit_deadline,
+        Behaviour, Blocked, Breath, ConfigError, Lights, LoadOutcome, Looping, Pulse, Target,
+        Unread, config_path, load_config, parse_config, submit_deadline,
     };
     use std::time::Duration;
 
@@ -2647,10 +2705,13 @@ mod tests {
         assert_eq!(shipped.failed, shipped.done);
         assert_eq!(
             shipped.blocked,
-            Breath {
-                duration_ms: 2000,
-                high: 100,
-                low: 30
+            Blocked {
+                breath: Breath {
+                    duration_ms: 2000,
+                    high: 100,
+                    low: 30
+                },
+                give_up_after_secs: 57_600,
             }
         );
         assert_eq!(
@@ -2711,8 +2772,13 @@ mod tests {
             Lights::default().failed,
             "and its sibling is untouched"
         );
-        assert_eq!(stated.blocked.low, 45);
-        assert_eq!(stated.blocked.duration_ms, 2000);
+        assert_eq!(stated.blocked.breath.low, 45);
+        assert_eq!(stated.blocked.breath.duration_ms, 2000);
+        assert_eq!(
+            stated.blocked.give_up_after_secs,
+            Lights::default().blocked.give_up_after_secs,
+            "the breath moved and the backstop stayed at its locked default"
+        );
         assert_eq!(stated.unread.after_secs, 60);
         assert_eq!(stated.unread.breath, Lights::default().unread.breath);
         assert_eq!(stated.looping.threshold_secs, 360);
@@ -2765,6 +2831,14 @@ mod tests {
             ("[lights.done]\nbrightness = 101\n", "brightness"),
             ("[lights.blocked]\nlow = 0\n", "low"),
             ("[lights.blocked]\nhigh = 101\n", "high"),
+            (
+                "[lights.blocked]\ngive_up_after_secs = 59\n",
+                "give_up_after_secs",
+            ),
+            (
+                "[lights.blocked]\ngive_up_after_secs = 604801\n",
+                "give_up_after_secs",
+            ),
             ("[lights.loop]\nthreshold_secs = 0\n", "threshold_secs"),
             ("[lights.loop]\nthreshold_secs = 86401\n", "threshold_secs"),
             (
@@ -2792,12 +2866,36 @@ mod tests {
             "[lights.done]\nduration_ms = 5000\nbrightness = 100\n",
             "[lights.loop]\nthreshold_secs = 1\nlease_timeout_secs = 60\n",
             "[lights.unread]\nafter_secs = 0\n",
+            "[lights.blocked]\ngive_up_after_secs = 60\n",
+            "[lights.blocked]\ngive_up_after_secs = 604800\n",
         ] {
             assert!(
                 parse_config(written).is_ok(),
                 "{written:?} sits on a bound and must be accepted"
             );
         }
+    }
+
+    #[test]
+    fn the_blocked_backstop_reads_the_configured_number_rather_than_a_hardcoded_default() {
+        // A KNOB WORTH NOTHING IF THE PARSER READS THE TABLE AND KEEPS THE
+        // DEFAULT ANYWAY, so this proves the stated value lands rather than
+        // merely that a valid table parses.
+        assert_eq!(
+            lights("[lights.blocked]\ngive_up_after_secs = 57600\n")
+                .blocked
+                .give_up_after_secs,
+            57_600,
+            "the shipped default, stated explicitly"
+        );
+        assert_eq!(
+            lights("[lights.blocked]\ngive_up_after_secs = 3600\n")
+                .blocked
+                .give_up_after_secs,
+            3_600,
+            "a number that is NOT the default, so a parser that silently kept the \
+             default instead of reading the table would still be caught"
+        );
     }
 
     #[test]
@@ -3193,6 +3291,7 @@ mod tests {
         ("lights", "unread", "{ after_secs = 300 }"),
         ("lights", "zone", "{ Upstairs = { shows = [\"done\"] } }"),
         ("lights.blocked", "duration_ms", "2000"),
+        ("lights.blocked", "give_up_after_secs", "57600"),
         ("lights.blocked", "high", "100"),
         ("lights.blocked", "low", "30"),
         ("lights.dim", "duration_ms", "3000"),
@@ -3369,7 +3468,7 @@ mod tests {
     /// THE ONE EDIT THAT MOVES IT is the template documenting a key more or a
     /// key fewer, in which case this number moves with it. A change here for
     /// any other reason is the scan breaking rather than the template changing.
-    const TEMPLATE_KEY_PAIRS: usize = 65;
+    const TEMPLATE_KEY_PAIRS: usize = 66;
 
     #[test]
     fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
