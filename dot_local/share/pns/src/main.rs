@@ -9050,6 +9050,19 @@ mod tests {
             "the marker holds the DECISION's clock, not a fresh wall-clock read \
              taken inside this function"
         );
+
+        // NO CLOCK IS NO MARKER: an unreadable clock must not default to
+        // epoch zero, which would write a marker that reads as already
+        // expired the moment it lands, or that never ages out at all read
+        // the other way.
+        let unreadable_clock_marker =
+            pns::lights::blocked_marker(&state, "s2").expect("a usable session id");
+        update_blocked_marker(&state, "s2", "blocked", true, None);
+        assert!(
+            !unreadable_clock_marker.exists(),
+            "an unreadable clock must write no marker at all, never one at \
+             epoch zero"
+        );
     }
 
     /// A process id nothing is using: a child run to completion and reaped, so
