@@ -38,64 +38,63 @@ use pns::system::{
 };
 
 fn main() {
-    let first = std::env::args_os().nth(1).unwrap_or_default();
-    // HELP IS ANSWERED FIRST, and it is the arm that reaches nothing at all.
-    // It used to reach EVERYTHING: the word fell through every comparison
-    // below into the lenient producer parser, which skipped it and notified
-    // about an empty event, so printing the commands loaded the config, spawned
-    // every presence probe and raised a banner titled "pns · done". Nothing
-    // about listing what this binary takes needs the machine read.
-    if first == *"--help" || first == *"-h" {
-        print!("{USAGE}");
-        return;
-    }
+    // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
+    // panics on non-UTF-8, and a stray byte degrading into an unknown token
+    // (which the lenient parser already skips) is the honest failure mode
+    // for an always-exit-0 notification path. `first`, the producer check
+    // and the event parse each used to read `std::env::args_os()` on their
+    // own; this is the one collection they share now.
+    let argv: Vec<String> = std::env::args_os()
+        .skip(1)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let first = argv.first().cloned().unwrap_or_default();
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
-    if first == *"pulse" {
-        pulse_mode();
-        return;
+    if first == "pulse" {
+        std::process::exit(pulse_mode());
     }
     // The home diagnostic: one reading of the router, said out loud. The
     // doctor mode (P3) will absorb it; until then this is how the probe is
     // drilled and how a wrong config is diagnosed.
-    if first == *"home" {
+    if first == "home" {
         home_mode();
         return;
     }
     // The operator's mute, typed and timed. Also a MODE: it writes the state
     // the event path reads, and delivers nothing itself.
-    if first == *"quiet" {
+    if first == "quiet" {
         std::process::exit(quiet_mode());
     }
     // One test send through every configured channel, and one line per
     // registered plugin about it. A MODE for the same reason the others are:
     // it takes no decision, so nothing about an event's plan reaches it.
-    if first == *"doctor" {
+    if first == "doctor" {
         std::process::exit(doctor_mode());
     }
     // The return recap, rendered from the activity ring and posted to Discord.
     // A MODE for the reason the others are: it takes no decision, so no event's
     // plan reaches it. The event path starts it detached; an operator can also
     // run it by hand, which is how it is drilled.
-    if first == *"recap" {
+    if first == "recap" {
         std::process::exit(recap_mode());
     }
     // The clock. A MODE for the reason the others are: `run` takes no event
     // and delivers nothing itself, and the two typed verbs beside it only move
     // a file. Nothing on the event path below reaches it, and nothing here
     // reaches the event path except by re-executing this binary.
-    if first == *"daemon" {
+    if first == "daemon" {
         std::process::exit(daemon_mode(&second_argument()));
     }
     // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
     // takes no decision and delivers nothing, and the daemon is what runs it.
     // It reaches the event path through nothing at all.
-    if first == *"lights" {
+    if first == "lights" {
         std::process::exit(lights_mode(&second_argument()));
     }
     // The loop lease, taken and given back by hand. A MODE beside the lamps'
     // for the same reason: it moves one file and delivers nothing.
-    if first == *"loop" {
+    if first == "loop" {
         std::process::exit(loop_mode(&second_argument()));
     }
     // The nudge about an approval nobody answered. A MODE for the reason the
@@ -103,7 +102,7 @@ fn main() {
     // takes NO SESSION ARGUMENT either, because coalescing means it looks at
     // every outstanding record rather than at the one whose timer woke it, so
     // an argument would be a value it had to ignore.
-    if first == *"nag" {
+    if first == "nag" {
         std::process::exit(nag_mode());
     }
     // The first-run walk. A MODE that has to be reachable with NO CONFIG AT
@@ -111,13 +110,12 @@ fn main() {
     // everything that loads one. Nothing on the event path reaches it and it
     // reaches nothing there: it asks questions, composes text and publishes a
     // file, and delivers nothing.
-    if first == *"setup" {
+    if first == "setup" {
         std::process::exit(setup_mode());
     }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
-    let first = first.to_string_lossy().into_owned();
     if pns::hooks::is_harness_subcommand(&first) {
         std::process::exit(gate_mode(&first));
     }
@@ -125,10 +123,10 @@ fn main() {
     // gate_mode, which REFUSES a word it will not vouch for: falling through
     // to the event path instead is how the documented spelling used to fire a
     // notification about an empty event.
-    if first == *"gate" {
+    if first == "gate" {
         std::process::exit(gate_mode(&second_argument()));
     }
-    if first == *"hook" {
+    if first == "hook" {
         std::process::exit(hook_mode(&second_argument()));
     }
     // A WORD THAT NAMES NO COMMAND IS A TYPO, never an event. It is the house
@@ -137,12 +135,15 @@ fn main() {
     // does not know, so `pns stpo` used to skip the word, render an empty event
     // and deliver it. The always-exit-0 contract governs EVENT deliveries, and
     // a word naming no command never becomes one, so refusing it here
-    // contradicts nothing.
-    if !is_producer_argv(&first) {
+    // contradicts nothing. `--help`/`-h` still reaches `event_mode` from here
+    // (see `is_producer_argv`): that parser holds the one help arm now, so
+    // there is no second copy of it up here to answer help before anything
+    // else runs.
+    if !is_producer_argv(&argv) {
         eprint!("{USAGE}");
         std::process::exit(2);
     }
-    event_mode();
+    event_mode(&argv);
 }
 
 /// Everything this binary answers to, and the flags a producer states an event
@@ -177,18 +178,23 @@ producer flags: --agent <name> --state <word> --project <name> --branch <name>
 /// IT READS THE WHOLE OF ARGV, not just the leading word, and that is the
 /// point. The parser deliberately accepts a stray token in front of the real
 /// flags, so a leading word alone does not make an invocation a typo: what does
-/// is argv carrying no producer flag anywhere. Refusing on the first word alone
-/// would drop real notifications, which is the exact mirror of the bug this
-/// refusal exists to fix.
+/// is argv carrying no producer flag, and no `--help`/`-h`, anywhere. Refusing
+/// on the first word alone would drop real notifications, which is the exact
+/// mirror of the bug this refusal exists to fix.
 ///
-/// An empty argv is the bare invocation `args` calls a valid empty event, and a
-/// leading `-` belongs to the parser whichever flag it turns out to be.
-fn is_producer_argv(first: &str) -> bool {
-    first.is_empty()
-        || first.starts_with('-')
-        || std::env::args_os()
-            .skip(1)
-            .any(|argument| pns::args::is_producer_flag(&argument.to_string_lossy()))
+/// AN EMPTY ARGV is the bare invocation `args` calls a valid empty event.
+/// A DASH-LED FIRST WORD IS NO LONGER A FREE PASS: that used to make ANY
+/// dash-led argv[1] a producer invocation, so a mistyped flag (`--wat`,
+/// `-help`, `--agent=claude`) delivered an empty event in silence, the `pns
+/// stpo` bug reopened for a typo that happens to start with a dash.
+/// `--help`/`-h` ARE COUNTED, so a producer invocation that only adds
+/// `--help` still reaches the parser below, which is where the help arm
+/// actually prints the usage and returns.
+fn is_producer_argv(argv: &[String]) -> bool {
+    argv.is_empty()
+        || argv
+            .iter()
+            .any(|token| pns::args::is_producer_flag(token) || pns::args::is_help_flag(token))
 }
 
 /// The word after the subcommand, or empty when there is none.
@@ -2249,16 +2255,19 @@ const CONDENSER_DEADLINE: Duration = Duration::from_secs(30);
 /// repository, not an answer worth waiting for.
 const GIT_DEADLINE: Duration = Duration::from_secs(5);
 
-/// One notification from argv.
-fn event_mode() {
-    // Lossy rather than validating: a stray byte in argv degrades into an
-    // unknown token, which the lenient contract already skips, instead of
-    // aborting an always-exit-0 notification.
-    let (event, warnings) = parse_args(
-        std::env::args_os()
-            .skip(1)
-            .map(|argument| argument.to_string_lossy().into_owned()),
-    );
+/// One notification from argv, or a usage print when `--help`/`-h` reached
+/// the parse in FLAG position.
+fn event_mode(argv: &[String]) {
+    let (event, warnings) = parse_args(argv.iter().cloned());
+    // HELP WINS BEFORE ANYTHING ELSE ON THIS PATH: no config load, no probe.
+    // It used to reach EVERYTHING when it fell through this same parser as an
+    // unknown token, which notified about an empty event and raised a banner
+    // titled "pns · done". Nothing about printing the commands needs the
+    // machine read.
+    if event.help {
+        print!("{USAGE}");
+        return;
+    }
     for warning in &warnings {
         eprintln!("pns: {warning}");
     }
@@ -3422,7 +3431,22 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// `hue.quiet_hours` on purpose: the gate lives at the event path's call site
 /// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
 /// inside the window, which is what keeps the window checkable while it is on.
-fn pulse_mode() {
+///
+/// THE WORD IS READ BEFORE THE CONFIG LOADS. `pulse --help` used to load the
+/// config first: with none it silently exited 0 having printed nothing, and
+/// with one it pulsed the room red, because a non-numeric word was read as a
+/// failing exit code. Reading the word first means `--help` and a bad code
+/// both answer with no machine read at all.
+fn pulse_mode() -> i32 {
+    let word = second_argument();
+    if pns::args::is_help_flag(&word) {
+        println!("{PULSE_USAGE}");
+        return 0;
+    }
+    let Some(behaviour) = pns::pulse::exit_behaviour(&word) else {
+        eprintln!("{PULSE_USAGE}");
+        return 2;
+    };
     let home = std::env::var("HOME").unwrap_or_default();
     // FAIL CLOSED, unlike an event. The roster fallback that keeps every
     // notification working through a broken config is an EVENT-mode rule:
@@ -3432,25 +3456,21 @@ fn pulse_mode() {
     let config = match load_config(&config_path(&home)) {
         Ok(LoadOutcome::Loaded(config)) => config,
         // Absent is not a mistake; never opting in earns no warning.
-        Ok(LoadOutcome::Missing) => return,
+        Ok(LoadOutcome::Missing) => return 0,
         Err(error) => {
             // The sanitized detail event mode prints, with the outcome THIS
             // mode had: there is no recoverable setting to fall back to, so
             // nothing pulses.
             eprintln!("pns: config error ({}); no pulse", error.detail());
-            return;
+            return 0;
         }
     };
-    fire_pulse(
-        enabled_hue_table(&config),
-        pns::pulse::exit_behaviour(
-            &std::env::args_os()
-                .nth(2)
-                .map(|code| code.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "0".to_string()),
-        ),
-    );
+    fire_pulse(enabled_hue_table(&config), behaviour);
+    0
 }
+
+const PULSE_USAGE: &str = "pns: usage: pns pulse [<exit-code>] | \
+pns pulse --help, -h (a bare `pulse` is a success pulse)";
 
 /// The `home` mode: one reading of the home probe, reported in one line, and
 /// the one stale-identifier alert that reading may earn.
@@ -7170,11 +7190,24 @@ fn setup_mode() -> i32 {
             return 2;
         }
     };
+    // AN EMPTY HOME IS REFUSED BY NAME, before the config is even located: an
+    // unset or empty HOME would otherwise compose a config path relative to
+    // the current directory, which is not the operator's own machine-wide
+    // config no matter where this happened to be run from.
+    let Some(home) = std::env::var("HOME").ok().filter(|home| !home.is_empty()) else {
+        eprintln!("pns setup: HOME is empty; nothing was written");
+        return 2;
+    };
     // THE CONFIG IS CHECKED BEFORE THE TERMINAL IS, because it is the more
     // specific answer: an operator who already has one is told that, whether
     // or not they are sitting in front of the questions.
-    let path = config_path(&std::env::var("HOME").unwrap_or_default());
-    if path.exists() && !force {
+    let path = config_path(&home);
+    // `symlink_metadata`, NOT `exists`: `exists` follows a symlink and asks
+    // what it resolves to, so a dangling one at the config name reads as
+    // nothing at all here and the whole walk runs before the publish refuses
+    // it with a claim that it "appeared while the questions were being
+    // answered", which would not be true.
+    if path.symlink_metadata().is_ok() && !force {
         eprintln!(
             "pns setup: {} already exists; pass --force to replace it, \
              which keeps the old file beside it",
@@ -7189,9 +7222,12 @@ fn setup_mode() -> i32 {
         );
         return 2;
     }
-    let Some(answers) = walk() else {
-        eprintln!("pns setup: the answers ended before the walk did; nothing was written");
-        return 2;
+    let answers = match walk() {
+        Ok(answers) => answers,
+        Err(reason) => {
+            eprintln!("pns setup: {reason}; nothing was written");
+            return 2;
+        }
     };
     let composed = pns::setup::compose_config(&answers);
     // THROUGH THE ENGINE'S OWN PARSER BEFORE IT IS PUBLISHED. A wizard that
@@ -7223,17 +7259,17 @@ fn setup_mode() -> i32 {
 /// The walk itself: one question at a time, in the order the file is written.
 ///
 /// NONE OF THIS DECIDES ANYTHING. Every answer is carried to the composer as
-/// it was typed, and a blank one is what declines a feature there. `None` is
-/// the input ending mid-walk, which publishes nothing at all rather than
-/// composing a file out of half a conversation.
+/// it was typed, and a blank one is what declines a feature there. An `Err`
+/// is the walk ending mid-conversation, named by its own reason, which
+/// publishes nothing at all rather than composing a file out of half of one.
 ///
 /// THE CREDENTIALS ARE ASKED INSIDE THE WALK, right after the feature they
 /// arm, because a feature switched on now and credentialed later is exactly
 /// the empty-value config this wizard exists to avoid.
-fn walk() -> Option<pns::setup::Answers> {
+fn walk() -> Result<pns::setup::Answers, String> {
     println!("{SETUP_PREAMBLE}");
     let mut answers = pns::setup::Answers {
-        mobile_token: ask(
+        mobile_token: ask_hidden(
             "The phone card is on. Paste moshi's webhook secret to complete it, \
              or press enter to pair later",
         )?,
@@ -7241,7 +7277,7 @@ fn walk() -> Option<pns::setup::Answers> {
     };
 
     if ask_yes("Post every event to hermes, for the durable log and the recap?")? {
-        answers.hermes_key = armed("hermes", "the signing key that route verifies")?;
+        answers.hermes_key = armed_secret("hermes", "the signing key that route verifies")?;
     }
     if ask_yes("Flash hue lights green when work finishes and red when it dies?")? {
         // EACH ANSWER GATES THE NEXT QUESTION: once one comes back empty the
@@ -7249,7 +7285,7 @@ fn walk() -> Option<pns::setup::Answers> {
         // answers are thrown away.
         answers.hue_bridge = armed("the light pulse", "the hue bridge's address on the network")?;
         if !answers.hue_bridge.is_empty() {
-            answers.hue_key = armed("the light pulse", "an API key the bridge issued")?;
+            answers.hue_key = armed_secret("the light pulse", "an API key the bridge issued")?;
         }
         if !answers.hue_key.is_empty() {
             answers.hue_rooms = list(armed(
@@ -7277,7 +7313,7 @@ fn walk() -> Option<pns::setup::Answers> {
                 answers.router_url = armed("the home probe", "the router's URL")?;
                 if !answers.router_url.is_empty() {
                     answers.router_api_key =
-                        armed("the home probe", "an API key the router issued")?;
+                        armed_secret("the home probe", "an API key the router issued")?;
                 }
                 if !answers.router_api_key.is_empty() {
                     answers.router_device_hostname =
@@ -7293,7 +7329,7 @@ fn walk() -> Option<pns::setup::Answers> {
         )?);
     }
     answers.nag = ask_yes("Card you a second time about an approval left unanswered?")?;
-    Some(answers)
+    Ok(answers)
 }
 
 /// One credentialed answer, and the line that says what a blank one costs.
@@ -7301,22 +7337,146 @@ fn walk() -> Option<pns::setup::Answers> {
 /// SAID WHEN IT HAPPENS rather than only in the file: an operator who meant to
 /// arm a feature and pressed enter has one chance to notice, and the composed
 /// file's own commented block is read later if at all.
-fn armed(feature: &str, wanted: &str) -> Option<String> {
-    let answer = ask(wanted)?;
+fn armed(feature: &str, wanted: &str) -> Result<String, String> {
+    Ok(nothing_given(feature, ask(wanted)?))
+}
+
+/// The same shape as `armed`, for a secret: read with the terminal's echo
+/// held off, because this is where the token, the hermes key, the hue key
+/// and the router key are all asked.
+fn armed_secret(feature: &str, wanted: &str) -> Result<String, String> {
+    Ok(nothing_given(feature, ask_hidden(wanted)?))
+}
+
+/// What `armed` and `armed_secret` share: the line a blank answer costs.
+fn nothing_given(feature: &str, answer: String) -> String {
     if answer.is_empty() {
         println!("  nothing given, so {feature} stays off; the file says how to arm it");
     }
-    Some(answer)
+    answer
 }
 
-/// One question, and the line typed back. `None` is the input ending.
-fn ask(question: &str) -> Option<String> {
+/// One question, and the line typed back. An `Err` names why nothing did: the
+/// input ending and a read failing are different reasons, and this walk asks
+/// for pasted answers, so a byte that is not valid UTF-8 is not a rare guest.
+fn ask(question: &str) -> Result<String, String> {
     print!("{question}: ");
     let _ = std::io::stdout().flush();
+    read_answer()
+}
+
+/// The same question, answered with the terminal's echo held off so a typed
+/// secret never reaches the pane grid, herdr's persisted pane history, or any
+/// attached client. THE GUARD ARMS BEFORE THE PROMPT PRINTS: arming after
+/// would leave a window in which the prompt is already visible but echo is
+/// still on, so an operator who types ahead of it, or this crate's own pty
+/// test, could still have a secret echoed before `TCSAFLUSH` takes hold.
+///
+/// Ctrl-C, Ctrl-\, Ctrl-Z, and a TERM or HUP are all held for the read rather
+/// than answered immediately, the same trade `readpassphrase(3)` makes: each
+/// is still delivered, just not until the guard drops, so Ctrl-C takes effect
+/// at the next Enter rather than instantly.
+fn ask_hidden(question: &str) -> Result<String, String> {
+    let _hushed = Hushed::arm()?;
+    print!("{question}: ");
+    let _ = std::io::stdout().flush();
+    read_answer()
+}
+
+/// What every read shares, hidden or not.
+fn read_answer() -> Result<String, String> {
     let mut typed = String::new();
     match std::io::stdin().read_line(&mut typed) {
-        Ok(0) | Err(_) => None,
-        Ok(_) => Some(answered(&typed)),
+        Ok(0) => Err("the answers ended before the walk did".to_string()),
+        Err(error) => Err(format!("the answers could not be read: {error}")),
+        Ok(_) => Ok(answered(&typed)),
+    }
+}
+
+/// Turns the terminal's echo off for as long as it lives. `Drop` restores
+/// both the termios state and the signal mask it holds, on every exit path
+/// including EOF and an unwinding panic: this crate carries no
+/// `panic = "abort"`, so Drop always runs. Arming and the restore both apply
+/// `TCSAFLUSH`, which also discards whatever was already queued, so a secret
+/// typed ahead of its own prompt is lost rather than read, and so is an
+/// answer typed ahead of the question after it.
+struct Hushed {
+    original: libc::termios,
+    original_mask: libc::sigset_t,
+}
+
+impl Hushed {
+    /// Arm the guard. FAILS CLOSED: a termios or signal call this cannot
+    /// complete is refused as loudly as a bad answer, rather than silently
+    /// leaving echo on and asking for a secret anyway.
+    fn arm() -> Result<Hushed, String> {
+        let mut original: libc::termios = unsafe { std::mem::zeroed() };
+        if unsafe { libc::tcgetattr(libc::STDIN_FILENO, &mut original) } != 0 {
+            return Err(format!(
+                "the terminal's settings could not be read (tcgetattr: {})",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let mut blocked: libc::sigset_t = unsafe { std::mem::zeroed() };
+        if unsafe { libc::sigemptyset(&mut blocked) } != 0 {
+            return Err(format!(
+                "the signal mask could not be built (sigemptyset: {})",
+                std::io::Error::last_os_error()
+            ));
+        }
+        // BLOCKED FOR THE READ, not disabled: each one is still delivered,
+        // once the guard drops and the mask is restored.
+        for signal in [
+            libc::SIGINT,
+            libc::SIGQUIT,
+            libc::SIGTSTP,
+            libc::SIGTERM,
+            libc::SIGHUP,
+        ] {
+            if unsafe { libc::sigaddset(&mut blocked, signal) } != 0 {
+                return Err(format!(
+                    "the signal mask could not be built (sigaddset: {})",
+                    std::io::Error::last_os_error()
+                ));
+            }
+        }
+        let mut original_mask: libc::sigset_t = unsafe { std::mem::zeroed() };
+        if unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, &mut original_mask) } != 0 {
+            return Err(format!(
+                "signals could not be held for the read (pthread_sigmask: {})",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let mut hushed = original;
+        hushed.c_lflag &= !libc::ECHO;
+        hushed.c_lflag |= libc::ECHONL;
+        if unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &hushed) } != 0 {
+            let error = std::io::Error::last_os_error();
+            unsafe {
+                libc::pthread_sigmask(libc::SIG_SETMASK, &original_mask, std::ptr::null_mut());
+            }
+            return Err(format!(
+                "the terminal's echo could not be turned off (tcsetattr: {error})"
+            ));
+        }
+        Ok(Hushed {
+            original,
+            original_mask,
+        })
+    }
+}
+
+impl Drop for Hushed {
+    fn drop(&mut self) {
+        unsafe {
+            // TERMIOS FIRST, THEN THE MASK: a signal delivered between the
+            // two would otherwise run with the operator's terminal still
+            // echo-off. Neither call's failure is checked: a tty that hung
+            // up during the read (EOF from a closed pty) makes `tcsetattr`
+            // fail, and Drop must never panic over a terminal already gone.
+            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &self.original);
+            libc::pthread_sigmask(libc::SIG_SETMASK, &self.original_mask, std::ptr::null_mut());
+        }
     }
 }
 
@@ -7335,8 +7495,8 @@ fn answered(line: &str) -> String {
 /// One yes-or-no question. ENTER MEANS NO, and so does anything that is not a
 /// yes: this walk arms features that deliver to a phone and to lamps, and the
 /// answer nobody typed on purpose must be the one that changes nothing.
-fn ask_yes(question: &str) -> Option<bool> {
-    Some(means_yes(&ask(&format!("{question} [y/N]"))?))
+fn ask_yes(question: &str) -> Result<bool, String> {
+    Ok(means_yes(&ask(&format!("{question} [y/N]"))?))
 }
 
 /// Whether an answer to a yes-or-no question was a yes.
@@ -7451,8 +7611,10 @@ fn write_then_publish(
     // itself is the answer, and it is the same answer a moment later.
     let kept = if force { keep_aside(path)? } else { None };
     // AND BOTH PATHS PUBLISH THE SAME WAY. A link that refuses an occupied
-    // name cannot write over a config this run never read, whether that config
-    // was there all along or arrived while the questions were being answered.
+    // name cannot write over a config this run never read: after the dangling
+    // symlink pre-check in `setup_mode`, the only way a config can be
+    // standing here is a genuine arrival while the questions were being
+    // answered, so "appeared" below is exact rather than one of two guesses.
     match std::fs::hard_link(pending, path) {
         Ok(()) => Ok(kept),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
@@ -7505,7 +7667,17 @@ fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
         .write(true)
         .mode(CONFIG_FILE_MODE)
         .open(&backup)
-        .map_err(|error| format!("{} could not be kept: {error}", backup.display()))?;
+        .map_err(|error| match error.kind() {
+            std::io::ErrorKind::AlreadyExists => format!(
+                "{} already exists, kept by a run earlier this same second; \
+                 nothing was written",
+                backup.display()
+            ),
+            // ANY OTHER FAILURE IS ITS OWN REASON: naming the same-second
+            // collision for a permission refusal would blame a run that
+            // never happened.
+            _ => format!("{} could not be claimed: {error}", backup.display()),
+        })?;
     if let Err(error) = std::fs::rename(path, &backup) {
         // THE CLAIM GOES WITH THE RUN THAT MADE IT, whether there was nothing
         // to move or the move could not be made: an empty file named like a
@@ -7513,7 +7685,13 @@ fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
         let _ = std::fs::remove_file(&backup);
         return match error.kind() {
             std::io::ErrorKind::NotFound => Ok(None),
-            _ => Err(format!("{} could not be kept: {error}", backup.display())),
+            // THE BACKUP WAS NEVER THE PROBLEM HERE: it is a fresh file this
+            // call just created, and what could not be moved onto it is
+            // `path` itself, so the refusal names that instead.
+            _ => Err(format!(
+                "{} could not be moved aside to keep it: {error}",
+                path.display()
+            )),
         };
     }
     // AS PRIVATE AS THE CONFIG IT HOLDS, when what moved is a file at all: the
@@ -7814,12 +7992,12 @@ mod tests {
         CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
         STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, drive_breaths, end_lease,
-        held_lamps, lights_report, list, matches_glob, means_yes, muted_state, publish_config,
-        publish_state_line, read_news, read_note, recap_bounds, record_news, renew_loop_lease,
-        republish_after, reread_attempts_from, reread_interval_from, resolve_path, router_backend,
-        run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked, sweep_leases,
-        sweep_legacy_state, sweep_markers, sweep_shell_markers, tick_bridge_deadline,
-        update_blocked_marker,
+        held_lamps, keep_aside, lights_report, list, matches_glob, means_yes, muted_state,
+        now_secs, publish_config, publish_state_line, read_news, read_note, recap_bounds,
+        record_news, renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
+        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
+        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
+        tick_bridge_deadline, update_blocked_marker,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9493,6 +9671,16 @@ mod tests {
             & 0o777
     }
 
+    /// Everything beside the published config in its directory: empty when a
+    /// publish left no pending file and claimed no unclaimed backup name.
+    fn leftovers(path: &std::path::Path) -> Vec<String> {
+        std::fs::read_dir(path.parent().expect("the directory"))
+            .expect("the directory")
+            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+            .filter(|name| name != "config.toml")
+            .collect()
+    }
+
     #[test]
     fn a_first_config_is_published_for_its_operator_alone_and_leaves_no_pending_file() {
         // THE FILE CARRIES EVERY PLUGIN'S SECRET, so publishing it at the
@@ -9516,14 +9704,10 @@ mod tests {
             CONFIG_FILE_MODE,
             "the config is the operator's alone"
         );
-        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
-            .expect("the directory")
-            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
-            .filter(|name| name != "config.toml")
-            .collect();
+        let extra = leftovers(&path);
         assert!(
-            leftovers.is_empty(),
-            "a pending file was left behind: {leftovers:?}"
+            extra.is_empty(),
+            "a pending file was left behind: {extra:?}"
         );
     }
 
@@ -9549,15 +9733,8 @@ mod tests {
             "# somebody else got here first\n",
             "the config that was already there was written over"
         );
-        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
-            .expect("the directory")
-            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
-            .filter(|name| name != "config.toml")
-            .collect();
-        assert!(
-            leftovers.is_empty(),
-            "a refusal left a pending file: {leftovers:?}"
-        );
+        let extra = leftovers(&path);
+        assert!(extra.is_empty(), "a refusal left a pending file: {extra:?}");
     }
 
     #[test]
@@ -9609,27 +9786,21 @@ mod tests {
         // AND IT LEAVES NO FILE NAMED LIKE ONE EITHER. Claiming the backup's
         // name is how a second forced run in the same second is refused, and a
         // claim left standing over nothing is a backup that holds nothing.
-        let leftovers: Vec<String> = std::fs::read_dir(path.parent().expect("the directory"))
-            .expect("the directory")
-            .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
-            .filter(|name| name != "config.toml")
-            .collect();
-        assert!(
-            leftovers.is_empty(),
-            "it kept something aside: {leftovers:?}"
-        );
+        let extra = leftovers(&path);
+        assert!(extra.is_empty(), "it kept something aside: {extra:?}");
     }
 
     #[test]
     fn a_forced_run_keeps_a_config_the_existence_check_reads_as_absent() {
-        // THE CHECK IS NOT THE AUTHORITY, THE PUBLISH IS. `exists` answers for
-        // what a name resolves to rather than for the name, so it reads a
-        // config the operator symlinked into a checkout that is not there as
-        // nothing at all; the same answer a config CREATED after the check
-        // gives, which no test can reach without a seam. Either way a blanket
-        // rename replaced a config this run never read, with no backup and no
-        // word, so the publish moves aside whatever is standing there and asks
-        // for the name rather than taking it.
+        // THE CHECK IS NOT THE AUTHORITY, THE PUBLISH IS. The walk's own
+        // pre-check reads `symlink_metadata` rather than `exists`, so a
+        // dangling symlink at the config name is refused before the first
+        // question is even asked; this proves the FORCED publish handles the
+        // same dangling symlink correctly on its own, which must not depend
+        // on the pre-check having caught it. Either way a blanket rename
+        // replaced a config this run never read, with no backup and no word,
+        // so the publish moves aside whatever is standing there and asks for
+        // the name rather than taking it.
         let home = scratch("setup-publish-unseen");
         let path = home.join(".config/pns/config.toml");
         std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
@@ -9716,6 +9887,93 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&path).expect("the config"),
             "# composed\n"
+        );
+    }
+
+    #[test]
+    fn a_same_second_backup_collision_names_the_backup_it_could_not_claim() {
+        // THE NAME IS CLAIMED WITH `create_new`, so a second forced run inside
+        // the same second finds its own stamp already taken; this pre-creates
+        // that collision instead of running two forced publishes back to back
+        // and hoping they land in the same wall-clock second.
+        let home = scratch("setup-keep-aside-collision");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
+        std::fs::write(&path, "# the one it replaces\n").expect("the config");
+        let now = now_secs().expect("the clock");
+        let backup = pns::setup::backup_path(&path, now).expect("the backup name");
+        std::fs::write(&backup, "# an earlier run's own backup\n").expect("the earlier backup");
+
+        let refusal = keep_aside(&path).expect_err("the backup name is already claimed");
+        assert!(
+            refusal.contains(&backup.display().to_string()),
+            "the refusal does not name the backup it could not claim: {refusal}"
+        );
+        assert!(
+            refusal.contains("already exists"),
+            "the reason is a raw io::Error instead of naming the same-second collision: {refusal}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the config"),
+            "# the one it replaces\n",
+            "the config was moved even though its backup name could not be claimed"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&backup).expect("the earlier backup"),
+            "# an earlier run's own backup\n",
+            "an earlier run's own backup was overwritten rather than left alone"
+        );
+    }
+
+    #[test]
+    fn a_claim_that_fails_for_another_reason_is_not_blamed_on_a_same_second_run() {
+        // THE CLAIM FAILS, BUT NOT BECAUSE THE NAME IS TAKEN: the config's own
+        // directory is missing, so `create_new` cannot open the backup name at
+        // all. Only AlreadyExists is the same-second collision; any other
+        // failure must carry its own reason rather than blame an earlier run
+        // that never happened.
+        let home = scratch("setup-keep-aside-other-reason");
+        let path = home.join(".config/pns/config.toml");
+
+        let refusal = keep_aside(&path).expect_err("the backup name cannot be claimed");
+        assert!(
+            refusal.contains("could not be claimed"),
+            "the refusal does not say the claim itself failed: {refusal}"
+        );
+        assert!(
+            !refusal.contains("earlier this same second"),
+            "a missing directory was blamed on a same-second collision: {refusal}"
+        );
+    }
+
+    #[test]
+    fn a_directory_at_the_config_path_is_named_rather_than_the_backup_it_could_not_replace() {
+        // THE RENAME IS WHAT FAILS HERE, not the claim: the backup file is
+        // created fine (it is a fresh name), and then a directory cannot be
+        // renamed onto it. The refusal is about `path`, the thing that could
+        // not be moved, not about `backup`, which was never the problem.
+        let home = scratch("setup-keep-aside-directory");
+        let path = home.join(".config/pns/config.toml");
+        std::fs::create_dir_all(&path).expect("a directory standing where the config belongs");
+
+        let refusal =
+            keep_aside(&path).expect_err("a directory cannot be renamed onto a plain file");
+        assert!(
+            refusal.contains(&path.display().to_string()),
+            "the refusal does not name the config path: {refusal}"
+        );
+        // `backup`'s own display string always carries `path`'s as a prefix
+        // (`backup_path` appends `.<stamp>.backup` to the config's name), so
+        // checking for the FULL backup string is what actually tells apart a
+        // refusal that blames the backup from one that blames the path.
+        assert!(
+            !refusal.contains(".backup"),
+            "the refusal blames the backup file it could not replace path with, \
+             rather than the path it could not move: {refusal}"
+        );
+        assert!(
+            path.is_dir(),
+            "the directory standing at the config path was moved"
         );
     }
 }
