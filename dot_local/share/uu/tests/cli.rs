@@ -282,13 +282,12 @@ fn the_doctor_never_prints_the_records_signing_key() {
 
 #[test]
 fn the_doctor_lists_each_declared_lane_with_its_type() {
-    let home = Home::new("doctor-lanes").with_config("[lanes.herdr]\ntype = \"herdr\"\n");
+    let home = Home::new("doctor-lanes").with_config("[lanes.mine]\ntype = \"herdr\"\n");
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
-    assert!(
-        stdout(&output).contains("lane herdr: on (herdr)"),
-        "{output:?}"
-    );
+    let out = stdout(&output);
+    assert!(out.contains("lane mine: on (herdr)"), "{output:?}");
+    assert!(!out.contains("none declared"), "{output:?}");
 }
 
 #[test]
