@@ -3,10 +3,13 @@
 //! Everything here is WIRING. The roster is one constant and one constructor
 //! in `registry`, so there is no second construction of it to diverge; the
 //! environment and the config are read once at this edge, and every decision
-//! is delegated to the library. The producer path and `pns hook <event>`
-//! exit 0 on every path, because a notification must never fail the work it
-//! reports on; `pns gate` instead passes through moshi's own exit code (see
-//! `gate_mode`). Every hand-typed verb refuses a bad invocation with exit 2.
+//! is delegated to the library. The producer path exits 0 on every path,
+//! because a notification must never fail the work it reports on, and so
+//! does `pns hook <event>` for every event but `blocked`, which, like
+//! `pns gate`, passes through moshi's own exit code (see `moshi_decision`).
+//! The hand-typed verbs refuse a bad invocation with exit 2, with two gaps
+//! still open: `home` is a diagnostic that always exits 0, and a word
+//! trailing `lights tick` is dropped rather than refused.
 
 use std::collections::BTreeMap;
 use std::io::{IsTerminal, Read, Seek, Write};
