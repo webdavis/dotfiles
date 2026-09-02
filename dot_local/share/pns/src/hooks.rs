@@ -277,11 +277,19 @@ pub fn condenser_verdict(codex_output: &str) -> Option<(String, String)> {
 
 /// The prompt the condenser answers. One line out, so the caller can parse it
 /// without a model-shaped grammar.
+///
+/// `asking` IS NARROWED TO A QUESTION FOR THE HUMAN, not a turn that merely
+/// mentions waiting. A live status line reading "waiting on the remaining
+/// reviews, then I bring you the one checkpoint" was classified `asking` under
+/// the looser wording (OBS-3), which lit the blue lamp and carded the operator
+/// over a turn asking them nothing: the word "waiting" was enough to match,
+/// whoever the turn was waiting on. There is no keyword rule to fix; the
+/// condenser is a model call, and this sentence is the whole rule it reads.
 pub fn condenser_prompt(reply: &str) -> String {
     format!(
         "Summarize this AI coding agent's last turn for a brief phone notification, then classify it.
 Output EXACTLY one line and nothing else: STATE|SUMMARY
-STATE is one of: done (finished its work), asking (wants you to answer or choose), blocked (needs permission/input to continue).
+STATE is one of: done (finished its work, or is only reporting status while it waits on OTHER AGENTS OR TOOLS), asking (has a question or choice that needs YOU, the human operator, to answer before it can continue), blocked (needs your permission or input to proceed).
 SUMMARY is two or three sentences, up to 320 characters, plain text, no newlines, covering what was done plus any decision or question raised.
 
 Turn:
