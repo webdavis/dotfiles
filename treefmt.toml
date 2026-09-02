@@ -59,7 +59,7 @@ excludes = [
   "docs/research/2026-04-12-worktrunk.md",
   # The editor formats its own CLAUDE.md on save; mdformat's 105-column wrap
   # would fight that and break the import PR's byte-diff proof. PR 4d lifts
-  # this alongside the stylua/luacheck exclusions.
+  # this.
   "dot_config/nvim/**",
 ]
 
