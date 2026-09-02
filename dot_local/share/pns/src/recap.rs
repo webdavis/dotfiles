@@ -1815,7 +1815,9 @@ mod tests {
             let Some(character) = char::from_u32(codepoint) else {
                 continue;
             };
-            let should_be_invisible = CF_RANGES.iter().any(|(lo, hi)| (*lo..=*hi).contains(&codepoint));
+            let should_be_invisible = CF_RANGES
+                .iter()
+                .any(|(lo, hi)| (*lo..=*hi).contains(&codepoint));
             assert_eq!(
                 is_invisible(character),
                 should_be_invisible,
