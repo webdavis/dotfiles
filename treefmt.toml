@@ -112,3 +112,12 @@ includes = [
   "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf",
   "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf.tmpl",
 ]
+
+[formatter.stylua]
+command = "stylua"
+includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+
+[formatter.luacheck]
+command = "luacheck"
+options = ["--config", "dot_config/nvim/dot_luacheckrc"]
+includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]

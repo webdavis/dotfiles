@@ -43,7 +43,7 @@ All lint and format tooling is orchestrated by the STANDALONE [treefmt](https://
 configured in `treefmt.toml`.
 
 ```bash
-just l             # run all ten formatters (three rewrite in place, seven check only)
+just l             # run all twelve formatters (four rewrite in place, eight check only)
 just L             # lint-check: drift gate (treefmt --no-cache --fail-on-change); `just c` is an alias
 just s             # shellcheck, plain files and rendered chezmoi templates
 just S             # shfmt (format shell files) only
@@ -54,8 +54,8 @@ just y             # yq (YAML validation) only
 just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
-Three formatters rewrite files (shfmt, mdformat, taplo); the other seven only read and fail the run on
-bad input, and the four render-then-validate ones are plain scripts under `scripts/treefmt/`.
+Four formatters rewrite files (shfmt, mdformat, taplo, stylua); the other eight only read and fail the
+run on bad input, and the four render-then-validate ones are plain scripts under `scripts/treefmt/`.
 
 `just l` auto-formats in place. `just lint-check` is the drift gate at pre-push and in CI; standalone
 treefmt has no dry-run mode and no sandbox, so a red gate has ALSO already written the fixes into the
@@ -327,11 +327,11 @@ files and checks them with yq.
 
 The contributor toolchain is Homebrew plus uv, no dev shell (the flake was removed 2026-08-05).
 `just setup` installs it into a fresh checkout: `brew bundle --file=Brewfile.dev` for the binary tools
-(actionlint, age, bash, bats-core, chezmoi, coreutils, gitleaks, jq, just, shellcheck, shfmt, taplo,
-treefmt, uv, yq, zizmor), then a uv install of mdformat and its six plugins. On dresden those formulae
-are also declared in `.chezmoidata/system_packages_autoinstall.yaml`, so the weekly bundle keeps them;
-`Brewfile.dev` is what a machine without that bundle needs. Nix remains installed on the machine for
-unrelated uses; this repo never invokes it.
+(actionlint, age, bash, bats-core, chezmoi, coreutils, gitleaks, jq, just, luacheck, shellcheck, shfmt,
+stylua, taplo, treefmt, uv, yq, zizmor), then a uv install of mdformat and its six plugins. On dresden
+those formulae are also declared in `.chezmoidata/system_packages_autoinstall.yaml`, so the weekly bundle
+keeps them; `Brewfile.dev` is what a machine without that bundle needs. Nix remains installed on the
+machine for unrelated uses; this repo never invokes it.
 
 **mdformat is version pinned and the pins live in two places.** It rewrites markdown, so a version bump
 silently rewraps every file and fails the drift gate on work nobody did. The exact `==` versions are in
