@@ -579,11 +579,16 @@ fn record_missed(
 /// `blocked_marker_action`'s rule and not a second copy of it here.
 ///
 /// THE LAG, NAMED RATHER THAN HIDDEN: the marker clears at the NEXT event from
-/// that session, which for an answered approval is the Stop hook at the end of
-/// the turn and not the instant the operator answered. So a lamp can hold blue
-/// through one long tool call. The tick's own bound is what stops an abandoned
-/// session holding it forever, and the day item 21's rebuild wires a real
-/// answered signal this consumes it at the same call site.
+/// that session, never at the instant the operator answered, because no event
+/// reports the answer itself. STOP IS THE LAST OF THE ARMS THAT GET THERE, not
+/// the only one: `prompt` clears on the operator typing and `resolved` on the
+/// tool batch coming back, and each is why the two arms carry a comment of
+/// their own. The worst case left is a wait whose session produces neither
+/// before its turn ends, and the SUBAGENT RESIDUAL, which `resolved` skips by
+/// design and which therefore does hold blue until the parent's own Stop. The
+/// tick's own bound is what stops an abandoned session holding it forever, and
+/// the day item 21's rebuild wires a real answered signal this consumes it at
+/// the same call site.
 ///
 /// STARTING ONE RIDES BEHIND THE `[lights]` TABLE, and ENDING ONE DOES NOT. A
 /// machine that never asked for the lamps must not start accumulating files
