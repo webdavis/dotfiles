@@ -5970,3 +5970,45 @@ fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
         "the newest entry is this event's: {recorded:?}"
     );
 }
+
+#[test]
+fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
+    // THE TRAIL'S OTHER BOUND, and the one that decides whether W6 holds at
+    // all: `append_ring_line` prunes on a read-back capped at `RING_READ_MAX`
+    // (256 KiB), and a ring it cannot read back is HEALED by collapsing to
+    // the one line just written. A `file_path` is payload text, capped only
+    // by the 1 MB stdin ceiling, so an entry-count bound alone lets ONE
+    // oversized path destroy every policy change recorded before it, which is
+    // the exact loss the audit trail exists to prevent.
+    let sandbox = Sandbox::new("config-change-policy-audit-huge-path");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(
+        sandbox.path("state/policy-settings-audit"),
+        "1756499000 session=s0 file=/etc/claude/first.json\n",
+    )
+    .expect("the audit trail");
+
+    let huge = "/etc/claude/".to_string() + &"a".repeat(300_000);
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some(&huge)),
+    );
+
+    assert!(output.status.success());
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    assert!(
+        recorded.contains("/etc/claude/first.json"),
+        "the earlier policy change survives an oversized path: {} bytes recorded",
+        recorded.len()
+    );
+    assert!(
+        recorded.len() < 256 * 1024,
+        "the trail stays inside the reader's own ceiling: {} bytes recorded",
+        recorded.len()
+    );
+}

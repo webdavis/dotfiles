@@ -269,6 +269,32 @@ fn model_switch_detail(from_model: &str, to_model: &str) -> Option<String> {
     Some(format!("automatic session model change: {from} to {to}"))
 }
 
+/// A `ConfigChange` payload field, rendered plainly and CUT, with the cut
+/// marked: `clipped` says it happened rather than handing a reader a path
+/// that silently is not the one on disk.
+///
+/// THE CUT IS WHAT KEEPS THE AUDIT TRAIL: both fields this arm reads are
+/// harness text bounded only by `MAX_PAYLOAD_BYTES` (1 MB), and both land in
+/// a ring whose prune runs on a read-back capped at `RING_READ_MAX` (256
+/// KiB). One oversized path makes that read-back fail, and the heal then
+/// collapses the whole trail to the single line just written, losing every
+/// policy change recorded before it. `decision_log`'s `IDENTITY_MAX` is the
+/// same defence at the same boundary, for the same reason.
+fn config_field(text: &str, max_chars: usize) -> String {
+    render::clipped(&rendered_plainly(text), max_chars)
+}
+
+/// The longest path a `ConfigChange` field carries into a card or the audit
+/// trail. Past `PATH_MAX` on both platforms this runs on, so no real path is
+/// ever cut, and short enough that the trail's own arithmetic holds: see
+/// `POLICY_SETTINGS_AUDIT_KEPT`.
+const CONFIG_PATH_MAX_CHARS: usize = 1024;
+
+/// The longest session id the audit trail carries. A session id is a UUID in
+/// every harness this serves; the cap is what stops one nobody validated from
+/// filling a line.
+const CONFIG_SESSION_MAX_CHARS: usize = 64;
+
 /// The five documented `ConfigChange` sources, and nothing else: an exact
 /// allowlist, matching the exact matcher declared beside it in
 /// `modify_settings.json`. THIS IS THE RUST-SIDE BACKSTOP the declaration's
@@ -298,7 +324,7 @@ fn config_source_label(source: &str) -> Option<&'static str> {
 /// it goes through `rendered_plainly` exactly as a hostile model name does.
 fn config_change_detail(source: &str, file_path: &str) -> Option<String> {
     let label = config_source_label(source)?;
-    let path = rendered_plainly(file_path);
+    let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
     Some(if path.is_empty() {
         label.to_string()
     } else {
@@ -311,6 +337,14 @@ fn config_change_detail(source: &str, file_path: &str) -> Option<String> {
 /// policy change is rarer and more consequential than an ordinary observed
 /// event, and it must outlive more than a handful of intervening turns rather
 /// than vanish with them the moment the ring rolls over.
+///
+/// THE ARITHMETIC `append_ring_line` ASKS EVERY CALLER FOR, against the
+/// `RING_READ_MAX` this passes beside it: a line is a timestamp, a session cut
+/// to `CONFIG_SESSION_MAX_CHARS` and a path cut to `CONFIG_PATH_MAX_CHARS`, so
+/// its worst case is about 4.4 KB of UTF-8 and twenty of them about 88 KB,
+/// comfortably inside the reader's 256 KiB ceiling. Without both cuts the
+/// depth alone would not bound the FILE, and a ring past that ceiling can
+/// never be pruned again: the heal fires and the trail collapses to one line.
 const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
 
 /// The policy-settings audit trail's file name, beside `DECISIONS` and
@@ -330,8 +364,8 @@ const POLICY_SETTINGS_AUDIT: &str = "policy-settings-audit";
 /// file later, never a card.
 fn record_policy_settings_change(session_id: &str, file_path: &str, now: Option<u64>) {
     let now = now.unwrap_or_default();
-    let session = rendered_plainly(session_id);
-    let path = rendered_plainly(file_path);
+    let session = config_field(session_id, CONFIG_SESSION_MAX_CHARS);
+    let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
     let path = if path.is_empty() { "none" } else { &path };
     let line = format!("{now} session={session} file={path}");
     let _ = append_ring_line(
