@@ -723,6 +723,38 @@ fn a_success_between_deferrals_resets_the_staleness_streak() {
     );
 }
 
+#[test]
+fn an_unreadable_streak_is_treated_as_already_close_to_stale_not_reset_to_zero() {
+    // FINDING 2 (6v): `read_streak`'s own unit tests pin what `Unreadable`
+    // IS, but nothing pinned what `run_mode` DOES with it. The deliberate
+    // choice there is to seed the streak one short of the threshold rather
+    // than starting fresh at zero, so a file that briefly held garbage does
+    // not quietly forgive whatever real streak it was tracking. One more
+    // deferral on top of a garbage streak file must be enough to trip the
+    // staleness alert; starting over at zero would need two more.
+    let home = Home::new("streak-unreadable");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    let streak_file = home.dir.join(".local/state/uu/lanes/mine/streak");
+    std::fs::create_dir_all(streak_file.parent().unwrap()).expect("streak dir");
+    std::fs::write(&streak_file, "not-a-number\n").expect("a garbage streak value");
+    home.uu(&["run"]);
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert!(
+        alerts.contains("consecutive"),
+        "one more deferral after an unreadable streak must trip the staleness \
+         alert, not reset the count to zero: {alerts}"
+    );
+}
+
 // --- the streak file's own I/O -----------------------------------------------
 
 #[test]
