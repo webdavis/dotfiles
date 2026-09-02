@@ -345,7 +345,7 @@ const DEFAULT_UNREAD_AFTER_SECS: u64 = 300;
 /// outlasts a long day away and still gives the bulb back before the next one
 /// starts. The ORDINARY end is not this at all: the session's next event
 /// clears the marker, whatever the hour.
-const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
+pub(crate) const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
 
 /// How long work must run continuously before the loop lamp arms itself.
 const DEFAULT_LOOP_THRESHOLD_SECS: u64 = 300;

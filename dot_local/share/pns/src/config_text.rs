@@ -432,6 +432,17 @@ pub const LAYOUT: &[Table] = &[
                 prose: "",
                 sample: Sample::Default("30"),
             },
+            Key {
+                name: "give_up_after_secs",
+                prose: "# How long an unanswered wait may hold the lamp before the daemon gives\n\
+                         # up on an abandoned session, in seconds. This is a BACKSTOP, not an\n\
+                         # expiry: the locked behaviour is blue breathing continuous until you\n\
+                         # answer, and the ordinary end is your session's next event, whatever the\n\
+                         # hour. 57600 (16 hours) outlasts a long day away and still gives the lamp\n\
+                         # back before the next one starts. The range is 60 to 604800 (a week),\n\
+                         # since an abandoned wait can span a weekend away.\n",
+                sample: Sample::Default("57600"),
+            },
         ],
     },
     Table {
@@ -1162,9 +1173,11 @@ mod tests {
         values.insert("lights".to_string(), toml::Value::Table(toml::Table::new()));
         let text = render(&values).expect("an armed-empty lights table renders");
         let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        let lights = config.lights.expect("lights was armed");
+        assert_eq!(*lights, crate::config::Lights::default());
         assert_eq!(
-            *config.lights.expect("lights was armed"),
-            crate::config::Lights::default()
+            lights.blocked.give_up_after_secs,
+            crate::config::DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS
         );
     }
 
