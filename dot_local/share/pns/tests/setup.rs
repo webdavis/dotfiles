@@ -369,6 +369,62 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
 }
 
 #[test]
+fn a_signal_sent_during_the_hidden_read_is_held_until_the_guard_drops() {
+    // KILL, THEN OBSERVE, rather than a pty-level tty-stop test: SIGINT is
+    // not a tty-stop signal and Rust empties a spawned child's own mask
+    // before exec, so the mask this observes is the wizard's own rather
+    // than something inherited. `ps -o sigmask` reads 0 for a blocked
+    // process on macOS, so a live process cannot be asked directly; sending
+    // a real SIGINT and watching when it lands is the only external read
+    // left. SIGTTIN is NOT covered here: a pending tty-stop signal is
+    // discarded rather than delivered once the process group is orphaned,
+    // and this harness (like CI) starts as its own session leader, so a
+    // `waitpid(WUNTRACED)` on it would hang to the deadline instead of
+    // observing anything. It is reviewed, not pinned.
+    use std::os::unix::process::ExitStatusExt;
+
+    let sandbox = Sandbox::without_config("setup-signal-pending");
+    let mut pty = Pty::open();
+    let mut child = pty.spawn(sandbox.bare().args(["setup"]));
+
+    pty.read_until("or press enter to pair later: ", PTY_DEADLINE)
+        .expect("the first prompt");
+
+    // THE GUARD IS ALREADY ARMED HERE, so a correct build holds this rather
+    // than acting on it immediately.
+    let sent = unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGINT) };
+    assert_eq!(sent, 0, "kill: {}", std::io::Error::last_os_error());
+    // NO POLL, NO SLEEP: on a correct build the signal is blocked, so the
+    // child is deterministically still alive the instant after `kill`
+    // returns, rather than something that has to be waited out.
+    assert!(
+        matches!(child.try_wait(), Ok(None)),
+        "the child died from a signal the guard should still be holding"
+    );
+
+    pty.write_all(b"do-not-echo-this-token\n");
+    pty.read_to_eof(PTY_DEADLINE).expect("the wizard exits");
+    let status = child.wait().expect("the wizard is reaped");
+
+    // THE HELD SIGNAL LANDS ONCE THE GUARD DROPS: `Drop` restores the
+    // terminal before it unblocks the mask, so the pending SIGINT is
+    // delivered only after echo is already back on, and it is what ends
+    // the process rather than a normal exit.
+    assert_eq!(
+        status.signal(),
+        Some(libc::SIGINT),
+        "the held SIGINT was not delivered once the guard dropped: {:?}",
+        pty.transcript
+    );
+    let after_exit = pty.tcgetattr();
+    assert_ne!(
+        after_exit.c_lflag & libc::ECHO,
+        0,
+        "the terminal was not restored before the pending signal was delivered"
+    );
+}
+
+#[test]
 fn a_dangling_symlink_at_the_config_path_is_refused_before_the_first_question() {
     // NO PTY NEEDED: the config check runs before the tty check, so a plain
     // pipe (here, `/dev/null`) is enough to tell which one fired first.
