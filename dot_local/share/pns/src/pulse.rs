@@ -109,13 +109,13 @@ pub fn exit_behaviour(exit_code: &str) -> Option<crate::config::Behaviour> {
     }
 }
 
-/// The states that put a lamp on BLUE: an agent waiting on the operator.
+/// The states that hold a lamp BLOCKED: an agent waiting on the operator.
 ///
 /// IT TRADES ONE WORD WITH `missed_notifications::NEEDS_YOU` IN EACH
 /// DIRECTION. That constant is right to carry `failed`, because a turn that
 /// died needs the operator every bit as much as one that asked; the lamps must
-/// tell them apart, since red says it died and blue says it is waiting, so
-/// reusing the shared list would paint every failure blue.
+/// tell them apart, since `failed` says it died and `blocked` says it is
+/// waiting, so reusing the shared list would hold every failure blocked.
 ///
 /// AND `asking` IS ON THIS LIST ALONE. The shared list is the harness's own
 /// state words, while a lamp also has to answer for what the CONDENSER writes:
@@ -132,12 +132,13 @@ pub const LAMP_BLOCKED: [&str; 5] = ["blocked", "asked", "plan-ready", "denied",
 /// the event path used to ask whether the state was `failed` and hand the
 /// success branch an exit code of zero for everything else.
 ///
-/// `lamps_are_mapped` IS THE `[lights]` TABLE'S PRESENCE, and blue exists only
-/// behind it. Without the map there is one room-shaped pulse and two colours,
+/// `lamps_are_mapped` IS THE `[lights]` TABLE'S PRESENCE, and `blocked` exists
+/// only behind it. Without the map there is one room-shaped pulse and two
+/// colours,
 /// which is what has shipped since the bash; a long-running turn that ends
 /// `blocked` has earned a pulse all along and flashed GREEN for it. Turning
-/// that flash blue would be a new behaviour arriving on a machine that wrote no
-/// map and asked for nothing.
+/// that flash blocked would be a new behaviour arriving on a machine that wrote
+/// no map and asked for nothing.
 ///
 /// IT IS ONE ANSWER RATHER THAN A COLOUR AND A SEPARATE OPT-IN GATE. The
 /// composition root asks this once and reads the opt-in off the answer, so
@@ -202,7 +203,7 @@ mod tests {
     fn every_waiting_state_says_blocked_and_a_failure_says_failed() {
         // THE ONE MAPPING, and the reason the lights do not reuse
         // `missed_notifications::NEEDS_YOU`: that list holds `failed`, which
-        // must read RED here. A lamp that painted a dead turn blue would tell
+        // must read RED here. A lamp that held a dead turn blocked would tell
         // the operator to come and answer a question nobody asked.
         for state in ["blocked", "asked", "plan-ready", "denied"] {
             assert_eq!(
@@ -245,7 +246,7 @@ mod tests {
         //
         // BLUE IS A FEATURE OF THE MAP, not of the state word. Without the map
         // there is no third colour to show, no lamp that means "waiting" rather
-        // than "finished", and turning that flash blue would be a new behaviour
+        // than "finished", and turning that flash blocked would be a new behaviour
         // arriving on a machine that asked for nothing.
         for state in LAMP_BLOCKED {
             assert_eq!(

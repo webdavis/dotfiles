@@ -2009,7 +2009,7 @@ fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
     // THE TEST THAT PROVES THE FEATURE EXISTS END TO END. On main the only
     // pulse gate is `plan.pulse`, which is `long_running`, so a blocked agent
     // shows the operator nothing on a bulb however long it waits. With the map
-    // written, the blue lamp is its own gate.
+    // written, the blocked lamp is its own gate.
     //
     // WHAT A DIAL CAN PROVE HERE, and the hard limit: the transport is HTTPS
     // with verification disabled and this spy is a plain TCP listener that
@@ -2102,7 +2102,7 @@ fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
 fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     // THE ONE NEW CONDITION `plan.pulse` DOES NOT ALREADY COVER. Arbitration
     // zeroes the plan's pulse for a muted event, so every other lamp in this
-    // slice is muted by that alone; the blue one earns its own gate at the
+    // slice is muted by that alone; the blocked one earns its own gate at the
     // composition root, off the map rather than off the plan, and that gate is
     // the only place the two answers can come out disagreeing about a lamp the
     // operator switched off.

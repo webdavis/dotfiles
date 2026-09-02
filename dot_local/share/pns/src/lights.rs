@@ -592,7 +592,7 @@ pub struct House {
 ///
 /// A LIST RATHER THAN ONE STATE, which is the whole difference from the shipped
 /// design: the house holds all of them at once and each LAMP resolves which one
-/// it shows, so a blue lamp and a violet lamp can be lit at the same moment
+/// it shows, so a blocked lamp and a loop lamp can be lit at the same moment
 /// because they are routed for different words.
 ///
 /// THE PUSHES ARE IN RANK ORDER and there is no sort behind them. One was here
@@ -887,7 +887,7 @@ pub fn parse_held_token(token: &str) -> HeldEntry {
 /// AND A PHASE ANOTHER STATE LEFT IS NOT RESUMED FROM, which is the case that
 /// costs a PAUSE rather than a fade. The slow shapes land their last fade
 /// almost four seconds past the interval that issued them, so a lamp that was
-/// looping and is now blocked would wait that fade out before its first blue
+/// looping and is now blocked would wait that fade out before its first blocked
 /// body reached the bridge: the locked precedence, arriving up to a whole fade
 /// late. A state change starts down at once instead.
 ///
@@ -941,12 +941,12 @@ pub enum Action {
 /// A CLOSED SET OF STARTERS AND EVERYTHING ELSE ENDS, rather than a closed set
 /// on both sides. A state this does not recognise is still a later event from
 /// that session, and the fail direction that matters is the one that lets a
-/// lamp go dark: an unknown word treated as a start would hold blue on a
+/// lamp go dark: an unknown word treated as a start would hold blocked on a
 /// session nobody is waiting for.
 ///
 /// IT READS `pulse::LAMP_BLOCKED`, the list the lamps already carry, and NOT
 /// `missed_notifications::NEEDS_YOU`, which correctly includes `failed`. A dead
-/// turn is red, not blue, and it is not a wait anybody can end.
+/// turn is `failed`, not `blocked`, and it is not a wait anybody can end.
 pub fn blocked_marker_action(event_state: &str) -> Action {
     if crate::pulse::LAMP_BLOCKED.contains(&event_state) {
         Action::Start
@@ -1988,7 +1988,7 @@ mod tests {
         );
         assert!(
             !any_blocked(&[NOW - BOUND - 1], NOW, BOUND),
-            "one second past it, an abandoned session can no longer hold a lamp blue"
+            "one second past it, an abandoned session can no longer hold a lamp blocked"
         );
         assert!(!any_blocked(&[], NOW, BOUND), "no marker is no wait");
         // A MARKER FROM THE FUTURE IS LIVE. A clock that stepped backwards is
@@ -2595,7 +2595,7 @@ mod tests {
         // THE PAUSE A FIXTURE-ONLY RESUME COSTS. The slow shapes land their
         // last fade almost four seconds past the interval that issued it, so a
         // lamp that was looping and is now blocked would wait that fade out
-        // before its first blue body reached the bridge: the locked precedence
+        // before its first blocked body reached the bridge: the locked precedence
         // arriving up to a whole fade late.
         let looping = HeldEntry {
             path: "light/l1".to_string(),

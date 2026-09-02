@@ -362,7 +362,8 @@ const DEFAULT_UNREAD_AFTER_SECS: u64 = 300;
 /// gives up on an abandoned session (operator ruling 2026-09-01).
 ///
 /// SIXTEEN HOURS, AND IT IS STILL A BACKSTOP RATHER THAN AN EXPIRY. The locked
-/// behaviour is blue breathing CONTINUOUS UNTIL THE OPERATOR ANSWERS, so any
+/// behaviour is the blocked lamp breathing CONTINUOUS UNTIL THE OPERATOR
+/// ANSWERS, so any
 /// bound at all is a departure from it and the only honest job left for one is
 /// releasing a bulb from a session that will never come back. Sixteen hours
 /// outlasts a long day away and still gives the bulb back before the next one
