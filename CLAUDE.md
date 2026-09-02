@@ -400,8 +400,8 @@ apply time from the crate at `~/.local/share/pns` and installed here because lau
 what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
 `~/.config/pns/config.toml` file selects by name, so adding one is a registration rather than a file
 dropped in a directory. The HOOKS are the engine too:
-`pns hook prompt|stop|stop-failure|blocked|asked|plan-ready|denied|model-switch` reads the harness
-payload on stdin and runs the one event path, and `pns gate <harness>-hook` is the presence-gated
+`pns hook prompt|stop|stop-failure|blocked|asked|plan-ready|denied|resolved|model-switch|quota` reads the
+harness payload on stdin and runs the one event path, and `pns gate <harness>-hook` is the presence-gated
 pass-through to moshi-hook. That gate answers the BARE word too (`pns pi-hook`), which is the spelling
 moshi's own generated pi and omp extensions are stuck with: their `helperBinary` field holds one pathname
 and has no room for a subcommand. `hooks/codex/install-hooks.sh` is the last bash left under `pns/`,
