@@ -103,6 +103,67 @@ return {
       -- contextual (build/test/scheme/device actions for the current project), not exhaustive:
       -- explicit log open/close, next/previous device and the quickfix commands are not in it.
       { "<leader>xx", "<cmd>XcodebuildPicker<cr>", desc = "Xcode: available actions" },
+      -- Raw nvim-dap control, under the existing `<leader>D` "debug" group (which-key.lua:35),
+      -- not `<leader>x`: starting a session with Xg above is not "wired up" without a way to
+      -- set a breakpoint and step through it. Kept clear of the existing Ds/Dt maps and the Dp
+      -- profiler subgroup; capital second letters are variants of their lowercase neighbor, the
+      -- same pattern the rest of this config already uses (Xt/XT, Xb/XB).
+      {
+        "<leader>Db",
+        function()
+          require("dap").toggle_breakpoint()
+        end,
+        desc = "Debug: toggle breakpoint",
+      },
+      {
+        "<leader>DB",
+        function()
+          require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: "))
+        end,
+        desc = "Debug: conditional breakpoint",
+      },
+      {
+        "<leader>Dc",
+        function()
+          require("dap").continue()
+        end,
+        desc = "Debug: continue",
+      },
+      {
+        "<leader>Do",
+        function()
+          require("dap").step_over()
+        end,
+        desc = "Debug: step over",
+      },
+      {
+        "<leader>Di",
+        function()
+          require("dap").step_into()
+        end,
+        desc = "Debug: step into",
+      },
+      {
+        "<leader>DO",
+        function()
+          require("dap").step_out()
+        end,
+        desc = "Debug: step out",
+      },
+      {
+        "<leader>Dx",
+        function()
+          require("dap").terminate()
+        end,
+        desc = "Debug: terminate",
+      },
+      {
+        "<leader>Du",
+        function()
+          require("dapui").toggle()
+        end,
+        desc = "Debug: toggle dap-ui panel",
+      },
     },
   },
 }
