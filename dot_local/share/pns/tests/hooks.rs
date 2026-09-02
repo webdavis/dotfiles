@@ -6015,3 +6015,34 @@ fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
         recorded.len()
     );
 }
+
+#[test]
+fn a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry() {
+    // THE DURABLE RECORD'S OWN INJECTION CASE. The card's hostile-path test
+    // covers what a reader SEES; this covers what a reader LATER READS BACK.
+    // The trail is one record per line, so a raw newline in a payload field
+    // would let one received change write a second entry that never happened.
+    let sandbox = Sandbox::new("config-change-policy-audit-newline");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload(
+            "s1",
+            "policy_settings",
+            Some("/etc/claude/policy.json\\n1756499001 session=s9 file=/etc/claude/forged.json"),
+        ),
+    );
+
+    assert!(output.status.success());
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    assert_eq!(
+        recorded.lines().count(),
+        1,
+        "one received change is one entry, whatever the path carried: {recorded:?}"
+    );
+}
