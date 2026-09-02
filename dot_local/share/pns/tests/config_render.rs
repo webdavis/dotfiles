@@ -178,6 +178,37 @@ fn running_the_binary_twice_against_the_same_values_file_writes_identical_bytes(
     );
 }
 
+/// THE MUTANT THIS PINS: a binary that validates the requested render and
+/// then writes a deterministic default body regardless of what it was
+/// asked to render. The banner test above only checks a prefix and a
+/// suffix, and the idempotence test only checks that two runs agree WITH
+/// EACH OTHER; a binary that always writes the same fixed body passes both.
+/// Comparing the binary's actual output against an independently known
+/// answer, the committed template for the committed values file, is what
+/// proves the body itself came from the given input rather than from
+/// nowhere.
+#[test]
+fn the_binary_over_the_committed_values_file_writes_the_committed_template_exactly() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let values_path = repo_root.join("dot_config/pns/config-values.toml");
+    let committed_template_path = repo_root.join("dot_config/pns/private_config.toml.tmpl");
+
+    let scratch = Scratch::new("committed-values-render");
+    let written_path = scratch.path("private_config.toml.tmpl");
+
+    let output = run(&values_path, &written_path);
+    assert!(output.status.success(), "{output:?}");
+
+    let written = std::fs::read_to_string(&written_path).expect("read written template");
+    let committed =
+        std::fs::read_to_string(&committed_template_path).expect("read committed template");
+    assert_eq!(
+        written, committed,
+        "the binary's own output over the committed values file must match the committed \
+         template exactly, not a fixed body of its own"
+    );
+}
+
 /// THE MUTANT THIS PINS: the argv usage guard removed, letting a missing
 /// argument panic or silently no-op instead of a clean, documented exit.
 #[test]
