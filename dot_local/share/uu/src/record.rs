@@ -352,6 +352,7 @@ mod tests {
         LaneReport {
             name: name.to_string(),
             failures,
+            deferred: false,
             lines: lines.iter().map(|line| line.to_string()).collect(),
             last_failure: None,
         }

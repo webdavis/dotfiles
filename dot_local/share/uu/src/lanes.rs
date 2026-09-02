@@ -18,8 +18,13 @@
 use crate::config::{CommandLane, Config, HerdrLane, LaneKind};
 use crate::record::{RunFacts, lane_event};
 
-/// What one lane did: how many things went wrong, the lines the record
-/// carries about it, and the last of those lines that reported a FAILURE.
+/// What one lane did: how many things went wrong, whether it DEFERRED instead
+/// of running, the lines the record carries about it, and the last of those
+/// lines that reported a FAILURE.
+///
+/// DEFERRED IS NOT A FAILURE. A lane that exited `DEFERRED_EXIT_CODE` did not
+/// run at all; that is a fact worth a distinct line in the record, and never
+/// a reason to alert or to count toward `failures`.
 ///
 /// THE LAST FAILURE IS KEPT SEPARATELY because the lane continues past one,
 /// so the last line written is routinely a later success. The alert has room
@@ -28,6 +33,7 @@ use crate::record::{RunFacts, lane_event};
 pub struct LaneReport {
     pub name: String,
     pub failures: usize,
+    pub deferred: bool,
     pub lines: Vec<String>,
     pub last_failure: Option<String>,
 }
@@ -38,6 +44,7 @@ impl LaneReport {
         LaneReport {
             name: name.to_string(),
             failures: 0,
+            deferred: false,
             lines: Vec::new(),
             last_failure: None,
         }
@@ -52,20 +59,57 @@ impl LaneReport {
         self.lines.push(line);
     }
 
+    /// The lane DEFERRED: nothing was attempted, so this is recorded rather
+    /// than counted as a failure and never fires the per-run alert. Distinct
+    /// from `failed`, which the caller must never also call for the same
+    /// verdict: a lane either deferred or it did not.
+    pub fn deferred(&mut self, line: String) {
+        self.deferred = true;
+        self.lines.push(line);
+    }
+
     /// One thing that went right, or a fact the record carries.
     pub fn noted(&mut self, line: String) {
         self.lines.push(line);
     }
 }
 
+/// The exit code the two weekly jobs this ported from already use to mean
+/// "nothing was attempted, try later" (a serialize-lock EX_TEMPFAIL). Matching
+/// it is the whole point of this verdict: a lane exiting anything else stays a
+/// failure.
+///
+/// THE COLLISION IS REAL BUT NARROW. The system header defines 75 only as a
+/// generic temporary failure, and hermes itself already uses 75 for a
+/// completed graceful gateway response, so a lane whose PROGRAM IS hermes, or
+/// which propagates hermes's own exit code unchanged, could exit 75 for a
+/// reason that has nothing to do with deferral. Verified against both
+/// existing weekly jobs (2026-09-02): neither propagates an inner hermes exit
+/// code outward. Each calls hermes inside a bash `if ...; then ... else
+/// ...; fi`, and each job's own exit status comes from its own explicit `exit
+/// N` statements alone, never from `$?` after a hermes call. A future
+/// `command` lane whose `run` is hermes itself, or that forwards hermes's own
+/// status unchanged, would collide; the shipped config template says so.
+pub const DEFERRED_EXIT_CODE: i32 = 75;
+
 /// What a command lane's child did, when it could be run at all. `stdout` is
-/// kept EVEN ON FAILURE (a failed child's own record lines are not the thing
-/// that failed); `failure` is the same one-line reason `failure_reason`
-/// composes, or `None` for a clean exit.
+/// kept EVEN ON A NON-CLEAN EXIT (a failed or deferred child's own record
+/// lines are not the thing that failed).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ran {
     pub stdout: String,
-    pub failure: Option<String>,
+    pub verdict: Verdict,
+}
+
+/// How a command lane's child ended. `Deferred` and `Failed` each carry the
+/// one line `failure_reason` composes (how it ended, plus the tail of what it
+/// said on stderr): a deferring lane explains itself on stderr as often as a
+/// failing one does, and that explanation belongs in the record either way.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verdict {
+    Clean,
+    Deferred(String),
+    Failed(String),
 }
 
 /// The spawn seam. `run`'s `Ok` carries the command's stdout, `Err` why it did
@@ -73,8 +117,9 @@ pub struct Ran {
 ///
 /// `run_with_input` is for a child that is HANDED something on stdin (a
 /// command lane's run event): it separates "could not run this at all" (the
-/// `Err`, e.g. a missing executable) from "ran, but failed" (`Ran::failure`),
-/// because the second case still has stdout worth recording.
+/// `Err`, e.g. a missing executable) from "ran, but did not exit clean"
+/// (`Ran::verdict`), because the second case still has stdout worth
+/// recording.
 pub trait CommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String>;
     fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String>;
@@ -163,14 +208,14 @@ fn squash(line: &str) -> String {
 }
 
 /// The command lane: hands the run event to the child on stdin under the
-/// locked contract, keeps its stdout as record lines, and turns a non-zero
-/// exit or a child that could not run at all into a failure the alert
-/// summary names.
+/// locked contract, keeps its stdout as record lines, and turns the child's
+/// verdict, or a child that could not run at all, into what the record and
+/// the alert summary say.
 ///
-/// STDOUT IS KEPT EVEN ON A FAILED EXIT. `run_with_input`'s `Ran::failure`
+/// STDOUT IS KEPT EVEN ON A NON-CLEAN EXIT. `run_with_input`'s `Ran::verdict`
 /// already carries the reason (the exit description and the stderr tail);
 /// what the child printed on the way there is still worth recording, and
-/// `report.noted` runs before `report.failed` so it does.
+/// `report.noted` runs before `report.failed`/`report.deferred` so it does.
 ///
 /// THE CHILD'S WORLD: `run[0]` is the program, `run[1..]` its arguments, and
 /// argv[0] the child sees is `run[0]` verbatim. Env and working directory are
@@ -194,8 +239,12 @@ pub fn run_command(
             for line in stdout_lines(&ran.stdout) {
                 report.noted(line);
             }
-            if let Some(reason) = ran.failure {
-                report.failed(format!("{program}: {reason}"));
+            match ran.verdict {
+                Verdict::Clean => {}
+                Verdict::Deferred(reason) => {
+                    report.deferred(format!("{program}: deferred ({reason})"));
+                }
+                Verdict::Failed(reason) => report.failed(format!("{program}: {reason}")),
             }
         }
         Err(could_not_run) => report.failed(could_not_run),
@@ -292,6 +341,7 @@ mod tests {
     /// invocation fails without depending on call order.
     struct ScriptedRunner {
         failing: Vec<Vec<String>>,
+        deferring: Vec<Vec<String>>,
         unrunnable: Vec<Vec<String>>,
         stdout: String,
         calls: RefCell<Vec<Vec<String>>>,
@@ -305,6 +355,7 @@ mod tests {
                     .iter()
                     .map(|call| call.iter().map(|word| word.to_string()).collect())
                     .collect(),
+                deferring: Vec::new(),
                 unrunnable: Vec::new(),
                 stdout: String::new(),
                 calls: RefCell::new(Vec::new()),
@@ -314,6 +365,14 @@ mod tests {
 
         fn answering(mut self, stdout: &str) -> Self {
             self.stdout = stdout.to_string();
+            self
+        }
+
+        /// A `run_with_input` call that exits `DEFERRED_EXIT_CODE`, distinct
+        /// from `failing`'s "ran, but exited some other non-zero code".
+        fn deferring(mut self, call: &[&str]) -> Self {
+            self.deferring
+                .push(call.iter().map(|word| word.to_string()).collect());
             self
         }
 
@@ -358,9 +417,16 @@ mod tests {
             if self.unrunnable.contains(&call) {
                 return Err(format!("could not run {program}: stubbed as unrunnable"));
             }
+            let verdict = if self.deferring.contains(&call) {
+                Verdict::Deferred("exit 75".to_string())
+            } else if self.failing.contains(&call) {
+                Verdict::Failed("exit 1".to_string())
+            } else {
+                Verdict::Clean
+            };
             Ok(Ran {
                 stdout: self.stdout.clone(),
-                failure: self.failing.contains(&call).then(|| "exit 1".to_string()),
+                verdict,
             })
         }
     }
@@ -490,7 +556,14 @@ mod tests {
     fn a_scripted_runner_answers_run_with_input_failure_from_its_failing_set() {
         let runner = ScriptedRunner::new(&[&["cmd", "a"]]);
         let ran = runner.run_with_input("cmd", &["a"], "in\n").unwrap();
-        assert_eq!(ran.failure.as_deref(), Some("exit 1"));
+        assert_eq!(ran.verdict, Verdict::Failed("exit 1".to_string()));
+    }
+
+    #[test]
+    fn a_scripted_runner_answers_run_with_input_deferral_from_its_deferring_set() {
+        let runner = ScriptedRunner::new(&[]).deferring(&["cmd", "a"]);
+        let ran = runner.run_with_input("cmd", &["a"], "in\n").unwrap();
+        assert_eq!(ran.verdict, Verdict::Deferred("exit 75".to_string()));
     }
 
     // --- the shared tail -------------------------------------------------------
@@ -724,11 +797,11 @@ mod tests {
                 match self.run(program, args) {
                     Ok(stdout) => Ok(Ran {
                         stdout,
-                        failure: None,
+                        verdict: Verdict::Clean,
                     }),
                     Err(failure) => Ok(Ran {
                         stdout: String::new(),
-                        failure: Some(failure),
+                        verdict: Verdict::Failed(failure),
                     }),
                 }
             }
@@ -893,6 +966,56 @@ mod tests {
         assert_eq!(
             report.lines.last(),
             report.last_failure.as_ref(),
+            "{:?}",
+            report.lines
+        );
+    }
+
+    #[test]
+    fn a_child_that_exits_the_deferred_code_is_recorded_deferred_not_failed() {
+        let program = "/usr/local/bin/updater";
+        let runner = ScriptedRunner::new(&[])
+            .deferring(&[program])
+            .answering("nothing was attempted: another run holds the lock\n");
+        let lane = command_lane(&[program]);
+        let report = run_command("mine", &lane, &stub_facts(), &runner);
+        assert_eq!(report.failures, 0, "a deferral is not a failure: {report:?}");
+        assert!(report.deferred, "{report:?}");
+        assert_eq!(
+            report.last_failure, None,
+            "a deferral is never the alertable failure: {report:?}"
+        );
+        assert!(
+            report.lines.iter().any(|line| line.contains("deferred")),
+            "{:?}",
+            report.lines
+        );
+        // Stdout survives a deferral exactly as it survives a failure: a
+        // deferring lane explains itself on the way out.
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|line| line.contains("another run holds the lock")),
+            "{:?}",
+            report.lines
+        );
+    }
+
+    #[test]
+    fn a_deferred_lane_carries_its_stderr_explanation_in_the_deferred_line() {
+        // D7: the Homebrew job explains contention on STDERR, not stdout, so
+        // the deferred line has to carry what run_with_input put in the
+        // Verdict, not just whatever the child happened to print on stdout.
+        let program = "/usr/local/bin/updater";
+        let runner = ScriptedRunner::new(&[]).deferring(&[program]);
+        let lane = command_lane(&[program]);
+        let report = run_command("mine", &lane, &stub_facts(), &runner);
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|line| line.contains("exit 75")),
             "{:?}",
             report.lines
         );

@@ -21,7 +21,8 @@ use unattended_upgrades::config::{
     Config, ConfigError, LANE_TYPES, LaneKind, LoadOutcome, Records, config_path, load_config,
 };
 use unattended_upgrades::lanes::{
-    CommandRunner, LaneReport, Ran, enabled_lanes, failure_reason, run_lane,
+    CommandRunner, DEFERRED_EXIT_CODE, LaneReport, Ran, Verdict, enabled_lanes, failure_reason,
+    run_lane,
 };
 use unattended_upgrades::record::{
     AGENT, Marker, RunFacts, gap_line, marker_contents, parse_marker, record_body, record_detail,
@@ -518,14 +519,25 @@ impl CommandRunner for SystemRunner {
             .map_err(|error| format!("could not write {program}'s input: {error}"))?;
         drop(writer);
         let output = self.spawn(program, args, Stdio::from(reader))?;
+        let verdict = if output.status.success() {
+            Verdict::Clean
+        } else {
+            let reason = failure_reason(
+                &exit_description(&output),
+                &String::from_utf8_lossy(&output.stderr),
+            );
+            // DEFERRED_EXIT_CODE, not "any non-zero": the two weekly jobs
+            // this ported from use it to mean "nothing was attempted, try
+            // later", and every other non-zero code stays a real failure.
+            if output.status.code() == Some(DEFERRED_EXIT_CODE) {
+                Verdict::Deferred(reason)
+            } else {
+                Verdict::Failed(reason)
+            }
+        };
         Ok(Ran {
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-            failure: (!output.status.success()).then(|| {
-                failure_reason(
-                    &exit_description(&output),
-                    &String::from_utf8_lossy(&output.stderr),
-                )
-            }),
+            verdict,
         })
     }
 }
@@ -647,7 +659,7 @@ mod tests {
             .expect("cat never saw EOF: uu is still holding the pipe's write end")
             .expect("cat runs");
         assert_eq!(ran.stdout, "the run event\n");
-        assert_eq!(ran.failure, None);
+        assert_eq!(ran.verdict, Verdict::Clean);
     }
 
     #[test]
@@ -663,7 +675,7 @@ mod tests {
         let ran = SystemRunner
             .run_with_input("/bin/sh", &["-c", "exit 0"], "the run event\n")
             .expect("a child that ignores stdin still runs and exits cleanly");
-        assert_eq!(ran.failure, None);
+        assert_eq!(ran.verdict, Verdict::Clean);
     }
 
     #[test]
@@ -671,7 +683,7 @@ mod tests {
         // The child prints to stdout BEFORE it fails, the way a partially
         // successful upgrade would: a mutant that blanks stdout on any
         // non-zero exit would still satisfy every assertion below that only
-        // looks at `failure`, so `ran.stdout` is pinned here too.
+        // looks at `verdict`, so `ran.stdout` is pinned here too.
         let ran = SystemRunner
             .run_with_input(
                 "/bin/sh",
@@ -683,9 +695,49 @@ mod tests {
             )
             .expect("the child ran, it just failed");
         assert_eq!(ran.stdout, "3 upgraded\n");
-        let failure = ran.failure.expect("a non-zero exit is a failure");
+        let Verdict::Failed(failure) = ran.verdict else {
+            panic!("exit 2 is a failure, not {:?}", ran.verdict);
+        };
         assert!(failure.contains("exit 2"), "{failure}");
         assert!(failure.contains("no such repository"), "{failure}");
+    }
+
+    #[test]
+    fn run_with_input_reports_the_deferred_exit_code_as_deferred_not_failed() {
+        // The distinction this whole capability exists for: DEFERRED_EXIT_CODE
+        // (75) is a verdict of its own, never lumped in with every other
+        // non-zero exit.
+        let ran = SystemRunner
+            .run_with_input(
+                "/bin/sh",
+                &[
+                    "-c",
+                    "printf 'nothing was attempted\\n'; cat >/dev/null; \
+                     printf 'another run holds the lock\\n' >&2; exit 75",
+                ],
+                "the run event\n",
+            )
+            .expect("the child ran, it just deferred");
+        let Verdict::Deferred(reason) = ran.verdict else {
+            panic!("exit 75 is a deferral, not {:?}", ran.verdict);
+        };
+        assert!(reason.contains("exit 75"), "{reason}");
+        assert!(reason.contains("another run holds the lock"), "{reason}");
+    }
+
+    #[test]
+    fn run_with_input_treats_any_other_non_zero_exit_as_failed_never_deferred() {
+        // A mutant widening DEFERRED_EXIT_CODE's check to "any non-zero" would
+        // pass every other test here; this pins a neighboring exit code (74,
+        // one below 75) as still Failed.
+        let ran = SystemRunner
+            .run_with_input("/bin/sh", &["-c", "exit 74"], "the run event\n")
+            .expect("the child ran, it just failed");
+        assert!(
+            matches!(ran.verdict, Verdict::Failed(_)),
+            "{:?}",
+            ran.verdict
+        );
     }
 
     #[test]
