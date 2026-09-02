@@ -28,7 +28,7 @@ use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
 use pns::hooks::{
-    HookPayload, condenser_prompt, condenser_verdict, moshi_subcommand, parse_payload,
+    HookPayload, condenser_prompt, condenser_verdict, flattened, moshi_subcommand, parse_payload,
     transcript_reply,
 };
 use pns::registry::{roster, select_plugins};
@@ -319,6 +319,34 @@ fn hook_mode(event: &str) -> i32 {
             &payload,
             Attempt::First,
         ),
+        // `PostModelSwitch`, restricted to the one `source` the hooks
+        // reference documents as unrequested: `command`, `picker` and `sdk`
+        // are the operator or the harness choosing a model on purpose, and
+        // `resume` is D4b's own follow-up (a state-only audit record, not a
+        // notification). Only `auto` is routed, and it is routed as an
+        // OBSERVATION: it is news about the session, not a turn needing the
+        // operator's attention, so it must not clear a wait, renew a lease or
+        // claim the return moment. Labelled "automatic session model
+        // change", never "fallback": the payload cannot tell a fallback
+        // chain apart from every other automatic change.
+        "model-switch" if payload.source == "auto" => run_event(
+            &pns::args::EventArgs {
+                agent,
+                state: event.to_string(),
+                project: project_of(&payload.cwd),
+                detail: format!(
+                    "automatic session model change: {} to {}",
+                    flattened(&payload.from_model),
+                    flattened(&payload.to_model)
+                ),
+                pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                ..Default::default()
+            },
+            &system_probes(),
+            &payload,
+            Attempt::Observation,
+        ),
+        "model-switch" => {}
         // An event this binary does not serve is not an error the harness
         // should hear about on a notification path.
         _ => eprintln!("pns: unknown hook event `{event}`"),
