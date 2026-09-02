@@ -44,6 +44,25 @@ fn run(values_path: &std::path::Path, template_path: &std::path::Path) -> std::p
         .expect("spawn pns-config-render")
 }
 
+/// What a refusal test plants at `template_path` before running the binary,
+/// standing in for a real, previously-generated template already on disk.
+/// THE MUTANT THIS CATCHES: a refusal that truncates or deletes an EXISTING
+/// output file. Asserting `!template_path.exists()` on a path that started
+/// out absent proves nothing about that: the file was never there to begin
+/// with, so a refusal that destroys a pre-existing one would still pass.
+/// Only planting content first and checking it SURVIVED UNCHANGED tells
+/// the two apart.
+const SENTINEL_TEMPLATE: &str = "# sentinel: pre-existing template, untouched by a refusal\n";
+
+fn assert_refusal_left_the_template_untouched(template_path: &std::path::Path) {
+    let after = std::fs::read_to_string(template_path)
+        .expect("the sentinel template must survive a refusal");
+    assert_eq!(
+        after, SENTINEL_TEMPLATE,
+        "a refusal must never modify a pre-existing template"
+    );
+}
+
 /// THE MUTANT THIS PINS: the self-parse step skipped. `render` alone never
 /// bounds an integer, so a values file naming an out-of-range `after_secs`
 /// renders successfully and would reach disk if nothing parsed it back.
@@ -55,6 +74,7 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
     // 3601 is one past the nag ceiling `parse_config` enforces (an hour);
     // `render` itself has no notion of that ceiling and writes it live.
     std::fs::write(&values_path, "[nag]\nafter_secs = 3601\n").expect("write values");
+    std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
     let output = run(&values_path, &template_path);
     assert!(
@@ -66,10 +86,7 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
         stderr.contains("does not self-parse"),
         "stderr should name the self-parse refusal: {stderr}"
     );
-    assert!(
-        !template_path.exists(),
-        "nothing should be written once the self-parse fails"
-    );
+    assert_refusal_left_the_template_untouched(&template_path);
 }
 
 /// THE MUTANT THIS PINS: the literal-secret refusal check removed, OR
@@ -105,6 +122,7 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
         let values_path = scratch.path("config-values.toml");
         let template_path = scratch.path("private_config.toml.tmpl");
         std::fs::write(&values_path, values).expect("write values");
+        std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
         let output = run(&values_path, &template_path);
         assert!(
@@ -113,10 +131,7 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
         );
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stderr.contains(key), "stderr should name `{key}`: {stderr}");
-        assert!(
-            !template_path.exists(),
-            "nothing should be written once `{key}`'s literal is refused"
-        );
+        assert_refusal_left_the_template_untouched(&template_path);
     }
 }
 
@@ -129,10 +144,19 @@ fn an_unknown_values_entry_is_refused_without_writing() {
     let template_path = scratch.path("private_config.toml.tmpl");
     std::fs::write(&values_path, "[plugins.mobile]\nnot_a_real_key = true\n")
         .expect("write values");
+    std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
     let output = run(&values_path, &template_path);
-    assert!(!output.status.success());
-    assert!(!template_path.exists());
+    assert!(
+        !output.status.success(),
+        "an unknown values entry must refuse rather than exit 0"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("not_a_real_key"),
+        "stderr should name the unknown key: {stderr}"
+    );
+    assert_refusal_left_the_template_untouched(&template_path);
 }
 
 /// THE MUTANT THIS PINS: `GENERATED_BANNER` deleted or blanked in the
