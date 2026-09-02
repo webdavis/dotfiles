@@ -2995,6 +2995,60 @@ fn a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit() {
 }
 
 #[test]
+fn a_prompt_ends_only_its_own_sessions_wait() {
+    // ONE FILE PER SESSION IS THE WHOLE POINT: the operator typing in s1 says
+    // nothing about s2, which is still waiting on them.
+    let sandbox = Sandbox::new("lights-blocked-prompt-other-session");
+    sandbox.write_config(LAMPS_ON);
+    for session in ["s1", "s2"] {
+        hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "blocked",
+            &format!(r#"{{"session_id":"{session}","message":"may I"}}"#),
+        );
+    }
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"s1"}"#,
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s2".to_string()],
+        "s1 answered; s2 is still waiting"
+    );
+}
+
+#[test]
+fn a_prompt_naming_a_traversal_removes_nothing() {
+    // THE END ACTION GOES THROUGH THE SAME FILENAME PREDICATE AS THE START:
+    // a session id that cannot be a marker name is refused before the
+    // unlink, so a payload cannot aim the removal outside the marker dir.
+    let sandbox = Sandbox::new("lights-blocked-prompt-traversal");
+    sandbox.write_config(LAMPS_ON);
+    // A real marker first, so `lights-blocked/` exists for `..` to walk out of.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    let victim = sandbox.path("victim");
+    std::fs::write(&victim, "x").expect("the victim file");
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"../../victim"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(victim.exists(), "a traversal id must never reach an unlink");
+    assert_eq!(waiting_sessions(&sandbox), vec!["s1".to_string()]);
+}
+
+#[test]
 fn an_event_with_no_session_id_behind_it_holds_no_lamp() {
     // THE HONEST LIMIT, pinned so a later build cannot quietly invent an
     // identity: an event that arrives on argv rather than through a harness
