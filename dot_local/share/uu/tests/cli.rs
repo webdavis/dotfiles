@@ -351,6 +351,26 @@ fn the_doctor_says_a_missing_program_will_fail_and_alert_every_week() {
     );
 }
 
+#[test]
+fn the_doctor_flags_a_relative_command_path_as_resolving_differently_under_the_weekly_run() {
+    // Doctor runs from wherever the operator's shell happens to be; the
+    // weekly launchd job starts at `/`. `resolve` would answer `found` or
+    // `NOT FOUND` for `./nothing-here` from doctor's own cwd, which says
+    // nothing about what the weekly run at `/` will see.
+    let home = Home::new("command-lane-doctor-relative");
+    let home = home.with_config("[lanes.mine]\ntype = \"command\"\nrun = [\"./nothing-here\"]\n");
+    let output = home.uu(&["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let out = stdout(&output);
+    assert!(out.contains("lane mine: on (command)"), "{out}");
+    assert!(
+        out.contains(
+            "RELATIVE PATH; the weekly run starts in /, so this resolves differently there"
+        ),
+        "{out}"
+    );
+}
+
 /// The epoch at the head of a marker or a stub's breadcrumb.
 fn epoch_in(text: &str) -> i64 {
     text.split_whitespace()

@@ -231,15 +231,29 @@ fn doctor_mode() -> i32 {
             println!("uu: lane {name}: on ({})", kind.type_name());
             if let LaneKind::Command(command) = kind {
                 let program = &command.run[0];
-                let reachable = match resolve(program) {
-                    Some(found) => format!("found at {}", found.display()),
-                    None => "NOT FOUND; this lane will fail and alert every week".to_string(),
-                };
-                println!(
-                    "uu: lane {name}: program `{program}`, {reachable} (doctor resolves on \
-                     this shell's PATH; the weekly run uses the plist's own PATH, which can \
-                     differ)"
-                );
+                // A SLASH-RELATIVE PROGRAM (`./updater`) is answered from
+                // DOCTOR'S OWN cwd, wherever the operator happens to be
+                // standing; the weekly launchd job starts at `/`, so `found`
+                // or `NOT FOUND` here says nothing about what that run will
+                // see. An absolute path or a bare name on PATH resolves the
+                // same way in both places, so only this case gets its own
+                // line instead of a resolution.
+                if program.contains('/') && !program.starts_with('/') {
+                    println!(
+                        "uu: lane {name}: program `{program}`, RELATIVE PATH; the weekly run \
+                         starts in /, so this resolves differently there"
+                    );
+                } else {
+                    let reachable = match resolve(program) {
+                        Some(found) => format!("found at {}", found.display()),
+                        None => "NOT FOUND; this lane will fail and alert every week".to_string(),
+                    };
+                    println!(
+                        "uu: lane {name}: program `{program}`, {reachable} (doctor resolves on \
+                         this shell's PATH; the weekly run uses the plist's own PATH, which can \
+                         differ)"
+                    );
+                }
             }
         }
     }
