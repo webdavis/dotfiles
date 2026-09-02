@@ -1984,10 +1984,11 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
 /// throwaway probe set and runs no delivery plan at all, so the claim does
 /// not extend to that caller.
 fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
-    // THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off this probe set's own
-    // memoized cell rather than a fresh wall-clock read: see R4-1. Two reads
-    // of the wall clock for one event is the boundary that drifted a phone
-    // reading and a desk reading apart.
+    // FOR `blocking_event`, THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off
+    // this probe set's own memoized cell rather than a fresh wall-clock read:
+    // see R4-1. Two reads of the wall clock for one event is the boundary
+    // that drifted a phone reading and a desk reading apart. `gate_mode`
+    // calls this with its own throwaway probe set and runs no delivery plan.
     pns::engine::operator_surface(probes, &overrides_from_env(), probes.now_secs())
         != pns::surface::Surface::Desk
 }
@@ -5385,8 +5386,9 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
 /// residual the other way: `t_now` is later than the sample by at most the
 /// four bounded spawns above this line (one `ioreg` for idle, then the phone
 /// probe's `pgrep`, `pgrep -P` and `ps`), each capped at `PROBE_DEADLINE`
-/// (5 seconds in `system.rs`), so the true bound is 20 seconds and
-/// sub-second in the common case. The desk touch reads that much YOUNGER
+/// (5 seconds in `system.rs`), so the bound is four five-second receive
+/// budgets, plus spawn and cleanup overhead on top, sub-second in the common
+/// case. The desk touch reads that much YOUNGER
 /// than it was, never older. The direction is DARK: news that landed inside
 /// that residual reads as seen and the lamp stays off, and no edge can arm
 /// it early.
