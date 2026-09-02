@@ -476,7 +476,7 @@ fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, 
         admits(table_label, "lanes.herdr", &name)?;
         match name.as_str() {
             "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
-            "plugins" => lane.plugins = parse_plugins(&setting)?,
+            "plugins" => lane.plugins = parse_plugins(table_label, &setting)?,
             // Read by `lane_type` before this block was dispatched; nothing
             // is left to do with it here.
             "type" => {}
@@ -492,10 +492,10 @@ fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, 
 /// BOTH FIELDS ARE REQUIRED AND NEITHER MAY BE EMPTY. The refresh is an
 /// uninstall by id followed by an install from the repo, so half an entry
 /// uninstalls a plugin nothing can put back.
-fn parse_plugins(setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
+fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
     let Some(entries) = setting.as_array() else {
         return Err(ConfigError::Invalid(format!(
-            "`lanes.herdr` key `plugins` has type `{}`, not a list of plugins",
+            "`{table_label}` key `plugins` has type `{}`, not a list of plugins",
             setting.type_str()
         )));
     };
@@ -504,14 +504,14 @@ fn parse_plugins(setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
         .map(|entry| {
             let Some(fields) = entry.as_table() else {
                 return Err(ConfigError::Invalid(format!(
-                    "`lanes.herdr` key `plugins` holds a `{}`, not a plugin table",
+                    "`{table_label}` key `plugins` holds a `{}`, not a plugin table",
                     entry.type_str()
                 )));
             };
             for key in fields.keys() {
                 if key != "id" && key != "repo" {
                     return Err(ConfigError::Invalid(format!(
-                        "unknown `lanes.herdr` plugin key `{key}`; a plugin serves id, repo"
+                        "unknown `{table_label}` plugin key `{key}`; a plugin serves id, repo"
                     )));
                 }
             }
@@ -523,7 +523,7 @@ fn parse_plugins(setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
                     .map(str::to_string)
                     .ok_or_else(|| {
                         ConfigError::Invalid(format!(
-                            "`lanes.herdr` plugin entry has no usable `{key}` (missing, empty or \
+                            "`{table_label}` plugin entry has no usable `{key}` (missing, empty or \
                              only whitespace), so it names nothing to refresh"
                         ))
                     })
@@ -962,6 +962,19 @@ mod tests {
         assert!(
             refusal("[lanes.herdr]\nplugins = [\"worktrunk\"]\n").contains("not a plugin table")
         );
+    }
+
+    #[test]
+    fn a_user_named_lanes_plugin_refusals_name_its_own_table_not_lanes_herdr() {
+        let detail = refusal("[lanes.mine]\ntype = \"herdr\"\nplugins = 1\n");
+        assert!(detail.contains("lanes.mine"), "{detail}");
+        assert!(!detail.contains("lanes.herdr"), "{detail}");
+
+        let detail = refusal(
+            "[lanes.mine]\ntype = \"herdr\"\nplugins = [{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]\n",
+        );
+        assert!(detail.contains("unknown `lanes.mine` plugin key `pin`"), "{detail}");
+        assert!(!detail.contains("lanes.herdr"), "{detail}");
     }
 
     // --- the file -------------------------------------------------------------
