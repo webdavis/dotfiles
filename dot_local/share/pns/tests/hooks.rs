@@ -4532,8 +4532,7 @@ fn an_auto_switch_strips_a_unicode_format_character_from_the_name() {
     assert_eq!(deliveries(&sandbox, "hermes"), 1);
     let event = sandbox.event("hermes");
     assert_eq!(
-        event["detail"],
-        "automatic session model change: claude-sonnet-4-5 to claude-opus-4-6",
+        event["detail"], "automatic session model change: claude-sonnet-4-5 to claude-opus-4-6",
         "the override character is gone from the rendered name"
     );
 }
