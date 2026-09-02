@@ -43,6 +43,15 @@ end
 
 local failures = 0
 
+-- Not `print`: under `nvim -l` that routes through the message system, which
+-- swallows the newline after a line exactly `columns` wide (80 by default, so a
+-- case whose report lands on 80 characters merges into the next one) and leaves
+-- the final line unterminated. `io.write` goes straight to stdout and is
+-- flushed by `os.exit`.
+local function report(line)
+  io.write(line, "\n")
+end
+
 for _, path in ipairs(spec_files) do
   local spec = path:match("([^/]+)%.lua$")
   local cases = dofile(path)
@@ -57,10 +66,10 @@ for _, path in ipairs(spec_files) do
   for _, name in ipairs(names) do
     local ok, err = pcall(cases[name])
     if ok then
-      print(("ok %s: %s"):format(spec, name))
+      report(("ok %s: %s"):format(spec, name))
     else
       failures = failures + 1
-      print(("FAIL %s: %s: %s"):format(spec, name, err))
+      report(("FAIL %s: %s: %s"):format(spec, name, err))
     end
   end
 end
