@@ -159,7 +159,7 @@ pns: usage:
   pns [<producer flags>]           one notification, stated in argv
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
                                    blocked, asked, plan-ready, denied, resolved,
-                                   model-switch, quota
+                                   model-switch, quota, config-change
   pns gate <harness>-hook          presence-gated pass-through to moshi-hook
   pns <harness>-hook               the same gate, spelled the way moshi calls it
   pns pulse <exit-code>            signal the lamps by hand
@@ -236,30 +236,74 @@ fn gate_mode(subcommand: &str) -> i32 {
         .map_or(0, |child| answer_within(child, submit_deadline()))
 }
 
+/// Text safe to render or store, ON TOP OF `flattened`: whitespace and
+/// control characters collapsed as `flattened` already does, and Unicode
+/// format characters (`recap::is_invisible`) stripped besides.
+///
+/// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
+/// `flattened` is shared by every other rendered field on this path, and this
+/// crate has two callers with a reason a format character must not survive at
+/// all rather than merely render inertly. `model_switch_detail` compares two
+/// names for equality, which a reordering character could defeat silently (a
+/// name that reads the same but compares unequal, or the reverse); the
+/// config-change arm writes a path into a durable state file as well as a
+/// card, and an invisible character there would round-trip identically on
+/// every future read. Widening `flattened` itself for two callers would let
+/// every other field silently start allowing format characters through too.
+fn rendered_plainly(text: &str) -> String {
+    flattened(text)
+        .chars()
+        .filter(|character| !pns::recap::is_invisible(*character))
+        .collect()
+}
+
 /// The automatic model-switch card's detail, or `None` when there is no
 /// transition worth one: either name empty once flattened and stripped of
 /// invisible characters, or the two equal once stripped.
-///
-/// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
-/// `flattened` is shared by every other rendered field on this path, and
-/// `main.rs` is the one caller with an equality test that a reordering
-/// character could defeat silently (a name that reads the same but compares
-/// unequal, or the reverse). Widening `flattened` itself for one caller would
-/// let every other field silently start allowing format characters through
-/// too.
 fn model_switch_detail(from_model: &str, to_model: &str) -> Option<String> {
-    let visible = |name: &str| -> String {
-        flattened(name)
-            .chars()
-            .filter(|character| !pns::recap::is_invisible(*character))
-            .collect()
-    };
-    let from = visible(from_model);
-    let to = visible(to_model);
+    let from = rendered_plainly(from_model);
+    let to = rendered_plainly(to_model);
     if from.is_empty() || to.is_empty() || from == to {
         return None;
     }
     Some(format!("automatic session model change: {from} to {to}"))
+}
+
+/// The five documented `ConfigChange` sources, and nothing else: an exact
+/// allowlist, matching the exact matcher declared beside it in
+/// `modify_settings.json`. THIS IS THE RUST-SIDE BACKSTOP the declaration's
+/// matcher alone cannot be trusted to be: `parse_payload` accepts any string
+/// under this key, so a direct invocation, a drifted declaration, or a future
+/// value Claude Code adds would otherwise reach a card for a source this
+/// binary has never verified. A `ConfigChange` carrying any other `source`
+/// yields `None`, in `quota_label`'s own style.
+fn config_source_label(source: &str) -> Option<&'static str> {
+    match source {
+        "user_settings" => Some("user settings changed"),
+        "project_settings" => Some("project settings changed"),
+        "local_settings" => Some("local settings changed"),
+        "policy_settings" => Some("policy settings changed"),
+        "skills" => Some("skills changed"),
+        _ => None,
+    }
+}
+
+/// A configuration-change card's detail: which of the five sources changed,
+/// and the file Claude Code named, when it named one. `None` for an
+/// unmatched source, in `quota_observation_detail`'s own style.
+///
+/// NEVER "WHAT CHANGED": the payload carries no key, no old or new value and
+/// no actor, so the detail says only WHICH SOURCE and, optionally, WHICH
+/// FILE. `file_path` is untrusted text that lands in a banner and a card, so
+/// it goes through `rendered_plainly` exactly as a hostile model name does.
+fn config_change_detail(source: &str, file_path: &str) -> Option<String> {
+    let label = config_source_label(source)?;
+    let path = rendered_plainly(file_path);
+    Some(if path.is_empty() {
+        label.to_string()
+    } else {
+        format!("{label}: {path}")
+    })
 }
 
 /// The three quota-notification labels this binary recognises, and nothing
@@ -488,6 +532,37 @@ fn hook_mode(event: &str) -> i32 {
                 if payload.notification_type == "quota_auto_resume_stale" {
                     arm_quota_stale_wait(&payload.session_id, &probes);
                 }
+                run_event(
+                    &pns::args::EventArgs {
+                        agent,
+                        state: event.to_string(),
+                        project: project_of(&payload.cwd),
+                        detail,
+                        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                        ..Default::default()
+                    },
+                    &probes,
+                    &payload,
+                    Attempt::Observation,
+                );
+            }
+        }
+        // `ConfigChange`, restricted to the FIVE DOCUMENTED SOURCES via an
+        // exact Rust-side allowlist (`config_source_label`) that mirrors,
+        // rather than trusts, the declaration's own exact matcher: a direct
+        // invocation, a drifted declaration, or a future value Claude Code
+        // adds must not reach a card this binary never verified. Routed as an
+        // OBSERVATION, like the model-switch and quota arms beside it: this
+        // is a configuration audit trail, not a turn needing the operator's
+        // attention, so delivery must not clear a wait, renew a lease, or
+        // claim the return moment. ONE CARD PER RECEIVED EVENT, deliberately:
+        // there is no once-per-something guarantee to keep, because a
+        // corrupt-file recovery, several live sessions, or a changed skill
+        // can each produce their own event, so this fires again for every
+        // distinct invocation rather than coalescing them.
+        "config-change" => {
+            if let Some(detail) = config_change_detail(&payload.source, &payload.file_path) {
+                let probes = system_probes();
                 run_event(
                     &pns::args::EventArgs {
                         agent,
