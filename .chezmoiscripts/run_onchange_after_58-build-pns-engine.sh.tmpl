@@ -39,6 +39,10 @@ crate_dir="$HOME/.local/share/pns"
 # the shell notifier do.
 install_dir="$HOME/.local/libexec/pns"
 retry_marker="$HOME/.cache/pns-build/engine.retry"
+# A kickstart failure leaves the daemon on the old binary. This marker forces
+# the NEXT apply to retry the kickstart even if that apply rebuilds bytes
+# identical to this one, which it otherwise would skip as a no-op.
+pending_marker="$HOME/.cache/pns-build/restart-pending"
 
 # Deterministic path, never a PATH probe: a fresh machine provisions rustup
 # during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
@@ -86,11 +90,24 @@ report_line 'building the release binary'
 # SIGTERM handler), so this does not need the atuin bounce script's pid-file
 # compare.
 binary_changed=1
-if [[ -f "$install_dir/pns" ]] && cmp -s "$crate_dir/target/release/pns" "$install_dir/pns"; then
-  binary_changed=0
+first_install=1
+if [[ -f "$install_dir/pns" ]]; then
+  first_install=0
+  cmp -s "$crate_dir/target/release/pns" "$install_dir/pns" && binary_changed=0
 fi
 
 mkdir -p "$install_dir"
+
+# Arm the pending marker BEFORE publishing a changed binary, not after a
+# failed kickstart: a kill between install and the marker write, or a marker
+# directory that cannot be created, must never leave the new bytes installed
+# with nothing left to force the next apply's retry. set -e turns a failed
+# mkdir or touch here into a refusal to publish.
+if [[ $binary_changed == 1 ]]; then
+  mkdir -p "$(dirname "$pending_marker")"
+  touch "$pending_marker"
+fi
+
 # install(1) replaces the target through a temporary file and a rename
 # ("Temporary files are no longer optional", install(1) under -S), so a
 # producer firing mid-apply runs either the old binary or the new one and
@@ -100,13 +117,31 @@ mkdir -p "$install_dir"
 /usr/bin/install -m 755 "$crate_dir/target/release/pns" "$install_dir/pns"
 report_line "installed $install_dir/pns"
 
-# 58 runs before 70 in chezmoi's ASCII script ordering, so on a first install
+# 58 runs before 70 in chezmoi's ASCII script ordering, so on a FIRST install
 # the LaunchAgent is not loaded yet: kickstart then fails with "Could not
 # find service" (exit 113), which this treats as "not loaded yet" and stays
-# quiet about, rather than as an error.
-if [[ $binary_changed == 1 ]] &&
-  launchctl kickstart -k "gui/$(id -u)/com.webdavis.pns-daemon" 2>/dev/null; then
-  report_line 'pns: daemon restarted on a new binary'
+# quiet about, rather than as an error. On a machine that already had the
+# daemon running, that same 113 means the kickstart never reached it, which
+# is a real problem, not a fresh-machine no-op, so it is loud there too. Any
+# OTHER status (EIO, EPERM, a wrong label) leaves the daemon on the old
+# binary and must always be loud: capture the status once (a bare `if`
+# condition would read every non-zero the same as 113), print one attributed
+# line to stderr, and exit non-zero so chezmoi does not record success. The
+# marker (already armed above when this run changed bytes) stays in place on
+# that path so the next apply retries even on identical bytes.
+if [[ $binary_changed == 1 ]] || [[ -e $pending_marker ]]; then
+  status=0
+  output="$(launchctl kickstart -k "gui/$(id -u)/com.webdavis.pns-daemon" 2>&1)" || status=$?
+  if [[ $status == 0 ]]; then
+    report_line 'pns: daemon restarted on a new binary'
+    rm -f "$pending_marker"
+  elif [[ $status == 113 ]] && [[ $first_install == 1 ]]; then
+    rm -f "$pending_marker"
+  else
+    printf 'pns: daemon NOT restarted on the new binary (launchctl kickstart exited %s: %s)\n' \
+      "$status" "$output" >&2
+    exit 1
+  fi
 fi
 
 rm -f "$retry_marker"

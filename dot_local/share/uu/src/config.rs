@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 /// likes); this is the roster its `type` is judged against, so the refusal
 /// that names an unknown type and the listing of what this build serves both
 /// read the one table.
-pub const LANE_TYPES: &[&str] = &["herdr"];
+pub const LANE_TYPES: &[&str] = &["command", "herdr"];
 
 /// Where the config lives for a given home directory. Pure, so the path rule
 /// is testable without an environment.
@@ -122,13 +122,16 @@ pub type Lanes = BTreeMap<String, LaneKind>;
 /// settings; behavior lives in `lanes::run_lane`'s one dispatch match, never
 /// here.
 ///
-/// A `Command` variant is next, in a later PR: a generic adapter that runs any
-/// executable the block names. Its stdin will be PRE-FILLED before the child
-/// spawns, rather than written to it after, because uu resets SIGPIPE to
-/// SIG_DFL at start-up (main.rs), and a write to a child's stdin after spawn
-/// can kill uu with status 141 if that child exits without reading it.
+/// `Command` is the PRODUCER API: a generic adapter that runs any executable
+/// the block names, under the locked contract (a JSON run event on the
+/// child's stdin, the exit code as the verdict). Its stdin is PRE-FILLED
+/// before the child spawns, rather than written to it after, because uu
+/// resets SIGPIPE to SIG_DFL at start-up (main.rs), and a write to a child's
+/// stdin after spawn can kill uu with status 141 if that child exits without
+/// reading it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LaneKind {
+    Command(CommandLane),
     Herdr(HerdrLane),
 }
 
@@ -136,9 +139,18 @@ impl LaneKind {
     /// The `type` value this variant was parsed from.
     pub fn type_name(&self) -> &'static str {
         match self {
+            LaneKind::Command(_) => "command",
             LaneKind::Herdr(_) => "herdr",
         }
     }
+}
+
+/// `[lanes.<name>]` with `type = "command"`: `run[0]` is the program,
+/// `run[1..]` its arguments. The lane's NAME is the operator's own choice;
+/// nothing here constrains it, which is the whole point of the producer API.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandLane {
+    pub run: Vec<String>,
 }
 
 /// `[lanes.herdr]`: the herdr binary to drive, and the plugin roster to
@@ -199,6 +211,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("schedule", &["day", "time"]),
     ("records", &["key", "url"]),
     ("alerts", &["binary"]),
+    ("lanes.command", &["run", "type"]),
     ("lanes.herdr", &["binary", "plugins", "type"]),
 ];
 
@@ -429,6 +442,7 @@ fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
         let table_label = format!("lanes.{name}");
         let fields = table_of(&table_label, block)?;
         let kind = match lane_type(&name, &table_label, &fields)?.as_str() {
+            "command" => LaneKind::Command(parse_command_lane(&table_label, fields)?),
             "herdr" => LaneKind::Herdr(parse_herdr_lane(&table_label, fields)?),
             // `lane_type` never returns anything outside `LANE_TYPES`.
             _ => unreachable!("lane_type only answers a member of LANE_TYPES"),
@@ -486,6 +500,65 @@ fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, 
         }
     }
     Ok(lane)
+}
+
+/// `[lanes.<name>]` with `type = "command"`: `run` is required, everything
+/// else `admits` above already refused.
+///
+/// `admits` RUNS FIRST, inside this same loop, before the after-loop check
+/// below for a missing `run`. A block that names an unknown key AND no `run`
+/// (`[lanes.mine]\ntype = "command"\nbogus = 1`) is refused for the key it
+/// misspelled, not for the run it never got to declare: the operator fixes
+/// one problem at a time, and "unknown key" is the more specific diagnosis.
+fn parse_command_lane(table_label: &str, table: toml::Table) -> Result<CommandLane, ConfigError> {
+    let mut run = None;
+    for (name, setting) in table {
+        admits(table_label, "lanes.command", &name)?;
+        match name.as_str() {
+            "run" => run = Some(parse_run(table_label, &setting)?),
+            // Read by `lane_type` before this block was dispatched; nothing
+            // is left to do with it here.
+            "type" => {}
+            // `admits` above is the ONE gate; nothing else reaches here.
+            _ => {}
+        }
+    }
+    let run = run.ok_or_else(|| {
+        ConfigError::Invalid(format!(
+            "`{table_label}` has no `run`, so it names nothing to run"
+        ))
+    })?;
+    Ok(CommandLane { run })
+}
+
+/// `run`: a non-empty list of non-blank strings. `run[0]` is the program that
+/// gets executed and `run[1..]` its arguments, so a missing, wrongly-typed,
+/// empty or blank entry each names nothing runnable and is refused by name.
+fn parse_run(table_label: &str, setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+    let Some(entries) = setting.as_array() else {
+        return Err(ConfigError::Invalid(format!(
+            "`{table_label}` key `run` has type `{}`, not a list",
+            setting.type_str()
+        )));
+    };
+    if entries.is_empty() {
+        return Err(ConfigError::Invalid(format!(
+            "`{table_label}` key `run` is empty, so it names nothing to run"
+        )));
+    }
+    entries
+        .iter()
+        .map(|entry| match entry.as_str() {
+            Some(word) if word.trim().is_empty() => Err(ConfigError::Invalid(format!(
+                "`{table_label}` key `run` holds a blank entry, so it names nothing to run"
+            ))),
+            Some(word) => Ok(word.to_string()),
+            None => Err(ConfigError::Invalid(format!(
+                "`{table_label}` key `run` holds a `{}`, not a string",
+                entry.type_str()
+            ))),
+        })
+        .collect()
 }
 
 /// `plugins`, a list of `{ id, repo }` tables.
@@ -963,11 +1036,90 @@ mod tests {
         }
     }
 
+    // --- the command lane -------------------------------------------------------
+
+    #[test]
+    fn a_command_lane_without_run_is_refused_because_it_names_nothing_to_run() {
+        let detail = refusal("[lanes.command]\n");
+        assert!(detail.contains("has no `run`"), "{detail}");
+        assert!(detail.contains("names nothing to run"), "{detail}");
+    }
+
+    #[test]
+    fn a_run_that_is_empty_not_a_list_or_holds_a_blank_is_refused_by_name() {
+        for (text, expect) in [
+            ("[lanes.command]\nrun = []\n", "is empty"),
+            ("[lanes.command]\nrun = \"x\"\n", "not a list"),
+            ("[lanes.command]\nrun = [1]\n", "not a string"),
+            ("[lanes.command]\nrun = [\"\"]\n", "holds a blank entry"),
+            // Whitespace is blank too: it reads as a filled-in entry and
+            // names nothing an exec can find.
+            ("[lanes.command]\nrun = [\" \"]\n", "holds a blank entry"),
+            // A VALID run[0] must not stop the check: a mutant that
+            // validates only the first entry passes every case above.
+            (
+                "[lanes.command]\nrun = [\"ok\", \"\"]\n",
+                "holds a blank entry",
+            ),
+        ] {
+            let detail = refusal(text);
+            assert!(detail.contains(expect), "case {text:?}: {detail}");
+        }
+    }
+
+    #[test]
+    fn a_command_lane_reads_run_as_the_program_and_its_arguments() {
+        let config = parsed("[lanes.mine]\ntype = \"command\"\nrun = [\"/bin/x\", \"--yes\"]\n");
+        assert_eq!(
+            config.lanes.get("mine"),
+            Some(&LaneKind::Command(CommandLane {
+                run: vec!["/bin/x".to_string(), "--yes".to_string()],
+            }))
+        );
+        // A second way `type` could be ignored: a herdr-only key on a command
+        // block must still be refused.
+        let detail = refusal("[lanes.mine]\ntype = \"command\"\nrun = [\"x\"]\nbinary = \"y\"\n");
+        assert!(
+            detail.contains("unknown `lanes.mine` key `binary`"),
+            "{detail}"
+        );
+    }
+
+    #[test]
+    fn a_command_lane_with_a_bogus_key_is_refused_as_unknown_before_the_run_check() {
+        let detail = refusal("[lanes.command]\nbogus = 1\n");
+        assert!(
+            detail.contains("unknown `lanes.command` key `bogus`"),
+            "{detail}"
+        );
+        assert!(!detail.contains("names nothing to run"), "{detail}");
+    }
+
+    #[test]
+    fn a_block_named_for_one_type_that_states_another_is_the_stated_type() {
+        // The stated `type` wins over a name that happens to be a type of its
+        // own: the name is the operator's label, the type is the contract.
+        assert_eq!(
+            parsed("[lanes.herdr]\ntype = \"command\"\nrun = [\"x\"]\n")
+                .lanes
+                .get("herdr"),
+            Some(&LaneKind::Command(CommandLane {
+                run: vec!["x".to_string()],
+            }))
+        );
+    }
+
     // --- the shipped template ------------------------------------------------
 
     /// The config this repo ships, INCLUDED ONLY UNDER `cfg(test)` so the
     /// binary the apply builds out of the deployed crate never asks for a file
-    /// that is not there (the same arrangement pns uses for its template).
+    /// that is not there (the same arrangement pns uses for its template): the
+    /// test build reaches four levels out of this crate into the repo checkout
+    /// around it, which only works from inside this repo, and stops compiling
+    /// the day uu moves to its own repo (see pns's config.rs for the full
+    /// reasoning, not duplicated here). Two helpers below share it: one stands
+    /// in for the template's chezmoi actions, the other uncomments its command
+    /// example; neither reaches into the other's part of the file.
     const SHIPPED_TEMPLATE: &str =
         include_str!("../../../../dot_config/uu/private_config.toml.tmpl");
 
@@ -1013,6 +1165,42 @@ mod tests {
                     id: "stand-in".to_string(),
                     repo: "stand-in".to_string(),
                 }],
+            }))
+        );
+    }
+
+    /// The template's commented `[lanes.example]` block, uncommented by
+    /// stripping each line's leading `#`: what an operator gets after
+    /// following the template's own instruction to "uncomment and rename the
+    /// block." The block holds no chezmoi action, so unlike `rendered_template`
+    /// above, nothing needs a stand-in before parsing.
+    fn shipped_command_example_uncommented() -> String {
+        SHIPPED_TEMPLATE
+            .lines()
+            .skip_while(|line| line.trim() != "# [lanes.example]")
+            .take_while(|line| line.trim_start().starts_with('#'))
+            .map(|line| {
+                let trimmed = line.trim_start();
+                trimmed
+                    .strip_prefix("# ")
+                    .or_else(|| trimmed.strip_prefix('#'))
+                    .unwrap_or(trimmed)
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn the_templates_command_example_still_loads_once_uncommented() {
+        // Read from the shipped file itself, not transcribed: an edit to the
+        // template that breaks the example (like dropping `type =
+        // "command"`) fails this test without anyone keeping a copy here in
+        // sync.
+        let config = parsed(&shipped_command_example_uncommented());
+        assert_eq!(
+            config.lanes.get("example"),
+            Some(&LaneKind::Command(CommandLane {
+                run: vec!["/usr/local/bin/my-updater".to_string(), "--yes".to_string()],
             }))
         );
     }
@@ -1092,7 +1280,10 @@ mod tests {
         // One minimal, valid block per BUILT-IN TYPE (the WEEKDAY_NAMES
         // pattern): a type in the roster that the parser refuses would
         // advertise a lane nobody can turn on.
-        let fixtures: &[(&str, &str)] = &[("herdr", "[lanes.herdr]\n")];
+        let fixtures: &[(&str, &str)] = &[
+            ("command", "[lanes.command]\nrun = [\"x\"]\n"),
+            ("herdr", "[lanes.herdr]\n"),
+        ];
         assert_eq!(LANE_TYPES.len(), fixtures.len());
         for (kind, text) in fixtures {
             assert!(

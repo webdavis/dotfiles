@@ -80,6 +80,16 @@ impl Home {
         self.with_config(&text)
     }
 
+    /// An executable shell script written into the scratch HOME, for a
+    /// command lane's `run` (or `[alerts]`'s `binary`) to point at.
+    fn write_stub(&self, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let stub = self.dir.join(name);
+        std::fs::write(&stub, format!("#!/bin/sh\n{body}")).expect("stub");
+        std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).expect("mode");
+        stub
+    }
+
     fn uu(&self, args: &[&str]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_uu"))
             .args(args)
@@ -257,6 +267,126 @@ fn the_marker_stamps_when_the_run_finished_and_not_when_it_started() {
     );
 }
 
+// --- the command lane -------------------------------------------------------
+
+#[test]
+fn a_command_lane_runs_end_to_end_and_the_record_carries_what_it_printed() {
+    let home = Home::new("command-lane");
+    let stub = home.write_stub("updater", "cat >\"$HOME/event\"; printf '3 upgraded\\n'\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        stub.display()
+    ));
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let event = std::fs::read_to_string(home.dir.join("event")).expect("the event file");
+    assert!(event.contains("\"lane\":\"mine\""), "{event}");
+    assert!(
+        stdout(&output).contains("3 upgraded"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn a_failed_command_lane_alerts_through_the_configured_engine() {
+    let home = Home::new("command-lane-failed");
+    // Both stdout and stderr, and a non-1 exit: a fixture that says nothing
+    // on either stream passes even when the exit code or the stderr tail
+    // never reach the record or the alert.
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'did some upgrading\\n'\nprintf 'boom: disk full\\n' >&2\nexit 2\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let record = stdout(&output);
+    assert!(record.contains("did some upgrading"), "{record}");
+    assert!(record.contains("exit 2"), "{record}");
+    assert!(record.contains("boom: disk full"), "{record}");
+    let args = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert!(args.contains("--state failed"), "{args}");
+    // The lane's own NAME heads the detail, not its type and not a path that
+    // happens to hold the word, and the exit code and stderr tail ride along
+    // with it rather than a bare failure count.
+    assert!(args.contains("--detail mine: 1 failure(s);"), "{args}");
+    assert!(args.contains("exit 2"), "{args}");
+    assert!(args.contains("boom: disk full"), "{args}");
+}
+
+#[test]
+fn the_doctor_lists_a_command_lane_with_its_program_resolved() {
+    let home = Home::new("command-lane-doctor");
+    let stub = home.write_stub("updater", "exit 0\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\", \"--yes\"]\n",
+        stub.display()
+    ));
+    let output = home.uu(&["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        stdout(&output).contains("lane mine: on (command)"),
+        "{output:?}"
+    );
+    assert!(
+        stdout(&output).contains(&format!("found at {}", stub.display())),
+        "{output:?}"
+    );
+}
+
+#[test]
+fn the_doctor_says_a_missing_program_will_fail_weekly_and_alert_only_if_configured() {
+    let home = Home::new("command-lane-doctor-missing");
+    let missing = home.dir.join("no-such-updater");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        missing.display()
+    ));
+    let output = home.uu(&["doctor"]);
+    // Doctor REPORTS, it does not refuse: a lane whose program is missing is
+    // a finding on the way to the weekly run, not a reason to stop looking.
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let out = stdout(&output);
+    assert!(out.contains("lane mine: on (command)"), "{out}");
+    assert!(
+        out.contains(
+            "NOT FOUND; every scheduled run of this lane will fail, and it alerts only when \
+             [alerts] is configured"
+        ),
+        "{out}"
+    );
+    assert!(
+        out.contains("the weekly run uses the plist's own PATH"),
+        "{out}"
+    );
+}
+
+#[test]
+fn the_doctor_flags_a_relative_command_path_as_resolving_differently_under_the_weekly_run() {
+    // Doctor runs from wherever the operator's shell happens to be; the
+    // weekly launchd job starts at `/`. `resolve` would answer `found` or
+    // `NOT FOUND` for `./nothing-here` from doctor's own cwd, which says
+    // nothing about what the weekly run at `/` will see.
+    let home = Home::new("command-lane-doctor-relative");
+    let home = home.with_config("[lanes.mine]\ntype = \"command\"\nrun = [\"./nothing-here\"]\n");
+    let output = home.uu(&["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let out = stdout(&output);
+    assert!(out.contains("lane mine: on (command)"), "{out}");
+    assert!(
+        out.contains(
+            "RELATIVE PATH; the weekly run starts in /, so this resolves differently there"
+        ),
+        "{out}"
+    );
+}
+
 /// The epoch at the head of a marker or a stub's breadcrumb.
 fn epoch_in(text: &str) -> i64 {
     text.split_whitespace()
@@ -310,12 +440,14 @@ fn an_unknown_command_is_usage_on_stderr_and_exit_two() {
     assert!(err.contains("usage"), "{output:?}");
     // The line's SHAPE, not its exact text: a build that adds a lane type
     // lengthens the list, and the pin here is that usage lists the types at
-    // all and that `herdr` is one of them.
-    let lists_herdr = err.lines().any(|line| {
-        line.strip_prefix("lane types: ")
-            .is_some_and(|types| types.split(", ").any(|kind| kind == "herdr"))
-    });
-    assert!(lists_herdr, "{output:?}");
+    // all and names every one this build serves, not just `herdr`.
+    let types: Vec<&str> = err
+        .lines()
+        .find_map(|line| line.strip_prefix("lane types: "))
+        .map(|types| types.split(", ").collect())
+        .unwrap_or_default();
+    assert!(types.contains(&"command"), "{output:?}");
+    assert!(types.contains(&"herdr"), "{output:?}");
 }
 
 #[cfg(test)]

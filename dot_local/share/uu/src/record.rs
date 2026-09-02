@@ -165,9 +165,10 @@ pub fn record_body(state: &str, host: &str, detail: &str) -> String {
 /// The agent name every uu record and alert carries.
 pub const AGENT: &str = "uu";
 
-/// What a command lane's own run event needs that `run_lane` cannot reach
-/// today: `main` computes `started` and drops the `Marker` inside `gap_line`
-/// before the lane loop runs.
+/// What a command lane's own run event needs: `main` computes `started` and
+/// drops the `Marker` inside `gap_line` before the lane loop runs, so this
+/// struct carries those facts into `run_lane` rather than each lane
+/// recomputing them.
 pub struct RunFacts<'a> {
     pub host: &'a str,
     pub started_epoch: i64,
