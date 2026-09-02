@@ -3453,7 +3453,7 @@ mod tests {
     ///
     /// NOT A CHEZMOI, and it does not need to be. What this test reads is which
     /// KEYS the file names and under which tables, and no action in it is a key
-    /// or a table; they are one conditional wrapper and six secrets.
+    /// or a table; they are one conditional wrapper and five secrets.
     fn rendered_template() -> String {
         super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "\"from-the-vault\"")
     }
