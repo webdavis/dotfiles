@@ -462,10 +462,29 @@ pns loop end [--pane <id>]";
 /// had died was never collected either. A name is a working file only when what
 /// follows the LAST such marker is a positive process id, which is a name only
 /// this crate's own writers produce.
+///
+/// THE RIGHTMOST OF THE TWO SUFFIXES, compared by OFFSET rather than tried one
+/// after the other: `a.new.b.sweep.1` is the sweep's own working file on a
+/// marker shaped like a publish, and trying `.new.` first found it, read the
+/// marker's own name as the owner, failed to parse it as a pid and answered
+/// `None`, so that working file was never collected. Two runs never write
+/// both suffixes into one name, so only one candidate is ever real; comparing
+/// offsets picks it without caring which writer's shape it was.
 pub fn working_owner(name: &str) -> Option<&str> {
-    let (_, owner) = name
-        .rsplit_once(WORKING_PENDING)
-        .or_else(|| name.rsplit_once(WORKING_SWEEP))?;
+    let pending = name.rfind(WORKING_PENDING).map(|at| (at, WORKING_PENDING));
+    let sweep = name.rfind(WORKING_SWEEP).map(|at| (at, WORKING_SWEEP));
+    let (at, marker) = match (pending, sweep) {
+        (Some(pending), Some(sweep)) => {
+            if pending.0 >= sweep.0 {
+                pending
+            } else {
+                sweep
+            }
+        }
+        (Some(only), None) | (None, Some(only)) => only,
+        (None, None) => return None,
+    };
+    let owner = &name[at + marker.len()..];
     (crate::parse_count(owner)? > 0).then_some(owner)
 }
 
@@ -763,10 +782,14 @@ pub struct Muted {
 /// The entries the state file holds, or ONE complaint naming what is wrong
 /// with it.
 ///
-/// FAIL OPEN, which is `quiet.rs`'s direction and the OPPOSITE of the quiet
-/// window's: a file this cannot vouch for mutes NOTHING, because a lights mute
-/// nobody can see is the dangerous state. The caller prints the complaint and
-/// carries on with every lamp loud.
+/// IT REPORTS RATHER THAN GUESSES, and the fail DIRECTION is the caller's,
+/// which is why it is not stated here: the two callers take opposite ones and
+/// both are deliberate. `ad_hoc_quiet`, the lamp path, turns any complaint into
+/// `Muting::Everything`, because a house with every lamp loud is the 3am the
+/// mute was armed to prevent. `pns lights quiet`, the command, prints the
+/// complaint and rebuilds from an empty list, because an operator standing in
+/// front of it is losing what the file held and gets to see that rather than a
+/// silent repair.
 ///
 /// A LINE IS `<epoch> <place>` AND NOTHING ELSE, with the only leniency the ONE
 /// trailing newline the publish itself writes. Padding is not something this
@@ -1029,22 +1052,36 @@ pub fn render_muted(entries: &[Muted]) -> String {
 /// how a report and a behaviour come to disagree about whether a mute is on.
 /// Half open comes with it, so a mute ends on the second it names.
 ///
-/// AND FAIL OPEN comes with it too: a clock this run cannot read mutes
-/// nothing. A lights mute nobody can see is the dangerous state, which is the
-/// opposite direction to the quiet WINDOW one module over and deliberately so.
+/// THIS HELPER FAILS OPEN BY CONTRACT: on no clock, `live` judges every entry
+/// unmuted and this answers empty. That is true of this function alone. Its
+/// only production caller is the root, `ad_hoc_quiet`, and the root asks
+/// whether the clock answered BEFORE it asks this: on no clock it returns
+/// `Muting::Everything` without ever reaching this line.
 pub fn muted_places(entries: &[Muted], now: Option<u64>) -> Vec<String> {
     live(entries, now)
         .map(|entry| entry.place.clone())
         .collect()
 }
 
+/// Why every lamp is quiet on a run whose clock would not answer, the root's
+/// own line: `ad_hoc_quiet` prints it as a complaint, and this prints it as
+/// the report, so an operator reading either sees the same sentence.
+pub const NO_CLOCK_FOR_THE_MUTE: &str = "pns lights: the clock cannot be read, so no \
+mute can be judged live; every lamp is quiet until it can";
+
 /// What `pns lights quiet` prints, which is the whole file in the operator's
 /// own vocabulary.
 ///
 /// THE REPORT IS THE SAME READING THE LAMPS TAKE, entry for entry, because a
 /// report that decided liveness for itself is how a command and a lamp come to
-/// disagree about whether a room is quiet.
+/// disagree about whether a room is quiet. ON NO CLOCK, the same answer the
+/// root gives: every place quiet, said once, never per entry and never
+/// "nothing is quiet", which would tell the operator the opposite of what
+/// every lamp is about to do.
 pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
+    if now.is_none() {
+        return vec![NO_CLOCK_FOR_THE_MUTE.to_string()];
+    }
     let lines: Vec<String> = live(entries, now)
         .map(|entry| {
             let minutes = crate::quiet::minutes_left(entry.expiry, now);
@@ -1200,6 +1237,49 @@ mod tests {
         ] {
             assert_eq!(working_owner(marker), None, "{marker:?} is a marker");
         }
+    }
+
+    #[test]
+    fn a_working_file_is_told_by_its_rightmost_suffix_not_its_first() {
+        // A MARKER NAMED FOR THE SUFFIX ITSELF SITS TO THE LEFT of the sweep's
+        // own working file on that marker: `a.new.b` is the marker, and the
+        // sweep taking it writes `a.new.b.sweep.<pid>` beside it. The first
+        // `rsplit_once` this used to run found `.new.` and stopped there,
+        // reading the marker's own name as the owner and failing to parse it
+        // as a pid, so the sweep's working file was judged a marker too and
+        // was never collected: one abandoned run leaks a working file forever.
+        assert_eq!(
+            working_owner("a.new.b.sweep.1"),
+            Some("1"),
+            "the sweep's working file on a marker shaped like a publish"
+        );
+        assert_eq!(
+            working_owner("a.sweep.1.new.2"),
+            Some("2"),
+            "and the reverse nesting reads the same way"
+        );
+        assert_eq!(
+            working_owner("x.sweep.1"),
+            Some("1"),
+            "a plain sweep working file is unaffected"
+        );
+        // THE SAME SUFFIX TWICE, which is the one shape the two cases above
+        // cannot judge: each of them carries one `.new.` and one `.sweep.`, so
+        // `rfind` and `find` return the same offset for both and the rightmost
+        // rule is decided by the comparison alone. Here the comparison has
+        // nothing to do and the SEARCH DIRECTION is the whole answer: `find`
+        // stops at the left occurrence, reads `b.new.5` as the owner, fails to
+        // parse it as a pid and calls a real working file a marker.
+        assert_eq!(
+            working_owner("a.new.b.new.5"),
+            Some("5"),
+            "a publish on a marker whose own name spells the publish suffix"
+        );
+        assert_eq!(
+            working_owner("a.sweep.b.sweep.7"),
+            Some("7"),
+            "and the sweep suffix reads the same way"
+        );
     }
 
     #[test]
@@ -1723,6 +1803,42 @@ mod tests {
             Err("pns: loop: \"../x\" is not a pane id this can key a lease to".to_string()),
             "the path-escape guard, through the predicate that backs the filename"
         );
+        assert_eq!(
+            loop_command(
+                "begin",
+                &["--pane".to_string(), "abc.new.1".to_string()],
+                None
+            ),
+            Err("pns: loop: \"abc.new.1\" is not a pane id this can key a lease to".to_string()),
+            "the working grammar guard, through the same predicate: without it \
+             this prints 'the clock cannot be read' instead of refusing the pane"
+        );
+        // EVERY ROAD TO A PANE, not the one the case above happens to take.
+        // The guard sits between the pane is resolved and the verb is read, so
+        // `end` is judged as `begin` is and the ENVIRONMENT pane is judged as
+        // an explicit one. A guard moved into the `--pane` arm, or into the
+        // `begin` arm, refuses nothing on the other road: `HERDR_PANE_ID` is a
+        // value from another program, which is the reason the predicate exists
+        // at all.
+        for (verb, arguments, env_pane) in [
+            (
+                "end",
+                vec!["--pane".to_string(), "abc.new.1".to_string()],
+                None,
+            ),
+            ("begin", vec![], Some("abc.new.1")),
+            ("end", vec![], Some("abc.sweep.7")),
+        ] {
+            let refused = loop_command(verb, &arguments, env_pane);
+            let pane = env_pane.unwrap_or("abc.new.1");
+            assert_eq!(
+                refused,
+                Err(format!(
+                    "pns: loop: {pane:?} is not a pane id this can key a lease to"
+                )),
+                "{verb} with arguments {arguments:?} and env pane {env_pane:?}"
+            );
+        }
         for arguments in [
             vec!["--pain".to_string(), "wW:p9".to_string()],
             vec!["wW:p9".to_string()],
@@ -2209,6 +2325,31 @@ mod tests {
             muted_report(&[], Some(now)),
             vec!["pns lights: nothing is quiet".to_string()],
             "and neither is an empty file"
+        );
+    }
+
+    #[test]
+    fn a_clock_that_will_not_answer_reports_the_reason_never_nothing_is_quiet() {
+        // THE ROOT MUTES EVERYTHING ON NO CLOCK (`ad_hoc_quiet`, fail closed),
+        // so a report saying "nothing is quiet" here would tell the operator
+        // the opposite of what every lamp is about to do.
+        assert_eq!(
+            muted_report(&[], None),
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ],
+            "an empty file with no clock must not read as nothing is quiet"
+        );
+        assert_eq!(
+            muted_report(&muted(&[(1_000, "3F - Studio")]), None),
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ],
+            "an entry on file with no clock reports the same, not the entry"
         );
     }
 

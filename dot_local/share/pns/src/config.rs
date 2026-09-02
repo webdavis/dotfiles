@@ -922,7 +922,58 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             }
         }
     }
+    backstop_outlasts_the_nag(&config)?;
     Ok(config)
+}
+
+/// The one refusal that reads TWO tables, and the reason it cannot live in
+/// either of them: `[lights.blocked] give_up_after_secs` and `[nag] after_secs`
+/// are each perfectly good numbers on their own and contradict each other only
+/// together, so the check belongs where the whole file is in hand.
+///
+/// THE BACKSTOP DARKENS AN UNANSWERED WAIT'S LAMP at `give_up_after_secs` and
+/// the nag CARDS the same wait at `after_secs`. Written the shorter way round,
+/// the engine gives up on a wait before it has ever nudged about it, so the
+/// nudge's own lamp could never be lit and the backstop is bounding an
+/// abandonment the operator has not yet been told about. That is a config that
+/// cannot do what it says, refused at load in `ends_agree`'s style rather than
+/// worked around at runtime by a mechanism that would have to tell a live
+/// session from a crashed one.
+///
+/// EQUAL IS ACCEPTED. Shorter is the contradiction; reaching the bound exactly
+/// as the nudge fires is a tight config the operator may well mean.
+///
+/// A NAG THAT IS OFF CONTRADICTS NOTHING, and neither does a file with no
+/// `[lights]` table: with no nudge or no lamp there is no pair to disagree.
+///
+/// NEITHER OF THOSE TWO GUARDS IS OBSERVABLE TODAY, said here because a
+/// mutation of either survives the suite and the next reader deserves to know
+/// it is dead code rather than an untested branch. `NAG_OFF` is zero and
+/// `give_up_after_secs` has a floor of 60, so the comparison below is already
+/// false for an off nag; and `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16 hours)
+/// sits far above `MAX_NAG_AFTER_SECS` (one hour), so a config with no
+/// `[lights]` table could not trip the check even if it were read at its
+/// default. They stay because each states its own case out loud, and because
+/// what makes them dead is a coupling between two bounds that have nothing
+/// else to do with each other: either one moving would make a guard live
+/// again with nothing at the seam to say so.
+fn backstop_outlasts_the_nag(config: &Config) -> Result<(), ConfigError> {
+    let Some(lights) = config.lights.as_ref() else {
+        return Ok(());
+    };
+    if config.nag_after_secs == NAG_OFF {
+        return Ok(());
+    }
+    let give_up = lights.blocked.give_up_after_secs;
+    if give_up < config.nag_after_secs {
+        return Err(ConfigError::Invalid(format!(
+            "`lights.blocked` key `give_up_after_secs` is {give_up}, below `nag` key \
+             `after_secs` {}, so the lamp would be given up on before the nudge it \
+             belongs to has ever fired",
+            config.nag_after_secs
+        )));
+    }
+    Ok(())
 }
 
 /// `[recap]`'s switches, each starting at its default and moved only by a key
@@ -2950,6 +3001,60 @@ mod tests {
             "a number that is NOT the default, so a parser that silently kept the \
              default instead of reading the table would still be caught"
         );
+    }
+
+    #[test]
+    fn a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys() {
+        // A CONFIG THAT CANNOT DO WHAT IT SAYS. The backstop darkens an
+        // unanswered wait's lamp at `give_up_after_secs` and the nag cards the
+        // same wait at `after_secs`. Written the shorter way round, the lamp is
+        // given up on before the nudge it belongs to has ever fired, so the
+        // nudge's own lamp could never be lit. Both numbers are stated by the
+        // operator, so the refusal names both keys and both values rather than
+        // picking one of them to be wrong.
+        let said = refusal("[nag]\nafter_secs = 600\n[lights.blocked]\ngive_up_after_secs = 60\n");
+        for named in [
+            "lights.blocked",
+            "give_up_after_secs",
+            "60",
+            "nag",
+            "after_secs",
+            "600",
+        ] {
+            assert!(
+                said.contains(named),
+                "the refusal must name {named:?}: {said}"
+            );
+        }
+
+        // EQUAL IS NOT SHORTER and is accepted: the backstop reaches its bound
+        // exactly as the nudge fires, which is a tight config rather than a
+        // contradictory one.
+        assert!(
+            parse_config("[nag]\nafter_secs = 600\n[lights.blocked]\ngive_up_after_secs = 600\n")
+                .is_ok(),
+            "a backstop equal to the schedule sits on the bound and must be accepted"
+        );
+
+        // THE SHIPPED DEFAULTS SATISFY IT, which is the whole reason this
+        // refusal costs no operator a config change.
+        assert!(
+            parse_config("[nag]\nafter_secs = 300\n[lights.blocked]\ngive_up_after_secs = 57600\n")
+                .is_ok(),
+            "the values dot_config/pns/private_config.toml.tmpl ships must parse"
+        );
+
+        // A NAG THAT IS OFF CONTRADICTS NOTHING, because no nudge ever fires
+        // for the backstop to run in front of. Both spellings of off.
+        for written in [
+            "[lights.blocked]\ngive_up_after_secs = 60\n",
+            "[nag]\nafter_secs = 0\n[lights.blocked]\ngive_up_after_secs = 60\n",
+        ] {
+            assert!(
+                parse_config(written).is_ok(),
+                "{written:?} names no schedule to contradict and must be accepted"
+            );
+        }
     }
 
     #[test]

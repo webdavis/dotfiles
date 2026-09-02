@@ -579,11 +579,16 @@ fn record_missed(
 /// `blocked_marker_action`'s rule and not a second copy of it here.
 ///
 /// THE LAG, NAMED RATHER THAN HIDDEN: the marker clears at the NEXT event from
-/// that session, which for an answered approval is the Stop hook at the end of
-/// the turn and not the instant the operator answered. So a lamp can hold blue
-/// through one long tool call. The tick's own bound is what stops an abandoned
-/// session holding it forever, and the day item 21's rebuild wires a real
-/// answered signal this consumes it at the same call site.
+/// that session, never at the instant the operator answered, because no event
+/// reports the answer itself. STOP IS THE LAST OF THE ARMS THAT GET THERE, not
+/// the only one: `prompt` clears on the operator typing and `resolved` on the
+/// tool batch coming back, and each is why the two arms carry a comment of
+/// their own. The worst case left is a wait whose session produces neither
+/// before its turn ends, and the SUBAGENT RESIDUAL, which `resolved` skips by
+/// design and which therefore does hold blue until the parent's own Stop. The
+/// tick's own bound is what stops an abandoned session holding it forever, and
+/// the day item 21's rebuild wires a real answered signal this consumes it at
+/// the same call site.
 ///
 /// STARTING ONE RIDES BEHIND THE `[lights]` TABLE, and ENDING ONE DOES NOT. A
 /// machine that never asked for the lamps must not start accumulating files
@@ -602,6 +607,13 @@ fn record_missed(
 /// marker and a compare-and-swap publish over it. The damage is bounded by the
 /// backstop above and closed by the session's next event, which re-publishes
 /// the wait it is still in.
+///
+/// THE BACKSTOP CANNOT SWEEP A MARKER THE NAG HAS NOT YET NUDGED, and that is
+/// held at CONFIG LOAD rather than here: `[lights.blocked] give_up_after_secs`
+/// shorter than `[nag] after_secs` is refused by name (`config::parse_config`),
+/// because it is a config that gives up on a wait before it ever nudges about
+/// it. Nothing at this level re-publishes a swept marker, so nothing here has
+/// to tell an abandoned session from a live one.
 ///
 /// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason.
 fn update_blocked_marker(
@@ -2700,6 +2712,16 @@ fn run_event(
     // AND IT RESPECTS THE SILENCE, through the same predicate arbitration uses
     // rather than a second copy of it: a muted operator gets no lamp, which is
     // the shipped rule that the lights are decoration too.
+    //
+    // THIS FLASH IS NOT WHAT HOLDS THE LAMP BLUE. `pulse_render` answers
+    // `None` for every held behaviour, Blocked included, so this call fires
+    // once, at the moment the wait begins, and does nothing after. The
+    // TICK lights it off the marker `update_blocked_marker` just published,
+    // on its next successful run, scheduled `refresh_secs` after the last
+    // one; a stopped daemon lights nothing. That reading takes `pns lights
+    // quiet` and each room's own dim window, and never this event's own
+    // silence or a macOS Focus: those gate the flash and the cards, not the
+    // sustained breath.
     let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
     let blocked_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
     if decision.plan.pulse || blocked_lamp {
@@ -4765,6 +4787,35 @@ fn sweep_leases(state: &Path, now: u64, timeout_secs: u64) -> Vec<u64> {
 /// A PUT-BACK CAN OVERWRITE A NEWER PUBLISH, and that is the residue rather than
 /// a rule: the epoch restored is live and at most one racing publish old, which
 /// is seconds against bounds measured in hours.
+///
+/// A MARKER ALREADY NAMED FOR THE WORKING GRAMMAR IS A RESIDUAL, not a case
+/// this handles: `pane_file_is_safe` and `session_id_is_safe` refuse a NEW id
+/// `working_owner` would read as a working file, but a marker written under one
+/// before that guard existed is read here as that pid's own working file
+/// (`owner_is_gone` judges it, never `marker_is_live`), so it neither lights a
+/// lamp nor ages out. No id this crate's own callers produce can spell the
+/// shape (a UUID session id and a `wW:p21` pane cannot).
+///
+/// THE SHAPE IS `working_owner`'S, NOT `.new.<digits>` ALONE, which is what the
+/// operator check has to match: the RIGHTMOST of `.new.` and `.sweep.` decides,
+/// so `s.sweep.7` and a mixed `a.new.b.sweep.1` are residuals exactly as
+/// `s.new.4321` is, and `a.new.b` (no pid after the last marker) is an ordinary
+/// marker that sweeps normally. The check is therefore
+/// `ls ~/.local/state/pns/lights-blocked ~/.local/state/pns/lights-loop` for any
+/// name whose last `.new.` or `.sweep.` is followed by digits alone, removed by
+/// hand.
+///
+/// AND THE SWEEP IS NOT WEAKENED TO REACH IT, which is a statement about this
+/// function rather than a claim that the residual gets collected: while the pid
+/// in the name belongs to a LIVE process it is never swept at all, and pid 1 is
+/// launchd, so that name in particular is permanent until the operator removes
+/// it. A code fix was weighed and refused. Sweeping a working file whose owner
+/// is alive is the one thing this must never do, because it unlinks a publish
+/// caught between its open and its rename and loses a wait with the agent still
+/// waiting; and moving working files to a directory of their own is a state
+/// layout migration that leaves the same legacy names behind at the other end.
+/// The residual costs one stale file per legacy name and never grows, which is
+/// less than either fix.
 fn sweep_markers(directory: &Path, now: u64, max_age_secs: u64) -> Vec<u64> {
     let mut live = Vec::new();
     for entry in std::fs::read_dir(directory).into_iter().flatten().flatten() {
@@ -5018,8 +5069,12 @@ fn publish_muted(state: &Path, kept: &[pns::lights::Muted]) -> std::io::Result<(
 /// never been run, or its last mute expired and took the file with it. EVERY
 /// OTHER READ FAILURE IS A COMPLAINT, and the distinction is the point: a file
 /// that is unreadable, not UTF-8, or a directory standing where it should be
-/// mutes nothing at all, exactly as a corrupt one does, and an operator who is
-/// not told believes a mute is on while every lamp goes loud.
+/// says NOTHING about which places are quiet, exactly as a corrupt one does,
+/// and the two readers of that complaint take opposite directions with it.
+/// `ad_hoc_quiet` mutes EVERYTHING (a lamp path fails dark), and the command
+/// prints it and rebuilds from an empty list. Either way the operator is told,
+/// which is what a complaint is for: a mute nobody can see, in either
+/// direction, is the state worth a sentence.
 fn muted_state(state: &Path) -> (Vec<pns::lights::Muted>, Vec<String>) {
     let contents = match std::fs::read_to_string(state.join(LIGHTS_QUIET)) {
         Ok(contents) => contents,
@@ -5063,7 +5118,7 @@ fn ad_hoc_quiet(state: &Path, now: Option<u64>) -> (pns::channels::hue::Muting, 
     let Some(now) = now else {
         return (
             pns::channels::hue::Muting::Everything,
-            vec![NO_CLOCK_FOR_THE_MUTE.to_string()],
+            vec![pns::lights::NO_CLOCK_FOR_THE_MUTE.to_string()],
         );
     };
     (
@@ -5071,10 +5126,6 @@ fn ad_hoc_quiet(state: &Path, now: Option<u64>) -> (pns::channels::hue::Muting, 
         complaints,
     )
 }
-
-/// Why every lamp is quiet on a run whose clock would not answer.
-const NO_CLOCK_FOR_THE_MUTE: &str = "pns lights: the clock cannot be read, so no \
-mute can be judged live; every lamp is quiet until it can";
 
 /// One upkeep pass: read the machine, derive the one state the house is in,
 /// and write it to every lamp that should show it.
@@ -8390,9 +8441,20 @@ mod tests {
         );
         // A CLOCK THAT WILL NOT ANSWER GOES THE SAME WAY. Nothing can judge a
         // mute live without one, and the direction is dark rather than loud.
+        //
+        // THE LITERAL SENTENCE, never the constant: a mutation that renamed
+        // or emptied `NO_CLOCK_FOR_THE_MUTE` and every reader of it together
+        // would still pass a comparison against itself.
         let (muting, complaints) = ad_hoc_quiet(&state, None);
         assert_eq!(muting, pns::channels::hue::Muting::Everything);
-        assert_eq!(complaints.len(), 1, "{complaints:?}");
+        assert_eq!(
+            complaints,
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ]
+        );
     }
 
     #[test]
