@@ -10032,18 +10032,35 @@ mod tests {
         // the same second finds its own stamp already taken; this pre-creates
         // that collision instead of running two forced publishes back to back
         // and hoping they land in the same wall-clock second.
+        //
+        // BOTH SECONDS ARE PRE-CLAIMED, not only the one this test's own
+        // clock read named: `keep_aside` reads the clock again internally,
+        // and a boundary crossing between the two reads would otherwise miss
+        // the one name this test actually pre-claimed, making the run flake
+        // on a real clock rather than on a broken build.
         let home = scratch("setup-keep-aside-collision");
         let path = home.join(".config/pns/config.toml");
         std::fs::create_dir_all(path.parent().expect("the directory")).expect("the directory");
         std::fs::write(&path, "# the one it replaces\n").expect("the config");
         let now = now_secs().expect("the clock");
-        let backup = pns::setup::backup_path(&path, now).expect("the backup name");
-        std::fs::write(&backup, "# an earlier run's own backup\n").expect("the earlier backup");
+        let this_second = pns::setup::backup_path(&path, now).expect("the backup name");
+        let next_second = pns::setup::backup_path(&path, now + 1).expect("the backup name");
+        std::fs::write(
+            &this_second,
+            "# an earlier run's own backup (this second)\n",
+        )
+        .expect("the earlier backup");
+        std::fs::write(
+            &next_second,
+            "# an earlier run's own backup (the next second)\n",
+        )
+        .expect("the earlier backup");
 
         let refusal = keep_aside(&path).expect_err("the backup name is already claimed");
         assert!(
-            refusal.contains(&backup.display().to_string()),
-            "the refusal does not name the backup it could not claim: {refusal}"
+            refusal.contains(&this_second.display().to_string())
+                || refusal.contains(&next_second.display().to_string()),
+            "the refusal does not name either pre-claimed backup: {refusal}"
         );
         assert!(
             refusal.contains("already claimed"),
@@ -10055,8 +10072,13 @@ mod tests {
             "the config was moved even though its backup name could not be claimed"
         );
         assert_eq!(
-            std::fs::read_to_string(&backup).expect("the earlier backup"),
-            "# an earlier run's own backup\n",
+            std::fs::read_to_string(&this_second).expect("the earlier backup"),
+            "# an earlier run's own backup (this second)\n",
+            "an earlier run's own backup was overwritten rather than left alone"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&next_second).expect("the earlier backup"),
+            "# an earlier run's own backup (the next second)\n",
             "an earlier run's own backup was overwritten rather than left alone"
         );
     }
