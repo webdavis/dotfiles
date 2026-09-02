@@ -112,8 +112,9 @@ Non-goals, stated so nobody widens the program:
   is not force-bumped; if a bump is ever needed it is its own commit with `0b45795` as the rollback
   anchor (item 34).
 - SP5 (xonsh) and the SP4 bash-setup work come AFTER this program. Nothing here touches the shell.
-- No nvim-dap. `xcodebuild.nvim` can drive a debugger, but nvim-dap is not on the inventory and is
-  not installed; it is an open question with a default of no (section 12).
+- nvim-dap is wired (operator decision 2026-09-02, overruling the earlier "no" default in section 12):
+  `xcodebuild.nvim`'s own checkhealth cannot pass without a dap module present, and the plugin's four
+  debugger commands do not exist at all without it.
 - No removal mechanisms in the dotfiles repo (operator ruling 2026-08-02): the old `~/.config/nvim/.git`
   and any file the flatten leaves behind are removed by hand, by the operator, with `trash`.
 - No changes to herdr's config, the pns engine, or moshi. The custom plugins are producers and
@@ -715,8 +716,8 @@ buffer-local pass (3.7, check 5b) reads them as present; PR 23's body shows both
 | Plugin or tool                  | Spec and pin                                                                                        | Notes                                                                                           | PR    |
 | ------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----- |
 | `sourcekit-lsp`                 | `vim.lsp.config("sourcekit", { cmd = { "sourcekit-lsp" } })` and `vim.lsp.enable("sourcekit")`, darwin only | not a Mason package (verified: the registry has no `sourcekit-lsp`); the Xcode toolchain binary is used. Root markers per nvim-lspconfig: `buildServer.json`, `.bsp`, `*.xcodeproj`, `*.xcworkspace`, `compile_commands.json`, `Package.swift`, `.git` | PR 3 |
-| `xcode-build-server`, `xcbeautify`, `swiftformat`, `swiftlint` | already in `.chezmoidata/system_packages_autoinstall.yaml` (lines 169, 170, 187, 188) and installed | no YAML edit and no Mason entry: none-ls already declares `formatting.swiftformat` and `formatting.swiftlint` (`lsp.lua:287-288`) against the PATH binaries; `xcode-build-server` generates `buildServer.json` for an `.xcodeproj` or `.xcworkspace` (not needed for a SwiftPM package); `xcodebuild.nvim` requires `xcbeautify` | PR 3 (nothing to add) |
-| `wojciech-kulik/xcodebuild.nvim` | `commit = "633eb71"` (main HEAD today, `git ls-remote`); deps `MunifTanjim/nui.nvim` (present via noice), `folke/snacks.nvim` (picker), `stevearc/oil.nvim` (present); `ft = "swift"` plus `cmd`; `cond = vim.fn.has("mac") == 1` | supports Swift Packages (build and test) as well as Xcode projects, and has its own Test Explorer; no nvim-dap | PR 3 |
+| `xcode-build-server`, `xcbeautify`, `swiftformat`, `swiftlint` | already in `.chezmoidata/system_packages_autoinstall.yaml` (lines 171, 172, 189, 190) and installed | no YAML edit and no Mason entry: none-ls already declares `formatting.swiftformat` and `formatting.swiftlint` (`lsp.lua:305-306`) against the PATH binaries; `xcode-build-server` generates `buildServer.json` for an `.xcodeproj` or `.xcworkspace` (not needed for a SwiftPM package); `xcodebuild.nvim` requires `xcbeautify` | PR 3 (nothing to add) |
+| `wojciech-kulik/xcodebuild.nvim` | `commit = "633eb71"` (main HEAD today, `git ls-remote`); deps `MunifTanjim/nui.nvim` (present via noice), `folke/snacks.nvim` (picker), `stevearc/oil.nvim` (present), `mfussenegger/nvim-dap` and `rcarriga/nvim-dap-ui` (operator decision 2026-09-02); `ft = "swift"` plus `cmd`; `cond = vim.fn.has("mac") == 1` | supports Swift Packages (build and test) as well as Xcode projects, and has its own Test Explorer | PR 3 |
 | `gopls` and `go`                | `"gopls"` in mason-lspconfig `ensure_installed`; `go` Homebrew formula in the YAML                   | Mason installs `gopls` with `go install`, and the health check shows Go absent today, so the formula is part of decision D | PR 27 |
 | `nvim-neotest/neotest` + `nvim-neotest/nvim-nio` | `commit = "27bf921"` (neotest main HEAD today); `keys` under `<leader>t`; adapters per the open question in section 12 |                                                                          | PR 28 |
 | `okuuva/auto-save.nvim`         | already installed (`version = "^1.0.0"`, disabled by default with the `<leader>uv` toggle)         | item 42: the save condition gains the two `claudecode.nvim` exclusions its README documents (buffer name matching `(proposed)` or `(NEW FILE - proposed)`, buftype `acwrite`); formatting on autosave is suppressed: the `AutoSaveWritePre` user event sets `vim.b.autosave_write`, lsp-format's `BufWritePre` handler returns early when it is set, `AutoSaveWritePost` clears it. Explicit `:w` keeps formatting | PR 12 |
@@ -1487,8 +1488,11 @@ re-gated since its last merge of `main` is not a verdict.
    `xcodebuild.nvim`'s own Test Explorer for Xcode projects; Rust through a `cargo test` adapter; no
    Python, Go or Lua adapters until a project needs one. Adapter repository names are verified at plan
    time, not here.
-2. **nvim-dap for xcodebuild.nvim.** Default: no. It is not on the inventory; `codelldb` is already in
-   Mason if this changes later.
+2. **nvim-dap for xcodebuild.nvim.** RESOLVED 2026-09-02: yes, operator decision overruling the
+   earlier default of no. `codelldb` stays declared in Mason's `ensure_installed` for c/cpp/rust only:
+   the pinned plugin leaves its own `integrations.codelldb.enabled` at the upstream default of false
+   and debugs Swift through Xcode's own `xcrun lldb-dap` instead (verified against the plugin's
+   `dap.lua` and `debugger.lua` at the pinned commit).
 3. **The MCP server choice.** Default: `linw1995/nvim-mcp` plus the resolver script when any of
    criteria 1 to 3 fail; the custom crate only on a criterion 4, 5 or 6 failure. The evaluation in
    PR 9 decides, by the 7.3 table, inside its one-day budget; PR 10a or PR 10b ships and registers.
