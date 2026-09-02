@@ -371,6 +371,14 @@ mod tests {
     }
 
     #[test]
+    fn tail_cuts_on_a_character_boundary_not_a_byte_offset() {
+        // Each "party popper" is 4 bytes. A byte-offset cut (`text.len() -
+        // keep`) lands inside the third one's encoding and panics; only a
+        // char-aware cut keeps the last 4 CHARACTERS, "\u{1F389}ABC".
+        assert_eq!(tail("\u{1F389}\u{1F389}\u{1F389}ABC", 4), "...\u{1F389}ABC");
+    }
+
+    #[test]
     fn tail_with_nothing_to_keep_is_only_the_cut_mark() {
         // Asking for zero characters must not hand back the whole text.
         assert_eq!(tail("abc", 0), "...");
@@ -407,12 +415,39 @@ mod tests {
         let noise = format!("{}THE REAL REASON", "x".repeat(4000));
         let reason = failure_reason("exit 1", &noise);
         assert!(reason.ends_with("THE REAL REASON"), "{reason}");
-        assert!(
-            reason.chars().count() <= STDERR_TAIL + 32,
+        // Exact, not a loose upper bound: a mutant that kept only half of
+        // STDERR_TAIL would still satisfy "<= STDERR_TAIL + 32" and quietly
+        // drop half the promised diagnostic.
+        assert_eq!(
+            reason.chars().count(),
+            "exit 1: ...".chars().count() + STDERR_TAIL,
             "{} characters",
             reason.chars().count()
         );
         assert!(reason.contains("..."), "the cut is visible: {reason}");
+    }
+
+    #[test]
+    fn a_talkative_command_with_multibyte_stderr_is_cut_on_a_character_boundary() {
+        // The same cut, but through stderr that is not one byte per
+        // character: a byte-slicing mutant would panic or split a code point
+        // instead of keeping whole characters, same failure mode as `tail`
+        // itself.
+        let noise = format!(
+            "{}\u{65e5}\u{672c}\u{8a9e}\u{306e}REASON",
+            "\u{3042}".repeat(4000)
+        );
+        let reason = failure_reason("exit 1", &noise);
+        assert!(
+            reason.ends_with("\u{65e5}\u{672c}\u{8a9e}\u{306e}REASON"),
+            "{reason}"
+        );
+        assert_eq!(
+            reason.chars().count(),
+            "exit 1: ...".chars().count() + STDERR_TAIL,
+            "{} characters",
+            reason.chars().count()
+        );
     }
 
     #[test]
