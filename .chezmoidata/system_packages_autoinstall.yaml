@@ -189,6 +189,7 @@ packages:
         - xcbeautify
         - xcode-build-server
         - xcodegen
+        - xcp
         - xz
         - yakitrak/yakitrak/notesmd-cli
         - yq
