@@ -282,13 +282,12 @@ fn the_doctor_never_prints_the_records_signing_key() {
 
 #[test]
 fn the_doctor_lists_each_declared_lane_with_its_type() {
-    let home = Home::new("doctor-lanes").with_config("[lanes.herdr]\ntype = \"herdr\"\n");
+    let home = Home::new("doctor-lanes").with_config("[lanes.mine]\ntype = \"herdr\"\n");
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
-    assert!(
-        stdout(&output).contains("lane herdr: on (herdr)"),
-        "{output:?}"
-    );
+    let out = stdout(&output);
+    assert!(out.contains("lane mine: on (herdr)"), "{output:?}");
+    assert!(!out.contains("none declared"), "{output:?}");
 }
 
 #[test]
@@ -307,10 +306,16 @@ fn an_unknown_command_is_usage_on_stderr_and_exit_two() {
     let home = Home::new("usage");
     let output = home.uu(&["bogus"]);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("usage"),
-        "{output:?}"
-    );
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("usage"), "{output:?}");
+    // The line's SHAPE, not its exact text: a build that adds a lane type
+    // lengthens the list, and the pin here is that usage lists the types at
+    // all and that `herdr` is one of them.
+    let lists_herdr = err.lines().any(|line| {
+        line.strip_prefix("lane types: ")
+            .is_some_and(|types| types.split(", ").any(|kind| kind == "herdr"))
+    });
+    assert!(lists_herdr, "{output:?}");
 }
 
 #[cfg(test)]
