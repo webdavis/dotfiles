@@ -3,8 +3,9 @@
 //! THE FILE SELECTS; it never defines. A lane runs only when its
 //! `[lanes.<name>]` block exists, records post only when `[records]` exists,
 //! and alerts leave the machine only when `[alerts]` exists. With no file at
-//! all uu runs nothing, logs what it found and exits clean, which is what
-//! makes a fresh install harmless.
+//! all a bare `uu run` runs nothing, logs what it found and exits clean,
+//! which is what makes a fresh install harmless; `uu run <lane>` still asks
+//! for that lane by name and is refused with exit 1.
 //!
 //! EVERY UNKNOWN KEY IS REFUSED BY NAME, and so is every lane whose `type`
 //! this build does not serve, or that states none on a name that is not itself
