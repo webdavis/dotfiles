@@ -45,11 +45,15 @@ Overwritten from the template on every apply, whatever the live file holds.
     the operator for input; async is what keeps pns out of the answer, since this hook runs before the
     dialog is shown and exit code 2 alone would decline the request outright.
   - `PostToolBatch` runs `pns hook resolved` async with no matcher, clearing the nag record when an
-    assistant tool batch resolves, whether the operator approved the call or the classifier denied it.
+    assistant tool batch resolves, whether the operator approved the call or denied it: a denied call
+    still produces a tool_result, so it resolves the batch rather than skipping it. The classifier's
+    own refusals are `PermissionDenied`'s to report, not this entry's.
   - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, calling `pns hook asked`
     and `pns hook plan-ready`.
-  - `SessionStart` is herdr's own agent-state integration, installed by
-    `herdr integration install claude` rather than by one of this template's own hook commands.
+  - `SessionStart` is herdr's own agent-state integration, and ownership is split. `herdr integration
+    install claude` creates the hook FILE at `~/.claude/hooks/herdr-agent-state.sh`, which is
+    deliberately unmanaged, and writes this ENTRY the first time. The template then redeclares the
+    same entry, because the `hooks` write is whole-value and would otherwise erase it.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (29 today), each set to
   `user-invocable-only`, sourced from `dot_agents/custom-skill-lock.json` and gated by
   `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.
