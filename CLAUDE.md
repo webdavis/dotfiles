@@ -356,8 +356,10 @@ and actions SHA-pinned to full commit SHAs. `.github/dependabot.yml` keeps the p
 `gh pr merge --auto` so branch protection, where `lint` is a required status check on `main`, is what
 actually holds the merge until green.
 
-Five steps: checkout, install the toolchain (brew + uv, classified as setup by the parity test), then the
-three gates as literal commands: `just lint-check`, `just test`, `just lint-actions-security`.
+Five steps: checkout, install the toolchain (brew + uv), then the three gates as literal commands:
+`just lint-check`, `just test`, `just lint-actions-security`. Nothing classifies or compares those steps
+against the justfile: `test/unit/ship-ci-gate-parity.sh` was deleted in `7e8e24a4` under the 2026-08-05
+scope ruling.
 
 ### Where deployed scripts live
 

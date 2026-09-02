@@ -63,8 +63,10 @@ Overwritten from the template on every apply, whatever the live file holds.
     which is deliberately unmanaged, and writes this ENTRY the first time. The template then redeclares
     the same entry, because the `hooks` write is whole-value and would otherwise erase it.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (29 today), each set to
-  `user-invocable-only`, sourced from `dot_agents/custom-skill-lock.json` and gated by
-  `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.
+  `user-invocable-only`, transcribed BY HAND from the tiers table in `dot_agents/custom-skill-lock.json`.
+  Nothing enforces that the two agree: the roster guard was declaration-consistency checking and went
+  with the 2026-08-05 test-scope ruling. Per key, so overrides the user sets for other skills drift
+  freely.
 - `statusLine`, `cleanupPeriodDays` (= 365, a year of session retention), `autoUpdatesChannel` (=
   `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`, starts
   the Remote Control bridge every session), `spinnerTipsEnabled` (= `false`, operator 2026-08-11: no
@@ -170,9 +172,11 @@ without a verdict rather than risk destroying a healthy file, and a move it cann
 with a warning that the apply will fail in `modify_settings.json` until the file is repaired by hand.
 Repair `~/.claude/settings.json` in either case; the apply's own error names the template.
 
-`test/unit/claude-enabled-plugins.sh` applies the template into a throwaway destination once per
-live-file shape per target OS and pins all of the above, including the three unparseable shapes, which it
-requires to fail, to name the template in the error, and to leave the live file byte-identical.
+`test/unit/claude-settings-quarantine.sh` pins the repair side of this: an unreadable file is moved and
+replaced with `{}`, and every shape the template does survive is left byte-identical, including the three
+that are not JSON objects. The template side is unpinned. The test that applied the template into a
+throwaway destination once per live-file shape per target OS was deleted in the 2026-08-05 purge
+(`d348c136`), so everything in the three sections above is held by review rather than by a gate.
 
 ## Promoting a `/config` toggle
 

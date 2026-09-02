@@ -460,9 +460,13 @@ unattended_log_change_section() {
 # The outcome is read from pns's STDOUT line rather than from its exit status,
 # and deliberately so: pns exits 0 whatever the gateway answered, which is the
 # contract that keeps a broken record channel from breaking the job it reports
-# on. That line is pns's stated interface for --remote-only, pinned on both
-# sides (test/unit/pns-remote-only.sh writes it, this file reads it). It is
-# also echoed onward, so the caller's run log keeps it either way.
+# on. That line is pns's stated interface for --remote-only. The WRITER's side
+# is pinned by dot_local/share/pns/tests/native.rs, in
+# sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent, which
+# asserts stdout is exactly "pns: posted HTTP 200". This reader is unpinned:
+# test/unit/pns-remote-only.sh was never written, so a change to that line
+# would go unnoticed here. It is also echoed onward, so the caller's run log
+# keeps it either way.
 #
 # Never ABORTS the caller: a non-zero return is a fact to act on, and both
 # callers do, but neither treats it as fatal.
