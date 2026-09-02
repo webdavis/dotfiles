@@ -1149,6 +1149,27 @@ mod tests {
         assert_eq!(marker, Marker::Unreadable);
     }
 
+    // --- the posted record body -------------------------------------------
+
+    #[test]
+    fn a_deferred_only_run_posts_a_body_stated_deferred_not_completed() {
+        // record_state itself is pinned directly in record.rs; this instead
+        // guards the CALL SITE here in `records_body`, where a mutant
+        // passing `record_state(failures, 0)` would post every deferred-only
+        // run as "completed" while leaving every `record_state` unit test
+        // green.
+        let body = records_body(0, 1, "detail");
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["state"], "deferred");
+    }
+
+    #[test]
+    fn a_mixed_run_posts_a_body_stated_failed_not_deferred() {
+        let body = records_body(1, 1, "detail");
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["state"], "failed");
+    }
+
     // --- the record and alert seams --------------------------------------
 
     use pns::channels::hermes::PostOutcome;
