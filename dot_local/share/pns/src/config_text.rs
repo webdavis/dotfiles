@@ -949,6 +949,16 @@ const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
 /// of the entry name run as template syntax, and a newline would start a line
 /// of its own in the rendered text.
 fn secret_action(table: &toml::Table) -> Result<String, String> {
+    // NAME THE OFFENDER FIRST: `table.len() != 2` alone only counts members,
+    // so a third, unrecognised one hides behind the generic pair-count
+    // message instead of being called out by name.
+    for key in table.keys() {
+        if key != "keepassxc" && key != "field" {
+            return Err(format!(
+                "a secret table may only hold `keepassxc` and `field`, not `{key}`"
+            ));
+        }
+    }
     if table.len() != 2 {
         return Err("a table value must be a secret: exactly `keepassxc` and `field`".to_string());
     }
@@ -1140,6 +1150,26 @@ mod tests {
             config.plugins["mobile"].settings["token"].as_str(),
             Some("from-the-vault")
         );
+    }
+
+    #[test]
+    fn a_secret_tables_unknown_member_is_named_rather_than_only_counted() {
+        // `table.len() != 2` ALONE only counts members, so `{ keepassxc,
+        // field, typo }` reports the pair-count rule and never says which
+        // key does not belong: naming the offender needs its own check.
+        let mut table = toml::Table::new();
+        table.insert(
+            "keepassxc".to_string(),
+            toml::Value::String("entry".to_string()),
+        );
+        table.insert(
+            "field".to_string(),
+            toml::Value::String("Password".to_string()),
+        );
+        table.insert("typo".to_string(), toml::Value::String("oops".to_string()));
+        let error =
+            super::secret_action(&table).expect_err("an unknown secret member must be refused");
+        assert!(error.contains("typo"), "{error}");
     }
 
     #[test]
