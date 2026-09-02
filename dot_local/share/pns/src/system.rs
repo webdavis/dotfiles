@@ -1081,6 +1081,16 @@ mod tests {
                 "case: {expected}, calls were {calls:?}"
             );
         }
+        drop(calls);
+        // sol review, ROW 2: the assertions above only count runner calls;
+        // a `join_desk`/`join_phone` that stored `None` for a successful
+        // worker passed every one of them. Assert the joined values too.
+        assert_eq!(probes.idle_secs(), Some(5), "the joined idle answer");
+        assert_eq!(probes.screen_locked(), Some(true), "the joined lock answer");
+        assert!(
+            probes.phone_input_atime_secs().is_some(),
+            "the joined phone answer"
+        );
     }
 
     #[test]
