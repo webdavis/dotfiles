@@ -884,11 +884,11 @@ fn record_missed(
 /// limit rather than a rule. One file per SESSION carries no generation, so a
 /// blocked event that publishes a new wait while the previous Stop is still
 /// condensing loses it when that Stop reaches this line. Unlink cannot
-/// arbitrate on this filesystem (concurrent unlink reports success to every
-/// caller on APFS), so telling the two apart would need a generation IN the
-/// marker and a compare-and-swap publish over it. The damage is bounded by the
-/// backstop above and closed by the session's next event, which re-publishes
-/// the wait it is still in.
+/// arbitrate on this filesystem (see
+/// `docs/decisions/0001-ownership-by-rename-not-by-unlink.md`), so telling the
+/// two apart would need a generation IN the marker and a compare-and-swap
+/// publish over it. The damage is bounded by the backstop above and closed by
+/// the session's next event, which re-publishes the wait it is still in.
 ///
 /// THE BACKSTOP CANNOT SWEEP A MARKER THE NAG HAS NOT YET NUDGED, and that is
 /// held at CONFIG LOAD rather than here: `[lights.blocked] give_up_after_secs`
@@ -4365,8 +4365,9 @@ fn doctor_mode() -> i32 {
 /// rather than one card each. Each RECORD is then claimed by rename before it
 /// is read for anything, which is what stops a single approval being counted
 /// twice by a fire that broke in after a stale window claim aged out. Both are
-/// renames because a plain unlink does not arbitrate on APFS: measured, eight
-/// racers were every one of them told they had succeeded.
+/// renames because a plain unlink does not arbitrate on this filesystem; the
+/// measurement is in
+/// `docs/decisions/0001-ownership-by-rename-not-by-unlink.md`.
 ///
 /// THE ORDER IS THE SAFE ONE AT EVERY STEP. The markers are written BEFORE the
 /// card and the claims removed AFTER it: a crash before the card leaves
@@ -5136,11 +5137,11 @@ fn sweep_leases(state: &Path, now: u64, timeout_secs: u64) -> Vec<u64> {
 /// each have to be remembered a second time.
 ///
 /// A REMOVAL IS OWNED BY RENAME AND NEVER READ-THEN-UNLINK. Concurrent unlink
-/// does not arbitrate on this filesystem: it reports success to every caller, so
-/// a sweep that read an expired epoch and then unlinked could delete a FRESH
-/// marker a racing event had published in between, and both would believe they
-/// had removed the old one. Taking the file by rename first means what this
-/// removes is what this took, and the epoch is READ AGAIN off the claim: a
+/// does not arbitrate on this filesystem (see
+/// `docs/decisions/0001-ownership-by-rename-not-by-unlink.md`), so a sweep that
+/// read an expired epoch and then unlinked could delete a FRESH marker a racing
+/// event had published in between. Taking the file by rename first means what
+/// this removes is what this took, and the epoch is READ AGAIN off the claim: a
 /// marker that turned out to be live in the meantime is put back rather than
 /// destroyed.
 ///

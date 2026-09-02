@@ -56,6 +56,11 @@ excludes = [
   "private_dot_claude/pns-marketplace/**",
   "dot_agents/**",
   "docs/superpowers/**",
+  # The pns behavioral specifications use a three-line Given / When / Then
+  # form where the line breaks carry the meaning. mdformat reflows the three
+  # into one paragraph and destroys the shape that makes them readable, which
+  # is the same reason docs/superpowers/** is excluded above.
+  "dot_local/share/pns/docs/**",
   "docs/research/2026-04-12-worktrunk.md",
   # The editor formats its own CLAUDE.md on save; mdformat's 105-column wrap
   # would fight that and break the import PR's byte-diff proof. PR 4d lifts
