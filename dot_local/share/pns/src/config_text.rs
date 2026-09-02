@@ -1020,6 +1020,13 @@ fn secret_action(table: &toml::Table) -> Result<String, String> {
             "a secret's `field` must be one of {SECRET_FIELDS:?}, not `{field}`"
         ));
     }
+    if entry.trim().is_empty() {
+        // AN EMPTY OR WHITESPACE-ONLY ENTRY IS NOT A NAME, and writing it
+        // through defers the failure to an apply-time vault lookup for
+        // `keepassxc ""`, which the operator hits far from wherever the
+        // values file went wrong.
+        return Err("a secret's `keepassxc` entry name cannot be blank".to_string());
+    }
     if entry.contains('"')
         || entry.contains('\\')
         || entry.contains("}}")
@@ -1430,6 +1437,19 @@ mod tests {
                     "`{hostile}` can break out of the action and must be refused"
                 ));
             assert!(error.contains(hostile), "{error}");
+        }
+    }
+
+    /// THE MUTANT THIS PINS: the blank-entry refusal removed, letting
+    /// `keepassxc ""` (or all-whitespace) reach the shipped template and
+    /// defer the failure to an apply-time vault lookup nobody is standing in
+    /// front of.
+    #[test]
+    fn a_blank_or_whitespace_only_entry_name_is_refused_rather_than_written() {
+        for blank in ["", "   ", "\t"] {
+            let error = super::secret_action(secret(blank, "Password").as_table().unwrap())
+                .expect_err(&format!("`{blank:?}` names no entry and must be refused"));
+            assert!(error.contains("blank"), "{error}");
         }
     }
 
