@@ -4,7 +4,8 @@
   - Ref: https://github.com/nvimtools/none-ls.nvim/wiki/Compatibility-with-other-plugins
   - Note: this configures https://github.com/Pocco81/auto-save.nvim, which may is a little
     different. So it's not a one-to-one drop-in and some adjustments will need to be made
-- [ ] Setup [wojciech-kulik/xcodebuild.nvim](https://github.com/wojciech-kulik/xcodebuild.nvim)
+- [x] Setup [wojciech-kulik/xcodebuild.nvim](https://github.com/wojciech-kulik/xcodebuild.nvim)
+  <!-- completed: 2026-09-02 -->
 - [ ] Setup [nvim-neotest/neotest](https://github.com/nvim-neotest/neotest)
 - [x] Figure out what the difference between `cspell` and `codespell` (if there is one), and
   then configure Neovim (via Mason or none-ls) to handle its installation and integration

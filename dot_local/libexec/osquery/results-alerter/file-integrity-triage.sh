@@ -69,9 +69,12 @@
 # detail; the pre-upgrade publish is what makes the record cover the window it
 # describes, since a watched file rewritten in the first seconds of a run would
 # otherwise be correlated against the PREVIOUS week. Keep this literal in sync
-# with the producer; test/unit/osquery-file-integrity-triage.sh pins them equal,
-# because a rename in one alone leaves this answering no-record forever, which
-# reads exactly like a quiet month of upgrades.
+# with UPGRADE_RECORD in the producer, BY HAND: a rename in one alone leaves
+# this answering no-record forever, which reads exactly like a quiet month of
+# upgrades, and nothing pins the two literals equal. A test that only compared
+# these two string constants would fit the operator's 2026-08-05
+# declaration-consistency ruling (CLAUDE.md, "We test the behavior of tools we
+# wrote"), not tool behavior, so none exists on purpose.
 #
 # Format, tab separated. Line 1 is the run that produced it:
 #

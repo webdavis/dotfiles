@@ -36,7 +36,7 @@ return {
   opts = {},
   keys = {
     {
-      "<leader>xt",
+      "<leader>Xt",
       function()
         vim.cmd("Trouble todo")
       end,

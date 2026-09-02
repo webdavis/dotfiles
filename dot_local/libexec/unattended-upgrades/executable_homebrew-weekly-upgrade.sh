@@ -52,9 +52,12 @@ LOG_WEEK_GUARD="$STATE_DIR/log-week-claims"
 # to correlate against days later. Keep this literal in sync with
 # OSQUERY_UPGRADE_RECORD in
 # ~/.local/libexec/osquery/results-alerter/file-integrity-triage.sh (the
-# consumer); test/unit/osquery-file-integrity-triage.sh pins them equal, because
-# a rename in one alone leaves that page answering no-record forever, which reads
-# exactly like a quiet month of upgrades.
+# consumer), BY HAND: a rename in one alone leaves that page answering
+# no-record forever, which reads exactly like a quiet month of upgrades, and
+# nothing pins the two literals equal. A test that only compared these two
+# string constants would fit the operator's 2026-08-05 declaration-consistency
+# ruling (CLAUDE.md, "We test the behavior of tools we wrote"), not tool
+# behavior, so none exists on purpose.
 UPGRADE_RECORD="$STATE_DIR/last-upgrade-changes.tsv"
 
 # An unknown argument is an ERROR, never a silent fallthrough: a typo'd marker in

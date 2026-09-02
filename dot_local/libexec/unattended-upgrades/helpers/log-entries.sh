@@ -1,11 +1,17 @@
 # shellcheck shell=bash
-# unattended-log-lib.sh, the shared entry shape for the weekly UNATTENDED jobs
-# (update-skills.sh and homebrew-weekly-upgrade.sh). Sourced, never executed, so
-# it carries no shebang and no executable bit, exactly like macos-defaults-lib.sh
-# beside it. Each caller sources it as
-#   source "$(dirname "${BASH_SOURCE[0]}")/unattended-log-lib.sh"
-# which resolves in BOTH the chezmoi source tree (dot_local/bin/) and the applied
-# ~/.local/bin/ layout, because this file carries no executable_ or dot_ prefix.
+# log-entries.sh, the shared entry shape for the weekly UNATTENDED jobs. THREE
+# callers source it: homebrew-weekly-upgrade.sh beside this helpers/ directory,
+# and agent-skills/update-skills.sh and claude/report-plugin-updates.sh one
+# level down. (uu, the fourth weekly job, is a standalone Rust binary and shares
+# none of this.) Sourced, never executed, so it carries no shebang and no
+# executable bit, the same shape as macos-defaults/helpers/defaults-records.sh
+# in the sibling tree. Each caller sources it by relative path,
+#   source "$(dirname "${BASH_SOURCE[0]}")/helpers/log-entries.sh"      # or
+#   source "$(dirname "${BASH_SOURCE[0]}")/../helpers/log-entries.sh"
+# which resolves in BOTH the chezmoi source tree
+# (dot_local/libexec/unattended-upgrades/helpers/) and the applied
+# ~/.local/libexec/unattended-upgrades/helpers/ layout, because this file
+# carries no executable_ or dot_ prefix.
 #
 # WHAT THIS IS FOR. The weekly jobs upgrade things unattended. When a machine
 # later misbehaves there is nothing to investigate against, because a clean week
@@ -39,9 +45,10 @@
 # fields on one line: "<epoch-seconds> <iso-8601-utc>". The epoch is what the gap
 # arithmetic uses, so nothing ever has to PARSE a timestamp back. That matters
 # here: BSD date (the macOS host and the CI runner) needs
-# `date -j -f <format>` while GNU date needs `date -d`, and the flake devshell
-# and the host disagree about which one `date` is. Storing the number removes the
-# question. The ISO field is for the human reading the entry.
+# `date -j -f <format>` while GNU date needs `date -d`, and both are on this
+# machine, since the toolchain installs coreutils and its GNU `gdate` sits
+# beside the system BSD `date`. Storing the number removes the question. The ISO
+# field is for the human reading the entry.
 #
 # NOTHING HERE IS EVER SILENT. A missing marker, an unparseable marker, an
 # unwritable guard, an absent pns.sh: each produces a stated line. A quiet
@@ -50,15 +57,35 @@
 
 # The webhook route name, which is also the URL path segment hermes serves it on
 # (.platforms.webhook.extra.routes.<name> in the encrypted hermes config). The
-# apply-time status check reads this same name out of this file rather than
-# repeating it, because a rename in one place alone is a 404 on every entry
-# forever and nothing else would notice.
+# apply-time status check keeps its OWN copy of this name rather than reading
+# this one: .chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl
+# hardcodes `expected_routes=(pns unattended-upgrades)` and carries a comment
+# telling the next reader to keep the two in step BY HAND. Nothing compares
+# them, so a rename here alone is a 404 on every entry forever while the status
+# check goes on probing the old name and reporting nothing.
 UNATTENDED_LOG_ROUTE="unattended-upgrades"
 
-# The gateway URL is pns's business now: the post below names the ROUTE with
-# --channel and pns derives the endpoint from its own default gateway, so the
-# host:port lives in exactly one place. run_after_68 probes the live hermes
-# config's real port, which is the check that catches a drift there.
+# The gateway URL is pns's business for THIS caller: the post below names the
+# ROUTE with --channel and pns derives the endpoint from its own default
+# gateway. ON THE UNATTENDED AND pns ROUTES THE HOST AND PORT SIT IN FOUR
+# PLACES, kept in step BY HAND, with nothing comparing any two of them:
+#   private_dot_hermes/private_dot_env.tmpl      WEBHOOK_PORT=8644, the
+#     gateway-side declaration this repo owns in plaintext.
+#   dot_local/share/pns/src/channels/hermes.rs   DEFAULT_HERMES_URL, the
+#     compiled client default this library's own post travels on.
+#   dot_config/uu/private_config.toml.tmpl       [records].url, in uu's shipped
+#     config: uu posts its weekly record straight to hermes, not through here.
+#   dot_local/share/uu/src/config.rs             DEFAULT_RECORD_URL, dormant
+#     while the shipped config above states the url explicitly.
+# Four is THIS LANE'S count, not the repository's: the osquery pipeline
+# hardcodes the same host and port again for its own `priority` route, in
+# osquery/executable_alert-dispatch.sh and osquery/executable_uptime-watchdog.sh,
+# and those copies move independently of these.
+# Deriving one from the other is a design question, not settled here, and
+# run_after_68 does not stand in for it: it reads the port out of the LIVE
+# hermes config and probes THAT port, so it never compares a client's copy
+# against the gateway and a client left on a stale port is invisible to it. It
+# reports a 404 only, discarding curl's 000 when nothing is listening at all.
 
 # The machine this entry is about. The channel aggregates unattended jobs, and
 # the daemon-host role is expected to move to a second Mac, so an entry that does
@@ -454,9 +481,13 @@ unattended_log_change_section() {
 # The outcome is read from pns's STDOUT line rather than from its exit status,
 # and deliberately so: pns exits 0 whatever the gateway answered, which is the
 # contract that keeps a broken record channel from breaking the job it reports
-# on. That line is pns's stated interface for --remote-only, pinned on both
-# sides (test/unit/pns-remote-only.sh writes it, this file reads it). It is
-# also echoed onward, so the caller's run log keeps it either way.
+# on. That line is pns's stated interface for --remote-only. The WRITER's side
+# is pinned by dot_local/share/pns/tests/native.rs, in
+# sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent, which
+# asserts stdout is exactly "pns: posted HTTP 200". This reader is unpinned:
+# test/unit/pns-remote-only.sh was never written, so a change to that line
+# would go unnoticed here. It is also echoed onward, so the caller's run log
+# keeps it either way.
 #
 # Never ABORTS the caller: a non-zero return is a fact to act on, and both
 # callers do, but neither treats it as fatal.

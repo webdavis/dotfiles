@@ -10,10 +10,10 @@ return {
     },
   },
   keys = {
-    { "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>", desc = "Trouble: diagnostics" },
-    { "<leader>xX", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", desc = "Trouble: buffer diagnostics" },
-    { "<leader>xL", "<cmd>Trouble loclist toggle<cr>", desc = "Trouble: Location List" },
-    { "<leader>xq", "<cmd>Trouble qflist toggle<cr>", desc = "Trouble: Quickfix List" },
+    { "<leader>Xx", "<cmd>Trouble diagnostics toggle<cr>", desc = "Trouble: diagnostics" },
+    { "<leader>XX", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", desc = "Trouble: buffer diagnostics" },
+    { "<leader>XL", "<cmd>Trouble loclist toggle<cr>", desc = "Trouble: Location List" },
+    { "<leader>Xq", "<cmd>Trouble qflist toggle<cr>", desc = "Trouble: Quickfix List" },
 
     -- LSP
     -- stylua: ignore start
