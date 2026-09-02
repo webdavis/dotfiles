@@ -2618,6 +2618,16 @@ fn run_event(
     // AND IT RESPECTS THE SILENCE, through the same predicate arbitration uses
     // rather than a second copy of it: a muted operator gets no lamp, which is
     // the shipped rule that the lights are decoration too.
+    //
+    // THIS FLASH IS NOT WHAT HOLDS THE LAMP BLUE. `pulse_render` answers
+    // `None` for every held behaviour, Blocked included, so this call fires
+    // once, at the moment the wait begins, and does nothing after. The
+    // TICK lights it off the marker `update_blocked_marker` just published,
+    // on its next successful run, scheduled `refresh_secs` after the last
+    // one; a stopped daemon lights nothing. That reading takes `pns lights
+    // quiet` and each room's own dim window, and never this event's own
+    // silence or a macOS Focus: those gate the flash and the cards, not the
+    // sustained breath.
     let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
     let blocked_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
     if decision.plan.pulse || blocked_lamp {
