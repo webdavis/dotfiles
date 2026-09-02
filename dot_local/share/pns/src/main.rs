@@ -2325,18 +2325,31 @@ fn event_mode(argv: &[String]) {
     );
 }
 
-/// Whether this is the event's FIRST delivery or a NUDGE about one already
-/// recorded.
+/// Whether this is the event's FIRST delivery, a NUDGE about one already
+/// recorded, or an OBSERVATION.
 ///
 /// ONE ARGUMENT RATHER THAN A SECOND EVENT PATH. A nudge is an ordinary event
 /// in every respect an operator can see (the mute, the named Focus modes, the
 /// quiet window, the surface and visibility plan, fresh probes taken in the
 /// nudge's own process); what it is not is a second OCCURRENCE, and the
 /// contiguous tail of `run_event` is what records occurrences.
+///
+/// AN OBSERVATION IS THE SAME KIND OF NON-OCCURRENCE, for a different reason:
+/// it is a harness telling pns about something that happened rather than a
+/// turn needing the operator's attention, so it changes no workflow or marker
+/// state and is routed marker-neutral through the same tail a nudge skips.
+/// It is still recorded as a decision (`record_decision` runs before the
+/// guard for every attempt), just with `nag=no`.
+///
+/// AN OBSERVATION SHAPED LIKE A `PermissionRequest` IS TOO LATE TO GATE HERE.
+/// `blocking_event` forwards to moshi and arms the nag before `run_event`
+/// ever runs, so this guard cannot undo either one; a caller on that path
+/// must refuse the observation at the top of `blocking_event` itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Attempt {
     First,
     Nudge,
+    Observation,
 }
 
 /// One notification, end to end: decide, render, dispatch. THE one event path,
@@ -2512,23 +2525,25 @@ fn run_event(
         agent_id: &payload.agent_id,
         tool_name: &payload.tool_name,
     });
-    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge
-    // returns here, so it writes no journal entry, no activity-ring line, never
-    // claims the return moment through `mark_present`, never triggers
-    // `replay_missed` and never pulses.
+    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge or
+    // an observation returns here, so it writes no journal entry, no
+    // activity-ring line, never claims the return moment through
+    // `mark_present`, never triggers `replay_missed` and never pulses.
     //
     // EACH IS A DEFECT AVOIDED RATHER THAN TIDINESS. The recap counts
-    // activity-ring lines toward `min_events`, so a nudge that rang would
-    // inflate the operator's own recap with pns's noise; a nudge is not
-    // evidence of presence, so it must not move the last-present marker; and
-    // the pulse falling out here is how "escalation is not a colour" stays
-    // enforced without touching the lights at all.
+    // activity-ring lines toward `min_events`, so a nudge or an observation
+    // that rang would inflate the operator's own recap with pns's noise;
+    // neither is evidence of presence, so neither must move the last-present
+    // marker; and the pulse falling out here is how "escalation is not a
+    // colour" stays enforced without touching the lights at all.
     //
-    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately. Muted, inside a named
+    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately, and AN OBSERVATION
+    // NEVER RENEWS A LEASE OR ARMS A LAMP, for the same reason from the other
+    // side: it is not an occurrence to replay later. Muted, inside a named
     // Focus, or planned to nothing means the nudge does not happen and is not
     // journaled for replay: a "still waiting" card replayed hours later, about
     // a question answered long ago, is worse than silence.
-    if attempt == Attempt::Nudge {
+    if attempt != Attempt::First {
         return;
     }
     // THE JOURNAL GOES WITH IT, inheriting the ordering contract stated above
