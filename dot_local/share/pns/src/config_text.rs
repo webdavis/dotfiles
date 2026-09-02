@@ -972,7 +972,7 @@ fn render_value(value: &toml::Value) -> Result<String, String> {
 
 /// The keepassxc entry fields that may stand as a secret's `field`. Anything
 /// else is refused, because `field` becomes a chezmoi method call verbatim.
-const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
+pub(crate) const SECRET_FIELDS: [&str; 2] = ["Password", "UserName"];
 
 /// A secret marker, `{ keepassxc = "<entry>", field = "Password" | "UserName" }`,
 /// as the chezmoi action `{{ (keepassxc "<entry>").<field> | toToml }}`, with
