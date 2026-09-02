@@ -408,6 +408,48 @@ fn the_staleness_alert_fires_once_at_the_threshold_and_not_again_while_still_def
 }
 
 #[test]
+fn a_staleness_alert_the_engine_refused_is_retried_rather_than_lost_for_good() {
+    // THE HOLE THE STALENESS BOUND EXISTS TO CLOSE, REOPENED. It fires once
+    // per streak, so an engine that was down for that ONE run leaves a
+    // deferring lane with no alert at all until a success it may never have:
+    // a deferral raises nothing else, so the lane is silent for good.
+    let home = Home::new("stale-engine-down");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'lock held\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub(
+        "pns-stub",
+        "[ -f \"$HOME/engine-down\" ] && exit 1\nprintf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n",
+    );
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    std::fs::write(home.dir.join("engine-down"), "").expect("the engine is down");
+    for _ in 0..3 {
+        home.uu(&["run"]);
+    }
+    assert!(
+        !home.dir.join("alert-args").exists(),
+        "the refusing engine delivered nothing, which is the premise"
+    );
+    // The engine is back. The lane is still deferring and has still not
+    // succeeded, so the alert it owes is still owed.
+    std::fs::remove_file(home.dir.join("engine-down")).expect("the engine is back");
+    home.uu(&["run"]);
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args"))
+        .expect("the staleness alert must be retried once the engine answers again");
+    assert!(alerts.contains("mine"), "{alerts}");
+    assert_eq!(
+        alerts.matches("consecutive").count(),
+        1,
+        "the retry is still exactly one alert: {alerts}"
+    );
+}
+
+#[test]
 fn a_success_between_deferrals_resets_the_staleness_streak() {
     let home = Home::new("stale-reset");
     let counter = home.dir.join("call-count");

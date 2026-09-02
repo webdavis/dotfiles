@@ -169,9 +169,15 @@ fn run_mode(only: Option<&str>) -> i32 {
         let succeeded = !report.deferred && report.failures == 0;
         let path = streak_path(&home, &report.name);
         let (next, tripped) = next_streak(read_streak(&path), succeeded);
-        write_streak(&path, &report.name, next);
-        if tripped {
-            send_alert(
+        // AN UNDELIVERED TRIP IS RETRIED, NEVER LOST. This alert fires once
+        // per streak, so an engine that was down for the one run that trips
+        // would otherwise leave a deferring lane silent for good: a deferral
+        // raises nothing else, and the streak only climbs from here. Holding
+        // the count one short of the threshold makes the next run trip again.
+        // The count is read by nothing but this trip, so a run spent short of
+        // its true value costs no reader anything.
+        let recorded = if tripped
+            && !send_alert(
                 &PnsAlerter,
                 engine.as_deref(),
                 &report.name,
@@ -184,8 +190,12 @@ fn run_mode(only: Option<&str>) -> i32 {
                         "failed"
                     }
                 ),
-            );
-        }
+            ) {
+            STALE_AFTER_RUNS - 1
+        } else {
+            next
+        };
+        write_streak(&path, &report.name, recorded);
     }
 
     // A RECORD THE GATEWAY NEVER RECEIVED IS A FAILED RUN, even when every
@@ -631,15 +641,24 @@ impl Alerter for PnsAlerter {
 /// One alert, FAIL OPEN at every rung: no `[alerts]` block, an engine that is
 /// not there, and an engine that refused are each stated here and none of them
 /// ends the run.
-fn send_alert(alerter: &dyn Alerter, engine: Option<&str>, lane: &str, summary: &str) {
+///
+/// ANSWERS WHETHER THE ALERT IS OWED ANY LONGER, which is not the same as
+/// whether an engine ran. With no `[alerts]` block nothing was owed and the
+/// log line IS the delivery, so that is `true`; only a configured engine that
+/// refused leaves something still to say. The per-run failure alert ignores
+/// this, because it fires again next run either way; the staleness alert
+/// fires once per streak and has to know.
+fn send_alert(alerter: &dyn Alerter, engine: Option<&str>, lane: &str, summary: &str) -> bool {
     let Some(binary) = engine else {
         println!("uu: no [alerts] block; `{lane}: {summary}` was logged and nothing else");
-        return;
+        return true;
     };
     let argv = alert_argv(&host(), lane, summary);
     if let Err(why) = alerter.alert(binary, &argv) {
         println!("uu: the alert for `{lane}` was NOT delivered ({why}); it is logged here instead");
+        return false;
     }
+    true
 }
 
 /// The record, posted in process, ANSWERING WHETHER IT LANDED. The caller
