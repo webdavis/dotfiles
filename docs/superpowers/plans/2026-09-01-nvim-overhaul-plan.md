@@ -350,7 +350,7 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
       printf '%s: empty\n' "$f"
     fi
   done
-  err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
+  err_report="$(wc -c "$S"/{before,after}/err-*.log | awk '$1 != 0 && $2 != "total"')"
   [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
   median() {
     local dir="$1"
