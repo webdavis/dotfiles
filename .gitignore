@@ -51,3 +51,7 @@ private_dot_hermes/**/pre-migration-*.zip
 # The age identity filename only (anchored to the basename in any directory). A bare `*key.txt`
 # overmatched unrelated names like hotkey.txt; `key.txt` catches the stray identity without that.
 key.txt
+
+# Neovim config: its own .gitignore carried .DS_Store, private/ and *.sw*; the
+# first and third are already global rules above, so only private/ is new here.
+dot_config/nvim/private/

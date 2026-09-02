@@ -5349,3 +5349,869 @@ fn a_stale_quota_marker_clears_at_the_turns_stop_without_any_prompt_hook() {
         "the continued turn ending clears the marker with no prompt hook in the sequence"
     );
 }
+
+// --- observation mode: the configuration-change watch (D5) ------------------
+//
+// `ConfigChange` fires when Claude Code's own configuration changes underneath
+// a session. Routed through `Attempt::Observation` exactly like quota and
+// model-switch above: every test here plants its own precondition and asserts
+// the stub channel fired INSIDE it, and every negative assertion carries a
+// First-attempt control run AFTER it on the SAME sandbox, because a delivered
+// card proves dispatch, not that the writer under test was reachable in that
+// setup.
+
+/// The five documented sources and the exact label this binary's own
+/// allowlist (`config_source_label` in main.rs) maps each one to.
+const CONFIG_CHANGE_SOURCES: [(&str, &str); 5] = [
+    ("user_settings", "user settings changed"),
+    ("project_settings", "project settings changed"),
+    ("local_settings", "local settings changed"),
+    ("policy_settings", "policy settings changed"),
+    ("skills", "skills changed"),
+];
+
+fn config_change_payload(session: &str, source: &str, file_path: Option<&str>) -> String {
+    match file_path {
+        Some(path) => format!(
+            r#"{{"session_id":"{session}","cwd":"/a/dotfiles","source":"{source}","file_path":"{path}"}}"#
+        ),
+        None => {
+            format!(r#"{{"session_id":"{session}","cwd":"/a/dotfiles","source":"{source}"}}"#)
+        }
+    }
+}
+
+#[test]
+fn each_config_change_source_delivers_one_card_naming_itself_and_its_file() {
+    for (source, label) in CONFIG_CHANGE_SOURCES {
+        let sandbox = Sandbox::new(&format!("config-change-card-{source}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "config-change",
+            &config_change_payload("s1", source, Some("/Users/op/.claude/settings.json")),
+        );
+
+        assert!(output.status.success(), "{source}");
+        assert_eq!(deliveries(&sandbox, "hermes"), 1, "{source}");
+        let event = sandbox.event("hermes");
+        assert_eq!(event["state"], "config-change", "{source}");
+        assert_eq!(event["agent"], "claude", "{source}");
+        assert_eq!(
+            event["detail"],
+            format!("{label}: /Users/op/.claude/settings.json"),
+            "{source}: names which source changed and the file"
+        );
+    }
+}
+
+#[test]
+fn a_config_change_with_no_file_names_only_the_source() {
+    // W3: the payload carries no key, no old or new value and no actor, so a
+    // source with no `file_path` states only which source changed, never a
+    // trailing colon with nothing after it.
+    let sandbox = Sandbox::new("config-change-no-file");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "project_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"], "project settings changed",
+        "no colon and no file when the payload named none"
+    );
+}
+
+#[test]
+fn config_change_events_each_deliver_their_own_card_with_no_once_ever_guarantee() {
+    // W2: there is no once-per-something promise to keep here. A
+    // corrupt-file recovery's own intermediate write, several live sessions,
+    // or a changed skill can each raise their own event, so this fires again
+    // for every distinct invocation rather than coalescing repeats into one
+    // card.
+    let sandbox = Sandbox::new("config-change-repeats-each-card");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    for _ in 0..3 {
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "config-change",
+            &config_change_payload("s1", "user_settings", None),
+        );
+        assert!(output.status.success());
+    }
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        3,
+        "three received events, three cards: no coalescing"
+    );
+}
+
+#[test]
+fn a_hostile_file_path_is_sanitised_before_it_reaches_the_card() {
+    // W5: a right-to-left override survives `flattened` (it is Cf, not the Cc
+    // `flattened` strips) and could reorder the rendered line the same way it
+    // could in a model name; the config-change arm must strip it too.
+    let sandbox = Sandbox::new("config-change-hostile-path");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        "{\"session_id\":\"s1\",\"source\":\"user_settings\",\"file_path\":\"/a/dotfiles/sett\u{202e}ings.json\"}",
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"], "user settings changed: /a/dotfiles/settings.json",
+        "the override character is gone from the rendered path"
+    );
+}
+
+#[test]
+fn an_unrecognised_config_source_delivers_nothing_and_writes_nothing() {
+    // W4: THIS TEST IS VACUOUS ALONE, in `a_non_auto_model_switch_source_...`'s
+    // own style: an unknown hook word exits 0 and writes nothing, so
+    // "delivers nothing" would hold even with no `config-change` arm at all.
+    // Prove a documented source fires FIRST, on this same sandbox, then prove
+    // every shape the reference does not list leaves every trace
+    // byte-identical to that snapshot: missing, empty, the wrong JSON type, a
+    // different case, and a prefix of a real value, which the declaration's
+    // own exact-string matcher already refuses but the Rust parser does not
+    // enforce on its own.
+    let sandbox = Sandbox::new("config-change-unrecognised-source-silent");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+    assert!(output.status.success(), "a documented source still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "a documented source delivers"
+    );
+    let deliveries_after = deliveries(&sandbox, "hermes");
+    let decisions_after =
+        std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default();
+    let activity_after = state_lines(&sandbox, "activity");
+    let present_after =
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default();
+
+    let cases = [
+        ("missing", r#"{"session_id":"s2"}"#.to_string()),
+        ("empty", r#"{"session_id":"s2","source":""}"#.to_string()),
+        ("a number", r#"{"session_id":"s2","source":7}"#.to_string()),
+        (
+            "wrong case",
+            r#"{"session_id":"s2","source":"User_Settings"}"#.to_string(),
+        ),
+        (
+            "a prefix of a real one",
+            r#"{"session_id":"s2","source":"user_settingsx"}"#.to_string(),
+        ),
+        (
+            "an unlisted word",
+            r#"{"session_id":"s2","source":"global_settings"}"#.to_string(),
+        ),
+    ];
+    for (case, payload) in cases {
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "config-change",
+            &payload,
+        );
+        assert!(output.status.success(), "{case}: still exits 0");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            deliveries_after,
+            "{case}: delivers nothing"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default(),
+            decisions_after,
+            "{case}: writes no decision line"
+        );
+        assert_eq!(
+            state_lines(&sandbox, "activity"),
+            activity_after,
+            "{case}: writes no activity line"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+            present_after,
+            "{case}: moves no presence edge"
+        );
+    }
+}
+
+#[test]
+fn a_config_change_does_not_clear_a_live_wait_on_its_own_session() {
+    // LOAD-BEARING, in `an_observation_does_not_clear_a_live_wait`'s own
+    // style: `blocked_marker_action("config-change")` is `End`, and the End
+    // arm removes the marker UNGATED, so no `[lights]`/`[plugins.hue]` table
+    // is needed for a misrouted `Attempt::First` to clear it regardless of
+    // whether the lamps are configured.
+    let sandbox = Sandbox::new("config-change-no-clear-own-wait");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state/lights-blocked")).expect("lights-blocked dir");
+    std::fs::write(sandbox.path("state/lights-blocked/s1"), "1700000000")
+        .expect("this session's own marker");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control, without it the marker's survival proves nothing"
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "a config-change observation must not clear its own session's live wait"
+    );
+
+    // THE CONTROL, run AFTER on the SAME sandbox: proves a First `stop` event
+    // for this session DOES clear the marker, so the assertion above is not
+    // vacuously true under every attempt.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "the control: a First `stop` event for this session clears its own wait"
+    );
+}
+
+#[test]
+fn a_config_change_writes_no_activity_line() {
+    let sandbox = Sandbox::new("config-change-no-activity");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let activity_before = state_lines(&sandbox, "activity");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        state_lines(&sandbox, "activity"),
+        activity_before,
+        "an observation writes no activity-ring line"
+    );
+
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s-control"}"#,
+    );
+    assert_ne!(
+        state_lines(&sandbox, "activity"),
+        activity_before,
+        "the control: a First `stop` event writes an activity-ring line"
+    );
+}
+
+#[test]
+fn a_config_change_renews_no_loop_lease() {
+    let sandbox = Sandbox::new("config-change-no-lease");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let lease_dir = sandbox.path("state/lights-loop");
+    std::fs::create_dir_all(&lease_dir).expect("lease dir");
+    std::fs::write(lease_dir.join("wW:p1"), "100\n").expect("an old lease");
+
+    let mut command = with_state_dir(&sandbox);
+    command.env("HERDR_PANE_ID", "wW:p1");
+    let output = hook_with(
+        command,
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        std::fs::read_to_string(lease_dir.join("wW:p1")).unwrap_or_default(),
+        "100\n",
+        "an observation renews no loop lease"
+    );
+
+    let mut control = with_state_dir(&sandbox);
+    control.env("HERDR_PANE_ID", "wW:p1");
+    hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
+    assert_ne!(
+        std::fs::read_to_string(lease_dir.join("wW:p1")).unwrap_or_default(),
+        "100\n",
+        "the control: a First `stop` event on this pane renews the loop lease"
+    );
+}
+
+#[test]
+fn a_config_change_moves_no_presence_edge() {
+    // THE OBSERVATION IS CHECKED AGAINST THE STALE SEED DIRECTLY, never
+    // against a marker a same-second control call just wrote: see
+    // `an_observation_moves_no_presence_edge`'s own comment for why running
+    // the control before the observation would let a misrouted `Attempt::First`
+    // pass for the wrong reason under `mark_present`'s own `held >= now` guard.
+    let sandbox = Sandbox::new("config-change-no-presence-edge");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
+
+    let mut command = with_state_dir(&sandbox);
+    command.env("PNS_IDLE_SECS", "0");
+    let output = hook_with(
+        command,
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+        "1",
+        "an observation never claims the return moment"
+    );
+
+    let mut control = with_state_dir(&sandbox);
+    control.env("PNS_IDLE_SECS", "0");
+    hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
+    assert_ne!(
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+        "1",
+        "the control: a First `stop` event under this env advances the presence edge"
+    );
+}
+
+#[test]
+fn a_config_change_registers_no_lights_tick() {
+    let sandbox = Sandbox::new("config-change-no-lights-tick");
+    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert!(
+        spool_entries(&sandbox).is_empty(),
+        "an observation registers no lights tick"
+    );
+
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s-control"}"#,
+    );
+    assert!(
+        !spool_entries(&sandbox).is_empty(),
+        "the control: a First `stop` event under this lamps-live config registers the lights tick"
+    );
+}
+
+#[test]
+fn a_config_change_observation_journals_no_missed_notification() {
+    let sandbox = Sandbox::new("config-change-journals-no-miss");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let expiry = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+        + 600;
+    std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
+    let journal = sandbox.path("state/missed-notifications");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired: hermes is the durable log and rides even a muted event"
+    );
+    assert!(!journal.exists(), "an observation writes no journal entry");
+
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s-control"}"#,
+    );
+    assert!(
+        journal.exists(),
+        "the control: a First `stop` event under this config journals a miss"
+    );
+}
+
+#[test]
+fn a_config_change_observation_replays_no_journal_entry() {
+    let sandbox = Sandbox::new("config-change-replays-no-entry");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let journal = sandbox.path("state/missed-notifications");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let seeded = "{\"at\":1756499000,\"agent\":\"claude\",\"state\":\"done\",\
+                  \"project\":\"p\",\"branch\":\"b\",\"detail\":\"planted\"}\n";
+    std::fs::write(&journal, seeded).expect("the journal");
+
+    let mut command = with_state_dir(&sandbox);
+    command.env("PNS_IDLE_SECS", "0");
+    let output = hook_with(
+        command,
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "user_settings", None),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        std::fs::read_to_string(&journal).unwrap_or_default(),
+        seeded,
+        "an observation replays no journal entry"
+    );
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+
+    let mut control = with_state_dir(&sandbox);
+    control.env("PNS_IDLE_SECS", "0");
+    hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
+    assert!(
+        !journal.exists(),
+        "the control: a First `stop` event under this env consumes the journal"
+    );
+}
+
+// --- W6: the bounded, state-only policy-settings audit trail ----------------
+
+#[test]
+fn a_policy_settings_change_is_recorded_to_a_bounded_audit_trail() {
+    let sandbox = Sandbox::new("config-change-policy-audit-write");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let audit = sandbox.path("state/policy-settings-audit");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("/etc/claude/policy.json")),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the ordinary observation card still fires, on top of the audit line"
+    );
+    let recorded = std::fs::read_to_string(&audit).expect("the audit trail");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(
+        lines.len(),
+        1,
+        "one received policy change, one line: {recorded:?}"
+    );
+    assert!(
+        lines[0].contains("/etc/claude/policy.json"),
+        "the record names the changed file: {recorded:?}"
+    );
+}
+
+#[test]
+fn a_non_policy_config_change_writes_no_policy_audit_entry() {
+    // ONLY `policy_settings` OUTLIVES THE DECISION RING. The other four
+    // sources are still logged as ordinary observations, but they must not
+    // start a second durable file this binary has no bound in mind for.
+    let sandbox = Sandbox::new("config-change-no-policy-audit-for-others");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    for source in [
+        "user_settings",
+        "project_settings",
+        "local_settings",
+        "skills",
+    ] {
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "config-change",
+            &config_change_payload("s1", source, Some("/a/file.json")),
+        );
+        assert!(output.status.success(), "{source}");
+    }
+
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        4,
+        "the four ordinary cards fired"
+    );
+    assert!(
+        !sandbox.path("state/policy-settings-audit").exists(),
+        "only a policy_settings change writes the audit trail"
+    );
+
+    // THE SAME-SANDBOX CONTROL, in `a_non_auto_model_switch_source_...`'s own
+    // style. The absence above is meaningless on its own: deleting the whole
+    // audit writer would leave it holding too, since nothing else in this
+    // test ever asks the writer to run. Firing ONE `policy_settings` event
+    // now, on the same sandbox, proves the writer was reachable the whole
+    // time and the four sources above really were what kept it silent.
+    let control = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("/etc/claude/policy.json")),
+    );
+    assert!(control.status.success());
+    assert!(
+        sandbox.path("state/policy-settings-audit").exists(),
+        "the control: a policy_settings event under this same setup writes the trail"
+    );
+}
+
+#[test]
+fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
+    // THE TRAIL'S OWN DEPTH, stated here rather than imported: a test that
+    // read the constant it is checking would agree with any value the source
+    // held. Twenty is `main.rs`'s `POLICY_SETTINGS_AUDIT_KEPT`.
+    const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
+    let sandbox = Sandbox::new("config-change-policy-audit-bound");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let planted: String = (0..POLICY_SETTINGS_AUDIT_KEPT)
+        .map(|which| format!("1756499000 session=s0 file=planted-{which}\n"))
+        .collect();
+    std::fs::write(sandbox.path("state/policy-settings-audit"), planted).expect("the audit trail");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("/etc/claude/policy.json")),
+    );
+
+    assert!(output.status.success());
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(
+        lines.len(),
+        POLICY_SETTINGS_AUDIT_KEPT,
+        "the trail keeps its own bound rather than growing without limit: {recorded:?}"
+    );
+    // PINNED AS THE WINDOW, not as the absence of one string: the planted
+    // lines end at their own number, so `planted-0` is a prefix of nothing
+    // and any absence check for it holds whichever end the prune kept.
+    assert!(
+        lines[0].ends_with("file=planted-1"),
+        "the window kept is the NEWEST twenty, so the oldest entry is the dropped one: {recorded:?}"
+    );
+    assert!(
+        lines
+            .last()
+            .expect("a line")
+            .contains("/etc/claude/policy.json"),
+        "the newest entry is this event's: {recorded:?}"
+    );
+}
+
+#[test]
+fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
+    // THE HIGH FINDING, driven ON DEMAND rather than hoped for.
+    // `append_ring_line`'s read, prune and publish were not one atomic step:
+    // with the ring already at its twenty-entry cap, a SLOW event could
+    // append its line and read the twenty-one-entry window, a FAST sibling
+    // could then append its own, read a twenty-two-entry window, prune and
+    // publish it, and the slow one would finally wake and publish its own
+    // now-stale twenty-one-entry window last, silently dropping the fast
+    // sibling's line and resurrecting a planted entry the fast sibling had
+    // already, correctly, dropped. Sol's own words: "the audit ring is not
+    // atomic across concurrent events."
+    //
+    // THE RACE WINDOW IS NORMALLY MICROSECONDS, so two ordinary processes
+    // hit this by luck, not by design: measured across three hundred
+    // concurrent real events with no help, in an earlier draft of this test,
+    // it never once reproduced. `PNS_RING_LOCK_TEST_DELAY_MS` stalls one
+    // process exactly where sol's own scenario stalls it (see its doc
+    // comment in `append_ring_line`), which is the only way to drive this
+    // interleaving deterministically rather than accept a test that would
+    // pass by timing luck.
+    const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
+    let sandbox = Sandbox::new("config-change-policy-audit-two-racers");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let planted: String = (0..POLICY_SETTINGS_AUDIT_KEPT)
+        .map(|which| format!("1756499000 session=s0 file=planted-{which}\n"))
+        .collect();
+    std::fs::write(sandbox.path("state/policy-settings-audit"), planted).expect("the audit trail");
+
+    // THE SLOW ONE STARTS FIRST AND STALLS AFTER ITS OWN READ, so its
+    // snapshot is the ring's state BEFORE the fast sibling's append.
+    let mut slow_command = with_state_dir(&sandbox);
+    slow_command.env("PNS_RING_LOCK_TEST_DELAY_MS", "150");
+    let mut slow = slow_command
+        .args(["hook", "config-change"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the engine runs");
+    slow.stdin
+        .take()
+        .expect("stdin")
+        .write_all(config_change_payload("s1", "policy_settings", Some("racer-slow")).as_bytes())
+        .expect("payload");
+
+    // A SMALL HEAD START ON THE SLOW ONE'S OWN STALL, not its whole run, so
+    // the fast sibling's append, read, prune and publish all land while the
+    // slow one is still asleep.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let fast = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("racer-fast")),
+    );
+    assert!(fast.status.success());
+
+    assert!(
+        slow.wait().expect("the slow event ends").success(),
+        "the stalled event still runs to completion"
+    );
+
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(
+        lines.len(),
+        POLICY_SETTINGS_AUDIT_KEPT,
+        "the trail keeps its own bound under a race exactly as it does one at a time: {recorded:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("racer-fast")),
+        "the sibling that read and published FIRST is not clobbered by the one that \
+         published last: {recorded:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("racer-slow")),
+        "the stalled event still lands once it wakes: {recorded:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.ends_with("file=planted-0")),
+        "the oldest planted entry is dropped, exactly as it is outside a race: {recorded:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.ends_with("file=planted-1")),
+        "two new events push the kept window forward by two, so the SECOND-oldest \
+         planted entry is also dropped rather than resurrected by a stale publish: {recorded:?}"
+    );
+}
+
+#[test]
+fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
+    // THE TRAIL'S OTHER BOUND, and the one that decides whether W6 holds at
+    // all: `append_ring_line` prunes on a read-back capped at `RING_READ_MAX`
+    // (256 KiB), and a ring it cannot read back is HEALED by collapsing to
+    // the one line just written. A `file_path` is payload text, capped only
+    // by the 1 MB stdin ceiling, so an entry-count bound alone lets ONE
+    // oversized path destroy every policy change recorded before it, which is
+    // the exact loss the audit trail exists to prevent.
+    let sandbox = Sandbox::new("config-change-policy-audit-huge-path");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(
+        sandbox.path("state/policy-settings-audit"),
+        "1756499000 session=s0 file=/etc/claude/first.json\n",
+    )
+    .expect("the audit trail");
+
+    let huge = "/etc/claude/".to_string() + &"a".repeat(300_000);
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some(&huge)),
+    );
+
+    assert!(output.status.success());
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    assert!(
+        recorded.contains("/etc/claude/first.json"),
+        "the earlier policy change survives an oversized path: {} bytes recorded",
+        recorded.len()
+    );
+    assert!(
+        recorded.len() < 256 * 1024,
+        "the trail stays inside the reader's own ceiling: {} bytes recorded",
+        recorded.len()
+    );
+
+    // THE SAME-SANDBOX CONTROL, in `a_non_policy_config_change_writes_no_policy_audit_entry`'s
+    // own style. Both assertions above hold vacuously if the writer never ran
+    // at all: a seeded line that nothing ever touches also "survives" and the
+    // file also stays "under the ceiling". Firing ONE ordinary
+    // `policy_settings` event now, on the same sandbox, proves the writer was
+    // reachable the whole time and the huge path above was really what it
+    // healed around.
+    let control = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s2", "policy_settings", Some("/etc/claude/second.json")),
+    );
+    assert!(control.status.success());
+    let recorded_after_control =
+        std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+            .expect("the audit trail");
+    assert!(
+        recorded_after_control.contains("/etc/claude/second.json"),
+        "the control: an ordinary policy_settings event under this same setup \
+         appends to the trail: {recorded_after_control:?}"
+    );
+}
+
+#[test]
+fn a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry() {
+    // THE DURABLE RECORD'S OWN INJECTION CASE. The card's hostile-path test
+    // covers what a reader SEES; this covers what a reader LATER READS BACK.
+    // The trail is one record per line, so a raw newline in a payload field
+    // would let one received change write a second entry that never happened.
+    let sandbox = Sandbox::new("config-change-policy-audit-newline");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload(
+            "s1",
+            "policy_settings",
+            Some("/etc/claude/policy.json\\n1756499001 session=s9 file=/etc/claude/forged.json"),
+        ),
+    );
+
+    assert!(output.status.success());
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    assert_eq!(
+        recorded.lines().count(),
+        1,
+        "one received change is one entry, whatever the path carried: {recorded:?}"
+    );
+}
+
+#[test]
+fn an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail() {
+    // SOL 2, THROUGH BOTH SINKS this arm writes. U+061C ARABIC LETTER MARK is
+    // Unicode category Cf, the same category the right-to-left override
+    // above is in, and was the one member of it `is_invisible` missed: it is
+    // neither whitespace nor `char::is_control`, so it survived `flattened`
+    // into both the card's detail and the durable audit line before the fix.
+    // `policy_settings` is the one source that writes both, so this is the
+    // one event that checks them together.
+    let sandbox = Sandbox::new("config-change-arabic-letter-mark");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        "{\"session_id\":\"s1\",\"source\":\"policy_settings\",\"file_path\":\"/etc/claude/pol\u{061c}icy.json\"}",
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"], "policy settings changed: /etc/claude/policy.json",
+        "the mark is gone from the card's own rendered path"
+    );
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    assert!(
+        recorded.contains("/etc/claude/policy.json") && !recorded.contains('\u{061c}'),
+        "the mark is gone from the durable line too, not only from the card: {recorded:?}"
+    );
+}
