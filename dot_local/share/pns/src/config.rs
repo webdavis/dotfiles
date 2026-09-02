@@ -262,9 +262,12 @@ impl Default for Lights {
 ///
 /// TWELVE, and it is a breath budget rather than a round number: the tick's own
 /// driver fades a breathing lamp seamlessly across the whole interval, so the
-/// interval is what decides how many fades fit between two ticks. Twelve
-/// seconds holds six two-second fades or three four-second ones, which is what
-/// the locked shapes were measured at.
+/// interval is what decides how many fades fit between two ticks. The count is
+/// the budget divided by a fade's own step (its duration less the seamless
+/// lead), rounded UP, because the last fade is issued inside the interval and
+/// lands after it: twelve seconds carries seven of the locked two-second
+/// shape, and three or four of the four-second one depending on what that
+/// tick's resolve took off the budget first.
 const DEFAULT_REFRESH_SECS: u64 = 12;
 
 /// The floor under it, and it is the TRANSPORT DEADLINE rather than a round
@@ -290,8 +293,8 @@ const MIN_REFRESH_SECS: u64 = 10;
 /// lease would EXTEND it, and the two lease lengths would stop being the fixed
 /// numbers they are documented as.
 ///
-/// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds seven full cycles of the
-/// locked blocked shape and three of the slow one, so nothing an operator would
+/// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds eight full cycles of the
+/// locked blocked shape and four of the slow one, so nothing an operator would
 /// want is out of reach above it.
 pub const MAX_REFRESH_SECS: u64 = 30;
 

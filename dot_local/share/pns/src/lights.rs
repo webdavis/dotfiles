@@ -705,11 +705,19 @@ pub fn step_ms(breath: &crate::config::Breath) -> u64 {
 /// child exits; the fade in flight simply keeps running on the bridge with no
 /// child left to interrupt it, and the next tick's own first fade is timed to
 /// take over `FADE_LEAD_MS` before that one would have ended (`resume_from`
-/// reads that from the held record). The residual pause this leaves is bounded
-/// by one step of slack plus the next tick's own resolve and the daemon's
-/// second of scheduling slop, worst case, and it is zero on most ticks: the
-/// two resolves do not cancel every time, so the bound is a ceiling and not
-/// an average.
+/// reads that from the held record).
+///
+/// THE RESIDUAL PAUSE, IN FULL: the next tick's own resolve, plus the daemon's
+/// second of scheduling slop, plus however far the previous tick's LAST WRITE
+/// overran the lead it was issued on, less the slack the schedule already left
+/// between that last issue and the budget. Never negative and never more than
+/// one step, and zero on most ticks, because the two resolves are of the same
+/// order and cancel on average. The write term is the one the schedule cannot
+/// see: writes are synchronous, so a bridge that answered the last fade slowly
+/// pushes the join out by exactly that much, bounded by the deadline the tick
+/// gives each call (a fifth of the interval). So the bound is a ceiling rather
+/// than an average, and the lamp holds an end for a fraction of a fade rather
+/// than for a third of the interval.
 ///
 /// A RESUME SHIFTS EVERY FADE'S DUE MILLISECOND by `first_due_ms` and its
 /// FIRST TARGET by `from_high` (moving toward `low` when `from_high`, and

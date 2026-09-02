@@ -5271,10 +5271,12 @@ struct Breathing {
 /// lamp frozen at its last brightness and never a lamp nothing can put out.
 ///
 /// AND THE CHILD IS GONE BEFORE THE NEXT TICK'S CHILD RUNS, which the daemon's
-/// own `running` check now enforces rather than the schedule alone: the last
-/// fade routinely still be running on the bridge when this budget ends (that is
-/// the seamless join), so a wedged PUT past its lead can no longer be met by a
-/// second child.
+/// own `running` check enforces rather than the schedule alone: the last fade
+/// is routinely still running on the bridge when this budget ends (that is the
+/// seamless join), so a write that overran its lead can no longer be met by a
+/// second child. The tick's own lock is the half of that the daemon cannot
+/// see, and it covers a tick run by hand and an orphan a daemon replacement
+/// left behind.
 ///
 /// A BRIDGE THAT ANSWERED NO LISTING CHANGES NOTHING AT ALL. It is direct
 /// evidence the transport is down, and both halves of acting on it are wrong: a
