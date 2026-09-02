@@ -418,7 +418,8 @@ fn resolve(command: &str) -> Option<PathBuf> {
 /// The event handed to a command lane's child cannot exceed this, or
 /// `run_with_input`'s pre-filled pipe would have to write more than fits
 /// before a reader exists. XNU's own floor is 16 KiB; measured capacity on
-/// Darwin 25.2 is 64 KiB, so this leaves headroom under the smaller number.
+/// Darwin 25.2 is 64 KiB. The limit sits AT the floor, the one size a whole
+/// event is guaranteed to fit at before any reader exists.
 /// Past capacity `write_all` blocks forever with no reader and no deadline: a
 /// silent hang of an unattended job. The event uu composes today is under
 /// 1 KiB.

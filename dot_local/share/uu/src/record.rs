@@ -192,6 +192,8 @@ fn last_successful_run(marker: &Marker) -> serde_json::Value {
 /// The JSON event handed to a command lane's child on its stdin, newline
 /// terminated. A CONTRACT another program parses: never the prose sentence
 /// `gap_line` composes for a human reading the doctor output or the record.
+/// The field NAMES are the contract and their order is not (serde_json
+/// writes them alphabetically), so a child parses the object, never scans it.
 pub fn lane_event(lane: &str, facts: &RunFacts) -> String {
     let event = serde_json::json!({
         "agent": AGENT,
