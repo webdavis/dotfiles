@@ -85,11 +85,14 @@ impl LaneReport {
 /// which propagates hermes's own exit code unchanged, could exit 75 for a
 /// reason that has nothing to do with deferral. Verified against both
 /// existing weekly jobs (2026-09-02): neither propagates an inner hermes exit
-/// code outward. Each calls hermes inside a bash `if ...; then ... else
-/// ...; fi`, and each job's own exit status comes from its own explicit `exit
-/// N` statements alone, never from `$?` after a hermes call. A future
-/// `command` lane whose `run` is hermes itself, or that forwards hermes's own
-/// status unchanged, would collide; the shipped config template says so.
+/// code outward, but only one of them calls hermes at all. The Homebrew job
+/// never touches hermes. The agent-skills job guards its own call with
+/// `command -v hermes` first, then captures the result as an `if` condition
+/// (`if update_output="$(hermes ...)"; then ... else ... fi`), never reading
+/// `$?` afterward; every exit either job actually returns comes from its own
+/// explicit `exit N` statements alone. A future `command` lane whose `run` is
+/// hermes itself, or that forwards hermes's own status unchanged, would
+/// collide; the shipped config template says so.
 pub const DEFERRED_EXIT_CODE: i32 = 75;
 
 /// What a command lane's child did, when it could be run at all. `stdout` is
