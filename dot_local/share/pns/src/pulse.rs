@@ -268,6 +268,14 @@ mod tests {
     }
 
     #[test]
+    fn an_arabic_indic_digit_is_refused_because_the_boundary_is_ascii_only() {
+        // Kills the `is_ascii_digit` -> `is_numeric` mutant: `char::is_numeric`
+        // is true for "١" (Arabic-Indic one, U+0661), which would turn a
+        // non-ASCII digit into a real failure pulse instead of a refusal.
+        assert_eq!(exit_behaviour("١"), None);
+    }
+
+    #[test]
     fn a_padded_zero_is_still_a_success() {
         assert_eq!(exit_behaviour("00"), Some(Behaviour::Done));
     }

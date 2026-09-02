@@ -345,7 +345,7 @@ const DEFAULT_UNREAD_AFTER_SECS: u64 = 300;
 /// outlasts a long day away and still gives the bulb back before the next one
 /// starts. The ORDINARY end is not this at all: the session's next event
 /// clears the marker, whatever the hour.
-const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
+pub(crate) const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
 
 /// How long work must run continuously before the loop lamp arms itself.
 const DEFAULT_LOOP_THRESHOLD_SECS: u64 = 300;
@@ -580,6 +580,56 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
 /// the file itself, so there is no name a lookup could use.
 pub const TOP_LEVEL: &str = "";
 
+/// A chezmoi-templated text with its actions taken out: a directive standing
+/// on its own line goes with the line, and an action inside a value becomes
+/// `placeholder`.
+///
+/// THE SHARED STUB, lifted out of this module's own test for the shipped
+/// template so `config_text`'s tests can fake-render a secret action the same
+/// way: a rendered secret action carries no author quotes of its own (`|
+/// toToml` supplies them once chezmoi resolves the value), so `placeholder`
+/// must be a quoted string for the substituted text to stand in for what
+/// chezmoi would actually have produced. A round-trip test has to stand in
+/// for chezmoi before it hands the text to `parse_config`, and one stub is
+/// what keeps that standing-in from drifting between the two callers.
+///
+/// ONLY THAT ONE ACTION IS STOOD IN FOR. An action in value position must
+/// read exactly `{{ (keepassxc "<entry>").<field> | toToml }}`, the text
+/// `config_text::secret_action` writes; anything else panics. Swapping a
+/// quoted placeholder in for ANY action would let a template line that
+/// dropped `| toToml` keep every template test green while chezmoi splices
+/// the raw vault bytes in unquoted.
+#[cfg(test)]
+pub(crate) fn strip_chezmoi_actions(text: &str, placeholder: &str) -> String {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("{{-"))
+        .map(|line| {
+            let mut rendered = line.to_string();
+            while let Some(start) = rendered.find("{{") {
+                let end = rendered[start..]
+                    .find("}}")
+                    .expect("a chezmoi action is closed on its own line")
+                    + start
+                    + 2;
+                let action = &rendered[start..end];
+                let is_secret_action = action
+                    .strip_prefix("{{ (keepassxc \"")
+                    .and_then(|rest| rest.split_once("\")."))
+                    .is_some_and(|(entry, rest)| {
+                        !entry.contains('"')
+                            && crate::config_text::SECRET_FIELDS
+                                .iter()
+                                .any(|field| rest == format!("{field} | toToml }}}}"))
+                    });
+                assert!(is_secret_action, "not a `| toToml` secret action: {action}");
+                rendered.replace_range(start..end, placeholder);
+            }
+            rendered
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// How many `key = value` pairs a config-shaped text documents, commented
 /// lines included, having checked each one against the roster row of the
 /// heading above it.
@@ -614,7 +664,11 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         let Some((key, _)) = bare.split_once(" = ") else {
             continue;
         };
-        if !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') || key.is_empty() {
+        if !key
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            || key.is_empty()
+        {
             continue;
         }
         // A nested table carries the operator's own name; the roster holds
@@ -641,7 +695,7 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
 /// a lamp, a room and a zone answer the same questions and differ only in how
 /// specific they are. Three rows would be one list to keep in agreement with
 /// two others, which is the drift this roster exists to prevent.
-const TARGET_KEYS: &str = "lights.<level>";
+pub(crate) const TARGET_KEYS: &str = "lights.<level>";
 
 /// What one table serves, or `None` for a table this schema has no vocabulary
 /// for (a plugin nothing registered; see `TABLE_KEYS`).
@@ -3399,25 +3453,55 @@ mod tests {
     ///
     /// NOT A CHEZMOI, and it does not need to be. What this test reads is which
     /// KEYS the file names and under which tables, and no action in it is a key
-    /// or a table; they are one conditional wrapper and six secrets.
+    /// or a table; they are one conditional wrapper and five secrets.
     fn rendered_template() -> String {
-        SHIPPED_TEMPLATE
+        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "\"from-the-vault\"")
+    }
+
+    #[test]
+    #[should_panic(expected = "not a `| toToml` secret action")]
+    fn the_stub_refuses_a_secret_action_that_forgot_totoml() {
+        // THE MUTANT THIS PINS: a template secret line with `| toToml`
+        // dropped. Chezmoi would then splice the raw vault bytes in unquoted
+        // and the deployed file would not parse, but a stub that swaps ANY
+        // action for a quoted placeholder would keep every template test
+        // green. So the stub only stands in for the one action grammar the
+        // renderer writes, and refuses the rest out loud.
+        super::strip_chezmoi_actions(
+            "token = {{ (keepassxc \"Moshi :: Webhook Secret\").Password }}",
+            "\"from-the-vault\"",
+        );
+    }
+
+    /// THE STUB ONLY READS THE GRAMMAR of a secret action, which is what
+    /// keeps a dropped `| toToml` or an unknown field from passing itself off
+    /// as vault output. It reads neither WHICH entry a line names nor WHICH
+    /// field it takes off that entry, so pointing hue's `bridge` at
+    /// `.Password` or a line at another vault entry leaves every other
+    /// template test green while the deployed file quietly carries the wrong
+    /// credential, and both are one character.
+    ///
+    /// NOTHING RENDERS THIS TEMPLATE IN A TEST, so its own text is the only
+    /// place that agreement can sit until PR S2 generates the file from
+    /// `config_text::render` and compares the two byte for byte. The list is
+    /// exact rather than a `contains` per line, so a sixth secret appearing,
+    /// or one of these five going away, is the same red.
+    #[test]
+    fn the_shipped_template_names_the_entry_and_field_of_every_secret() {
+        let secrets: Vec<&str> = SHIPPED_TEMPLATE
             .lines()
-            .filter(|line| !line.trim_start().starts_with("{{-"))
-            .map(|line| {
-                let mut rendered = line.to_string();
-                while let Some(start) = rendered.find("{{") {
-                    let end = rendered[start..]
-                        .find("}}")
-                        .expect("a chezmoi action is closed on its own line")
-                        + start
-                        + 2;
-                    rendered.replace_range(start..end, "from-the-vault");
-                }
-                rendered
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+            .filter(|line| line.contains("keepassxc"))
+            .collect();
+        assert_eq!(
+            secrets,
+            [
+                r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#,
+                r#"key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}"#,
+                r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#,
+                r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#,
+                r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#,
+            ]
+        );
     }
 
     #[test]

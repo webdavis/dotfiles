@@ -3,8 +3,13 @@
 //! Everything here is WIRING. The roster is one constant and one constructor
 //! in `registry`, so there is no second construction of it to diverge; the
 //! environment and the config are read once at this edge, and every decision
-//! is delegated to the library. It exits 0 on every path, because a
-//! notification must never fail the work it reports on.
+//! is delegated to the library. The producer path exits 0 on every path,
+//! because a notification must never fail the work it reports on, and so
+//! does `pns hook <event>` for every event but `blocked`, which, like
+//! `pns gate`, passes through moshi's own exit code (see `moshi_decision`).
+//! The hand-typed verbs refuse a bad invocation with exit 2, with two gaps
+//! still open: `home` is a diagnostic that always exits 0, and a word
+//! trailing `lights tick` is dropped rather than refused.
 
 use std::collections::BTreeMap;
 use std::io::{IsTerminal, Read, Seek, Write};
@@ -28,7 +33,7 @@ use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
 use pns::hooks::{
-    HookPayload, condenser_prompt, condenser_verdict, moshi_subcommand, parse_payload,
+    HookPayload, condenser_prompt, condenser_verdict, flattened, moshi_subcommand, parse_payload,
     transcript_reply,
 };
 use pns::registry::{roster, select_plugins};
@@ -153,7 +158,8 @@ const USAGE: &str = "\
 pns: usage:
   pns [<producer flags>]           one notification, stated in argv
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
-                                   blocked, asked, plan-ready, denied, resolved
+                                   blocked, asked, plan-ready, denied, resolved,
+                                   model-switch
   pns gate <harness>-hook          presence-gated pass-through to moshi-hook
   pns <harness>-hook               the same gate, spelled the way moshi calls it
   pns pulse <exit-code>            signal the lamps by hand
@@ -228,6 +234,32 @@ fn gate_mode(subcommand: &str) -> i32 {
     // would leave this one hanging.
     spawn_moshi_hook(subcommand, &payload)
         .map_or(0, |child| answer_within(child, submit_deadline()))
+}
+
+/// The automatic model-switch card's detail, or `None` when there is no
+/// transition worth one: either name empty once flattened and stripped of
+/// invisible characters, or the two equal once stripped.
+///
+/// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
+/// `flattened` is shared by every other rendered field on this path, and
+/// `main.rs` is the one caller with an equality test that a reordering
+/// character could defeat silently (a name that reads the same but compares
+/// unequal, or the reverse). Widening `flattened` itself for one caller would
+/// let every other field silently start allowing format characters through
+/// too.
+fn model_switch_detail(from_model: &str, to_model: &str) -> Option<String> {
+    let visible = |name: &str| -> String {
+        flattened(name)
+            .chars()
+            .filter(|character| !pns::recap::is_invisible(*character))
+            .collect()
+    };
+    let from = visible(from_model);
+    let to = visible(to_model);
+    if from.is_empty() || to.is_empty() || from == to {
+        return None;
+    }
+    Some(format!("automatic session model change: {from} to {to}"))
 }
 
 /// A harness event, from the payload on stdin.
@@ -319,6 +351,37 @@ fn hook_mode(event: &str) -> i32 {
             &payload,
             Attempt::First,
         ),
+        // `PostModelSwitch`, restricted to the one `source` that is news:
+        // `command`, `picker` and `sdk` are the operator or the harness
+        // choosing a model on purpose, and `resume`, which the harness also
+        // does on its own, is D4b's own follow-up (a state-only audit record,
+        // not a notification). Only `auto` is routed, and it is routed as an
+        // OBSERVATION: it is news about the session, not a turn needing the
+        // operator's attention, so it must not clear a wait, renew a lease or
+        // claim the return moment. Labelled "automatic session model
+        // change", never "fallback": the payload cannot tell a fallback
+        // chain apart from every other automatic change.
+        // NEITHER NAME IS AN OPINION WORTH A CARD, so the arm writes nothing
+        // at all when `model_switch_detail` finds equal names once flattened
+        // and stripped, or either side empty.
+        "model-switch" if payload.source == "auto" => {
+            if let Some(detail) = model_switch_detail(&payload.from_model, &payload.to_model) {
+                run_event(
+                    &pns::args::EventArgs {
+                        agent,
+                        state: event.to_string(),
+                        project: project_of(&payload.cwd),
+                        detail,
+                        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                        ..Default::default()
+                    },
+                    &system_probes(),
+                    &payload,
+                    Attempt::Observation,
+                );
+            }
+        }
+        "model-switch" => {}
         // An event this binary does not serve is not an error the harness
         // should hear about on a notification path.
         _ => eprintln!("pns: unknown hook event `{event}`"),
@@ -1980,14 +2043,18 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
 /// the harness prompt in front of them already is one.
 ///
 /// It is handed the caller's probe set rather than building its own, which is
-/// what makes this reading and the delivery plan's reading the SAME one: they
-/// are two questions about one moment, and a boundary crossed between two
-/// measurements cards a phone with no round trip behind it.
+/// what makes this reading and the delivery plan's reading the SAME one FOR
+/// `blocking_event`: they are two questions about one moment, and a boundary
+/// crossed between two measurements cards a phone with no round trip behind
+/// it. `pns gate <harness>-hook` (see `gate_mode`) calls this with its own
+/// throwaway probe set and runs no delivery plan at all, so the claim does
+/// not extend to that caller.
 fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
-    // THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off this probe set's own
-    // memoized cell rather than a fresh wall-clock read: see R4-1. Two reads
-    // of the wall clock for one event is the boundary that drifted a phone
-    // reading and a desk reading apart.
+    // FOR `blocking_event`, THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off
+    // this probe set's own memoized cell rather than a fresh wall-clock read:
+    // see R4-1. Two reads of the wall clock for one event is the boundary
+    // that drifted a phone reading and a desk reading apart. `gate_mode`
+    // calls this with its own throwaway probe set and runs no delivery plan.
     pns::engine::operator_surface(probes, &overrides_from_env(), probes.now_secs())
         != pns::surface::Surface::Desk
 }
@@ -2333,18 +2400,31 @@ fn event_mode(argv: &[String]) {
     );
 }
 
-/// Whether this is the event's FIRST delivery or a NUDGE about one already
-/// recorded.
+/// Whether this is the event's FIRST delivery, a NUDGE about one already
+/// recorded, or an OBSERVATION.
 ///
 /// ONE ARGUMENT RATHER THAN A SECOND EVENT PATH. A nudge is an ordinary event
 /// in every respect an operator can see (the mute, the named Focus modes, the
 /// quiet window, the surface and visibility plan, fresh probes taken in the
 /// nudge's own process); what it is not is a second OCCURRENCE, and the
 /// contiguous tail of `run_event` is what records occurrences.
+///
+/// AN OBSERVATION IS THE SAME KIND OF NON-OCCURRENCE, for a different reason:
+/// it is a harness telling pns about something that happened rather than a
+/// turn needing the operator's attention, so it changes no workflow or marker
+/// state and is routed marker-neutral through the same tail a nudge skips.
+/// It is still recorded as a decision (`record_decision` runs before the
+/// guard for every attempt), just with `nag=no`.
+///
+/// AN OBSERVATION SHAPED LIKE A `PermissionRequest` IS TOO LATE TO GATE HERE.
+/// `blocking_event` forwards to moshi and arms the nag before `run_event`
+/// ever runs, so this guard cannot undo either one; a caller on that path
+/// must refuse the observation at the top of `blocking_event` itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Attempt {
     First,
     Nudge,
+    Observation,
 }
 
 /// One notification, end to end: decide, render, dispatch. THE one event path,
@@ -2520,23 +2600,25 @@ fn run_event(
         agent_id: &payload.agent_id,
         tool_name: &payload.tool_name,
     });
-    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge
-    // returns here, so it writes no journal entry, no activity-ring line, never
-    // claims the return moment through `mark_present`, never triggers
-    // `replay_missed` and never pulses.
+    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge or
+    // an observation returns here, so it writes no journal entry, no
+    // activity-ring line, never claims the return moment through
+    // `mark_present`, never triggers `replay_missed` and never pulses.
     //
     // EACH IS A DEFECT AVOIDED RATHER THAN TIDINESS. The recap counts
-    // activity-ring lines toward `min_events`, so a nudge that rang would
-    // inflate the operator's own recap with pns's noise; a nudge is not
-    // evidence of presence, so it must not move the last-present marker; and
-    // the pulse falling out here is how "escalation is not a colour" stays
-    // enforced without touching the lights at all.
+    // activity-ring lines toward `min_events`, so a nudge or an observation
+    // that rang would inflate the operator's own recap with pns's noise;
+    // neither is evidence of presence, so neither must move the last-present
+    // marker; and the pulse falling out here is how "escalation is not a
+    // colour" stays enforced without touching the lights at all.
     //
-    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately. Muted, inside a named
+    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately, and AN OBSERVATION
+    // NEVER RENEWS A LEASE OR ARMS A LAMP, for the same reason from the other
+    // side: it is not an occurrence to replay later. Muted, inside a named
     // Focus, or planned to nothing means the nudge does not happen and is not
     // journaled for replay: a "still waiting" card replayed hours later, about
     // a question answered long ago, is worse than silence.
-    if attempt == Attempt::Nudge {
+    if attempt != Attempt::First {
         return;
     }
     // THE JOURNAL GOES WITH IT, inheriting the ordering contract stated above
@@ -3510,11 +3592,22 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// failing exit code. Reading the word first means `--help` and a bad code
 /// both answer with no machine read at all.
 fn pulse_mode() -> i32 {
-    let word = second_argument();
-    if pns::args::is_help_flag(&word) {
+    // THE WHOLE TAIL IS READ, not just the word right after `pulse`: H-B
+    // requires help to win in flag position anywhere, and an unknown extra
+    // word to be refused rather than silently dropped.
+    let tail: Vec<String> = std::env::args_os()
+        .skip(2)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    if tail.iter().any(|token| pns::args::is_help_flag(token)) {
         println!("{PULSE_USAGE}");
         return 0;
     }
+    if tail.len() > 1 {
+        eprintln!("{PULSE_USAGE}");
+        return 2;
+    }
+    let word = tail.first().cloned().unwrap_or_default();
     let Some(behaviour) = pns::pulse::exit_behaviour(&word) else {
         eprintln!("{PULSE_USAGE}");
         return 2;
@@ -5413,10 +5506,14 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
 /// sample, so the edge would land earlier than the true touch and news the
 /// operator had already seen could arm the lamp. Reading it last puts the
 /// residual the other way: `t_now` is later than the sample by at most the
-/// probe spawns above this line, 0-1 second, so the desk touch reads that
-/// much YOUNGER than it was, never older. The direction is DARK: news that
-/// landed inside that residual reads as seen and the lamp stays off, and no
-/// edge can arm it early.
+/// four bounded spawns above this line (one `ioreg` for idle, then the phone
+/// probe's `pgrep`, `pgrep -P` and `ps`), each capped at `PROBE_DEADLINE`
+/// (5 seconds in `system.rs`), so the bound is four five-second receive
+/// budgets, plus spawn and cleanup overhead on top, sub-second in the common
+/// case. The desk touch reads that much YOUNGER
+/// than it was, never older. The direction is DARK: news that landed inside
+/// that residual reads as seen and the lamp stays off, and no edge can arm
+/// it early.
 ///
 /// HOISTING `let now = now_secs()?;` ABOVE THE SAMPLES WOULD BREAK THIS
 /// SILENTLY: no test can catch a clock read moving a few hundred milliseconds
@@ -9090,6 +9187,30 @@ mod tests {
             "1000\n",
             "the marker holds the DECISION's clock, not a fresh wall-clock read \
              taken inside this function"
+        );
+
+        // NO CLOCK IS NO MARKER: an unreadable clock must not default to
+        // epoch zero, which would write a marker that reads as already
+        // expired the moment it lands, or that never ages out at all read
+        // the other way. SEEDED, not absent: a `None` case starting with no
+        // marker on disk cannot tell "correctly wrote nothing" apart from a
+        // `None => remove_file(marker)` mutant, since removing a file that
+        // was never there is itself a silent no-op.
+        let unreadable_clock_marker =
+            pns::lights::blocked_marker(&state, "s2").expect("a usable session id");
+        std::fs::create_dir_all(
+            unreadable_clock_marker
+                .parent()
+                .expect("the needs directory"),
+        )
+        .expect("the needs directory");
+        std::fs::write(&unreadable_clock_marker, "999\n").expect("a wait already in progress");
+        update_blocked_marker(&state, "s2", "blocked", true, None);
+        assert_eq!(
+            std::fs::read_to_string(&unreadable_clock_marker).expect("the marker"),
+            "999\n",
+            "an unreadable clock must touch no marker at all, neither writing \
+             one at epoch zero nor removing the one already there"
         );
     }
 

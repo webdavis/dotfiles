@@ -707,7 +707,13 @@ fn safe_line(line: &str, max_chars: usize) -> String {
 /// Whether a character is one the reader cannot see: the Unicode FORMAT
 /// ranges, stated as ranges because std has no category lookup and this crate
 /// takes no dependency for one.
-fn is_invisible(character: char) -> bool {
+///
+/// PUB FOR ONE OTHER READER, `main.rs`'s automatic model-switch card: a
+/// payload field that is not free text still carries whatever bytes a harness
+/// sends, and a reorder character surviving `flattened` (which only strips
+/// whitespace and `char::is_control`, the Cc set, never Cf) would let a name
+/// render backwards.
+pub fn is_invisible(character: char) -> bool {
     matches!(
         character,
         '\u{00ad}'
