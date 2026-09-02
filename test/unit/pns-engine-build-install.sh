@@ -151,8 +151,10 @@ expected_kickstart="kickstart -k gui/$(id -u)/com.webdavis.pns-daemon"
 # --- a rebuild while the old binary is RUNNING still replaces it -----------
 # The real mid-apply hazard: a producer (an agent hook, a long command, a
 # LaunchAgent) is executing the installed engine when the next apply lands.
-# Replacing the file in place fails with ETXTBSY; unlinking and creating
-# anew does not.
+# macOS does not refuse an in-place overwrite of a running binary (no
+# ETXTBSY; measured), so this phase only pins that a reinstall while the
+# engine is running succeeds; the install(1) man page, not this test, is the
+# evidence that it lands through a temporary file and a rename.
 touch "$home/.stub-build-sleeper"
 run_script
 [[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
