@@ -5234,6 +5234,11 @@ fn lights_tick() -> i32 {
 /// a name at its own call site.
 struct Breathing {
     path: String,
+    /// THE STATE THIS BREATH IS SHOWING, carried alongside the shape and the
+    /// colour it selected rather than derived back out of them: it is what the
+    /// phase is recorded under, and what the next tick compares its own state
+    /// against before it resumes anything.
+    held: pns::lights::Held,
     breath: pns::config::Breath,
     color: pns::pulse::PulseColor,
     resume: pns::lights::Resume,
@@ -5335,9 +5340,10 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
             // read the same way, and all cost at most one fade of motion.
             let previous =
                 held_before.and_then(|entries| entries.iter().find(|entry| entry.path == path));
-            let resume = pns::lights::resume_from(previous, now_ms);
+            let resume = pns::lights::resume_from(previous, now_ms, held);
             breathing.push(Breathing {
                 path,
+                held,
                 breath,
                 color,
                 resume,
@@ -5409,12 +5415,16 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     // operator just put out. A lamp whose schedule came back empty (a budget
     // too short to fit even one fade) keeps its bare, phaseless entry.
     if held_lamps(state).as_deref() == Some(held_now.as_slice()) {
-        let phased: Vec<pns::lights::HeldEntry> = held_now
+        // WALKED OVER `breathing` AND NOT OVER THE BARE PATHS, because a phase
+        // carries the STATE it belongs to and that is the one place still
+        // holding it. The two lists are the same paths in the same order:
+        // `held_now` is this one, mapped.
+        let phased: Vec<pns::lights::HeldEntry> = breathing
             .iter()
-            .map(|path| {
+            .map(|entry| {
                 landings
                     .iter()
-                    .find(|(landed_path, _, _)| landed_path == path)
+                    .find(|(landed_path, _, _)| *landed_path == entry.path)
                     // THE RESOLVE IS PART OF THE OFFSET. A landing is reported
                     // from the DRIVER's own start, which is `spent_ms` after
                     // this tick's, so a record written without that term would
@@ -5422,9 +5432,13 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
                     // would take the breath over before this one finished it.
                     .map(|(path, end, end_relative_ms)| pns::lights::HeldEntry {
                         path: path.clone(),
-                        resume: Some((now_ms + spent_ms + end_relative_ms, *end)),
+                        resume: Some(pns::lights::Phase {
+                            end_unix_ms: now_ms + spent_ms + end_relative_ms,
+                            end: *end,
+                            held: entry.held,
+                        }),
                     })
-                    .unwrap_or_else(|| pns::lights::HeldEntry::bare(path.clone()))
+                    .unwrap_or_else(|| pns::lights::HeldEntry::bare(entry.path.clone()))
             })
             .collect();
         let _ = remember_held(state, &phased);
@@ -5861,9 +5875,9 @@ fn held_lamps(state: &Path) -> Option<Vec<String>> {
 /// ONE LINE, SPACE SEPARATED, because a fixture path is `light/<id>` or
 /// `grouped_light/<id>` and neither can carry a space, and neither can carry
 /// `@` or `:` either, which is what lets a phased token
-/// (`light/<id>@<end-unix-ms>:h` or `:l`) share the line with a bare one. That
-/// keeps this a `publish_state_line` write like every other state file rather
-/// than a second file format.
+/// (`light/<id>@<end-unix-ms>:<h|l>:<state>`) share the line with a bare one.
+/// That keeps this a `publish_state_line` write like every other state file
+/// rather than a second file format.
 ///
 /// A TICK CAN REPUBLISH A GLOW THE RETURN JUST CLEARED, and that is a stated
 /// limit rather than a rule. The tick reads its condition before it reaches the
@@ -8576,7 +8590,11 @@ mod tests {
         let state = scratch("held-record-phase-round-trip");
         let phased = pns::lights::HeldEntry {
             path: LAMP_PATH.to_string(),
-            resume: Some((1_700_000_000_123, pns::lights::End::High)),
+            resume: Some(pns::lights::Phase {
+                end_unix_ms: 1_700_000_000_123,
+                end: pns::lights::End::High,
+                held: pns::lights::Held::Blocked,
+            }),
         };
         remember_held(&state, std::slice::from_ref(&phased)).expect("the write lands");
         assert_eq!(
@@ -8854,7 +8872,11 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[pns::lights::HeldEntry {
                 path: LAMP_PATH.to_string(),
-                resume: Some((1_700_000_000_123, pns::lights::End::High)),
+                resume: Some(pns::lights::Phase {
+                    end_unix_ms: 1_700_000_000_123,
+                    end: pns::lights::End::High,
+                    held: pns::lights::Held::Blocked,
+                }),
             }]),
             0,
             no_time_passes(),
@@ -9229,12 +9251,14 @@ mod tests {
             &[
                 Breathing {
                     path: "light/a".to_string(),
+                    held: pns::lights::Held::Blocked,
                     breath: quick,
                     color: pns::pulse::BLOCKED_COLOR,
                     resume: pns::lights::Resume::default(),
                 },
                 Breathing {
                     path: "light/b".to_string(),
+                    held: pns::lights::Held::Looping,
                     breath: slow,
                     color: pns::pulse::LOOP_COLOR,
                     resume: pns::lights::Resume::default(),
@@ -9284,6 +9308,7 @@ mod tests {
             12_000,
             &[Breathing {
                 path: "light/a".to_string(),
+                held: pns::lights::Held::Blocked,
                 breath: pns::config::Breath {
                     duration_ms: 2_000,
                     high: 100,
@@ -9350,7 +9375,11 @@ mod tests {
             read_held(&state).expect("a record this tick wrote"),
             vec![pns::lights::HeldEntry {
                 path: LAMP_PATH.to_string(),
-                resume: Some((12_500, pns::lights::End::High)),
+                resume: Some(pns::lights::Phase {
+                    end_unix_ms: 12_500,
+                    end: pns::lights::End::High,
+                    held: pns::lights::Held::Blocked,
+                }),
             }],
             "three listings at 250ms leave an 11,250ms budget, whose sixth and last \
              fade is issued 9,750ms into the DRIVER and ends 2,000ms later: 12,500ms \
@@ -9396,7 +9425,11 @@ mod tests {
             held_after_tick_one,
             vec![pns::lights::HeldEntry {
                 path: LAMP_PATH.to_string(),
-                resume: Some((13_700, pns::lights::End::Low)),
+                resume: Some(pns::lights::Phase {
+                    end_unix_ms: 13_700,
+                    end: pns::lights::End::Low,
+                    held: pns::lights::Held::Blocked,
+                }),
             }],
             "seven fades of the locked blocked shape land on low at 13,700ms"
         );
@@ -9437,6 +9470,71 @@ mod tests {
             "tick one landed on low, so tick two resumes toward high, armed with \
              the colour and `on` again: {}",
             puts[0].1
+        );
+    }
+
+    #[test]
+    fn a_lamp_that_changed_state_starts_its_new_colour_at_once_rather_than_resuming() {
+        // THE LOCKED PRECEDENCE IS "RED WINS, BLOCKED OUTRANKS LOOP", and a
+        // resume taken on the fixture path alone delays it. The slow loop shape
+        // lands its last fade almost four seconds past the interval that issued
+        // it; the next tick, now holding BLOCKED, would wait that fade out
+        // before its first blue body reached the lamp, because the first fade of
+        // every tick is the one that carries the colour. The same delay hits an
+        // unread lamp that has to turn red.
+        let lights = *pns::config::parse_config(
+            "[lights]\nrefresh_secs = 12\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\", \"loop\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let state = scratch("state-change-starts-at-once");
+
+        // TICK ONE holds the LOOP state, whose four-second shape issues its
+        // last fade at 11,850ms and lands it 15,850ms after this tick began.
+        let clock = FakeClock::default();
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Looping],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            || clock.elapsed_ms(),
+            |waited| clock.slept(waited),
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        let held_after_the_loop = read_held(&state).expect("a record this tick wrote");
+
+        // TICK TWO holds BLOCKED instead. Resumed off the loop's phase it would
+        // sleep 3,400ms before its first blue body; it starts down at once
+        // instead, and only then keeps the blocked cadence.
+        let sleeps: RefCell<Vec<Duration>> = RefCell::new(Vec::new());
+        let clock = FakeClock::default();
+        let bridge = scripted(true);
+        let complaints = run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&held_after_the_loop),
+            12_400,
+            || clock.elapsed_ms(),
+            |waited| {
+                sleeps.borrow_mut().push(waited);
+                clock.slept(waited);
+            },
+        );
+        assert!(complaints.is_empty(), "{complaints:?}");
+        assert_eq!(
+            sleeps.borrow().first().copied(),
+            Some(Duration::from_millis(1_950)),
+            "the first blue fade is issued before anything is slept for, so the \
+             first sleep is the blocked shape's own step"
         );
     }
 

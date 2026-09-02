@@ -526,6 +526,35 @@ impl Held {
             Held::UnreadFailure | Held::UnreadSuccess => crate::config::Behaviour::Unread,
         }
     }
+
+    /// The word a held record carries to say WHICH breath a phase belongs to.
+    ///
+    /// THE STATE AND NOT ITS ROUTABLE WORD, which is why this is not
+    /// `behaviour`: the two unread flavours share one routable word and do NOT
+    /// share a colour, so a red failure inheriting a green success's phase is
+    /// exactly the delay the phase identity exists to stop. Four states, four
+    /// words.
+    pub fn word(self) -> &'static str {
+        match self {
+            Held::Blocked => "blocked",
+            Held::Looping => "loop",
+            Held::UnreadFailure => "failure",
+            Held::UnreadSuccess => "success",
+        }
+    }
+
+    /// The state a recorded word names, or None for a word this build does not
+    /// know.
+    pub fn from_word(word: &str) -> Option<Held> {
+        [
+            Held::Blocked,
+            Held::Looping,
+            Held::UnreadFailure,
+            Held::UnreadSuccess,
+        ]
+        .into_iter()
+        .find(|held| held.word() == word)
+    }
 }
 
 /// What the house is holding this tick, one field per state.
@@ -700,6 +729,23 @@ pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resu
         .collect()
 }
 
+/// Where one lamp's breath left off: the instant its last issued fade lands,
+/// the end it lands ON, and the STATE that breath was showing.
+///
+/// THE STATE IS PART OF THE PHASE, not a separate question. A phase is only
+/// worth resuming while the lamp is still breathing the same shape in the same
+/// colour; carried across a state change it delays the new colour by up to one
+/// whole fade, because the first fade of every tick is the one that carries
+/// the colour and `on`. That is the locked precedence (red wins, blocked
+/// outranks loop) arriving late, which is the one thing the resume must never
+/// cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Phase {
+    pub end_unix_ms: u64,
+    pub end: End,
+    pub held: Held,
+}
+
 /// One lamp's line in the held record: the fixture path, and where in its
 /// breath it left off.
 ///
@@ -710,7 +756,7 @@ pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resu
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeldEntry {
     pub path: String,
-    pub resume: Option<(u64, End)>,
+    pub resume: Option<Phase>,
 }
 
 impl HeldEntry {
@@ -723,17 +769,27 @@ impl HeldEntry {
     }
 }
 
-/// One held-record token, rendered: the bare path, or the path with its
-/// phase, `@<end-unix-ms>:h` or `@<end-unix-ms>:l`.
+/// One held-record token, rendered: the bare path, or the path with its phase,
+/// `@<end-unix-ms>:<h|l>:<state>`.
 ///
 /// `@` AND `:` NEITHER APPEAR IN A FIXTURE PATH (`light/<id>` or
-/// `grouped_light/<id>`, the id a bridge-issued UUID), so the token round
-/// trips through the same whitespace-separated line the bare record always
-/// used, with nothing to escape.
+/// `grouped_light/<id>`, the id a bridge-issued UUID), and neither appears in
+/// a state word, so the token round trips through the same whitespace-separated
+/// line the bare record always used, with nothing to escape.
 pub fn render_held_token(entry: &HeldEntry) -> String {
     match entry.resume {
-        Some((end_unix_ms, End::High)) => format!("{}@{end_unix_ms}:h", entry.path),
-        Some((end_unix_ms, End::Low)) => format!("{}@{end_unix_ms}:l", entry.path),
+        Some(phase) => {
+            let end = match phase.end {
+                End::High => "h",
+                End::Low => "l",
+            };
+            format!(
+                "{}@{}:{end}:{}",
+                entry.path,
+                phase.end_unix_ms,
+                phase.held.word()
+            )
+        }
         None => entry.path.clone(),
     }
 }
@@ -750,15 +806,20 @@ pub fn parse_held_token(token: &str) -> HeldEntry {
     let Some((path, suffix)) = token.split_once('@') else {
         return HeldEntry::bare(token);
     };
-    let phase = suffix.split_once(':').and_then(|(end_ms, flag)| {
-        let end_unix_ms: u64 = end_ms.parse().ok()?;
+    let phase = (|| {
+        let (end_ms, rest) = suffix.split_once(':')?;
+        let (flag, word) = rest.split_once(':')?;
         let end = match flag {
             "h" => End::High,
             "l" => End::Low,
             _ => return None,
         };
-        Some((end_unix_ms, end))
-    });
+        Some(Phase {
+            end_unix_ms: end_ms.parse().ok()?,
+            end,
+            held: Held::from_word(word)?,
+        })
+    })();
     match phase {
         Some(resume) => HeldEntry {
             path: path.to_string(),
@@ -784,15 +845,26 @@ pub fn parse_held_token(token: &str) -> HeldEntry {
 /// somewhere this record does not describe (an external switch, a killed
 /// child's bare token, a dim-window shape change), and starting fresh from the
 /// low end costs at most one fade of motion, never a pause.
-pub fn resume_from(entry: Option<&HeldEntry>, now_ms: u64) -> Resume {
-    let Some((end_unix_ms, end)) = entry.and_then(|entry| entry.resume) else {
+///
+/// AND A PHASE ANOTHER STATE LEFT IS NOT RESUMED FROM, which is the case that
+/// costs a PAUSE rather than a fade. The slow shapes land their last fade
+/// almost four seconds past the interval that issued them, so a lamp that was
+/// looping and is now blocked would wait that fade out before its first blue
+/// body reached the bridge: the locked precedence, arriving up to a whole fade
+/// late. A state change starts down at once instead.
+pub fn resume_from(entry: Option<&HeldEntry>, now_ms: u64, showing: Held) -> Resume {
+    let Some(phase) = entry.and_then(|entry| entry.resume) else {
         return Resume::default();
     };
+    if phase.held != showing {
+        return Resume::default();
+    }
     Resume {
-        first_due_ms: end_unix_ms
+        first_due_ms: phase
+            .end_unix_ms
             .saturating_sub(now_ms)
             .saturating_sub(FADE_LEAD_MS),
-        from_high: matches!(end, End::High),
+        from_high: matches!(phase.end, End::High),
     }
 }
 
@@ -1202,7 +1274,7 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 mod tests {
     use super::{
         Action, End, FADE_LEAD_MS, Fade, Held, HeldEntry, House, LOOP_USAGE, Loop, LoopCommand,
-        MAX_MUTED_PLACES, Muted, News, QuietCommand, Resume, Say, Streak, Unread, WORKING,
+        MAX_MUTED_PLACES, Muted, News, Phase, QuietCommand, Resume, Say, Streak, Unread, WORKING,
         active_held, any_blocked, any_working, bare_mute_secs, blocked_marker,
         blocked_marker_action, breath_fades, last_interaction, lease_marker, loop_command,
         loop_running, muted_after, muted_entries, muted_places, muted_report, news_after,
@@ -2205,17 +2277,50 @@ mod tests {
     fn a_held_entrys_phase_round_trips_through_its_rendered_token() {
         let high = HeldEntry {
             path: "light/l1".to_string(),
-            resume: Some((1_234_567, End::High)),
+            resume: Some(Phase {
+                end_unix_ms: 1_234_567,
+                end: End::High,
+                held: Held::Blocked,
+            }),
         };
-        assert_eq!(render_held_token(&high), "light/l1@1234567:h");
-        assert_eq!(parse_held_token("light/l1@1234567:h"), high);
+        assert_eq!(render_held_token(&high), "light/l1@1234567:h:blocked");
+        assert_eq!(parse_held_token("light/l1@1234567:h:blocked"), high);
 
         let low = HeldEntry {
             path: "light/l1".to_string(),
-            resume: Some((1_234_567, End::Low)),
+            resume: Some(Phase {
+                end_unix_ms: 1_234_567,
+                end: End::Low,
+                held: Held::Looping,
+            }),
         };
-        assert_eq!(render_held_token(&low), "light/l1@1234567:l");
-        assert_eq!(parse_held_token("light/l1@1234567:l"), low);
+        assert_eq!(render_held_token(&low), "light/l1@1234567:l:loop");
+        assert_eq!(parse_held_token("light/l1@1234567:l:loop"), low);
+    }
+
+    #[test]
+    fn every_held_state_has_its_own_record_word_and_reads_back_as_itself() {
+        // FOUR STATES, FOUR WORDS, and the two unread flavours are not one:
+        // they share a routable word and NOT a colour, so a red failure that
+        // inherited a green success's phase would delay the red by a fade.
+        let states = [
+            Held::Blocked,
+            Held::Looping,
+            Held::UnreadFailure,
+            Held::UnreadSuccess,
+        ];
+        let mut words: Vec<&str> = states.iter().map(|held| held.word()).collect();
+        words.sort_unstable();
+        words.dedup();
+        assert_eq!(words.len(), states.len(), "two states share one word");
+        for held in states {
+            assert_eq!(Held::from_word(held.word()), Some(held));
+        }
+        assert_eq!(
+            Held::from_word("dozing"),
+            None,
+            "a word this build does not know is no phase, never a wrong one"
+        );
     }
 
     #[test]
@@ -2226,8 +2331,10 @@ mod tests {
             "a token with no `@` at all is a lamp with no phase recorded"
         );
         for malformed in [
-            "light/l1@notanumber:h",
-            "light/l1@1234567:sideways",
+            "light/l1@notanumber:h:blocked",
+            "light/l1@1234567:sideways:blocked",
+            "light/l1@1234567:h:dozing",
+            "light/l1@1234567:h",
             "light/l1@1234567",
             "light/l1@",
         ] {
@@ -2241,11 +2348,57 @@ mod tests {
 
     #[test]
     fn resuming_off_no_entry_or_no_phase_starts_the_breath_fresh() {
-        assert_eq!(resume_from(None, 1_000), Resume::default());
+        assert_eq!(resume_from(None, 1_000, Held::Blocked), Resume::default());
         assert_eq!(
-            resume_from(Some(&HeldEntry::bare("light/l1")), 1_000),
+            resume_from(Some(&HeldEntry::bare("light/l1")), 1_000, Held::Blocked),
             Resume::default(),
             "a bare entry is a lamp this record holds with no phase recorded"
+        );
+    }
+
+    #[test]
+    fn a_phase_another_state_left_behind_is_started_over_rather_than_resumed() {
+        // THE PAUSE A FIXTURE-ONLY RESUME COSTS. The slow shapes land their
+        // last fade almost four seconds past the interval that issued it, so a
+        // lamp that was looping and is now blocked would wait that fade out
+        // before its first blue body reached the bridge: the locked precedence
+        // arriving up to a whole fade late.
+        let looping = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 15_850,
+                end: End::High,
+                held: Held::Looping,
+            }),
+        };
+        assert_eq!(
+            resume_from(Some(&looping), 12_400, Held::Blocked),
+            Resume::default(),
+            "a state change starts down at once instead of finishing the shape it \
+             is replacing"
+        );
+        assert_eq!(
+            resume_from(Some(&looping), 12_400, Held::Looping),
+            Resume {
+                first_due_ms: 3_400,
+                from_high: true
+            },
+            "and the same state still picks its own breath back up"
+        );
+        // THE TWO UNREAD FLAVOURS ARE TWO STATES, because they share a routable
+        // word and NOT a colour: an unread lamp turning red is exactly the case
+        // the ruling names.
+        let success = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 15_850,
+                end: End::High,
+                held: Held::UnreadSuccess,
+            }),
+        };
+        assert_eq!(
+            resume_from(Some(&success), 12_400, Held::UnreadFailure),
+            Resume::default()
         );
     }
 
@@ -2253,10 +2406,14 @@ mod tests {
     fn resuming_off_a_recorded_phase_shifts_the_next_fade_and_flips_its_direction() {
         let held = HeldEntry {
             path: "light/l1".to_string(),
-            resume: Some((13_700, End::Low)),
+            resume: Some(Phase {
+                end_unix_ms: 13_700,
+                end: End::Low,
+                held: Held::Blocked,
+            }),
         };
         assert_eq!(
-            resume_from(Some(&held), 12_400),
+            resume_from(Some(&held), 12_400, Held::Blocked),
             Resume {
                 first_due_ms: 1_250,
                 from_high: false
@@ -2267,7 +2424,7 @@ mod tests {
         // A `now_ms` past the recorded end saturates at zero rather than going
         // negative: due at once, not due in the past.
         assert_eq!(
-            resume_from(Some(&held), 20_000),
+            resume_from(Some(&held), 20_000, Held::Blocked),
             Resume {
                 first_due_ms: 0,
                 from_high: false
