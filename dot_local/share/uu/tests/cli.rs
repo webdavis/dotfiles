@@ -238,6 +238,42 @@ fn a_deferred_command_lane_leaves_the_marker_unmoved_even_with_zero_failures() {
 }
 
 #[test]
+fn a_deferral_leaves_the_marker_the_last_success_wrote_exactly_as_it_was() {
+    // D7's OTHER half. The test above pins a marker that was never written;
+    // this pins one that WAS. A mutant that CLEARS the marker on a deferral
+    // satisfies "the marker did not advance" and still destroys the window
+    // the next entry measures its gap from, so the machine reports "last
+    // successful run: NEVER RECORDED" a week after a run that succeeded.
+    let home = Home::new("deferred-keeps-marker");
+    let counter = home.dir.join("call-count");
+    let stub = home.write_stub(
+        "updater",
+        &format!(
+            "cat >/dev/null\n\
+             count=$(( $(cat {counter:?} 2>/dev/null || printf 0) + 1 ))\n\
+             printf '%s' \"$count\" >{counter:?}\n\
+             if [ \"$count\" -eq 1 ]; then exit 0; fi\n\
+             printf 'lock held\\n' >&2\n\
+             exit 75\n",
+        ),
+    );
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        stub.display()
+    ));
+    home.uu(&["run"]);
+    let after_success = std::fs::read_to_string(home.marker()).expect("the first run succeeded");
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(stdout(&output).contains("mine: deferred"), "{output:?}");
+    assert_eq!(
+        std::fs::read_to_string(home.marker()).ok().as_deref(),
+        Some(after_success.as_str()),
+        "a deferral must leave the last success where it was, neither advanced nor erased"
+    );
+}
+
+#[test]
 fn a_deferred_command_lane_never_fires_the_per_run_failure_alert() {
     // D2: deferral is not a failure, so it must never reach the same alert
     // path a failed lane's non-zero exit does.
