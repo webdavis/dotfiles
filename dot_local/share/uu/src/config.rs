@@ -1056,6 +1056,12 @@ mod tests {
             // Whitespace is blank too: it reads as a filled-in entry and
             // names nothing an exec can find.
             ("[lanes.command]\nrun = [\" \"]\n", "holds a blank entry"),
+            // A VALID run[0] must not stop the check: a mutant that
+            // validates only the first entry passes every case above.
+            (
+                "[lanes.command]\nrun = [\"ok\", \"\"]\n",
+                "holds a blank entry",
+            ),
         ] {
             let detail = refusal(text);
             assert!(detail.contains(expect), "case {text:?}: {detail}");
