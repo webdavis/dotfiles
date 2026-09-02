@@ -147,12 +147,18 @@ fn stdout_lines(stdout: &str) -> Vec<String> {
 }
 
 /// Text with every control character (embedded CR, stray control bytes)
-/// mapped to a space, shared by `failure_reason` and a command lane's stdout
-/// lines: untrusted child output crosses into the record and out to Discord,
-/// and either would reflow or truncate on a raw control character.
+/// mapped to a space and every backtick mapped to a plain quote, shared by
+/// `failure_reason` and a command lane's stdout lines: untrusted child
+/// output crosses into the record and out to Discord, where a control
+/// character would reflow or truncate a line and three backticks would open
+/// or close a code fence around every record line after it.
 fn squash(line: &str) -> String {
     line.chars()
-        .map(|letter| if letter.is_control() { ' ' } else { letter })
+        .map(|letter| match letter {
+            _ if letter.is_control() => ' ',
+            '`' => '\'',
+            _ => letter,
+        })
         .collect()
 }
 
@@ -943,6 +949,12 @@ mod tests {
     #[test]
     fn stdout_lines_squashes_a_control_character_embedded_in_one_line() {
         assert_eq!(stdout_lines("a\rb\n"), vec!["a b".to_string()]);
+    }
+
+    #[test]
+    fn squash_replaces_backticks_so_no_child_line_can_open_or_close_a_code_fence() {
+        let squashed = squash("before ``` after");
+        assert!(!squashed.contains('`'), "{squashed:?}");
     }
 
     #[test]
