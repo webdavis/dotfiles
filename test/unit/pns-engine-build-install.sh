@@ -192,7 +192,7 @@ run_script && {
   echo "a failed kickstart is still attempted once" >&2
   exit 1
 }
-grep -q 'daemon NOT restarted' "$stderr_log" || {
+grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 5:' "$stderr_log" || {
   echo "a kickstart failure must print an attributed line to stderr" >&2
   exit 1
 }
