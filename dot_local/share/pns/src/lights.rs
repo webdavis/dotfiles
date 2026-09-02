@@ -834,8 +834,14 @@ pub struct Phase {
     /// three-leg motion for a two-leg one, and index two would then be read as
     /// a leg that no longer exists. A brightness that is not in the new cycle
     /// simply reads as a lamp with nowhere to resume, which starts it fresh.
-    /// Every cycle's brightnesses are distinct, since `low` below `high` and
-    /// the accent above `high` are both refused at load.
+    ///
+    /// TWO LEGS MAY SHARE ONE LEVEL, and the first of them wins. `ends_agree`
+    /// refuses only a `low` ABOVE its `high`, so a config may set the two
+    /// equal; the accent stays distinct either way, since `accent_agrees`
+    /// keeps it above `high`. In that config a record naming the shared level
+    /// resumes onto the earlier leg, which costs the cycle one extra leg
+    /// before it reaches the accent. That leg fades to the level the lamp is
+    /// already at, so there is nothing to see for it.
     pub landed_on: u8,
     pub held: Held,
 }
