@@ -253,7 +253,16 @@ fn hook_mode(event: &str) -> i32 {
     let agent = std::env::var("PNS_AGENT").unwrap_or_else(|_| "claude".to_string());
 
     match event {
-        "prompt" => start_of_turn(&payload),
+        // AND THE WAIT ENDS HERE TOO, beside the turn marker. A prompt is the
+        // operator typing, which answers ANY live wait their session could be
+        // holding: `resolved`'s PostToolBatch signal never fires for a
+        // PermissionRequest (Claude Code decides that off this hook's own
+        // stdout), so without this the lamp stayed blue until the turn's Stop,
+        // one whole tool call after the operator had already answered.
+        "prompt" => {
+            start_of_turn(&payload);
+            end_blocked_wait(&payload.session_id);
+        }
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
         "blocked" => return blocking_event(&payload, &agent, &payload_json),
@@ -265,7 +274,26 @@ fn hook_mode(event: &str) -> i32 {
         // the feature was on when the approval arrived, so clearing it is right
         // regardless of what the config says now, and that keeps this per-batch
         // path to a payload read, a parse and at most two file operations.
-        "resolved" => clear_nag(&payload.session_id),
+        //
+        // AND THE WAIT ENDS HERE TOO, GUARDED. `agent_id` is present only
+        // inside a subagent call, so a batch carrying the KEY (whatever its
+        // value; a malformed one is not proof of the main thread) resolved a
+        // SUBAGENT'S tool, not the parent session's own wait on the operator;
+        // clearing on it anyway would go dark on a wait nobody has answered.
+        // RESIDUAL, STATED HONESTLY: the parent's marker then stays lit until
+        // its own Stop, same as before this fix.
+        // AND THIS ARM IS ASYNC (PostToolBatch, `async: true`), so it is
+        // UNORDERED against the next PermissionRequest and the batch's own
+        // `asked`: a late End can unlink a newer wait's marker, an early one
+        // can leave an answered `asked` lit. The same one-file-per-session
+        // limit `update_blocked_marker` states; bounded the same way, by the
+        // backstop and the session's next event.
+        "resolved" => {
+            clear_nag(&payload.session_id);
+            if !payload.in_subagent {
+                end_blocked_wait(&payload.session_id);
+            }
+        }
         // THE MID-TURN NOTIFICATIONS, which is what makes one arm right for
         // all three. Each reports something that happened INSIDE a turn that
         // is still running, so none of them touches the turn marker: the clock
@@ -288,7 +316,7 @@ fn hook_mode(event: &str) -> i32 {
                 ..Default::default()
             },
             &system_probes(),
-            &payload.session_id,
+            &payload,
             Attempt::First,
         ),
         // An event this binary does not serve is not an error the harness
@@ -542,6 +570,23 @@ fn update_blocked_marker(
         pns::lights::Action::End => {
             let _ = std::fs::remove_file(&marker);
         }
+    }
+}
+
+/// End this session's wait on the operator directly: a state-only file move
+/// in `clear_nag`'s style, with no event built, no config loaded and no
+/// decision made.
+///
+/// TWO CALLERS NEED EXACTLY THIS, both in `hook_mode`: `prompt`, because the
+/// operator answering a live wait by typing is not `resolved`'s signal
+/// (PermissionRequest is decided off this hook's stdout, never off a later
+/// PostToolBatch), and `resolved` itself, guarded there against a subagent's
+/// batch. Ending is unconditional, unlike starting one: see
+/// `update_blocked_marker`'s comment on why an End never checks the lamp
+/// switches.
+fn end_blocked_wait(session_id: &str) {
+    if let Some(marker) = pns::lights::blocked_marker(&state_dir(), session_id) {
+        let _ = std::fs::remove_file(&marker);
     }
 }
 
@@ -1671,7 +1716,7 @@ fn end_of_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
-        &payload.session_id,
+        payload,
         Attempt::First,
     );
 }
@@ -1710,7 +1755,7 @@ fn failed_turn(payload: &HookPayload, agent: &str) {
             ..Default::default()
         },
         &system_probes(),
-        &payload.session_id,
+        payload,
         Attempt::First,
     );
 }
@@ -1915,7 +1960,7 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     // routing around: threading one view through would change three signatures
     // for a value each caller reads at the moment it needs it.
     arm_nag(&payload.session_id, &event);
-    run_event(&event, &probes, &payload.session_id, Attempt::First);
+    run_event(&event, &probes, payload, Attempt::First);
     // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
     // immediately before the wait. Threading it out of `run_event` would
     // change that function's signature for one duration, and a view torn
@@ -2272,8 +2317,13 @@ fn event_mode(argv: &[String]) {
     for warning in &warnings {
         eprintln!("pns: {warning}");
     }
-    // ARGV CARRIES NO SESSION, which is the honest no-identity case.
-    run_event(&event, &system_probes(), "", Attempt::First);
+    // ARGV CARRIES NO PAYLOAD, which is the honest no-identity case.
+    run_event(
+        &event,
+        &system_probes(),
+        &HookPayload::default(),
+        Attempt::First,
+    );
 }
 
 /// Whether this is the event's FIRST delivery or a NUDGE about one already
@@ -2293,16 +2343,17 @@ enum Attempt {
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
 ///
-/// THE SESSION ID RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split
-/// is the point: `EventArgs` is the ARGV contract, and argv has no spelling for
-/// a session id. It arrives in a harness payload or not at all, so the hook
-/// arms pass what they were given and every other caller passes an empty
-/// string, which is honestly no identity rather than a field nothing can fill.
-/// The lamps' needs marker is its one reader.
+/// THE PAYLOAD RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split is
+/// the point: `EventArgs` is the ARGV contract, and argv has no spelling for a
+/// session id, a permission mode, a subagent id or a raw tool name. Every one
+/// of those arrives in a harness payload or not at all, so the hook arms pass
+/// what they were given and every other caller passes `HookPayload::default()`,
+/// which is honestly no identity rather than fields nothing can fill. The
+/// lamps' needs marker and the decision line are its readers.
 fn run_event(
     event: &pns::args::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
-    session_id: &str,
+    payload: &HookPayload,
     attempt: Attempt,
 ) {
     let home = std::env::var("HOME").unwrap_or_default();
@@ -2458,6 +2509,9 @@ fn run_event(
         overrides: &overrides,
         legs: &outcomes,
         nag: attempt == Attempt::Nudge,
+        permission_mode: &payload.permission_mode,
+        agent_id: &payload.agent_id,
+        tool_name: &payload.tool_name,
     });
     // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge
     // returns here, so it writes no journal entry, no activity-ring line, never
@@ -2493,7 +2547,7 @@ fn run_event(
     let lamps_live = lights.is_some() && hue_table.is_some();
     update_blocked_marker(
         &state_dir(),
-        session_id,
+        &payload.session_id,
         &event.state,
         lamps_live,
         decision.inputs.now_secs,
@@ -3587,7 +3641,7 @@ fn home_mode() {
                 ..Default::default()
             },
             &system_probes(),
-            "",
+            &HookPayload::default(),
             Attempt::First,
         );
     }
@@ -3997,12 +4051,12 @@ fn nag_mode() -> i32 {
             ..Default::default()
         },
         &system_probes(),
-        // NO SESSION, and coalescing is why: one card stands for every record
+        // NO PAYLOAD, and coalescing is why: one card stands for every record
         // in `held`, so naming one of their sessions would be inventing an
         // identity the card does not have. A nudge returns before the lamps'
-        // needs marker is touched at all, so this is the honest empty string
-        // rather than a value chosen to be ignored.
-        "",
+        // needs marker is touched at all, so this is the honest default rather
+        // than a value chosen to be ignored.
+        &HookPayload::default(),
         Attempt::Nudge,
     );
     for (claim, _, _) in &held {

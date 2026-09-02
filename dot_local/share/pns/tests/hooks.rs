@@ -1202,6 +1202,25 @@ fn an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed()
 }
 
 #[test]
+fn the_decision_log_carries_the_payloads_mode_agent_and_tool() {
+    // WHY: three `claude/blocked` events lined up with subagent hand-offs,
+    // not with any prompt the operator saw (OBS-4), and the decision log had
+    // no field that could ever tell those apart from an ordinary approval.
+    // `CLAUDE_APPROVAL` states `permission_mode: "default"`,
+    // `agent_id: "agent_01"` and `tool_name: "Bash"`.
+    let sandbox = Sandbox::new("hook-blocked-payload-fields");
+    let mut command = approval(&sandbox, 42);
+    command.env("PNS_STATE_DIR", sandbox.path("state"));
+    hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
+    let recorded =
+        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+    assert!(
+        recorded.contains(" mode=default agent=agent_01 tool=Bash "),
+        "got {recorded:?}"
+    );
+}
+
+#[test]
 fn an_approval_leaves_the_turn_marker_alone() {
     // THE TURN CONTINUES PAST AN APPROVAL. The harness resumes the tool call
     // and the turn ends later, at the Stop that follows, so consuming the
@@ -2895,6 +2914,166 @@ fn a_waiting_agent_leaves_a_marker_and_the_next_event_from_that_session_removes_
         vec!["s2".to_string()],
         "the answered session's marker is gone and the other one is untouched"
     );
+}
+
+#[test]
+fn a_prompt_from_a_waiting_session_ends_its_wait() {
+    // THE OPERATOR ANSWERED BY TYPING, which `resolved` cannot see: the
+    // PostToolBatch clearing signal never fires for a PermissionRequest wait
+    // (Claude Code decides that off the hook's stdout, not off a later tool
+    // batch), so the lamp used to stay blue until the turn's Stop hook, one
+    // whole tool call after the operator already answered.
+    let sandbox = Sandbox::new("lights-blocked-prompt-clears");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    assert_eq!(waiting_sessions(&sandbox), vec!["s1".to_string()]);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"s1"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "a prompt from the waiting session is the operator, so the wait is over"
+    );
+}
+
+#[test]
+fn a_resolved_batch_with_no_agent_id_ends_its_sessions_wait() {
+    let sandbox = Sandbox::new("lights-blocked-resolved-clears");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "resolved",
+        r#"{"session_id":"s1"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "the batch this session was blocked on resolved, so the wait is over"
+    );
+}
+
+#[test]
+fn a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit() {
+    // A SUBAGENT'S BATCH SAYS NOTHING ABOUT THE OPERATOR. `agent_id` is
+    // present only when the hook fires inside a subagent call, and the
+    // parent's own wait is still exactly as answered as it was before this
+    // batch resolved. RESIDUAL, STATED HONESTLY: the parent's marker now
+    // stays lit until its Stop, one call later than it needs to.
+    let sandbox = Sandbox::new("lights-blocked-resolved-subagent");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "resolved",
+        r#"{"session_id":"s1","agent_id":"agent_01"}"#,
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "a subagent's batch must not clear the parent session's wait"
+    );
+}
+
+#[test]
+fn a_resolved_batch_with_a_malformed_agent_id_still_leaves_the_parents_wait_lit() {
+    // PRESENCE IS THE SIGNAL, NOT SHAPE: the reference promises only that
+    // the key is ABSENT on the main thread, so null, a number or an empty
+    // string is not proof the operator answered, and the guard fails closed.
+    let sandbox = Sandbox::new("lights-blocked-resolved-malformed-agent");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    for shape in ["null", "7", "\"\""] {
+        hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "resolved",
+            &format!(r#"{{"session_id":"s1","agent_id":{shape}}}"#),
+        );
+        assert_eq!(
+            waiting_sessions(&sandbox),
+            vec!["s1".to_string()],
+            "agent_id:{shape} must not clear the parent's wait"
+        );
+    }
+}
+
+#[test]
+fn a_prompt_ends_only_its_own_sessions_wait() {
+    // ONE FILE PER SESSION IS THE WHOLE POINT: the operator typing in s1 says
+    // nothing about s2, which is still waiting on them.
+    let sandbox = Sandbox::new("lights-blocked-prompt-other-session");
+    sandbox.write_config(LAMPS_ON);
+    for session in ["s1", "s2"] {
+        hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "blocked",
+            &format!(r#"{{"session_id":"{session}","message":"may I"}}"#),
+        );
+    }
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"s1"}"#,
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s2".to_string()],
+        "s1 answered; s2 is still waiting"
+    );
+}
+
+#[test]
+fn a_prompt_naming_a_traversal_removes_nothing() {
+    // THE END ACTION GOES THROUGH THE SAME FILENAME PREDICATE AS THE START:
+    // a session id that cannot be a marker name is refused before the
+    // unlink, so a payload cannot aim the removal outside the marker dir.
+    let sandbox = Sandbox::new("lights-blocked-prompt-traversal");
+    sandbox.write_config(LAMPS_ON);
+    // A real marker first, so `lights-blocked/` exists for `..` to walk out of.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    let victim = sandbox.path("victim");
+    std::fs::write(&victim, "x").expect("the victim file");
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"../../victim"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(victim.exists(), "a traversal id must never reach an unlink");
+    assert_eq!(waiting_sessions(&sandbox), vec!["s1".to_string()]);
 }
 
 #[test]
