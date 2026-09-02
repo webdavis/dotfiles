@@ -2323,6 +2323,41 @@ fn the_news_record_is_written_whatever_the_lamps_are_doing() {
 }
 
 #[test]
+fn a_lights_mute_expires_off_this_run_s_own_clock_and_not_off_a_fixed_epoch() {
+    // THE REPORT AND THE LAMP READ THE SAME FILE AND DIFFERENT CLOCKS, which
+    // is the one way this command can lie. The expiry is written here and read
+    // by every lamp against the REAL clock, so a run that measured the mute
+    // from a fixed epoch instead of from now would publish an entry already
+    // expired in 1970, print "quiet for 60m" from its own arithmetic, and mute
+    // nothing at all. Nothing else in the suite reads the number that lands on
+    // disk, so nothing else can tell the two apart.
+    let sandbox = Sandbox::new("lights-quiet-expiry-clock");
+    sandbox.write_config(STUDIO_MAP);
+    let before = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock")
+        .as_secs();
+    let muted = run(sandbox
+        .pns_stateful()
+        .args(["lights", "quiet", "3F - Studio", "1h"]));
+    assert_eq!(muted.status.code(), Some(0), "{}", stderr(&muted));
+
+    let published = std::fs::read_to_string(sandbox.state().join("lights-quiet"))
+        .expect("the mute reached the state file");
+    let expiry: u64 = published
+        .split_whitespace()
+        .next()
+        .and_then(|epoch| epoch.parse().ok())
+        .unwrap_or_else(|| panic!("a line is `<epoch> <place>`: {published:?}"));
+    // AN HOUR FROM THIS RUN, bounded on BOTH sides: a floor alone passes for
+    // any clock in the future, and a ceiling alone passes for the epoch.
+    assert!(
+        expiry >= before + 3_600 && expiry <= before + 3_600 + 300,
+        "the mute must expire an hour from now ({before}), not at {expiry}: {published:?}"
+    );
+}
+
+#[test]
 fn a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built() {
     // THE WORST OUTCOME THIS COMMAND HAS: telling a human a mute is in effect
     // that is not. `kept` is what the file WOULD have held, so a report printed

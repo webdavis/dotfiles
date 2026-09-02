@@ -370,9 +370,13 @@ pub const LAYOUT: &[Table] = &[
         opt_in: true,
         keys: &[Key {
             name: "refresh_secs",
-            prose: "# How often the daemon re-arms the lamps, in seconds. It is also the\n\
-                     # breath budget: a breathing lamp is faded by the tick itself for the\n\
-                     # whole interval and stops at its peak. The range is 10 to 30.\n",
+            prose: "# How often the daemon re-arms the lamps, in seconds. It is also the breath\n\
+                     # budget: a breathing lamp is faded by the tick itself, seamlessly, across the\n\
+                     # whole interval, so this decides how many fades fit between two ticks. The\n\
+                     # range is 10 to 30. The floor is one bridge call, so a tick cannot start while\n\
+                     # the last one is still dialling; the ceiling is what the daemon derives a\n\
+                     # tick's own lifetime from, and an interval past it would be a breath cut off\n\
+                     # part way through.\n",
             sample: Sample::Default("12"),
         }],
     },

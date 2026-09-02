@@ -217,9 +217,13 @@ after_secs = 300
 # before you do. Switching hue off while a lamp is held leaves that lamp
 # to the wall switch, since putting it out takes a bridge.
 [lights]
-# How often the daemon re-arms the lamps, in seconds. It is also the
-# breath budget: a breathing lamp is faded by the tick itself for the
-# whole interval and stops at its peak. The range is 10 to 30.
+# How often the daemon re-arms the lamps, in seconds. It is also the breath
+# budget: a breathing lamp is faded by the tick itself, seamlessly, across the
+# whole interval, so this decides how many fades fit between two ticks. The
+# range is 10 to 30. The floor is one bridge call, so a tick cannot start while
+# the last one is still dialling; the ceiling is what the daemon derives a
+# tick's own lifetime from, and an interval past it would be a breath cut off
+# part way through.
 refresh_secs = 12
 
 # The five behaviour shapes. Every number below was set on a real lamp;

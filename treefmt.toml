@@ -112,3 +112,17 @@ includes = [
   "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf",
   "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf.tmpl",
 ]
+
+# Measured on treefmt 2.5.0: the flat glob alone matches every file, direct
+# child and nested alike, because its `*` crosses `/`; the doublestar glob
+# alone misses the direct child. Both stay, matching the osquery-config-render
+# pair above, so this table does not depend on that single-star crossing
+# behavior holding on a future treefmt version.
+[formatter.stylua]
+command = "stylua"
+includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+
+[formatter.luacheck]
+command = "luacheck"
+options = ["--config", "dot_config/nvim/dot_luacheckrc"]
+includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]

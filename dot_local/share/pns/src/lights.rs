@@ -462,10 +462,29 @@ pns loop end [--pane <id>]";
 /// had died was never collected either. A name is a working file only when what
 /// follows the LAST such marker is a positive process id, which is a name only
 /// this crate's own writers produce.
+///
+/// THE RIGHTMOST OF THE TWO SUFFIXES, compared by OFFSET rather than tried one
+/// after the other: `a.new.b.sweep.1` is the sweep's own working file on a
+/// marker shaped like a publish, and trying `.new.` first found it, read the
+/// marker's own name as the owner, failed to parse it as a pid and answered
+/// `None`, so that working file was never collected. Two runs never write
+/// both suffixes into one name, so only one candidate is ever real; comparing
+/// offsets picks it without caring which writer's shape it was.
 pub fn working_owner(name: &str) -> Option<&str> {
-    let (_, owner) = name
-        .rsplit_once(WORKING_PENDING)
-        .or_else(|| name.rsplit_once(WORKING_SWEEP))?;
+    let pending = name.rfind(WORKING_PENDING).map(|at| (at, WORKING_PENDING));
+    let sweep = name.rfind(WORKING_SWEEP).map(|at| (at, WORKING_SWEEP));
+    let (at, marker) = match (pending, sweep) {
+        (Some(pending), Some(sweep)) => {
+            if pending.0 >= sweep.0 {
+                pending
+            } else {
+                sweep
+            }
+        }
+        (Some(only), None) | (None, Some(only)) => only,
+        (None, None) => return None,
+    };
+    let owner = &name[at + marker.len()..];
     (crate::parse_count(owner)? > 0).then_some(owner)
 }
 
@@ -525,6 +544,35 @@ impl Held {
             Held::Looping => crate::config::Behaviour::Looping,
             Held::UnreadFailure | Held::UnreadSuccess => crate::config::Behaviour::Unread,
         }
+    }
+
+    /// The word a held record carries to say WHICH breath a phase belongs to.
+    ///
+    /// THE STATE AND NOT ITS ROUTABLE WORD, which is why this is not
+    /// `behaviour`: the two unread flavours share one routable word and do NOT
+    /// share a colour, so a red failure inheriting a green success's phase is
+    /// exactly the delay the phase identity exists to stop. Four states, four
+    /// words.
+    pub fn word(self) -> &'static str {
+        match self {
+            Held::Blocked => "blocked",
+            Held::Looping => "loop",
+            Held::UnreadFailure => "failure",
+            Held::UnreadSuccess => "success",
+        }
+    }
+
+    /// The state a recorded word names, or None for a word this build does not
+    /// know.
+    pub fn from_word(word: &str) -> Option<Held> {
+        [
+            Held::Blocked,
+            Held::Looping,
+            Held::UnreadFailure,
+            Held::UnreadSuccess,
+        ]
+        .into_iter()
+        .find(|held| held.word() == word)
     }
 }
 
@@ -615,55 +663,267 @@ pub struct Fade {
 /// looked at; nothing here measured what a lead of zero looks like.
 pub const FADE_LEAD_MS: u64 = 50;
 
+/// Which end of a breath a lamp is fading TOWARD, or landed ON.
+///
+/// TWO VALUES, NEVER A BARE BOOL, because this crosses a file boundary (the
+/// held record's `:h`/`:l` suffix): a field that only this module reads can
+/// afford to be self-documenting at the call site instead of at its
+/// declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum End {
+    High,
+    Low,
+}
+
+/// Where a breath resumes: the millisecond its first fade is due, measured
+/// from THIS tick's own start, and which end it moves toward first.
+///
+/// A ZERO-VALUED `Resume` (due at once, moving toward low first) REPRODUCES
+/// THE ORIGINAL, UNBROKEN BREATH: a lamp with no record to resume from is a
+/// lamp that has never breathed, and starting it down at the tick's first
+/// millisecond is the only honest answer for one.
+///
+/// A NAMED STRUCT, NOT TWO POSITIONAL `u64`S, because a resume built with the
+/// fields swapped would compile and breathe the wrong way from the wrong
+/// moment; the two are never interchangeable so the type keeps them apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resume {
+    pub first_due_ms: u64,
+    pub from_high: bool,
+}
+
+impl Default for Resume {
+    fn default() -> Self {
+        Resume {
+            first_due_ms: 0,
+            from_high: true,
+        }
+    }
+}
+
+/// How long one fade of a breath occupies the schedule: its own duration, less
+/// the lead the next fade is issued by.
+///
+/// ONE DEFINITION, read by the schedule that lays the fades out and by the
+/// resume that decides how far ahead a recorded phase may honestly sit. Two
+/// copies of this arithmetic would let the two disagree about what a step is,
+/// and the resume's staleness rule is stated in steps.
+pub fn step_ms(breath: &crate::config::Breath) -> u64 {
+    breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1)
+}
+
 /// The whole breath one tick issues: the fades, in order, with the second one
 /// leading the first by `FADE_LEAD_MS` and so on.
 ///
-/// IT STARTS DOWN AND ENDS AT THE PEAK. Ending high is what lets the next tick
-/// resume the breath rather than restart it: the lamp is already where the next
-/// descent begins, so the join between two ticks is one more turn-around rather
-/// than a jump. The cost is a slightly longer hold at the peak once per
-/// interval, which is accepted.
+/// EVERY FADE IS ISSUED STRICTLY INSIDE THE BUDGET, AND THE LAST ONE ENDS
+/// AFTER IT. That is what makes the breath seamless rather than paused at its
+/// peak: the driver used to stop issuing once a fade's whole DURATION could
+/// not fit, which left the lamp holding an end for whatever was left of the
+/// interval (a third of it, at the shipped refresh). Ending the schedule at
+/// the last ISSUE instead means the lamp is still moving when this tick's
+/// child exits; the fade in flight simply keeps running on the bridge with no
+/// child left to interrupt it, and the next tick's own first fade is timed to
+/// take over `FADE_LEAD_MS` before that one would have ended (`resume_from`
+/// reads that from the held record).
 ///
-/// AN EVEN NUMBER OF FADES, ALWAYS, because odd would end at the low end. That
-/// is why the count is computed and then rounded DOWN to even rather than fitted
-/// exactly: an extra half cycle that does not fit is a fade the next tick would
-/// interrupt mid-descent.
+/// THE RESIDUAL PAUSE, IN FULL: the next tick's own resolve, plus the daemon's
+/// second of scheduling slop, plus however far the previous tick's LAST WRITE
+/// overran the lead it was issued on, less the slack the schedule already left
+/// between that last issue and the budget. Never negative and never more than
+/// one step, and zero on most ticks, because the two resolves are of the same
+/// order and cancel on average. The write term is the one the schedule cannot
+/// see: writes are synchronous, so a bridge that answered the last fade slowly
+/// pushes the join out by exactly that much, bounded by the deadline the tick
+/// gives each call (a fifth of the interval). So the bound is a ceiling rather
+/// than an average, and the lamp holds an end for a fraction of a fade rather
+/// than for a third of the interval.
 ///
-/// THE LAST FADE COMPLETES INSIDE THE INTERVAL. The driver has to be gone before
-/// the next tick starts, and a fade still running when it does would be replaced
-/// mid-flight from an unknown brightness, so the budget covers the final fade's
-/// whole duration rather than only its issue.
+/// A RESUME SHIFTS EVERY FADE'S DUE MILLISECOND by `first_due_ms` and its
+/// FIRST TARGET by `from_high` (moving toward `low` when `from_high`, and
+/// toward `high` otherwise), so the schedule this tick issues is the next leg
+/// of the breath the previous tick was already running, not a fresh one
+/// restarted at the interval's zero.
 ///
-/// THE BUDGET IS WHAT IS LEFT OF THE INTERVAL, in milliseconds, and NOT the
-/// interval itself. A tick spends part of its interval resolving the map on the
-/// bridge before the first fade is issued, and three calls under a transport
-/// deadline are not free: fitted to the whole interval instead, the breath ran
-/// past the moment the next tick started and two children issued fades to one
-/// lamp, each writing a brightness the other did not expect.
-///
-/// A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING, which is the honest answer
-/// rather than a half breath: the lamp keeps whatever the last tick left it at
-/// and the next tick, which has its whole interval, arms it. Two fades fit any
-/// ORDINARY tick, which the config's own bounds guarantee rather than this
-/// function: `MAX_FADE_MS` is five seconds and `MIN_REFRESH_SECS` is ten.
-pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath) -> Vec<Fade> {
-    let step_ms = breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1);
-    // How many fades fit: the first costs its whole duration, and each one after
-    // it costs a step, because it is issued while its predecessor is still
-    // running.
-    let after_the_first = budget_ms.saturating_sub(breath.duration_ms) / step_ms;
-    let count = after_the_first.saturating_add(1);
-    let even = count - count % 2;
-    (0..even)
+/// A SCHEDULE THAT WOULD START AT OR PAST THE BUDGET IS EMPTY, which is the
+/// same honest answer a schedule with no room for even one fade always gave:
+/// the lamp keeps whatever it was last told and the next tick, with its whole
+/// interval ahead of it, picks the breath back up.
+pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resume) -> Vec<Fade> {
+    let step_ms = step_ms(breath);
+    if resume.first_due_ms >= budget_ms {
+        return Vec::new();
+    }
+    let remaining_ms = budget_ms - resume.first_due_ms;
+    let count = remaining_ms.div_ceil(step_ms);
+    (0..count)
         .map(|index| Fade {
-            brightness: if index % 2 == 0 {
+            brightness: if (index % 2 == 0) == resume.from_high {
                 breath.low
             } else {
                 breath.high
             },
-            start_ms: index * step_ms,
+            start_ms: resume.first_due_ms + index * step_ms,
         })
         .collect()
+}
+
+/// Where one lamp's breath left off: the instant its last issued fade lands,
+/// the end it lands ON, and the STATE that breath was showing.
+///
+/// THE STATE IS PART OF THE PHASE, not a separate question. A phase is only
+/// worth resuming while the lamp is still breathing the same shape in the same
+/// colour; carried across a state change it delays the new colour by up to one
+/// whole fade, because the first fade of every tick is the one that carries
+/// the colour and `on`. That is the locked precedence (red wins, blocked
+/// outranks loop) arriving late, which is the one thing the resume must never
+/// cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Phase {
+    pub end_unix_ms: u64,
+    pub end: End,
+    pub held: Held,
+}
+
+/// One lamp's line in the held record: the fixture path, and where in its
+/// breath it left off.
+///
+/// `resume` IS `None` FOR A BARE PATH, which is a lamp the record holds with
+/// no phase attached: a fresh arm, a phase write a race stood down, or a
+/// token an older build or a hand edit left without one. All three read the
+/// same way, as a breath that starts fresh.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeldEntry {
+    pub path: String,
+    pub resume: Option<Phase>,
+}
+
+impl HeldEntry {
+    /// A lamp held with no phase recorded for it.
+    pub fn bare(path: impl Into<String>) -> HeldEntry {
+        HeldEntry {
+            path: path.into(),
+            resume: None,
+        }
+    }
+}
+
+/// One held-record token, rendered: the bare path, or the path with its phase,
+/// `@<end-unix-ms>:<h|l>:<state>`.
+///
+/// `@` AND `:` NEITHER APPEAR IN A FIXTURE PATH (`light/<id>` or
+/// `grouped_light/<id>`, the id a bridge-issued UUID), and neither appears in
+/// a state word, so the token round trips through the same whitespace-separated
+/// line the bare record always used, with nothing to escape.
+pub fn render_held_token(entry: &HeldEntry) -> String {
+    match entry.resume {
+        Some(phase) => {
+            let end = match phase.end {
+                End::High => "h",
+                End::Low => "l",
+            };
+            format!(
+                "{}@{}:{end}:{}",
+                entry.path,
+                phase.end_unix_ms,
+                phase.held.word()
+            )
+        }
+        None => entry.path.clone(),
+    }
+}
+
+/// One held-record token, parsed.
+///
+/// A MALFORMED SUFFIX IS NO PHASE, NEVER UNREADABLE: the record as a whole
+/// already has an unreadable answer (`None`, held_lamps' own `Err(_)` arm) for
+/// a file nothing here could open at all, and a token that arrived from an
+/// older build, a hand edit, or a write this tick's own guard cut short is a
+/// path this run still knows how to put out. Losing the phase costs one fade
+/// of resume; inventing an unreadable path would cost the lamp.
+pub fn parse_held_token(token: &str) -> HeldEntry {
+    let Some((path, suffix)) = token.split_once('@') else {
+        return HeldEntry::bare(token);
+    };
+    let phase = (|| {
+        let (end_ms, rest) = suffix.split_once(':')?;
+        let (flag, word) = rest.split_once(':')?;
+        let end = match flag {
+            "h" => End::High,
+            "l" => End::Low,
+            _ => return None,
+        };
+        Some(Phase {
+            end_unix_ms: end_ms.parse().ok()?,
+            end,
+            held: Held::from_word(word)?,
+        })
+    })();
+    match phase {
+        Some(resume) => HeldEntry {
+            path: path.to_string(),
+            resume: Some(resume),
+        },
+        None => HeldEntry::bare(path),
+    }
+}
+
+/// The `Resume` a lamp's next breath starts from, off what its held entry
+/// last recorded.
+///
+/// `first_due_ms` IS THE RECORDED END, LESS THE SEAMLESS LEAD, LESS NOW,
+/// SATURATING AT ZERO: the previous tick's last fade does not finish landing
+/// on the bridge until that instant, and the next one has to be issued
+/// `FADE_LEAD_MS` before it, exactly as every fade inside one tick already is.
+/// A `now_ms` past that moment (a tick that ran late, or the bridge holding
+/// the lamp at its recorded end since nothing else has moved it) saturates to
+/// zero: due at once, not due in the past.
+///
+/// NO ENTRY AND NO PHASE BOTH GIVE THE DEFAULT `Resume`, which starts the
+/// breath down at once: the lamp has never breathed, or something else put it
+/// somewhere this record does not describe (an external switch, a killed
+/// child's bare token, a dim-window shape change), and starting fresh from the
+/// low end costs at most one fade of motion, never a pause.
+///
+/// AND A PHASE ANOTHER STATE LEFT IS NOT RESUMED FROM, which is the case that
+/// costs a PAUSE rather than a fade. The slow shapes land their last fade
+/// almost four seconds past the interval that issued them, so a lamp that was
+/// looping and is now blocked would wait that fade out before its first blue
+/// body reached the bridge: the locked precedence, arriving up to a whole fade
+/// late. A state change starts down at once instead.
+///
+/// AND A PHASE MORE THAN ONE STEP AHEAD IS STALE, NOT PATIENT. `now_ms` is
+/// wall time and so is the recorded end, so an hour lost to a time-zone edit,
+/// an NTP correction or a resumed sleep leaves a valid record looking like a
+/// fade due an hour from now: a schedule that starts past the budget, issues
+/// nothing, and holds the lamp still for a whole interval. One cadence step is
+/// the ceiling because it is a law and not a tolerance: the tick that wrote
+/// the phase issued its last fade strictly inside its own budget, that fade
+/// lands one duration later, and the next tick begins at most the daemon's
+/// slop after that budget ended, so `first_due_ms` is always under one step.
+/// Past it, the clock moved and the honest answer is to start over now.
+pub fn resume_from(
+    entry: Option<&HeldEntry>,
+    now_ms: u64,
+    showing: Held,
+    breath: &crate::config::Breath,
+) -> Resume {
+    let Some(phase) = entry.and_then(|entry| entry.resume) else {
+        return Resume::default();
+    };
+    if phase.held != showing {
+        return Resume::default();
+    }
+    let first_due_ms = phase
+        .end_unix_ms
+        .saturating_sub(now_ms)
+        .saturating_sub(FADE_LEAD_MS);
+    if first_due_ms > step_ms(breath) {
+        return Resume::default();
+    }
+    Resume {
+        first_due_ms,
+        from_high: matches!(phase.end, End::High),
+    }
 }
 
 /// What one harness event does to its session's needs marker.
@@ -763,10 +1023,14 @@ pub struct Muted {
 /// The entries the state file holds, or ONE complaint naming what is wrong
 /// with it.
 ///
-/// FAIL OPEN, which is `quiet.rs`'s direction and the OPPOSITE of the quiet
-/// window's: a file this cannot vouch for mutes NOTHING, because a lights mute
-/// nobody can see is the dangerous state. The caller prints the complaint and
-/// carries on with every lamp loud.
+/// IT REPORTS RATHER THAN GUESSES, and the fail DIRECTION is the caller's,
+/// which is why it is not stated here: the two callers take opposite ones and
+/// both are deliberate. `ad_hoc_quiet`, the lamp path, turns any complaint into
+/// `Muting::Everything`, because a house with every lamp loud is the 3am the
+/// mute was armed to prevent. `pns lights quiet`, the command, prints the
+/// complaint and rebuilds from an empty list, because an operator standing in
+/// front of it is losing what the file held and gets to see that rather than a
+/// silent repair.
 ///
 /// A LINE IS `<epoch> <place>` AND NOTHING ELSE, with the only leniency the ONE
 /// trailing newline the publish itself writes. Padding is not something this
@@ -1029,22 +1293,36 @@ pub fn render_muted(entries: &[Muted]) -> String {
 /// how a report and a behaviour come to disagree about whether a mute is on.
 /// Half open comes with it, so a mute ends on the second it names.
 ///
-/// AND FAIL OPEN comes with it too: a clock this run cannot read mutes
-/// nothing. A lights mute nobody can see is the dangerous state, which is the
-/// opposite direction to the quiet WINDOW one module over and deliberately so.
+/// THIS HELPER FAILS OPEN BY CONTRACT: on no clock, `live` judges every entry
+/// unmuted and this answers empty. That is true of this function alone. Its
+/// only production caller is the root, `ad_hoc_quiet`, and the root asks
+/// whether the clock answered BEFORE it asks this: on no clock it returns
+/// `Muting::Everything` without ever reaching this line.
 pub fn muted_places(entries: &[Muted], now: Option<u64>) -> Vec<String> {
     live(entries, now)
         .map(|entry| entry.place.clone())
         .collect()
 }
 
+/// Why every lamp is quiet on a run whose clock would not answer, the root's
+/// own line: `ad_hoc_quiet` prints it as a complaint, and this prints it as
+/// the report, so an operator reading either sees the same sentence.
+pub const NO_CLOCK_FOR_THE_MUTE: &str = "pns lights: the clock cannot be read, so no \
+mute can be judged live; every lamp is quiet until it can";
+
 /// What `pns lights quiet` prints, which is the whole file in the operator's
 /// own vocabulary.
 ///
 /// THE REPORT IS THE SAME READING THE LAMPS TAKE, entry for entry, because a
 /// report that decided liveness for itself is how a command and a lamp come to
-/// disagree about whether a room is quiet.
+/// disagree about whether a room is quiet. ON NO CLOCK, the same answer the
+/// root gives: every place quiet, said once, never per entry and never
+/// "nothing is quiet", which would tell the operator the opposite of what
+/// every lamp is about to do.
 pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
+    if now.is_none() {
+        return vec![NO_CLOCK_FOR_THE_MUTE.to_string()];
+    }
     let lines: Vec<String> = live(entries, now)
         .map(|entry| {
             let minutes = crate::quiet::minutes_left(entry.expiry, now);
@@ -1071,13 +1349,14 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Action, FADE_LEAD_MS, Fade, Held, House, LOOP_USAGE, Loop, LoopCommand, MAX_MUTED_PLACES,
-        Muted, News, QuietCommand, Say, Streak, Unread, WORKING, active_held, any_blocked,
-        any_working, bare_mute_secs, blocked_marker, blocked_marker_action, breath_fades,
-        last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
-        muted_places, muted_report, news_after, next_streak, parse_news, parse_streak, pulse_fires,
-        quiet_command, render_muted, render_news, render_streak, say, shown, unread_arming,
-        working_owner, workspace_agent_statuses,
+        Action, End, FADE_LEAD_MS, Fade, Held, HeldEntry, House, LOOP_USAGE, Loop, LoopCommand,
+        MAX_MUTED_PLACES, Muted, News, Phase, QuietCommand, Resume, Say, Streak, Unread, WORKING,
+        active_held, any_blocked, any_working, bare_mute_secs, blocked_marker,
+        blocked_marker_action, breath_fades, last_interaction, lease_marker, loop_command,
+        loop_running, muted_after, muted_entries, muted_places, muted_report, news_after,
+        next_streak, parse_held_token, parse_news, parse_streak, pulse_fires, quiet_command,
+        render_held_token, render_muted, render_news, render_streak, resume_from, say, shown,
+        unread_arming, working_owner, workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1200,6 +1479,49 @@ mod tests {
         ] {
             assert_eq!(working_owner(marker), None, "{marker:?} is a marker");
         }
+    }
+
+    #[test]
+    fn a_working_file_is_told_by_its_rightmost_suffix_not_its_first() {
+        // A MARKER NAMED FOR THE SUFFIX ITSELF SITS TO THE LEFT of the sweep's
+        // own working file on that marker: `a.new.b` is the marker, and the
+        // sweep taking it writes `a.new.b.sweep.<pid>` beside it. The first
+        // `rsplit_once` this used to run found `.new.` and stopped there,
+        // reading the marker's own name as the owner and failing to parse it
+        // as a pid, so the sweep's working file was judged a marker too and
+        // was never collected: one abandoned run leaks a working file forever.
+        assert_eq!(
+            working_owner("a.new.b.sweep.1"),
+            Some("1"),
+            "the sweep's working file on a marker shaped like a publish"
+        );
+        assert_eq!(
+            working_owner("a.sweep.1.new.2"),
+            Some("2"),
+            "and the reverse nesting reads the same way"
+        );
+        assert_eq!(
+            working_owner("x.sweep.1"),
+            Some("1"),
+            "a plain sweep working file is unaffected"
+        );
+        // THE SAME SUFFIX TWICE, which is the one shape the two cases above
+        // cannot judge: each of them carries one `.new.` and one `.sweep.`, so
+        // `rfind` and `find` return the same offset for both and the rightmost
+        // rule is decided by the comparison alone. Here the comparison has
+        // nothing to do and the SEARCH DIRECTION is the whole answer: `find`
+        // stops at the left occurrence, reads `b.new.5` as the owner, fails to
+        // parse it as a pid and calls a real working file a marker.
+        assert_eq!(
+            working_owner("a.new.b.new.5"),
+            Some("5"),
+            "a publish on a marker whose own name spells the publish suffix"
+        );
+        assert_eq!(
+            working_owner("a.sweep.b.sweep.7"),
+            Some("7"),
+            "and the sweep suffix reads the same way"
+        );
     }
 
     #[test]
@@ -1723,6 +2045,42 @@ mod tests {
             Err("pns: loop: \"../x\" is not a pane id this can key a lease to".to_string()),
             "the path-escape guard, through the predicate that backs the filename"
         );
+        assert_eq!(
+            loop_command(
+                "begin",
+                &["--pane".to_string(), "abc.new.1".to_string()],
+                None
+            ),
+            Err("pns: loop: \"abc.new.1\" is not a pane id this can key a lease to".to_string()),
+            "the working grammar guard, through the same predicate: without it \
+             this prints 'the clock cannot be read' instead of refusing the pane"
+        );
+        // EVERY ROAD TO A PANE, not the one the case above happens to take.
+        // The guard sits between the pane is resolved and the verb is read, so
+        // `end` is judged as `begin` is and the ENVIRONMENT pane is judged as
+        // an explicit one. A guard moved into the `--pane` arm, or into the
+        // `begin` arm, refuses nothing on the other road: `HERDR_PANE_ID` is a
+        // value from another program, which is the reason the predicate exists
+        // at all.
+        for (verb, arguments, env_pane) in [
+            (
+                "end",
+                vec!["--pane".to_string(), "abc.new.1".to_string()],
+                None,
+            ),
+            ("begin", vec![], Some("abc.new.1")),
+            ("end", vec![], Some("abc.sweep.7")),
+        ] {
+            let refused = loop_command(verb, &arguments, env_pane);
+            let pane = env_pane.unwrap_or("abc.new.1");
+            assert_eq!(
+                refused,
+                Err(format!(
+                    "pns: loop: {pane:?} is not a pane id this can key a lease to"
+                )),
+                "{verb} with arguments {arguments:?} and env pane {env_pane:?}"
+            );
+        }
         for arguments in [
             vec!["--pain".to_string(), "wW:p9".to_string()],
             vec!["wW:p9".to_string()],
@@ -1873,8 +2231,11 @@ mod tests {
     };
 
     #[test]
-    fn a_breath_starts_down_alternates_and_ends_at_the_peak() {
-        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+    fn a_zero_resume_reproduces_the_original_breath_with_one_more_fade_added() {
+        // THE ORIGINAL SIX-FADE VECTOR, PRESERVED AS A PREFIX. The seamless
+        // schedule does not restart the breath, it simply keeps issuing into
+        // the slack the old, stop-at-the-peak schedule left unused.
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default());
         assert_eq!(
             fades,
             vec![
@@ -1902,19 +2263,19 @@ mod tests {
                     brightness: 100,
                     start_ms: 9_750
                 },
+                Fade {
+                    brightness: 30,
+                    start_ms: 11_700
+                },
             ],
-            "three full cycles of the locked blocked shape inside a twelve-second interval"
+            "three full cycles of the locked blocked shape, plus the seventh \
+             fade the seamless schedule now fits into a twelve-second interval"
         );
-        // ENDS AT THE PEAK, which is what lets the next tick resume the breath
-        // rather than restart it, and is the property an odd count would break.
-        assert_eq!(fades.len() % 2, 0);
-        assert_eq!(fades.last().map(|fade| fade.brightness), Some(BLOCKED.high));
-        assert_eq!(fades.first().map(|fade| fade.brightness), Some(BLOCKED.low));
     }
 
     #[test]
     fn each_fade_leads_the_one_before_it_so_the_lamp_never_pauses_at_an_end() {
-        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
+        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default());
         for pair in fades.windows(2) {
             assert_eq!(
                 pair[1].start_ms - pair[0].start_ms,
@@ -1925,58 +2286,177 @@ mod tests {
     }
 
     #[test]
-    fn the_last_fade_finishes_before_the_next_tick_and_a_half_cycle_that_would_not_is_dropped() {
-        // THE BUDGET COVERS THE FINAL FADE'S WHOLE DURATION, because the driver
-        // has to be gone before the next tick starts: a fade still running then
-        // would be replaced mid-flight from a brightness nothing recorded.
-        for refresh_secs in [10, 12, 20, 25, 30] {
-            for breath in [BLOCKED, SLOW] {
-                let fades = breath_fades(refresh_secs * 1000, &breath);
-                let last = fades.last().expect("a breath is never empty");
+    fn every_last_fade_is_issued_inside_the_budget_and_lands_after_it() {
+        // THE LAW, NOT A COINCIDENCE (verified at every quarter-second budget
+        // the config's own bounds ever hand this function): the slack before
+        // the last issue always sits in (0, step], and that fade's own
+        // duration always carries the lamp past the budget it was issued
+        // in. A schedule that instead FIT the last fade's whole duration
+        // inside the budget (the old, stop-at-the-peak shape, and a
+        // completion-fitted rewrite of this one) fails the second assertion
+        // at every budget, and the old EVEN-rounded count fails the first at
+        // 11_500ms.
+        for breath in [BLOCKED, SLOW] {
+            let step_ms = breath.duration_ms - FADE_LEAD_MS;
+            let mut budget_ms = 8_000;
+            while budget_ms <= 12_000 {
+                let fades = breath_fades(budget_ms, &breath, Resume::default());
+                let last = fades.last().expect("8s or more is never empty");
+                let slack = budget_ms - last.start_ms;
                 assert!(
-                    last.start_ms + breath.duration_ms <= refresh_secs * 1000,
-                    "refresh {refresh_secs}s, {}ms fades: the last fade must finish inside \
-                     the interval, and it starts at {}ms",
-                    breath.duration_ms,
-                    last.start_ms
+                    slack > 0 && slack <= step_ms,
+                    "{}ms fades at budget {budget_ms}ms: slack {slack}ms is outside \
+                     (0, {step_ms}]",
+                    breath.duration_ms
                 );
-                assert_eq!(fades.len() % 2, 0, "and it must end at the peak");
-                assert!(fades.len() >= 2, "a breath is at least one full cycle");
+                assert!(
+                    last.start_ms + breath.duration_ms > budget_ms,
+                    "{}ms fades at budget {budget_ms}ms: the last fade must still be \
+                     running when the budget ends, and it ends at {}ms",
+                    breath.duration_ms,
+                    last.start_ms + breath.duration_ms
+                );
+                budget_ms += 250;
             }
         }
-        // THE DROPPED HALF CYCLE, named: a twelve-second interval fits three
-        // two-second cycles but only ONE four-second cycle, so the slow shape
-        // holds its peak for the rest of the interval. That is the accepted
-        // cost of stopping at the peak.
-        assert_eq!(breath_fades(FULL_INTERVAL_MS, &SLOW).len(), 2);
-        assert_eq!(breath_fades(20_000, &SLOW).len(), 4);
     }
 
     #[test]
-    fn a_breath_fits_what_is_left_of_the_interval_rather_than_the_whole_of_it() {
-        // THE RESOLVE IS PART OF THE CHILD'S LIFE. A tick spends the first
-        // seconds of its interval resolving the map on the bridge, and fades
-        // fitted to the WHOLE interval therefore ran past the moment the next
-        // tick started: two children then issued fades to one lamp, each
-        // writing a brightness the other did not expect.
-        let whole = breath_fades(FULL_INTERVAL_MS, &BLOCKED);
-        let after_a_slow_resolve = breath_fades(FULL_INTERVAL_MS - 4_000, &BLOCKED);
-        assert!(
-            after_a_slow_resolve.len() < whole.len(),
-            "four seconds spent resolving has to cost fades: {} against {}",
-            after_a_slow_resolve.len(),
-            whole.len()
+    fn a_resumed_breath_moves_toward_low_from_high_and_toward_high_from_low() {
+        // THE WHOLE VECTOR AND NOT ITS FIRST FADE. A resume that flipped only
+        // the fade it starts with would breathe the right direction once and
+        // then run the same parity as an unresumed tick, which is a lamp
+        // fading to the end it is already sitting at every other cycle: no
+        // motion at all for two seconds, at the join this slice exists to
+        // close. The numbers are the seamless schedule resumed 1,250ms in,
+        // which is what a twelve-second tick hands the one after it.
+        let resumed_from_the_peak = breath_fades(
+            FULL_INTERVAL_MS,
+            &BLOCKED,
+            Resume {
+                first_due_ms: 1_250,
+                from_high: true,
+            },
         );
-        let last = after_a_slow_resolve.last().expect("a cycle still fits");
-        assert!(
-            last.start_ms + BLOCKED.duration_ms <= FULL_INTERVAL_MS - 4_000,
-            "and the last fade still finishes inside what was left: {last:?}"
+        assert_eq!(
+            resumed_from_the_peak,
+            vec![
+                Fade {
+                    brightness: BLOCKED.low,
+                    start_ms: 1_250
+                },
+                Fade {
+                    brightness: BLOCKED.high,
+                    start_ms: 3_200
+                },
+                Fade {
+                    brightness: BLOCKED.low,
+                    start_ms: 5_150
+                },
+                Fade {
+                    brightness: BLOCKED.high,
+                    start_ms: 7_100
+                },
+                Fade {
+                    brightness: BLOCKED.low,
+                    start_ms: 9_050
+                },
+                Fade {
+                    brightness: BLOCKED.high,
+                    start_ms: 11_000
+                },
+            ],
+            "a lamp resuming from the high end moves down first, and alternates \
+             from there"
         );
-        // A BUDGET TOO SHORT FOR ONE CYCLE ISSUES NOTHING AT ALL, which is the
-        // honest answer rather than a half breath: the lamp keeps whatever the
-        // last tick left it at, and the next tick has its whole interval.
-        assert!(breath_fades(BLOCKED.duration_ms, &BLOCKED).is_empty());
-        assert!(breath_fades(0, &BLOCKED).is_empty());
+        let resumed_from_the_floor = breath_fades(
+            FULL_INTERVAL_MS,
+            &BLOCKED,
+            Resume {
+                first_due_ms: 1_250,
+                from_high: false,
+            },
+        );
+        assert_eq!(
+            resumed_from_the_floor
+                .iter()
+                .map(|fade| fade.brightness)
+                .collect::<Vec<u8>>(),
+            vec![
+                BLOCKED.high,
+                BLOCKED.low,
+                BLOCKED.high,
+                BLOCKED.low,
+                BLOCKED.high,
+                BLOCKED.low
+            ],
+            "and vice versa, for every fade rather than the first"
+        );
+        assert_eq!(
+            resumed_from_the_floor
+                .iter()
+                .map(|fade| fade.start_ms)
+                .collect::<Vec<u64>>(),
+            resumed_from_the_peak
+                .iter()
+                .map(|fade| fade.start_ms)
+                .collect::<Vec<u64>>(),
+            "the direction moves the brightnesses and nothing else: both schedules \
+             are issued at the same milliseconds"
+        );
+    }
+
+    #[test]
+    fn a_resumes_first_due_ms_shifts_every_fades_start_by_the_same_amount() {
+        let shifted = breath_fades(
+            FULL_INTERVAL_MS,
+            &BLOCKED,
+            Resume {
+                first_due_ms: 500,
+                from_high: true,
+            },
+        );
+        let unshifted = breath_fades(FULL_INTERVAL_MS - 500, &BLOCKED, Resume::default());
+        let shifted_starts: Vec<u64> = shifted.iter().map(|fade| fade.start_ms - 500).collect();
+        let unshifted_starts: Vec<u64> = unshifted.iter().map(|fade| fade.start_ms).collect();
+        assert_eq!(
+            shifted_starts, unshifted_starts,
+            "a resume due 500ms late issues the same schedule 500ms later, against \
+             a budget 500ms shorter"
+        );
+    }
+
+    #[test]
+    fn a_budget_that_cannot_fit_even_one_fade_is_empty() {
+        assert!(breath_fades(0, &BLOCKED, Resume::default()).is_empty());
+        assert!(
+            breath_fades(
+                1_000,
+                &BLOCKED,
+                Resume {
+                    first_due_ms: 1_000,
+                    from_high: true
+                }
+            )
+            .is_empty(),
+            "a resume due exactly AT the budget has nowhere left to fade"
+        );
+        // AND PAST IT, which is the half of "at or past" the equality case
+        // cannot reach. Without the guard the remaining budget is computed by
+        // subtracting a larger number from a smaller one, so this is the case
+        // that separates a schedule which refuses from one that wraps.
+        assert!(
+            breath_fades(
+                1_000,
+                &BLOCKED,
+                Resume {
+                    first_due_ms: 1_001,
+                    from_high: true
+                }
+            )
+            .is_empty(),
+            "a resume due PAST the budget has nowhere left to fade either"
+        );
     }
 
     #[test]
@@ -1989,7 +2469,7 @@ mod tests {
             high: 7,
             low: 1,
         };
-        let fades = breath_fades(FULL_INTERVAL_MS, &dim);
+        let fades = breath_fades(FULL_INTERVAL_MS, &dim, Resume::default());
         assert_eq!(
             fades,
             vec![
@@ -2009,7 +2489,242 @@ mod tests {
                     brightness: 7,
                     start_ms: 8_850
                 },
+                Fade {
+                    brightness: 1,
+                    start_ms: 11_800
+                },
             ],
+        );
+    }
+
+    // --- the held record's phase --------------------------------------------
+
+    #[test]
+    fn a_held_entrys_phase_round_trips_through_its_rendered_token() {
+        let high = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 1_234_567,
+                end: End::High,
+                held: Held::Blocked,
+            }),
+        };
+        assert_eq!(render_held_token(&high), "light/l1@1234567:h:blocked");
+        assert_eq!(parse_held_token("light/l1@1234567:h:blocked"), high);
+
+        let low = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 1_234_567,
+                end: End::Low,
+                held: Held::Looping,
+            }),
+        };
+        assert_eq!(render_held_token(&low), "light/l1@1234567:l:loop");
+        assert_eq!(parse_held_token("light/l1@1234567:l:loop"), low);
+    }
+
+    #[test]
+    fn every_held_state_has_its_own_record_word_and_reads_back_as_itself() {
+        // FOUR STATES, FOUR WORDS, and the two unread flavours are not one:
+        // they share a routable word and NOT a colour, so a red failure that
+        // inherited a green success's phase would delay the red by a fade.
+        let states = [
+            Held::Blocked,
+            Held::Looping,
+            Held::UnreadFailure,
+            Held::UnreadSuccess,
+        ];
+        let mut words: Vec<&str> = states.iter().map(|held| held.word()).collect();
+        words.sort_unstable();
+        words.dedup();
+        assert_eq!(words.len(), states.len(), "two states share one word");
+        for held in states {
+            assert_eq!(Held::from_word(held.word()), Some(held));
+        }
+        assert_eq!(
+            Held::from_word("dozing"),
+            None,
+            "a word this build does not know is no phase, never a wrong one"
+        );
+    }
+
+    #[test]
+    fn a_bare_token_reads_as_no_phase_and_a_malformed_one_falls_back_to_bare() {
+        assert_eq!(
+            parse_held_token("light/l1"),
+            HeldEntry::bare("light/l1"),
+            "a token with no `@` at all is a lamp with no phase recorded"
+        );
+        for malformed in [
+            "light/l1@notanumber:h:blocked",
+            "light/l1@1234567:sideways:blocked",
+            "light/l1@1234567:h:dozing",
+            "light/l1@1234567:h",
+            "light/l1@1234567",
+            "light/l1@",
+        ] {
+            assert_eq!(
+                parse_held_token(malformed),
+                HeldEntry::bare("light/l1"),
+                "{malformed} is unreadable, never unparseable: it reads as no phase"
+            );
+        }
+    }
+
+    #[test]
+    fn resuming_off_no_entry_or_no_phase_starts_the_breath_fresh() {
+        assert_eq!(
+            resume_from(None, 1_000, Held::Blocked, &BLOCKED),
+            Resume::default()
+        );
+        assert_eq!(
+            resume_from(
+                Some(&HeldEntry::bare("light/l1")),
+                1_000,
+                Held::Blocked,
+                &BLOCKED
+            ),
+            Resume::default(),
+            "a bare entry is a lamp this record holds with no phase recorded"
+        );
+    }
+
+    #[test]
+    fn a_phase_another_state_left_behind_is_started_over_rather_than_resumed() {
+        // THE PAUSE A FIXTURE-ONLY RESUME COSTS. The slow shapes land their
+        // last fade almost four seconds past the interval that issued it, so a
+        // lamp that was looping and is now blocked would wait that fade out
+        // before its first blue body reached the bridge: the locked precedence
+        // arriving up to a whole fade late.
+        let looping = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 15_850,
+                end: End::High,
+                held: Held::Looping,
+            }),
+        };
+        assert_eq!(
+            resume_from(Some(&looping), 12_400, Held::Blocked, &BLOCKED),
+            Resume::default(),
+            "a state change starts down at once instead of finishing the shape it \
+             is replacing"
+        );
+        assert_eq!(
+            resume_from(Some(&looping), 12_400, Held::Looping, &SLOW),
+            Resume {
+                first_due_ms: 3_400,
+                from_high: true
+            },
+            "and the same state still picks its own breath back up"
+        );
+        // THE TWO UNREAD FLAVOURS ARE TWO STATES, because they share a routable
+        // word and NOT a colour: an unread lamp turning red is exactly the case
+        // the ruling names.
+        let success = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 15_850,
+                end: End::High,
+                held: Held::UnreadSuccess,
+            }),
+        };
+        assert_eq!(
+            resume_from(Some(&success), 12_400, Held::UnreadFailure, &SLOW),
+            Resume::default()
+        );
+    }
+
+    #[test]
+    fn a_phase_sitting_further_ahead_than_one_step_reads_as_stale() {
+        // A CLOCK THAT WENT BACKWARDS. `now_ms` is wall time, and a phase is
+        // recorded in wall time too, so an hour lost to a time-zone edit, an
+        // NTP correction or a resumed sleep leaves a perfectly valid record
+        // looking like a fade due an hour from now. That schedule starts past
+        // the budget, issues nothing at all, and the lamp holds one whole
+        // interval: exactly the pause this slice exists to remove.
+        //
+        // ONE CADENCE STEP IS THE CEILING, and it is a law rather than a
+        // tolerance: the previous tick issued its last fade strictly inside its
+        // own budget, that fade lands one duration later, and the next tick
+        // begins at most the daemon's slop after that budget ended. So a live
+        // phase is never due more than a step ahead.
+        let end_unix_ms = 1_700_000_000_000;
+        let held = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms,
+                end: End::Low,
+                held: Held::Blocked,
+            }),
+        };
+        let step_ms = BLOCKED.duration_ms - FADE_LEAD_MS;
+        assert_eq!(
+            resume_from(
+                Some(&held),
+                end_unix_ms - FADE_LEAD_MS - step_ms,
+                Held::Blocked,
+                &BLOCKED
+            ),
+            Resume {
+                first_due_ms: step_ms,
+                from_high: false
+            },
+            "a phase due exactly one step out is the furthest a live one reaches, \
+             and it is still resumed"
+        );
+        assert_eq!(
+            resume_from(
+                Some(&held),
+                end_unix_ms - FADE_LEAD_MS - step_ms - 1,
+                Held::Blocked,
+                &BLOCKED
+            ),
+            Resume::default(),
+            "one millisecond further out than any tick could have left it is a \
+             clock that moved, so the breath starts over at once"
+        );
+        assert_eq!(
+            resume_from(
+                Some(&held),
+                end_unix_ms - 3_600_000,
+                Held::Blocked,
+                &BLOCKED
+            ),
+            Resume::default(),
+            "and an hour lost to a clock correction is the case that costs a whole \
+             interval of a still lamp"
+        );
+    }
+
+    #[test]
+    fn resuming_off_a_recorded_phase_shifts_the_next_fade_and_flips_its_direction() {
+        let held = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 13_700,
+                end: End::Low,
+                held: Held::Blocked,
+            }),
+        };
+        assert_eq!(
+            resume_from(Some(&held), 12_400, Held::Blocked, &BLOCKED),
+            Resume {
+                first_due_ms: 1_250,
+                from_high: false
+            },
+            "due FADE_LEAD_MS before the recorded end, moving away from the end it \
+             landed on"
+        );
+        // A `now_ms` past the recorded end saturates at zero rather than going
+        // negative: due at once, not due in the past.
+        assert_eq!(
+            resume_from(Some(&held), 20_000, Held::Blocked, &BLOCKED),
+            Resume {
+                first_due_ms: 0,
+                from_high: false
+            }
         );
     }
 
@@ -2209,6 +2924,31 @@ mod tests {
             muted_report(&[], Some(now)),
             vec!["pns lights: nothing is quiet".to_string()],
             "and neither is an empty file"
+        );
+    }
+
+    #[test]
+    fn a_clock_that_will_not_answer_reports_the_reason_never_nothing_is_quiet() {
+        // THE ROOT MUTES EVERYTHING ON NO CLOCK (`ad_hoc_quiet`, fail closed),
+        // so a report saying "nothing is quiet" here would tell the operator
+        // the opposite of what every lamp is about to do.
+        assert_eq!(
+            muted_report(&[], None),
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ],
+            "an empty file with no clock must not read as nothing is quiet"
+        );
+        assert_eq!(
+            muted_report(&muted(&[(1_000, "3F - Studio")]), None),
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ],
+            "an entry on file with no clock reports the same, not the entry"
         );
     }
 

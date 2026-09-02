@@ -27,8 +27,16 @@ pub fn pane_is_safe(pane: &str) -> bool {
 /// own ids carry a colon (`wW:p21`), so `session_id_is_safe` refuses every real
 /// one; what the pane predicate permits and a filename cannot is the parent
 /// reference, because a pane id becomes a shell WORD there and never a path.
+///
+/// AND THE WORKING GRAMMAR LOSES ITS PLACE TOO: `working_owner` reads
+/// `<name>.new.<pid>` and `<name>.sweep.<pid>` as ITS OWN writers' working
+/// files, and a pane id that happens to spell that shape would be swept by
+/// the wrong pid, or never released, the moment it named a lease. No real
+/// pane id can spell it (herdr's own ids and `wW:p21` do not carry digits
+/// after a `.new.` or `.sweep.` run), so this refuses nothing a caller
+/// actually has.
 pub fn pane_file_is_safe(pane: &str) -> bool {
-    pane_is_safe(pane) && !pane.contains("..")
+    pane_is_safe(pane) && !pane.contains("..") && crate::lights::working_owner(pane).is_none()
 }
 
 /// True when a harness-supplied session id may be used as a FILENAME. The id
@@ -36,12 +44,18 @@ pub fn pane_file_is_safe(pane: &str) -> bool {
 /// carrying a separator or a parent reference would write outside its
 /// directory. This allowlist is NARROWER than the pane one: nothing here is a
 /// multiplexer id, so the colon has nothing to earn its place with.
+///
+/// THE SAME WORKING-GRAMMAR REFUSAL as the pane predicate, and for the same
+/// reason: a session id shaped like one of this crate's own working files
+/// would be misread as one by `working_owner`, and no harness-generated
+/// session id spells that shape.
 pub fn session_id_is_safe(session_id: &str) -> bool {
     !session_id.is_empty()
         && !session_id.contains("..")
         && session_id.chars().all(|character| {
             character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
         })
+        && crate::lights::working_owner(session_id).is_none()
 }
 
 /// True when a name may become the final path segment of the hermes gateway
@@ -131,6 +145,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_pane_id_shaped_like_a_working_file_never_names_a_lease() {
+        // A PANE ID CANNOT PRODUCE THIS SHAPE (a colon-bearing herdr id or a
+        // `wW:p21` word never spells `.new.<digits>` or `.sweep.<digits>`), so
+        // this refuses nothing real. It closes the read side: `working_owner`
+        // would judge a lease named this way one of ITS OWN working files, so
+        // a lease begun under `abc.new.1` would be swept by the wrong pid or
+        // never released at all.
+        assert!(!pane_file_is_safe("abc.new.1"));
+        assert!(!pane_file_is_safe("abc.sweep.7"));
+        assert!(
+            pane_file_is_safe("a.new.b"),
+            "the marker shape itself stays safe"
+        );
+    }
+
     // --- session_id_is_safe ------------------------------------------------
 
     #[test]
@@ -177,5 +207,18 @@ mod tests {
         // on a normalising filesystem, so an ascii id is the one whose text
         // and whose filename agree.
         assert!(!session_id_is_safe("sessioné"));
+    }
+
+    #[test]
+    fn a_session_id_shaped_like_a_working_file_never_names_a_marker() {
+        // THE SAME CLOSE AS THE PANE PREDICATE, for `blocked_marker` rather
+        // than `lease_marker`: a session id UUIDs and harness-generated ids
+        // cannot spell, so this refuses nothing a real hook payload carries.
+        assert!(!session_id_is_safe("abc.new.1"));
+        assert!(!session_id_is_safe("abc.sweep.7"));
+        assert!(
+            session_id_is_safe("a.new.b"),
+            "the marker shape itself stays safe"
+        );
     }
 }
