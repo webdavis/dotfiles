@@ -4185,27 +4185,25 @@ fn an_observation_moves_no_presence_edge() {
     // S3: `Sandbox::pns` sets PNS_IDLE_SECS=99999 (Away), and `mark_present`
     // returns before writing while away, so a First-routed observation would
     // ALSO leave `last-present` alone under the suite's default env. Force
-    // Present with PNS_IDLE_SECS=0, prove a First `done` event advances the
-    // marker (the control), then prove the observation does not.
+    // Present with PNS_IDLE_SECS=0.
+    //
+    // THE OBSERVATION IS CHECKED AGAINST THE STALE SEED DIRECTLY, never
+    // against a marker a same-second control call just wrote: two hook
+    // spawns close enough together can land in the same wall-clock second,
+    // and `mark_present`'s own `held >= now` guard would then leave a SECOND
+    // First event's write inert too, making a "does the observation move it
+    // further than the control did" comparison pass for the wrong reason
+    // (measured: it let a mutant that misroutes this arm as First stay
+    // green). Seeding a stale epoch and asserting it is UNCHANGED avoids the
+    // race regardless of timing.
     let sandbox = Sandbox::new("observation-no-presence-edge");
     sandbox.write_config(&nag_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
-
-    let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
-    hook_with(control, &sandbox, "stop", r#"{"session_id":"s1"}"#);
-    let advanced =
-        std::fs::read_to_string(sandbox.path("state/last-present")).expect("the control wrote");
-    assert_ne!(
-        advanced, "1",
-        "the control: a First `done` event advances the presence edge"
-    );
-
     let missed_before = state_lines(&sandbox, "missed-notifications");
     let spool_before = spool_entries(&sandbox);
-    let deliveries_before = deliveries(&sandbox, "hermes");
+
     let mut command = with_state_dir(&sandbox);
     command.env("PNS_IDLE_SECS", "0");
     hook_with(
@@ -4217,16 +4215,29 @@ fn an_observation_moves_no_presence_edge() {
 
     assert_eq!(
         deliveries(&sandbox, "hermes"),
-        deliveries_before + 1,
-        "the positive control: the observation itself delivered"
+        1,
+        "the positive control fired"
     );
     assert_eq!(
         std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
-        advanced,
+        "1",
         "an observation never claims the return moment"
     );
     assert_eq!(state_lines(&sandbox, "missed-notifications"), missed_before);
     assert_eq!(spool_entries(&sandbox), spool_before);
+
+    // THE CONTROL, run AFTER on the SAME sandbox and the SAME stale seed:
+    // proves a First `done` event under this exact env DOES advance the
+    // marker, so the assertion above is not vacuously true under every
+    // attempt.
+    let mut control = with_state_dir(&sandbox);
+    control.env("PNS_IDLE_SECS", "0");
+    hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
+    assert_ne!(
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+        "1",
+        "the control: a First `done` event advances the presence edge"
+    );
 }
 
 #[test]
