@@ -118,8 +118,12 @@ fn run_mode(only: Option<&str>) -> i32 {
     // and exits rather than pretending it ran.
     let _lock = match acquire_run_lock(&home) {
         Ok(lock) => lock,
-        Err(why) => {
+        Err(LockFailure::Contended(why)) => {
             eprintln!("uu: {why}; not running, to avoid racing the run that already holds it");
+            return 1;
+        }
+        Err(LockFailure::Unavailable(why)) => {
+            eprintln!("uu: {why}; not running");
             return 1;
         }
     };
@@ -471,25 +475,48 @@ fn run_lock_path(home: &str) -> PathBuf {
 /// crash alike, so there is no stale-lock file to clean up by hand.
 struct RunLock(#[allow(dead_code)] std::fs::File);
 
+/// Why `acquire_run_lock` could not hand back a lock: the ONE arm that is
+/// genuine contention, and everything else. The call site says something
+/// different for each, because "to avoid racing the run that already holds
+/// it" is only true for `Contended`: a directory that could not be created
+/// or a lock file that could not even be opened is an environment problem
+/// with its own real cause, and this is the one place the operator hears
+/// about it, so blaming a race that never happened would send them chasing
+/// the wrong thing.
+enum LockFailure {
+    /// `flock` itself refused: another run genuinely holds the lock right
+    /// now.
+    Contended(String),
+    /// The lock file, or the directory it lives in, could not even be
+    /// opened.
+    Unavailable(String),
+}
+
 /// Take the run lock, or say why not. NON-BLOCKING (`LOCK_NB`): a second run
 /// finding this one still going must say so and exit, never wait its turn
 /// and then run stale.
-fn acquire_run_lock(home: &str) -> Result<RunLock, String> {
+fn acquire_run_lock(home: &str) -> Result<RunLock, LockFailure> {
     let path = run_lock_path(home);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|error| {
+            LockFailure::Unavailable(format!("could not create {}: {error}", parent.display()))
+        })?;
     }
     let file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&path)
-        .map_err(|error| format!("could not open {}: {error}", path.display()))?;
+        .map_err(|error| {
+            LockFailure::Unavailable(format!("could not open {}: {error}", path.display()))
+        })?;
     // SAFETY: `file`'s descriptor is open and owned by this frame for the
     // whole call; `flock`'s only effect is the kernel's own lock table.
     let refused = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0;
     if refused {
-        return Err(format!("another run already holds {}", path.display()));
+        return Err(LockFailure::Contended(format!(
+            "another run already holds {}",
+            path.display()
+        )));
     }
     Ok(RunLock(file))
 }

@@ -412,6 +412,37 @@ fn a_run_that_gets_the_lock_leaves_nothing_for_the_next_run_to_trip_on() {
     assert_eq!(home.uu(&["run"]).status.code(), Some(0));
 }
 
+#[test]
+fn a_lock_that_could_not_even_be_opened_names_its_own_cause_not_contention() {
+    // FINDING 3 (6v): "not running, to avoid racing the run that already
+    // holds it" is only true for the `flock` refusal above. Making the state
+    // directory unwritable hits a DIFFERENT arm, the `OpenOptions::open`
+    // failure inside `acquire_run_lock`, which the review reproduced with
+    // `Permission denied (os error 13)`; the operator reading that line needs
+    // the real cause, not a claim about a race that never happened.
+    let home = Home::new("lock-unopenable").with_herdr_lane(0);
+    let state_dir = home.dir.join(".local/state/uu");
+    std::fs::create_dir_all(&state_dir).expect("state dir");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&state_dir, std::fs::Permissions::from_mode(0o555))
+        .expect("make the state directory unwritable");
+    let output = home.uu(&["run"]);
+    // Restore write access before any assertion below can panic, or Home's
+    // `Drop` cannot clean up its own scratch directory.
+    std::fs::set_permissions(&state_dir, std::fs::Permissions::from_mode(0o755))
+        .expect("restore the state directory so cleanup can run");
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let message = stderr(&output);
+    assert!(
+        message.contains("could not open"),
+        "the real cause must be named: {message}"
+    );
+    assert!(
+        !message.contains("already holds") && !message.contains("avoid racing"),
+        "a permission failure is not contention, and must not be described as one: {message}"
+    );
+}
+
 // --- pruning a lane the config no longer declares -----------------------
 
 #[test]
