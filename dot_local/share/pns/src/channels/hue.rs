@@ -2014,14 +2014,14 @@ mod tests {
             );
         }
         // THE LOCKED FIGURES, carried by the decision rather than echoed from a
-        // constant: deep blue at 100 down to 30 in two-second fades, and the
-        // violet and the two unread colours at 60 down to 10 in four-second ones.
+        // constant: magenta at 100 down to 30 in two-second fades, and the deep
+        // blue and the two unread colours at 60 down to 10 in four-second ones.
         assert_eq!(
             held_render(crate::lights::Held::Blocked, &shipped, Showing::Full),
             (
                 crate::pulse::PulseColor {
-                    x: 0.1532,
-                    y: 0.0475
+                    x: 0.3395,
+                    y: 0.1379
                 },
                 crate::config::Breath {
                     duration_ms: 2000,
@@ -2034,8 +2034,8 @@ mod tests {
             held_render(crate::lights::Held::Looping, &shipped, Showing::Full),
             (
                 crate::pulse::PulseColor {
-                    x: 0.213,
-                    y: 0.0766
+                    x: 0.1532,
+                    y: 0.0475
                 },
                 crate::config::Breath {
                     duration_ms: 4000,
@@ -2078,7 +2078,7 @@ mod tests {
         let fades = crate::lights::breath_fades(12_000, &breath, crate::lights::Resume::default());
         assert_eq!(
             breath_arm_body(crate::pulse::BLOCKED_COLOR, &fades[0], breath.duration_ms),
-            r#"{"color":{"xy":{"x":0.1532,"y":0.0475}},"dimming":{"brightness":30.0},"dynamics":{"duration":2000},"on":{"on":true}}"#,
+            r#"{"color":{"xy":{"x":0.3395,"y":0.1379}},"dimming":{"brightness":30.0},"dynamics":{"duration":2000},"on":{"on":true}}"#,
         );
         assert_eq!(
             fade_body(&fades[1], breath.duration_ms),
