@@ -4318,6 +4318,79 @@ fn an_observation_still_delivers_and_is_logged() {
 }
 
 #[test]
+fn an_auto_switch_between_equal_names_delivers_nothing() {
+    // SOL 1: `source == "auto"` alone cannot tell a real switch from a
+    // harness re-announcing the model it was already on, so "opus to opus"
+    // must not become a card.
+    let sandbox = Sandbox::new("observation-equal-names-silent");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        r#"{"session_id":"s1","from_model":"claude-opus-4-6","to_model":"claude-opus-4-6","source":"auto"}"#,
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "opus to opus is not a transition worth a card"
+    );
+}
+
+#[test]
+fn an_auto_switch_missing_a_model_name_delivers_nothing() {
+    // SOL 1: a missing field becomes empty in the payload parser, and an
+    // empty name on either side is not a transition either.
+    let sandbox = Sandbox::new("observation-missing-model-silent");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        r#"{"session_id":"s1","from_model":"claude-opus-4-6","source":"auto"}"#,
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "a missing to_model has nothing on one side of the arrow"
+    );
+}
+
+#[test]
+fn an_auto_switch_strips_a_unicode_format_character_from_the_name() {
+    // SOL 1: `flattened` strips whitespace and `char::is_control` (the Cc
+    // set) but not Cf, so a right-to-left override survived it and could
+    // reorder the rendered line. It must not reach the card.
+    let sandbox = Sandbox::new("observation-invisible-character-stripped");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        "{\"session_id\":\"s1\",\"from_model\":\"claude-sonnet-4-5\",\"to_model\":\"claude-opus\u{202e}-4-6\",\"source\":\"auto\"}",
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"],
+        "automatic session model change: claude-sonnet-4-5 to claude-opus-4-6",
+        "the override character is gone from the rendered name"
+    );
+}
+
+#[test]
 fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
     // S2: THIS TEST IS VACUOUS ALONE. An unknown hook word exits 0 and writes
     // nothing (the catch-all arm), so "a non-auto source delivers nothing"

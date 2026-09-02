@@ -231,6 +231,32 @@ fn gate_mode(subcommand: &str) -> i32 {
         .map_or(0, |child| answer_within(child, submit_deadline()))
 }
 
+/// The automatic model-switch card's detail, or `None` when there is no
+/// transition worth one: either name empty once flattened and stripped of
+/// invisible characters, or the two equal once stripped.
+///
+/// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
+/// `flattened` is shared by every other rendered field on this path, and
+/// `main.rs` is the one caller with an equality test that a reordering
+/// character could defeat silently (a name that reads the same but compares
+/// unequal, or the reverse). Widening `flattened` itself for one caller would
+/// let every other field silently start allowing format characters through
+/// too.
+fn model_switch_detail(from_model: &str, to_model: &str) -> Option<String> {
+    let visible = |name: &str| -> String {
+        flattened(name)
+            .chars()
+            .filter(|character| !pns::recap::is_invisible(*character))
+            .collect()
+    };
+    let from = visible(from_model);
+    let to = visible(to_model);
+    if from.is_empty() || to.is_empty() || from == to {
+        return None;
+    }
+    Some(format!("automatic session model change: {from} to {to}"))
+}
+
 /// A harness event, from the payload on stdin.
 ///
 /// THE EXIT CONTRACT AND ITS ONE EXCEPTION. Every path here is a notification,
@@ -330,23 +356,26 @@ fn hook_mode(event: &str) -> i32 {
         // claim the return moment. Labelled "automatic session model
         // change", never "fallback": the payload cannot tell a fallback
         // chain apart from every other automatic change.
-        "model-switch" if payload.source == "auto" => run_event(
-            &pns::args::EventArgs {
-                agent,
-                state: event.to_string(),
-                project: project_of(&payload.cwd),
-                detail: format!(
-                    "automatic session model change: {} to {}",
-                    flattened(&payload.from_model),
-                    flattened(&payload.to_model)
-                ),
-                pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-                ..Default::default()
-            },
-            &system_probes(),
-            &payload,
-            Attempt::Observation,
-        ),
+        // NEITHER NAME IS AN OPINION WORTH A CARD, so the arm writes nothing
+        // at all when `model_switch_detail` finds equal names once flattened
+        // and stripped, or either side empty.
+        "model-switch" if payload.source == "auto" => {
+            if let Some(detail) = model_switch_detail(&payload.from_model, &payload.to_model) {
+                run_event(
+                    &pns::args::EventArgs {
+                        agent,
+                        state: event.to_string(),
+                        project: project_of(&payload.cwd),
+                        detail,
+                        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                        ..Default::default()
+                    },
+                    &system_probes(),
+                    &payload,
+                    Attempt::Observation,
+                );
+            }
+        }
         "model-switch" => {}
         // An event this binary does not serve is not an error the harness
         // should hear about on a notification path.
