@@ -19,6 +19,11 @@ pub struct HookPayload {
     /// documents that a Stop hook can fire before the transcript write
     /// completes and recommends this field instead.
     pub last_assistant_message: String,
+    /// Unique identifier for the subagent. The Claude Code hooks reference
+    /// (2.1.257) states it is "present only when the hook fires inside a
+    /// subagent call", so an empty value here is the ordinary main-thread
+    /// case, never a parse failure.
+    pub agent_id: String,
     /// What a non-turn event (a permission prompt, a plan) is about.
     pub message: String,
 }
@@ -40,6 +45,7 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         cwd: text("cwd"),
         transcript_path: text("transcript_path"),
         last_assistant_message: text("last_assistant_message"),
+        agent_id: text("agent_id"),
         // The asking MCP server in front of its own prompt, then `.message //
         // .detail` as the bash read it, then the error a dead turn reports,
         // and then the tool the request is about for the harnesses that send
@@ -318,12 +324,22 @@ mod tests {
     #[test]
     fn a_payload_yields_every_field_the_hooks_read() {
         let payload = parse_payload(
-            r#"{"session_id":"s1","cwd":"/a/b","transcript_path":"/t.jsonl","last_assistant_message":"the reply"}"#,
+            r#"{"session_id":"s1","cwd":"/a/b","transcript_path":"/t.jsonl","last_assistant_message":"the reply","agent_id":"agent_01"}"#,
         );
         assert_eq!(payload.session_id, "s1");
         assert_eq!(payload.cwd, "/a/b");
         assert_eq!(payload.transcript_path, "/t.jsonl");
         assert_eq!(payload.last_assistant_message, "the reply");
+        assert_eq!(payload.agent_id, "agent_01");
+    }
+
+    #[test]
+    fn an_agent_id_is_absent_rather_than_a_parse_failure_on_the_main_thread() {
+        // THE HOOKS REFERENCE STATES IT PLAINLY: `agent_id` is "present only
+        // when the hook fires inside a subagent call", so a main-thread
+        // payload naming none is the ordinary case, never something to guess
+        // at or report on.
+        assert_eq!(parse_payload(r#"{"session_id":"s1"}"#).agent_id, "");
     }
 
     #[test]

@@ -2850,6 +2850,84 @@ fn a_waiting_agent_leaves_a_marker_and_the_next_event_from_that_session_removes_
 }
 
 #[test]
+fn a_prompt_from_a_waiting_session_ends_its_wait() {
+    // THE OPERATOR ANSWERED BY TYPING, which `resolved` cannot see: the
+    // PostToolBatch clearing signal never fires for a PermissionRequest wait
+    // (Claude Code decides that off the hook's stdout, not off a later tool
+    // batch), so the lamp used to stay blue until the turn's Stop hook, one
+    // whole tool call after the operator already answered.
+    let sandbox = Sandbox::new("lights-blocked-prompt-clears");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    assert_eq!(waiting_sessions(&sandbox), vec!["s1".to_string()]);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"s1"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "a prompt from the waiting session is the operator, so the wait is over"
+    );
+}
+
+#[test]
+fn a_resolved_batch_with_no_agent_id_ends_its_sessions_wait() {
+    let sandbox = Sandbox::new("lights-blocked-resolved-clears");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "resolved",
+        r#"{"session_id":"s1"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "the batch this session was blocked on resolved, so the wait is over"
+    );
+}
+
+#[test]
+fn a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit() {
+    // A SUBAGENT'S BATCH SAYS NOTHING ABOUT THE OPERATOR. `agent_id` is
+    // present only when the hook fires inside a subagent call, and the
+    // parent's own wait is still exactly as answered as it was before this
+    // batch resolved. RESIDUAL, STATED HONESTLY: the parent's marker now
+    // stays lit until its Stop, one call later than it needs to.
+    let sandbox = Sandbox::new("lights-blocked-resolved-subagent");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "resolved",
+        r#"{"session_id":"s1","agent_id":"agent_01"}"#,
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "a subagent's batch must not clear the parent session's wait"
+    );
+}
+
+#[test]
 fn an_event_with_no_session_id_behind_it_holds_no_lamp() {
     // THE HONEST LIMIT, pinned so a later build cannot quietly invent an
     // identity: an event that arrives on argv rather than through a harness

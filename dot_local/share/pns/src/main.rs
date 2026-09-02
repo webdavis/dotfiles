@@ -247,7 +247,16 @@ fn hook_mode(event: &str) -> i32 {
     let agent = std::env::var("PNS_AGENT").unwrap_or_else(|_| "claude".to_string());
 
     match event {
-        "prompt" => start_of_turn(&payload),
+        // AND THE WAIT ENDS HERE TOO, beside the turn marker. A prompt is the
+        // operator typing, which answers ANY live wait their session could be
+        // holding: `resolved`'s PostToolBatch signal never fires for a
+        // PermissionRequest (Claude Code decides that off this hook's own
+        // stdout), so without this the lamp stayed blue until the turn's Stop,
+        // one whole tool call after the operator had already answered.
+        "prompt" => {
+            start_of_turn(&payload);
+            end_blocked_wait(&payload.session_id);
+        }
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
         "blocked" => return blocking_event(&payload, &agent, &payload_json),
@@ -259,7 +268,19 @@ fn hook_mode(event: &str) -> i32 {
         // the feature was on when the approval arrived, so clearing it is right
         // regardless of what the config says now, and that keeps this per-batch
         // path to a payload read, a parse and at most two file operations.
-        "resolved" => clear_nag(&payload.session_id),
+        //
+        // AND THE WAIT ENDS HERE TOO, GUARDED. `agent_id` is present only
+        // inside a subagent call, so a batch carrying one resolved a
+        // SUBAGENT'S tool, not the parent session's own wait on the operator;
+        // clearing on it anyway would go dark on a wait nobody has answered.
+        // RESIDUAL, STATED HONESTLY: the parent's marker then stays lit until
+        // its own Stop, same as before this fix.
+        "resolved" => {
+            clear_nag(&payload.session_id);
+            if payload.agent_id.is_empty() {
+                end_blocked_wait(&payload.session_id);
+            }
+        }
         // THE MID-TURN NOTIFICATIONS, which is what makes one arm right for
         // all three. Each reports something that happened INSIDE a turn that
         // is still running, so none of them touches the turn marker: the clock
@@ -536,6 +557,23 @@ fn update_blocked_marker(
         pns::lights::Action::End => {
             let _ = std::fs::remove_file(&marker);
         }
+    }
+}
+
+/// End this session's wait on the operator directly: a state-only file move
+/// in `clear_nag`'s style, with no event built, no config loaded and no
+/// decision made.
+///
+/// TWO CALLERS NEED EXACTLY THIS, both in `hook_mode`: `prompt`, because the
+/// operator answering a live wait by typing is not `resolved`'s signal
+/// (PermissionRequest is decided off this hook's stdout, never off a later
+/// PostToolBatch), and `resolved` itself, guarded there against a subagent's
+/// batch. Ending is unconditional, unlike starting one: see
+/// `update_blocked_marker`'s comment on why an End never checks the lamp
+/// switches.
+fn end_blocked_wait(session_id: &str) {
+    if let Some(marker) = pns::lights::blocked_marker(&state_dir(), session_id) {
+        let _ = std::fs::remove_file(&marker);
     }
 }
 
