@@ -124,6 +124,14 @@ run_script || {
   echo "a successful build must settle the trigger" >&2
   exit 1
 }
+# A cumulative total cannot tell a reversed change verdict from a correct one
+# (skip-when-changed plus restart-when-identical can total the same count as
+# restart-when-changed plus skip-when-identical), so each phase asserts its
+# own running count rather than one check at the end.
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 1 ]] || {
+  echo "the first install must kickstart the daemon exactly once" >&2
+  exit 1
+}
 
 # --- a rebuild while the old binary is RUNNING still replaces it -----------
 # The real mid-apply hazard: a producer (an agent hook, a long command, a
@@ -132,6 +140,10 @@ run_script || {
 # anew does not.
 touch "$home/.stub-build-sleeper"
 run_script
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
+  echo "a changed binary must kickstart again" >&2
+  exit 1
+}
 "$installed" 5 >/dev/null 2>&1 &
 running=$!
 sleep 0.3
@@ -142,15 +154,8 @@ run_script || {
 }
 kill "$running" 2>/dev/null || true
 wait "$running" 2>/dev/null || true
-
-# --- only a CHANGED binary bounces the daemon ------------------------------
-# The installs above changed the deployed bytes twice (the first install, then
-# the bash stub giving way to /bin/sleep) and the last rebuild reinstalled
-# identical bytes, so exactly two kickstarts may have been attempted.
-attempts="$(wc -l <"$kickstarts" | tr -d ' ')"
-[[ $attempts -eq 2 ]] || {
-  printf 'the daemon is kickstarted once per changed binary and never for an identical reinstall; attempts: %s\n' \
-    "$attempts" >&2
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
+  echo "an identical reinstall must not kickstart the daemon" >&2
   exit 1
 }
 
