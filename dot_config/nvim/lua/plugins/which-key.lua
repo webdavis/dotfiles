@@ -42,7 +42,7 @@ return {
         { "<leader>h", group = "harpoon" },
         { "<leader>i", group = "inspect" },
         { "<leader>j", group = "treejs" },
-        { "<leader>L", group = "lazyvim" },
+        { "<leader>L", group = "lazy" },
         { "<leader>l", group = "LSP" },
         { "<leader>m", group = "markdown" },
         { "<leader>n", group = "notifications／messages" },

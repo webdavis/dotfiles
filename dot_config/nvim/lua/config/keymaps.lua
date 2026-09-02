@@ -47,20 +47,20 @@ map({ mode = "n", lhs = "<leader>00", rhs = "quit", desc = "Quit: file" })
 map({ mode = "n", lhs = "<leader>0a", rhs = "qa", desc = "Quit: all files" })
 map({ mode = "n", lhs = "<leader>0A", rhs = "qa!", desc = "Quit: all files (force)" })
 
--- ┏━━━━━━━━━━━━━━┓
--- ┃    LazyVim   ┃
--- ┗━━━━━━━━━━━━━━┛
-map({ mode = "n", lhs = "<leader>LL", rhs = "Lazy", desc = "LazyVim: open dashboard" })
-map({ mode = "n", lhs = "<leader>Lh", rhs = "Lazy health", desc = "LazyVim: health" })
-map({ mode = "n", lhs = "<leader>Li", rhs = "Lazy install", desc = "LazyVim: install" })
-map({ mode = "n", lhs = "<leader>Lu", rhs = "Lazy update", desc = "LazyVim: update" })
-map({ mode = "n", lhs = "<leader>Ls", rhs = "Lazy sync", desc = "LazyVim: sync" })
-map({ mode = "n", lhs = "<leader>Lx", rhs = "Lazy clean", desc = "LazyVim: clean" })
-map({ mode = "n", lhs = "<leader>Lc", rhs = "Lazy check", desc = "LazyVim: check" })
-map({ mode = "n", lhs = "<leader>Ll", rhs = "Lazy log", desc = "LazyVim: logs" })
-map({ mode = "n", lhs = "<leader>Lr", rhs = "Lazy restore", desc = "LazyVim: restore" })
-map({ mode = "n", lhs = "<leader>Lp", rhs = "Lazy profile", desc = "LazyVim: profile" })
-map({ mode = "n", lhs = "<leader>Ld", rhs = "Lazy debug", desc = "LazyVim: debug" })
+-- ┏━━━━━━━━━━━━┓
+-- ┃    Lazy    ┃
+-- ┗━━━━━━━━━━━━┛
+map({ mode = "n", lhs = "<leader>LL", rhs = "Lazy", desc = "Lazy: open dashboard" })
+map({ mode = "n", lhs = "<leader>Lh", rhs = "Lazy health", desc = "Lazy: health" })
+map({ mode = "n", lhs = "<leader>Li", rhs = "Lazy install", desc = "Lazy: install" })
+map({ mode = "n", lhs = "<leader>Lu", rhs = "Lazy update", desc = "Lazy: update" })
+map({ mode = "n", lhs = "<leader>Ls", rhs = "Lazy sync", desc = "Lazy: sync" })
+map({ mode = "n", lhs = "<leader>Lx", rhs = "Lazy clean", desc = "Lazy: clean" })
+map({ mode = "n", lhs = "<leader>Lc", rhs = "Lazy check", desc = "Lazy: check" })
+map({ mode = "n", lhs = "<leader>Ll", rhs = "Lazy log", desc = "Lazy: logs" })
+map({ mode = "n", lhs = "<leader>Lr", rhs = "Lazy restore", desc = "Lazy: restore" })
+map({ mode = "n", lhs = "<leader>Lp", rhs = "Lazy profile", desc = "Lazy: profile" })
+map({ mode = "n", lhs = "<leader>Ld", rhs = "Lazy debug", desc = "Lazy: debug" })
 
 -- ┏━━━━━━━━━━━━┓
 -- ┃    Mason   ┃
