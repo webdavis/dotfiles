@@ -282,6 +282,12 @@ fn hook_mode(event: &str) -> i32 {
         // clearing on it anyway would go dark on a wait nobody has answered.
         // RESIDUAL, STATED HONESTLY: the parent's marker then stays lit until
         // its own Stop, same as before this fix.
+        // AND THIS ARM IS ASYNC (PostToolBatch, `async: true`), so it is
+        // UNORDERED against the next PermissionRequest and the batch's own
+        // `asked`: a late End can unlink a newer wait's marker, an early one
+        // can leave an answered `asked` lit. The same one-file-per-session
+        // limit `update_blocked_marker` states; bounded the same way, by the
+        // backstop and the session's next event.
         "resolved" => {
             clear_nag(&payload.session_id);
             if !payload.in_subagent {
