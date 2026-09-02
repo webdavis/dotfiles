@@ -146,7 +146,7 @@ local, flag, policy, so a repo whose project settings enable the plugin loads it
 `~/.claude/settings.json` says. Claude Code ships an `ineffective-disable` diagnostic for exactly that
 case (the diagnostic id and all five source names are in the shipped 2.1.220 binary, read 2026-08-02).
 
-## When the live file is not JSON, the whole apply dies
+## When the live file is not JSON, a run_before script quarantines it
 
 Reading the live file is what makes preserving its state possible, and a modify-template that cannot read
 it fails the entire run: every later target and every `run_after_` script is skipped, and the unreadable
@@ -154,20 +154,9 @@ file is left in place, so `permissions.deny` is not restored either. Whitespace-
 handled (the read is trimmed first), and so is anything that parses. A file that is non-empty and is not
 JSON, such as a write truncated by a crash or a full disk, is not, and no template can fix it: chezmoi's
 JSON readers all fail the template on bad input and Go templates have no error recovery, so there is
-nothing to fall back from.
+nothing to fall back from. That is why the repair runs BEFORE the template rather than inside it.
 
-**Recovery:** the apply's own error names `modify_settings.json`; repair `~/.claude/settings.json` if you
-can, and reach for deletion knowing what it costs. **Deleting re-enables every disabled plugin and drops
-every version pin.** Plugin state is the one managed thing the template reads out of the live file rather
-than declaring, so with nothing to read all thirteen ids render `true`. Everything else this repo manages
-does come back from the template, and free-drift keys are lost as before. Nothing reports the plugin loss
-afterwards, either: a rendered `false` is byte-identical to the live one, so `chezmoi status`,
-`chezmoi diff` and `just d` say nothing about this key in any case. Note the disabled set before
-deleting, by eye if the file no longer parses, and put it back with one `claude plugin disable <id>` per
-plugin. Repairing this automatically needs something that runs before the template, which does not exist
-yet.
-
-**A corrupt live file cannot block the apply**, because the repair runs first.
+**So a corrupt live file does not normally block the apply.**
 `.chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh` moves an unreadable settings
 file into `~/workspaces/backups/<timestamp>.claude-settings-quarantined.backup.json` (moved, never
 deleted; the timestamp uses hyphens, not colons), warns loudly, and leaves `{}` for the template to
@@ -175,6 +164,11 @@ rebuild from. A readable file is left byte-identical, including the shapes that 
 (empty, whitespace-only, a whole-file array), and an absent one stays absent. What the move costs is
 per-plugin state, which lives only in the live file: every declared plugin comes back enabled, so a
 disable has to be re-applied with `claude plugin disable <id>` after a quarantine.
+
+Two cases the script hands back to a human, and it says both out loud. With no `jq` on PATH it exits
+without a verdict rather than risk destroying a healthy file, and a move it cannot complete is reported
+with a warning that the apply will fail in `modify_settings.json` until the file is repaired by hand.
+Repair `~/.claude/settings.json` in either case; the apply's own error names the template.
 
 `test/unit/claude-enabled-plugins.sh` applies the template into a throwaway destination once per
 live-file shape per target OS and pins all of the above, including the three unparseable shapes, which it
