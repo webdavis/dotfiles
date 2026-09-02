@@ -130,6 +130,7 @@ packages:
         - just
         - librsvg
         - lmilojevicc/tap/seshagy
+        - luacheck
         - mas
         - mosh
         - mtr
@@ -166,6 +167,7 @@ packages:
         - steipete/tap/peekaboo
         - steipete/tap/remindctl
         - steipete/tap/sag
+        - stylua
         - swiftformat
         - swiftlint
         - switchaudio-osx

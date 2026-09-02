@@ -14,7 +14,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install the lint and test toolchain (Homebrew + uv, no nix)
-        run: brew install actionlint age bash bats-core chezmoi coreutils jq just shellcheck shfmt taplo treefmt uv yq zizmor && uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        run: brew install actionlint age bash bats-core chezmoi coreutils jq just luacheck shellcheck shfmt stylua taplo treefmt uv yq zizmor && uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Lint drift gate (treefmt)
         run: just lint-check
       - name: Run the repo test suite
