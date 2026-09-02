@@ -1179,6 +1179,62 @@ mod tests {
         );
     }
 
+    #[test]
+    fn core_and_armed_lights_defaults_are_written_live_never_commented() {
+        // TEXT-LEVEL, NOT PARSED: a `Default` mistakenly changed to an
+        // `Example` still parses back to the same value, since `parse_config`
+        // fills in the identical default either way, so a test that only
+        // reads the parsed config cannot tell a live default line from a
+        // commented one that happens to match. This test reads the rendered
+        // TEXT, scoped to each table's own heading so a shared key name
+        // (`duration_ms`, `high`, `low`) cannot borrow another table's line.
+        let text = render(&toml::Table::new()).expect("an empty walk still renders");
+        for expected in [
+            "[plugins.mobile]\nenabled = true\n",
+            "[plugins.macos-banner]\nenabled = true\n",
+            "[daemon]\nenabled = true\n",
+        ] {
+            assert!(text.contains(expected), "{expected} should be live: {text}");
+        }
+        for expected in ["\nreplay_card = true\n", "\ndigest = true\n", "\ndigest_as_thread = true\n"] {
+            assert!(text.contains(expected), "{expected} should be live: {text}");
+        }
+        // AND, WHILE LIGHTS IS ABSENT, none of its own defaults leak out live.
+        assert!(
+            !text.contains("\nduration_ms ="),
+            "a lights default rendered live while lights is absent: {text}"
+        );
+
+        let mut values = toml::Table::new();
+        values.insert("lights".to_string(), toml::Value::Table(toml::Table::new()));
+        let armed = render(&values).expect("an armed-empty lights table renders");
+        // HEADINGS PLUS THEIR PROSE-FREE KEYS, contiguous lines with nothing
+        // between them.
+        for expected in [
+            "[lights.done]\nduration_ms = 4000\nbrightness = 100\n",
+            "[lights.failed]\nduration_ms = 4000\nbrightness = 100\n",
+            "[lights.blocked]\nduration_ms = 2000\nhigh = 100\nlow = 30\n",
+            "[lights.unread]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
+            "[lights.loop]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
+            "[lights.dim]\nduration_ms = 3000\nhigh = 7\nlow = 1\n",
+        ] {
+            assert!(
+                armed.contains(expected),
+                "{expected} should be live once lights is armed: {armed}"
+            );
+        }
+        // THE KEYS THAT CARRY THEIR OWN COMMENT (`after_secs`,
+        // `threshold_secs`, `lease_timeout_secs`) sit behind that prose
+        // rather than right after the previous key's line, so they are
+        // checked on their own.
+        for expected in ["\nafter_secs = 300\n", "\nthreshold_secs = 300\n", "\nlease_timeout_secs = 3900\n"] {
+            assert!(
+                armed.contains(expected),
+                "{expected} should be live once lights is armed: {armed}"
+            );
+        }
+    }
+
     /// A secret marker for one keepassxc entry and field.
     fn secret(entry: &str, field: &str) -> toml::Value {
         let mut table = toml::Table::new();
