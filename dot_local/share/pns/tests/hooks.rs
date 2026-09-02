@@ -4058,3 +4058,563 @@ fn the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there(
         }
     }
 }
+
+// --- observation mode: the automatic model-switch arm ----------------------
+//
+// `Attempt::Observation` is the third attempt path (main.rs): an occurrence
+// the operator should hear about that changes no workflow or marker state.
+// D4's `auto` arm (a `PostModelSwitch` event whose `source` is `auto`) is its
+// first caller. Every test here plants its own precondition and asserts the
+// stub channel fired INSIDE it: an arm that never reaches `run_event` would
+// leave every marker-neutral file unchanged too, which would make the
+// negative assertions pass for the wrong reason.
+
+fn model_switch_payload(session: &str, source: &str) -> String {
+    format!(
+        r#"{{"session_id":"{session}","cwd":"/a/dotfiles","from_model":"claude-sonnet-4-5","to_model":"claude-opus-4-6","source":"{source}"}}"#
+    )
+}
+
+#[test]
+fn an_observation_does_not_clear_a_live_wait() {
+    // LOAD-BEARING. `blocked_marker_action("model-switch")` is `End`
+    // (lights.rs:690-696), and the End arm removes the marker UNGATED
+    // (main.rs:571-573), so this needs no `[lights]`/`[plugins.hue]` table at
+    // all: if the guard ever misrouted this as First, the marker would be
+    // gone regardless of whether the lamps are configured.
+    let sandbox = Sandbox::new("observation-live-wait");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state/lights-blocked")).expect("lights-blocked dir");
+    std::fs::write(sandbox.path("state/lights-blocked/s1"), "1700000000").expect("the marker");
+    let missed_before = state_lines(&sandbox, "missed-notifications");
+    let spool_before = spool_entries(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control: without a delivery the marker's survival proves nothing"
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "an observation must not clear a live wait"
+    );
+    assert_eq!(
+        state_lines(&sandbox, "missed-notifications"),
+        missed_before,
+        "an observation writes no journal entry"
+    );
+    assert_eq!(
+        spool_entries(&sandbox),
+        spool_before,
+        "an observation registers no lights tick"
+    );
+}
+
+#[test]
+fn an_observation_arms_no_unread_news() {
+    // `record_news` is deliberately UNGATED on the lamp switches, so this
+    // needs no lamp config either: an observation must not write it whether
+    // or not the machine has lamps at all.
+    let sandbox = Sandbox::new("observation-no-unread-news");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let missed_before = state_lines(&sandbox, "missed-notifications");
+    let spool_before = spool_entries(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert!(
+        !sandbox.path("state/lights-news").exists(),
+        "an observation arms no unread-news lamp"
+    );
+    assert_eq!(state_lines(&sandbox, "missed-notifications"), missed_before);
+    assert_eq!(spool_entries(&sandbox), spool_before);
+}
+
+#[test]
+fn an_observation_writes_no_activity_line() {
+    let sandbox = Sandbox::new("observation-no-activity-line");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let activity_before = state_lines(&sandbox, "activity");
+    let missed_before = state_lines(&sandbox, "missed-notifications");
+    let spool_before = spool_entries(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        state_lines(&sandbox, "activity"),
+        activity_before,
+        "an observation writes no activity-ring line"
+    );
+    assert_eq!(state_lines(&sandbox, "missed-notifications"), missed_before);
+    assert_eq!(spool_entries(&sandbox), spool_before);
+}
+
+#[test]
+fn an_observation_moves_no_presence_edge() {
+    // S3: `Sandbox::pns` sets PNS_IDLE_SECS=99999 (Away), and `mark_present`
+    // returns before writing while away, so a First-routed observation would
+    // ALSO leave `last-present` alone under the suite's default env. Force
+    // Present with PNS_IDLE_SECS=0.
+    //
+    // THE OBSERVATION IS CHECKED AGAINST THE STALE SEED DIRECTLY, never
+    // against a marker a same-second control call just wrote: two hook
+    // spawns close enough together can land in the same wall-clock second,
+    // and `mark_present`'s own `held >= now` guard would then leave a SECOND
+    // First event's write inert too, making a "does the observation move it
+    // further than the control did" comparison pass for the wrong reason
+    // (measured: it let a mutant that misroutes this arm as First stay
+    // green). Seeding a stale epoch and asserting it is UNCHANGED avoids the
+    // race regardless of timing.
+    let sandbox = Sandbox::new("observation-no-presence-edge");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
+    let missed_before = state_lines(&sandbox, "missed-notifications");
+    let spool_before = spool_entries(&sandbox);
+
+    let mut command = with_state_dir(&sandbox);
+    command.env("PNS_IDLE_SECS", "0");
+    let output = hook_with(
+        command,
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+        "1",
+        "an observation never claims the return moment"
+    );
+    assert_eq!(state_lines(&sandbox, "missed-notifications"), missed_before);
+    assert_eq!(spool_entries(&sandbox), spool_before);
+
+    // THE CONTROL, run AFTER on the SAME sandbox and the SAME stale seed:
+    // proves a First `done` event under this exact env DOES advance the
+    // marker, so the assertion above is not vacuously true under every
+    // attempt.
+    let mut control = with_state_dir(&sandbox);
+    control.env("PNS_IDLE_SECS", "0");
+    hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
+    assert_ne!(
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+        "1",
+        "the control: a First `done` event advances the presence edge"
+    );
+}
+
+#[test]
+fn an_observation_renews_no_loop_lease() {
+    let sandbox = Sandbox::new("observation-no-lease-renewal");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let lease_dir = sandbox.path("state/lights-loop");
+    std::fs::create_dir_all(&lease_dir).expect("lease dir");
+    std::fs::write(lease_dir.join("wW:p1"), "100\n").expect("an old lease");
+    let missed_before = state_lines(&sandbox, "missed-notifications");
+    let spool_before = spool_entries(&sandbox);
+
+    let mut command = with_state_dir(&sandbox);
+    command.env("HERDR_PANE_ID", "wW:p1");
+    let output = hook_with(
+        command,
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        std::fs::read_to_string(lease_dir.join("wW:p1")).unwrap_or_default(),
+        "100\n",
+        "an observation renews no loop lease"
+    );
+    assert_eq!(state_lines(&sandbox, "missed-notifications"), missed_before);
+    assert_eq!(spool_entries(&sandbox), spool_before);
+}
+
+#[test]
+fn an_observation_journals_no_missed_notification() {
+    // SOL 2a: the five negative assertions above prove nothing about
+    // `record_missed` by themselves. `was_missed` needs BOTH the plan's
+    // banner and phone card false, and those two are the SURFACE MATRIX's
+    // own output: Away always plans a card and Desk with an unreadable pane
+    // always plans a banner, whether or not a channel exists to carry it, so
+    // no combination of enabled plugins alone reaches this. The operator's
+    // own mute is the one thing that zeroes both unconditionally, which is
+    // what a First-attempt control proves is reachable under it.
+    let sandbox = Sandbox::new("observation-no-journal-write");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let expiry = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs()
+        + 600;
+    std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
+    let journal = sandbox.path("state/missed-notifications");
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired: hermes is the durable log and rides even a muted event"
+    );
+    assert!(!journal.exists(), "an observation writes no journal entry");
+
+    // THE CONTROL, run AFTER on the SAME sandbox: proves a First `stop`
+    // event under this exact muted config DOES journal a miss, so the
+    // assertion above is not vacuously true under every attempt.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s-control"}"#,
+    );
+    assert!(
+        journal.exists(),
+        "the control: a First `stop` event under this config journals a miss"
+    );
+}
+
+#[test]
+fn an_observation_replays_no_journal_entry() {
+    // SOL 2b: `should_replay` needs the plan to decorate (macos-banner or
+    // mobile), which `nag_config`'s enabled plugins do at the desk, and a
+    // seeded entry is what `claim_journal` would otherwise consume: without
+    // one, "the journal survives" is true whether or not the guard works,
+    // because there is nothing in it to lose.
+    let sandbox = Sandbox::new("observation-no-journal-replay");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    let journal = sandbox.path("state/missed-notifications");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    let seeded = "{\"at\":1756499000,\"agent\":\"claude\",\"state\":\"done\",\
+                  \"project\":\"p\",\"branch\":\"b\",\"detail\":\"planted\"}\n";
+    std::fs::write(&journal, seeded).expect("the journal");
+
+    let mut command = with_state_dir(&sandbox);
+    command.env("PNS_IDLE_SECS", "0");
+    let output = hook_with(
+        command,
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&journal).unwrap_or_default(),
+        seeded,
+        "an observation replays no journal entry"
+    );
+
+    // THE CONTROL, run AFTER on the SAME seeded journal: proves a First
+    // `stop` event under this exact env DOES consume it, so the assertion
+    // above is not vacuously true under every attempt.
+    let mut control = with_state_dir(&sandbox);
+    control.env("PNS_IDLE_SECS", "0");
+    hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
+    assert!(
+        !journal.exists(),
+        "the control: a First `stop` event under this env consumes the journal"
+    );
+}
+
+#[test]
+fn an_observation_registers_no_lights_tick() {
+    // SOL 2c: `nag_config`'s three channels enable no lamps at all, so tick
+    // registration cannot run under it whichever attempt fires. This needs
+    // its own `[lights]`/`[plugins.hue]` table, LAMPS_ON's own fixture.
+    let sandbox = Sandbox::new("observation-no-lights-tick");
+    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control fired"
+    );
+    assert!(
+        spool_entries(&sandbox).is_empty(),
+        "an observation registers no lights tick"
+    );
+
+    // THE CONTROL, run AFTER on the SAME sandbox: proves a First `stop`
+    // event under this exact lamps-live config DOES register the tick.
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s-control"}"#,
+    );
+    assert!(
+        !spool_entries(&sandbox).is_empty(),
+        "the control: a First `stop` event under this config registers the lights tick"
+    );
+}
+
+#[test]
+fn an_observation_still_delivers_and_is_logged() {
+    let sandbox = Sandbox::new("observation-delivers-and-logs");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    // THE MODEL NAMES CARRY CONTROL BYTES (a BEL, a CRLF), which the card
+    // must scrub through the same filter every other rendered field passes:
+    // a payload field reaches a banner and a Discord message verbatim
+    // otherwise, and the harness is not the only thing that can write one.
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","from_model":"claude-sonnet-4-5\u0007","to_model":"claude-opus-4-6\r\n","source":"auto"}"#,
+    );
+
+    assert!(output.status.success(), "an observation still exits 0");
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control: one card"
+    );
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "model-switch");
+    assert_eq!(event["agent"], "claude");
+    assert_eq!(
+        event["detail"],
+        "automatic session model change: claude-sonnet-4-5 to claude-opus-4-6"
+    );
+    let recorded =
+        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(lines.len(), 1, "one event, one line: {recorded:?}");
+    assert!(
+        lines[0].contains(" claude/model-switch "),
+        "the record names the harness and the state: {recorded:?}"
+    );
+    assert!(
+        lines[0].contains(" nag=no "),
+        "an observation is logged with no nag: {recorded:?}"
+    );
+}
+
+#[test]
+fn an_auto_switch_between_equal_names_delivers_nothing() {
+    // SOL 1: `source == "auto"` alone cannot tell a real switch from a
+    // harness re-announcing the model it was already on, so "opus to opus"
+    // must not become a card.
+    let sandbox = Sandbox::new("observation-equal-names-silent");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        r#"{"session_id":"s1","from_model":"claude-opus-4-6","to_model":"claude-opus-4-6","source":"auto"}"#,
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "opus to opus is not a transition worth a card"
+    );
+}
+
+#[test]
+fn an_auto_switch_missing_a_model_name_delivers_nothing() {
+    // SOL 1: a missing field becomes empty in the payload parser, and an
+    // empty name on either side is not a transition either.
+    let sandbox = Sandbox::new("observation-missing-model-silent");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        r#"{"session_id":"s1","from_model":"claude-opus-4-6","source":"auto"}"#,
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        0,
+        "a missing to_model has nothing on one side of the arrow"
+    );
+}
+
+#[test]
+fn an_auto_switch_strips_a_unicode_format_character_from_the_name() {
+    // SOL 1: `flattened` strips whitespace and `char::is_control` (the Cc
+    // set) but not Cf, so a right-to-left override survived it and could
+    // reorder the rendered line. It must not reach the card.
+    let sandbox = Sandbox::new("observation-invisible-character-stripped");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        "{\"session_id\":\"s1\",\"from_model\":\"claude-sonnet-4-5\",\"to_model\":\"claude-opus\u{202e}-4-6\",\"source\":\"auto\"}",
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"], "automatic session model change: claude-sonnet-4-5 to claude-opus-4-6",
+        "the override character is gone from the rendered name"
+    );
+}
+
+#[test]
+fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
+    // S2: THIS TEST IS VACUOUS ALONE. An unknown hook word exits 0 and writes
+    // nothing (the catch-all arm), so "a non-auto source delivers nothing"
+    // would be true even with no `model-switch` arm at all. Prove `auto`
+    // fires FIRST, on this same sandbox, then prove every other documented
+    // source leaves every trace byte-identical to that snapshot.
+    let sandbox = Sandbox::new("observation-non-auto-source-silent");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "model-switch",
+        &model_switch_payload("s1", "auto"),
+    );
+    assert!(output.status.success(), "auto still exits 0");
+    assert_eq!(deliveries(&sandbox, "hermes"), 1, "auto delivers");
+    let deliveries_after_auto = deliveries(&sandbox, "hermes");
+    let decisions_after_auto =
+        std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default();
+    let activity_after_auto = state_lines(&sandbox, "activity");
+    let present_after_auto =
+        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default();
+
+    // The four other documented words, then the shapes the reference does
+    // not list: a `source` that is missing, empty, of the wrong type, spelled
+    // in the wrong case, or a word it never documents. Each reads as not
+    // `auto`, and not `auto` is silence; a gate that let an ABSENT source
+    // through would fire on every harness that sends none.
+    let documented = ["command", "picker", "sdk", "resume"]
+        .map(|source| (source.to_string(), model_switch_payload("s2", source)));
+    let unlisted = [
+        (
+            "missing",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b"}"#,
+        ),
+        (
+            "empty",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":""}"#,
+        ),
+        (
+            "a number",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":7}"#,
+        ),
+        (
+            "AUTO",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":"AUTO"}"#,
+        ),
+        (
+            "manual",
+            r#"{"session_id":"s2","from_model":"a","to_model":"b","source":"manual"}"#,
+        ),
+    ]
+    .map(|(label, payload)| (label.to_string(), payload.to_string()));
+    for (source, payload) in documented.into_iter().chain(unlisted) {
+        let output = hook_with(with_state_dir(&sandbox), &sandbox, "model-switch", &payload);
+        assert!(output.status.success(), "{source}: still exits 0");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            deliveries_after_auto,
+            "{source}: delivers nothing"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default(),
+            decisions_after_auto,
+            "{source}: writes no decision line"
+        );
+        assert_eq!(
+            state_lines(&sandbox, "activity"),
+            activity_after_auto,
+            "{source}: writes no activity line"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+            present_after_auto,
+            "{source}: moves no presence edge"
+        );
+    }
+}

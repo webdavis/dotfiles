@@ -28,7 +28,7 @@ use pns::channels::{Delivery, native_first};
 use pns::config::{LoadOutcome, config_path, load_config};
 use pns::engine::{Overrides, decide};
 use pns::hooks::{
-    HookPayload, condenser_prompt, condenser_verdict, moshi_subcommand, parse_payload,
+    HookPayload, condenser_prompt, condenser_verdict, flattened, moshi_subcommand, parse_payload,
     transcript_reply,
 };
 use pns::registry::{roster, select_plugins};
@@ -153,7 +153,8 @@ const USAGE: &str = "\
 pns: usage:
   pns [<producer flags>]           one notification, stated in argv
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
-                                   blocked, asked, plan-ready, denied, resolved
+                                   blocked, asked, plan-ready, denied, resolved,
+                                   model-switch
   pns gate <harness>-hook          presence-gated pass-through to moshi-hook
   pns <harness>-hook               the same gate, spelled the way moshi calls it
   pns pulse <exit-code>            signal the lamps by hand
@@ -228,6 +229,32 @@ fn gate_mode(subcommand: &str) -> i32 {
     // would leave this one hanging.
     spawn_moshi_hook(subcommand, &payload)
         .map_or(0, |child| answer_within(child, submit_deadline()))
+}
+
+/// The automatic model-switch card's detail, or `None` when there is no
+/// transition worth one: either name empty once flattened and stripped of
+/// invisible characters, or the two equal once stripped.
+///
+/// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
+/// `flattened` is shared by every other rendered field on this path, and
+/// `main.rs` is the one caller with an equality test that a reordering
+/// character could defeat silently (a name that reads the same but compares
+/// unequal, or the reverse). Widening `flattened` itself for one caller would
+/// let every other field silently start allowing format characters through
+/// too.
+fn model_switch_detail(from_model: &str, to_model: &str) -> Option<String> {
+    let visible = |name: &str| -> String {
+        flattened(name)
+            .chars()
+            .filter(|character| !pns::recap::is_invisible(*character))
+            .collect()
+    };
+    let from = visible(from_model);
+    let to = visible(to_model);
+    if from.is_empty() || to.is_empty() || from == to {
+        return None;
+    }
+    Some(format!("automatic session model change: {from} to {to}"))
 }
 
 /// A harness event, from the payload on stdin.
@@ -319,6 +346,37 @@ fn hook_mode(event: &str) -> i32 {
             &payload,
             Attempt::First,
         ),
+        // `PostModelSwitch`, restricted to the one `source` that is news:
+        // `command`, `picker` and `sdk` are the operator or the harness
+        // choosing a model on purpose, and `resume`, which the harness also
+        // does on its own, is D4b's own follow-up (a state-only audit record,
+        // not a notification). Only `auto` is routed, and it is routed as an
+        // OBSERVATION: it is news about the session, not a turn needing the
+        // operator's attention, so it must not clear a wait, renew a lease or
+        // claim the return moment. Labelled "automatic session model
+        // change", never "fallback": the payload cannot tell a fallback
+        // chain apart from every other automatic change.
+        // NEITHER NAME IS AN OPINION WORTH A CARD, so the arm writes nothing
+        // at all when `model_switch_detail` finds equal names once flattened
+        // and stripped, or either side empty.
+        "model-switch" if payload.source == "auto" => {
+            if let Some(detail) = model_switch_detail(&payload.from_model, &payload.to_model) {
+                run_event(
+                    &pns::args::EventArgs {
+                        agent,
+                        state: event.to_string(),
+                        project: project_of(&payload.cwd),
+                        detail,
+                        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                        ..Default::default()
+                    },
+                    &system_probes(),
+                    &payload,
+                    Attempt::Observation,
+                );
+            }
+        }
+        "model-switch" => {}
         // An event this binary does not serve is not an error the harness
         // should hear about on a notification path.
         _ => eprintln!("pns: unknown hook event `{event}`"),
@@ -2325,18 +2383,31 @@ fn event_mode(argv: &[String]) {
     );
 }
 
-/// Whether this is the event's FIRST delivery or a NUDGE about one already
-/// recorded.
+/// Whether this is the event's FIRST delivery, a NUDGE about one already
+/// recorded, or an OBSERVATION.
 ///
 /// ONE ARGUMENT RATHER THAN A SECOND EVENT PATH. A nudge is an ordinary event
 /// in every respect an operator can see (the mute, the named Focus modes, the
 /// quiet window, the surface and visibility plan, fresh probes taken in the
 /// nudge's own process); what it is not is a second OCCURRENCE, and the
 /// contiguous tail of `run_event` is what records occurrences.
+///
+/// AN OBSERVATION IS THE SAME KIND OF NON-OCCURRENCE, for a different reason:
+/// it is a harness telling pns about something that happened rather than a
+/// turn needing the operator's attention, so it changes no workflow or marker
+/// state and is routed marker-neutral through the same tail a nudge skips.
+/// It is still recorded as a decision (`record_decision` runs before the
+/// guard for every attempt), just with `nag=no`.
+///
+/// AN OBSERVATION SHAPED LIKE A `PermissionRequest` IS TOO LATE TO GATE HERE.
+/// `blocking_event` forwards to moshi and arms the nag before `run_event`
+/// ever runs, so this guard cannot undo either one; a caller on that path
+/// must refuse the observation at the top of `blocking_event` itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Attempt {
     First,
     Nudge,
+    Observation,
 }
 
 /// One notification, end to end: decide, render, dispatch. THE one event path,
@@ -2512,23 +2583,25 @@ fn run_event(
         agent_id: &payload.agent_id,
         tool_name: &payload.tool_name,
     });
-    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge
-    // returns here, so it writes no journal entry, no activity-ring line, never
-    // claims the return moment through `mark_present`, never triggers
-    // `replay_missed` and never pulses.
+    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge or
+    // an observation returns here, so it writes no journal entry, no
+    // activity-ring line, never claims the return moment through
+    // `mark_present`, never triggers `replay_missed` and never pulses.
     //
     // EACH IS A DEFECT AVOIDED RATHER THAN TIDINESS. The recap counts
-    // activity-ring lines toward `min_events`, so a nudge that rang would
-    // inflate the operator's own recap with pns's noise; a nudge is not
-    // evidence of presence, so it must not move the last-present marker; and
-    // the pulse falling out here is how "escalation is not a colour" stays
-    // enforced without touching the lights at all.
+    // activity-ring lines toward `min_events`, so a nudge or an observation
+    // that rang would inflate the operator's own recap with pns's noise;
+    // neither is evidence of presence, so neither must move the last-present
+    // marker; and the pulse falling out here is how "escalation is not a
+    // colour" stays enforced without touching the lights at all.
     //
-    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately. Muted, inside a named
+    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately, and AN OBSERVATION
+    // NEVER RENEWS A LEASE OR ARMS A LAMP, for the same reason from the other
+    // side: it is not an occurrence to replay later. Muted, inside a named
     // Focus, or planned to nothing means the nudge does not happen and is not
     // journaled for replay: a "still waiting" card replayed hours later, about
     // a question answered long ago, is worse than silence.
-    if attempt == Attempt::Nudge {
+    if attempt != Attempt::First {
         return;
     }
     // THE JOURNAL GOES WITH IT, inheriting the ordering contract stated above
