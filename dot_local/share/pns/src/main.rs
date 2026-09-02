@@ -5642,7 +5642,10 @@ struct Breathing {
     /// phase is recorded under, and what the next tick compares its own state
     /// against before it resumes anything.
     held: pns::lights::Held,
-    breath: pns::config::Breath,
+    /// The legs this lamp fades between, in order. WHICH SHAPE THEY CAME FROM
+    /// IS ALREADY SETTLED (`held_render`), so the driver schedules a two-leg
+    /// breath and the loop's three-leg motion through one path.
+    cycle: Vec<pns::lights::Leg>,
     color: pns::pulse::PulseColor,
     resume: pns::lights::Resume,
 }
@@ -5737,7 +5740,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
             if showing == pns::channels::hue::Showing::Dark {
                 continue;
             }
-            let (color, breath) = pns::channels::hue::held_render(held, lights, showing);
+            let (color, cycle) = pns::channels::hue::held_render(held, lights, showing);
             let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
             // A LAMP NOT NAMED IN LAST TICK'S RECORD, OR NAMED THERE WITH NO
             // PHASE, RESUMES AT THE DEFAULT: a fresh arm, an external switch,
@@ -5745,11 +5748,11 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
             // read the same way, and all cost at most one fade of motion.
             let previous =
                 held_before.and_then(|entries| entries.iter().find(|entry| entry.path == path));
-            let resume = pns::lights::resume_from(previous, now_ms, held, &breath);
+            let resume = pns::lights::resume_from(previous, now_ms, held, &cycle);
             breathing.push(Breathing {
                 path,
                 held,
-                breath,
+                cycle,
                 color,
                 resume,
             });
@@ -5835,14 +5838,16 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
                     // this tick's, so a record written without that term would
                     // put every end a whole resolve early and the next tick
                     // would take the breath over before this one finished it.
-                    .map(|(path, end, end_relative_ms)| pns::lights::HeldEntry {
-                        path: path.clone(),
-                        resume: Some(pns::lights::Phase {
-                            end_unix_ms: now_ms + spent_ms + end_relative_ms,
-                            end: *end,
-                            held: entry.held,
-                        }),
-                    })
+                    .map(
+                        |(path, landed_on, end_relative_ms)| pns::lights::HeldEntry {
+                            path: path.clone(),
+                            resume: Some(pns::lights::Phase {
+                                end_unix_ms: now_ms + spent_ms + end_relative_ms,
+                                landed_on: *landed_on,
+                                held: entry.held,
+                            }),
+                        },
+                    )
                     .unwrap_or_else(|| pns::lights::HeldEntry::bare(entry.path.clone()))
             })
             .collect();
@@ -5885,7 +5890,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
 /// A LAMP WHOSE FADES ARE ALREADY DONE SIMPLY STOPS, which is how lamps with
 /// different shapes share one schedule: the blocked lamp's two-second cycles run
 /// more often than the unread lamp's four-second one, and the landing each is
-/// reported at is exactly the end its own last ISSUED fade targeted.
+/// reported at is exactly the brightness its own last ISSUED fade targeted.
 ///
 /// THE CLOCK AND THE SLEEPER ARE PARAMETERS for one reason: the driver fills its
 /// whole interval BY DESIGN, so a test that read the real clock and slept for
@@ -5897,39 +5902,35 @@ fn drive_breaths<B: pns::channels::hue::Bridge>(
     breathing: &[Breathing],
     mut elapsed_ms: impl FnMut() -> u64,
     mut sleep: impl FnMut(Duration),
-) -> Vec<(String, pns::lights::End, u64)> {
-    // (due millisecond, the lamp this fade belongs to, the end it moves toward,
-    // body), in the order they are due.
-    let mut schedule: Vec<(u64, &Breathing, pns::lights::End, String)> = Vec::new();
+) -> Vec<(String, u8, u64)> {
+    // (the fade, the lamp it belongs to, its body), in the order they are due.
+    let mut schedule: Vec<(pns::lights::Fade, &Breathing, String)> = Vec::new();
     for entry in breathing {
-        let fades = pns::lights::breath_fades(budget_ms, &entry.breath, entry.resume);
+        let fades = pns::lights::breath_fades(budget_ms, &entry.cycle, entry.resume);
         for (index, fade) in fades.iter().enumerate() {
             // THE FIRST FADE CARRIES THE COLOUR AND THE `on`, which is what arms
             // the lamp; every one after it states brightness and duration alone,
             // so the bridge has nothing else to reconcile mid-transition. THIS
             // HOLDS ON A RESUMED TICK TOO: an externally switched-off lamp comes
-            // back on with its first fade whichever end the record names.
+            // back on with its first fade whichever leg the record names.
             let body = if index == 0 {
-                pns::channels::hue::breath_arm_body(entry.color, fade, entry.breath.duration_ms)
+                pns::channels::hue::breath_arm_body(entry.color, fade)
             } else {
-                pns::channels::hue::fade_body(fade, entry.breath.duration_ms)
+                pns::channels::hue::fade_body(fade)
             };
-            let end = if fade.brightness == entry.breath.high {
-                pns::lights::End::High
-            } else {
-                pns::lights::End::Low
-            };
-            schedule.push((fade.start_ms, entry, end, body));
+            schedule.push((*fade, entry, body));
         }
     }
-    schedule.sort_by(|left, right| (left.0, &left.1.path).cmp(&(right.0, &right.1.path)));
-    let mut landings: Vec<(String, pns::lights::End, u64)> = Vec::new();
-    for (due_ms, entry, end, body) in schedule {
+    schedule.sort_by(|left, right| {
+        (left.0.start_ms, &left.1.path).cmp(&(right.0.start_ms, &right.1.path))
+    });
+    let mut landings: Vec<(String, u8, u64)> = Vec::new();
+    for (fade, entry, body) in schedule {
         // SATURATING, so a write that ran long simply issues the next fade at
         // once rather than sleeping a wrapped duration.
         let now_ms = elapsed_ms();
-        if due_ms > now_ms {
-            sleep(Duration::from_millis(due_ms - now_ms));
+        if fade.start_ms > now_ms {
+            sleep(Duration::from_millis(fade.start_ms - now_ms));
         }
         // READ AGAIN AFTER THE SLEEP, because the sleep is the one thing here
         // that is allowed to overshoot, and this is the moment the write starts.
@@ -5938,7 +5939,16 @@ fn drive_breaths<B: pns::channels::hue::Bridge>(
             break;
         }
         bridge.put(&entry.path, &body);
-        let landing = (entry.path.clone(), end, at_ms + entry.breath.duration_ms);
+        // THE FADE'S OWN DURATION, so the accent at the peak of the loop's
+        // motion is recorded landing two hundred milliseconds out rather than
+        // four seconds out. A landing taken from the shape instead would tell
+        // the next tick the lamp finishes moving long after it has, and that
+        // tick would hold the lamp still waiting for it.
+        let landing = (
+            entry.path.clone(),
+            fade.brightness,
+            at_ms + fade.duration_ms,
+        );
         match landings.iter_mut().find(|(path, _, _)| *path == entry.path) {
             Some(previous) => *previous = landing,
             None => landings.push(landing),
@@ -9145,7 +9155,7 @@ mod tests {
             path: LAMP_PATH.to_string(),
             resume: Some(pns::lights::Phase {
                 end_unix_ms: 1_700_000_000_123,
-                end: pns::lights::End::High,
+                landed_on: 100,
                 held: pns::lights::Held::Blocked,
             }),
         };
@@ -9427,7 +9437,7 @@ mod tests {
                 path: LAMP_PATH.to_string(),
                 resume: Some(pns::lights::Phase {
                     end_unix_ms: 1_700_000_000_123,
-                    end: pns::lights::End::High,
+                    landed_on: 100,
                     held: pns::lights::Held::Blocked,
                 }),
             }]),
@@ -9623,7 +9633,22 @@ mod tests {
         // tick after tick piling up, each still dialling while the next was
         // spawned. What has to hold is that the three fit with room left for a
         // breath, at both ends of the range the config accepts.
-        for refresh_secs in [10, 12, 20, 30] {
+        //
+        // EVERY LEGAL INTERVAL AND NOT A SAMPLE OF FOUR. `tick_bridge_deadline`
+        // divides by five, so the budget is a STEP FUNCTION of the refresh and
+        // a four-point sample walks straight past whichever step is tight.
+        let shipped = pns::config::Lights::default();
+        let cycles = [
+            (
+                "the locked blocked shape",
+                pns::lights::breath_cycle(&shipped.blocked.breath),
+            ),
+            (
+                "the locked loop motion",
+                pns::lights::breathe_then_flare_cycle(&shipped.looping.breathe_then_flare),
+            ),
+        ];
+        for refresh_secs in pns::config::MIN_REFRESH_SECS..=pns::config::MAX_REFRESH_SECS {
             let three = tick_bridge_deadline(refresh_secs).as_millis() * 3;
             let interval = u128::from(refresh_secs) * 1000;
             assert!(
@@ -9631,15 +9656,39 @@ mod tests {
                 "refresh {refresh_secs}s: three calls at {three}ms do not fit"
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
-            assert!(
-                !pns::lights::breath_fades(
-                    left,
-                    &pns::config::Lights::default().blocked.breath,
-                    pns::lights::Resume::default()
-                )
-                .is_empty(),
-                "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
-            );
+            for (named, cycle) in &cycles {
+                assert!(
+                    !pns::lights::breath_fades(left, cycle, pns::lights::Resume::default())
+                        .is_empty(),
+                    "refresh {refresh_secs}s: the {left}ms left over will not hold one \
+                     cycle of {named}"
+                );
+                // AND RESUMED AT THE WORST A LIVE RECORD CAN LEAVE, which is the
+                // case a fresh schedule never reaches: `resume_from` caps a
+                // phase at the step of the leg it names, so the latest first
+                // fade any tick can inherit is the cycle's longest leg's step.
+                // A schedule that comes back EMPTY there is a lamp holding
+                // still for a whole interval, which is the one thing a liveness
+                // signal must never do.
+                let worst = cycle
+                    .iter()
+                    .map(|leg| pns::lights::step_ms(leg.duration_ms))
+                    .max()
+                    .expect("a cycle has legs");
+                assert!(
+                    !pns::lights::breath_fades(
+                        left,
+                        cycle,
+                        pns::lights::Resume {
+                            first_due_ms: worst,
+                            next_leg: 0,
+                        }
+                    )
+                    .is_empty(),
+                    "refresh {refresh_secs}s: {named} resumed a whole {worst}ms step \
+                     late has no room in the {left}ms the interval leaves"
+                );
+            }
         }
     }
 
@@ -9812,14 +9861,14 @@ mod tests {
                 Breathing {
                     path: "light/a".to_string(),
                     held: pns::lights::Held::Blocked,
-                    breath: quick,
+                    cycle: pns::lights::breath_cycle(&quick),
                     color: pns::pulse::BLOCKED_COLOR,
                     resume: pns::lights::Resume::default(),
                 },
                 Breathing {
                     path: "light/b".to_string(),
                     held: pns::lights::Held::Looping,
-                    breath: slow,
+                    cycle: pns::lights::breath_cycle(&slow),
                     color: pns::pulse::LOOP_COLOR,
                     resume: pns::lights::Resume::default(),
                 },
@@ -9869,11 +9918,11 @@ mod tests {
             &[Breathing {
                 path: "light/a".to_string(),
                 held: pns::lights::Held::Blocked,
-                breath: pns::config::Breath {
+                cycle: pns::lights::breath_cycle(&pns::config::Breath {
                     duration_ms: 2_000,
                     high: 100,
                     low: 30,
-                },
+                }),
                 color: pns::pulse::BLOCKED_COLOR,
                 resume: pns::lights::Resume::default(),
             }],
@@ -9888,7 +9937,7 @@ mod tests {
         );
         assert_eq!(
             landings,
-            vec![("light/a".to_string(), pns::lights::End::High, 11_000)],
+            vec![("light/a".to_string(), 100, 11_000)],
             "the last write really happened at 9,000ms and its fade runs 2,000ms \
              from there, so the next tick resumes off 11,000ms rather than off the \
              13,700ms the nominal schedule would have claimed"
@@ -9937,7 +9986,7 @@ mod tests {
                 path: LAMP_PATH.to_string(),
                 resume: Some(pns::lights::Phase {
                     end_unix_ms: 12_500,
-                    end: pns::lights::End::High,
+                    landed_on: 100,
                     held: pns::lights::Held::Blocked,
                 }),
             }],
@@ -9987,7 +10036,7 @@ mod tests {
                 path: LAMP_PATH.to_string(),
                 resume: Some(pns::lights::Phase {
                     end_unix_ms: 13_700,
-                    end: pns::lights::End::Low,
+                    landed_on: 30,
                     held: pns::lights::Held::Blocked,
                 }),
             }],

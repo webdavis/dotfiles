@@ -644,14 +644,41 @@ pub fn pulse_fires(
     shows.contains(&behaviour) && !lamp_is_held
 }
 
-/// One brightness the lamp is asked to fade to, and when the fade is issued.
+/// One leg of a lamp's cycle: the brightness it fades to, and how long that
+/// one fade takes.
+///
+/// THE CYCLE IS A LIST OF THESE, and every shape the lamps run is one. A plain
+/// breath is two legs of equal duration; the loop's `breathe_then_flare` is
+/// three, the third of them short. Which shape a lamp is running is settled
+/// once, where the state is rendered, and everything below this point schedules
+/// legs without knowing which shape it was handed.
+///
+/// EACH LEG CARRIES ITS OWN DURATION rather than the cycle carrying one for all
+/// of them. An accent is short by definition, so a single duration per shape
+/// would have to be either the accent's or the breath's, and whichever it was
+/// the other fade would be issued with the wrong one: told to the bridge as the
+/// transition time, and used again to work out when the fade lands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Leg {
+    pub brightness: u8,
+    pub duration_ms: u64,
+}
+
+/// One brightness the lamp is asked to fade to, how long that fade takes, and
+/// when it is issued.
 ///
 /// `start_ms` IS FROM THE TICK'S OWN START, not from the fade before it, because
 /// the driver sleeps against one clock: a per-fade delay accumulates every
 /// sleep's own overshoot and the breath drifts past the interval it has.
+///
+/// `duration_ms` IS THE LEG'S OWN, carried here rather than looked up again by
+/// the driver: the fade and the time it takes are one fact, and a driver that
+/// reached back to a shape for the second one would state the accent's fade at
+/// the breath's duration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fade {
     pub brightness: u8,
+    pub duration_ms: u64,
     pub start_ms: u64,
 }
 
@@ -663,53 +690,66 @@ pub struct Fade {
 /// looked at; nothing here measured what a lead of zero looks like.
 pub const FADE_LEAD_MS: u64 = 50;
 
-/// Which end of a breath a lamp is fading TOWARD, or landed ON.
-///
-/// TWO VALUES, NEVER A BARE BOOL, because this crosses a file boundary (the
-/// held record's `:h`/`:l` suffix): a field that only this module reads can
-/// afford to be self-documenting at the call site instead of at its
-/// declaration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum End {
-    High,
-    Low,
-}
-
 /// Where a breath resumes: the millisecond its first fade is due, measured
-/// from THIS tick's own start, and which end it moves toward first.
+/// from THIS tick's own start, and which leg of the cycle it takes first.
 ///
-/// A ZERO-VALUED `Resume` (due at once, moving toward low first) REPRODUCES
-/// THE ORIGINAL, UNBROKEN BREATH: a lamp with no record to resume from is a
-/// lamp that has never breathed, and starting it down at the tick's first
-/// millisecond is the only honest answer for one.
+/// A ZERO-VALUED `Resume` (due at once, taking leg zero) REPRODUCES THE
+/// ORIGINAL, UNBROKEN BREATH: every cycle is built with its LOW leg first, so
+/// leg zero is the breath starting down, and a lamp with no record to resume
+/// from is a lamp that has never breathed. Starting it down at the tick's
+/// first millisecond is the only honest answer for one.
 ///
-/// A NAMED STRUCT, NOT TWO POSITIONAL `u64`S, because a resume built with the
+/// A NAMED STRUCT, NOT TWO POSITIONAL NUMBERS, because a resume built with the
 /// fields swapped would compile and breathe the wrong way from the wrong
 /// moment; the two are never interchangeable so the type keeps them apart.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Resume {
     pub first_due_ms: u64,
-    pub from_high: bool,
+    pub next_leg: usize,
 }
 
-impl Default for Resume {
-    fn default() -> Self {
-        Resume {
-            first_due_ms: 0,
-            from_high: true,
-        }
-    }
+/// The two legs of a plain breath, LOW FIRST.
+///
+/// THE ORDER IS THE DEFAULT RESUME'S MEANING: leg zero is what a lamp with no
+/// record takes, and the locked answer for one is to start down.
+pub fn breath_cycle(breath: &crate::config::Breath) -> Vec<Leg> {
+    vec![
+        Leg {
+            brightness: breath.low,
+            duration_ms: breath.duration_ms,
+        },
+        Leg {
+            brightness: breath.high,
+            duration_ms: breath.duration_ms,
+        },
+    ]
 }
 
-/// How long one fade of a breath occupies the schedule: its own duration, less
-/// the lead the next fade is issued by.
+/// The three legs of the loop lamp's motion: down, up, and the accent at the
+/// peak.
+///
+/// THE ACCENT FOLLOWS THE RISE AND PRECEDES THE FALL, which is what puts it at
+/// the peak: from `low` the lamp rises to `high`, flares briefly past it, and
+/// falls from there back to `low`. Operator-locked by eye on a real lamp
+/// (2026-09-02) after six other motions were shown and rejected.
+pub fn breathe_then_flare_cycle(motion: &crate::config::BreatheThenFlare) -> Vec<Leg> {
+    let mut cycle = breath_cycle(&motion.breath);
+    cycle.push(Leg {
+        brightness: motion.flare,
+        duration_ms: motion.flare_ms,
+    });
+    cycle
+}
+
+/// How long one fade occupies the schedule: its own duration, less the lead
+/// the next fade is issued by.
 ///
 /// ONE DEFINITION, read by the schedule that lays the fades out and by the
 /// resume that decides how far ahead a recorded phase may honestly sit. Two
 /// copies of this arithmetic would let the two disagree about what a step is,
 /// and the resume's staleness rule is stated in steps.
-pub fn step_ms(breath: &crate::config::Breath) -> u64 {
-    breath.duration_ms.saturating_sub(FADE_LEAD_MS).max(1)
+pub fn step_ms(duration_ms: u64) -> u64 {
+    duration_ms.saturating_sub(FADE_LEAD_MS).max(1)
 }
 
 /// The whole breath one tick issues: the fades, in order, with the second one
@@ -738,37 +778,42 @@ pub fn step_ms(breath: &crate::config::Breath) -> u64 {
 /// than an average, and the lamp holds an end for a fraction of a fade rather
 /// than for a third of the interval.
 ///
-/// A RESUME SHIFTS EVERY FADE'S DUE MILLISECOND by `first_due_ms` and its
-/// FIRST TARGET by `from_high` (moving toward `low` when `from_high`, and
-/// toward `high` otherwise), so the schedule this tick issues is the next leg
-/// of the breath the previous tick was already running, not a fresh one
-/// restarted at the interval's zero.
+/// A RESUME SHIFTS EVERY FADE'S DUE MILLISECOND by `first_due_ms` and picks
+/// the leg the cycle carries on from with `next_leg`, so the schedule this
+/// tick issues is the next stretch of the breath the previous tick was already
+/// running, not a fresh one restarted at the interval's zero.
+///
+/// THE CYCLE IS WALKED, NOT ALTERNATED. Two legs and three schedule the same
+/// way, which is what lets the loop's accent be a leg rather than a special
+/// case threaded through the driver: the step each fade occupies is its OWN
+/// leg's, so a 200ms accent takes 150ms of the schedule while the 4000ms legs
+/// around it take 3950ms each.
 ///
 /// A SCHEDULE THAT WOULD START AT OR PAST THE BUDGET IS EMPTY, which is the
 /// same honest answer a schedule with no room for even one fade always gave:
 /// the lamp keeps whatever it was last told and the next tick, with its whole
 /// interval ahead of it, picks the breath back up.
-pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resume) -> Vec<Fade> {
-    let step_ms = step_ms(breath);
-    if resume.first_due_ms >= budget_ms {
+pub fn breath_fades(budget_ms: u64, cycle: &[Leg], resume: Resume) -> Vec<Fade> {
+    if cycle.is_empty() || resume.first_due_ms >= budget_ms {
         return Vec::new();
     }
-    let remaining_ms = budget_ms - resume.first_due_ms;
-    let count = remaining_ms.div_ceil(step_ms);
-    (0..count)
-        .map(|index| Fade {
-            brightness: if (index % 2 == 0) == resume.from_high {
-                breath.low
-            } else {
-                breath.high
-            },
-            start_ms: resume.first_due_ms + index * step_ms,
-        })
-        .collect()
+    let mut fades = Vec::new();
+    let mut leg = resume.next_leg % cycle.len();
+    let mut start_ms = resume.first_due_ms;
+    while start_ms < budget_ms {
+        fades.push(Fade {
+            brightness: cycle[leg].brightness,
+            duration_ms: cycle[leg].duration_ms,
+            start_ms,
+        });
+        start_ms += step_ms(cycle[leg].duration_ms);
+        leg = (leg + 1) % cycle.len();
+    }
+    fades
 }
 
 /// Where one lamp's breath left off: the instant its last issued fade lands,
-/// the end it lands ON, and the STATE that breath was showing.
+/// the BRIGHTNESS it lands on, and the STATE that breath was showing.
 ///
 /// THE STATE IS PART OF THE PHASE, not a separate question. A phase is only
 /// worth resuming while the lamp is still breathing the same shape in the same
@@ -780,7 +825,18 @@ pub fn breath_fades(budget_ms: u64, breath: &crate::config::Breath, resume: Resu
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Phase {
     pub end_unix_ms: u64,
-    pub end: End,
+    /// The brightness the last issued fade was moving toward, which is the leg
+    /// of the cycle it was running.
+    ///
+    /// THE BRIGHTNESS AND NOT THE LEG'S INDEX, because an index means nothing
+    /// without the cycle it counts into and the cycle a lamp runs can change
+    /// between two ticks: a loop lamp entering its dim window swaps a
+    /// three-leg motion for a two-leg one, and index two would then be read as
+    /// a leg that no longer exists. A brightness that is not in the new cycle
+    /// simply reads as a lamp with nowhere to resume, which starts it fresh.
+    /// Every cycle's brightnesses are distinct, since `low` below `high` and
+    /// the accent above `high` are both refused at load.
+    pub landed_on: u8,
     pub held: Held,
 }
 
@@ -808,7 +864,7 @@ impl HeldEntry {
 }
 
 /// One held-record token, rendered: the bare path, or the path with its phase,
-/// `@<end-unix-ms>:<h|l>:<state>`.
+/// `@<end-unix-ms>:<brightness>:<state>`.
 ///
 /// `@` AND `:` NEITHER APPEAR IN A FIXTURE PATH (`light/<id>` or
 /// `grouped_light/<id>`, the id a bridge-issued UUID), and neither appears in
@@ -816,18 +872,13 @@ impl HeldEntry {
 /// line the bare record always used, with nothing to escape.
 pub fn render_held_token(entry: &HeldEntry) -> String {
     match entry.resume {
-        Some(phase) => {
-            let end = match phase.end {
-                End::High => "h",
-                End::Low => "l",
-            };
-            format!(
-                "{}@{}:{end}:{}",
-                entry.path,
-                phase.end_unix_ms,
-                phase.held.word()
-            )
-        }
+        Some(phase) => format!(
+            "{}@{}:{}:{}",
+            entry.path,
+            phase.end_unix_ms,
+            phase.landed_on,
+            phase.held.word()
+        ),
         None => entry.path.clone(),
     }
 }
@@ -846,15 +897,10 @@ pub fn parse_held_token(token: &str) -> HeldEntry {
     };
     let phase = (|| {
         let (end_ms, rest) = suffix.split_once(':')?;
-        let (flag, word) = rest.split_once(':')?;
-        let end = match flag {
-            "h" => End::High,
-            "l" => End::Low,
-            _ => return None,
-        };
+        let (landed_on, word) = rest.split_once(':')?;
         Some(Phase {
             end_unix_ms: end_ms.parse().ok()?,
-            end,
+            landed_on: landed_on.parse().ok()?,
             held: Held::from_word(word)?,
         })
     })();
@@ -891,38 +937,48 @@ pub fn parse_held_token(token: &str) -> HeldEntry {
 /// body reached the bridge: the locked precedence, arriving up to a whole fade
 /// late. A state change starts down at once instead.
 ///
+/// AND A BRIGHTNESS THIS CYCLE DOES NOT RUN IS NOT RESUMED FROM EITHER, which
+/// is how a shape change lands here: the record says the lamp was moving toward
+/// a level the cycle it is about to run has no leg for, so there is no leg to
+/// carry on from and the honest answer is to start the new shape at its own
+/// beginning.
+///
 /// AND A PHASE MORE THAN ONE STEP AHEAD IS STALE, NOT PATIENT. `now_ms` is
 /// wall time and so is the recorded end, so an hour lost to a time-zone edit,
 /// an NTP correction or a resumed sleep leaves a valid record looking like a
 /// fade due an hour from now: a schedule that starts past the budget, issues
-/// nothing, and holds the lamp still for a whole interval. One cadence step is
-/// the ceiling because it is a law and not a tolerance: the tick that wrote
-/// the phase issued its last fade strictly inside its own budget, that fade
-/// lands one duration later, and the next tick begins at most the daemon's
-/// slop after that budget ended, so `first_due_ms` is always under one step.
-/// Past it, the clock moved and the honest answer is to start over now.
-pub fn resume_from(
-    entry: Option<&HeldEntry>,
-    now_ms: u64,
-    showing: Held,
-    breath: &crate::config::Breath,
-) -> Resume {
+/// nothing, and holds the lamp still for a whole interval. The step of the leg
+/// the record names is the ceiling because it is a law and not a tolerance:
+/// the tick that wrote the phase issued that leg's fade strictly inside its
+/// own budget, the fade lands one leg-duration later, and the next tick begins
+/// at most the daemon's slop after that budget ended, so `first_due_ms` is
+/// always under that one leg's step. THE LEG'S OWN AND NOT THE CYCLE'S LONGEST:
+/// a 200ms accent cannot honestly leave a fade due 3950ms out, and reading the
+/// law off the leg that was actually running is what keeps the ceiling as tight
+/// as the fact it comes from.
+pub fn resume_from(entry: Option<&HeldEntry>, now_ms: u64, showing: Held, cycle: &[Leg]) -> Resume {
     let Some(phase) = entry.and_then(|entry| entry.resume) else {
         return Resume::default();
     };
     if phase.held != showing {
         return Resume::default();
     }
+    let Some(landed) = cycle
+        .iter()
+        .position(|leg| leg.brightness == phase.landed_on)
+    else {
+        return Resume::default();
+    };
     let first_due_ms = phase
         .end_unix_ms
         .saturating_sub(now_ms)
         .saturating_sub(FADE_LEAD_MS);
-    if first_due_ms > step_ms(breath) {
+    if first_due_ms > step_ms(cycle[landed].duration_ms) {
         return Resume::default();
     }
     Resume {
         first_due_ms,
-        from_high: matches!(phase.end, End::High),
+        next_leg: (landed + 1) % cycle.len(),
     }
 }
 
@@ -1349,14 +1405,15 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Action, End, FADE_LEAD_MS, Fade, Held, HeldEntry, House, LOOP_USAGE, Loop, LoopCommand,
+        Action, FADE_LEAD_MS, Fade, Held, HeldEntry, House, LOOP_USAGE, Loop, LoopCommand,
         MAX_MUTED_PLACES, Muted, News, Phase, QuietCommand, Resume, Say, Streak, Unread, WORKING,
         active_held, any_blocked, any_working, bare_mute_secs, blocked_marker,
-        blocked_marker_action, breath_fades, last_interaction, lease_marker, loop_command,
-        loop_running, muted_after, muted_entries, muted_places, muted_report, news_after,
-        next_streak, parse_held_token, parse_news, parse_streak, pulse_fires, quiet_command,
-        render_held_token, render_muted, render_news, render_streak, resume_from, say, shown,
-        unread_arming, working_owner, workspace_agent_statuses,
+        blocked_marker_action, breath_cycle, breath_fades, breathe_then_flare_cycle,
+        last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
+        muted_places, muted_report, news_after, next_streak, parse_held_token, parse_news,
+        parse_streak, pulse_fires, quiet_command, render_held_token, render_muted, render_news,
+        render_streak, resume_from, say, shown, step_ms, unread_arming, working_owner,
+        workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -2223,11 +2280,23 @@ mod tests {
         low: 30,
     };
 
-    /// The locked unread and loop shape: four-second fades between 60 and 10.
+    /// The locked unread shape: four-second fades between 60 and 10.
     const SLOW: crate::config::Breath = crate::config::Breath {
         duration_ms: 4000,
         high: 60,
         low: 10,
+    };
+
+    /// The locked loop motion: four-second fades from 10 up to 80, with a two
+    /// hundred millisecond flash to 100 at the peak.
+    const LOOP_MOTION: crate::config::BreatheThenFlare = crate::config::BreatheThenFlare {
+        breath: crate::config::Breath {
+            duration_ms: 4000,
+            high: 80,
+            low: 10,
+        },
+        flare: 100,
+        flare_ms: 200,
     };
 
     #[test]
@@ -2235,36 +2304,43 @@ mod tests {
         // THE ORIGINAL SIX-FADE VECTOR, PRESERVED AS A PREFIX. The seamless
         // schedule does not restart the breath, it simply keeps issuing into
         // the slack the old, stop-at-the-peak schedule left unused.
-        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default());
+        let fades = breath_fades(FULL_INTERVAL_MS, &breath_cycle(&BLOCKED), Resume::default());
         assert_eq!(
             fades,
             vec![
                 Fade {
                     brightness: 30,
+                    duration_ms: 2_000,
                     start_ms: 0
                 },
                 Fade {
                     brightness: 100,
+                    duration_ms: 2_000,
                     start_ms: 1_950
                 },
                 Fade {
                     brightness: 30,
+                    duration_ms: 2_000,
                     start_ms: 3_900
                 },
                 Fade {
                     brightness: 100,
+                    duration_ms: 2_000,
                     start_ms: 5_850
                 },
                 Fade {
                     brightness: 30,
+                    duration_ms: 2_000,
                     start_ms: 7_800
                 },
                 Fade {
                     brightness: 100,
+                    duration_ms: 2_000,
                     start_ms: 9_750
                 },
                 Fade {
                     brightness: 30,
+                    duration_ms: 2_000,
                     start_ms: 11_700
                 },
             ],
@@ -2275,7 +2351,7 @@ mod tests {
 
     #[test]
     fn each_fade_leads_the_one_before_it_so_the_lamp_never_pauses_at_an_end() {
-        let fades = breath_fades(FULL_INTERVAL_MS, &BLOCKED, Resume::default());
+        let fades = breath_fades(FULL_INTERVAL_MS, &breath_cycle(&BLOCKED), Resume::default());
         for pair in fades.windows(2) {
             assert_eq!(
                 pair[1].start_ms - pair[0].start_ms,
@@ -2300,7 +2376,7 @@ mod tests {
             let step_ms = breath.duration_ms - FADE_LEAD_MS;
             let mut budget_ms = 8_000;
             while budget_ms <= 12_000 {
-                let fades = breath_fades(budget_ms, &breath, Resume::default());
+                let fades = breath_fades(budget_ms, &breath_cycle(&breath), Resume::default());
                 let last = fades.last().expect("8s or more is never empty");
                 let slack = budget_ms - last.start_ms;
                 assert!(
@@ -2322,7 +2398,7 @@ mod tests {
     }
 
     #[test]
-    fn a_resumed_breath_moves_toward_low_from_high_and_toward_high_from_low() {
+    fn a_resumed_breath_carries_on_from_the_leg_the_record_names() {
         // THE WHOLE VECTOR AND NOT ITS FIRST FADE. A resume that flipped only
         // the fade it starts with would breathe the right direction once and
         // then run the same parity as an unresumed tick, which is a lamp
@@ -2332,10 +2408,10 @@ mod tests {
         // which is what a twelve-second tick hands the one after it.
         let resumed_from_the_peak = breath_fades(
             FULL_INTERVAL_MS,
-            &BLOCKED,
+            &breath_cycle(&BLOCKED),
             Resume {
                 first_due_ms: 1_250,
-                from_high: true,
+                next_leg: 0,
             },
         );
         assert_eq!(
@@ -2343,26 +2419,32 @@ mod tests {
             vec![
                 Fade {
                     brightness: BLOCKED.low,
+                    duration_ms: 2_000,
                     start_ms: 1_250
                 },
                 Fade {
                     brightness: BLOCKED.high,
+                    duration_ms: 2_000,
                     start_ms: 3_200
                 },
                 Fade {
                     brightness: BLOCKED.low,
+                    duration_ms: 2_000,
                     start_ms: 5_150
                 },
                 Fade {
                     brightness: BLOCKED.high,
+                    duration_ms: 2_000,
                     start_ms: 7_100
                 },
                 Fade {
                     brightness: BLOCKED.low,
+                    duration_ms: 2_000,
                     start_ms: 9_050
                 },
                 Fade {
                     brightness: BLOCKED.high,
+                    duration_ms: 2_000,
                     start_ms: 11_000
                 },
             ],
@@ -2371,10 +2453,10 @@ mod tests {
         );
         let resumed_from_the_floor = breath_fades(
             FULL_INTERVAL_MS,
-            &BLOCKED,
+            &breath_cycle(&BLOCKED),
             Resume {
                 first_due_ms: 1_250,
-                from_high: false,
+                next_leg: 1,
             },
         );
         assert_eq!(
@@ -2410,13 +2492,17 @@ mod tests {
     fn a_resumes_first_due_ms_shifts_every_fades_start_by_the_same_amount() {
         let shifted = breath_fades(
             FULL_INTERVAL_MS,
-            &BLOCKED,
+            &breath_cycle(&BLOCKED),
             Resume {
                 first_due_ms: 500,
-                from_high: true,
+                next_leg: 0,
             },
         );
-        let unshifted = breath_fades(FULL_INTERVAL_MS - 500, &BLOCKED, Resume::default());
+        let unshifted = breath_fades(
+            FULL_INTERVAL_MS - 500,
+            &breath_cycle(&BLOCKED),
+            Resume::default(),
+        );
         let shifted_starts: Vec<u64> = shifted.iter().map(|fade| fade.start_ms - 500).collect();
         let unshifted_starts: Vec<u64> = unshifted.iter().map(|fade| fade.start_ms).collect();
         assert_eq!(
@@ -2428,14 +2514,14 @@ mod tests {
 
     #[test]
     fn a_budget_that_cannot_fit_even_one_fade_is_empty() {
-        assert!(breath_fades(0, &BLOCKED, Resume::default()).is_empty());
+        assert!(breath_fades(0, &breath_cycle(&BLOCKED), Resume::default()).is_empty());
         assert!(
             breath_fades(
                 1_000,
-                &BLOCKED,
+                &breath_cycle(&BLOCKED),
                 Resume {
                     first_due_ms: 1_000,
-                    from_high: true
+                    next_leg: 0
                 }
             )
             .is_empty(),
@@ -2448,10 +2534,10 @@ mod tests {
         assert!(
             breath_fades(
                 1_000,
-                &BLOCKED,
+                &breath_cycle(&BLOCKED),
                 Resume {
                     first_due_ms: 1_001,
-                    from_high: true
+                    next_leg: 0
                 }
             )
             .is_empty(),
@@ -2469,31 +2555,231 @@ mod tests {
             high: 7,
             low: 1,
         };
-        let fades = breath_fades(FULL_INTERVAL_MS, &dim, Resume::default());
+        let fades = breath_fades(FULL_INTERVAL_MS, &breath_cycle(&dim), Resume::default());
         assert_eq!(
             fades,
             vec![
                 Fade {
                     brightness: 1,
+                    duration_ms: 3_000,
                     start_ms: 0
                 },
                 Fade {
                     brightness: 7,
+                    duration_ms: 3_000,
                     start_ms: 2_950
                 },
                 Fade {
                     brightness: 1,
+                    duration_ms: 3_000,
                     start_ms: 5_900
                 },
                 Fade {
                     brightness: 7,
+                    duration_ms: 3_000,
                     start_ms: 8_850
                 },
                 Fade {
                     brightness: 1,
+                    duration_ms: 3_000,
                     start_ms: 11_800
                 },
             ],
+        );
+    }
+
+    // --- the loop's accent at the peak --------------------------------------
+
+    #[test]
+    fn the_loop_motion_flashes_at_the_peak_between_the_rise_and_the_fall() {
+        // THE OPERATOR-LOCKED SHAPE, read straight off the schedule: from 10,
+        // rise to 80 over four seconds, flash to 100 for two hundred
+        // milliseconds AT THE PEAK, and fall back to 10 over four seconds.
+        // The accent is a leg of the cycle rather than a decoration on the
+        // rise, which is what puts it between the two fades instead of inside
+        // one of them.
+        let fades = breath_fades(
+            FULL_INTERVAL_MS,
+            &breathe_then_flare_cycle(&LOOP_MOTION),
+            Resume::default(),
+        );
+        assert_eq!(
+            fades,
+            vec![
+                Fade {
+                    brightness: 10,
+                    duration_ms: 4_000,
+                    start_ms: 0
+                },
+                Fade {
+                    brightness: 80,
+                    duration_ms: 4_000,
+                    start_ms: 3_950
+                },
+                Fade {
+                    brightness: 100,
+                    duration_ms: 200,
+                    start_ms: 7_900
+                },
+                Fade {
+                    brightness: 10,
+                    duration_ms: 4_000,
+                    start_ms: 8_050
+                },
+            ],
+            "the accent follows the rise and precedes the fall, and it is issued \
+             at its own two hundred milliseconds rather than at the breath's four \
+             seconds, so the fall follows it 150ms later rather than 3,950ms later"
+        );
+    }
+
+    #[test]
+    fn the_accent_leads_the_fades_around_it_by_the_same_lead_every_other_fade_gets() {
+        // THE SEAMLESS TURN-AROUND, WHERE IT MATTERS MOST. `FADE_LEAD_MS` is
+        // what stops the lamp sitting still at an end, and the accent sits
+        // exactly at the end where a pause would be most visible. Each fade is
+        // still issued its own duration less the lead after the one before it,
+        // the accent included, so the lamp is moving into the flash and moving
+        // out of it.
+        let fades = breath_fades(
+            FULL_INTERVAL_MS,
+            &breathe_then_flare_cycle(&LOOP_MOTION),
+            Resume::default(),
+        );
+        for pair in fades.windows(2) {
+            assert_eq!(
+                pair[1].start_ms - pair[0].start_ms,
+                pair[0].duration_ms - FADE_LEAD_MS,
+                "every fade is issued FADE_LEAD_MS before the one before it ends, \
+                 including the two either side of the accent"
+            );
+        }
+    }
+
+    #[test]
+    fn a_tick_that_ended_on_the_rise_takes_the_accent_next_and_not_the_fall() {
+        // THE REGRESSION A TWO-VALUED RECORD WOULD SHIP. The rise occupies a
+        // whole step of the cycle, so roughly half of all ticks end having just
+        // issued it; a record that could only say "high" or "low" would send
+        // every one of those straight to the fall, and half the cycles would
+        // lose the accent the operator locked.
+        let cycle = breathe_then_flare_cycle(&LOOP_MOTION);
+        let on_the_rise = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 13_700,
+                landed_on: LOOP_MOTION.breath.high,
+                held: Held::Looping,
+            }),
+        };
+        assert_eq!(
+            resume_from(Some(&on_the_rise), 12_400, Held::Looping, &cycle),
+            Resume {
+                first_due_ms: 1_250,
+                next_leg: 2
+            },
+            "the leg after the rise is the accent"
+        );
+        assert_eq!(
+            breath_fades(
+                FULL_INTERVAL_MS,
+                &cycle,
+                Resume {
+                    first_due_ms: 1_250,
+                    next_leg: 2
+                }
+            )[0],
+            Fade {
+                brightness: 100,
+                duration_ms: 200,
+                start_ms: 1_250
+            },
+            "so the tick that inherits it flashes before it falls"
+        );
+    }
+
+    #[test]
+    fn a_tick_that_ended_on_the_accent_falls_next_and_inherits_only_the_accents_own_step() {
+        // THE ACCENT'S LANDING IS ITS OWN. A fade recorded at the breath's four
+        // seconds when it really took two hundred milliseconds would tell the
+        // next tick to wait almost four seconds for a lamp that has already
+        // stopped moving.
+        let cycle = breathe_then_flare_cycle(&LOOP_MOTION);
+        let on_the_accent = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 10_000,
+                landed_on: LOOP_MOTION.flare,
+                held: Held::Looping,
+            }),
+        };
+        let accent_step_ms = step_ms(LOOP_MOTION.flare_ms);
+        assert_eq!(
+            resume_from(
+                Some(&on_the_accent),
+                10_000 - FADE_LEAD_MS - accent_step_ms,
+                Held::Looping,
+                &cycle
+            ),
+            Resume {
+                first_due_ms: accent_step_ms,
+                next_leg: 0
+            },
+            "the leg after the accent is the fall, and one accent step out is the \
+             furthest a live record can leave it"
+        );
+        assert_eq!(
+            resume_from(
+                Some(&on_the_accent),
+                10_000 - FADE_LEAD_MS - accent_step_ms - 1,
+                Held::Looping,
+                &cycle
+            ),
+            Resume::default(),
+            "a millisecond further out than the ACCENT'S own step could have left \
+             it is a clock that moved, even though the breath's own legs could \
+             honestly reach that far"
+        );
+    }
+
+    #[test]
+    fn a_level_the_cycle_about_to_run_has_no_leg_for_starts_the_lamp_fresh() {
+        // THE SHAPE CHANGE, which the state comparison alone does not catch: a
+        // loop lamp entering its dim window keeps the same state and swaps a
+        // three-leg motion for a two-leg breath. The record names a brightness
+        // the dim form never fades to, so there is no leg to carry on from.
+        let dim = crate::config::Breath {
+            duration_ms: 3000,
+            high: 7,
+            low: 1,
+        };
+        let at_full = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 13_700,
+                landed_on: LOOP_MOTION.breath.high,
+                held: Held::Looping,
+            }),
+        };
+        assert_eq!(
+            resume_from(Some(&at_full), 12_400, Held::Looping, &breath_cycle(&dim)),
+            Resume::default(),
+            "the dim form starts at its own beginning rather than resuming into a \
+             leg that is not there"
+        );
+        assert_eq!(
+            resume_from(
+                Some(&at_full),
+                12_400,
+                Held::Looping,
+                &breathe_then_flare_cycle(&LOOP_MOTION)
+            ),
+            Resume {
+                first_due_ms: 1_250,
+                next_leg: 2
+            },
+            "and the same record against the shape it was written under still \
+             resumes"
         );
     }
 
@@ -2505,23 +2791,37 @@ mod tests {
             path: "light/l1".to_string(),
             resume: Some(Phase {
                 end_unix_ms: 1_234_567,
-                end: End::High,
+                landed_on: 100,
                 held: Held::Blocked,
             }),
         };
-        assert_eq!(render_held_token(&high), "light/l1@1234567:h:blocked");
-        assert_eq!(parse_held_token("light/l1@1234567:h:blocked"), high);
+        assert_eq!(render_held_token(&high), "light/l1@1234567:100:blocked");
+        assert_eq!(parse_held_token("light/l1@1234567:100:blocked"), high);
 
         let low = HeldEntry {
             path: "light/l1".to_string(),
             resume: Some(Phase {
                 end_unix_ms: 1_234_567,
-                end: End::Low,
+                landed_on: 10,
                 held: Held::Looping,
             }),
         };
-        assert_eq!(render_held_token(&low), "light/l1@1234567:l:loop");
-        assert_eq!(parse_held_token("light/l1@1234567:l:loop"), low);
+        assert_eq!(render_held_token(&low), "light/l1@1234567:10:loop");
+        assert_eq!(parse_held_token("light/l1@1234567:10:loop"), low);
+
+        // AND THE ACCENT'S OWN LEVEL, which is the one a two-valued record
+        // could not carry: the loop lamp landing on its flash is neither the
+        // high end nor the low one.
+        let flare = HeldEntry {
+            path: "light/l1".to_string(),
+            resume: Some(Phase {
+                end_unix_ms: 1_234_567,
+                landed_on: LOOP_MOTION.flare,
+                held: Held::Looping,
+            }),
+        };
+        assert_eq!(render_held_token(&flare), "light/l1@1234567:100:loop");
+        assert_eq!(parse_held_token("light/l1@1234567:100:loop"), flare);
     }
 
     #[test]
@@ -2557,10 +2857,11 @@ mod tests {
             "a token with no `@` at all is a lamp with no phase recorded"
         );
         for malformed in [
-            "light/l1@notanumber:h:blocked",
+            "light/l1@notanumber:100:blocked",
             "light/l1@1234567:sideways:blocked",
-            "light/l1@1234567:h:dozing",
-            "light/l1@1234567:h",
+            "light/l1@1234567:900:blocked",
+            "light/l1@1234567:100:dozing",
+            "light/l1@1234567:100",
             "light/l1@1234567",
             "light/l1@",
         ] {
@@ -2575,7 +2876,7 @@ mod tests {
     #[test]
     fn resuming_off_no_entry_or_no_phase_starts_the_breath_fresh() {
         assert_eq!(
-            resume_from(None, 1_000, Held::Blocked, &BLOCKED),
+            resume_from(None, 1_000, Held::Blocked, &breath_cycle(&BLOCKED)),
             Resume::default()
         );
         assert_eq!(
@@ -2583,7 +2884,7 @@ mod tests {
                 Some(&HeldEntry::bare("light/l1")),
                 1_000,
                 Held::Blocked,
-                &BLOCKED
+                &breath_cycle(&BLOCKED)
             ),
             Resume::default(),
             "a bare entry is a lamp this record holds with no phase recorded"
@@ -2601,21 +2902,26 @@ mod tests {
             path: "light/l1".to_string(),
             resume: Some(Phase {
                 end_unix_ms: 15_850,
-                end: End::High,
+                landed_on: SLOW.high,
                 held: Held::Looping,
             }),
         };
         assert_eq!(
-            resume_from(Some(&looping), 12_400, Held::Blocked, &BLOCKED),
+            resume_from(
+                Some(&looping),
+                12_400,
+                Held::Blocked,
+                &breath_cycle(&BLOCKED)
+            ),
             Resume::default(),
             "a state change starts down at once instead of finishing the shape it \
              is replacing"
         );
         assert_eq!(
-            resume_from(Some(&looping), 12_400, Held::Looping, &SLOW),
+            resume_from(Some(&looping), 12_400, Held::Looping, &breath_cycle(&SLOW)),
             Resume {
                 first_due_ms: 3_400,
-                from_high: true
+                next_leg: 0
             },
             "and the same state still picks its own breath back up"
         );
@@ -2626,12 +2932,17 @@ mod tests {
             path: "light/l1".to_string(),
             resume: Some(Phase {
                 end_unix_ms: 15_850,
-                end: End::High,
+                landed_on: SLOW.high,
                 held: Held::UnreadSuccess,
             }),
         };
         assert_eq!(
-            resume_from(Some(&success), 12_400, Held::UnreadFailure, &SLOW),
+            resume_from(
+                Some(&success),
+                12_400,
+                Held::UnreadFailure,
+                &breath_cycle(&SLOW)
+            ),
             Resume::default()
         );
     }
@@ -2655,7 +2966,7 @@ mod tests {
             path: "light/l1".to_string(),
             resume: Some(Phase {
                 end_unix_ms,
-                end: End::Low,
+                landed_on: BLOCKED.low,
                 held: Held::Blocked,
             }),
         };
@@ -2665,11 +2976,11 @@ mod tests {
                 Some(&held),
                 end_unix_ms - FADE_LEAD_MS - step_ms,
                 Held::Blocked,
-                &BLOCKED
+                &breath_cycle(&BLOCKED)
             ),
             Resume {
                 first_due_ms: step_ms,
-                from_high: false
+                next_leg: 1
             },
             "a phase due exactly one step out is the furthest a live one reaches, \
              and it is still resumed"
@@ -2679,7 +2990,7 @@ mod tests {
                 Some(&held),
                 end_unix_ms - FADE_LEAD_MS - step_ms - 1,
                 Held::Blocked,
-                &BLOCKED
+                &breath_cycle(&BLOCKED)
             ),
             Resume::default(),
             "one millisecond further out than any tick could have left it is a \
@@ -2690,7 +3001,7 @@ mod tests {
                 Some(&held),
                 end_unix_ms - 3_600_000,
                 Held::Blocked,
-                &BLOCKED
+                &breath_cycle(&BLOCKED)
             ),
             Resume::default(),
             "and an hour lost to a clock correction is the case that costs a whole \
@@ -2699,20 +3010,20 @@ mod tests {
     }
 
     #[test]
-    fn resuming_off_a_recorded_phase_shifts_the_next_fade_and_flips_its_direction() {
+    fn resuming_off_a_recorded_phase_shifts_the_next_fade_and_takes_the_next_leg() {
         let held = HeldEntry {
             path: "light/l1".to_string(),
             resume: Some(Phase {
                 end_unix_ms: 13_700,
-                end: End::Low,
+                landed_on: BLOCKED.low,
                 held: Held::Blocked,
             }),
         };
         assert_eq!(
-            resume_from(Some(&held), 12_400, Held::Blocked, &BLOCKED),
+            resume_from(Some(&held), 12_400, Held::Blocked, &breath_cycle(&BLOCKED)),
             Resume {
                 first_due_ms: 1_250,
-                from_high: false
+                next_leg: 1
             },
             "due FADE_LEAD_MS before the recorded end, moving away from the end it \
              landed on"
@@ -2720,10 +3031,10 @@ mod tests {
         // A `now_ms` past the recorded end saturates at zero rather than going
         // negative: due at once, not due in the past.
         assert_eq!(
-            resume_from(Some(&held), 20_000, Held::Blocked, &BLOCKED),
+            resume_from(Some(&held), 20_000, Held::Blocked, &breath_cycle(&BLOCKED)),
             Resume {
                 first_due_ms: 0,
-                from_high: false
+                next_leg: 1
             }
         );
     }
