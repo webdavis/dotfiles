@@ -208,6 +208,19 @@
      pass, where a separate pulse hook used to decide the tier again on its
      own.
 
+     PostModelSwitch fires whenever the session's model changes; it is routed
+     as an OBSERVATION, never a first delivery, so it clears no wait, renews
+     no lease and claims no return moment (only a session's own First event
+     does that). Restricted to `source == "auto"`: `command`, `picker` and
+     `sdk` are a deliberate choice, not news, and `resume` is a state-only
+     audit record left for a follow-up. BOTH halves of the declaration are
+     load-bearing, per the hooks reference: PostModelSwitch is one of the
+     events whose exit-0 stdout is delivered to the model on the next turn,
+     and that is true whether or not the hook is async, so `async true` alone
+     does not keep the engine's own `pns: ` print out of the model's context;
+     the command redirects stdout to `/dev/null` itself, which a command hook
+     with no `args` runs under `sh -c`, so the redirect is honoured.
+
      StopFailure fires INSTEAD of Stop when a turn dies on an API error, so
      without this entry a dead pane gets no card at all and the dead turn's
      start marker is left for the next turn to inherit. Async like Stop, since
@@ -269,6 +282,11 @@
         "type" "command"
         "async" true
         "command" (printf "%s/.local/libexec/pns/pns hook stop" $home)))))
+    "PostModelSwitch" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook model-switch >/dev/null" $home)))))
     "StopFailure" (list (dict
       "hooks" (list (dict
         "type" "command"

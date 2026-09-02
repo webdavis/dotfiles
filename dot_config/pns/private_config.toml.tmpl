@@ -35,7 +35,7 @@ enabled = true
 # and a table naming none, or naming one nothing answers, is refused out loud
 # rather than read as this one.
 type = "moshi"
-token = "{{ (keepassxc "Moshi :: Webhook Secret").Password }}"
+token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}
 # Whether a long command's card still fires while you are watching that pane on
 # the phone. OFF: a card describing the pane already filling the screen is
 # noise, and the light pulse alone marks the command finishing. Written out at
@@ -62,15 +62,15 @@ submit_deadline_secs = 5
 
 [plugins.hermes]
 enabled = true
-key = "{{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password }}"
+key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}
 
 [plugins.macos-banner]
 enabled = true
 
 [plugins.hue]
 enabled = true
-bridge = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName }}"
-key = "{{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password }}"
+bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
+key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
 rooms = ["3F - Studio", "2F - Kitchen"]
 # The operator's quiet hours: local wall clock, the start inclusive and the end
 # exclusive, and it may wrap midnight. A bare `pns lights quiet <place>` mutes
@@ -97,7 +97,7 @@ enabled = true
 type = "unifi"
 router_url = "https://192.168.1.1"
 device_hostname = "mister"
-api_key = "{{ (keepassxc "UniFi :: API Key (dresden-udr)").Password }}"
+api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}
 # The hermes route a stale-identifier alert posts to. UNSET IS THE WORKING
 # SETTING: the alert posts to the default route (`/webhooks/pns`), which is the
 # one route that both verifies against the key pns signs with (`[plugins.hermes]

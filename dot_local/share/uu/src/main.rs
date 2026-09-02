@@ -784,7 +784,16 @@ mod tests {
             Some("engine"),
         );
         assert!(!delivered);
-        assert_eq!(spy.calls.borrow().len(), 1, "{:?}", spy.calls.borrow());
+        let calls = spy.calls.borrow();
+        assert_eq!(calls.len(), 1, "{calls:?}");
+        assert_eq!(calls[0].0, "engine", "{calls:?}");
+        assert!(
+            calls[0]
+                .1
+                .iter()
+                .any(|arg| arg.contains(&stub_records().url)),
+            "{calls:?}"
+        );
     }
 
     #[test]

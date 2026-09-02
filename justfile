@@ -117,11 +117,10 @@ test-e2e: validate-tests
 # test, none of which owns a sandbox or runs over a second alone today.
 #
 # THE AGGREGATE IS STILL MULTI-SECOND, and that is not a bug in the budget:
-# each pns integration binary spawns 100-200 real subprocesses, and warm,
-# parallel per-binary totals here run daemon ~5s (one structural
+# warm, parallel per-binary totals here run daemon ~5s (one structural
 # `allow_slow` test dominates it), dispatch ~4s, hooks ~1.5s, native ~0.3s.
-# The one-second line bounds each TEST's own sandbox, not the sum of ~200 of
-# them.
+# The one-second line bounds each TEST's own sandbox, not the sum across a
+# binary's whole suite.
 #
 # TWO STABLE ALTERNATIVES TO THE NIGHTLY-ONLY `--report-time --ensure-time`
 # CALIBRATION FLAGS WERE REJECTED, not adopted: `RUSTC_BOOTSTRAP=1

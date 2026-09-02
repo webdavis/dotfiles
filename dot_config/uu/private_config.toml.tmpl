@@ -1,7 +1,8 @@
 # uu's lane selection. THE FILE SELECTS: a lane runs only when its
 # [lanes.<name>] block exists, records post only when [records] exists, and
-# alerts leave the machine only when [alerts] exists. With no file at all uu
-# runs nothing and exits clean.
+# alerts leave the machine only when [alerts] exists. With no file at all a
+# bare `uu run` runs nothing and exits clean; `uu run <lane>` still asks for
+# that lane by name and is refused with exit 1.
 #
 # Unknown keys are refused BY NAME at load, in the same sentence that lists
 # what the table does serve, and so is a lane whose `type` this build does not
