@@ -945,6 +945,18 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
 ///
 /// A NAG THAT IS OFF CONTRADICTS NOTHING, and neither does a file with no
 /// `[lights]` table: with no nudge or no lamp there is no pair to disagree.
+///
+/// NEITHER OF THOSE TWO GUARDS IS OBSERVABLE TODAY, said here because a
+/// mutation of either survives the suite and the next reader deserves to know
+/// it is dead code rather than an untested branch. `NAG_OFF` is zero and
+/// `give_up_after_secs` has a floor of 60, so the comparison below is already
+/// false for an off nag; and `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16 hours)
+/// sits far above `MAX_NAG_AFTER_SECS` (one hour), so a config with no
+/// `[lights]` table could not trip the check even if it were read at its
+/// default. They stay because each states its own case out loud, and because
+/// what makes them dead is a coupling between two bounds that have nothing
+/// else to do with each other: either one moving would make a guard live
+/// again with nothing at the seam to say so.
 fn backstop_outlasts_the_nag(config: &Config) -> Result<(), ConfigError> {
     let Some(lights) = config.lights.as_ref() else {
         return Ok(());
