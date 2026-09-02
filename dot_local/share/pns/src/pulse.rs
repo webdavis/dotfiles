@@ -56,9 +56,10 @@ pub const UNREAD_SUCCESS_COLOR: PulseColor = PulseColor { x: 0.50, y: 0.40 };
 /// on 2026-09-02: the loop lamp, breathing while long-running work is in
 /// flight.
 ///
-/// THE PAIR SWAPPED RATHER THAN THE VIOLET MOVING, so no colour nobody has
-/// looked at enters the set: this blue had already been locked on a real lamp,
-/// and the violet it displaces leaves the vocabulary entirely.
+/// THE BLUE MOVED AND THE VIOLET LEFT, rather than the two trading places, so
+/// no colour nobody has looked at enters the set: this blue had already been
+/// locked on a real lamp, and the violet it displaces leaves the vocabulary
+/// entirely.
 pub const LOOP_COLOR: PulseColor = PulseColor {
     x: 0.1532,
     y: 0.0475,
@@ -226,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn the_condensers_own_waiting_word_lights_the_blue_lamp() {
+    fn the_condensers_own_waiting_word_lights_the_blocked_lamp() {
         // `asking` IS A REAL STATE ON EVERY CONDENSED TURN, not a corner. The
         // condenser classifies each one as done, asking or blocked
         // (`hooks::condenser_prompt`), and `asking` is its word for a turn that
