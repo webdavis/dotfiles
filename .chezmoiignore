@@ -15,6 +15,11 @@ justfile
 scripts/
 test/
 
+# Neovim config: repo metadata and test code never reach $HOME.
+.config/nvim/README.md
+.config/nvim/docs/
+.config/nvim/tests/
+
 # Ignore formatter/linter configs:
 .shellcheckrc
 .editorconfig # shfmt uses EditorConfig as its rc file (so to speak).
