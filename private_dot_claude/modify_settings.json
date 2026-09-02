@@ -244,10 +244,14 @@
      style, and the binary keeps its OWN copy of the same five-value
      allowlist rather than trusting this matcher alone (`config_source_label`
      in main.rs), since the payload parser accepts any string. Async, for the
-     reference's own strongest reason: ConfigChange can otherwise BLOCK the
-     configuration change from taking effect (`policy_settings` excepted) on
-     whatever this hook's own exit code says, and pns must never hold up or
-     refuse a configuration change it exists only to audit. No `/dev/null`
+     reference's own strongest reason: a SYNCHRONOUS ConfigChange hook can
+     otherwise BLOCK the configuration change from taking effect
+     (`policy_settings` excepted) by exiting 2 or returning a structured
+     `decision`; an ordinary non-zero exit does not block it (a crash exiting
+     101 changes nothing about whether the setting lands), and async drops
+     the whole exit-code decision path regardless, which is what actually
+     keeps pns from ever holding up or refusing a configuration change it
+     exists only to audit. No `/dev/null`
      redirect is needed here the way PostModelSwitch's command carries one:
      the reference's own exception list for stdout reaching the model's
      context names `UserPromptSubmit`, `UserPromptExpansion`, `SessionStart`
