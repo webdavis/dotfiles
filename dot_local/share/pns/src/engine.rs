@@ -1692,6 +1692,53 @@ mod tests {
             }),
             "a stated phone age must start no phone thread"
         );
+
+        // sol review, ROW 3: only VALID overrides reached this test. A
+        // GARBLED override must refuse the read exactly as a stated one
+        // does, and `start` must not spawn a thread for it either.
+        let probes = CountingProbes {
+            idle: Some(2),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        decide_with(
+            &probes,
+            &Overrides {
+                idle_invalid: true,
+                ..Overrides::default()
+            },
+            "wW:p1",
+        );
+        assert_eq!(
+            probes.wants.get(),
+            Some(Wants {
+                desk: false,
+                phone: true
+            }),
+            "a garbled idle override must start no desk thread"
+        );
+
+        let probes = CountingProbes {
+            idle: Some(2),
+            view: Some(watching("wW:p1")),
+            ..CountingProbes::default()
+        };
+        decide_with(
+            &probes,
+            &Overrides {
+                phone_invalid: true,
+                ..Overrides::default()
+            },
+            "wW:p1",
+        );
+        assert_eq!(
+            probes.wants.get(),
+            Some(Wants {
+                desk: true,
+                phone: false
+            }),
+            "a garbled phone override must start no phone thread"
+        );
     }
 
     #[test]
