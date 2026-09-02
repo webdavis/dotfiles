@@ -344,7 +344,8 @@ sed -E "s#${RUN}/[^/ ]+#<run>#g; s#${TMPDIR}#<tmpdir>/#g; s#${HOME}/.local/state
       skip { next }
       { print }
     ' >"$P/health.norm"
-nvim --headless -u "$NVIM_CONFIG/init.lua" -l "$DOTFILES/dot_config/nvim/tests/dump_state.lua" "$P/state.json"
+nvim --headless -u "$NVIM_CONFIG/init.lua" -l "$DOTFILES/dot_config/nvim/tests/dump_state.lua" \
+  "$P/state.json" 2>"$P/dump.err"
 ```
 
 `-u` is load-bearing on the last line: `-l` alone skips ALL source-state initialization
@@ -377,6 +378,12 @@ section reordering two lines, an overseer health line reporting a real elapsed-m
 filetype-mismatch warning listing its set in hash-iteration order. The health check (check 4 below) is
 therefore ADVISORY, reviewed by eye against this known noise profile, never a hard gate; gating on it
 would fail every future PR, including a perfect one.
+
+The dump's own stderr is captured to `$P/dump.err` rather than left on the terminal. It is advisory,
+not gated: 6 of 10 dumps of the identical unchanged config wrote the same 1241-byte `aerial.nvim`
+treesitter stack trace from a scheduled callback during the gitsigns attach wait (measured 2026-09-02),
+so gating on it would fail most runs. Uncaptured it was worse than noise: a scheduled error can change
+what the capture sees without failing anything, and nothing recorded that one had happened.
 
 `sort.nvim` and `nvim-treesitter-textobjects` both map `[s`, `]s` and `as`, and which of the two owns
 them is settled by plugin load order at startup rather than by anything this program controls. Two of

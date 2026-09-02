@@ -221,7 +221,8 @@ sed -E "s#${RUN}/[^/ ]+#<run>#g; s#${TMPDIR}#<tmpdir>/#g; s#${HOME}/.local/state
       skip { next }
       { print }
     ' >"$P/health.norm"
-nvim --headless -u "$NVIM_CONFIG/init.lua" -l "$DOTFILES/dot_config/nvim/tests/dump_state.lua" "$P/state.json"
+nvim --headless -u "$NVIM_CONFIG/init.lua" -l "$DOTFILES/dot_config/nvim/tests/dump_state.lua" \
+  "$P/state.json" 2>"$P/dump.err"
 ```
 
 Even with every normalization above, `checkhealth` output carries RESIDUAL, config-independent
@@ -324,6 +325,10 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
   of the identical unchanged config named the other one (measured 2026-09-02, spec 3.7). A diff of
   two MISSING files is empty and a grep over a missing file inside a process substitution reports
   nothing, so every comparison input is checked to exist before any of them is read.
+  The dump's own stderr goes to `$P/dump.err`, printed by the comparison but not gated: 6 of 10
+  dumps of the identical unchanged config wrote the same `aerial.nvim` treesitter stack trace
+  from a scheduled callback (measured 2026-09-02). Uncaptured, a scheduled error could change
+  what the capture sees while nothing recorded that it happened.
 - [ ] **Step 12, OPERATOR:** when the three 3.6 guards (`status --porcelain`, `rev-list
   origin/main..HEAD`, `stash list`, all in `~/.config/nvim`) print nothing, `trash ~/.config/nvim/.git`.
   Task 3 waits for steps 10 to 12.
