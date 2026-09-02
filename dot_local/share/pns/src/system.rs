@@ -617,6 +617,16 @@ impl<R: CommandRunner + Send + Sync + 'static> crate::probes::ProbeStart for Sys
     /// below. NEITHER OVERRIDE IS CONSULTED HERE; the caller already answered
     /// that in `wants`, which is the one spelling of the override rule this
     /// and the read guards in `engine::surface_reading` share.
+    ///
+    /// EVERY THREAD STARTED HERE IS JOINED BY A READ ON THE SAME PATH before
+    /// anything calls `std::env::set_var`: the guards in `surface_reading`
+    /// read exactly what they asked to start, so no probe thread outlives
+    /// that function, and the one `set_var` in this crate (main's blocked
+    /// path) runs after it returns. `set_var` is `unsafe` because libc
+    /// readers such as `localtime_r` do not take std's environment lock;
+    /// `Command::spawn` does, so the rule is the general contract of a
+    /// multi-threaded process, not a spawn race. Keep it when adding a
+    /// thread or a `set_var`.
     fn start(&self, wants: crate::probes::Wants) {
         if wants.desk && self.idle.get().is_none() && self.desk_handle_absent() {
             let runner = Arc::clone(&self.runner);
