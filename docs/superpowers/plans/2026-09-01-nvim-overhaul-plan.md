@@ -441,9 +441,10 @@ Lane: standalone. Depends on: PR 4b (`which-key.lua`). Brief: `brief-nvim-herdr-
 
 Lane: standalone. Depends on: PR 2. Brief: `brief-nvim-lift-exclusions.md`.
 
-- [ ] **Step 1:** remove the mdformat (and, if PR 2 added it, stylua) exclusion from `treefmt.toml`;
-  `just l`; commit the rewrap of `CLAUDE.md` and `docs/todo.md` alone: `style(nvim): apply mdformat
-  (and stylua) to the imported config`, called out in the body.
+- [ ] **Step 1:** remove the mdformat, taplo (and, if PR 2 added it, stylua) exclusion from
+  `treefmt.toml`; `just l`; commit the rewrap of `CLAUDE.md` and `docs/todo.md` alone: `style(nvim):
+  apply mdformat (and stylua) to the imported config`, called out in the body. Taplo has no reformat to
+  commit unless `dot_config/nvim/stylua.toml` has drifted since the import (3.7 check 1).
 - [ ] **Step 2:** Gates G1 to G6; G4 unchanged. No test.
 
 ### Task 8: PR 5a, LSP config, bug #12 (spec 4)
