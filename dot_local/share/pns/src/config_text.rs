@@ -857,6 +857,18 @@ fn take_note(settings: &mut toml::Table) -> Result<Option<String>, String> {
             if note.contains("{{") {
                 return Err("`note` cannot open a chezmoi template action".to_string());
             }
+            // CRLF IS AN ORDINARY LINE ENDING, normalized before the control
+            // check below so a pasted Windows-style note is accepted rather
+            // than refused for the CR half of its own newline.
+            let note = note.replace("\r\n", "\n");
+            // ANY OTHER CONTROL CHARACTER, a lone CR included, rides straight
+            // into `write_note`'s `# `-prefixed comment line and makes
+            // `parse_config` refuse text this render just claimed worked.
+            if note.chars().any(|character| {
+                (character.is_control() || character == '\u{7f}') && character != '\n'
+            }) {
+                return Err("`note` cannot hold a control character".to_string());
+            }
             Ok(Some(note))
         }
         Some(other) => Err(format!(
@@ -1456,6 +1468,42 @@ mod tests {
 
         let error = render(&values).expect_err("a note opening a chezmoi action must be refused");
         assert!(error.contains("note"), "{error}");
+    }
+
+    #[test]
+    fn a_note_holding_a_forbidden_control_character_is_refused_by_name() {
+        // `write_note` PREFIXES EACH `\n`-SPLIT LINE WITH `# `, so a NUL or
+        // DEL sitting mid-line, or a lone CR that split() never breaks on,
+        // rides straight into the comment and makes `parse_config` refuse the
+        // text `render` just claimed to succeed on. CRLF is normalized first,
+        // since it is an ordinary line ending rather than a hostile control.
+        for hostile in ["line one\r\nline two", "bad\u{0}byte", "bad\u{7f}byte", "lone\rcarriage"] {
+            let mut hermes = toml::Table::new();
+            hermes.insert("note".to_string(), toml::Value::String(hostile.to_string()));
+            hermes.insert(
+                "key".to_string(),
+                toml::Value::String("hermes-secret".to_string()),
+            );
+            let mut plugins = toml::Table::new();
+            plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+            let mut values = toml::Table::new();
+            values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+            let result = render(&values);
+            if hostile.contains("\r\n") {
+                // CRLF is the one shape that must be ACCEPTED, normalized to a
+                // plain newline rather than refused as a control character.
+                let text = result.expect("CRLF normalizes rather than refusing");
+                assert!(text.contains("# line one\n# line two\n"), "{text}");
+                let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+                assert!(config.plugins.contains_key("hermes"));
+            } else {
+                let error = result.expect_err(&format!(
+                    "{hostile:?} must be refused rather than rendered into an unparsable comment"
+                ));
+                assert!(error.contains("note"), "{error}");
+            }
+        }
     }
 
     #[test]
