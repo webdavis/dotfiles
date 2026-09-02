@@ -147,6 +147,50 @@ fn closed_port() -> u16 {
     listener.local_addr().expect("its number").port()
 }
 
+/// Accept exactly one connection, read the WHOLE request (headers plus the
+/// Content-Length body), answer 200, and hand back the body as text.
+///
+/// Mirrors the raw-HTTP read pns's own hermes tests use
+/// (`dot_local/share/pns/src/channels/hermes.rs`, the redirect test): two
+/// crates, no shared dev dependency, so this is a deliberate duplicate rather
+/// than an import. A response after only a partial read can reset the socket
+/// under a client still writing, which is why this drains to Content-Length
+/// before answering.
+fn read_posted_body(listener: std::net::TcpListener) -> String {
+    use std::io::{Read, Write};
+    let (mut stream, _) = listener.accept().expect("the uu binary's POST");
+    let mut raw = Vec::new();
+    let mut chunk = [0u8; 4096];
+    let header_end = loop {
+        let read = stream.read(&mut chunk).unwrap_or(0);
+        if read == 0 {
+            break raw.len();
+        }
+        raw.extend_from_slice(&chunk[..read]);
+        if let Some(position) = raw.windows(4).position(|window| window == b"\r\n\r\n") {
+            break position + 4;
+        }
+    };
+    let content_length = String::from_utf8_lossy(&raw[..header_end])
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("content-length")
+                .then(|| value.trim().parse::<usize>().ok())?
+        })
+        .unwrap_or(0);
+    while raw.len() < header_end + content_length {
+        let read = stream.read(&mut chunk).unwrap_or(0);
+        if read == 0 {
+            break;
+        }
+        raw.extend_from_slice(&chunk[..read]);
+    }
+    let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    let _ = stream.flush();
+    String::from_utf8_lossy(&raw[header_end..header_end + content_length]).to_string()
+}
+
 #[test]
 fn a_machine_with_no_config_updates_nothing_and_exits_clean() {
     let home = Home::new("no-config");
@@ -857,6 +901,40 @@ fn a_record_the_gateway_never_received_leaves_the_marker_unmoved() {
     assert!(
         !home.marker().exists(),
         "a run whose record never landed must not stamp a success: {output:?}"
+    );
+}
+
+#[test]
+fn a_deferred_only_run_posts_a_record_body_stated_deferred_not_completed() {
+    // FINDING 1 (6v): the earlier test for this call site
+    // (`a_deferred_only_run_posts_a_body_stated_deferred_not_completed` in
+    // `record.rs`) calls `records_body(0, 1, "detail")` directly, so it can
+    // never see sol's mutant at the CALL SITE in `run_mode`
+    // (`records_body(failures, 0, &detail)`), which passes all 189 tests.
+    // This spawns the real binary and inspects the body its production
+    // `UreqSignedPost` call actually puts on the wire, the same way the
+    // review itself proved the mutant with a loopback listener.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let addr = listener.local_addr().expect("its number");
+    let server = std::thread::spawn(move || read_posted_body(listener));
+
+    let home = Home::new("records-deferred-state");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
+    );
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[records]\nurl = \"http://{addr}/uu\"\nkey = \"k\"\n",
+        stub.display(),
+    ));
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+
+    let body = server.join().expect("the listener thread");
+    assert!(
+        body.contains("\"state\":\"deferred\""),
+        "a run with only a deferred lane and zero failures must post state \
+         `deferred`, never `completed`: {body}"
     );
 }
 
