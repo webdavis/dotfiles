@@ -5012,7 +5012,7 @@ fn ad_hoc_quiet(state: &Path, now: Option<u64>) -> (pns::channels::hue::Muting, 
     let Some(now) = now else {
         return (
             pns::channels::hue::Muting::Everything,
-            vec![NO_CLOCK_FOR_THE_MUTE.to_string()],
+            vec![pns::lights::NO_CLOCK_FOR_THE_MUTE.to_string()],
         );
     };
     (
@@ -5020,10 +5020,6 @@ fn ad_hoc_quiet(state: &Path, now: Option<u64>) -> (pns::channels::hue::Muting, 
         complaints,
     )
 }
-
-/// Why every lamp is quiet on a run whose clock would not answer.
-const NO_CLOCK_FOR_THE_MUTE: &str = "pns lights: the clock cannot be read, so no \
-mute can be judged live; every lamp is quiet until it can";
 
 /// One upkeep pass: read the machine, derive the one state the house is in,
 /// and write it to every lamp that should show it.
@@ -8183,9 +8179,20 @@ mod tests {
         );
         // A CLOCK THAT WILL NOT ANSWER GOES THE SAME WAY. Nothing can judge a
         // mute live without one, and the direction is dark rather than loud.
+        //
+        // THE LITERAL SENTENCE, never the constant: a mutation that renamed
+        // or emptied `NO_CLOCK_FOR_THE_MUTE` and every reader of it together
+        // would still pass a comparison against itself.
         let (muting, complaints) = ad_hoc_quiet(&state, None);
         assert_eq!(muting, pns::channels::hue::Muting::Everything);
-        assert_eq!(complaints.len(), 1, "{complaints:?}");
+        assert_eq!(
+            complaints,
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ]
+        );
     }
 
     #[test]

@@ -1029,22 +1029,36 @@ pub fn render_muted(entries: &[Muted]) -> String {
 /// how a report and a behaviour come to disagree about whether a mute is on.
 /// Half open comes with it, so a mute ends on the second it names.
 ///
-/// AND FAIL OPEN comes with it too: a clock this run cannot read mutes
-/// nothing. A lights mute nobody can see is the dangerous state, which is the
-/// opposite direction to the quiet WINDOW one module over and deliberately so.
+/// THIS HELPER FAILS OPEN BY CONTRACT: on no clock, `live` judges every entry
+/// unmuted and this answers empty. That is true of this function alone. Its
+/// only production caller is the root, `ad_hoc_quiet`, and the root asks
+/// whether the clock answered BEFORE it asks this: on no clock it returns
+/// `Muting::Everything` without ever reaching this line.
 pub fn muted_places(entries: &[Muted], now: Option<u64>) -> Vec<String> {
     live(entries, now)
         .map(|entry| entry.place.clone())
         .collect()
 }
 
+/// Why every lamp is quiet on a run whose clock would not answer, the root's
+/// own line: `ad_hoc_quiet` prints it as a complaint, and this prints it as
+/// the report, so an operator reading either sees the same sentence.
+pub const NO_CLOCK_FOR_THE_MUTE: &str = "pns lights: the clock cannot be read, so no \
+mute can be judged live; every lamp is quiet until it can";
+
 /// What `pns lights quiet` prints, which is the whole file in the operator's
 /// own vocabulary.
 ///
 /// THE REPORT IS THE SAME READING THE LAMPS TAKE, entry for entry, because a
 /// report that decided liveness for itself is how a command and a lamp come to
-/// disagree about whether a room is quiet.
+/// disagree about whether a room is quiet. ON NO CLOCK, the same answer the
+/// root gives: every place quiet, said once, never per entry and never
+/// "nothing is quiet", which would tell the operator the opposite of what
+/// every lamp is about to do.
 pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
+    if now.is_none() {
+        return vec![NO_CLOCK_FOR_THE_MUTE.to_string()];
+    }
     let lines: Vec<String> = live(entries, now)
         .map(|entry| {
             let minutes = crate::quiet::minutes_left(entry.expiry, now);
@@ -2209,6 +2223,31 @@ mod tests {
             muted_report(&[], Some(now)),
             vec!["pns lights: nothing is quiet".to_string()],
             "and neither is an empty file"
+        );
+    }
+
+    #[test]
+    fn a_clock_that_will_not_answer_reports_the_reason_never_nothing_is_quiet() {
+        // THE ROOT MUTES EVERYTHING ON NO CLOCK (`ad_hoc_quiet`, fail closed),
+        // so a report saying "nothing is quiet" here would tell the operator
+        // the opposite of what every lamp is about to do.
+        assert_eq!(
+            muted_report(&[], None),
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ],
+            "an empty file with no clock must not read as nothing is quiet"
+        );
+        assert_eq!(
+            muted_report(&muted(&[(1_000, "3F - Studio")]), None),
+            vec![
+                "pns lights: the clock cannot be read, so no mute can be judged \
+                 live; every lamp is quiet until it can"
+                    .to_string()
+            ],
+            "an entry on file with no clock reports the same, not the entry"
         );
     }
 
