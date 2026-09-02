@@ -548,6 +548,76 @@ fn the_staleness_alert_fires_once_at_the_threshold_and_not_again_while_still_def
 }
 
 #[test]
+fn a_lane_failing_stale_after_runs_times_in_a_row_also_fires_one_staleness_alert() {
+    // Every staleness test above uses a DEFERRING lane. A mutant reading
+    // `succeeded` as `!report.deferred` (dropping the `&& failures == 0`
+    // half) would treat a plain FAILURE as a success, since a failure never
+    // sets `deferred`, resetting the streak every run and never tripping.
+    // Only a lane that actually FAILS three times in a row can catch that.
+    let home = Home::new("stale-trip-failures");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'boom: disk full\\n' >&2\nexit 2\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    for _ in 0..3 {
+        home.uu(&["run"]);
+    }
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert_eq!(
+        alerts.matches("consecutive").count(),
+        1,
+        "three straight failures must trip the staleness alert exactly once: {alerts}"
+    );
+}
+
+#[test]
+fn two_lanes_deferring_together_trip_their_own_staleness_alert_independently() {
+    // Every staleness test above uses ONE lane. A mutant sharing one streak
+    // path across every lane (dropping the lane's name from `streak_path`)
+    // would have the second lane inherit the first's count: run in NAME
+    // order (alpha before beta), that would trip alpha on run 2 instead of
+    // run 3, and beta would never trip on its own account at all.
+    let home = Home::new("stale-two-lanes");
+    let stub_a = home.write_stub(
+        "updater-alpha",
+        "cat >/dev/null\nprintf 'alpha deferred\\n' >&2\nexit 75\n",
+    );
+    let stub_b = home.write_stub(
+        "updater-beta",
+        "cat >/dev/null\nprintf 'beta deferred\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.alpha]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [lanes.beta]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [alerts]\nbinary = \"{}\"\n",
+        stub_a.display(),
+        stub_b.display(),
+        pns_stub.display(),
+    ));
+    for _ in 0..3 {
+        home.uu(&["run"]);
+    }
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert_eq!(
+        alerts.matches("alpha").count(),
+        1,
+        "alpha must trip exactly once, on its own third run: {alerts}"
+    );
+    assert_eq!(
+        alerts.matches("beta").count(),
+        1,
+        "beta must trip exactly once too, independently of alpha: {alerts}"
+    );
+}
+
+#[test]
 fn a_staleness_alert_the_engine_refused_is_retried_rather_than_lost_for_good() {
     // THE HOLE THE STALENESS BOUND EXISTS TO CLOSE, REOPENED. It fires once
     // per streak, so an engine that was down for that ONE run leaves a
