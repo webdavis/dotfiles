@@ -67,8 +67,8 @@ UNATTENDED_LOG_ROUTE="unattended-upgrades"
 
 # The gateway URL is pns's business for THIS caller: the post below names the
 # ROUTE with --channel and pns derives the endpoint from its own default
-# gateway. THE HOST AND PORT SIT IN FOUR PLACES, kept in step BY HAND, with
-# nothing comparing any two of them:
+# gateway. ON THE UNATTENDED AND pns ROUTES THE HOST AND PORT SIT IN FOUR
+# PLACES, kept in step BY HAND, with nothing comparing any two of them:
 #   private_dot_hermes/private_dot_env.tmpl      WEBHOOK_PORT=8644, the
 #     gateway-side declaration this repo owns in plaintext.
 #   dot_local/share/pns/src/channels/hermes.rs   DEFAULT_HERMES_URL, the
@@ -77,6 +77,10 @@ UNATTENDED_LOG_ROUTE="unattended-upgrades"
 #     config: uu posts its weekly record straight to hermes, not through here.
 #   dot_local/share/uu/src/config.rs             DEFAULT_RECORD_URL, dormant
 #     while the shipped config above states the url explicitly.
+# Four is THIS LANE'S count, not the repository's: the osquery pipeline
+# hardcodes the same host and port again for its own `priority` route, in
+# osquery/executable_alert-dispatch.sh and osquery/executable_uptime-watchdog.sh,
+# and those copies move independently of these.
 # Deriving one from the other is a design question, not settled here, and
 # run_after_68 does not stand in for it: it reads the port out of the LIVE
 # hermes config and probes THAT port, so it never compares a client's copy
