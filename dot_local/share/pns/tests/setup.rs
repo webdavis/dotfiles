@@ -625,9 +625,12 @@ fn an_empty_home_is_refused_by_name_before_anything_is_written() {
 
         assert_eq!(output.status.code(), Some(2));
         let stderr = String::from_utf8_lossy(&output.stderr);
+        // THE EXACT SENTENCE, not just the word: with `HOME` alone, a build
+        // that went back to saying "HOME is empty" for BOTH shapes stayed
+        // green, and an absent HOME was then reported as an empty one.
         assert!(
-            stderr.contains("HOME"),
-            "the refusal does not name HOME: {stderr}"
+            stderr.contains("HOME is unset or empty"),
+            "the refusal does not name HOME as unset or empty: {stderr}"
         );
         assert!(
             !sandbox.root.join(".config").exists(),
