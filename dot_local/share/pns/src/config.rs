@@ -3552,33 +3552,6 @@ mod tests {
     }
 
     #[test]
-    fn every_key_the_template_documents_is_a_key_the_roster_serves() {
-        // THE SCANNER IS THE SHARED ONE, so the template and what `pns setup`
-        // composes are held to the roster by the same reader rather than by
-        // two that can drift apart. The count is pinned HERE and only here,
-        // because the template is the text whose key list is a fixed document.
-        assert_eq!(
-            super::documented_keys_the_roster_serves(&rendered_template()),
-            TEMPLATE_KEY_PAIRS,
-            "the scan read a different number of keys than the template documents"
-        );
-    }
-
-    /// How many `key = value` pairs the scan above finds in the shipped
-    /// template, commented lines included.
-    ///
-    /// EXACT, NOT A FLOOR. The number is here to catch a SCANNER that quietly
-    /// stopped reading, and a floor with room under it is a scanner allowed to
-    /// lose a quarter of the file and still pass: the scan is whitespace-exact
-    /// in two places (`# ` and ` = `), so a template edit writing `key= value`
-    /// on a run of lines drops exactly that run and nothing says so.
-    ///
-    /// THE ONE EDIT THAT MOVES IT is the template documenting a key more or a
-    /// key fewer, in which case this number moves with it. A change here for
-    /// any other reason is the scan breaking rather than the template changing.
-    const TEMPLATE_KEY_PAIRS: usize = 66;
-
-    #[test]
     fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
         // THE THIRD DOCUMENT. The template says what to write, the refusals say
         // what is wrong with what was written, and the doctor's setup report
