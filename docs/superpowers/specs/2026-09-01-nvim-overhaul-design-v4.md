@@ -326,6 +326,7 @@ before quitting, for the reason 9.1 gives (the number is synthetic, and the same
 both phases):
 
 ```bash
+set -euo pipefail
 P="$S/before"; mkdir -p "$P"; cd "$BENCH"      # second phase: P="$S/after"
 NVIM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
 export DOTFILES
@@ -1224,14 +1225,17 @@ run. `S` is a scratch directory that is kept (every log, every stderr file and t
 in the PR body's evidence, not just the number):
 
 ```bash
+set -euo pipefail
 mkdir -p "$BENCH" && cd "$BENCH"                     # the one fixed directory, empty
 sudo purge                                           # drops the file cache: run 1 is then COLD
 for i in 1 2 3 4 5; do
+  : >"$S/st-$i.log"    # --startuptime APPENDS to an existing file, `nvim --help`
   nvim --headless --startuptime "$S/st-$i.log" -c 'doautocmd User VeryLazy' +qa 2>"$S/err-$i.log"
 done
 grep -h "NVIM STARTED" "$S"/st-{1,2,3,4,5}.log       # run 1 is the cold number, recorded, not gated
 grep -h "NVIM STARTED" "$S"/st-{2,3,4,5}.log | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
-wc -c "$S"/err-*.log                                 # every stderr file is 0 bytes
+err_report="$(wc -c "$S"/err-*.log | awk '$1 != 0 && $2 != "total"')"
+[[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
 ```
 
 The `doautocmd User VeryLazy` is load-bearing and the number it produces is SYNTHETIC. `+qa` runs

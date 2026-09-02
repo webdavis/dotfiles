@@ -205,6 +205,7 @@ two runs of the identical, unchanged config), so it can never compare equal rega
 change, and it carries no pass/fail signal nvim-treesitter's own section does not already carry:
 
 ```bash
+set -euo pipefail
 P="$S/before"; mkdir -p "$P" "$BENCH"; cd "$BENCH"   # second phase: P="$S/after"
 NVIM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
 export DOTFILES
