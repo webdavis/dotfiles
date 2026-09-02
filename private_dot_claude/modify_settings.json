@@ -227,6 +227,36 @@
      pass, where a separate pulse hook used to decide the tier again on its
      own.
 
+     ConfigChange fires when Claude Code's own configuration changes underneath
+     a session (its own reference documents five sources: `user_settings`,
+     `project_settings`, `local_settings`, `policy_settings`, `skills`, and a
+     `file_path` when the harness names one). Routed as an OBSERVATION, like
+     the quota arm beside it: it is a configuration audit trail, not a turn
+     needing the operator's attention, so it must not clear a wait, renew a
+     lease or claim the return moment, and it makes NO promise of
+     completeness (server-managed settings, macOS managed preferences and
+     Windows registry policy are all outside what this event can see). ONE
+     CARD PER RECEIVED EVENT rather than once ever: several live sessions, a
+     changed skill, or a corrupt-file recovery's own intermediate write can
+     each raise their own event, and this fires again for each one rather
+     than coalescing them. THE ONE MATCHER IS AN EXACT PIPE-SEPARATED
+     ALLOWLIST OF THE FIVE DOCUMENTED SOURCES, in the quota matcher's own
+     style, and the binary keeps its OWN copy of the same five-value
+     allowlist rather than trusting this matcher alone (`config_source_label`
+     in main.rs), since the payload parser accepts any string. Async, for the
+     reference's own strongest reason: a SYNCHRONOUS ConfigChange hook can
+     otherwise BLOCK the configuration change from taking effect
+     (`policy_settings` excepted) by exiting 2 or returning a structured
+     `decision`; an ordinary non-zero exit does not block it (a crash exiting
+     101 changes nothing about whether the setting lands), and async drops
+     the whole exit-code decision path regardless, which is what actually
+     keeps pns from ever holding up or refusing a configuration change it
+     exists only to audit. No `/dev/null`
+     redirect is needed here the way PostModelSwitch's command carries one:
+     the reference's own exception list for stdout reaching the model's
+     context names `UserPromptSubmit`, `UserPromptExpansion`, `SessionStart`
+     and `PostModelSwitch`, and ConfigChange is not among them.
+
      PostModelSwitch fires whenever the session's model changes; it is routed
      as an OBSERVATION, never a first delivery, so it clears no wait, renews
      no lease and claims no return moment (only a session's own First event
@@ -317,6 +347,12 @@
         "type" "command"
         "async" true
         "command" (printf "%s/.local/libexec/pns/pns hook quota" $home)))))
+    "ConfigChange" (list (dict
+      "matcher" "user_settings|project_settings|local_settings|policy_settings|skills"
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s/.local/libexec/pns/pns hook config-change" $home)))))
     "PermissionRequest" (list (dict
       "hooks" (list (dict
         "type" "command"

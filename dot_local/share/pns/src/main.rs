@@ -159,7 +159,7 @@ pns: usage:
   pns [<producer flags>]           one notification, stated in argv
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
                                    blocked, asked, plan-ready, denied, resolved,
-                                   model-switch, quota
+                                   model-switch, quota, config-change
   pns gate <harness>-hook          presence-gated pass-through to moshi-hook
   pns <harness>-hook               the same gate, spelled the way moshi calls it
   pns pulse <exit-code>            signal the lamps by hand
@@ -236,30 +236,146 @@ fn gate_mode(subcommand: &str) -> i32 {
         .map_or(0, |child| answer_within(child, submit_deadline()))
 }
 
+/// Text safe to render or store, ON TOP OF `flattened`: whitespace and
+/// control characters collapsed as `flattened` already does, and Unicode
+/// format characters (`recap::is_invisible`) stripped besides.
+///
+/// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
+/// `flattened` is shared by every other rendered field on this path, and this
+/// crate has two callers with a reason a format character must not survive at
+/// all rather than merely render inertly. `model_switch_detail` compares two
+/// names for equality, which a reordering character could defeat silently (a
+/// name that reads the same but compares unequal, or the reverse); the
+/// config-change arm writes a path into a durable state file as well as a
+/// card, and an invisible character there would round-trip identically on
+/// every future read. Widening `flattened` itself for two callers would let
+/// every other field silently start allowing format characters through too.
+fn rendered_plainly(text: &str) -> String {
+    flattened(text)
+        .chars()
+        .filter(|character| !pns::recap::is_invisible(*character))
+        .collect()
+}
+
 /// The automatic model-switch card's detail, or `None` when there is no
 /// transition worth one: either name empty once flattened and stripped of
 /// invisible characters, or the two equal once stripped.
-///
-/// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
-/// `flattened` is shared by every other rendered field on this path, and
-/// `main.rs` is the one caller with an equality test that a reordering
-/// character could defeat silently (a name that reads the same but compares
-/// unequal, or the reverse). Widening `flattened` itself for one caller would
-/// let every other field silently start allowing format characters through
-/// too.
 fn model_switch_detail(from_model: &str, to_model: &str) -> Option<String> {
-    let visible = |name: &str| -> String {
-        flattened(name)
-            .chars()
-            .filter(|character| !pns::recap::is_invisible(*character))
-            .collect()
-    };
-    let from = visible(from_model);
-    let to = visible(to_model);
+    let from = rendered_plainly(from_model);
+    let to = rendered_plainly(to_model);
     if from.is_empty() || to.is_empty() || from == to {
         return None;
     }
     Some(format!("automatic session model change: {from} to {to}"))
+}
+
+/// A `ConfigChange` payload field, rendered plainly and CUT, with the cut
+/// marked: `clipped` says it happened rather than handing a reader a path
+/// that silently is not the one on disk.
+///
+/// THE CUT IS WHAT KEEPS THE AUDIT TRAIL: both fields this arm reads are
+/// harness text bounded only by `MAX_PAYLOAD_BYTES` (1 MB), and both land in
+/// a ring whose prune runs on a read-back capped at `RING_READ_MAX` (256
+/// KiB). One oversized path makes that read-back fail, and the heal then
+/// collapses the whole trail to the single line just written, losing every
+/// policy change recorded before it. `decision_log`'s `IDENTITY_MAX` is the
+/// same defence at the same boundary, for the same reason.
+fn config_field(text: &str, max_chars: usize) -> String {
+    render::clipped(&rendered_plainly(text), max_chars)
+}
+
+/// The longest path a `ConfigChange` field carries into a card or the audit
+/// trail. THE CARD AND AUDIT BUDGET, not a claim about every real path: it is
+/// macOS's own `PATH_MAX`, but Linux's is 4096, so a genuinely long Linux path
+/// IS visibly clipped here, with the cut marked rather than silent. Short
+/// enough that the trail's own arithmetic holds regardless: see
+/// `POLICY_SETTINGS_AUDIT_KEPT`.
+const CONFIG_PATH_MAX_CHARS: usize = 1024;
+
+/// The longest session id the audit trail carries. A session id is a UUID in
+/// every harness this serves; the cap is what stops one nobody validated from
+/// filling a line.
+const CONFIG_SESSION_MAX_CHARS: usize = 64;
+
+/// The five documented `ConfigChange` sources, and nothing else: an exact
+/// allowlist, matching the exact matcher declared beside it in
+/// `modify_settings.json`. THIS IS THE RUST-SIDE BACKSTOP the declaration's
+/// matcher alone cannot be trusted to be: `parse_payload` accepts any string
+/// under this key, so a direct invocation, a drifted declaration, or a future
+/// value Claude Code adds would otherwise reach a card for a source this
+/// binary has never verified. A `ConfigChange` carrying any other `source`
+/// yields `None`, in `quota_label`'s own style.
+fn config_source_label(source: &str) -> Option<&'static str> {
+    match source {
+        "user_settings" => Some("user settings changed"),
+        "project_settings" => Some("project settings changed"),
+        "local_settings" => Some("local settings changed"),
+        "policy_settings" => Some("policy settings changed"),
+        "skills" => Some("skills changed"),
+        _ => None,
+    }
+}
+
+/// A configuration-change card's detail: which of the five sources changed,
+/// and the file Claude Code named, when it named one. `None` for an
+/// unmatched source, in `quota_observation_detail`'s own style.
+///
+/// NEVER "WHAT CHANGED": the payload carries no key, no old or new value and
+/// no actor, so the detail says only WHICH SOURCE and, optionally, WHICH
+/// FILE. `file_path` is untrusted text that lands in a banner and a card, so
+/// it goes through `rendered_plainly` exactly as a hostile model name does.
+fn config_change_detail(source: &str, file_path: &str) -> Option<String> {
+    let label = config_source_label(source)?;
+    let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
+    Some(if path.is_empty() {
+        label.to_string()
+    } else {
+        format!("{label}: {path}")
+    })
+}
+
+/// How many received `policy_settings` changes the audit trail remembers,
+/// comfortably past the five-entry decision ring (`decision_log::KEPT`): a
+/// policy change is rarer and more consequential than an ordinary observed
+/// event, and it must outlive more than a handful of intervening turns rather
+/// than vanish with them the moment the ring rolls over.
+///
+/// THE ARITHMETIC `append_ring_line` ASKS EVERY CALLER FOR, against the
+/// `RING_READ_MAX` this passes beside it: a line is a timestamp, a session cut
+/// to `CONFIG_SESSION_MAX_CHARS` and a path cut to `CONFIG_PATH_MAX_CHARS`, so
+/// its worst case is about 4.4 KB of UTF-8 and twenty of them about 88 KB,
+/// comfortably inside the reader's 256 KiB ceiling. Without both cuts the
+/// depth alone would not bound the FILE, and a ring past that ceiling can
+/// never be pruned again: the heal fires and the trail collapses to one line.
+const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
+
+/// The policy-settings audit trail's file name, beside `DECISIONS` and
+/// `ACTIVITY`.
+const POLICY_SETTINGS_AUDIT: &str = "policy-settings-audit";
+
+/// Append one received `policy_settings` change to a bounded, state-only
+/// audit record, so it outlives the five-entry decision ring an ordinary
+/// observed event is logged to. STATE-ONLY, in `record_missed`'s style: no
+/// card of its own, no marker, no lease; the routing this rides beside stays
+/// marker-neutral, and this is purely a durable trace of receipt for a class
+/// of change worth remembering past the next few turns.
+///
+/// FAIL-QUIET, in `record_decision`'s exact style and for its exact reason:
+/// an event path whose stdout a harness hook reads must not gain a line about
+/// the state directory, and a record that did not land costs a read of this
+/// file later, never a card.
+fn record_policy_settings_change(session_id: &str, file_path: &str, now: Option<u64>) {
+    let now = now.unwrap_or_default();
+    let session = config_field(session_id, CONFIG_SESSION_MAX_CHARS);
+    let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
+    let path = if path.is_empty() { "none" } else { &path };
+    let line = format!("{now} session={session} file={path}");
+    let _ = append_ring_line(
+        &state_dir().join(POLICY_SETTINGS_AUDIT),
+        &line,
+        POLICY_SETTINGS_AUDIT_KEPT,
+        RING_READ_MAX,
+    );
 }
 
 /// The three quota-notification labels this binary recognises, and nothing
@@ -487,6 +603,48 @@ fn hook_mode(event: &str) -> i32 {
                 // `arm_quota_stale_wait` for both halves of why.
                 if payload.notification_type == "quota_auto_resume_stale" {
                     arm_quota_stale_wait(&payload.session_id, &probes);
+                }
+                run_event(
+                    &pns::args::EventArgs {
+                        agent,
+                        state: event.to_string(),
+                        project: project_of(&payload.cwd),
+                        detail,
+                        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                        ..Default::default()
+                    },
+                    &probes,
+                    &payload,
+                    Attempt::Observation,
+                );
+            }
+        }
+        // `ConfigChange`, restricted to the FIVE DOCUMENTED SOURCES via an
+        // exact Rust-side allowlist (`config_source_label`) that mirrors,
+        // rather than trusts, the declaration's own exact matcher: a direct
+        // invocation, a drifted declaration, or a future value Claude Code
+        // adds must not reach a card this binary never verified. Routed as an
+        // OBSERVATION, like the model-switch and quota arms beside it: this
+        // is a configuration audit trail, not a turn needing the operator's
+        // attention, so delivery must not clear a wait, renew a lease, or
+        // claim the return moment. ONE CARD PER RECEIVED EVENT, deliberately:
+        // there is no once-per-something guarantee to keep, because a
+        // corrupt-file recovery, several live sessions, or a changed skill
+        // can each produce their own event, so this fires again for every
+        // distinct invocation rather than coalescing them.
+        "config-change" => {
+            if let Some(detail) = config_change_detail(&payload.source, &payload.file_path) {
+                let probes = system_probes();
+                // THE ONE SOURCE THAT OUTLIVES THE CARD: see
+                // `record_policy_settings_change` for why a policy change
+                // gets a bounded audit line on top of the ordinary decision
+                // ring every observation is logged to.
+                if payload.source == "policy_settings" {
+                    record_policy_settings_change(
+                        &payload.session_id,
+                        &payload.file_path,
+                        probes.now_secs(),
+                    );
                 }
                 run_event(
                     &pns::args::EventArgs {
@@ -1612,16 +1770,73 @@ fn take_claim(claim: &Path) -> Claimed {
     Claimed::Taken(pns::missed_notifications::entries(&contents))
 }
 
+/// How many times an append waits for a ring's own lock before giving up
+/// rather than risk the very race the lock exists to prevent.
+///
+/// A HANDFUL OF SHORT SLEEPS PAST WHAT THE CRITICAL SECTION ITSELF EVER
+/// TAKES: the whole locked span is one small read, one rewrite and one
+/// rename, so a live holder clears in microseconds. Giving up costs the ONE
+/// event that could not get in, in `record_decision`'s own fail-quiet style;
+/// it never risks publishing over a sibling's newer state, which is the loss
+/// this lock exists to prevent.
+const RING_LOCK_ATTEMPTS: u32 = 200;
+
+/// How long a ring's own lock is believed before a holder that died on it is
+/// read as an orphan. Long past any real critical section, so this only ever
+/// fires for a crash, in `lights_tick_stale_secs`'s own style for its own
+/// job.
+const RING_LOCK_STALE_SECS: u64 = 5;
+
+/// The path beside a ring's own that arbitrates between two processes
+/// touching it at once.
+fn ring_lock_path(path: &Path) -> std::path::PathBuf {
+    let mut name = path.as_os_str().to_os_string();
+    name.push(".lock");
+    std::path::PathBuf::from(name)
+}
+
+/// One ring's lock, WAITED FOR rather than skipped: unlike a lights tick,
+/// which safely stands down from a busy window and picks the lamp up again
+/// next interval, standing down here means silently losing whichever event
+/// is mid-append. Reuses `claim_lock`, the one shape every lock in this
+/// binary uses (see its own doc comment), rather than a second mechanism.
+/// Bounded anyway, in this binary's own style: `RING_LOCK_ATTEMPTS` short
+/// sleeps, and a hold that outlasts all of them is read as broken rather than
+/// waited on forever.
+fn claim_ring_lock(path: &Path) -> Option<HeldLock> {
+    let lock = ring_lock_path(path);
+    // A CLOCK THAT CANNOT BE READ COUNTS AS ZERO, which is `lock_aged_out`'s
+    // own safe direction under a different name: a held lock is never read as
+    // older than it is, so a broken clock can stand this caller down but
+    // never lets it steal a live holder's claim.
+    let now = now_secs().unwrap_or(0);
+    for attempt in 0..RING_LOCK_ATTEMPTS {
+        if claim_lock(&lock, now, RING_LOCK_STALE_SECS) {
+            return Some(HeldLock(lock));
+        }
+        if attempt + 1 < RING_LOCK_ATTEMPTS {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    None
+}
+
 /// The append and the prune behind it, for ANY of this tool's bounded state
 /// rings. The caller names the file and its own depth; everything below is
 /// one hardening serving every one of them, because a second hand-written
 /// copy of it is how one ring ends up without the FIFO guard.
 ///
-/// WRITTEN BY APPEND, never read-modify-write: an append needs no read, so two
-/// events firing at once (a Stop hook and the long-running notifier are a
-/// normal pair) cannot lose each other's line. The prune only runs when the
-/// file went over the caller's cap, and republishes the last `kept` lines
-/// through the same atomic publish every other state file uses.
+/// THE WHOLE OPERATION IS ONE CLAIM: append, read-back, prune and publish all
+/// happen while this process alone holds the ring's own lock. Two events
+/// firing at once (a Stop hook and the long-running notifier are a normal
+/// pair) used to be safe only for the append itself; the prune's read and its
+/// publish were NOT one atomic step, so a racer that read before a sibling's
+/// append could still publish its stale, smaller window AFTER the sibling
+/// published a newer one, silently dropping the sibling's line and keeping
+/// the wrong oldest entry. The lock is what makes the four steps indivisible,
+/// which is also what retires the old accepted limit below: an append can no
+/// longer land during a sibling's rename, because no sibling is ever inside
+/// this section at the same time.
 ///
 /// NOTHING ABOUT THE FILE IS TRUSTED, because none of it is this tool's word:
 /// the ring is a plain file in a directory an operator, a backup tool or
@@ -1635,11 +1850,6 @@ fn take_claim(claim: &Path) -> Claimed {
 /// is refused untouched, and a file this cannot read back whole is replaced
 /// by the one line it does have.
 ///
-/// ACCEPTED LIMIT: an append landing exactly during a rename, whether the
-/// prune's or a heal's, is lost. It costs ONE RECORD at a rare boundary,
-/// never a card and never a torn file, because the rename is atomic and the
-/// text it publishes is always whole lines.
-///
 /// `read_max` IS THE CALLER'S TOO, and it travels with `kept` because the two
 /// are one decision. The prune runs on the READ-BACK, so a ring deep enough to
 /// exceed the reader's ceiling can never be pruned again: the heal fires and
@@ -1647,9 +1857,19 @@ fn take_claim(claim: &Path) -> Claimed {
 /// is fullest. Every caller states both numbers together, and the doc comment
 /// on each depth does the arithmetic.
 fn append_ring_line(path: &Path, line: &str, kept: usize, read_max: u64) -> std::io::Result<()> {
+    // BEFORE THE CLAIM: the lock lives beside the ring, so a state directory
+    // that does not exist yet fails the lock's own exclusive create with the
+    // same `NotFound` the ring's own open used to paper over here. A first
+    // event has nowhere else to make this directory.
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
+    let Some(_lock) = claim_ring_lock(path) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "the ring's lock stayed held past every attempt",
+        ));
+    };
     // BEFORE THE OPEN, and with `symlink_metadata` so the link itself is what
     // is judged rather than whatever it points at. Refused and never
     // repaired: deleting something this tool did not put there, on a path it
@@ -1696,6 +1916,13 @@ fn append_ring_line(path: &Path, line: &str, kept: usize, read_max: u64) -> std:
         // there is nothing to do.
         Err(_) => return Ok(()),
     };
+    // A TEST-ONLY STALL, in `env_deadline`'s own words: it exists so a test
+    // can prove this section is exclusive rather than hope a real race lands
+    // in a window that is normally microseconds wide. Unset in every real
+    // invocation, so production takes no delay here at all.
+    if let Some(delay) = env_deadline("PNS_RING_LOCK_TEST_DELAY_MS") {
+        std::thread::sleep(delay);
+    }
     let entries: Vec<&str> = contents.lines().collect();
     if entries.len() <= kept {
         return Ok(());
@@ -6207,19 +6434,27 @@ fn lights_tick_stale_secs() -> u64 {
 }
 
 /// A lock held for as long as this value is alive, and given back when it is
-/// dropped.
+/// dropped. Shared by every `claim_lock` caller with more than one exit path
+/// (the lights tick and a ring append today), not just the tick: a second
+/// hand-written guard is how one of them ends up leaking its lock on a path
+/// the other already covered.
 ///
-/// A GUARD RATHER THAN A RELEASE AT EVERY EXIT: the tick stands down from four
-/// places, and a lock left behind stands every later tick down for a whole
-/// stale window. `Drop` is the one exit all of them share.
+/// A GUARD RATHER THAN A RELEASE AT EVERY EXIT: the lights tick stands down
+/// from four places and a ring append from several early returns, and a lock
+/// left behind stands every later claimant down for a whole stale window.
+/// `Drop` is the one exit all of them share.
+///
+/// THE MESSAGE NAMES NEITHER CALLER, deliberately: it is printed by the type
+/// both share, and naming one subsystem in it would misdescribe the other's
+/// failure the day this is reused a third time.
 struct HeldLock(std::path::PathBuf);
 
 impl Drop for HeldLock {
     fn drop(&mut self) {
         if let Err(error) = std::fs::remove_file(&self.0) {
             eprintln!(
-                "pns lights: the tick lock {} could not be given up ({error}); \
-                 the next tick waits it out",
+                "pns: the lock {} could not be given up ({error}); \
+                 the next claimant waits it out",
                 self.0.display()
             );
         }
