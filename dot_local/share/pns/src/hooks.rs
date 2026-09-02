@@ -766,7 +766,10 @@ mod tests {
 
     #[test]
     fn notification_type_is_absent_rather_than_guessed_off_a_non_notification_event() {
-        assert_eq!(parse_payload(r#"{"session_id":"s1"}"#).notification_type, "");
+        assert_eq!(
+            parse_payload(r#"{"session_id":"s1"}"#).notification_type,
+            ""
+        );
     }
 
     #[test]

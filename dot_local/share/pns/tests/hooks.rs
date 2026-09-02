@@ -4629,3 +4629,438 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
         );
     }
 }
+
+// --- observation mode: the quota notification arm --------------------------
+//
+// D7's cheapest shape: the ONE `Notification` matcher this binary recognises
+// is the three quota auto-resume types, routed through `Attempt::Observation`
+// exactly like the model-switch arm above. `quota_auto_resume_stale` is the
+// one exception (Q3): Claude Code's interactive-mode reference documents that
+// a stale wait continues when the operator presses Enter, and that
+// continuation is a fixed prompt through `UserPromptSubmit`
+// (`pns hook prompt`), whose own arm already calls `end_blocked_wait`. So
+// `stale` alone also arms the needs marker directly; `fired` and `disabled`
+// stay marker-neutral because neither has a verified matching clear.
+
+const QUOTA_TYPES: [&str; 3] = [
+    "quota_auto_resume_fired",
+    "quota_auto_resume_stale",
+    "quota_auto_resume_disabled",
+];
+
+fn quota_payload(session: &str, notification_type: &str, message: &str) -> String {
+    format!(
+        r#"{{"session_id":"{session}","cwd":"/a/dotfiles","hook_event_name":"Notification","notification_type":"{notification_type}","message":"{message}"}}"#
+    )
+}
+
+#[test]
+fn quota_auto_resume_fired_delivers_one_card_naming_itself() {
+    let sandbox = Sandbox::new("quota-fired-card");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_fired", "continuing automatically"),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1, "exactly one card");
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "quota");
+    assert_eq!(
+        event["detail"],
+        "quota auto-resume fired: continuing automatically"
+    );
+}
+
+#[test]
+fn quota_auto_resume_stale_delivers_one_card_naming_itself() {
+    let sandbox = Sandbox::new("quota-stale-card");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_stale", "press enter to continue"),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1, "exactly one card");
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "quota");
+    assert_eq!(
+        event["detail"],
+        "quota auto-resume stale: press enter to continue"
+    );
+}
+
+#[test]
+fn quota_auto_resume_disabled_delivers_one_card_naming_itself() {
+    let sandbox = Sandbox::new("quota-disabled-card");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_disabled", "turned off"),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1, "exactly one card");
+    let event = sandbox.event("hermes");
+    assert_eq!(event["state"], "quota");
+    assert_eq!(event["detail"], "quota auto-resume disabled: turned off");
+}
+
+#[test]
+fn an_unrecognised_notification_type_delivers_nothing() {
+    let sandbox = Sandbox::new("quota-unmatched-type");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    // THE CONTROL: a matched type in this same sandbox proves the writer is
+    // reachable, so the zero counts below are a decision, never a broken
+    // harness.
+    let control = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_fired", "continuing"),
+    );
+    assert!(control.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1, "the control fired");
+
+    // A wildcard matcher would duplicate every one of these against the
+    // lifecycle hooks that already cover it (D7's whole reason to exist), and
+    // the two deferred D7 types are named explicitly among them.
+    for notification_type in [
+        "permission_prompt",
+        "idle_prompt",
+        "auth_success",
+        "elicitation_dialog",
+        "elicitation_response",
+        "agent_needs_input",
+        "agent_completed",
+        "",
+    ] {
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "quota",
+            &quota_payload("s2", notification_type, "something"),
+        );
+        assert!(output.status.success(), "{notification_type:?}");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            1,
+            "{notification_type:?}: no card"
+        );
+    }
+}
+
+#[test]
+fn no_quota_type_clears_another_sessions_live_wait() {
+    for notification_type in QUOTA_TYPES {
+        let sandbox = Sandbox::new(&format!("quota-no-clear-{notification_type}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+        std::fs::create_dir_all(sandbox.path("state/lights-blocked")).expect("lights-blocked dir");
+        std::fs::write(sandbox.path("state/lights-blocked/other"), "1700000000")
+            .expect("the other session's marker");
+
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "quota",
+            &quota_payload("s1", notification_type, "m"),
+        );
+
+        assert!(output.status.success(), "{notification_type}");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            1,
+            "{notification_type}: the positive control, without it the marker's survival proves nothing"
+        );
+        assert!(
+            sandbox.path("state/lights-blocked/other").exists(),
+            "{notification_type} must not clear another session's live wait"
+        );
+    }
+}
+
+#[test]
+fn no_quota_type_arms_unread_news() {
+    for notification_type in QUOTA_TYPES {
+        let sandbox = Sandbox::new(&format!("quota-no-news-{notification_type}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "quota",
+            &quota_payload("s1", notification_type, "m"),
+        );
+
+        assert!(output.status.success(), "{notification_type}");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            1,
+            "{notification_type}: the positive control fired"
+        );
+        assert!(
+            !sandbox.path("state/lights-news").exists(),
+            "{notification_type}: arms no unread-news lamp"
+        );
+    }
+}
+
+#[test]
+fn no_quota_type_writes_a_journal_entry_or_an_activity_line() {
+    for notification_type in QUOTA_TYPES {
+        let sandbox = Sandbox::new(&format!("quota-no-activity-{notification_type}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+        let activity_before = state_lines(&sandbox, "activity");
+        let missed_before = state_lines(&sandbox, "missed-notifications");
+
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "quota",
+            &quota_payload("s1", notification_type, "m"),
+        );
+
+        assert!(output.status.success(), "{notification_type}");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            1,
+            "{notification_type}: the positive control fired"
+        );
+        assert_eq!(
+            state_lines(&sandbox, "activity"),
+            activity_before,
+            "{notification_type}: writes no activity-ring line"
+        );
+        assert_eq!(
+            state_lines(&sandbox, "missed-notifications"),
+            missed_before,
+            "{notification_type}: writes no journal entry"
+        );
+    }
+}
+
+#[test]
+fn no_quota_type_renews_a_loop_lease() {
+    for notification_type in QUOTA_TYPES {
+        let sandbox = Sandbox::new(&format!("quota-no-lease-{notification_type}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+        let lease_dir = sandbox.path("state/lights-loop");
+        std::fs::create_dir_all(&lease_dir).expect("lease dir");
+        std::fs::write(lease_dir.join("wW:p1"), "100\n").expect("an old lease");
+
+        let mut command = with_state_dir(&sandbox);
+        command.env("HERDR_PANE_ID", "wW:p1");
+        let output = hook_with(
+            command,
+            &sandbox,
+            "quota",
+            &quota_payload("s1", notification_type, "m"),
+        );
+
+        assert!(output.status.success(), "{notification_type}");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            1,
+            "{notification_type}: the positive control fired"
+        );
+        assert_eq!(
+            std::fs::read_to_string(lease_dir.join("wW:p1")).unwrap_or_default(),
+            "100\n",
+            "{notification_type}: renews no loop lease"
+        );
+    }
+}
+
+#[test]
+fn no_quota_type_moves_the_presence_edge() {
+    for notification_type in QUOTA_TYPES {
+        let sandbox = Sandbox::new(&format!("quota-no-presence-{notification_type}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+        std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+        std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
+
+        // THE CONTROL: PNS_IDLE_SECS=0 forces Present, and a First `done`
+        // event advances the marker under it, proving a misrouted First
+        // would be visible here rather than passing for the suite's own
+        // default-Away reason.
+        let mut control = with_state_dir(&sandbox);
+        control.env("PNS_IDLE_SECS", "0");
+        let control_output = hook_with(control, &sandbox, "stop", r#"{"session_id":"control"}"#);
+        assert!(control_output.status.success(), "{notification_type}");
+        let advanced =
+            std::fs::read_to_string(sandbox.path("state/last-present")).expect("the control wrote");
+        assert_ne!(
+            advanced, "1",
+            "{notification_type}: the control: a First `done` event advances the presence edge"
+        );
+        let deliveries_before = deliveries(&sandbox, "hermes");
+
+        let mut command = with_state_dir(&sandbox);
+        command.env("PNS_IDLE_SECS", "0");
+        let output = hook_with(
+            command,
+            &sandbox,
+            "quota",
+            &quota_payload("s1", notification_type, "m"),
+        );
+
+        assert!(output.status.success(), "{notification_type}");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            deliveries_before + 1,
+            "{notification_type}: the positive control: the observation itself delivered"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+            advanced,
+            "{notification_type}: an observation never claims the return moment"
+        );
+    }
+}
+
+#[test]
+fn every_quota_type_is_logged_as_an_observation_with_no_nag() {
+    for notification_type in QUOTA_TYPES {
+        let sandbox = Sandbox::new(&format!("quota-nag-{notification_type}"));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "quota",
+            &quota_payload("s1", notification_type, "m"),
+        );
+        assert!(output.status.success(), "{notification_type}");
+
+        let recorded =
+            std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+        let lines: Vec<&str> = recorded.lines().collect();
+        assert_eq!(
+            lines.len(),
+            1,
+            "{notification_type}: one event, one line: {recorded:?}"
+        );
+        assert!(
+            lines[0].contains(" claude/quota "),
+            "{notification_type}: names the harness and the state: {recorded:?}"
+        );
+        assert!(
+            lines[0].contains(" nag=no "),
+            "{notification_type}: an observation is logged with no nag: {recorded:?}"
+        );
+    }
+}
+
+#[test]
+fn quota_auto_resume_stale_arms_the_needs_marker_for_its_own_session() {
+    let sandbox = Sandbox::new("quota-stale-arms-marker");
+    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_stale", "press enter to continue"),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "the positive control: the observation itself delivered"
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "a stale wait arms its own session's needs marker"
+    );
+}
+
+#[test]
+fn quota_auto_resume_fired_and_disabled_arm_no_needs_marker() {
+    // THE MIRROR OF THE TEST ABOVE: proving stale arms the marker says
+    // nothing about whether the other two also do, and a mutant that arms it
+    // for every type would still pass a test that only checks stale.
+    for notification_type in ["quota_auto_resume_fired", "quota_auto_resume_disabled"] {
+        let sandbox = Sandbox::new(&format!("quota-no-arm-{notification_type}"));
+        sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+        counted_channels(&sandbox);
+
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "quota",
+            &quota_payload("s1", notification_type, "m"),
+        );
+
+        assert!(output.status.success(), "{notification_type}");
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            1,
+            "{notification_type}: the positive control fired"
+        );
+        assert!(
+            waiting_sessions(&sandbox).is_empty(),
+            "{notification_type}: must arm no needs marker"
+        );
+    }
+}
+
+#[test]
+fn the_prompt_hook_clears_a_stale_quota_marker() {
+    // Q3'S OWN CLOSE. Claude Code's interactive-mode reference: a stale wait
+    // continues when the operator presses Enter, and that continuation is a
+    // fixed prompt through `UserPromptSubmit`, which is `pns hook prompt`.
+    let sandbox = Sandbox::new("quota-stale-cleared-by-prompt");
+    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    counted_channels(&sandbox);
+
+    let armed = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "quota",
+        &quota_payload("s1", "quota_auto_resume_stale", "press enter to continue"),
+    );
+    assert!(armed.status.success());
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "the precondition: a stale wait armed the marker"
+    );
+
+    let prompted = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"s1"}"#,
+    );
+
+    assert!(prompted.status.success());
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "the operator's continuation clears the marker the way any other prompt does"
+    );
+}
