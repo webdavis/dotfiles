@@ -26,6 +26,10 @@ local function blows_up()
   error("the call blew up")
 end
 
+local function reports_failure()
+  return nil, "not a git repository"
+end
+
 return {
   ["reports the explicit label of a raising call"] = function()
     local text = run(blows_up, { label = "git.default_branch" })
@@ -59,6 +63,25 @@ return {
     end, { label = "git.default_branch" })
     assert(text == "", "notified on success: " .. text)
     assert(branch == "main", "returned " .. tostring(branch))
+  end,
+
+  ["passes every value of a successful call through, not just the first"] = function()
+    local _, branch, remote = run(function()
+      return "main", "origin"
+    end, { label = "git.default_branch" })
+    assert(branch == "main", "first value was " .. tostring(branch))
+    assert(remote == "origin", "second value was " .. tostring(remote))
+  end,
+
+  ["returns nothing at all after a failed call"] = function()
+    -- The contract is `fn`'s values or nothing, which is what lets a caller's
+    -- `if not result then return end` guard fire. Any value returned here slips
+    -- a failure past every such guard, on either failure path.
+    local after_bug = select("#", run(blows_up, { label = "git.default_branch" })) - 1
+    assert(after_bug == 0, "returned " .. after_bug .. " values after a bug")
+
+    local after_failure = select("#", run(reports_failure, { label = "git.default_branch" })) - 1
+    assert(after_failure == 0, "returned " .. after_failure .. " values after an operational failure")
   end,
 
   ["refuses a call with no label"] = function()
