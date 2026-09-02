@@ -9128,15 +9128,20 @@ mod tests {
         std::fs::create_dir_all(marker.parent().expect("the wait directory"))
             .expect("the wait directory");
         std::fs::write(&marker, "1000\n").expect("a wait in progress");
-        let mut lights = pns::config::Lights::default();
-        lights.blocked.give_up_after_secs = GIVE_UP_AFTER_SECS;
+        // THROUGH THE PARSER, not a field poked on a default: the knob the
+        // operator writes is the one the tick must read.
+        let config = pns::config::parse_config(&format!(
+            "[lights.blocked]\ngive_up_after_secs = {GIVE_UP_AFTER_SECS}\n"
+        ))
+        .expect("a config stating the knob");
+        let lights = config.lights.as_deref().expect("the lights table");
 
         assert!(
-            lights_house(&state, &lights, 1_000 + 90_000).house.blocked,
+            lights_house(&state, lights, 1_000 + 90_000).house.blocked,
             "a day-old question inside the configured backstop still holds the lamp"
         );
         assert!(
-            !lights_house(&state, &lights, 1_000 + GIVE_UP_AFTER_SECS + 1)
+            !lights_house(&state, lights, 1_000 + GIVE_UP_AFTER_SECS + 1)
                 .house
                 .blocked,
             "and one second past the backstop the lamp is given back"
