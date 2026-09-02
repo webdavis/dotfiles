@@ -53,6 +53,40 @@ pub trait SessionViewProbe {
     fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView>;
 }
 
+/// Which of the subprocess-backed probes a caller is about to want.
+///
+/// One field per probe that is worth starting ahead of the read that will
+/// join it; the marker and the clock are not here because neither spawns a
+/// subprocess, and the session view is not here because it has exactly one
+/// production reader already, with nothing to overlap it against.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Wants {
+    pub desk: bool,
+    pub phone: bool,
+}
+
+/// Begin the subprocess-backed readings a caller is about to want, so a slow
+/// one runs in the background instead of blocking every reading that does
+/// not depend on it.
+///
+/// A NO-OP BY DEFAULT: only `SystemProbes` overrides it, so every probe set
+/// wired against a fixture, which is every test double in this crate, answers
+/// exactly as fast started as unstarted, with nothing to overlap.
+///
+/// STARTING IS NEVER READING. A caller that never calls this still gets an
+/// answer: every read computes its own reading inline when nothing was
+/// started for it, which is what keeps this trait's absence from a probe set
+/// a correctness question rather than only a performance one.
+pub trait ProbeStart {
+    fn start(&self, _wants: Wants) {}
+}
+
+impl<T: ProbeStart> ProbeStart for &T {
+    fn start(&self, wants: Wants) {
+        (*self).start(wants)
+    }
+}
+
 // A SHARED reading is one reading. The composition root builds one probe set
 // per event and hands the same one to the engine and to every channel that
 // needs a reading, so two consumers can never take the same measurement twice
