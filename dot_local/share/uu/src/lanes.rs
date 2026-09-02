@@ -57,24 +57,54 @@ impl LaneReport {
     }
 }
 
-/// The spawn seam. `Ok` carries the command's stdout, `Err` why it did not
-/// succeed, already fit to print.
+/// What a command lane's child did, when it could be run at all. `stdout` is
+/// kept EVEN ON FAILURE (a failed child's own record lines are not the thing
+/// that failed); `failure` is the same one-line reason `failure_reason`
+/// composes, or `None` for a clean exit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ran {
+    pub stdout: String,
+    pub failure: Option<String>,
+}
+
+/// The spawn seam. `run`'s `Ok` carries the command's stdout, `Err` why it did
+/// not succeed, already fit to print.
+///
+/// `run_with_input` is for a child that is HANDED something on stdin (a
+/// command lane's run event): it separates "could not run this at all" (the
+/// `Err`, e.g. a missing executable) from "ran, but failed" (`Ran::failure`),
+/// because the second case still has stdout worth recording.
 pub trait CommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String>;
+    fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String>;
 }
 
 /// How much of a failed command's stderr a lane line carries.
 pub const STDERR_TAIL: usize = 240;
+
+/// The last `keep` characters of `text`, prefixed with `...` when it was cut.
+/// Shared by `failure_reason`'s stderr tail today and a command lane's own
+/// stdout cap tomorrow: BOUNDED because both go into the record and into one
+/// alert card, and the verdict a tool prints is at the END of what it said.
+pub fn tail(text: &str, keep: usize) -> String {
+    let length = text.chars().count();
+    if length <= keep {
+        return text.to_string();
+    }
+    let cut = text
+        .char_indices()
+        .nth(length - keep)
+        .map_or(text.len(), |(index, _)| index);
+    format!("...{}", &text[cut..])
+}
 
 /// Why a command failed, in one line: how it ended, and the tail of what it
 /// said about it.
 ///
 /// THE STATUS ALONE IS NOT A REASON. `exit 1` sends the operator to a log that
 /// a weekly job may have rotated away, while the command already printed the
-/// answer on stderr and this is the last moment it exists. It is the TAIL
-/// because that is where a tool puts its verdict, BOUNDED because this line
-/// goes into the record and into one alert card, and squashed to a single line
-/// so neither is reflowed by a build log.
+/// answer on stderr and this is the last moment it exists. Squashed to a
+/// single line so it is not reflowed by a build log.
 pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
     let said = stderr.trim();
     if said.is_empty() {
@@ -84,15 +114,7 @@ pub fn failure_reason(how_it_ended: &str, stderr: &str) -> String {
         .chars()
         .map(|letter| if letter.is_control() { ' ' } else { letter })
         .collect();
-    let length = one_line.chars().count();
-    if length <= STDERR_TAIL {
-        return format!("{how_it_ended}: {one_line}");
-    }
-    let cut = one_line
-        .char_indices()
-        .nth(length - STDERR_TAIL)
-        .map_or(0, |(index, _)| index);
-    format!("{how_it_ended}: ...{}", &one_line[cut..])
+    format!("{how_it_ended}: {}", tail(&one_line, STDERR_TAIL))
 }
 
 /// The lanes this config declares, in NAME order.
@@ -178,6 +200,7 @@ mod tests {
         failing: Vec<Vec<String>>,
         stdout: String,
         calls: RefCell<Vec<Vec<String>>>,
+        inputs: RefCell<Vec<String>>,
     }
 
     impl ScriptedRunner {
@@ -189,6 +212,7 @@ mod tests {
                     .collect(),
                 stdout: String::new(),
                 calls: RefCell::new(Vec::new()),
+                inputs: RefCell::new(Vec::new()),
             }
         }
 
@@ -199,6 +223,12 @@ mod tests {
 
         fn calls(&self) -> Vec<Vec<String>> {
             self.calls.borrow().clone()
+        }
+
+        /// Every `input` a call to `run_with_input` was given, in call order:
+        /// the spy `run_with_input` itself never touches (BRIEF U8).
+        fn inputs(&self) -> Vec<String> {
+            self.inputs.borrow().clone()
         }
     }
 
@@ -213,6 +243,17 @@ mod tests {
                 return Err("exit 1".to_string());
             }
             Ok(self.stdout.clone())
+        }
+
+        fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String> {
+            let mut call = vec![program.to_string()];
+            call.extend(args.iter().map(|word| word.to_string()));
+            self.calls.borrow_mut().push(call.clone());
+            self.inputs.borrow_mut().push(input.to_string());
+            Ok(Ran {
+                stdout: self.stdout.clone(),
+                failure: self.failing.contains(&call).then(|| "exit 1".to_string()),
+            })
         }
     }
 
@@ -289,6 +330,60 @@ mod tests {
         assert_eq!(enabled_lanes(&config), vec!["alpha", "zeta"]);
     }
 
+    // --- the run_with_input spy -------------------------------------------------
+
+    #[test]
+    fn the_scripted_runner_records_every_input_it_was_given() {
+        // A command lane's own event only ever reaches a real `SystemRunner`
+        // through `run_with_input`; this is what a lane test asserts against
+        // instead of a real child process (BRIEF U8, kills args-dropped and
+        // stdin-not-written at the lane level, above `SystemRunner` itself).
+        let runner = ScriptedRunner::new(&[]);
+        runner
+            .run_with_input("cmd", &["a", "b"], "first\n")
+            .unwrap();
+        runner.run_with_input("cmd", &["a", "b"], "second\n").ok();
+        assert_eq!(runner.inputs(), vec!["first\n", "second\n"]);
+        assert_eq!(
+            runner.calls(),
+            vec![vec!["cmd", "a", "b"], vec!["cmd", "a", "b"]],
+            "the program and its arguments are recorded beside the input"
+        );
+    }
+
+    #[test]
+    fn a_scripted_runner_answers_run_with_input_failure_from_its_failing_set() {
+        let runner = ScriptedRunner::new(&[&["cmd", "a"]]);
+        let ran = runner.run_with_input("cmd", &["a"], "in\n").unwrap();
+        assert_eq!(ran.failure.as_deref(), Some("exit 1"));
+    }
+
+    // --- the shared tail -------------------------------------------------------
+
+    #[test]
+    fn tail_returns_the_text_unchanged_when_it_already_fits() {
+        assert_eq!(tail("hello", 10), "hello");
+    }
+
+    #[test]
+    fn tail_keeps_the_last_keep_characters_and_prefixes_the_cut() {
+        assert_eq!(tail("0123456789ABCDEF", 4), "...CDEF");
+    }
+
+    #[test]
+    fn tail_cuts_on_a_character_boundary_not_a_byte_offset() {
+        // Each "party popper" is 4 bytes. A byte-offset cut (`text.len() -
+        // keep`) lands inside the third one's encoding and panics; only a
+        // char-aware cut keeps the last 4 CHARACTERS, "\u{1F389}ABC".
+        assert_eq!(tail("\u{1F389}\u{1F389}\u{1F389}ABC", 4), "...\u{1F389}ABC");
+    }
+
+    #[test]
+    fn tail_with_nothing_to_keep_is_only_the_cut_mark() {
+        // Asking for zero characters must not hand back the whole text.
+        assert_eq!(tail("abc", 0), "...");
+    }
+
     // --- why a command failed -------------------------------------------------
 
     #[test]
@@ -320,12 +415,39 @@ mod tests {
         let noise = format!("{}THE REAL REASON", "x".repeat(4000));
         let reason = failure_reason("exit 1", &noise);
         assert!(reason.ends_with("THE REAL REASON"), "{reason}");
-        assert!(
-            reason.chars().count() <= STDERR_TAIL + 32,
+        // Exact, not a loose upper bound: a mutant that kept only half of
+        // STDERR_TAIL would still satisfy "<= STDERR_TAIL + 32" and quietly
+        // drop half the promised diagnostic.
+        assert_eq!(
+            reason.chars().count(),
+            "exit 1: ...".chars().count() + STDERR_TAIL,
             "{} characters",
             reason.chars().count()
         );
         assert!(reason.contains("..."), "the cut is visible: {reason}");
+    }
+
+    #[test]
+    fn a_talkative_command_with_multibyte_stderr_is_cut_on_a_character_boundary() {
+        // The same cut, but through stderr that is not one byte per
+        // character: a byte-slicing mutant would panic or split a code point
+        // instead of keeping whole characters, same failure mode as `tail`
+        // itself.
+        let noise = format!(
+            "{}\u{65e5}\u{672c}\u{8a9e}\u{306e}REASON",
+            "\u{3042}".repeat(4000)
+        );
+        let reason = failure_reason("exit 1", &noise);
+        assert!(
+            reason.ends_with("\u{65e5}\u{672c}\u{8a9e}\u{306e}REASON"),
+            "{reason}"
+        );
+        assert_eq!(
+            reason.chars().count(),
+            "exit 1: ...".chars().count() + STDERR_TAIL,
+            "{} characters",
+            reason.chars().count()
+        );
     }
 
     #[test]
@@ -456,6 +578,24 @@ mod tests {
                     }
                 }
                 Ok(String::new())
+            }
+
+            fn run_with_input(
+                &self,
+                program: &str,
+                args: &[&str],
+                _input: &str,
+            ) -> Result<Ran, String> {
+                match self.run(program, args) {
+                    Ok(stdout) => Ok(Ran {
+                        stdout,
+                        failure: None,
+                    }),
+                    Err(failure) => Ok(Ran {
+                        stdout: String::new(),
+                        failure: Some(failure),
+                    }),
+                }
             }
         }
         let runner = FlakyInstall {
