@@ -40,10 +40,11 @@ ______________________________________________________________________
 
 ## 1. The hook subcommand is reached by exactly one argv shape
 
-Given a `pns` invocation When the first argument after the program name is the literal word `hook` Then
-the second argument is taken as the event word and `hook_mode` runs it; every other leading word is
-dispatched elsewhere by `main`, and a word naming no command at all is refused with the usage text on
-standard error and exit 2.
+Given a `pns` invocation
+
+When the first argument after the program name is the literal word `hook`
+
+Then the second argument is taken as the event word and `hook_mode` runs it; every other leading word is dispatched elsewhere by `main`, and a word naming no command at all is refused with the usage text on standard error and exit 2.
 
 - Success: `pns hook stop` reaches `hook_mode("stop")` (`src/main.rs:main`). The usage text names all
   eleven words verbatim: "pns hook <event> a harness hook: prompt, stop, stop-failure, blocked, asked,
@@ -68,9 +69,11 @@ standard error and exit 2.
 
 ## 2. The payload is bounded in bytes before any arm sees it
 
-Given a harness writing a payload on standard input When `read_payload` runs Then at most
-`MAX_PAYLOAD_BYTES + 1` bytes are read, and `payload_is_whole` reports whether what arrived is the bytes
-the harness actually sent.
+Given a harness writing a payload on standard input
+
+When `read_payload` runs
+
+Then at most `MAX_PAYLOAD_BYTES + 1` bytes are read, and `payload_is_whole` reports whether what arrived is the bytes the harness actually sent.
 
 - Success: any payload of 1,000,000 bytes or fewer is read whole and is whole
   (`tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, which sends exactly 1,000,000
@@ -104,9 +107,11 @@ the harness actually sent.
 
 ## 3. The payload is bounded in time before any arm sees it
 
-Given a harness that opened the standard-input pipe and never finished writing When `read_payload` waits
-on its reader thread Then the wait expires at `payload_deadline()` and the hook returns 0 having
-delivered nothing.
+Given a harness that opened the standard-input pipe and never finished writing
+
+When `read_payload` waits on its reader thread
+
+Then the wait expires at `payload_deadline()` and the hook returns 0 having delivered nothing.
 
 - Success: a payload written and the pipe closed inside the window yields `Some(payload)`.
 - Failure sources: a harness that opens the pipe and stalls; a harness killed mid-write.
@@ -130,8 +135,11 @@ delivered nothing.
 
 ## 4. Every payload field is optional and a bad payload is an empty one
 
-Given any payload text When `parse_payload` decodes it Then each field is read as a string if present and
-as the empty string otherwise, and a document that will not parse yields `HookPayload::default()`.
+Given any payload text
+
+When `parse_payload` decodes it
+
+Then each field is read as a string if present and as the empty string otherwise, and a document that will not parse yields `HookPayload::default()`.
 
 - Success: a payload naming `session_id`, `cwd`, `transcript_path`, `last_assistant_message` and
   `agent_id` yields all five (`src/hooks.rs:parse_payload`,
@@ -161,8 +169,11 @@ as the empty string otherwise, and a document that will not parse yields `HookPa
 
 ## 5. A present `agent_id` key marks a subagent, whatever its value
 
-Given a payload When `parse_payload` sets `in_subagent` Then it records whether the `agent_id` KEY was
-present at all, never the string's shape.
+Given a payload
+
+When `parse_payload` sets `in_subagent`
+
+Then it records whether the `agent_id` KEY was present at all, never the string's shape.
 
 - Success: `"agent_id":"agent_01"` marks a subagent; a payload with no `agent_id` key does not
   (`src/hooks.rs:a_present_agent_id_of_any_shape_marks_a_subagent_and_absence_does_not`).
@@ -186,9 +197,11 @@ present at all, never the string's shape.
 
 ## 6. One `message` is composed from four payload roads, in a fixed order
 
-Given a payload from any harness When `parse_payload` builds `message` Then the first non-empty of
-`elicitation_request`, flattened `message`, flattened `detail`, `reported_error` wins, and `tool_request`
-is the fallback when all four say nothing.
+Given a payload from any harness
+
+When `parse_payload` builds `message`
+
+Then the first non-empty of `elicitation_request`, flattened `message`, flattened `detail`, `reported_error` wins, and `tool_request` is the fallback when all four say nothing.
 
 - Success: `{"message":"m"}` yields `m`; `{"detail":"d"}` yields `d`; `{"message":"","detail":"d"}`
   yields `d` (`src/hooks.rs:detail_stands_in_for_message_because_the_harnesses_disagree`). A Codex
@@ -232,9 +245,11 @@ is the fallback when all four say nothing.
 
 ## 7. Every payload string a card is built from is flattened to one line and scrubbed of control bytes
 
-Given a payload string destined for a rendered line When `flattened` runs over it (directly, or through
-`one_line` for nested values) Then runs of whitespace AND of control characters each become a single
-space and the ends are trimmed.
+Given a payload string destined for a rendered line
+
+When `flattened` runs over it (directly, or through `one_line` for nested values)
+
+Then runs of whitespace AND of control characters each become a single space and the ends are trimmed.
 
 - Success: `a\nb\tc  d` becomes `a b c d`; `a\u{1b}[31mb` becomes `a [31mb`; `a\u{1b}]0;title\u{7}b`
   becomes `a ]0;title b`
@@ -269,9 +284,11 @@ space and the ends are trimmed.
 
 ## 8. Two fields go through a stricter scrub than the rest
 
-Given a model name on a `model-switch` event or a file path on a `config-change` event When it is
-rendered Then `rendered_plainly` runs `flattened` and then strips every character `recap::is_invisible`
-answers true for, which is the Unicode format (Cf) set that `flattened` leaves alone.
+Given a model name on a `model-switch` event or a file path on a `config-change` event
+
+When it is rendered
+
+Then `rendered_plainly` runs `flattened` and then strips every character `recap::is_invisible` answers true for, which is the Unicode format (Cf) set that `flattened` leaves alone.
 
 - Success: a right-to-left override inside a model name is gone from the card
   (`tests/hooks.rs:an_auto_switch_strips_a_unicode_format_character_from_the_name`), and so is one inside
@@ -296,8 +313,11 @@ answers true for, which is the Unicode format (Cf) set that `flattened` leaves a
 
 ## 9. Every ordinary hook exits zero
 
-Given any of the ten non-forwarding events When `hook_mode` returns Then the process exits 0, whatever
-went wrong building the notification.
+Given any of the ten non-forwarding events
+
+When `hook_mode` returns
+
+Then the process exits 0, whatever went wrong building the notification.
 
 - Success: every end-to-end test in `tests/hooks.rs` for `prompt`, `stop`, `stop-failure`, `asked`,
   `plan-ready`, `denied`, `resolved`, `model-switch`, `quota` and `config-change` asserts
@@ -328,8 +348,11 @@ went wrong building the notification.
 
 ## 10. A hook writes nothing to standard output
 
-Given any hook event When it completes Then standard output is empty in practice, and specifically
-carries nothing a harness would parse as a decision.
+Given any hook event
+
+When it completes
+
+Then standard output is empty in practice, and specifically carries nothing a harness would parse as a decision.
 
 - Success: `a_payload_with_no_session_id_is_a_silent_no_op` asserts standard output equals the empty
   string on `prompt`. `the_blocked_hook_writes_nothing_the_harness_would_read_as_a_decision` asserts
@@ -361,8 +384,11 @@ carries nothing a harness would parse as a decision.
 
 ## 11. Standard error carries three things and nothing else
 
-Given a hook run When something is worth saying to a log rather than to the harness's parser Then it goes
-to standard error.
+Given a hook run
+
+When something is worth saying to a log rather than to the harness's parser
+
+Then it goes to standard error.
 
 - Success: an unserved event word prints exactly
   `pns: unknown hook event \`stop-failed\`` (`tests/hooks.rs:a_hook_word_this_binary_does_not_serve_says_so_and_notifies_nobody\`,
@@ -389,9 +415,11 @@ to standard error.
 
 ## 12. `prompt` starts the turn clock once and ends the session's wait
 
-Given a `UserPromptSubmit` payload naming a session When `pns hook prompt` runs Then `start_of_turn`
-writes the turn start marker only if none exists, and `end_blocked_wait` removes that session's wait
-marker unconditionally.
+Given a `UserPromptSubmit` payload naming a session
+
+When `pns hook prompt` runs
+
+Then `start_of_turn` writes the turn start marker only if none exists, and `end_blocked_wait` removes that session's wait marker unconditionally.
 
 - Success: the first prompt writes a marker; a second prompt inside the same turn leaves the existing
   value untouched
@@ -422,9 +450,11 @@ marker unconditionally.
 
 ## 13. `stop` claims the turn clock first, before anything slow
 
-Given a `Stop` payload When `end_of_turn` runs Then `consume_turn_marker` renames the marker to a
-per-process claim path, reads it, removes the claim, and returns the elapsed seconds, all before the
-reply, the condenser or any delivery.
+Given a `Stop` payload
+
+When `end_of_turn` runs
+
+Then `consume_turn_marker` renames the marker to a per-process claim path, reads it, removes the claim, and returns the elapsed seconds, all before the reply, the condenser or any delivery.
 
 - Success: a marker at 9,000 seconds ago yields a long turn and the pulse fires; a marker at 5 seconds
   ago does not (`tests/hooks.rs:a_turn_long_enough_pulses_and_a_short_one_does_not`).
@@ -460,8 +490,11 @@ reply, the condenser or any delivery.
 
 ## 14. `stop` reports what the turn said, condensed
 
-Given a claimed turn When `end_of_turn` builds the event Then `turn_reply` yields the turn's text, an
-empty reply becomes state `done` with no detail, and a non-empty reply goes through `condense`.
+Given a claimed turn
+
+When `end_of_turn` builds the event
+
+Then `turn_reply` yields the turn's text, an empty reply becomes state `done` with no detail, and a non-empty reply goes through `condense`.
 
 - Success: the payload's own `last_assistant_message` becomes the detail with no transcript read
   (`tests/hooks.rs:the_payloads_own_final_text_becomes_the_detail_without_reading_a_transcript`, which
@@ -500,9 +533,11 @@ empty reply becomes state `done` with no detail, and a non-empty reply goes thro
 
 ## 15. The transcript is the fallback, re-read inside a bounded window
 
-Given a Stop whose payload carried no assistant text When `turn_reply` falls back Then the transcript
-tail is read up to `1 + reread_attempts()` times, sleeping `reread_interval()` between attempts, and the
-first non-empty flattened reply wins.
+Given a Stop whose payload carried no assistant text
+
+When `turn_reply` falls back
+
+Then the transcript tail is read up to `1 + reread_attempts()` times, sleeping `reread_interval()` between attempts, and the first non-empty flattened reply wins.
 
 - Success: a transcript that is empty at spawn and gains its reply mid-loop is still reported
   (`tests/hooks.rs:a_turn_whose_transcript_lands_late_is_re_read_until_it_does`, driving 8 attempts at
@@ -542,9 +577,11 @@ first non-empty flattened reply wins.
 
 ## 16. The transcript is checked before it is opened, and only its tail is read
 
-Given a `transcript_path` When `transcript_tail` runs Then `symlink_metadata` is called on the link
-itself, a non-regular file yields the empty string with no open at all, and a regular file is seeked to
-its last `TRANSCRIPT_TAIL_BYTES` and read with a matching cap.
+Given a `transcript_path`
+
+When `transcript_tail` runs
+
+Then `symlink_metadata` is called on the link itself, a non-regular file yields the empty string with no open at all, and a regular file is seeked to its last `TRANSCRIPT_TAIL_BYTES` and read with a matching cap.
 
 - Success: a regular transcript yields its tail, decoded with `from_utf8_lossy`.
 - Failure sources: a first-in first-out special file, which blocks on open until a writer appears;
@@ -570,9 +607,11 @@ its last `TRANSCRIPT_TAIL_BYTES` and read with a matching cap.
 
 ## 17. The condenser is a bounded, re-entrant-guarded subprocess
 
-Given a non-empty reply When `condense` runs Then it spawns Codex against a private stripped home with a
-fixed prompt, bounded by `CONDENSER_DEADLINE`, and falls back to `("done", render::preview(reply))` on
-anything short of a usable verdict.
+Given a non-empty reply
+
+When `condense` runs
+
+Then it spawns Codex against a private stripped home with a fixed prompt, bounded by `CONDENSER_DEADLINE`, and falls back to `("done", render::preview(reply))` on anything short of a usable verdict.
 
 - Success: a stub printing `asking|it wants a choice` sets both state and detail
   (`tests/hooks.rs:a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back`).
@@ -618,9 +657,11 @@ anything short of a usable verdict.
 
 ## 18. `stop-failure` reports the death and reads nothing else
 
-Given a `StopFailure` payload When `failed_turn` runs Then the turn marker is claimed, the nag record is
-cleared, and the event is delivered with state `failed` and the payload's own message as the detail, with
-no condenser call and no transcript read.
+Given a `StopFailure` payload
+
+When `failed_turn` runs
+
+Then the turn marker is claimed, the nag record is cleared, and the event is delivered with state `failed` and the payload's own message as the detail, with no condenser call and no transcript read.
 
 - Success: detail `API Error: 500 internal server error`, state `failed`, project `dotfiles`, pane
   `wX:p9` (`tests/hooks.rs:a_turn_that_died_notifies_as_failed_and_says_what_killed_it`, which also
@@ -651,9 +692,11 @@ no condenser call and no transcript read.
 
 ## 19. `resolved` clears and delivers nothing
 
-Given a `PostToolBatch` payload When `pns hook resolved` runs Then `clear_nag` writes this session's
-answered marker and removes its nag record, and `end_blocked_wait` removes the wait marker only when the
-payload carries no `agent_id` key.
+Given a `PostToolBatch` payload
+
+When `pns hook resolved` runs
+
+Then `clear_nag` writes this session's answered marker and removes its nag record, and `end_blocked_wait` removes the wait marker only when the payload carries no `agent_id` key.
 
 - Success: a batch with no `agent_id` ends the session's wait
   (`tests/hooks.rs:a_resolved_batch_with_no_agent_id_ends_its_sessions_wait`); the record is removed and
@@ -689,9 +732,11 @@ payload carries no `agent_id` key.
 
 ## 20. `asked`, `plan-ready` and `denied` are mid-turn news on one arm
 
-Given a payload for any of the three When `pns hook <word>` runs Then one `Attempt::First` event is built
-with that word as its state, the project from `cwd`, the detail from the message chain and the pane from
-`HERDR_PANE_ID`, and the turn marker is left alone.
+Given a payload for any of the three
+
+When `pns hook <word>` runs
+
+Then one `Attempt::First` event is built with that word as its state, the project from `cwd`, the detail from the message chain and the pane from `HERDR_PANE_ID`, and the turn marker is left alone.
 
 - Success: `asked` on an elicitation yields detail `composio: Please authorize Gmail access`
   (`tests/hooks.rs:an_mcp_server_waiting_on_input_notifies_as_asked_and_names_the_server`), and `denied`
@@ -729,9 +774,11 @@ with that word as its state, the project from `cwd`, the detail from the message
 
 ## 21. `model-switch` reports only an automatic change between two different names
 
-Given a `PostModelSwitch` payload When `pns hook model-switch` runs Then the event is delivered as an
-`Attempt::Observation` only when `source` is exactly `auto` AND `model_switch_detail` finds two
-non-empty, unequal names once rendered plainly.
+Given a `PostModelSwitch` payload
+
+When `pns hook model-switch` runs
+
+Then the event is delivered as an `Attempt::Observation` only when `source` is exactly `auto` AND `model_switch_detail` finds two non-empty, unequal names once rendered plainly.
 
 - Success: detail is `automatic session model change: claude-sonnet-4-5 to claude-opus-4-6`, state
   `model-switch`, agent `claude`, one decision ring line containing `claude/model-switch` and `nag=no`
@@ -767,10 +814,11 @@ non-empty, unequal names once rendered plainly.
 
 ## 22. `quota` recognises exactly three notification types, and one of them starts a wait
 
-Given a `Notification` payload When `pns hook quota` runs Then `quota_label` matches exactly
-`quota_auto_resume_fired`, `quota_auto_resume_stale` or `quota_auto_resume_disabled`, the card is
-delivered as an `Attempt::Observation`, and `quota_auto_resume_stale` additionally arms this session's
-wait marker BEFORE the delivery.
+Given a `Notification` payload
+
+When `pns hook quota` runs
+
+Then `quota_label` matches exactly `quota_auto_resume_fired`, `quota_auto_resume_stale` or `quota_auto_resume_disabled`, the card is delivered as an `Attempt::Observation`, and `quota_auto_resume_stale` additionally arms this session's wait marker BEFORE the delivery.
 
 - Success: the three details are `quota auto-resume fired: continuing automatically`,
   `quota auto-resume stale: press enter to continue` and `quota auto-resume disabled: turned off` (three
@@ -818,10 +866,11 @@ wait marker BEFORE the delivery.
 
 ## 23. `config-change` recognises exactly five sources, and one of them outlives the decision ring
 
-Given a `ConfigChange` payload When `pns hook config-change` runs Then `config_source_label` matches
-exactly `user_settings`, `project_settings`, `local_settings`, `policy_settings` or `skills`, the card is
-delivered as an `Attempt::Observation`, and `policy_settings` additionally appends one line to a bounded
-audit trail.
+Given a `ConfigChange` payload
+
+When `pns hook config-change` runs
+
+Then `config_source_label` matches exactly `user_settings`, `project_settings`, `local_settings`, `policy_settings` or `skills`, the card is delivered as an `Attempt::Observation`, and `policy_settings` additionally appends one line to a bounded audit trail.
 
 - Success: each source yields `<label>: /Users/op/.claude/settings.json` with the five labels
   `user settings changed`, `project settings changed`, `local settings changed`,
@@ -879,8 +928,10 @@ audit trail.
 ## 24. An observation changes no workflow state
 
 Given an event routed with `Attempt::Observation`, that is `model-switch`, `quota` or `config-change`
-When `run_event` reaches its contiguous tail Then it returns immediately after `record_decision`, so none
-of the First-delivery side effects run.
+
+When `run_event` reaches its contiguous tail
+
+Then it returns immediately after `record_decision`, so none of the First-delivery side effects run.
 
 - Success: the card is still delivered and the decision ring still carries one line with `nag=no`
   (`tests/hooks.rs:an_observation_still_delivers_and_is_logged`).
@@ -920,8 +971,11 @@ of the First-delivery side effects run.
 
 ## 25. The world is read at dispatch, not at the moment the hook started
 
-Given a Stop that spends seconds in the condenser When the delivery plan is built Then the surface
-reading is taken inside `run_event`, from one memoized probe set, rather than at process start.
+Given a Stop that spends seconds in the condenser
+
+When the delivery plan is built
+
+Then the surface reading is taken inside `run_event`, from one memoized probe set, rather than at process start.
 
 - Success: a phone marker touched as the hook starts and back-dated by the condenser stub to ten seconds
   ago, against a desk reading stated at two seconds, produces a banner and no phone card
@@ -947,8 +1001,11 @@ reading is taken inside `run_event`, from one memoized probe set, rather than at
 
 ## 26. A session id that cannot be a filename reaches no file operation
 
-Given a payload whose `session_id` is hostile or empty When any arm would write or remove a marker keyed
-by it Then `safety::session_id_is_safe` refuses it first and the arm does nothing.
+Given a payload whose `session_id` is hostile or empty
+
+When any arm would write or remove a marker keyed by it
+
+Then `safety::session_id_is_safe` refuses it first and the arm does nothing.
 
 - Success: an ordinary id such as `s1` passes; the predicate admits ASCII alphanumerics plus `.`, `_` and
   `-` (`src/safety.rs:session_id_is_safe`).
@@ -974,9 +1031,11 @@ by it Then `safety::session_id_is_safe` refuses it first and the arm does nothin
 
 ## 27. The wait marker is started by five states and ended by every other
 
-Given any event carrying a session id When the `Attempt::First` tail reaches `update_blocked_marker` Then
-`blocked_marker_action` maps the event's state word to Start or End, Start is gated on the lamps being
-live and End is not.
+Given any event carrying a session id
+
+When the `Attempt::First` tail reaches `update_blocked_marker`
+
+Then `blocked_marker_action` maps the event's state word to Start or End, Start is gated on the lamps being live and End is not.
 
 - Success: `blocked` from `s1` and `asked` from `s2` leave two markers; a `stop` from `s1` removes only
   s1's (`tests/hooks.rs:a_waiting_agent_leaves_a_marker_and_the_next_event_from_that_session_removes_it`,
@@ -1011,9 +1070,11 @@ live and End is not.
 
 ## 28. The bare harness word is vouched for by shape, never by roster
 
-Given argv whose first word looks like `<name>-hook` When `main` decides where to dispatch Then
-`hooks::is_harness_subcommand` accepts it only when it splits at the first `-` into a non-empty
-all-lowercase-ASCII name and the exact suffix `hook`.
+Given argv whose first word looks like `<name>-hook`
+
+When `main` decides where to dispatch
+
+Then `hooks::is_harness_subcommand` accepts it only when it splits at the first `-` into a non-empty all-lowercase-ASCII name and the exact suffix `hook`.
 
 - Success: `pi-hook` and `claude-hook` are accepted
   (`src/hooks.rs:the_gate_vouches_for_the_shape_of_a_subcommand_it_did_not_choose`).

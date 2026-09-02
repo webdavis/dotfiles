@@ -107,8 +107,11 @@ needs a restart.
 
 ### 1. `pns daemon` serves three verbs and refuses everything else
 
-Given the operator types `pns daemon <word>` When `<word>` is not `run`, `schedule` or `cancel` Then the
-usage text goes to stderr and the process exits 2
+Given the operator types `pns daemon <word>`
+
+When `<word>` is not `run`, `schedule` or `cancel`
+
+Then the usage text goes to stderr and the process exits 2
 
 - Success: `src/main.rs:daemon_mode` matches the three verbs and every other word falls to the arm that
   prints `DAEMON_USAGE` and returns 2. The verb comes from `src/main.rs:second_argument`, which is
@@ -135,8 +138,11 @@ usage text goes to stderr and the process exits 2
 
 ### 2. `pns daemon run` refuses a trailing word
 
-Given the operator types `pns daemon run <anything>` When the fourth argv word is present Then the usage
-text goes to stderr and the process exits 2 without starting a clock
+Given the operator types `pns daemon run <anything>`
+
+When the fourth argv word is present
+
+Then the usage text goes to stderr and the process exits 2 without starting a clock
 
 - Success: `src/main.rs:daemon_run` opens with `if std::env::args_os().nth(3).is_some()`, which is the
   word after `run`.
@@ -157,8 +163,11 @@ text goes to stderr and the process exits 2 without starting a clock
 
 ### 3. The clock will not start while the config switch is off, and exits 0 so it stays down
 
-Given `[daemon] enabled = false` in the config When `pns daemon run` starts Then it prints one line and
-exits 0
+Given `[daemon] enabled = false` in the config
+
+When `pns daemon run` starts
+
+Then it prints one line and exits 0
 
 - Success: `src/main.rs:daemon_run` calls `src/main.rs:daemon_enabled` before anything else and returns 0
   on false, after printing to stdout, verbatim: `pns daemon: disabled in the config; exiting`.
@@ -188,7 +197,10 @@ exits 0
 
 ### 4. A spool that is not a directory refuses the start permanently, and still exits 0
 
-Given something that is not a directory sits at `<state>/daemon` When `pns daemon run` prepares the spool
+Given something that is not a directory sits at `<state>/daemon`
+
+When `pns daemon run` prepares the spool
+
 Then it prints the refusal on stderr and exits 0 without ticking
 
 - Success: `src/daemon.rs:prepare_spool` takes `symlink_metadata` FIRST, because `create_dir_all` follows
@@ -227,8 +239,11 @@ Then it prints the refusal on stderr and exits 0 without ticking
 
 ### 5. The loop sleeps first, then takes one pass
 
-Given a started daemon When each turn of the loop begins Then it sleeps for one whole tick before doing
-anything, then increments its counter, then possibly re-reads the switch, then runs one pass
+Given a started daemon
+
+When each turn of the loop begins
+
+Then it sleeps for one whole tick before doing anything, then increments its counter, then possibly re-reads the switch, then runs one pass
 
 - Success: `src/main.rs:daemon_run`'s loop body is `sleep(tick)`, `ticks = ticks.wrapping_add(1)`, the
   `SWITCH_TICKS` check, then
@@ -252,8 +267,11 @@ anything, then increments its counter, then possibly re-reads the switch, then r
 
 ### 6. The switch is re-read every thirtieth tick and stops a daemon that is already running
 
-Given a running daemon and an operator who edits the config to `[daemon] enabled = false` When the tick
-counter next hits a multiple of `SWITCH_TICKS` Then the daemon prints its line and exits 0
+Given a running daemon and an operator who edits the config to `[daemon] enabled = false`
+
+When the tick counter next hits a multiple of `SWITCH_TICKS`
+
+Then the daemon prints its line and exits 0
 
 - Success: `src/main.rs:daemon_run`'s `if ticks.is_multiple_of(SWITCH_TICKS) && !daemon_enabled()` arm.
   Pinned end to end by `tests/daemon.rs:turning_the_config_switch_off_stops_a_running_daemon`, which
@@ -285,8 +303,11 @@ counter next hits a multiple of `SWITCH_TICKS` Then the daemon prints its line a
 
 ### 7. One pass reaps before it drains, and the order is the behavior
 
-Given a pass beginning When `daemon_pass` runs Then it reaps first, then publishes the heartbeat, then
-drains the spool
+Given a pass beginning
+
+When `daemon_pass` runs
+
+Then it reaps first, then publishes the heartbeat, then drains the spool
 
 - Success: `src/main.rs:daemon_pass` is literally `reap(children)`, the clock check, `publish_heartbeat`,
   `drain_spool`. It is a FUNCTION and not four lines inline for exactly that reason: the order is the
@@ -313,8 +334,11 @@ drains the spool
 
 ### 8. The daemon publishes a heartbeat every pass, fail-quiet
 
-Given a pass with a readable clock When it publishes Then `<state>/daemon-heartbeat` holds
-`<pid> <epoch>` and a newline, at mode 0600
+Given a pass with a readable clock
+
+When it publishes
+
+Then `<state>/daemon-heartbeat` holds `<pid> <epoch>` and a newline, at mode 0600
 
 - Success: `src/main.rs:daemon_pass` builds `Heartbeat { pid: std::process::id(), at: now }` and calls
   `src/daemon.rs:publish_heartbeat`, which stages a private `~pending.<pid>.daemon-heartbeat` in the
@@ -351,8 +375,11 @@ Given a pass with a readable clock When it publishes Then `<state>/daemon-heartb
 
 ### 9. A pass with no readable clock still reaps, and drains nothing
 
-Given a machine whose wall clock cannot be read When `daemon_pass` runs Then the reap has already
-happened and the pass returns before the heartbeat and the drain
+Given a machine whose wall clock cannot be read
+
+When `daemon_pass` runs
+
+Then the reap has already happened and the pass returns before the heartbeat and the drain
 
 - Success: `src/main.rs:daemon_pass` has `reap(children)` above `let Some(now) = now else { return; }`.
 - Failure sources: `SystemTime::now().duration_since(UNIX_EPOCH)` failing (`src/main.rs:now_secs`).
@@ -374,7 +401,10 @@ happened and the pass returns before the heartbeat and the drain
 
 ### 10. The spool scan is sorted, skips the module's own working files, and survives an unreadable directory
 
-Given a spool directory holding jobs, a claim in flight and a pending write When `spool_entries` scans it
+Given a spool directory holding jobs, a claim in flight and a pending write
+
+When `spool_entries` scans it
+
 Then it returns only the entries whose names do not start with `~`, sorted
 
 - Success: `src/daemon.rs:spool_entries` filters on `WORKING_PREFIX` and sorts. `~` is OUTSIDE the id
@@ -399,8 +429,11 @@ Then it returns only the entries whose names do not start with `~`, sorted
 
 ### 11. An irregular spool entry is left alone, never opened, and complained about exactly once
 
-Given a named pipe (or a symlink, or a directory) in the spool When the drain reaches it Then it is left
-exactly where it was found, never opened, and named on stderr once rather than once a tick
+Given a named pipe (or a symlink, or a directory) in the spool
+
+When the drain reaches it
+
+Then it is left exactly where it was found, never opened, and named on stderr once rather than once a tick
 
 - Success: `src/daemon.rs:peek` answers `Peeked::Irregular` off `symlink_metadata(...).is_file()` before
   any open, and `src/main.rs:drain_spool` prints only when `reported.insert(entry.clone())` is true,
@@ -427,7 +460,10 @@ exactly where it was found, never opened, and named on stderr once rather than o
 
 ### 12. A record that is not a record is dropped by name, never guessed at
 
-Given a regular spool file whose content is not a valid job record When the drain claims and re-reads it
+Given a regular spool file whose content is not a valid job record
+
+When the drain claims and re-reads it
+
 Then it is dropped and the log names the record and the rule it broke
 
 - Success: `src/daemon.rs:parse` refuses a missing field, a repeated field, an unknown field and a value
@@ -470,8 +506,11 @@ Then it is dropped and the log names the record and the rule it broke
 
 ### 13. A record whose `id` is not its filename is refused
 
-Given a spool file named `a-job` whose record says `id=other-job` When the peek reads it Then it is
-`Unusable` and the refusal names both ids
+Given a spool file named `a-job` whose record says `id=other-job`
+
+When the peek reads it
+
+Then it is `Unusable` and the refusal names both ids
 
 - Success: `src/daemon.rs:peek` takes `expect_id` and refuses a mismatch with
   `` its `id` is `<found>`, which is not the `<expected>` it was spooled as ``. Pinned by
@@ -495,8 +534,11 @@ Given a spool file named `a-job` whose record says `id=other-job` When the peek 
 
 ### 14. The peek is read-only, and `Wait` is the only verdict it may settle
 
-Given a spool entry that turns out to be a job that is not due When the drain looks at it Then nothing is
-renamed, nothing is rewritten and the entry is left exactly where it was found
+Given a spool entry that turns out to be a job that is not due
+
+When the drain looks at it
+
+Then nothing is renamed, nothing is rewritten and the entry is left exactly where it was found
 
 - Success: `src/main.rs:drain_spool`'s match has one arm for `Peeked::Job(job)` guarded by
   `decide(...) == Verdict::Wait`, whose body is empty, and one catch-all arm that claims first. The
@@ -524,8 +566,11 @@ renamed, nothing is rewritten and the entry is left exactly where it was found
 
 ### 15. A claim is taken by rename, and the rename is the ownership test
 
-Given two daemons (or a daemon and a hand-run `pns daemon` process) reaching one due job in the same
-second When each tries to claim it Then exactly one wins, and the loser reads nothing at all
+Given two daemons (or a daemon and a hand-run `pns daemon` process) reaching one due job in the same second
+
+When each tries to claim it
+
+Then exactly one wins, and the loser reads nothing at all
 
 - Success: `src/daemon.rs:claim` renames `<spool>/<id>` to `<spool>/~claim.<pid>.<seq>.<id>` and answers
   the new path, or `None`. The measurement behind it is recorded in the module comment and in the
@@ -565,9 +610,11 @@ second When each tries to claim it Then exactly one wins, and the loser reads no
 
 ### 16. `decide` checks the lease, then the marker, then a running child, then the due second
 
-Given a job, a second, whether its marker exists and whether a child THIS job already fired is still
-running When `decide` is asked Then it answers `Wait`, `Fire` or `Drop(reason)` and opens no file and
-reads no clock
+Given a job, a second, whether its marker exists and whether a child THIS job already fired is still running
+
+When `decide` is asked
+
+Then it answers `Wait`, `Fire` or `Drop(reason)` and opens no file and reads no clock
 
 - Success: `src/daemon.rs:decide` is a total function of four values, which is what lets the window be
   swept a second at a time in a unit test. The order is fixed: `now > until` is `Drop(LeaseExpired)`;
@@ -610,8 +657,11 @@ reads no clock
 
 ### 17. A claimed job that is not due goes back create-if-absent
 
-Given a job whose peek said act but whose claimed re-read says `Wait` When the daemon puts it back Then
-the record goes back under its id only if a client has not written there in the meantime
+Given a job whose peek said act but whose claimed re-read says `Wait`
+
+When the daemon puts it back
+
+Then the record goes back under its id only if a client has not written there in the meantime
 
 - Success: `src/main.rs:act`'s `Verdict::Wait` arm calls `src/daemon.rs:hand_back` and releases the claim
   on both `Ok(true)` and `Ok(false)`.
@@ -641,8 +691,11 @@ the record goes back under its id only if a client has not written there in the 
 
 ### 18. A dropped job says which rule dropped it
 
-Given a claimed job whose verdict is `Drop` When the daemon drops it Then it prints one line naming the
-id and the reason, and the record is gone
+Given a claimed job whose verdict is `Drop`
+
+When the daemon drops it
+
+Then it prints one line naming the id and the reason, and the record is gone
 
 - Success: `src/main.rs:act`'s `Verdict::Drop(reason)` arm prints
   `` pns daemon: dropped `<id>` because <reason> `` where `<reason>` is one of `its lease had expired`
@@ -672,8 +725,11 @@ id and the reason, and the record is gone
 
 ### 19. A marker cancels a job only through a real markers directory
 
-Given a job carrying `unless_marker` When the daemon asks whether the marker is there Then it checks the
-directory first and refuses a symlink standing where it should be
+Given a job carrying `unless_marker`
+
+When the daemon asks whether the marker is there
+
+Then it checks the directory first and refuses a symlink standing where it should be
 
 - Success: `src/daemon.rs:marker_exists` returns false for a job with no marker, false for a marker name
   that fails `name_is_safe`, false when `<state>/daemon-markers` is not a real directory, and otherwise
@@ -707,8 +763,11 @@ directory first and refuses a symlink standing where it should be
 
 ### 20. A fired job re-arms durably before it spawns, create-if-absent
 
-Given a claimed job whose verdict is `Fire` When the daemon fires it Then the repeat is written first,
-then the claim is released, then the child is spawned
+Given a claimed job whose verdict is `Fire`
+
+When the daemon fires it
+
+Then the repeat is written first, then the claim is released, then the child is spawned
 
 - Success: `src/main.rs:fire` calls `rearm`, then `hand_back` for the next occurrence, then
   `release(claim)`, then `spawn_job`.
@@ -738,8 +797,11 @@ then the claim is released, then the child is spawned
 
 ### 21. A repeat re-arms at `now + every` and never extends its own lease
 
-Given a fired job with `every` set When it re-arms Then the next due is `now + every`, `until` is carried
-over unchanged, and a next due past `until` leaves nothing behind
+Given a fired job with `every` set
+
+When it re-arms
+
+Then the next due is `now + every`, `until` is carried over unchanged, and a next due past `until` leaves nothing behind
 
 - Success: `src/daemon.rs:rearm` is
   `let due = now.saturating_add(job.every?); (due <= job.until).then(|| Job { due, ..job.clone() })`.
@@ -771,8 +833,11 @@ over unchanged, and a next due past `until` leaves nothing behind
 
 ### 22. A fired job is this binary re-executed, detached, in a process group of its own
 
-Given a job about to run When `spawn_job` starts it Then it runs `std::env::current_exe()` with the
-record's argv, stdin and stdout null, stderr inherited, and `process_group(0)`
+Given a job about to run
+
+When `spawn_job` starts it
+
+Then it runs `std::env::current_exe()` with the record's argv, stdin and stdout null, stderr inherited, and `process_group(0)`
 
 - Success: `src/main.rs:spawn_job`.
 - Failure sources: `current_exe` failing; `spawn` failing (a missing binary, a process limit).
@@ -811,9 +876,11 @@ record's argv, stdin and stdout null, stderr inherited, and `process_group(0)`
 
 ### 23. A child is reaped without blocking, and killed as a group past its bound
 
-Given children the daemon started When a pass reaps Then each is polled with `try_wait`, exited and
-errored children are dropped from the list, and any that outlived its deadline has its whole process
-GROUP killed
+Given children the daemon started
+
+When a pass reaps
+
+Then each is polled with `try_wait`, exited and errored children are dropped from the list, and any that outlived its deadline has its whole process GROUP killed
 
 - Success: `src/main.rs:reap` uses `retain_mut`. `Ok(Some(_)) | Err(_)` drops the entry; `Ok(None)` past
   `expires_at` kills the group, then the direct child, then waits, then drops the entry; `Ok(None)`
@@ -847,8 +914,11 @@ GROUP killed
 
 ### 24. `kill_group` refuses a process id it cannot vouch for
 
-Given a bounded child that must be killed When `kill_group` is called with its process id Then it signals
-the negated id with SIGKILL, and refuses 0, 1 and anything not representable
+Given a bounded child that must be killed
+
+When `kill_group` is called with its process id
+
+Then it signals the negated id with SIGKILL, and refuses 0, 1 and anything not representable
 
 - Success: `src/main.rs:kill_group` converts to `libc::pid_t` and returns early on failure, returns early
   on `pid <= 1`, and otherwise calls `libc::kill(-pid, libc::SIGKILL)` inside one `unsafe` block whose
@@ -875,8 +945,11 @@ the negated id with SIGKILL, and refuses 0, 1 and anything not representable
 
 ### 25. The child bound is thirty ticks, with the lights tick as the one exception
 
-Given a job being spawned When its deadline is computed Then it is `tick * CHILD_TICKS` for every job but
-`lights`, and the larger of that and one whole lights interval for `lights`
+Given a job being spawned
+
+When its deadline is computed
+
+Then it is `tick * CHILD_TICKS` for every job but `lights`, and the larger of that and one whole lights interval for `lights`
 
 - Success: `src/main.rs:child_bound` returns `tick * CHILD_TICKS` when `id != LIGHTS_JOB`, and otherwise
   `(tick * CHILD_TICKS).max(MAX_REFRESH_SECS + tick_bridge_deadline(MAX_REFRESH_SECS) + tick)`. Pinned
@@ -912,8 +985,11 @@ Given a job being spawned When its deadline is computed Then it is `tick * CHILD
 
 ### 26. A working file the daemon could not remove is named
 
-Given a claim the daemon is finished with When the remove fails Then one line names the file and says it
-was left behind
+Given a claim the daemon is finished with
+
+When the remove fails
+
+Then one line names the file and says it was left behind
 
 - Success: `src/main.rs:release` prints, verbatim:
   `pns daemon: the working file <path> could not be removed (<error>); it is left behind`.
@@ -936,7 +1012,11 @@ was left behind
 
 ### 27. The daemon says nothing per tick, and nothing about a firing that worked
 
-Given a running daemon When it idles, and when it successfully runs a job Then it writes nothing at all
+Given a running daemon
+
+When it idles, and when it successfully runs a job
+
+Then it writes nothing at all
 
 - Success: two separate tests. `tests/daemon.rs:the_daemon_does_not_write_a_log_line_per_tick` waits for
   the heartbeat file first (so "said nothing" is not vacuous about a daemon that never got going), then
@@ -964,9 +1044,11 @@ Given a running daemon When it idles, and when it successfully runs a job Then i
 
 ### 28. `pns daemon schedule` registers one job and waits on nothing
 
-Given the operator or a rider registering a job When
-`pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <args>`
-runs Then the record is validated and published by rename, with no daemon involved
+Given the operator or a rider registering a job
+
+When `pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <args>` runs
+
+Then the record is validated and published by rename, with no daemon involved
 
 - Success: `src/main.rs:parse_schedule` builds a `ScheduleRequest`, `src/main.rs:daemon_schedule` reads
   the clock once, computes `due = now + in_secs` and `until` from `Until`, and calls
@@ -1019,8 +1101,11 @@ runs Then the record is validated and published by rename, with no daemon involv
 
 ### 29. `pns daemon cancel` forgets one job, and is not an error the second time
 
-Given `pns daemon cancel --id <id>` When the job is there, absent, or the id is not a job id Then the
-three cases are exit 0, exit 0 and exit 1
+Given `pns daemon cancel --id <id>`
+
+When the job is there, absent, or the id is not a job id
+
+Then the three cases are exit 0, exit 0 and exit 1
 
 - Success: `src/main.rs:daemon_cancel` destructures argv into exactly `[flag, id]` and requires
   `flag == "--id"`; anything else prints `DAEMON_USAGE` and exits 2. `src/daemon.rs:cancel` validates the
@@ -1044,8 +1129,11 @@ three cases are exit 0, exit 0 and exit 1
 
 ### 30. The lights tick registration keeps its due second and takes its lease from the lane
 
-Given an event, a hand-taken loop lease, or a tick with work still in flight When any of the three
-registers the tick Then the lease is refreshed and the due second already pending is KEPT
+Given an event, a hand-taken loop lease, or a tick with work still in flight
+
+When any of the three registers the tick
+
+Then the lease is refreshed and the due second already pending is KEPT
 
 - Success: `src/main.rs:schedule_lights_tick` peeks `<spool>/lights`, takes the pending job's `due` when
   it is still in the future, and otherwise uses `now + lights.refresh_secs`. It then writes
@@ -1089,8 +1177,11 @@ registers the tick Then the lease is refreshed and the due second already pendin
 
 ### 31. The nag registration is one job per session, cancelled by a marker
 
-Given a blocked approval with `[nag] after_secs` set When `arm_nag` runs Then the previous marker is
-cleared, the record is written, and one job `nag:<session-id>` is registered
+Given a blocked approval with `[nag] after_secs` set
+
+When `arm_nag` runs
+
+Then the previous marker is cleared, the record is written, and one job `nag:<session-id>` is registered
 
 - Success: `src/main.rs:arm_nag`. The ORDER is load bearing twice over. Clearing the marker at all is
   required for correctness rather than hygiene: the marker name is constant PER SESSION, so one left by
@@ -1130,8 +1221,11 @@ cleared, the record is written, and one job `nag:<session-id>` is registered
 
 ### 32. The doctor grades the clock by heartbeat age and never by process id
 
-Given `pns doctor` When it reports the daemon Then it prints one line derived from the config switch, the
-heartbeat's age and a count of the spool, and it never moves the exit code
+Given `pns doctor`
+
+When it reports the daemon
+
+Then it prints one line derived from the config switch, the heartbeat's age and a count of the spool, and it never moves the exit code
 
 - Success: `src/main.rs:daemon_line` reads the heartbeat only when `symlink_metadata` says it is a
   regular file, parses it, and hands the four inputs to `src/doctor.rs:daemon_line`. The six lines,
@@ -1178,8 +1272,11 @@ heartbeat's age and a count of the spool, and it never moves the exit code
 
 ### 33. Shutdown needs no handler, and a child in flight is orphaned rather than killed
 
-Given launchd stopping the job, or the operator booting it out When SIGTERM arrives Then the process dies
-inside its tick and any live child is left running
+Given launchd stopping the job, or the operator booting it out
+
+When SIGTERM arrives
+
+Then the process dies inside its tick and any live child is left running
 
 - Success: `src/main.rs:daemon_run`'s doc comment states it: launchd stops a job with SIGTERM and the
   default disposition terminates the process; a loop sleeping one second dies inside the tick. There is

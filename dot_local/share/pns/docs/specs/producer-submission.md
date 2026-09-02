@@ -24,10 +24,11 @@ sensor `pns home` reads).
 
 ### 1. Argv is read once, lossily, and shared
 
-Given a producer invocation whose argument vector may contain bytes that are not valid Unicode When
-`main` starts Then argv (minus the program name) is collected once with `std::env::args_os()` and each
-argument is converted with `to_string_lossy`, and that one vector is what the top-level dispatch, the
-producer check and the event parse all read.
+Given a producer invocation whose argument vector may contain bytes that are not valid Unicode
+
+When `main` starts
+
+Then argv (minus the program name) is collected once with `std::env::args_os()` and each argument is converted with `to_string_lossy`, and that one vector is what the top-level dispatch, the producer check and the event parse all read.
 
 - Success: a single `Vec<String>` reaches `is_producer_argv` and `event_mode`; a non-Unicode byte
   degrades into a replacement character, which the parser then treats as an ordinary unknown token
@@ -55,10 +56,11 @@ producer check and the event parse all read.
 
 ### 2. A word that names no command is refused, never delivered
 
-Given argv whose tokens include no producer flag and no `--help`/`-h`, and whose leading word is not one
-of the recognized subcommands When `main` reaches the producer check Then the whole `USAGE` text is
-printed to stderr and the process exits 2, having loaded no config, spawned no probe and written no
-state.
+Given argv whose tokens include no producer flag and no `--help`/`-h`, and whose leading word is not one of the recognized subcommands
+
+When `main` reaches the producer check
+
+Then the whole `USAGE` text is printed to stderr and the process exits 2, having loaded no config, spawned no probe and written no state.
 
 - Success: exit code 2, `USAGE` on stderr, empty stdout (`src/main.rs:main`,
   `src/main.rs:is_producer_argv`).
@@ -88,9 +90,11 @@ state.
 
 ### 3. Help in flag position prints the usage and reaches nothing
 
-Given argv carrying `--help` or `-h` in flag position, wherever it sits When `event_mode` parses it Then
-the `USAGE` text is printed to stdout and the function returns, before any config load, probe or
-delivery.
+Given argv carrying `--help` or `-h` in flag position, wherever it sits
+
+When `event_mode` parses it
+
+Then the `USAGE` text is printed to stdout and the function returns, before any config load, probe or delivery.
 
 - Success: exit 0, `USAGE` on stdout, stderr empty (`src/main.rs:event_mode`, first branch;
   `src/args.rs:parse_args`, the `is_help_flag` arm).
@@ -117,10 +121,11 @@ delivery.
 
 ### 4. Producer flags are parsed leniently, and a recognized flag is never eaten
 
-Given argv containing producer flags When `parse_args` walks it Then each value flag takes the next token
-as its value unless that token is itself a recognized flag or there is no next token, in which case the
-flag is warned about and left unconsumed; a bare flag sets its boolean; any other unknown token is
-skipped in silence.
+Given argv containing producer flags
+
+When `parse_args` walks it
+
+Then each value flag takes the next token as its value unless that token is itself a recognized flag or there is no next token, in which case the flag is warned about and left unconsumed; a bare flag sets its boolean; any other unknown token is skipped in silence.
 
 - Success: `--agent`, `--state`, `--project`, `--branch`, `--detail`, `--pane` and `--channel` land in
   their fields; `--long-running`, `--local-only` and `--remote-only` set their booleans
@@ -164,10 +169,11 @@ skipped in silence.
 
 ### 5. `--channel` selects a hermes route by name, falling back loud-ward
 
-Given a producer invocation carrying `--channel <route>` When `dispatch_legs` constructs the hermes
-channel Then the endpoint is `PNS_HERMES_URL` if that variable is set and non-empty, else the default
-route's final path segment replaced by `<route>`, else the default route, and an unusable route name is
-complained about and replaced by the default.
+Given a producer invocation carrying `--channel <route>`
+
+When `dispatch_legs` constructs the hermes channel
+
+Then the endpoint is `PNS_HERMES_URL` if that variable is set and non-empty, else the default route's final path segment replaced by `<route>`, else the default route, and an unusable route name is complained about and replaced by the default.
 
 - Success: `channel_url(DEFAULT_HERMES_URL, route)` returns `http://127.0.0.1:8644/webhooks/<route>` for
   a usable name (`src/main.rs:hermes_url_for`, `src/channels/hermes.rs:channel_url`,
@@ -202,9 +208,11 @@ complained about and replaced by the default.
 
 ### 6. The bare invocation is a valid empty event
 
-Given argv with no arguments at all When `main` runs Then `is_producer_argv` answers true on the empty
-vector, `parse_args` returns `EventArgs::default()`, and an empty event is decided, rendered and
-delivered.
+Given argv with no arguments at all
+
+When `main` runs
+
+Then `is_producer_argv` answers true on the empty vector, `parse_args` returns `EventArgs::default()`, and an empty event is decided, rendered and delivered.
 
 - Success: the mobile and hermes legs fire against an away operator (`src/main.rs:is_producer_argv`,
   `src/args.rs:EventArgs` derives `Default`).
@@ -227,10 +235,11 @@ delivered.
 
 ### 7. The config is loaded once and read for five things before selection consumes it
 
-Given a producer event When `run_event` starts Then `load_config(&config_path(&home))` runs once, and
-hue's settings table, the `[lights]` table, the `[plugins.mobile]` verdict, the hermes key, the `[recap]`
-table and the `[focus] silence` list are read off that one outcome before `select_plugins` takes
-ownership of it.
+Given a producer event
+
+When `run_event` starts
+
+Then `load_config(&config_path(&home))` runs once, and hue's settings table, the `[lights]` table, the `[plugins.mobile]` verdict, the hermes key, the `[recap]` table and the `[focus] silence` list are read off that one outcome before `select_plugins` takes ownership of it.
 
 - Success: six values (`hue_table`, `lights`, `mobile`, `hermes_key`, `recap`, `focus_silence`) come out
   of one `match` over `&loaded` (`src/main.rs:run_event`).
@@ -272,9 +281,11 @@ ownership of it.
 
 ### 8. `[plugins.mobile]` is read exactly once, and its refusal travels with its token
 
-Given a config carrying a `[plugins.mobile]` table When `read_mobile` runs Then one call to
-`config::armed_mobile` decides all three answers: the push token, the refusal (when the table is enabled
-and names a backend nothing compiled in answers), and the `mobile_watch_card` toggle.
+Given a config carrying a `[plugins.mobile]` table
+
+When `read_mobile` runs
+
+Then one call to `config::armed_mobile` decides all three answers: the push token, the refusal (when the table is enabled and names a backend nothing compiled in answers), and the `mobile_watch_card` toggle.
 
 - Success: a `Mobile { token, refusal: None, watch_card }` (`src/main.rs:read_mobile`,
   `src/main.rs:Mobile`).
@@ -314,9 +325,11 @@ and names a backend nothing compiled in answers), and the `mobile_watch_card` to
 
 ### 9. One wall clock read, and the mutes are stated by the composition root
 
-Given a producer event When `run_event` assembles the overrides Then the clock is read once through the
-probe set's memoized cell, `Overrides::from_env` parses the environment, and `muted` and `focus_active`
-are overwritten with readings the composition root took itself.
+Given a producer event
+
+When `run_event` assembles the overrides
+
+Then the clock is read once through the probe set's memoized cell, `Overrides::from_env` parses the environment, and `muted` and `focus_active` are overwritten with readings the composition root took itself.
 
 - Success: `probes.now_secs()` answers from a `OnceCell`, so every age in the decision is measured
   against one moment (`src/system.rs:SystemProbes::now_secs`, `src/main.rs:run_event`). `overrides.muted`
@@ -357,8 +370,11 @@ are overwritten with readings the composition root took itself.
 
 ### 10. Probes run only where their answer could change the verdict
 
-Given overrides that already state an answer When `surface_reading` assembles its readings Then the probe
-underneath a stated answer is never started and never read.
+Given overrides that already state an answer
+
+When `surface_reading` assembles its readings
+
+Then the probe underneath a stated answer is never started and never read.
 
 - Success: `probes.start(Wants { desk, phone })` is called once with exactly the two predicates the
   guards below consult, and a garbled desk threshold returns before any probe is started at all
@@ -394,9 +410,11 @@ underneath a stated answer is never started and never read.
 
 ### 11. The delivery decision, and the order the overrides beat each other in
 
-Given a surface reading, a session visibility reading and the caller's flags When `decide` runs Then
-`surface::plan` produces a base plan, `skip_phone` beats `force_phone` beats the surface for the phone
-card, and the two mutes are applied LAST, beating everything above them.
+Given a surface reading, a session visibility reading and the caller's flags
+
+When `decide` runs
+
+Then `surface::plan` produces a base plan, `skip_phone` beats `force_phone` beats the surface for the phone card, and the two mutes are applied LAST, beating everything above them.
 
 - Success: a `Decision { legs, plan, pane_dropped, inputs }` (`src/engine.rs:decide`,
   `src/engine.rs:Decision`).
@@ -445,9 +463,11 @@ card, and the two mutes are applied LAST, beating everything above them.
 
 ### 12. Legs are computed from routing declarations, never from channel names
 
-Given a vetted `Selection` and the arbitrated plan When `channel_plan` runs Then each selected CHANNEL
-whose routing is `event_dispatched` survives the narrowing flags and the plan's own surface question, in
-registration order, and each surviving leg carries its report mode and whether it is decorative.
+Given a vetted `Selection` and the arbitrated plan
+
+When `channel_plan` runs
+
+Then each selected CHANNEL whose routing is `event_dispatched` survives the narrowing flags and the plan's own surface question, in registration order, and each surviving leg carries its report mode and whether it is decorative.
 
 - Success: an ordered `Vec<Leg>` (`src/routing.rs:channel_plan`, `src/routing.rs:Leg`).
 - Failure sources: both narrowing flags together, which returns an empty vector immediately
@@ -483,9 +503,11 @@ registration order, and each surviving leg carries its report mode and whether i
 
 ### 13. An empty plan says nothing, except for the contradiction the caller asked for
 
-Given a decision whose `legs` is empty When `run_event` reaches the dispatch branch Then no channel is
-constructed and nothing is dispatched, and exactly one line is printed, and only when the caller gave
-both narrowing flags.
+Given a decision whose `legs` is empty
+
+When `run_event` reaches the dispatch branch
+
+Then no channel is constructed and nothing is dispatched, and exactly one line is printed, and only when the caller gave both narrowing flags.
 
 - Success: stdout carries
   `pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent`
@@ -515,9 +537,11 @@ both narrowing flags.
 
 ### 14. The pane is scrubbed once, before rendering, and warned about only when a channel will run
 
-Given an event whose `--pane` value fails the safety allowlist When `dispatch_legs` runs Then the pane is
-replaced by the empty string in the rendered event handed to EVERY channel, and one warning is printed to
-stderr.
+Given an event whose `--pane` value fails the safety allowlist
+
+When `dispatch_legs` runs
+
+Then the pane is replaced by the empty string in the rendered event handed to EVERY channel, and one warning is printed to stderr.
 
 - Success: `sandbox.event("macos-banner")["pane"]` is `""` and stderr contains
   `pns: dropped a pane id with shell metacharacters; no channel will focus a pane`
@@ -548,9 +572,11 @@ stderr.
 
 ### 15. Every channel is handed the rendered event, not the raw arguments
 
-Given the parsed arguments and the sanitized pane When `rendered_event` runs Then the channel event
-carries the five raw fields plus a composed `title`, `message` and `preview`, and an executable channel
-receives that object as one line of JSON (JavaScript Object Notation) on stdin with a trailing newline.
+Given the parsed arguments and the sanitized pane
+
+When `rendered_event` runs
+
+Then the channel event carries the five raw fields plus a composed `title`, `message` and `preview`, and an executable channel receives that object as one line of JSON (JavaScript Object Notation) on stdin with a trailing newline.
 
 - Success: `Event { agent, state, project, branch, detail, title, message, preview, pane }`
   (`src/main.rs:rendered_event`, `src/channels/mod.rs:Event`), serialized by
@@ -589,10 +615,11 @@ receives that object as one line of JSON (JavaScript Object Notation) on stdin w
 
 ### 16. Dispatch precedence, per-leg isolation, and which lines reach the operator
 
-Given a plan with one or more legs When `dispatch_legs` walks them Then each leg goes to its compiled-in
-plugin when native plugins win, else to `<channels dir>/<name>.sh`; a refused mobile backend fails ahead
-of both seams; a panic in one channel is one leg's failure; and only a `ReportOutcome` leg's `Delivered`
-or `Failed` sentence is printed, prefixed `pns: `.
+Given a plan with one or more legs
+
+When `dispatch_legs` walks them
+
+Then each leg goes to its compiled-in plugin when native plugins win, else to `<channels dir>/<name>.sh`; a refused mobile backend fails ahead of both seams; a panic in one channel is one leg's failure; and only a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `pns: `.
 
 - Success: a `Vec<(Leg, Delivery)>` in registration order, and zero or more `pns: <sentence>` lines on
   stdout (`src/main.rs:dispatch_legs`, `src/main.rs:deliver_leg`, `src/main.rs:run_event`,
@@ -659,9 +686,11 @@ or `Failed` sentence is printed, prefixed `pns: `.
 
 ### 17. Every event appends exactly one decision, after dispatch and before the pulse
 
-Given any event, delivered or not, first attempt or nudge or observation When `record_decision` runs Then
-one line is appended to the decision ring at `<state dir>/decisions`, carrying the readings the decision
-actually ran on and each leg's verdict, and the ring is pruned to its cap.
+Given any event, delivered or not, first attempt or nudge or observation
+
+When `record_decision` runs
+
+Then one line is appended to the decision ring at `<state dir>/decisions`, carrying the readings the decision actually ran on and each leg's verdict, and the ring is pruned to its cap.
 
 - Success: one `<epoch> <key=value ...>` line (`src/main.rs:record_decision`,
   `src/decision_log.rs:line`).
@@ -709,11 +738,11 @@ actually ran on and each leg's verdict, and the ring is pruned to its cap.
 
 ### 18. The first delivery's contiguous tail, and what a nudge or observation skips
 
-Given `Attempt::First`, which is what `event_mode` always passes for a producer invocation When
-`run_event` gets past the decision record Then it runs, in this order: the journal write, the blocked
-marker update, the news record, the loop lease renewal, the activity ring append, the missed-notification
-replay, the last-present marker advance, the pulse, the held-lamp clear, and the lights tick
-registration.
+Given `Attempt::First`, which is what `event_mode` always passes for a producer invocation
+
+When `run_event` gets past the decision record
+
+Then it runs, in this order: the journal write, the blocked marker update, the news record, the loop lease renewal, the activity ring append, the missed-notification replay, the last-present marker advance, the pulse, the held-lamp clear, and the lights tick registration.
 
 - Success: each step runs and each failure is dropped (`src/main.rs:run_event`, the tail below the
   `if attempt != Attempt::First { return; }` guard).
@@ -794,8 +823,11 @@ registration.
 
 ### 19. The producer path exits 0 on every path that becomes an event
 
-Given any producer invocation that reaches `event_mode` When the process finishes Then it exits 0,
-whatever any channel, config, probe or state write did.
+Given any producer invocation that reaches `event_mode`
+
+When the process finishes
+
+Then it exits 0, whatever any channel, config, probe or state write did.
 
 - Success: exit code 0 (`src/main.rs:main` returns after `event_mode`; the module doc states "The
   producer path exits 0 on every path, because a notification must never fail the work it reports on").

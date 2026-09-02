@@ -92,10 +92,11 @@ ______________________________________________________________________
 
 ### 1. The surface names one of three places and picks the notifier
 
-Given a set of presence readings for one event When `src/surface.rs:surface` is asked where the operator
-is Then it answers exactly one of `Surface::Desk`, `Surface::Mobile` or `Surface::Away`, and that answer
-alone selects the notifier: Desk means the banner, Mobile and Away both mean the phone card, and a banner
-never fires on Mobile.
+Given a set of presence readings for one event
+
+When `src/surface.rs:surface` is asked where the operator is
+
+Then it answers exactly one of `Surface::Desk`, `Surface::Mobile` or `Surface::Away`, and that answer alone selects the notifier: Desk means the banner, Mobile and Away both mean the phone card, and a banner never fires on Mobile.
 
 - Success: `src/surface.rs:Surface` has three variants and no fourth; `src/surface.rs:plan` reads it in
   exactly two places (`banner: surface == Surface::Desk && !watching` and the `phone_card` match).
@@ -124,9 +125,11 @@ never fires on Mobile.
 
 ### 2. Visibility names one of three states, and Unknown never suppresses
 
-Given an origin pane and whatever the session reported about it When `src/surface.rs:visibility` judges
-it Then it answers `Visible`, `Hidden` or `Unknown`, where Hidden needs proof (a different tab, or a zoom
-covering this pane) and anything unreadable is Unknown.
+Given an origin pane and whatever the session reported about it
+
+When `src/surface.rs:visibility` judges it
+
+Then it answers `Visible`, `Hidden` or `Unknown`, where Hidden needs proof (a different tab, or a zoom covering this pane) and anything unreadable is Unknown.
 
 - Success: `src/surface.rs:visibility` returns `Hidden` only for `view.origin_tab != view.focused_tab` or
   `view.zoomed && view.focused_pane != origin`.
@@ -152,10 +155,11 @@ covering this pane) and anything unreadable is Unknown.
 
 ### 3. The session view is one session-global reading, never a caller-relative one
 
-Given an event carrying an origin pane id When `src/system.rs` `SessionViewProbe for SystemProbes` builds
-a `SessionView` Then it runs `herdr workspace list` for the focused workspace's `active_tab_id` and
-`herdr pane layout --pane <origin>` for that pane's tab id, focused pane and zoom flag, and it never asks
-`herdr pane current`.
+Given an event carrying an origin pane id
+
+When `src/system.rs` `SessionViewProbe for SystemProbes` builds a `SessionView`
+
+Then it runs `herdr workspace list` for the focused workspace's `active_tab_id` and `herdr pane layout --pane <origin>` for that pane's tab id, focused pane and zoom flag, and it never asks `herdr pane current`.
 
 - Success: two calls, both addressed explicitly. `src/system.rs:parse_focused_tab` takes the one
   workspace whose `focused` is `true`; `src/system.rs:parse_layout` reads `tab_id`, `focused_pane_id` and
@@ -194,8 +198,11 @@ a `SessionView` Then it runs `herdr workspace list` for the focused workspace's 
 
 ### 4. The origin pane's tab and zoom decide whether it is on screen
 
-Given a `SessionView` When the origin pane's tab is not the focused tab, or the tab is zoomed onto a
-different pane Then visibility is `Hidden`; otherwise it is `Visible`.
+Given a `SessionView`
+
+When the origin pane's tab is not the focused tab, or the tab is zoomed onto a different pane
+
+Then visibility is `Hidden`; otherwise it is `Visible`.
 
 - Success: the six-row matrix in `src/surface.rs:every_visibility_case_in_the_matrix_reads_correctly`,
   including that a zoom onto the origin itself leaves it Visible and a zoom onto a sibling hides it.
@@ -215,9 +222,11 @@ different pane Then visibility is `Hidden`; otherwise it is `Visible`.
 
 ### 5. A signal speaks for its place only inside the freshness window
 
-Given an age in whole seconds and a window When `src/surface.rs:is_fresh` (through
-`src/surface.rs:fresh_age`) judges it Then the age counts only if it is strictly less than the window;
-anything else, including `None`, counts for nothing.
+Given an age in whole seconds and a window
+
+When `src/surface.rs:is_fresh` (through `src/surface.rs:fresh_age`) judges it
+
+Then the age counts only if it is strictly less than the window; anything else, including `None`, counts for nothing.
 
 - Success: `fresh_age` is `age.filter(|seconds| *seconds < fresh_secs)`.
 - Failure sources: a reading that could not be taken (`None`); a threshold that could not be parsed
@@ -246,9 +255,11 @@ anything else, including `None`, counts for nothing.
 
 ### 6. Newest signal wins between the desk clock and the phone's two signals
 
-Given a desk input age, a phone input age and a Back Tap marker age, all measured against one clock When
-`src/surface.rs:surface` arbitrates Then the fresher of the desk clock and the phone (whose age is the
-smaller of its own two fresh signals) names the surface, and nothing fresh anywhere is `Away`.
+Given a desk input age, a phone input age and a Back Tap marker age, all measured against one clock
+
+When `src/surface.rs:surface` arbitrates
+
+Then the fresher of the desk clock and the phone (whose age is the smaller of its own two fresh signals) names the surface, and nothing fresh anywhere is `Away`.
 
 - Success: the eleven-row matrix in
   `src/surface.rs:every_surface_case_in_the_matrix_arbitrates_correctly`, plus
@@ -280,8 +291,11 @@ smaller of its own two fresh signals) names the surface, and nothing fresh anywh
 
 ### 7. The tie goes to the desk
 
-Given a desk age and a phone age that are equal and both fresh When `src/surface.rs:surface` compares
-them Then the answer is `Desk`.
+Given a desk age and a phone age that are equal and both fresh
+
+When `src/surface.rs:surface` compares them
+
+Then the answer is `Desk`.
 
 - Success: the comparison is `if desk <= phone { Surface::Desk } else { Surface::Mobile }`, matrix row
   "the tie goes to the desk, where the operator has to be sitting for the reading to exist at all".
@@ -306,9 +320,11 @@ them Then the answer is `Desk`.
 
 ### 8. A locked screen disqualifies the desk clock and nothing else
 
-Given a fresh desk input age and a console lock reading of `Some(true)` When `src/surface.rs:surface`
-arbitrates Then the desk drops out of the running entirely, and the phone's own signals still answer for
-the phone.
+Given a fresh desk input age and a console lock reading of `Some(true)`
+
+When `src/surface.rs:surface` arbitrates
+
+Then the desk drops out of the running entirely, and the phone's own signals still answer for the phone.
 
 - Success: `let desk = fresh(desk_input_age).filter(|_| screen_locked != Some(true));`. Pinned by
   `src/surface.rs:a_locked_screen_takes_the_desk_out_of_the_running_however_fresh_its_clock_is` (desk at
@@ -345,9 +361,11 @@ the phone.
 
 ### 9. A Mobile surface the Back Tap alone reached is watching nothing
 
-Given a `Mobile` surface whose phone pty clock is not fresh (the tap is what put the operator there) When
-`src/surface.rs:effective_visibility` adjusts what the session reported Then the delivery decision runs
-on `Visibility::Hidden` whatever any client's display shows.
+Given a `Mobile` surface whose phone pty clock is not fresh (the tap is what put the operator there)
+
+When `src/surface.rs:effective_visibility` adjusts what the session reported
+
+Then the delivery decision runs on `Visibility::Hidden` whatever any client's display shows.
 
 - Success: `if surface == Surface::Mobile && !phone_input_fresh { return Visibility::Hidden; }`. Pinned
   by `src/surface.rs:every_effective_visibility_case_adjusts_or_passes_through_correctly` and composed in
@@ -380,9 +398,10 @@ on `Visibility::Hidden` whatever any client's display shows.
 ### 10. The plan is the surface, the visibility, the tier and one toggle
 
 Given a surface, an effective visibility, a `long_running` tier and the `mobile_watch_card` config toggle
-When `src/surface.rs:plan` decides Then the banner belongs to the desk with the pane out of sight, the
-card belongs to the phone (always when away, and on mobile unless the operator is watching the pane), and
-the pulse rides on top of every long-running event.
+
+When `src/surface.rs:plan` decides
+
+Then the banner belongs to the desk with the pane out of sight, the card belongs to the phone (always when away, and on mobile unless the operator is watching the pane), and the pulse rides on top of every long-running event.
 
 - Success: the twelve-row matrix in
   `src/surface.rs:every_delivery_row_in_the_confirmed_matrix_plans_correctly`, reproduced in the decision
@@ -418,9 +437,11 @@ the pulse rides on top of every long-running event.
 
 ### 11. Caller intent survives the arbitration, and skip beats force
 
-Given `PNS_SKIP_PHONE` or `PNS_FORCE_PHONE` in the environment When `src/engine.rs:decide` has a plan
-Then the card is `!skip_phone && (force_phone || planned)`, so force overrides the surface entirely and
-skip overrides force.
+Given `PNS_SKIP_PHONE` or `PNS_FORCE_PHONE` in the environment
+
+When `src/engine.rs:decide` has a plan
+
+Then the card is `!skip_phone && (force_phone || planned)`, so force overrides the surface entirely and skip overrides force.
 
 - Success: `src/engine.rs:skip_phone_beats_force_phone_because_already_sent_is_more_specific`,
   `src/engine.rs:force_phone_sends_the_card_from_the_desk_with_the_pane_in_plain_sight`, and through the
@@ -455,9 +476,11 @@ skip overrides force.
 
 ### 12. The two mutes are applied last and beat a forced card
 
-Given the operator's own `quiet window` mute or a macOS Focus the config named When
-`src/engine.rs:decide` finishes arbitrating Then banner, card and pulse are all cleared, and that
-clearing beats `PNS_FORCE_PHONE`.
+Given the operator's own `quiet window` mute or a macOS Focus the config named
+
+When `src/engine.rs:decide` finishes arbitrating
+
+Then banner, card and pulse are all cleared, and that clearing beats `PNS_FORCE_PHONE`.
 
 - Success: `Overrides::silenced()` is `self.muted || self.focus_active`, and the muted branch is a full
   struct literal with all three fields set false. Pinned by
@@ -493,9 +516,11 @@ clearing beats `PNS_FORCE_PHONE`.
 
 ### 13. A macOS Focus is judged per mode and fails open
 
-Given a `[focus] silence` list naming zero or more Focus modes When `src/main.rs:focus_now` reads the Do
-Not Disturb store Then it is silenced only if a mode the list named is asserted right now, an empty list
-reads nothing at all, and an unreadable store is not silenced.
+Given a `[focus] silence` list naming zero or more Focus modes
+
+When `src/main.rs:focus_now` reads the Do Not Disturb store
+
+Then it is silenced only if a mode the list named is asserted right now, an empty list reads nothing at all, and an unreadable store is not silenced.
 
 - Success: `src/focus.rs:active_modes` takes `data[0].storeAssertionRecords` and collects each record's
   `assertionDetails.assertionDetailsModeIdentifier` into a `BTreeSet`; `src/focus.rs:mode_names` keys the
@@ -554,9 +579,11 @@ reads nothing at all, and an unreadable store is not silenced.
 
 ### 14. The desk idle probe reports whole seconds since the last physical input
 
-Given a machine with a HID subsystem When `src/system.rs:idle_reading` runs Then it spawns
-`/usr/sbin/ioreg -c IOHIDSystem`, takes the last whitespace field of the first line carrying
-`HIDIdleTime`, and divides by 1_000_000_000 to whole seconds.
+Given a machine with a HID subsystem
+
+When `src/system.rs:idle_reading` runs
+
+Then it spawns `/usr/sbin/ioreg -c IOHIDSystem`, takes the last whitespace field of the first line carrying `HIDIdleTime`, and divides by 1_000_000_000 to whole seconds.
 
 - Success: `src/system.rs:the_idle_probe_argv_matches_the_bash_original` pins the exact argv;
   `src/system.rs:the_idle_probe_reports_whole_seconds_from_the_nanosecond_count` and
@@ -586,7 +613,10 @@ Given a machine with a HID subsystem When `src/system.rs:idle_reading` runs Then
 
 ### 15. The console lock is read only where the idle clock answered
 
-Given the idle reading for this event When it was stated by the caller, was garbled, or came back `None`
+Given the idle reading for this event
+
+When it was stated by the caller, was garbled, or came back `None`
+
 Then the lock probe is never spawned; only an idle reading that really arrived earns the second `ioreg`.
 
 - Success: the guard is
@@ -617,9 +647,11 @@ Then the lock probe is never spawned; only an idle reading that really arrived e
 
 ### 16. The Back Tap marker is read as the link's own modification time
 
-Given a marker path from `PNS_PHONE_MARKER_FILE` or the default
-`$HOME/.local/state/pns/phone-attention.marker` When `PhoneMarkerProbe::marker_mtime_secs` reads it Then
-it uses `symlink_metadata`, so a dangling symlink still carries a reading.
+Given a marker path from `PNS_PHONE_MARKER_FILE` or the default `$HOME/.local/state/pns/phone-attention.marker`
+
+When `PhoneMarkerProbe::marker_mtime_secs` reads it
+
+Then it uses `symlink_metadata`, so a dangling symlink still carries a reading.
 
 - Success: `src/system.rs:the_marker_probe_reports_the_files_modification_time_in_whole_seconds` and
   `src/system.rs:the_marker_probe_reads_the_link_itself_never_its_target`. Through the process:
@@ -643,9 +675,11 @@ it uses `symlink_metadata`, so a dangling symlink still carries a reading.
 
 ### 17. The phone's input clock is the mosh client pty's access time
 
-Given one or more attached mosh sessions When `src/system.rs:phone_reading` runs Then it walks
-`/usr/bin/pgrep -x mosh-server`, then `/usr/bin/pgrep -P <ids>`, then `/bin/ps -o tty= -p <ids>`, and
-takes the newest access time among `/dev/<name>` for the terminals named.
+Given one or more attached mosh sessions
+
+When `src/system.rs:phone_reading` runs
+
+Then it walks `/usr/bin/pgrep -x mosh-server`, then `/usr/bin/pgrep -P <ids>`, then `/bin/ps -o tty= -p <ids>`, and takes the newest access time among `/dev/<name>` for the terminals named.
 
 - Success: `src/system.rs:the_discovery_argv_is_pinned_to_the_chain_that_was_measured_live` pins the
   three calls in order; `src/system.rs:every_server_and_every_client_is_asked_for_in_one_call_each` pins
@@ -685,8 +719,11 @@ takes the newest access time among `/dev/<name>` for the terminals named.
 
 ### 18. Every subprocess reading is bounded in time and in bytes
 
-Given any probe command When `src/system.rs:run_bounded` runs it Then the answer is discarded and the
-child killed if the deadline passes, and discarded if the output exceeds the ceiling.
+Given any probe command
+
+When `src/system.rs:run_bounded` runs it
+
+Then the answer is discarded and the child killed if the deadline passes, and discarded if the output exceeds the ceiling.
 
 - Success: `src/system.rs:the_production_runner_captures_stdout_on_success`;
   `src/system.rs:a_short_answer_is_told_apart_from_the_cap_because_it_is_still_an_answer` shows the
@@ -727,9 +764,11 @@ child killed if the deadline passes, and discarded if the output exceeds the cei
 
 ### 19. Every timestamp is aged against one clock read
 
-Given a phone atime and a marker mtime, both absolute epoch seconds When `src/engine.rs:surface_reading`
-ages them Then both use the single `now_secs` value taken at the edge, and an unreadable clock ages
-neither.
+Given a phone atime and a marker mtime, both absolute epoch seconds
+
+When `src/engine.rs:surface_reading` ages them
+
+Then both use the single `now_secs` value taken at the edge, and an unreadable clock ages neither.
 
 - Success:
   `let age_of = |taken_at: Option<u64>| now_secs.and_then(|now| Some(now.saturating_sub(taken_at?)));`
@@ -760,8 +799,11 @@ neither.
 
 ### 20. One probe set is one reading, including the reading that came back empty
 
-Given one `SystemProbes` built for one invocation When two consumers ask for the same reading Then the
-command runs once and both get the same answer, and that holds for `None` as much as for a value.
+Given one `SystemProbes` built for one invocation
+
+When two consumers ask for the same reading
+
+Then the command runs once and both get the same answer, and that holds for `None` as much as for a value.
 
 - Success: `src/system.rs:a_reading_asked_for_twice_is_still_taken_once` and
   `src/system.rs:a_reading_that_came_back_empty_is_not_retaken_either`, both asserting exactly one runner
@@ -795,9 +837,11 @@ command runs once and both get the same answer, and that holds for `None` as muc
 
 ### 21. Independent subprocess probes are started ahead and run concurrently, and the session view is not one of them
 
-Given a caller that has not stated the desk clock or the phone age When `src/engine.rs:surface_reading`
-calls `probes.start(Wants { desk, phone })` Then `SystemProbes` spawns one thread for the desk pair and
-one for the phone chain, and the reads below join them.
+Given a caller that has not stated the desk clock or the phone age
+
+When `src/engine.rs:surface_reading` calls `probes.start(Wants { desk, phone })`
+
+Then `SystemProbes` spawns one thread for the desk pair and one for the phone chain, and the reads below join them.
 
 - Success: `src/system.rs:a_slow_probe_does_not_hold_up_a_fast_one` proves the overlap by order rather
   than by time: the phone thread's `pgrep` releases a blocked `ioreg`, so a sequential or desk-only
@@ -850,8 +894,11 @@ one for the phone chain, and the reads below join them.
 
 ### 22. A stated reading is trusted and its probe never runs
 
-Given `PNS_IDLE_SECS` or `PNS_PHONE_INPUT_AGE` set to a valid count When `src/engine.rs:surface_reading`
-needs that reading Then it uses the stated value and neither starts nor reads the probe underneath it.
+Given `PNS_IDLE_SECS` or `PNS_PHONE_INPUT_AGE` set to a valid count
+
+When `src/engine.rs:surface_reading` needs that reading
+
+Then it uses the stated value and neither starts nor reads the probe underneath it.
 
 - Success: `src/engine.rs:an_overridden_idle_reading_spares_the_idle_probe` (idle reads 0) and
   `src/engine.rs:a_stated_phone_input_age_spares_the_process_walk_behind_it` (phone reads 0). The module
@@ -879,9 +926,11 @@ needs that reading Then it uses the stated value and neither starts nor reads th
 
 ### 23. A garbled override answers unknown outright, never a fallback
 
-Given a presence variable that is present, non-empty and not a count When
-`src/engine.rs:Overrides::from_env` parses it Then the value is `None` and the matching `*_invalid` flag
-is set, and the reading is treated as unknown rather than falling back to a probe or a default.
+Given a presence variable that is present, non-empty and not a count
+
+When `src/engine.rs:Overrides::from_env` parses it
+
+Then the value is `None` and the matching `*_invalid` flag is set, and the reading is treated as unknown rather than falling back to a probe or a default.
 
 - Success: `src/engine.rs:a_garbage_idle_override_is_unknown_without_a_probe_read` and
   `src/engine.rs:a_garbage_phone_override_is_unknown_without_a_probe_read`, both asserting the probe read
@@ -913,8 +962,11 @@ is set, and the reading is treated as unknown rather than falling back to a prob
 
 ### 24. One submission decides on one coherent snapshot, read at the last moment before delivery
 
-Given one event When `src/engine.rs:decide` runs Then every reading it needs is taken at dispatch, once,
-into `src/engine.rs:GateInputs`, and nothing below that point touches a probe.
+Given one event
+
+When `src/engine.rs:decide` runs
+
+Then every reading it needs is taken at dispatch, once, into `src/engine.rs:GateInputs`, and nothing below that point touches a probe.
 
 - Success: `src/engine.rs:GateInputs` carries all thirteen inputs and its doc states the timing contract:
   "operator ruling 2026-08-13: the decision evaluates the world at the LAST MOMENT BEFORE DELIVERY, and
@@ -949,9 +1001,11 @@ into `src/engine.rs:GateInputs`, and nothing below that point touches a probe.
 
 ### 25. The decision carries out the readings it ran on, and the record is written from them
 
-Given a completed `Decision` When `src/decision_log.rs:line` writes the `decision ring` entry Then the
-surface, both visibilities, the three ages, the lock, the freshness window and every override flag are
-written from `decision.inputs`, with no second reading.
+Given a completed `Decision`
+
+When `src/decision_log.rs:line` writes the `decision ring` entry
+
+Then the surface, both visibilities, the three ages, the lock, the freshness window and every override flag are written from `decision.inputs`, with no second reading.
 
 - Success: the byte-for-byte line assertion in `src/decision_log.rs` covers
   `surface=Mobile visibility=Hidden session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=no fresh_window=120 ... plan=banner:no,card:no,pulse:no legs=none`,
@@ -979,9 +1033,11 @@ written from `decision.inputs`, with no second reading.
 
 ### 26. An unsafe pane still decides visibility and is dropped only from delivery
 
-Given an origin pane containing characters outside the allowlist When `src/engine.rs:decide` runs Then
-the raw pane is still used for the session-view read and `pane_dropped` is set, and the pane is blanked
-once at dispatch with a single warning.
+Given an origin pane containing characters outside the allowlist
+
+When `src/engine.rs:decide` runs
+
+Then the raw pane is still used for the session-view read and `pane_dropped` is set, and the pane is blanked once at dispatch with a single warning.
 
 - Success: `decide` computes `pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane)` after
   calling `operator_visibility(probes, pane)` with the raw value.
@@ -1015,9 +1071,11 @@ once at dispatch with a single warning.
 
 ### 27. Presence decides whether an event counts as seen
 
-Given a completed `Decision` When `src/missed_notifications.rs:is_present` asks whether the operator was
-there Then the answer is `decision.inputs.surface != Surface::Away`, and a present event moves the
-last-present marker while an away event does not.
+Given a completed `Decision`
+
+When `src/missed_notifications.rs:is_present` asks whether the operator was there
+
+Then the answer is `decision.inputs.surface != Surface::Away`, and a present event moves the last-present marker while an away event does not.
 
 - Success: `tests/dispatch.rs:a_present_event_moves_the_last_present_marker_and_an_away_event_does_not`;
   `tests/dispatch.rs:a_present_event_delivers_one_extra_notification_carrying_the_whole_journal` and

@@ -71,8 +71,11 @@ nothing.
 
 ### 1. The router is a sensor, never a delivery destination
 
-Given the compiled-in roster When the config enables `[plugins.router]` and an event is dispatched Then
-the plugin is selected and named as known, no leg is planned for it, and no event ever reaches it
+Given the compiled-in roster
+
+When the config enables `[plugins.router]` and an event is dispatched
+
+Then the plugin is selected and named as known, no leg is planned for it, and no event ever reaches it
 
 - Success: `src/registry.rs:ROSTER` declares `name: "router"` with `kind: PluginKind::Sensor`, first in
   the list, with the comment "an INPUT, so it holds no delivery order to state". `PluginKind::Sensor`
@@ -111,8 +114,11 @@ the plugin is selected and named as known, no leg is planned for it, and no even
 
 ### 2. The reading is an input that nothing in the delivery plan consumes
 
-Given a Home, NotHome or Unknown reading When any other event is dispatched on this machine Then the
-reading changes nothing about where that event lands
+Given a Home, NotHome or Unknown reading
+
+When any other event is dispatched on this machine
+
+Then the reading changes nothing about where that event lands
 
 - Success: the module comment states it outright: "The reading is a sensor only: nothing in the delivery
   plan consumes it yet, because no row of the confirmed matrix changes on home-ness until
@@ -141,8 +147,11 @@ reading changes nothing about where that event lands
 
 ### 3. One reading is fetch, then parse, then judge
 
-Given a configured device identity and a router When `pns home` takes one reading Then the clients
-listing is fetched through the `Router` seam, parsed, and judged, in that order
+Given a configured device identity and a router
+
+When `pns home` takes one reading
+
+Then the clients listing is fetched through the `Router` seam, parsed, and judged, in that order
 
 - Success: `src/home.rs:read_home` is three calls in one expression:
   `home_reading(router.clients_json().as_deref().and_then(parse_clients), device)`. A fetch that answered
@@ -169,10 +178,11 @@ listing is fetched through the `Router` seam, parsed, and judged, in that order
 
 ### 4. The adapter walks sites then clients, with the key in a header
 
-Given a `router_url` and an `api_key` When one reading is taken against the UniFi backend Then
-`/proxy/network/integration/v1/sites` is requested first, its first site id is validated and joined into
-`/proxy/network/integration/v1/sites/{site}/clients?limit=200`, and both requests carry
-`X-API-KEY: <api_key>`
+Given a `router_url` and an `api_key`
+
+When one reading is taken against the UniFi backend
+
+Then `/proxy/network/integration/v1/sites` is requested first, its first site id is validated and joined into `/proxy/network/integration/v1/sites/{site}/clients?limit=200`, and both requests carry `X-API-KEY: <api_key>`
 
 - Success: `src/home.rs:UniFiRouter::clients_json`. The site is resolved by listing rather than
   configured, because site ids are per-install. Pinned by
@@ -221,8 +231,11 @@ Given a `router_url` and an `api_key` When one reading is taken against the UniF
 
 ### 5. A router answer becomes part of a URL exactly once, and is validated first
 
-Given a sites listing from the router When the first site's id is extracted Then it is accepted only when
-it is non-empty and made entirely of hexadecimal digits and dashes
+Given a sites listing from the router
+
+When the first site's id is extracted
+
+Then it is accepted only when it is non-empty and made entirely of hexadecimal digits and dashes
 
 - Success: `src/home.rs:first_site_id` navigates `data[0].id`, requires a string, and then requires every
   byte to be an ASCII hexadecimal digit or `-`. Pinned by
@@ -245,8 +258,11 @@ it is non-empty and made entirely of hexadecimal digits and dashes
 
 ### 6. An unreadable or incomplete listing is no answer, and an empty one is an answer
 
-Given the clients body the router returned When it is parsed Then a complete listing becomes a list of
-clients (possibly empty), and anything else becomes no answer at all
+Given the clients body the router returned
+
+When it is parsed
+
+Then a complete listing becomes a list of clients (possibly empty), and anything else becomes no answer at all
 
 - Success: `src/home.rs:parse_clients` requires JSON, requires `data` to be an array, and then reads
   `name`, `ipAddress` and `macAddress` off each entry, every field optional because every field is
@@ -285,9 +301,11 @@ clients (possibly empty), and anything else becomes no answer at all
 
 ### 7. Any one configured key matching reads Home, and the strongest that matched names it
 
-Given a parsed listing and one to three configured keys When the verdict is derived Then the first key in
-precedence order that matched any client is the verdict's `matched_by`, carrying the value the operator
-configured
+Given a parsed listing and one to three configured keys
+
+When the verdict is derived
+
+Then the first key in precedence order that matched any client is the verdict's `matched_by`, carrying the value the operator configured
 
 - Success: `src/home.rs:home_reading` builds `configured` in the fixed order media access control
   address, client name, address, then takes `find_map(first_match)`. ANY match is Home, so the order is
@@ -314,8 +332,11 @@ configured
 
 ### 8. A complete listing that no key matched is the only NotHome there is
 
-Given a parsed, complete listing When no configured key matched any client Then the verdict is `NotHome`,
-and every lesser answer is `Unknown`
+Given a parsed, complete listing
+
+When no configured key matched any client
+
+Then the verdict is `NotHome`, and every lesser answer is `Unknown`
 
 - Success: `src/home.rs:home_reading`'s `None` arm. Pinned by
   `src/home.rs:a_complete_listing_no_key_matched_is_not_home_and_anything_less_is_unknown`, which asserts
@@ -341,9 +362,11 @@ and every lesser answer is `Unknown`
 
 ### 9. Every configured key reports what it found, in precedence order
 
-Given a Home, NotHome or complete-listing reading When the evidence is built Then there is exactly one
-`KeyReading` per CONFIGURED key, in precedence order, each saying whether it matched the client the
-verdict names, matched a different client (named), or matched nothing
+Given a Home, NotHome or complete-listing reading
+
+When the evidence is built
+
+Then there is exactly one `KeyReading` per CONFIGURED key, in precedence order, each saying whether it matched the client the verdict names, matched a different client (named), or matched nothing
 
 - Success: `src/home.rs:home_reading` maps `configured` (already in precedence order) into `KeyReading`s,
   and `src/home.rs:report` prints one line each, reading
@@ -384,8 +407,11 @@ verdict names, matched a different client (named), or matched nothing
 
 ### 10. A Home verdict with a key pointing elsewhere is a staleness
 
-Given a reading When the verdict is Home and at least one configured key did not match the client the
-verdict names Then that is a `Staleness` naming the winner and every disagreeing key, and nothing else is
+Given a reading
+
+When the verdict is Home and at least one configured key did not match the client the verdict names
+
+Then that is a `Staleness` naming the winner and every disagreeing key, and nothing else is
 
 - Success: `src/home.rs:stale_identifiers` returns `None` unless the presence is `Home`, then keeps every
   key whose outcome is not `MatchedDevice`. Pinned by
@@ -416,8 +442,11 @@ verdict names Then that is a `Staleness` naming the winner and every disagreeing
 
 ### 11. The episode identity spells the state and never a value that can move on its own
 
-Given a staleness When it is given an identity for the memory Then the identity is the winner's key name
-followed by each disagreeing key name and whether it found another client or nothing, in precedence order
+Given a staleness
+
+When it is given an identity for the memory
+
+Then the identity is the winner's key name followed by each disagreeing key name and whether it found another client or nothing, in precedence order
 
 - Success: `src/home.rs:episode_id` produces, for the operator's own case,
   `device_mac device_hostname=none device_ipv4=other`. Pinned by
@@ -447,9 +476,11 @@ followed by each disagreeing key name and whether it found another client or not
 
 ### 12. A staleness is said out loud once per state, in the terminal and as one alert
 
-Given a Home reading with a disagreement When `pns home` runs Then the verdict and the full evidence
-print every time, and the one warning sentence prints and is delivered only when its episode differs from
-the remembered one
+Given a Home reading with a disagreement
+
+When `pns home` runs
+
+Then the verdict and the full evidence print every time, and the one warning sentence prints and is delivered only when its episode differs from the remembered one
 
 - Success: `src/main.rs:home_mode` derives the staleness once, spells the episode once, decides news once
   (`src/home.rs:is_new_staleness`), and feeds ONE `Option` to both the printed report and the alert, so
@@ -512,8 +543,11 @@ the remembered one
 
 ### 13. Only a Home reading may change the remembered staleness
 
-Given a remembered episode on disk When a reading comes back NotHome or Unknown Then the memory is left
-exactly as it was, and only a Home reading writes or clears it
+Given a remembered episode on disk
+
+When a reading comes back NotHome or Unknown
+
+Then the memory is left exactly as it was, and only a Home reading writes or clears it
 
 - Success: `src/main.rs:home_mode` guards the write with
   `if matches!(reading.presence, HomePresence::Home { .. })`. `src/main.rs:remember_staleness` writes the
@@ -556,8 +590,11 @@ exactly as it was, and only a Home reading writes or clears it
 
 ### 14. The device identity is validated once, at the config read
 
-Given a `[plugins.router]` table When the settings are read Then `type` is settled first, then
-`router_url`, then the device keys, and every value that reaches a comparison has already been parsed
+Given a `[plugins.router]` table
+
+When the settings are read
+
+Then `type` is settled first, then `router_url`, then the device keys, and every value that reaches a comparison has already been parsed
 
 - Success: `src/home.rs:router_settings` settles `type` before reading anything else, "because every
   setting under it belongs to whichever router it names", then requires a non-empty string `router_url`,
@@ -601,8 +638,11 @@ Given a `[plugins.router]` table When the settings are read Then `type` is settl
 
 ### 15. `pns home` is a diagnostic: it always exits 0 and always says which state it is in
 
-Given any machine, configured or not When the operator types `pns home` Then exactly one report is
-printed on stdout, the exit code is 0, and the api_key never appears
+Given any machine, configured or not
+
+When the operator types `pns home`
+
+Then exactly one report is printed on stdout, the exit code is 0, and the api_key never appears
 
 - Success: `src/main.rs:main` dispatches the first argv token `home` to `src/main.rs:home_mode`, which
   returns rather than exiting with a code, so the process exits 0 on every path. Every cause is decided

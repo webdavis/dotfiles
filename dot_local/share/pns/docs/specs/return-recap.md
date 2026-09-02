@@ -48,9 +48,11 @@ gate is consulted.
 
 ### 1. The two bounds are parsed or the run refuses
 
-Given `pns recap` and the words after it When `recap_bounds` reads them Then both `--since` and `--until`
-must be present exactly once, each followed by a plain count, with `since <= until`, or the run prints
-`pns: usage: pns recap --since <epoch> --until <epoch>` to stderr and exits 2
+Given `pns recap` and the words after it
+
+When `recap_bounds` reads them
+
+Then both `--since` and `--until` must be present exactly once, each followed by a plain count, with `since <= until`, or the run prints `pns: usage: pns recap --since <epoch> --until <epoch>` to stderr and exits 2
 
 - Success: `src/main.rs:recap_bounds` walks the tokens, mapping `--since` and `--until` to two slots and
   returning `None` for any other word. `src/main.rs:recap_mode` exits 2 on `None`.
@@ -84,9 +86,11 @@ must be present exactly once, each followed by a plain count, with `since <= unt
 
 ### 2. The window is what the activity ring says, half open at the near edge
 
-Given bounds `(since, until)` When `activity_in` reads the ring Then the window is every entry whose
-clock satisfies `at > since && at <= until`, oldest first, and an unreadable ring is an EMPTY window
-rather than an error
+Given bounds `(since, until)`
+
+When `activity_in` reads the ring
+
+Then the window is every entry whose clock satisfies `at > since && at <= until`, oldest first, and an unreadable ring is an EMPTY window rather than an error
 
 - Success: `src/main.rs:activity_in` reads `<state>/activity` through `readable_ring`, parses with
   `missed_notifications::entries` (by key, never by position, skipping a line that is not a JSON object),
@@ -124,9 +128,11 @@ rather than an error
 
 ### 3. The composition root fails closed on the route and the summarizer, open on the post
 
-Given a config file that cannot be loaded, or is missing When `recap_mode` resolves its settings Then the
-hermes key is `None`, `digest_as_thread` is forced `false`, and every other `Recap` field takes its
-default, so the recap goes to the DEFAULT route with no summarizer and no external source
+Given a config file that cannot be loaded, or is missing
+
+When `recap_mode` resolves its settings
+
+Then the hermes key is `None`, `digest_as_thread` is forced `false`, and every other `Recap` field takes its default, so the recap goes to the DEFAULT route with no summarizer and no external source
 
 - Success: `src/main.rs:recap_mode` matches only `Ok(LoadOutcome::Loaded(config))`; every other outcome
   (`LoadOutcome::Missing` and every `ConfigError`) falls to
@@ -160,8 +166,11 @@ default, so the recap goes to the DEFAULT route with no summarizer and no extern
 
 ### 4. The header states the window and a count it can back
 
-Given a window of `n` entries and the two bounds When `header` composes the first line Then it reads
-`While you were away, <from>-<to> · <n> event(s)`, composed BEFORE anything is cut
+Given a window of `n` entries and the two bounds
+
+When `header` composes the first line
+
+Then it reads `While you were away, <from>-<to> · <n> event(s)`, composed BEFORE anything is cut
 
 - Success: `src/recap.rs:header` formats `"While you were away, {from}-{to} · {}"` with
   `missed_notifications::event_count(counted)`, which is `"1 event"` for one and `"{n} events"` otherwise
@@ -194,8 +203,11 @@ Given a window of `n` entries and the two bounds When `header` composes the firs
 
 ### 5. The wall clock is one function, and an unreadable one keeps the column width
 
-Given an epoch second, or none When `wall_clock` renders it Then a readable local zone yields `HH:MM`
-zero-padded, and anything else yields `--:--`
+Given an epoch second, or none
+
+When `wall_clock` renders it
+
+Then a readable local zone yields `HH:MM` zero-padded, and anything else yields `--:--`
 
 - Success: `src/main.rs:wall_clock` maps the epoch through `system::local_minutes_since_midnight`, then
   formats `{:02}:{:02}` from `minutes / 60` and `minutes % 60`. The zone is asked of libc's
@@ -229,9 +241,11 @@ zero-padded, and anything else yields `--:--`
 
 ### 6. Merged pull requests are read once per repository, inside three bounds
 
-Given `[recap] repos = ["OWNER/REPO", ...]` When the detached child fetches Then it runs
-`gh pr list --repo <repo> --state merged --search merged:<utc(since+1)>..<utc(until)> --json number,title,body --limit 50`
-once per repository, and any one of them failing fails the whole section
+Given `[recap] repos = ["OWNER/REPO", ...]`
+
+When the detached child fetches
+
+Then it runs `gh pr list --repo <repo> --state merged --search merged:<utc(since+1)>..<utc(until)> --json number,title,body --limit 50` once per repository, and any one of them failing fails the whole section
 
 - Success: `src/main.rs:merged_pull_requests` builds the argv, calls
   `run_bounded(command, None, GH_DEADLINE, GH_READ_MAX)`, parses the answer as `Vec<serde_json::Value>`,
@@ -295,10 +309,11 @@ once per repository, and any one of them failing fails the whole section
 
 ### 7. Review notes are one directory, one glob, one window, and every read is bounded
 
-Given `[recap] review_notes = "<absolute or ~/ path with at most one `\*` in its file name>"` When the
-detached child fetches Then it lists exactly the pattern's parent directory, keeps regular files whose
-name matches and whose `mtime` falls in `(since, until]`, sorts them newest first, takes at most 25, and
-reads each through an `O_NOFOLLOW` handle it re-checks after opening
+Given `[recap] review_notes = "<absolute or ~/ path with at most one `\*` in its file name>"`
+
+When the detached child fetches
+
+Then it lists exactly the pattern's parent directory, keeps regular files whose name matches and whose `mtime` falls in `(since, until]`, sorts them newest first, takes at most 25, and reads each through an `O_NOFOLLOW` handle it re-checks after opening
 
 - Success: `src/main.rs:notes_matching` expands a `~/` prefix against `home`, takes `file_name` as the
   pattern and `parent` as the directory, filters `entry.file_type().is_ok_and(is_file)`, then
@@ -356,9 +371,11 @@ reads each through an `O_NOFOLLOW` handle it re-checks after opening
 
 ### 8. One recap spends one summarizer budget across up to three questions
 
-Given `[recap] summarizer = ["<program>", "<arg>", ...]` and `summarizer_deadline_secs` When the recap
-composes Then an `episode` deadline is taken once, and each of the three possible calls (the night, the
-merges, the notes) is bounded by `left_of(episode)`, so the whole return moment spends that budget once
+Given `[recap] summarizer = ["<program>", "<arg>", ...]` and `summarizer_deadline_secs`
+
+When the recap composes
+
+Then an `episode` deadline is taken once, and each of the three possible calls (the night, the merges, the notes) is bounded by `left_of(episode)`, so the whole return moment spends that budget once
 
 - Success: `src/main.rs:recap_mode` computes
   `episode = Instant::now() + Duration::from_secs(recap.summarizer_deadline_secs)`, then calls
@@ -437,9 +454,11 @@ merges, the notes) is bounded by `left_of(episode)`, so the whole return moment 
 
 ### 9. What a summarizer may say is bounded before it is anything
 
-Given raw bytes off a summarizer's stdout When `answer` reads them Then the whole answer is refused if it
-is over `MAX_ANSWER_BYTES` or carries a replacement character, and otherwise every non-empty line becomes
-one `safe_line` capped at 120 characters
+Given raw bytes off a summarizer's stdout
+
+When `answer` reads them
+
+Then the whole answer is refused if it is over `MAX_ANSWER_BYTES` or carries a replacement character, and otherwise every non-empty line becomes one `safe_line` capped at 120 characters
 
 - Success: `src/recap.rs:answer` checks `raw.len() > MAX_ANSWER_BYTES || raw.contains('\u{FFFD}')`, then
   maps `raw.lines()` through `safe_line(line, SUMMARIZED_MAX_CHARS)`, drops empties, and returns `None`
@@ -490,11 +509,11 @@ one `safe_line` capped at 120 characters
 
 ### 10. The timeline is the only thing a summarizer can change, and it is still prefixed and counted
 
-Given `Timeline::Mechanical`, `Timeline::Summarized(lines)` or `Timeline::Unanswered` When
-`night_section` composes section 3 Then the heading is `THE NIGHT IN ORDER`, the mechanical form is one
-`HH:MM <mark> <agent>/<state> <project>: <detail>` line per entry oldest first, the summarized form is
-`- <line>` per answered line capped at the window's own length, and the unanswered form is the mechanical
-lines under a heading that says so
+Given `Timeline::Mechanical`, `Timeline::Summarized(lines)` or `Timeline::Unanswered`
+
+When `night_section` composes section 3
+
+Then the heading is `THE NIGHT IN ORDER`, the mechanical form is one `HH:MM <mark> <agent>/<state> <project>: <detail>` line per entry oldest first, the summarized form is `- <line>` per answered line capped at the window's own length, and the unanswered form is the mechanical lines under a heading that says so
 
 - Success: `src/recap.rs:night_section`. `src/recap.rs:described` builds
   `<agent>/<state>[ <project>][: <detail>]` with `agent` defaulting to `"pns"` and `state` to `"done"`
@@ -542,10 +561,11 @@ lines under a heading that says so
 
 ### 11. An external section keeps only the lines its own sources vouch for, and counts what is missing by source
 
-Given `Found::Read(sources)` and, optionally, a summarizer's answered lines When `external_section`
-composes section 4 or 5 Then a summarized line survives only if it carries a receipt AS A WHOLE TOKEN for
-a source not already spent, at most four lines survive, and the remainder counts the SOURCES no surviving
-line names
+Given `Found::Read(sources)` and, optionally, a summarizer's answered lines
+
+When `external_section` composes section 4 or 5
+
+Then a summarized line survives only if it carries a receipt AS A WHOLE TOKEN for a source not already spent, at most four lines survive, and the remainder counts the SOURCES no surviving line names
 
 - Success: `src/recap.rs:vouched` walks the answered lines in order, keeps one per unspent source, and
   stops at `MAX_EXTERNAL_LINES`. `src/recap.rs:cites` requires the receipt to be bracketed at both ends
@@ -602,9 +622,11 @@ line names
 
 ### 12. One fetched thing becomes three shapes, capped by the constructor
 
-Given a merged pull request, a readable note, or a note that would not open When `merged`, `noted` or
-`unreadable` builds a `Sourced` Then the `cite`, the mechanical `line` and the `source` text a model is
-shown are all produced and capped HERE, not by the caller
+Given a merged pull request, a readable note, or a note that would not open
+
+When `merged`, `noted` or `unreadable` builds a `Sourced`
+
+Then the `cite`, the mechanical `line` and the `source` text a model is shown are all produced and capped HERE, not by the caller
 
 - Success: `src/recap.rs:merged(number, title, body)` takes `summary_of(body)`, falls back to `title`
   when that is blank, runs it through `safe_line(_, SOURCE_MAX_CHARS)`, sets `cite = "#{number}"`,
@@ -651,10 +673,11 @@ shown are all produced and capped HERE, not by the caller
 
 ### 13. Two budgets, both enforced, in two passes
 
-Given the six composed sections When `fit(sections, MAX_LINES)` lays them out Then the message is at most
-25 lines AND at most 1,800 counted characters, cut by dropping timeline lines, then by narrowing the
-surviving timeline lines, then by collapsing the two external sections to a heading and a truthful
-remainder
+Given the six composed sections
+
+When `fit(sections, MAX_LINES)` lays them out
+
+Then the message is at most 25 lines AND at most 1,800 counted characters, cut by dropping timeline lines, then by narrowing the surviving timeline lines, then by collapsing the two external sections to a heading and a truthful remainder
 
 - Success: `src/recap.rs:fit` runs `lay_out(sections, budget, false)`; if that pass did not starve a
   section, fits the line budget and fits the character budget, it is the answer. Otherwise
@@ -747,9 +770,11 @@ remainder
 
 ### 14. What needs the operator is never cut, and is said even when there is none
 
-Given a window When `needs_you_section` composes section 2 Then the heading `NEEDS YOU` is followed by
-one `- <described entry>` line per waiting entry NEWEST FIRST, or by `- nothing is waiting on you`, and
-the section is `Trim::Never` in every pass
+Given a window
+
+When `needs_you_section` composes section 2
+
+Then the heading `NEEDS YOU` is followed by one `- <described entry>` line per waiting entry NEWEST FIRST, or by `- nothing is waiting on you`, and the section is `Trim::Never` in every pass
 
 - Success: `src/recap.rs:needs_you_section` calls `missed_notifications::needing_you(entries)`, which
   keeps every entry whose state is in
@@ -783,10 +808,11 @@ the section is `Trim::Never` in every pass
 
 ### 15. The recap posts to one durable route, with exactly one fallback
 
-Given a composed body and `[recap] digest_as_thread` When `post_recap` delivers Then
-`digest_as_thread = false` posts once to the DEFAULT route; `true` posts to the `pns-recap` route first
-and, only if that dispatch was REFUSED, posts the same body plus one line to the default route. The mode
-exits 0 either way
+Given a composed body and `[recap] digest_as_thread`
+
+When `post_recap` delivers
+
+Then `digest_as_thread = false` posts once to the DEFAULT route; `true` posts to the `pns-recap` route first and, only if that dispatch was REFUSED, posts the same body plus one line to the default route. The mode exits 0 either way
 
 - Success: `src/main.rs:post_recap`. `src/main.rs:deliver_recap` builds ONE leg by hand
   (`Leg { name: "hermes", mode: ReportMode::ReportOutcome, decorative: false }`) and one
@@ -857,10 +883,11 @@ exits 0 either way
 
 ### 16. The event path starts the recap detached, in a process group of its own
 
-Given a return moment the event path has claimed, with a window and a count over the threshold When
-`replay_missed` decides Then `spawn_recap(since, until)` re-execs `current_exe` as
-`recap --since <since> --until <until>` with all three standard streams on `/dev/null` and
-`process_group(0)`, is never waited on, and the card promises a recap only if that spawn really started
+Given a return moment the event path has claimed, with a window and a count over the threshold
+
+When `replay_missed` decides
+
+Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since> --until <until>` with all three standard streams on `/dev/null` and `process_group(0)`, is never waited on, and the card promises a recap only if that spawn really started
 
 - Success: `src/main.rs:spawn_recap` builds the child, sets
   `.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0)`, and returns

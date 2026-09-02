@@ -18,10 +18,11 @@ ______________________________________________________________________
 
 ### 1. Ownership is taken by rename or by exclusive create, never by removal
 
-Given two or more short-lived `pns` processes reaching for the same state file at the same moment When
-one of them has to become the single owner of that file's contents Then ownership is decided by
-`rename(2)` onto a name carrying the claimant's process id, or by an exclusive `create_new` open, and
-never by unlinking the contended path.
+Given two or more short-lived `pns` processes reaching for the same state file at the same moment
+
+When one of them has to become the single owner of that file's contents
+
+Then ownership is decided by `rename(2)` onto a name carrying the claimant's process id, or by an exclusive `create_new` open, and never by unlinking the contended path.
 
 This is the invariant the whole area is built on, and it is measured rather than assumed. The code states
 it in five places:
@@ -87,9 +88,11 @@ ______________________________________________________________________
 
 ### 2. An event the operator could not have perceived is journalled
 
-Given an event whose plan called for neither a banner nor a phone card, on which nobody was watching the
-origin pane, and which was not skipped because another route already carried it When the event path
-reaches the record site Then one entry is appended to `missed-notifications`, and nothing is printed.
+Given an event whose plan called for neither a banner nor a phone card, on which nobody was watching the origin pane, and which was not skipped because another route already carried it
+
+When the event path reaches the record site
+
+Then one entry is appended to `missed-notifications`, and nothing is printed.
 
 `src/missed_notifications.rs:was_missed` is the whole predicate, and it is three clauses over values the
 record site already holds:
@@ -156,8 +159,10 @@ ______________________________________________________________________
 ### 3. Only the first delivery attempt journals; a nudge and an observation never do
 
 Given a nudge (`Attempt::Nudge`) or an observation (`Attempt::Observation`) rather than a first delivery
-When the event path passes the decision record Then it returns before the journal, before the activity
-ring, before `mark_present`, before `replay_missed` and before the pulse.
+
+When the event path passes the decision record
+
+Then it returns before the journal, before the activity ring, before `mark_present`, before `replay_missed` and before the pulse.
 
 `src/main.rs` states the reason at the gate: "The recap counts activity-ring lines toward `min_events`,
 so a nudge or an observation that rang would inflate the operator's own recap with pns's noise; neither
@@ -184,9 +189,11 @@ ______________________________________________________________________
 
 ### 4. One journal entry holds five capped text fields plus the decision's own epoch
 
-Given an event being journalled When `src/missed_notifications.rs:entry` builds the line Then it is a
-single JSON object on one line carrying `at`, `agent`, `state`, `project`, `branch` and `detail`, each
-text field flattened and capped at the caller's `max_chars`, and nothing else.
+Given an event being journalled
+
+When `src/missed_notifications.rs:entry` builds the line
+
+Then it is a single JSON object on one line carrying `at`, `agent`, `state`, `project`, `branch` and `detail`, each text field flattened and capped at the caller's `max_chars`, and nothing else.
 
 The journal passes `render::PREVIEW_MAX_CHARS` (260) because "what a card renders without a cut is
 exactly what a replay needs"; the activity ring passes `ACTIVITY_MAX_CHARS` (120) because "a recap line
@@ -227,8 +234,11 @@ ______________________________________________________________________
 
 ### 5. The journal is bounded at twenty five and prunes the oldest first
 
-Given a journal already at `missed_notifications::KEPT` (25) entries When one more miss is appended Then
-the file is republished holding the newest 25, with the oldest gone.
+Given a journal already at `missed_notifications::KEPT` (25) entries
+
+When one more miss is appended
+
+Then the file is republished holding the newest 25, with the oldest gone.
 
 `src/missed_notifications.rs:KEPT` argues 25 against the decision ring's 5: "Five is argued from one
 intervening Stop hook, which is a scale of seconds; this file has to survive an absence of hours, and
@@ -276,9 +286,11 @@ ______________________________________________________________________
 
 ### 6. Anything at the journal's path that is not a regular file is refused, never repaired
 
-Given a FIFO, a directory, or a symlink at `missed-notifications` When an append, a read, or a claim
-reaches it Then the operation is refused, the path is left exactly as it was found, and the event
-proceeds.
+Given a FIFO, a directory, or a symlink at `missed-notifications`
+
+When an append, a read, or a claim reaches it
+
+Then the operation is refused, the path is left exactly as it was found, and the event proceeds.
 
 Three separate guards implement this. `src/main.rs:append_ring_line` checks `symlink_metadata` before the
 open, "so a state directory that does not exist yet fails the lock's own exclusive create" and an
@@ -324,8 +336,11 @@ ______________________________________________________________________
 
 ### 7. The doctor counts the journal and never renders an entry
 
-Given a journal on disk When `pns doctor` runs Then it prints one line naming how many notifications are
-waiting, and it leaves the file byte for byte as it found it.
+Given a journal on disk
+
+When `pns doctor` runs
+
+Then it prints one line naming how many notifications are waiting, and it leaves the file byte for byte as it found it.
 
 `src/main.rs:missed_line` reads through `readable_ring` and hands the contents to
 `src/missed_notifications.rs:waiting_line`, which "COUNTS AND NEVER PARSES, and that is the privacy rule
@@ -398,9 +413,11 @@ ______________________________________________________________________
 
 ### 8. A returning event claims the whole return moment before it counts anything
 
-Given an event whose surface is not Away and whose plan raised a banner or a phone card When the replay
-path runs Then it takes one claim covering both halves of the return (the window's near edge and the
-journal), and a racer that finds the moment held says nothing at all.
+Given an event whose surface is not Away and whose plan raised a banner or a phone card
+
+When the replay path runs
+
+Then it takes one claim covering both halves of the return (the window's near edge and the journal), and a racer that finds the moment held says nothing at all.
 
 `src/main.rs:Moment` is the model, and it is deliberately one value rather than a claim per file: "ONE
 ARBITRATION OVER BOTH HALVES of what a return delivers ... with a claim each the loser of one could still
@@ -465,10 +482,11 @@ ______________________________________________________________________
 
 ### 9. A stranded window claim is live, abandoned, or absent
 
-Given the rename of `last-present` failed When `src/main.rs:stranded_window_claim` scans the state
-directory Then it answers `Live` for the first claim whose owner is neither this process, nor gone, nor
-older than the staleness bound; `Abandoned(path)` for the last free one it found; and `None` when there
-is no claim at all.
+Given the rename of `last-present` failed
+
+When `src/main.rs:stranded_window_claim` scans the state directory
+
+Then it answers `Live` for the first claim whose owner is neither this process, nor gone, nor older than the staleness bound; `Abandoned(path)` for the last free one it found; and `None` when there is no claim at all.
 
 The scan matches `last-present.claim.` and nothing looser, "which is `stranded_claims`' rule: the journal
 and the turn marker claim themselves in this directory too, and a wider match would hand one of their
@@ -529,7 +547,10 @@ ______________________________________________________________________
 
 ### 10. The window's near edge only ever moves forward
 
-Given a near edge already on disk, or one carried in from a claim When a run publishes `last-present`
+Given a near edge already on disk, or one carried in from a claim
+
+When a run publishes `last-present`
+
 Then it publishes only when the value it holds is newer than the one already there.
 
 `src/main.rs:advance_marker` states the measurement: "a slow event that read epoch 100 and a quick one
@@ -577,10 +598,11 @@ ______________________________________________________________________
 
 ### 11. The journal is claimed by rename and consumed only after a successful read
 
-Given a journal at `missed-notifications` and a run that owns the return moment When
-`src/main.rs:claim_journal` runs Then any stranded claim is adopted first (behavior 13), then the journal
-itself is renamed to `missed-notifications.claim.<pid>`, verified, held (behavior 12), read, and only
-then given up.
+Given a journal at `missed-notifications` and a run that owns the return moment
+
+When `src/main.rs:claim_journal` runs
+
+Then any stranded claim is adopted first (behavior 13), then the journal itself is renamed to `missed-notifications.claim.<pid>`, verified, held (behavior 12), read, and only then given up.
 
 `src/main.rs:claim_journal` names the property the ordering exists for: "NOTHING UNDELIVERED IS EVER
 DESTROYED ... What this run cannot read, it leaves; what it cannot give up, it leaves; what it leaves
@@ -644,8 +666,11 @@ ______________________________________________________________________
 
 ### 12. A claim is held by a second rename before a byte of it is read
 
-Given a claim this run has taken When `src/main.rs:take_claim` runs Then the claim is renamed to
-`missed-notifications.held.<pid>.<seq>` first, read second, and removed third, in that order.
+Given a claim this run has taken
+
+When `src/main.rs:take_claim` runs
+
+Then the claim is renamed to `missed-notifications.held.<pid>.<seq>` first, read second, and removed third, in that order.
 
 The hold name deliberately sits outside the prefix the adoption scan matches, "so nothing can take this
 batch a second time while it is being read. It comes back into that scan only once the process named in
@@ -691,9 +716,11 @@ ______________________________________________________________________
 
 ### 13. A stranded claim or an abandoned hold is adopted by a later return
 
-Given a claim or a hold left in the state directory by a run that did not finish When the next return
-moment claims the journal Then `src/main.rs:stranded_claims` collects them oldest first, and each is
-taken through `take_claim` before the journal's own name is claimed.
+Given a claim or a hold left in the state directory by a run that did not finish
+
+When the next return moment claims the journal
+
+Then `src/main.rs:stranded_claims` collects them oldest first, and each is taken through `take_claim` before the journal's own name is claimed.
 
 Two different admission rules apply, and the difference matters:
 
@@ -749,9 +776,11 @@ ______________________________________________________________________
 
 ### 14. The window is counted on a half-open interval off the claimed edge
 
-Given a claimed near edge `since` and this event's clock `until` When `src/main.rs:activity_in` counts
-the window Then it returns every activity entry whose `at` satisfies `at > since && at <= until`, oldest
-first.
+Given a claimed near edge `since` and this event's clock `until`
+
+When `src/main.rs:activity_in` counts the window
+
+Then it returns every activity entry whose `at` satisfies `at > since && at <= until`, oldest first.
 
 "THE NEAR EDGE IS EXCLUSIVE and the far edge is not, which is the difference between 'since you were last
 here' and 'including the moment you were'. MEASURED: with it inclusive, the event that MOVED the marker
@@ -803,8 +832,11 @@ ______________________________________________________________________
 
 ### 15. A replay delivers at most one card, off the batch it claimed
 
-Given a return moment this run owns When the replay composes its delivery Then it builds exactly one
-synthetic event and dispatches it on this decision's own legs, verbatim.
+Given a return moment this run owns
+
+When the replay composes its delivery
+
+Then it builds exactly one synthetic event and dispatches it on this decision's own legs, verbatim.
 
 Which card it is depends on the window (`src/main.rs:replay_missed`):
 
@@ -875,8 +907,11 @@ ______________________________________________________________________
 
 ### 16. A replay is a dispatch, never a second event
 
-Given a composed replay card When it is delivered Then it goes straight to `dispatch_legs` and never back
-through `run_event`.
+Given a composed replay card
+
+When it is delivered
+
+Then it goes straight to `dispatch_legs` and never back through `run_event`.
 
 `src/main.rs:replay_missed` names the loop this closes: "A synthetic event fed back in would take a
 SECOND decision (the second reading of one moment `GateInputs` exists to forbid), write a second ring
@@ -903,7 +938,10 @@ ______________________________________________________________________
 
 ### 17. Nowhere the operator would see it is not a replay
 
-Given a return event whose legs are all non-decorative (a durable log only) When the replay path runs
+Given a return event whose legs are all non-decorative (a durable log only)
+
+When the replay path runs
+
 Then it returns before claiming anything, and the journal is left byte identical.
 
 `src/main.rs:replay_missed` calls this "a stronger test than 'nowhere at all'. MEASURED: an event
@@ -941,8 +979,11 @@ ______________________________________________________________________
 
 ### 18. The catch-up card switch gates the card and never the journal
 
-Given `[recap] replay_card = false` When a return event runs, and when a miss happens Then no catch-up
-card is delivered, the queue is left whole, and misses are still journalled.
+Given `[recap] replay_card = false`
+
+When a return event runs, and when a miss happens
+
+Then no catch-up card is delivered, the queue is left whole, and misses are still journalled.
 
 `src/main.rs:replay_missed` passes the switch INTO `claim_moment` rather than returning in front of it:
 "Claiming the journal renames it out of the way, so a return after that would consume the queue and
@@ -985,8 +1026,11 @@ ______________________________________________________________________
 
 ### 19. A journalled event leases the lights tick for twelve hours
 
-Given an event `was_missed` returns true for When the lights tick is registered Then the lease is
-`JOURNALLED_LEASE_SECS` (twelve hours) rather than `ORDINARY_LEASE_SECS` (five minutes).
+Given an event `was_missed` returns true for
+
+When the lights tick is registered
+
+Then the lease is `JOURNALLED_LEASE_SECS` (twelve hours) rather than `ORDINARY_LEASE_SECS` (five minutes).
 
 `src/main.rs:JOURNALLED_LEASE_SECS`: "a journalled one ... is an operator who is away or muted. The glow
 has to survive the whole absence, and the absence is precisely when no further event arrives to refresh

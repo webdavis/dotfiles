@@ -73,7 +73,10 @@ an empty file named like a backup is never left behind (`src/main.rs:keep_aside_
 
 ### 1. The walk is reachable on a machine with no config at all
 
-Given a machine where `$HOME/.config/pns/config.toml` does not exist When the operator runs `pns setup`
+Given a machine where `$HOME/.config/pns/config.toml` does not exist
+
+When the operator runs `pns setup`
+
 Then the walk runs, because the dispatch arm for `setup` sits above everything that loads a config
 
 - Success: `src/main.rs:main` tests `first == "setup"` and calls `setup_mode()` directly, above
@@ -101,9 +104,11 @@ Then the walk runs, because the dispatch arm for `setup` sits above everything t
 
 ### 2. Exactly one optional word is accepted, and any other is a refusal
 
-Given `pns setup` with zero or more further words When `setup_mode` reads them Then an empty list means
-`force = false`, the single word `--force` means `force = true`, and ANY other shape prints the usage
-line and exits 2
+Given `pns setup` with zero or more further words
+
+When `setup_mode` reads them
+
+Then an empty list means `force = false`, the single word `--force` means `force = true`, and ANY other shape prints the usage line and exits 2
 
 - Success: `src/main.rs:setup_mode` matches on the slice of `std::env::args_os().skip(2)`, mapped
   lossily. `[]` and `[word] if word == "--force"` are the only two accepted shapes.
@@ -133,8 +138,11 @@ line and exits 2
 
 ### 3. An unset or empty HOME is refused by name before the config is even located
 
-Given `HOME` is absent from the environment, or is present and empty When `setup_mode` reads it Then it
-prints `pns setup: HOME is unset or empty; nothing was written` and exits 2
+Given `HOME` is absent from the environment, or is present and empty
+
+When `setup_mode` reads it
+
+Then it prints `pns setup: HOME is unset or empty; nothing was written` and exits 2
 
 - Success: `src/main.rs:setup_mode` reads `std::env::var("HOME").ok().filter(|home| !home.is_empty())`.
   Both shapes fail the same guard and produce the same sentence. Pinned by
@@ -161,10 +169,11 @@ prints `pns setup: HOME is unset or empty; nothing was written` and exits 2
 
 ### 4. A config already at the name refuses without --force, and the refusal names the flag
 
-Given `$HOME/.config/pns/config.toml` exists as a name (a regular file, a directory, or a symlink,
-dangling or not) When `pns setup` is run without `--force` Then it prints
-`pns setup: <path> already exists; pass --force to replace it, which keeps the old file beside it` and
-exits 2, leaving the file untouched
+Given `$HOME/.config/pns/config.toml` exists as a name (a regular file, a directory, or a symlink, dangling or not)
+
+When `pns setup` is run without `--force`
+
+Then it prints `pns setup: <path> already exists; pass --force to replace it, which keeps the old file beside it` and exits 2, leaving the file untouched
 
 - Success: `src/main.rs:setup_mode` calls `path.symlink_metadata()` and takes the `Ok(_) if !force` arm.
   Pinned by
@@ -192,11 +201,11 @@ exits 2, leaving the file untouched
 
 ### 5. A path that does not resolve is refused regardless of --force
 
-Given a name standing anywhere at or above `$HOME/.config/pns/config.toml` that resolves to nothing (for
-example `~/.config/pns` is a symlink to a directory that was moved or never created) When `pns setup` is
-run, with or without `--force` Then it prints
-`pns setup: <path> could not be checked: <ancestor> does not resolve (<cause>); nothing was written` and
-exits 2
+Given a name standing anywhere at or above `$HOME/.config/pns/config.toml` that resolves to nothing (for example `~/.config/pns` is a symlink to a directory that was moved or never created)
+
+When `pns setup` is run, with or without `--force`
+
+Then it prints `pns setup: <path> could not be checked: <ancestor> does not resolve (<cause>); nothing was written` and exits 2
 
 - Success: the leaf's own `symlink_metadata` fails with `NotFound`, exactly as a genuinely missing config
   does, so `src/main.rs:setup_mode` consults `src/main.rs:unresolvable_ancestor`. That function climbs
@@ -227,9 +236,11 @@ exits 2
 
 ### 6. A config path that cannot be stat'ed for any other reason is refused, also regardless of --force
 
-Given `$HOME/.config/pns` exists but cannot be searched (mode `0o000`, say) When `pns setup` is run, with
-or without `--force` Then it prints
-`pns setup: <path> could not be checked: <error>; nothing was written` and exits 2
+Given `$HOME/.config/pns` exists but cannot be searched (mode `0o000`, say)
+
+When `pns setup` is run, with or without `--force`
+
+Then it prints `pns setup: <path> could not be checked: <error>; nothing was written` and exits 2
 
 - Success: `src/main.rs:setup_mode`'s final `Err(error)` arm, which catches everything that is not
   `NotFound`. Pinned by `tests/setup.rs:an_unreadable_config_directory_is_refused_by_path_and_cause`,
@@ -255,10 +266,11 @@ or without `--force` Then it prints
 
 ### 7. A stdin that is not a terminal refuses the whole walk
 
-Given stdin is a pipe, a file, or `/dev/null` When `pns setup` gets past the argument, `HOME` and config
-checks Then it prints
-`pns setup: this is a walk through questions and stdin is not a terminal; nothing was written` and exits
-2
+Given stdin is a pipe, a file, or `/dev/null`
+
+When `pns setup` gets past the argument, `HOME` and config checks
+
+Then it prints `pns setup: this is a walk through questions and stdin is not a terminal; nothing was written` and exits 2
 
 - Success: `src/main.rs:setup_mode` calls `std::io::stdin().is_terminal()`. Pinned by
   `tests/dispatch.rs:the_first_run_walk_refuses_a_terminal_nobody_is_at_and_writes_nothing`, which
@@ -280,9 +292,11 @@ checks Then it prints
 
 ### 8. The walk prints its preamble, then asks in the order the file is written
 
-Given a terminal and no config When `walk` runs Then it prints `SETUP_PREAMBLE` and then asks the
-questions of the table above, in that order, each feature's credentials immediately after the question
-that armed it
+Given a terminal and no config
+
+When `walk` runs
+
+Then it prints `SETUP_PREAMBLE` and then asks the questions of the table above, in that order, each feature's credentials immediately after the question that armed it
 
 - Success: `src/main.rs:walk` prints the preamble first:
 
@@ -337,8 +351,11 @@ that armed it
 
 ### 9. A typed line becomes an answer by trimming, and whitespace alone is blank
 
-Given the operator types a line and presses Enter When `read_answer` returns it Then `answered` trims it
-on both sides and the result is the answer
+Given the operator types a line and presses Enter
+
+When `read_answer` returns it
+
+Then `answered` trims it on both sides and the result is the answer
 
 - Success: `src/main.rs:answered` is `line.trim().to_string()`. Pinned by
   `src/main.rs:an_answer_of_nothing_but_spaces_is_a_blank_one`: `"   \n"`, `"\t\n"` and `"\n"` all become
@@ -362,8 +379,11 @@ on both sides and the result is the answer
 
 ### 10. Only a typed yes arms a feature
 
-Given a yes-or-no question When `means_yes` judges the answer Then `y`, `yes`, `Y`, `YES` and `Yes` are
-yes and everything else, including Enter, is no
+Given a yes-or-no question
+
+When `means_yes` judges the answer
+
+Then `y`, `yes`, `Y`, `YES` and `Yes` are yes and everything else, including Enter, is no
 
 - Success: `src/main.rs:means_yes` is `matches!(answer.to_lowercase().as_str(), "y" | "yes")`. Pinned by
   `src/main.rs:the_only_answer_that_arms_a_feature_is_a_yes_somebody_typed`, which asserts the five
@@ -388,8 +408,11 @@ yes and everything else, including Enter, is no
 
 ### 11. A comma-separated answer names only the values somebody typed
 
-Given a list prompt (hue rooms, Focus modes) When `list` splits the answer Then it splits on `,`, trims
-each piece, and drops every empty one
+Given a list prompt (hue rooms, Focus modes)
+
+When `list` splits the answer
+
+Then it splits on `,`, trims each piece, and drops every empty one
 
 - Success: `src/main.rs:list`. Pinned by
   `src/main.rs:a_comma_separated_answer_names_only_the_values_somebody_typed`: `"Studio, Kitchen"` gives
@@ -415,8 +438,11 @@ each piece, and drops every empty one
 
 ### 12. The router backend is the one answer judged against the code rather than the operator's network
 
-Given the backend question When `router_backend` judges the answer Then an empty answer and any case
-spelling of `unifi` both name `pns::home::UNIFI_TYPE`, and every other answer is `None`
+Given the backend question
+
+When `router_backend` judges the answer
+
+Then an empty answer and any case spelling of `unifi` both name `pns::home::UNIFI_TYPE`, and every other answer is `None`
 
 - Success: `src/main.rs:router_backend` is
   `(answer.is_empty() || answer.eq_ignore_ascii_case(pns::home::UNIFI_TYPE)).then_some(pns::home::UNIFI_TYPE)`,
@@ -452,9 +478,11 @@ spelling of `unifi` both name `pns::home::UNIFI_TYPE`, and every other answer is
 
 ### 13. A blank credential declines its feature, says so, and gates the questions after it
 
-Given a credential prompt answered with Enter When `nothing_given` sees the empty answer Then it prints
-`  nothing given, so <feature> stays off; the file says how to arm it` and the remaining credentials for
-that feature are not asked
+Given a credential prompt answered with Enter
+
+When `nothing_given` sees the empty answer
+
+Then it prints ` nothing given, so <feature> stays off; the file says how to arm it` and the remaining credentials for that feature are not asked
 
 - Success: `src/main.rs:armed` and `src/main.rs:armed_secret` both wrap their read in
   `src/main.rs:nothing_given`. The gating is explicit in `walk`: `if !answers.hue_bridge.is_empty()`
@@ -486,8 +514,11 @@ that feature are not asked
 
 ### 14. A secret is read with the terminal's echo already off before its prompt is printed
 
-Given a secret prompt (1, 3, 6 or 11) When `ask_hidden` runs Then the `Hushed` guard is armed FIRST, the
-prompt is printed second, and the answer is read third
+Given a secret prompt (1, 3, 6 or 11)
+
+When `ask_hidden` runs
+
+Then the `Hushed` guard is armed FIRST, the prompt is printed second, and the answer is read third
 
 - Success: `src/main.rs:ask_hidden` binds `let _hushed = Hushed::arm()?;` before the `print!`.
   `src/main.rs:Hushed::arm` reads the current termios with `tcgetattr`, blocks nine signals, then clears
@@ -530,8 +561,11 @@ prompt is printed second, and the answer is read third
 
 ### 15. Nine signals are held for the duration of a hidden read and delivered after the terminal is given back
 
-Given a hidden read in progress When a signal arrives Then it is BLOCKED for the read, and delivered only
-once `Hushed::drop` has restored the terminal and then the mask
+Given a hidden read in progress
+
+When a signal arrives
+
+Then it is BLOCKED for the read, and delivered only once `Hushed::drop` has restored the terminal and then the mask
 
 - Success: `src/main.rs:Hushed::arm` blocks `SIGINT`, `SIGQUIT`, `SIGTSTP`, `SIGTERM`, `SIGHUP`,
   `SIGTTIN`, `SIGTTOU`, `SIGALRM` and `SIGPIPE` with `pthread_sigmask(SIG_BLOCK, ...)`, which is the set
@@ -574,8 +608,11 @@ once `Hushed::drop` has restored the terminal and then the mask
 
 ### 16. The terminal's echo is restored on every exit path the guard can reach
 
-Given a hidden read that is over, however it ended When the `Hushed` value goes out of scope Then `Drop`
-restores the saved termios and then the saved signal mask
+Given a hidden read that is over, however it ended
+
+When the `Hushed` value goes out of scope
+
+Then `Drop` restores the saved termios and then the saved signal mask
 
 - Success: `src/main.rs:Hushed::drop`. The order is termios first, then the mask, because a signal
   delivered between the two would otherwise run with the operator's terminal still echo-off. Pinned twice
@@ -608,9 +645,11 @@ restores the saved termios and then the saved signal mask
 
 ### 17. A read from a background process is named as job control, not as an input fault
 
-Given `pns setup &`, so the walk's process group does not own the terminal When a hidden read fails with
-`EIO` Then the refusal is
-`this walk cannot read the terminal from the background; bring it to the foreground with fg`
+Given `pns setup &`, so the walk's process group does not own the terminal
+
+When a hidden read fails with `EIO`
+
+Then the refusal is `this walk cannot read the terminal from the background; bring it to the foreground with fg`
 
 - Success: `src/main.rs:read_answer` passes the error and `src/main.rs:reading_from_the_background()` to
   `src/main.rs:read_failure`, which requires BOTH halves: the terminal is owned by another process group
@@ -639,9 +678,11 @@ Given `pns setup &`, so the walk's process group does not own the terminal When 
 
 ### 18. A read that fails keeps its own reason, and input ending is a different reason again
 
-Given a byte that is not valid UTF-8 pasted at a prompt, or the input closing When `read_answer` handles
-it Then a failed read reports `the answers could not be read: <the io::Error>` and a closed input reports
-`the answers ended before the walk did`, and the two are never confused
+Given a byte that is not valid UTF-8 pasted at a prompt, or the input closing
+
+When `read_answer` handles it
+
+Then a failed read reports `the answers could not be read: <the io::Error>` and a closed input reports `the answers ended before the walk did`, and the two are never confused
 
 - Success: `src/main.rs:read_answer` distinguishes `Ok(0)` (input ended) from `Err(error)` (the read
   failed) from `Ok(_)` (an answer). Pinned end to end by
@@ -671,8 +712,11 @@ it Then a failed read reports `the answers could not be read: <the io::Error>` a
 
 ### 19. Composition is a pure function of the answers, and a wizard's own answers always render
 
-Given a completed `Answers` When `setup_mode` composes the file Then `pns::setup::compose_config` renders
-the whole config text from `Answers::values()` alone
+Given a completed `Answers`
+
+When `setup_mode` composes the file
+
+Then `pns::setup::compose_config` renders the whole config text from `Answers::values()` alone
 
 - Success: `src/setup.rs:compose_config` calls `crate::config_text::render(&answers.values())` and
   `expect`s it. Everything about WHAT lands in the file is `src/setup.rs` and `src/config_text.rs`; see
@@ -710,8 +754,11 @@ the whole config text from `Answers::values()` alone
 
 ### 20. The composed text goes through the engine's own parser before anything is written
 
-Given composed text When `setup_mode` reaches publication Then it calls
-`pns::config::parse_config(&composed)` first, and a refusal there writes nothing
+Given composed text
+
+When `setup_mode` reaches publication
+
+Then it calls `pns::config::parse_config(&composed)` first, and a refusal there writes nothing
 
 - Success: `src/main.rs:setup_mode` prints
   `pns setup: what it composed does not load (<detail>); nothing was written` and returns 2 on any parse
@@ -744,9 +791,11 @@ Given composed text When `setup_mode` reaches publication Then it calls
 
 ### 21. A first config is published through a pending file and a hard link, and leaves nothing behind
 
-Given no config at the name When `publish_config` runs with `force = false` Then it creates the
-directory, creates a pending file with `create_new`, forces its mode to `0o600`, writes the whole
-composed text, hard-links it to the config path, removes the pending name, and answers `Ok(None)`
+Given no config at the name
+
+When `publish_config` runs with `force = false`
+
+Then it creates the directory, creates a pending file with `create_new`, forces its mode to `0o600`, writes the whole composed text, hard-links it to the config path, removes the pending name, and answers `Ok(None)`
 
 - Success: `src/main.rs:publish_config` and `src/main.rs:write_then_publish`. Pinned by
   `src/main.rs:a_first_config_is_published_for_its_operator_alone_and_leaves_no_pending_file`, which
@@ -790,9 +839,11 @@ composed text, hard-links it to the config path, removes the pending name, and a
 
 ### 22. A config that appeared during the walk is refused rather than written over
 
-Given a config that did not exist when the walk started but does when it ends When the publish links the
-pending file to the config path Then the link fails with `AlreadyExists` and the run refuses with
-`<path> appeared while the questions were being answered; nothing was written over it`
+Given a config that did not exist when the walk started but does when it ends
+
+When the publish links the pending file to the config path
+
+Then the link fails with `AlreadyExists` and the run refuses with `<path> appeared while the questions were being answered; nothing was written over it`
 
 - Success: `src/main.rs:write_then_publish` matches `ErrorKind::AlreadyExists` explicitly. Pinned by
   `src/main.rs:a_config_that_appeared_during_the_walk_is_refused_rather_than_written_over`, which asserts
@@ -820,9 +871,11 @@ pending file to the config path Then the link fails with `AlreadyExists` and the
 
 ### 23. A leftover pending file is never the file this run writes into
 
-Given a pending name left behind by an abandoned run of a process id that has since been reused When this
-run opens its own pending file Then `create_new` refuses to reuse the name, so the leftover is never
-truncated
+Given a pending name left behind by an abandoned run of a process id that has since been reused
+
+When this run opens its own pending file
+
+Then `create_new` refuses to reuse the name, so the leftover is never truncated
 
 - Success: `src/main.rs:publish_config` opens with `.create_new(true)`. The doc comment gives the exact
   hazard: a pending file is a second name for the LIVE config between the link that publishes it and the
@@ -856,8 +909,11 @@ truncated
 
 ### 24. --force moves the old config aside BEFORE the new one is published
 
-Given `--force` and an existing config When the publish runs Then `keep_aside` claims a stamped backup
-name, renames the existing config onto it, and only then does the hard link publish the new file
+Given `--force` and an existing config
+
+When the publish runs
+
+Then `keep_aside` claims a stamped backup name, renames the existing config onto it, and only then does the hard link publish the new file
 
 - Success: `src/main.rs:write_then_publish` calls `keep_aside(path)?` before `hard_link`. Pinned by
   `src/main.rs:a_forced_replacement_keeps_the_old_config_before_it_writes_the_new_one`, and the test
@@ -900,9 +956,11 @@ name, renames the existing config onto it, and only then does the hard link publ
 
 ### 25. A clock that cannot be read names no backup at all, and that is a refusal
 
-Given `--force` and a clock that cannot be read, or an epoch second no calendar can express When
-`keep_aside` asks for a backup name Then there is no name, and the run refuses rather than replacing the
-config
+Given `--force` and a clock that cannot be read, or an epoch second no calendar can express
+
+When `keep_aside` asks for a backup name
+
+Then there is no name, and the run refuses rather than replacing the config
 
 - Success: `src/main.rs:keep_aside` refuses with
   `the clock cannot be read, so the config already there cannot be named and kept; nothing was written`
@@ -932,9 +990,11 @@ config
 
 ### 26. The backup name is claimed before anything moves onto it
 
-Given `--force` twice within the same wall-clock second, or a backup name already taken When
-`keep_aside_at` claims the name Then `create_new` fails with `AlreadyExists` and the run refuses with
-`<backup> is already claimed by another run this same second; nothing was written`
+Given `--force` twice within the same wall-clock second, or a backup name already taken
+
+When `keep_aside_at` claims the name
+
+Then `create_new` fails with `AlreadyExists` and the run refuses with `<backup> is already claimed by another run this same second; nothing was written`
 
 - Success: `src/main.rs:keep_aside_at` opens the backup name with `create_new(true).write(true)` and
   `.mode(CONFIG_FILE_MODE)` BEFORE the rename. Pinned by
@@ -976,8 +1036,11 @@ Given `--force` twice within the same wall-clock second, or a backup name alread
 
 ### 27. What happens to a typed secret, exhaustively
 
-Given the four secret prompts (the moshi token, the hermes key, the hue key, the router API key) When the
-walk runs to a successful publish Then each secret reaches exactly three places, and no other
+Given the four secret prompts (the moshi token, the hermes key, the hue key, the router API key)
+
+When the walk runs to a successful publish
+
+Then each secret reaches exactly three places, and no other
 
 - Success: the three places are the pending file (transient, mode `0o600`), the published config (mode
   `0o600`), and the process's own memory. Pinned by
@@ -1041,9 +1104,11 @@ walk runs to a successful publish Then each secret reaches exactly three places,
 
 ### 28. Running setup twice is refused, and --force is the only way to replace a config
 
-Given a machine that already has a config When `pns setup` is run again Then the second run refuses at
-behavior 4 unless `--force` is passed, and with `--force` it walks again and replaces the file, keeping
-the old one beside it
+Given a machine that already has a config
+
+When `pns setup` is run again
+
+Then the second run refuses at behavior 4 unless `--force` is passed, and with `--force` it walks again and replaces the file, keeping the old one beside it
 
 - Success: `src/main.rs:setup_mode`'s `Ok(_) if !force` arm refuses; the `Ok(_)` arm falls through to the
   walk. Pinned by
@@ -1072,9 +1137,11 @@ the old one beside it
 
 ### 29. The operator-facing report names both paths, and only after the work is done
 
-Given a successful publish When `setup_mode` returns Then stdout carries
-`pns setup: kept the old config at <backup>` (only when something was kept) followed by
-`pns setup: wrote <path>`, and the exit code is 0
+Given a successful publish
+
+When `setup_mode` returns
+
+Then stdout carries `pns setup: kept the old config at <backup>` (only when something was kept) followed by `pns setup: wrote <path>`, and the exit code is 0
 
 - Success: `src/main.rs:setup_mode`'s `Ok(backup)` arm. Both lines are printed AFTER `publish_config`
   answered, so neither can claim work that did not happen.
@@ -1098,8 +1165,11 @@ Given a successful publish When `setup_mode` returns Then stdout carries
 
 ### 30. The shipped posture is what a walk that armed nothing writes
 
-Given every question declined When the file is composed and published Then the machine gets the macOS
-banner and the phone card, both enabled, and nothing else armed
+Given every question declined
+
+When the file is composed and published
+
+Then the machine gets the macOS banner and the phone card, both enabled, and nothing else armed
 
 - Success: `src/setup.rs:a_walk_that_armed_nothing_still_writes_the_core` parses the composed text and
   asserts `plugins["macos-banner"].enabled`, `plugins["mobile"].enabled`,

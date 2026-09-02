@@ -421,9 +421,10 @@ marks an interpolation.
 ### 1. The config path is a pure function of a home directory
 
 Given a home directory string\
+
 When `config_path` is called with it\
-Then the result is that directory joined with `.config/pns/config.toml`, with no environment read and no
-file touched
+
+Then the result is that directory joined with `.config/pns/config.toml`, with no environment read and no file touched
 
 - Success: `src/config.rs:config_path` is `Path::new(home).join(".config/pns/config.toml")`. Pinned by
   `src/config.rs:the_config_lives_under_the_homes_dot_config_pns`, which asserts
@@ -450,7 +451,9 @@ file touched
 ### 2. Loading answers with three outcomes, and Missing is one of them rather than an error
 
 Given a path\
+
 When `load_config` reads it\
+
 Then the answer is `Loaded`, `Missing`, or one of three named errors
 
 - Success: `src/config.rs:load_config` calls `std::fs::read_to_string` and hands the text to
@@ -489,7 +492,9 @@ Then the answer is `Loaded`, `Missing`, or one of three named errors
 ### 2a. A dangling symlink is Unreadable and never Missing
 
 Given a symlink at the config path whose target does not exist\
+
 When `load_config` runs\
+
 Then the answer is `Err(ConfigError::Unreadable(...))`
 
 - Success: the guard is `error.kind() == NotFound && std::fs::symlink_metadata(path).is_err()`
@@ -515,9 +520,10 @@ Then the answer is `Err(ConfigError::Unreadable(...))`
 ### 3. Malformed TOML is a loud error that never echoes the offending value
 
 Given a config file holding a plugin secret on a line that will not parse\
+
 When `parse_config` runs\
-Then the refusal is `Malformed`, it names the cause and the line NUMBER, and it does not contain the
-value
+
+Then the refusal is `Malformed`, it names the cause and the line NUMBER, and it does not contain the value
 
 - Success: `src/config.rs:parse_config` discards the parser's own `Display` (which echoes the offending
   source line) and rebuilds the message from `error.message()` plus a line number computed by counting
@@ -553,9 +559,10 @@ value
 
 ### 4. The file's own top level serves six tables and refuses everything else by name
 
-Given a config whose outermost keys are not all of `daemon`, `focus`, `lights`, `nag`, `plugins`,
-`recap`\
+Given a config whose outermost keys are not all of `daemon`, `focus`, `lights`, `nag`, `plugins`, `recap`\
+
 When `parse_config` runs\
+
 Then the file is refused whole, the offending name is quoted, and the six are listed
 
 - Success: `src/config.rs:parse_config`'s match arm dispatches the six and its `_` arm reads the roster
@@ -588,9 +595,10 @@ Then the file is refused whole, the offending name is quoted, and the six are li
 ### 5. A plugin is selected by an explicit flag, and the flag never reaches the plugin
 
 Given `[plugins.<name>]` with settings under it\
+
 When `parse_config` runs\
-Then `enabled` is REMOVED from the settings and becomes `PluginEntry::enabled`, an absent flag reads
-`false`, and everything else survives untouched
+
+Then `enabled` is REMOVED from the settings and becomes `PluginEntry::enabled`, an absent flag reads `false`, and everything else survives untouched
 
 - Success: `src/config.rs:parse_config` calls `settings.remove("enabled")` and matches `None => false`,
   `Some(Boolean(flag)) => flag`, `Some(_) => Err`. Pinned by
@@ -624,7 +632,9 @@ Then `enabled` is REMOVED from the settings and becomes `PluginEntry::enabled`, 
 ### 6. A shipped plugin's keys are judged, an unregistered plugin's are not
 
 Given `[plugins.hue]` with `room = "x"` (a near miss for `rooms`)\
+
 When `parse_config` runs\
+
 Then it is refused with the table, the key and the whole vocabulary named
 
 - Success: `src/config.rs:parse_config` runs `admits_flat(&format!("plugins.{name}"), key)` over every
@@ -662,9 +672,10 @@ Then it is refused with the table, the key and the whole vocabulary named
 ### 7. An unregistered plugin NAME is refused one layer on, and the file still counts
 
 Given a parsed config naming `[plugins.nosuch]` or `[plugins.hermess]`\
+
 When the registry is asked what the config enables\
-Then the name is refused, the warning is loud, and the selection widens to the WHOLE roster rather than
-narrowing
+
+Then the name is refused, the warning is loud, and the selection widens to the WHOLE roster rather than narrowing
 
 - Success: `src/registry.rs:Registry::enabled` walks the config's names first and returns
   `RegistryError::UnknownPlugin` for any that nothing registered, whether or not it is switched on ("an
@@ -703,7 +714,9 @@ narrowing
 ### 8. `[recap]` reads eight keys, each standing alone, and absent is all on
 
 Given `[recap]` stating one key\
+
 When `parse_config` runs\
+
 Then that key moves and the other seven stay at their defaults
 
 - Success: `src/config.rs:parse_recap` starts from `Recap::default()` and moves only what the file
@@ -745,7 +758,9 @@ Then that key moves and the other seven stay at their defaults
 ### 9. The recap's counts, lists and glob are judged by shape and refused by name
 
 Given a `[recap]` key holding a value of the right type but the wrong SHAPE\
+
 When `parse_config` runs\
+
 Then it is refused by name with what is wrong, rather than clamped or silently dropped
 
 - Success: four judges, each with its own function. `src/config.rs:threshold` refuses a non-count and a
@@ -783,7 +798,9 @@ Then it is refused by name with what is wrong, rather than clamped or silently d
 ### 10. `[focus] silence` is the feature switch and the policy in one key
 
 Given `[focus] silence = []`\
+
 When `parse_config` runs\
+
 Then the feature is off and nothing is refused
 
 - Success: `src/config.rs:parse_focus` reads the one key through `src/config.rs:modes`. An empty list is
@@ -813,7 +830,9 @@ Then the feature is off and nothing is refused
 ### 11. `[daemon] enabled` defaults on and fails OPEN when the file cannot be read
 
 Given no config at all, or a config the daemon cannot parse\
+
 When the daemon asks whether it is switched on\
+
 Then it runs
 
 - Success: `src/config.rs:parse_daemon` starts at `DEFAULT_DAEMON_ENABLED` (true) and moves only on an
@@ -840,7 +859,9 @@ Then it runs
 ### 12. `[nag] after_secs` is the switch AND the schedule, with zero carved out
 
 Given `[nag] after_secs = 0`\
+
 When `parse_config` runs\
+
 Then the feature is off and it is not an error
 
 - Success: `src/config.rs:nag_schedule` returns `NAG_OFF` for zero before the range check runs, then
@@ -869,7 +890,9 @@ Then the feature is off and it is not an error
 ### 13. `[lights]` absent is None, and an empty `[lights]` is every locked default
 
 Given a config with no `[lights]` heading, and separately one with a bare `[lights]`\
+
 When `parse_config` runs\
+
 Then the first yields `None` and the second yields `Lights::default()` in full
 
 - Success: `src/config.rs:parse_config` maps `"lights"` to `Some(Box::new(parse_lights(value)?))`, so the
@@ -908,7 +931,9 @@ Then the first yields `None` and the second yields `Lights::default()` in full
 ### 14. Every `[lights]` number is bounded on both sides and refused by name outside them
 
 Given a `[lights]` scalar outside its range\
+
 When `parse_config` runs\
+
 Then the refusal names the table, the key, the value and the whole range
 
 - Success: `src/config.rs:bounded` refuses with
@@ -943,7 +968,9 @@ Then the refusal names the table, the key, the value and the whole range
 ### 15. A breath whose low is above its high is refused rather than rendered upside down
 
 Given `[lights.blocked] high = 20` and `low = 40`\
+
 When `parse_config` runs\
+
 Then it is refused, naming both ends and what it would cost
 
 - Success: `src/config.rs:ends_agree` runs after every breathing table is read and returns
@@ -970,7 +997,9 @@ Then it is refused, naming both ends and what it would cost
 ### 16. Only the knobs that apply to a behaviour exist on it
 
 Given `[lights.done] low = 10`\
+
 When `parse_config` runs\
+
 Then it is refused by name, with the keys that table DOES serve listed
 
 - Success: each behaviour table has its own roster row, so `admits_flat` refuses a knob from a sibling.
@@ -998,9 +1027,10 @@ Then it is refused by name, with the keys that table DOES serve listed
 ### 17. One declaration vocabulary serves all three levels, and the refusal names the operator's path
 
 Given `[lights.room."3F - Studio"] dim_hours = "22:00-07:00"`\
+
 When `parse_config` runs\
-Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists
-`dim_behaviours, dim_window, shows`
+
+Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists `dim_behaviours, dim_window, shows`
 
 - Success: `src/config.rs:parse_targets` calls `admits(TARGET_KEYS, &where_it_is, key)`, which is the
   two-name form of `admits`: the roster row is looked up under `lights.<level>` while the refusal is
@@ -1029,7 +1059,9 @@ Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists
 ### 18. `dim_behaviours` with no `dim_window` is refused rather than read and dropped
 
 Given a declaration stating `dim_behaviours` and no `dim_window`\
+
 When `parse_config` runs\
+
 Then it is refused, whether the list is empty or not
 
 - Success: `src/config.rs:parse_targets` tracks a `states_behaviours` flag and refuses when
@@ -1055,7 +1087,9 @@ Then it is refused, whether the list is empty or not
 ### 19. The backstop must outlast the nag, and it is the one refusal that reads two tables
 
 Given `[nag] after_secs = 600` and `[lights.blocked] give_up_after_secs = 60`\
+
 When `parse_config` finishes every table\
+
 Then the file is refused, naming both keys and both values
 
 - Success: `src/config.rs:backstop_outlasts_the_nag` runs after the whole document is walked, because
@@ -1089,7 +1123,9 @@ Then the file is refused, naming both keys and both values
 ### 20. The mobile submission deadline is read off the ARMED mobile table and nowhere else
 
 Given `[plugins.mobile]` switched on, naming `type = "moshi"`, with `submit_deadline_secs = 30`\
+
 When `submit_deadline` is called\
+
 Then the answer is 30 seconds
 
 - Success: `src/config.rs:submit_deadline` goes through `src/config.rs:armed_mobile`, which returns
@@ -1135,9 +1171,10 @@ Then the answer is 30 seconds
 ### 21. The roster is the schema's one statement, checked in both directions
 
 Given `src/config.rs:TABLE_KEYS`\
+
 When the module's own walks run\
-Then every declared key is parsed by the arm that declares it, and no arm reads a key the roster does not
-declare
+
+Then every declared key is parsed by the arm that declares it, and no arm reads a key the roster does not declare
 
 - Success: two walks. `src/config.rs:every_key_the_roster_declares_is_read_by_the_table_that_declares_it`
   parses one valid sample per roster key from `src/config.rs:SAMPLE_VALUES` and then asserts the walked
@@ -1174,9 +1211,10 @@ declare
 ### 22. `render` walks the layout, consumes the values, and refuses whatever is left over
 
 Given a values table\
+
 When `src/config_text.rs:render` walks `LAYOUT`\
-Then every recognised key and table is removed as it is written, and anything remaining is refused by
-name
+
+Then every recognised key and table is removed as it is written, and anything remaining is refused by name
 
 - Success: `render` clones the values, takes `plugins` out, walks `LAYOUT` once in its own order, and
   then checks both containers for leftovers, returning `` unknown plugin `{name}` `` and
@@ -1223,9 +1261,10 @@ name
 ### 23. A secret marker renders as the exact chezmoi action, and a literal renders quoted beside it
 
 Given a values entry `token = { keepassxc = "Moshi :: Webhook Secret", field = "Password" }`\
+
 When `render` writes it\
-Then the line is `token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}` with no author
-quotes
+
+Then the line is `token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}` with no author quotes
 
 - Success: `src/config_text.rs:render_value` dispatches on the TOML type, so a table value is a secret
   and everything else is a literal; `src/config_text.rs:secret_action` builds the action. Pinned by
@@ -1270,7 +1309,9 @@ quotes
 ### 24. A hostile literal, a hostile name and a hostile note cannot escape their line
 
 Given a values string holding a quote, a newline, a `#`, or a `{{`\
+
 When `render` writes it\
+
 Then it crosses as one inert basic string and never as structure
 
 - Success: `src/config_text.rs:quoted` escapes `\`, `"`, every control character and, unusually, `{` and
@@ -1312,9 +1353,10 @@ Then it crosses as one inert basic string and never as structure
 ### 25. `strip_chezmoi_actions` stands in for chezmoi, and only for the one action grammar
 
 Given a chezmoi-templated text\
+
 When `strip_chezmoi_actions` runs\
-Then a directive standing on its own line goes with the line, and an action in value position becomes the
-placeholder the caller supplies
+
+Then a directive standing on its own line goes with the line, and an action in value position becomes the placeholder the caller supplies
 
 - Success: `src/config.rs:strip_chezmoi_actions` drops every line whose trimmed start is `{{-` (which is
   the darwin conditional's two lines) and replaces every in-value action with
@@ -1350,7 +1392,9 @@ placeholder the caller supplies
 ### 26. `pns-config-render` reads, refuses, renders, self-parses, then writes, in that order
 
 Given a values file and a template path\
+
 When the binary runs\
+
 Then nothing reaches the template path until every earlier step has succeeded
 
 - Success: `src/bin/pns-config-render.rs:run` is five steps in a fixed order: read,
@@ -1410,9 +1454,10 @@ Then nothing reaches the template path until every earlier step has succeeded
 ### 27. The shipped template is pinned byte for byte, and three separate pins cover what one cannot
 
 Given the committed `dot_config/pns/config-values.toml`\
+
 When the crate's test suite runs\
-Then the committed `dot_config/pns/private_config.toml.tmpl` must equal
-`BANNER + render(values) + FOOTER` exactly
+
+Then the committed `dot_config/pns/private_config.toml.tmpl` must equal `BANNER + render(values) + FOOTER` exactly
 
 - Success: `src/config.rs:the_committed_template_is_render_over_the_committed_values_file` parses
   `CONFIG_VALUES`, calls `config_text::render`, wraps it, and asserts equality with `SHIPPED_TEMPLATE`.
@@ -1457,9 +1502,10 @@ Then the committed `dot_config/pns/private_config.toml.tmpl` must equal
 ### 28. The shipped template still parses through this schema, and states its defaults visibly
 
 Given `SHIPPED_TEMPLATE` with its chezmoi actions stubbed\
+
 When `parse_config` runs over it\
-Then it loads and selects exactly hermes, hue, macos-banner, mobile and router, all of which the registry
-knows
+
+Then it loads and selects exactly hermes, hue, macos-banner, mobile and router, all of which the registry knows
 
 - Success: `src/config.rs:the_shipped_config_template_still_parses_through_this_schema` asserts the
   plugin key list is exactly `["hermes", "hue", "macos-banner", "mobile", "router"]` and then calls
@@ -1497,9 +1543,10 @@ knows
 ### 29. A broken config fails open on the delivery path and closed on every lamp path
 
 Given a config file that will not load\
+
 When each mode runs\
-Then the delivery legs continue at the CORE while the pulse, the lights tick and the lamp mutes do
-nothing
+
+Then the delivery legs continue at the CORE while the pulse, the lights tick and the lamp mutes do nothing
 
 - Success: the split is the design, and both sides are stated in code. Delivery:
   `src/registry.rs:select_plugins` returns `(registry.core(), Some(core_warning(...)))` for every `Err`,
