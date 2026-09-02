@@ -9,9 +9,10 @@ return {
   opts = {
     library = {
       { path = "${3rd}/luv/library", words = { "vim%.uv" } },
-      { path = "LazyVim", words = { "LazyVim" } },
       { path = "snacks.nvim", words = { "Snacks" } },
-      { path = "lazy.nvim", words = { "LazyVim" } },
+      -- every file under lua/plugins is a lazy.nvim spec, so these types are
+      -- always wanted: an entry with no words is loaded globally
+      "lazy.nvim",
     },
   },
 }
