@@ -9059,14 +9059,25 @@ mod tests {
         // NO CLOCK IS NO MARKER: an unreadable clock must not default to
         // epoch zero, which would write a marker that reads as already
         // expired the moment it lands, or that never ages out at all read
-        // the other way.
+        // the other way. SEEDED, not absent: a `None` case starting with no
+        // marker on disk cannot tell "correctly wrote nothing" apart from a
+        // `None => remove_file(marker)` mutant, since removing a file that
+        // was never there is itself a silent no-op.
         let unreadable_clock_marker =
             pns::lights::blocked_marker(&state, "s2").expect("a usable session id");
+        std::fs::create_dir_all(
+            unreadable_clock_marker
+                .parent()
+                .expect("the needs directory"),
+        )
+        .expect("the needs directory");
+        std::fs::write(&unreadable_clock_marker, "999\n").expect("a wait already in progress");
         update_blocked_marker(&state, "s2", "blocked", true, None);
-        assert!(
-            !unreadable_clock_marker.exists(),
-            "an unreadable clock must write no marker at all, never one at \
-             epoch zero"
+        assert_eq!(
+            std::fs::read_to_string(&unreadable_clock_marker).expect("the marker"),
+            "999\n",
+            "an unreadable clock must touch no marker at all, neither writing \
+             one at epoch zero nor removing the one already there"
         );
     }
 
