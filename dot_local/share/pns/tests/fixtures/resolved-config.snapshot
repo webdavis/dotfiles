@@ -1,0 +1,231 @@
+Config {
+    plugins: {
+        "hermes": PluginEntry {
+            enabled: true,
+            settings: {
+                "key": String(
+                    "from-the-vault:Hermes :: Webhook Secret :: #pns:Password",
+                ),
+            },
+        },
+        "hue": PluginEntry {
+            enabled: true,
+            settings: {
+                "bridge": String(
+                    "from-the-vault:OpenHue :: API Key (hue-bridge-pro):UserName",
+                ),
+                "key": String(
+                    "from-the-vault:OpenHue :: API Key (hue-bridge-pro):Password",
+                ),
+                "quiet_hours": String(
+                    "22:00-07:00",
+                ),
+                "rooms": Array(
+                    [
+                        String(
+                            "3F - Studio",
+                        ),
+                        String(
+                            "2F - Kitchen",
+                        ),
+                    ],
+                ),
+            },
+        },
+        "macos-banner": PluginEntry {
+            enabled: true,
+            settings: {},
+        },
+        "mobile": PluginEntry {
+            enabled: true,
+            settings: {
+                "mobile_watch_card": Boolean(
+                    false,
+                ),
+                "submit_deadline_secs": Integer(
+                    5,
+                ),
+                "token": String(
+                    "from-the-vault:Moshi :: Webhook Secret:Password",
+                ),
+                "type": String(
+                    "moshi",
+                ),
+            },
+        },
+        "router": PluginEntry {
+            enabled: true,
+            settings: {
+                "api_key": String(
+                    "from-the-vault:UniFi :: API Key (dresden-udr):Password",
+                ),
+                "device_hostname": String(
+                    "mister",
+                ),
+                "router_url": String(
+                    "https://192.168.1.1",
+                ),
+                "type": String(
+                    "unifi",
+                ),
+            },
+        },
+    },
+    recap: Recap {
+        replay_card: true,
+        digest: true,
+        digest_as_thread: true,
+        min_events: 8,
+        summarizer: None,
+        summarizer_deadline_secs: 240,
+        repos: [],
+        review_notes: None,
+    },
+    focus_silence: [],
+    daemon_enabled: true,
+    nag_after_secs: 300,
+    lights: Some(
+        Lights {
+            refresh_secs: 12,
+            done: Pulse {
+                duration_ms: 4000,
+                brightness: 100,
+            },
+            failed: Pulse {
+                duration_ms: 4000,
+                brightness: 100,
+            },
+            blocked: Blocked {
+                breath: Breath {
+                    duration_ms: 2000,
+                    high: 100,
+                    low: 30,
+                },
+                give_up_after_secs: 57600,
+            },
+            unread: Unread {
+                breath: Breath {
+                    duration_ms: 4000,
+                    high: 60,
+                    low: 10,
+                },
+                after_secs: 300,
+            },
+            looping: Looping {
+                breath: Breath {
+                    duration_ms: 4000,
+                    high: 60,
+                    low: 10,
+                },
+                threshold_secs: 360,
+                lease_timeout_secs: 3900,
+            },
+            dim: Breath {
+                duration_ms: 3000,
+                high: 7,
+                low: 1,
+            },
+            lamps: {
+                "1F - Front door - HCL1": Target {
+                    shows: Some(
+                        [
+                            Looping,
+                            Blocked,
+                            Unread,
+                        ],
+                    ),
+                    dim_window: Some(
+                        "22:00-07:00",
+                    ),
+                    dim_behaviours: [
+                        Blocked,
+                        Unread,
+                        Looping,
+                    ],
+                },
+                "2F - Kitchen - HCD6": Target {
+                    shows: Some(
+                        [
+                            Looping,
+                            Blocked,
+                            Unread,
+                            Done,
+                            Failed,
+                        ],
+                    ),
+                    dim_window: None,
+                    dim_behaviours: [],
+                },
+                "3F - Master Bedroom - HCL3": Target {
+                    shows: Some(
+                        [
+                            Looping,
+                            Blocked,
+                            Unread,
+                        ],
+                    ),
+                    dim_window: None,
+                    dim_behaviours: [],
+                },
+                "3F - Studio - HCL3": Target {
+                    shows: Some(
+                        [
+                            Looping,
+                            Blocked,
+                            Unread,
+                        ],
+                    ),
+                    dim_window: None,
+                    dim_behaviours: [],
+                },
+            },
+            rooms: {
+                "2F - Kitchen": Target {
+                    shows: Some(
+                        [
+                            Done,
+                            Failed,
+                        ],
+                    ),
+                    dim_window: Some(
+                        "22:00-07:00",
+                    ),
+                    dim_behaviours: [
+                        Blocked,
+                        Unread,
+                        Looping,
+                    ],
+                },
+                "3F - Master Bedroom": Target {
+                    shows: Some(
+                        [
+                            Done,
+                            Failed,
+                        ],
+                    ),
+                    dim_window: Some(
+                        "22:00-07:00",
+                    ),
+                    dim_behaviours: [],
+                },
+                "3F - Studio": Target {
+                    shows: Some(
+                        [
+                            Done,
+                            Failed,
+                        ],
+                    ),
+                    dim_window: Some(
+                        "22:00-07:00",
+                    ),
+                    dim_behaviours: [
+                        Blocked,
+                        Unread,
+                        Looping,
+                    ],
+                },
+            },
+            zones: {},
+        },
+    ),
+}
