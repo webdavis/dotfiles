@@ -9622,6 +9622,16 @@ mod tests {
         // tick after tick piling up, each still dialling while the next was
         // spawned. What has to hold is that the three fit with room left for a
         // breath, at both ends of the range the config accepts.
+        //
+        // EVERY LOCKED SHAPE AND NOT JUST THE FASTEST ONE, because the fade
+        // ceiling is only safe if the SLOWEST shape it admits still breathes:
+        // an empty schedule is a lamp that stops moving, and a loop lamp that
+        // stops moving looks exactly like the daemon dying, which is the one
+        // thing that lamp exists to say. Held on the fastest shape alone, this
+        // passes a driver that has gone back to refusing any fade whose whole
+        // DURATION will not fit, which is what it did before the seamless
+        // turn-around and which the slow shapes are the ones to catch.
+        let shipped = pns::config::Lights::default();
         for refresh_secs in [10, 12, 20, 30] {
             let three = tick_bridge_deadline(refresh_secs).as_millis() * 3;
             let interval = u128::from(refresh_secs) * 1000;
@@ -9630,15 +9640,20 @@ mod tests {
                 "refresh {refresh_secs}s: three calls at {three}ms do not fit"
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
-            assert!(
-                !pns::lights::breath_fades(
-                    left,
-                    &pns::config::Lights::default().blocked.breath,
-                    pns::lights::Resume::default()
-                )
-                .is_empty(),
-                "refresh {refresh_secs}s: the {left}ms left over will not hold one cycle                  of the locked blocked shape"
-            );
+            for (named, breath) in [
+                ("blocked", shipped.blocked.breath),
+                ("unread", shipped.unread.breath),
+                ("loop", shipped.looping.breath),
+                ("dim", shipped.dim),
+            ] {
+                assert!(
+                    !pns::lights::breath_fades(left, &breath, pns::lights::Resume::default())
+                        .is_empty(),
+                    "refresh {refresh_secs}s: the {left}ms left over will not hold a fade \
+                     of the locked {named} shape ({}ms)",
+                    breath.duration_ms
+                );
+            }
         }
     }
 

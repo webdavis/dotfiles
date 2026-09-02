@@ -267,7 +267,8 @@ impl Default for Lights {
 /// lead), rounded UP, because the last fade is issued inside the interval and
 /// lands after it: twelve seconds carries seven of the locked two-second
 /// shape, and three or four of the four-second one depending on what that
-/// tick's resolve took off the budget first.
+/// tick's resolve took off the budget first, and two or three of the
+/// six-second one.
 const DEFAULT_REFRESH_SECS: u64 = 12;
 
 /// The floor under it, and it is the TRANSPORT DEADLINE rather than a round
@@ -294,8 +295,8 @@ const MIN_REFRESH_SECS: u64 = 10;
 /// numbers they are documented as.
 ///
 /// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds eight full cycles of the
-/// locked blocked shape and four of the slow one, so nothing an operator would
-/// want is out of reach above it.
+/// locked blocked shape, four of the unread one and two of the slow loop, so
+/// nothing an operator would want is out of reach above it.
 pub const MAX_REFRESH_SECS: u64 = 30;
 
 /// The five locked shapes. EVERY NUMBER HERE WAS SET ON A REAL LAMP under the
@@ -392,8 +393,21 @@ const MAX_GIVE_UP_AFTER_SECS: u64 = 7 * 24 * 60 * 60;
 /// of `MIN_REFRESH_SECS` after the resolve, so a fade past this ceiling could
 /// be asked for a schedule the shortest interval the config allows has no
 /// room left to even start.
+///
+/// SIX THOUSAND IS THE SLOWEST LOCKED SHAPE AND NOT A ROUND NUMBER ABOVE IT.
+/// The ceiling was 5000 until 2026-09-02, when the loop breath was slowed to
+/// 6000 to open the cadence ladder (2 s blocked, 4 s unread, 6 s loop) that
+/// separates the lamps in daylight. It moved by exactly what that shape needs,
+/// so a cadence nobody has watched on a real lamp is still out of reach.
+///
+/// THE CEILING IS SAFE FOR THE SHAPE IT NOW ADMITS, and that is proved rather
+/// than argued. Two tests in the daemon carry it: one schedules every locked
+/// shape against what is left of the tightest legal interval after three
+/// bridge calls at their full deadline, and one carries the resumed case and
+/// names its margin. Both are named for what they hold and sit beside
+/// `tick_bridge_deadline`, which is where the resolve's own bound lives.
 const MIN_FADE_MS: u64 = 200;
-const MAX_FADE_MS: u64 = 5000;
+const MAX_FADE_MS: u64 = 6000;
 
 /// Percent, so the two ends are the two ends. ZERO IS REFUSED rather than read
 /// as off: a dark signal is a lamp that says nothing, and the way to say
@@ -2968,7 +2982,7 @@ mod tests {
             ("[lights]\nrefresh_secs = 9\n", "refresh_secs"),
             ("[lights]\nrefresh_secs = 31\n", "refresh_secs"),
             ("[lights.done]\nduration_ms = 199\n", "duration_ms"),
-            ("[lights.done]\nduration_ms = 5001\n", "duration_ms"),
+            ("[lights.done]\nduration_ms = 6001\n", "duration_ms"),
             ("[lights.done]\nbrightness = 0\n", "brightness"),
             ("[lights.done]\nbrightness = 101\n", "brightness"),
             ("[lights.blocked]\nlow = 0\n", "low"),
@@ -3005,7 +3019,7 @@ mod tests {
             "[lights]\nrefresh_secs = 10\n",
             "[lights]\nrefresh_secs = 30\n",
             "[lights.done]\nduration_ms = 200\nbrightness = 1\n",
-            "[lights.done]\nduration_ms = 5000\nbrightness = 100\n",
+            "[lights.done]\nduration_ms = 6000\nbrightness = 100\n",
             "[lights.loop]\nthreshold_secs = 1\nlease_timeout_secs = 60\n",
             "[lights.unread]\nafter_secs = 0\n",
             "[lights.blocked]\ngive_up_after_secs = 60\n",
