@@ -5925,6 +5925,24 @@ fn a_non_policy_config_change_writes_no_policy_audit_entry() {
         !sandbox.path("state/policy-settings-audit").exists(),
         "only a policy_settings change writes the audit trail"
     );
+
+    // THE SAME-SANDBOX CONTROL, in `a_non_auto_model_switch_source_...`'s own
+    // style. The absence above is meaningless on its own: deleting the whole
+    // audit writer would leave it holding too, since nothing else in this
+    // test ever asks the writer to run. Firing ONE `policy_settings` event
+    // now, on the same sandbox, proves the writer was reachable the whole
+    // time and the four sources above really were what kept it silent.
+    let control = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s1", "policy_settings", Some("/etc/claude/policy.json")),
+    );
+    assert!(control.status.success());
+    assert!(
+        sandbox.path("state/policy-settings-audit").exists(),
+        "the control: a policy_settings event under this same setup writes the trail"
+    );
 }
 
 #[test]
