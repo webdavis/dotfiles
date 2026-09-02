@@ -681,6 +681,40 @@ mod tests {
     }
 
     #[test]
+    fn run_with_input_refuses_by_byte_length_not_character_count() {
+        // 4096 four-byte characters plus one ASCII byte is 16385 bytes but
+        // only 4097 characters, well under MAX_EVENT_INPUT. A mutant that
+        // measured `input.chars().count()` instead of `input.len()` would let
+        // this through and only a multi-byte fixture can catch it.
+        let huge = format!("{}x", "\u{1D11E}".repeat(MAX_EVENT_INPUT / 4));
+        assert_eq!(huge.len(), MAX_EVENT_INPUT + 1);
+        assert!(huge.chars().count() < MAX_EVENT_INPUT);
+        let error = SystemRunner
+            .run_with_input("/no/such/uu-test-program", &[], &huge)
+            .expect_err("an oversized event must be refused even when it is short in characters");
+        assert!(
+            error.contains(&(MAX_EVENT_INPUT + 1).to_string()),
+            "{error}"
+        );
+        assert!(!error.contains("could not run"), "{error}");
+    }
+
+    #[test]
+    fn run_with_input_allows_an_input_of_exactly_16_kib() {
+        // The limit is a size AT which the input still fits, not one past
+        // which it starts to fit: a `>=` mutant would refuse this legal
+        // boundary case while every other test here stays green.
+        let exact = "x".repeat(MAX_EVENT_INPUT);
+        let error = SystemRunner
+            .run_with_input("/no/such/uu-test-program", &[], &exact)
+            .expect_err("the program does not exist, but the size check must have let it through");
+        assert!(
+            error.contains("could not run"),
+            "an exact-limit input must reach the spawn attempt: {error}"
+        );
+    }
+
+    #[test]
     fn a_dangling_marker_symlink_is_unreadable_rather_than_never_recorded() {
         // A broken link reads NotFound exactly like an absent path, and the
         // two are opposite states: nothing recorded yet is a fresh machine,
