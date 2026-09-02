@@ -32,6 +32,20 @@ end
 local MODES = { "n", "v", "x", "s", "o", "i", "c", "t" }
 local CONFIG_ROOT = vim.fn.stdpath("config")
 
+-- Normalize the config root out of a `debug.getinfo` source string: a pre-merge
+-- preview runs against a scratch deployment at a different absolute path than
+-- the live config, and an "@/abs/path/to/plugins/noice.lua:53" fingerprint would
+-- otherwise differ by root alone even when the file content is identical.
+local function normalize_source(source)
+  if source and source:sub(1, 1) == "@" then
+    local path = source:sub(2)
+    if path:sub(1, #CONFIG_ROOT) == CONFIG_ROOT then
+      return "@<config>" .. path:sub(#CONFIG_ROOT + 1)
+    end
+  end
+  return source or "?"
+end
+
 -- Fire the event lazy.nvim's own VeryLazy-triggered specs wait on. Headless `+qa`
 -- never reaches lazy.nvim's own `vim.schedule` after `UIEnter` (spec 9.1), and
 -- this dump runs in its own process rather than inheriting the phase block's
@@ -65,19 +79,30 @@ local function project_keymap(m)
     -- its source location instead of a flat "<callback>" placeholder, so a keymap
     -- whose callback moves to a different function (same lhs, different action)
     -- shows up as a changed row instead of comparing equal (amendment I6).
-    local info = debug.getinfo(m.callback, "S")
-    local source = info.source or "?"
-    -- Normalize the config root out of the path: a pre-merge preview runs
-    -- against a scratch deployment at a different absolute path than the live
-    -- config, and an "@/abs/path/to/plugins/noice.lua:53" fingerprint would
-    -- otherwise differ by root alone even when the file content is identical.
-    if source:sub(1, 1) == "@" then
-      local path = source:sub(2)
-      if path:sub(1, #CONFIG_ROOT) == CONFIG_ROOT then
-        source = "@<config>" .. path:sub(#CONFIG_ROOT + 1)
+    local info = debug.getinfo(m.callback, "Su")
+    local fingerprint = string.format("%s:%d", normalize_source(info.source), info.linedefined or -1)
+    -- custom_api.util's `map()` wraps every mapping whose rhs is not a bare Vim
+    -- command in the SAME literal closure, defined once at one fixed line
+    -- (util.lua:141 today). Source+line alone therefore fingerprints every one
+    -- of those wrapped mappings identically regardless of the action it runs:
+    -- 305 real mappings collapsed to one row, and changing `<leader>00` from
+    -- `quit` to `quit!` produced no diff (sol finding 1). Fingerprint what the
+    -- wrapper closes over instead of where the wrapper lives: a closed-over
+    -- string action is encoded directly, a closed-over function action is
+    -- fingerprinted by its OWN source location, the same way as above.
+    for i = 1, (info.nups or 0) do
+      local up_name, up_value = debug.getupvalue(m.callback, i)
+      if up_name == "rhs" then
+        if type(up_value) == "string" then
+          fingerprint = fingerprint .. ":str:" .. up_value
+        elseif type(up_value) == "function" then
+          local up_info = debug.getinfo(up_value, "S")
+          fingerprint = fingerprint .. ":fn:" .. normalize_source(up_info.source) .. ":" .. (up_info.linedefined or -1)
+        end
+        break
       end
     end
-    row.rhs = string.format("<callback:%s:%d>", source, info.linedefined or -1)
+    row.rhs = "<callback:" .. fingerprint .. ">"
   end
   if row.rhs then
     -- A classic Vimscript script-local function reference (a compat shim some
