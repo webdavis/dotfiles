@@ -10133,5 +10133,14 @@ mod tests {
             path.is_dir(),
             "the directory standing at the config path was moved"
         );
+        // THE CLAIMED BACKUP NAME IS RELEASED, not left behind empty: the
+        // rename that would have moved the directory onto it never happened,
+        // so a `.backup` entry surviving here would be a claim this run made
+        // and never used.
+        let leftover = leftovers(&path);
+        assert!(
+            leftover.is_empty(),
+            "a backup claim was left behind after the refusal: {leftover:?}"
+        );
     }
 }
