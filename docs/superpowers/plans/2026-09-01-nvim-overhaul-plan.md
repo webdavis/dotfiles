@@ -347,10 +347,16 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
   err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
   [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
   median() {
-    local n
-    n="$(grep -h "NVIM STARTED" "$1"/st-{2,3,4,5}.log | wc -l | tr -d ' ')" || true
-    [[ "$n" == "4" ]] || { echo "FATAL: expected exactly 4 warm samples in $1, found $n" >&2; exit 1; }
-    grep -h "NVIM STARTED" "$1"/st-{2,3,4,5}.log | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
+    local dir="$1"
+    local samples=() file count value
+    for file in "$dir"/st-2.log "$dir"/st-3.log "$dir"/st-4.log "$dir"/st-5.log; do
+      count="$(grep -c "NVIM STARTED" "$file" 2>/dev/null)" || true
+      [[ "$count" == "1" ]] || { echo "FATAL: expected exactly one NVIM STARTED sample in $file, found ${count:-0}" >&2; exit 1; }
+      value="$(grep "NVIM STARTED" "$file" | awk '{print $1}')"
+      [[ "$value" =~ ^[0-9]+\.[0-9]+$ ]] || { echo "FATAL: $file's sample is not a decimal number: $value" >&2; exit 1; }
+      samples+=("$value")
+    done
+    printf '%s\n' "${samples[@]}" | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
   }
   before_median="$(median "$S/before")"; after_median="$(median "$S/after")"
   printf 'before %s after %s (synthetic, VeryLazy fired by hand), advisory: agents may be running\n' \
@@ -359,17 +365,19 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
 
   A proof that cannot fail is not a proof: the median function used to return 0 from zero samples and
   half a real value from two, and neither a missing log nor a nonempty diff forced a failure. This
-  version requires exactly four warm samples per phase and treats a nonempty stderr log as fatal. The
-  `[s`, `]s` and `as` rows are checked against the two known outcomes rather than dropped from the gate:
-  `sort.nvim` and `nvim-treesitter-textobjects` both map them and plugin load order picks the winner,
-  so 2 of 12 dumps of the identical unchanged config named the other one (measured 2026-09-02, spec
-  3.7); exempting the rows wholesale made a genuine new regression on any of the three invisible, so
-  each side's racing subset must equal one of the two byte-for-byte, and anything else fails the same
-  way every other row does. A diff of two MISSING files is empty and a grep over a missing file inside
-  a process substitution reports nothing, so every comparison input is checked to exist before any of
-  them is read. The dump's own stderr goes to `$P/dump.err`, read and printed by the comparison (not
-  gated): 6 of 10 dumps of the identical unchanged config wrote the same `aerial.nvim` treesitter stack
-  trace from a scheduled callback (measured 2026-09-02). Uncaptured, a scheduled error could change
+  version validates each warm log independently for exactly one numeric `NVIM STARTED` sample (a
+  four-sample count in aggregate let a lopsided distribution, or four non-numeric rows, through as a
+  median of the wrong value or zero) and treats a nonempty stderr log as fatal. The `[s`, `]s` and `as`
+  rows are checked against the two known outcomes rather than dropped from the gate: `sort.nvim` and
+  `nvim-treesitter-textobjects` both map them and plugin load order picks the winner, so 2 of 12 dumps
+  of the identical unchanged config named the other one (measured 2026-09-02, spec 3.7); exempting the
+  rows wholesale made a genuine new regression on any of the three invisible, so each side's racing
+  subset must equal one of the two byte-for-byte, and anything else fails the same way every other row
+  does. A diff of two MISSING files is empty and a grep over a missing file inside a process
+  substitution reports nothing, so every comparison input is checked to exist before any of them is
+  read. The dump's own stderr goes to `$P/dump.err`, read and printed by the comparison (not gated): 6
+  of 10 dumps of the identical unchanged config wrote the same `aerial.nvim` treesitter stack trace
+  from a scheduled callback (measured 2026-09-02). Uncaptured, a scheduled error could change
   what the capture sees while nothing recorded that it happened.
 - [ ] **Step 12, OPERATOR:** when the three 3.6 guards (`status --porcelain`, `rev-list
   origin/main..HEAD`, `stash list`, all in `~/.config/nvim`) print nothing, `trash ~/.config/nvim/.git`.

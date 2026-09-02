@@ -455,10 +455,16 @@ done
 err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
 [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
 median() {
-  local n
-  n="$(grep -h "NVIM STARTED" "$1"/st-{2,3,4,5}.log | wc -l | tr -d ' ')" || true
-  [[ "$n" == "4" ]] || { echo "FATAL: expected exactly 4 warm samples in $1, found $n" >&2; exit 1; }
-  grep -h "NVIM STARTED" "$1"/st-{2,3,4,5}.log | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
+  local dir="$1"
+  local samples=() file count value
+  for file in "$dir"/st-2.log "$dir"/st-3.log "$dir"/st-4.log "$dir"/st-5.log; do
+    count="$(grep -c "NVIM STARTED" "$file" 2>/dev/null)" || true
+    [[ "$count" == "1" ]] || { echo "FATAL: expected exactly one NVIM STARTED sample in $file, found ${count:-0}" >&2; exit 1; }
+    value="$(grep "NVIM STARTED" "$file" | awk '{print $1}')"
+    [[ "$value" =~ ^[0-9]+\.[0-9]+$ ]] || { echo "FATAL: $file's sample is not a decimal number: $value" >&2; exit 1; }
+    samples+=("$value")
+  done
+  printf '%s\n' "${samples[@]}" | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
 }
 before_median="$(median "$S/before")"; after_median="$(median "$S/after")"
 printf 'before %s after %s (synthetic, VeryLazy fired by hand), advisory: agents may be running\n' \
@@ -469,14 +475,16 @@ A diff of two MISSING files is empty, and a grep over a missing file inside a pr
 reports nothing at all, so every comparison input is checked to exist before any of them is read.
 
 The median function used to return 0 from zero samples and half a real value from two, and neither a
-missing log nor a nonempty diff forced the whole comparison to fail; this version requires exactly four
-warm samples per phase (a possibility opened by a real bug: `--startuptime` appends rather than
-overwrites, so a re-run against the same `P` without truncating first silently doubles the sample count
-and corrupts the median without erroring) and treats a nonempty stderr log as fatal. The `[s`, `]s` and
-`as` rows are checked against the two known race outcomes rather than dropped from the gate wholesale:
-exempting them made a genuine new regression on any of the three invisible, so each side's racing
-subset must equal one of the two byte-for-byte, and anything else fails the gate the same way every
-other row does. The dump's own stderr is read and printed by the comparison, not only captured.
+missing log nor a nonempty diff forced the whole comparison to fail; this version validates each warm
+log independently for exactly one numeric `NVIM STARTED` sample (a possibility opened by a real bug:
+`--startuptime` appends rather than overwrites, so a re-run against the same `P` without truncating
+first silently doubles the sample count and corrupts the median without erroring, and a four-sample
+count in aggregate let a lopsided distribution or four non-numeric rows through as a median of the wrong
+value or zero) and treats a nonempty stderr log as fatal. The `[s`, `]s` and `as` rows are checked
+against the two known race outcomes rather than dropped from the gate wholesale: exempting them made a
+genuine new regression on any of the three invisible, so each side's racing subset must equal one of the
+two byte-for-byte, and anything else fails the gate the same way every other row does. The dump's own
+stderr is read and printed by the comparison, not only captured.
 
 1. **Bytes.** The first diff. `README.md` is excluded because the README commit (3.6 step 2) is the
    ONE working-tree change between the backup and the flatten: the three drain commits and the stash
