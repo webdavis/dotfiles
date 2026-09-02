@@ -1570,7 +1570,7 @@ re-gated since its last merge of `main` is not a verdict.
 | 56   | GitHub fallback into github                   | 6.2         | PR 7c     |
 | 57   | separate map/overseer_runner                  | 6.2         | PR 7e     |
 | 58   | latest_commit (table, err)                    | 6.2         | PR 6      |
-| 59   | no side effects on require                    | 6.2         | PR 6      |
+| 59   | no side effects on require                    | 6.2         | PR 8: the remaining side effect is `delegate.setup()` at `delegate.lua:171`, which section 6's preamble retires with `delegate.lua` in PR 8, not PR 6 |
 | 60   | copy_URL_to_clipboard rename (E)              | 6.2         | PR 7f     |
 | 61   | delete delegate.lua                           | 7.1         | PR 8      |
 | 62   | adopt nvim-mcp                                | 7.3         | PR 9 (evaluation), then PR 10a or 10b ships and registers, as the table says |
