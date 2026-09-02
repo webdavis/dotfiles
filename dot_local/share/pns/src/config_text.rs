@@ -576,6 +576,25 @@ const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is 
      # bridge merely holds it, and a name neither knows is refused with the\n\
      # list of the ones that work.\n";
 
+/// The prose above the declarations, and the one commented declaration a
+/// fresh machine's operator can copy: the wizard never asks about the lamp
+/// map, so the render is the only place they learn the three keys from.
+const ROUTING: &str = "# The routing. `dim_window` is local wall clock, the start inclusive and\n\
+     # the end exclusive, and it may wrap midnight; `dim_behaviours` names\n\
+     # which behaviours run their dim form inside it, and everything else that\n\
+     # place carries is SUPPRESSED there. A window with an empty list therefore\n\
+     # takes every behaviour away for the night and needs no mode of its own.\n\
+     # A place with no window is untouched at every hour; one that states\n\
+     # behaviours and no window keeps inheriting its room's window.\n";
+
+/// Written commented, whichever way `[lights]` reads, and only when the
+/// caller declared no place of its own: a real declaration is a better
+/// example than this one.
+const EXAMPLE_DECLARATION: &str = "# [lights.room.\"Studio\"]\n\
+     # shows = [\"done\", \"failed\"]\n\
+     # dim_window = \"22:00-07:00\"\n\
+     # dim_behaviours = [\"blocked\", \"unread\", \"loop\"]\n\n";
+
 /// One answer as a TOML basic string.
 ///
 /// A PASTED SECRET IS UNTRUSTED TEXT and is escaped rather than refused: raw
@@ -773,6 +792,10 @@ fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Result<(), St
             &mut settings,
             present,
         )?;
+    }
+    out.push_str(ROUTING);
+    if declarations.iter().all(|(_, names)| names.is_empty()) {
+        out.push_str(EXAMPLE_DECLARATION);
     }
     for (level, names) in declarations {
         for (name, entry) in names {
@@ -1341,5 +1364,48 @@ mod tests {
         assert_eq!(studio.shows, Some(vec![crate::config::Behaviour::Done]));
         assert_eq!(studio.dim_window.as_deref(), Some("22:00-07:00"));
         assert_eq!(studio.dim_behaviours, vec![crate::config::Behaviour::Done]);
+    }
+
+    #[test]
+    fn the_routing_prose_is_always_written_and_the_example_only_when_nothing_is_declared() {
+        // A FRESH MACHINE LEARNS THE THREE TARGET KEYS FROM THIS RENDER ALONE:
+        // the wizard never asks about the lamp map, so the example is what an
+        // operator copies. It is commented whichever way `[lights]` reads, and
+        // it steps aside for a real declaration, which is the better example.
+        let mut declared_lights = toml::Table::new();
+        let mut rooms = toml::Table::new();
+        rooms.insert(
+            "Kitchen".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
+        declared_lights.insert("room".to_string(), toml::Value::Table(rooms));
+        let mut declared = toml::Table::new();
+        declared.insert("lights".to_string(), toml::Value::Table(declared_lights));
+
+        let mut armed_empty = toml::Table::new();
+        armed_empty.insert("lights".to_string(), toml::Value::Table(toml::Table::new()));
+
+        for (values, example_expected) in [
+            (toml::Table::new(), true),
+            (armed_empty, true),
+            (declared, false),
+        ] {
+            let text = render(&values).expect("every lights shape renders");
+            assert!(text.contains("# The routing. `dim_window` is"), "{text}");
+            assert_eq!(
+                text.contains("# [lights.room.\"Studio\"]\n# shows = "),
+                example_expected,
+                "{text}"
+            );
+            // AND THE EXAMPLE IS A LINE THE ROSTER SCAN ACCEPTS, spelled the
+            // whitespace-exact way, so the wizard's fence keeps reading it.
+            crate::config::documented_keys_the_roster_serves(&text);
+            let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+            assert!(
+                config
+                    .lights
+                    .is_none_or(|lights| !lights.rooms.contains_key("Studio"))
+            );
+        }
     }
 }
