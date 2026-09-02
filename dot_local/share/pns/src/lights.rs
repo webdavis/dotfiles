@@ -1259,6 +1259,23 @@ mod tests {
             Some("1"),
             "a plain sweep working file is unaffected"
         );
+        // THE SAME SUFFIX TWICE, which is the one shape the two cases above
+        // cannot judge: each of them carries one `.new.` and one `.sweep.`, so
+        // `rfind` and `find` return the same offset for both and the rightmost
+        // rule is decided by the comparison alone. Here the comparison has
+        // nothing to do and the SEARCH DIRECTION is the whole answer: `find`
+        // stops at the left occurrence, reads `b.new.5` as the owner, fails to
+        // parse it as a pid and calls a real working file a marker.
+        assert_eq!(
+            working_owner("a.new.b.new.5"),
+            Some("5"),
+            "a publish on a marker whose own name spells the publish suffix"
+        );
+        assert_eq!(
+            working_owner("a.sweep.b.sweep.7"),
+            Some("7"),
+            "and the sweep suffix reads the same way"
+        );
     }
 
     #[test]
@@ -1792,6 +1809,32 @@ mod tests {
             "the working grammar guard, through the same predicate: without it \
              this prints 'the clock cannot be read' instead of refusing the pane"
         );
+        // EVERY ROAD TO A PANE, not the one the case above happens to take.
+        // The guard sits between the pane is resolved and the verb is read, so
+        // `end` is judged as `begin` is and the ENVIRONMENT pane is judged as
+        // an explicit one. A guard moved into the `--pane` arm, or into the
+        // `begin` arm, refuses nothing on the other road: `HERDR_PANE_ID` is a
+        // value from another program, which is the reason the predicate exists
+        // at all.
+        for (verb, arguments, env_pane) in [
+            (
+                "end",
+                vec!["--pane".to_string(), "abc.new.1".to_string()],
+                None,
+            ),
+            ("begin", vec![], Some("abc.new.1")),
+            ("end", vec![], Some("abc.sweep.7")),
+        ] {
+            let refused = loop_command(verb, &arguments, env_pane);
+            let pane = env_pane.unwrap_or("abc.new.1");
+            assert_eq!(
+                refused,
+                Err(format!(
+                    "pns: loop: {pane:?} is not a pane id this can key a lease to"
+                )),
+                "{verb} with arguments {arguments:?} and env pane {env_pane:?}"
+            );
+        }
         for arguments in [
             vec!["--pain".to_string(), "wW:p9".to_string()],
             vec!["wW:p9".to_string()],
