@@ -826,15 +826,24 @@ fn pulse_help_prints_its_own_usage_before_any_config_load() {
     // the word first means help answers with no machine read at all, even
     // with no config on disk.
     let sandbox = support::Sandbox::without_config("pulse-help");
-    for spelling in ["--help", "-h"] {
+    // H-B: help wins in flag position anywhere in the tail, not only right
+    // after the subcommand, so `pulse 0 --help` and `pulse --help 0` are
+    // slices here rather than the single-word cases above.
+    for args in [
+        ["--help"].as_slice(),
+        ["-h"].as_slice(),
+        ["0", "--help"].as_slice(),
+        ["--help", "0"].as_slice(),
+    ] {
         let output = sandbox
             .bare()
-            .args(["pulse", spelling])
+            .arg("pulse")
+            .args(args)
             .output()
             .expect("the engine runs");
-        assert_eq!(output.status.code(), Some(0), "{spelling}: {output:?}");
-        assert!(stdout(&output).contains("usage"), "{spelling}: {output:?}");
-        assert_eq!(stderr(&output), "", "{spelling}: {output:?}");
+        assert_eq!(output.status.code(), Some(0), "{args:?}: {output:?}");
+        assert!(stdout(&output).contains("usage"), "{args:?}: {output:?}");
+        assert_eq!(stderr(&output), "", "{args:?}: {output:?}");
     }
 }
 
@@ -845,15 +854,25 @@ fn pulse_refuses_a_code_it_cannot_read_instead_of_guessing_it_failed() {
     // rather than a failure pulse. `pulse oops`, `-0` and padded zeroes used
     // to flash the room red on a code nobody proved.
     let sandbox = support::Sandbox::without_config("pulse-refuses");
-    for word in ["oops", "-0", " 0", "0\n"] {
+    // H-B: an unknown word is refused wherever it lands, so `0 stray` (a
+    // second tail token that is not help) is a slice case alongside the
+    // single-word ones above.
+    for args in [
+        ["oops"].as_slice(),
+        ["-0"].as_slice(),
+        [" 0"].as_slice(),
+        ["0\n"].as_slice(),
+        ["0", "stray"].as_slice(),
+    ] {
         let output = sandbox
             .bare()
-            .args(["pulse", word])
+            .arg("pulse")
+            .args(args)
             .output()
             .expect("the engine runs");
-        assert_eq!(output.status.code(), Some(2), "{word:?}: {output:?}");
-        assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
-        assert_eq!(stdout(&output), "", "{word:?}: {output:?}");
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
+        assert!(stderr(&output).contains("usage"), "{args:?}: {output:?}");
+        assert_eq!(stdout(&output), "", "{args:?}: {output:?}");
     }
 }
 
