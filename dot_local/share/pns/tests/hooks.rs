@@ -4723,6 +4723,35 @@ fn quota_auto_resume_disabled_delivers_one_card_naming_itself() {
 }
 
 #[test]
+fn a_quota_notification_carrying_no_message_still_names_what_happened() {
+    // A `Notification` payload whose `message` is absent, empty, or not a
+    // string at all parses to the empty string, and the card must then be the
+    // label alone rather than a label with a dangling separator after it.
+    for message in [r#""message":"""#, r#""message":42"#, r#""unrelated":1"#] {
+        let sandbox = Sandbox::new(&format!("quota-no-message-{}", message.len()));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+
+        let output = hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "quota",
+            &format!(
+                r#"{{"session_id":"s1","cwd":"/a/dotfiles","hook_event_name":"Notification","notification_type":"quota_auto_resume_fired",{message}}}"#
+            ),
+        );
+
+        assert!(output.status.success(), "{message}");
+        assert_eq!(deliveries(&sandbox, "hermes"), 1, "{message}: one card");
+        assert_eq!(
+            sandbox.event("hermes")["detail"],
+            "quota auto-resume fired",
+            "{message}: the label alone, with nothing trailing it"
+        );
+    }
+}
+
+#[test]
 fn an_unrecognised_notification_type_delivers_nothing() {
     let sandbox = Sandbox::new("quota-unmatched-type");
     sandbox.write_config(&nag_config(300));
