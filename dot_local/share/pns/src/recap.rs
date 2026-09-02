@@ -704,24 +704,46 @@ fn safe_line(line: &str, max_chars: usize) -> String {
     )
 }
 
-/// Whether a character is one the reader cannot see: the Unicode FORMAT
-/// ranges, stated as ranges because std has no category lookup and this crate
-/// takes no dependency for one.
+/// Whether a character is one the reader cannot see: every Unicode FORMAT
+/// (Cf) code point, stated as ranges because std has no category lookup and
+/// this crate takes no dependency for one.
 ///
-/// PUB FOR ONE OTHER READER, `main.rs`'s automatic model-switch card: a
-/// payload field that is not free text still carries whatever bytes a harness
-/// sends, and a reorder character surviving `flattened` (which only strips
-/// whitespace and `char::is_control`, the Cc set, never Cf) would let a name
-/// render backwards.
+/// EVERY Cf CODE POINT, not the bidi and zero-width ones alone: U+061C ARABIC
+/// LETTER MARK was found missing (neither whitespace nor `char::is_control`,
+/// same as the ranges beside it) by a review that read this doc comment's own
+/// claim literally and checked it against the category it names. The set
+/// below is the full category as of Unicode 17.0, transcribed from the
+/// standard's own `DerivedGeneralCategory.txt`, so the next character this
+/// crate cannot render is one Unicode adds, not one this list forgot.
+///
+/// PUB FOR ONE OTHER READER, `main.rs`'s automatic model-switch card and its
+/// `ConfigChange` sibling: a payload field that is not free text still
+/// carries whatever bytes a harness sends, and a reorder character surviving
+/// `flattened` (which only strips whitespace and `char::is_control`, the Cc
+/// set, never Cf) would let a name or a path render backwards.
 pub fn is_invisible(character: char) -> bool {
     matches!(
         character,
         '\u{00ad}'
+            | '\u{0600}'..='\u{0605}'
+            | '\u{061c}'
+            | '\u{06dd}'
+            | '\u{070f}'
+            | '\u{08e2}'
+            | '\u{180e}'
             | '\u{200b}'..='\u{200f}'
             | '\u{202a}'..='\u{202e}'
             | '\u{2060}'..='\u{2064}'
             | '\u{2066}'..='\u{206f}'
             | '\u{feff}'
+            | '\u{fff9}'..='\u{fffb}'
+            | '\u{110bd}'
+            | '\u{110cd}'
+            | '\u{13430}'..='\u{13438}'
+            | '\u{1bca0}'..='\u{1bca3}'
+            | '\u{1d173}'..='\u{1d17a}'
+            | '\u{e0001}'
+            | '\u{e0020}'..='\u{e007f}'
     )
 }
 
@@ -1109,7 +1131,8 @@ mod tests {
     use super::{
         EXTERNAL_MAX_CHARS, EXTERNAL_TEXT_CHARS, External, Externals, Found, INSTRUCTION,
         MAX_ANSWER_BYTES, MAX_CHARS, MAX_LINES, SUMMARIZED_MAX_CHARS, SUMMARIZER_SILENT, Section,
-        Sourced, Timeline, Trim, answer, body, fit, merged, note_prompt, noted, prompt, sections,
+        Sourced, Timeline, Trim, answer, body, fit, is_invisible, merged, note_prompt, noted,
+        prompt, sections,
     };
     use crate::missed_notifications::Entry;
 
@@ -1721,6 +1744,22 @@ mod tests {
         let lines =
             answer("start\u{202e}desrever\u{200b}end\u{feff}\u{2066}here").expect("an answer");
         assert_eq!(lines, ["startdesreverendhere"], "{lines:?}");
+    }
+
+    #[test]
+    fn the_arabic_letter_mark_is_stripped_like_every_other_format_character() {
+        // SOL 2: U+061C is Unicode category Cf, exactly like the bidi and
+        // zero-width characters above it, and was absent from `is_invisible`
+        // despite the doc comment's claim to strip the whole category. Its
+        // own case, separate from the mixed string above it, so a failure
+        // here names the character rather than getting lost among four
+        // others.
+        assert!(
+            is_invisible('\u{061c}'),
+            "U+061C is Cf, the category this strips"
+        );
+        let lines = answer("left\u{061c}right").expect("an answer");
+        assert_eq!(lines, ["leftright"], "{lines:?}");
     }
 
     #[test]

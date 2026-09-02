@@ -6139,3 +6139,38 @@ fn a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry() {
         "one received change is one entry, whatever the path carried: {recorded:?}"
     );
 }
+
+#[test]
+fn an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail() {
+    // SOL 2, THROUGH BOTH SINKS this arm writes. U+061C ARABIC LETTER MARK is
+    // Unicode category Cf, the same category the right-to-left override
+    // above is in, and was the one member of it `is_invisible` missed: it is
+    // neither whitespace nor `char::is_control`, so it survived `flattened`
+    // into both the card's detail and the durable audit line before the fix.
+    // `policy_settings` is the one source that writes both, so this is the
+    // one event that checks them together.
+    let sandbox = Sandbox::new("config-change-arabic-letter-mark");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        "{\"session_id\":\"s1\",\"source\":\"policy_settings\",\"file_path\":\"/etc/claude/pol\u{061c}icy.json\"}",
+    );
+
+    assert!(output.status.success());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"], "policy settings changed: /etc/claude/policy.json",
+        "the mark is gone from the card's own rendered path"
+    );
+    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+        .expect("the audit trail");
+    assert!(
+        recorded.contains("/etc/claude/policy.json") && !recorded.contains('\u{061c}'),
+        "the mark is gone from the durable line too, not only from the card: {recorded:?}"
+    );
+}
