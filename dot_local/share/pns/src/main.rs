@@ -5278,11 +5278,7 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
         // leaves behind.
         in_flight: streak.is_some() || shell_since.is_some() || !leases.is_empty(),
         house: pns::lights::House {
-            blocked: pns::lights::any_blocked(
-                &sweep_blocked(state, now, lights.blocked.give_up_after_secs),
-                now,
-                lights.blocked.give_up_after_secs,
-            ),
+            blocked: blocked_lamp(state, lights, now),
             looping: pns::lights::loop_running(&pns::lights::Loop {
                 streak: streak.as_ref(),
                 agents_working,
@@ -5489,6 +5485,21 @@ fn sweep_shell_markers(state: &Path) -> Option<u64> {
 /// session for the life of a machine is unbounded growth.
 fn sweep_blocked(state: &Path, now: u64, give_up_after_secs: u64) -> Vec<u64> {
     sweep_markers(&pns::lights::blocked_dir(state), now, give_up_after_secs)
+}
+
+/// The blocked lamp's reading for this tick: the sweep that removes an aged
+/// marker and the aggregate that lights the lamp, both handed the one
+/// configured backstop.
+///
+/// ITS OWN FUNCTION SO ITS TEST SPAWNS NOTHING: the rest of the house asks
+/// herdr and the idle probes, and this half never depends on either.
+fn blocked_lamp(state: &Path, lights: &pns::config::Lights, now: u64) -> bool {
+    let give_up_after_secs = lights.blocked.give_up_after_secs;
+    pns::lights::any_blocked(
+        &sweep_blocked(state, now, give_up_after_secs),
+        now,
+        give_up_after_secs,
+    )
 }
 
 /// The working streak after this tick's reading, published or removed.
@@ -7991,8 +8002,8 @@ mod tests {
     use super::{
         CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL, LIGHTS_HELD,
         LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, drive_breaths, end_lease,
-        held_lamps, keep_aside, lights_house, lights_report, list, matches_glob, means_yes,
+        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, drive_breaths,
+        end_lease, held_lamps, keep_aside, lights_report, list, matches_glob, means_yes,
         muted_state, now_secs, publish_config, publish_state_line, read_news, read_note,
         recap_bounds, record_news, renew_loop_lease, republish_after, reread_attempts_from,
         reread_interval_from, resolve_path, router_backend, run_pulse_writes, run_tick_writes,
@@ -9137,13 +9148,11 @@ mod tests {
         let lights = config.lights.as_deref().expect("the lights table");
 
         assert!(
-            lights_house(&state, lights, 1_000 + 90_000).house.blocked,
+            blocked_lamp(&state, lights, 1_000 + 90_000),
             "a day-old question inside the configured backstop still holds the lamp"
         );
         assert!(
-            !lights_house(&state, lights, 1_000 + GIVE_UP_AFTER_SECS + 1)
-                .house
-                .blocked,
+            !blocked_lamp(&state, lights, 1_000 + GIVE_UP_AFTER_SECS + 1),
             "and one second past the backstop the lamp is given back"
         );
         assert!(
