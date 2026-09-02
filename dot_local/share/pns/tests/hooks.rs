@@ -2392,10 +2392,11 @@ fn a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi() {
         ("../../etc/passwd", 2),
         ("pi-hook; rm -rf /", 2),
         ("Pi-hook", 2),
-        // A leading `-` is a flag as far as argv is concerned, so this one is
-        // still the producer contract's empty event on its always-exit-0 edge
-        // rather than a word refused for naming no command.
-        ("-hook", 0),
+        // A leading `-` used to be a free pass into the producer contract's
+        // empty event, so a mistyped harness word delivered in silence. It is
+        // now the operator's rule, not a regression: `-hook` names no flag
+        // this parser recognizes, so it is refused like any other typo.
+        ("-hook", 2),
     ] {
         let output = gate(&sandbox, word, "{}");
         assert_eq!(output.status.code(), Some(code), "word {word:?}");

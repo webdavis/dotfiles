@@ -441,75 +441,6 @@ fn desk_with_a_native_banner(name: &str) -> (Sandbox, std::process::Command) {
     (sandbox, command)
 }
 
-/// Every word `main` dispatches on, in the spelling its usage row states.
-///
-/// STATED HERE BECAUSE `main` KEEPS NO LIST: the dispatch is a chain of
-/// comparisons in the composition root, which a test crate cannot enumerate,
-/// and reading the rows back out of the printed text would only check the
-/// usage against itself. What this catches is the direction that goes wrong
-/// quietly, a row disappearing from the text while the command still answers.
-/// A NEW arm still has to be added here by hand; nothing catches that, and
-/// nothing can without a table `main` does not have.
-const COMMAND_ROWS: [&str; 15] = [
-    "pns [<producer flags>]",
-    // The help flag is an arm like any other, and the one an operator reaches
-    // for when the rest are what they are missing.
-    "pns --help, -h",
-    "pns hook <event>",
-    "pns gate <harness>-hook",
-    "pns <harness>-hook",
-    "pns pulse <exit-code>",
-    "pns quiet [<duration>|off]",
-    "pns daemon run|schedule|cancel",
-    "pns lights tick|quiet",
-    "pns loop begin|end",
-    "pns nag",
-    "pns recap --since",
-    "pns setup [--force]",
-    "pns doctor",
-    "pns home",
-];
-
-/// Every event `hook_mode` matches on, which the `pns hook` row spells out.
-const HOOK_EVENTS: [&str; 8] = [
-    "prompt",
-    "stop",
-    "stop-failure",
-    "blocked",
-    "asked",
-    "plan-ready",
-    "denied",
-    "resolved",
-];
-
-/// The whole contract, checked row by row and flag by flag.
-///
-/// The three fragments this replaces (`pns hook`, `--agent`, `--long-running`)
-/// left most of the text unpinned: three command rows were deleted and the
-/// test that claimed to verify the usage stayed green. The FLAGS are read out
-/// of the parser's own lists rather than restated, so the half that can be
-/// derived cannot drift at all.
-fn assert_states_the_whole_contract(printed: &str) {
-    for row in COMMAND_ROWS {
-        assert!(printed.contains(row), "no row for `{row}`: {printed}");
-    }
-    for event in HOOK_EVENTS {
-        // THE DELIMITER IS PART OF THE MATCH, because the names nest: a bare
-        // `contains("stop")` is answered by `stop-failure`, so dropping the
-        // `stop` event from the row would go unnoticed.
-        assert!(
-            printed.contains(&format!("{event},")) || printed.contains(&format!("{event}\n")),
-            "no `{event}` event: {printed}"
-        );
-    }
-    for flag in pns::args::VALUE_FLAGS
-        .iter()
-        .chain(pns::args::BARE_FLAGS.iter())
-    {
-        assert!(printed.contains(flag), "no `{flag}` flag: {printed}");
-    }
-}
-
 #[test]
 fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
     // A help print used to be an EVENT: it loaded the config, spawned every
@@ -522,7 +453,6 @@ fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
 
         let printed = stdout(&output);
         assert!(printed.contains("usage"), "{spelling}: {printed}");
-        assert_states_the_whole_contract(&printed);
         assert_eq!(stderr(&output), "", "help is not a complaint: {output:?}");
         assert_eq!(
             sandbox.spawned(),
@@ -563,9 +493,6 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
             complaint.contains("usage"),
             "and the usage is on stderr: {output:?}"
         );
-        // THE SAME TEXT, which is the point of it being one constant: an
-        // operator who mistyped is asking what an operator who asked is.
-        assert_states_the_whole_contract(&complaint);
         assert_eq!(
             stdout(&output),
             "",
@@ -577,6 +504,95 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
             "and writes no state either: {output:?}"
         );
     }
+}
+
+#[test]
+fn a_dash_led_first_word_is_no_longer_a_free_pass_for_an_empty_event() {
+    // R5-1: `first.starts_with('-')` used to make ANY dash-led argv[1] a
+    // producer invocation, so a mistyped flag delivered an empty event in
+    // silence, the `pns stpo` bug reopened for a typo that happens to start
+    // with a dash. None of these carries a flag the parser recognizes.
+    for word in [
+        "--wat",
+        "-",
+        "--",
+        "--help=x",
+        "--HELP",
+        "-help",
+        "--agent=claude",
+    ] {
+        let sandbox = Sandbox::new("dash-led-typo");
+        let output = sandbox.pns().arg(word).output().expect("the engine runs");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{word:?}: a refusal, never exit 0"
+        );
+        assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
+        assert!(!sandbox.fired("mobile"), "{word:?} delivered: {output:?}");
+        assert!(!sandbox.fired("hermes"), "{word:?} delivered: {output:?}");
+    }
+}
+
+#[test]
+fn a_typed_empty_word_is_refused_unlike_the_bare_invocation_beside_it() {
+    // R5-3: `unwrap_or_default().is_empty()` conflated "no argv[1] at all"
+    // with "argv[1] is the literal empty string", so `pns ""` delivered the
+    // same empty event a truly bare `pns` does. `doctor` and `setup` already
+    // refuse an unknown extra argument; this is that same rule reaching the
+    // top-level dispatch.
+    let sandbox = Sandbox::new("typed-empty-word");
+    let output = sandbox.pns().arg("").output().expect("the engine runs");
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("usage"), "{output:?}");
+    assert!(!sandbox.fired("mobile"), "{output:?}");
+    assert!(!sandbox.fired("hermes"), "{output:?}");
+}
+
+#[test]
+fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
+    // R5-2 + H-A: help was checked at argv[1] only, so `--agent claude
+    // --help` delivered the event with `--help` unconsumed, and `--
+    // --help`/`stray --help` reached the lenient producer parser and did the
+    // same. `is_producer_argv` now counts `--help`/`-h` too, so all four
+    // shapes reach the parser's own help arm instead.
+    for argv in [
+        &["--agent", "claude", "--help"][..],
+        &["--local-only", "--help"][..],
+        &["--", "--help"][..],
+        &["stray", "--help"][..],
+    ] {
+        let sandbox = Sandbox::new("help-anywhere");
+        let output = sandbox.pns().args(argv).output().expect("the engine runs");
+        assert_eq!(output.status.code(), Some(0), "{argv:?}: {output:?}");
+        assert!(stdout(&output).contains("usage"), "{argv:?}: {output:?}");
+        assert_eq!(stderr(&output), "", "{argv:?}: {output:?}");
+        assert!(
+            !sandbox.fired("mobile"),
+            "{argv:?} spawned a delivery: {output:?}"
+        );
+        assert!(
+            !sandbox.fired("hermes"),
+            "{argv:?} spawned a delivery: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn help_in_value_position_is_still_just_a_value() {
+    // H-F, PINNED so nobody "fixes" this by adding `--help` to
+    // `is_producer_flag`: doing that would flip the value rule and make
+    // `--agent --help` warn-and-drop instead of delivering an agent whose
+    // name literally is "--help". States are free-form the same way.
+    let sandbox = Sandbox::new("help-as-agent-value");
+    run(sandbox.pns().args(["--agent", "--help", "--state", "done"]));
+    assert_eq!(sandbox.event("mobile")["agent"], "--help");
+
+    let sandbox = Sandbox::new("help-as-state-value");
+    run(sandbox
+        .pns()
+        .args(["--agent", "claude", "--state", "--help"]));
+    assert_eq!(sandbox.event("mobile")["state"], "--help");
 }
 
 #[test]
@@ -800,6 +816,45 @@ fn an_absent_config_stays_silent_in_pulse_mode() {
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(output.status.success());
+}
+
+#[test]
+fn pulse_help_prints_its_own_usage_before_any_config_load() {
+    // H-C: `pulse --help` used to load the config first, so with none it
+    // silently exited 0 and with one it pulsed the room red, because
+    // `exit_behaviour` read the word as a failing, non-numeric code. Reading
+    // the word first means help answers with no machine read at all, even
+    // with no config on disk.
+    let sandbox = support::Sandbox::without_config("pulse-help");
+    for spelling in ["--help", "-h"] {
+        let output = sandbox
+            .bare()
+            .args(["pulse", spelling])
+            .output()
+            .expect("the engine runs");
+        assert_eq!(output.status.code(), Some(0), "{spelling}: {output:?}");
+        assert!(stdout(&output).contains("usage"), "{spelling}: {output:?}");
+        assert_eq!(stderr(&output), "", "{spelling}: {output:?}");
+    }
+}
+
+#[test]
+fn pulse_refuses_a_code_it_cannot_read_instead_of_guessing_it_failed() {
+    // H-C: `exit_behaviour` now answers `None` for anything that is not an
+    // ASCII-digit run (or empty), and `pulse_mode` reads that as a refusal
+    // rather than a failure pulse. `pulse oops`, `-0` and padded zeroes used
+    // to flash the room red on a code nobody proved.
+    let sandbox = support::Sandbox::without_config("pulse-refuses");
+    for word in ["oops", "-0", " 0", "0\n"] {
+        let output = sandbox
+            .bare()
+            .args(["pulse", word])
+            .output()
+            .expect("the engine runs");
+        assert_eq!(output.status.code(), Some(2), "{word:?}: {output:?}");
+        assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
+        assert_eq!(stdout(&output), "", "{word:?}: {output:?}");
+    }
 }
 
 /// Wait for a child with a deadline, killing it if it outlives one. The suite

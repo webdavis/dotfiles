@@ -38,64 +38,63 @@ use pns::system::{
 };
 
 fn main() {
-    let first = std::env::args_os().nth(1).unwrap_or_default();
-    // HELP IS ANSWERED FIRST, and it is the arm that reaches nothing at all.
-    // It used to reach EVERYTHING: the word fell through every comparison
-    // below into the lenient producer parser, which skipped it and notified
-    // about an empty event, so printing the commands loaded the config, spawned
-    // every presence probe and raised a banner titled "pns · done". Nothing
-    // about listing what this binary takes needs the machine read.
-    if first == *"--help" || first == *"-h" {
-        print!("{USAGE}");
-        return;
-    }
+    // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
+    // panics on non-UTF-8, and a stray byte degrading into an unknown token
+    // (which the lenient parser already skips) is the honest failure mode
+    // for an always-exit-0 notification path. `first`, the producer check
+    // and the event parse each used to read `std::env::args_os()` on their
+    // own; this is the one collection they share now.
+    let argv: Vec<String> = std::env::args_os()
+        .skip(1)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    let first = argv.first().cloned().unwrap_or_default();
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
-    if first == *"pulse" {
-        pulse_mode();
-        return;
+    if first == "pulse" {
+        std::process::exit(pulse_mode());
     }
     // The home diagnostic: one reading of the router, said out loud. The
     // doctor mode (P3) will absorb it; until then this is how the probe is
     // drilled and how a wrong config is diagnosed.
-    if first == *"home" {
+    if first == "home" {
         home_mode();
         return;
     }
     // The operator's mute, typed and timed. Also a MODE: it writes the state
     // the event path reads, and delivers nothing itself.
-    if first == *"quiet" {
+    if first == "quiet" {
         std::process::exit(quiet_mode());
     }
     // One test send through every configured channel, and one line per
     // registered plugin about it. A MODE for the same reason the others are:
     // it takes no decision, so nothing about an event's plan reaches it.
-    if first == *"doctor" {
+    if first == "doctor" {
         std::process::exit(doctor_mode());
     }
     // The return recap, rendered from the activity ring and posted to Discord.
     // A MODE for the reason the others are: it takes no decision, so no event's
     // plan reaches it. The event path starts it detached; an operator can also
     // run it by hand, which is how it is drilled.
-    if first == *"recap" {
+    if first == "recap" {
         std::process::exit(recap_mode());
     }
     // The clock. A MODE for the reason the others are: `run` takes no event
     // and delivers nothing itself, and the two typed verbs beside it only move
     // a file. Nothing on the event path below reaches it, and nothing here
     // reaches the event path except by re-executing this binary.
-    if first == *"daemon" {
+    if first == "daemon" {
         std::process::exit(daemon_mode(&second_argument()));
     }
     // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
     // takes no decision and delivers nothing, and the daemon is what runs it.
     // It reaches the event path through nothing at all.
-    if first == *"lights" {
+    if first == "lights" {
         std::process::exit(lights_mode(&second_argument()));
     }
     // The loop lease, taken and given back by hand. A MODE beside the lamps'
     // for the same reason: it moves one file and delivers nothing.
-    if first == *"loop" {
+    if first == "loop" {
         std::process::exit(loop_mode(&second_argument()));
     }
     // The nudge about an approval nobody answered. A MODE for the reason the
@@ -103,7 +102,7 @@ fn main() {
     // takes NO SESSION ARGUMENT either, because coalescing means it looks at
     // every outstanding record rather than at the one whose timer woke it, so
     // an argument would be a value it had to ignore.
-    if first == *"nag" {
+    if first == "nag" {
         std::process::exit(nag_mode());
     }
     // The first-run walk. A MODE that has to be reachable with NO CONFIG AT
@@ -111,13 +110,12 @@ fn main() {
     // everything that loads one. Nothing on the event path reaches it and it
     // reaches nothing there: it asks questions, composes text and publishes a
     // file, and delivers nothing.
-    if first == *"setup" {
+    if first == "setup" {
         std::process::exit(setup_mode());
     }
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
-    let first = first.to_string_lossy().into_owned();
     if pns::hooks::is_harness_subcommand(&first) {
         std::process::exit(gate_mode(&first));
     }
@@ -125,10 +123,10 @@ fn main() {
     // gate_mode, which REFUSES a word it will not vouch for: falling through
     // to the event path instead is how the documented spelling used to fire a
     // notification about an empty event.
-    if first == *"gate" {
+    if first == "gate" {
         std::process::exit(gate_mode(&second_argument()));
     }
-    if first == *"hook" {
+    if first == "hook" {
         std::process::exit(hook_mode(&second_argument()));
     }
     // A WORD THAT NAMES NO COMMAND IS A TYPO, never an event. It is the house
@@ -137,12 +135,15 @@ fn main() {
     // does not know, so `pns stpo` used to skip the word, render an empty event
     // and deliver it. The always-exit-0 contract governs EVENT deliveries, and
     // a word naming no command never becomes one, so refusing it here
-    // contradicts nothing.
-    if !is_producer_argv(&first) {
+    // contradicts nothing. `--help`/`-h` still reaches `event_mode` from here
+    // (see `is_producer_argv`): that parser holds the one help arm now, so
+    // there is no second copy of it up here to answer help before anything
+    // else runs.
+    if !is_producer_argv(&argv) {
         eprint!("{USAGE}");
         std::process::exit(2);
     }
-    event_mode();
+    event_mode(&argv);
 }
 
 /// Everything this binary answers to, and the flags a producer states an event
@@ -177,18 +178,23 @@ producer flags: --agent <name> --state <word> --project <name> --branch <name>
 /// IT READS THE WHOLE OF ARGV, not just the leading word, and that is the
 /// point. The parser deliberately accepts a stray token in front of the real
 /// flags, so a leading word alone does not make an invocation a typo: what does
-/// is argv carrying no producer flag anywhere. Refusing on the first word alone
-/// would drop real notifications, which is the exact mirror of the bug this
-/// refusal exists to fix.
+/// is argv carrying no producer flag, and no `--help`/`-h`, anywhere. Refusing
+/// on the first word alone would drop real notifications, which is the exact
+/// mirror of the bug this refusal exists to fix.
 ///
-/// An empty argv is the bare invocation `args` calls a valid empty event, and a
-/// leading `-` belongs to the parser whichever flag it turns out to be.
-fn is_producer_argv(first: &str) -> bool {
-    first.is_empty()
-        || first.starts_with('-')
-        || std::env::args_os()
-            .skip(1)
-            .any(|argument| pns::args::is_producer_flag(&argument.to_string_lossy()))
+/// AN EMPTY ARGV is the bare invocation `args` calls a valid empty event.
+/// A DASH-LED FIRST WORD IS NO LONGER A FREE PASS: that used to make ANY
+/// dash-led argv[1] a producer invocation, so a mistyped flag (`--wat`,
+/// `-help`, `--agent=claude`) delivered an empty event in silence, the `pns
+/// stpo` bug reopened for a typo that happens to start with a dash.
+/// `--help`/`-h` ARE COUNTED, so a producer invocation that only adds
+/// `--help` still reaches the parser below, which is where the help arm
+/// actually prints the usage and returns.
+fn is_producer_argv(argv: &[String]) -> bool {
+    argv.is_empty()
+        || argv
+            .iter()
+            .any(|token| pns::args::is_producer_flag(token) || pns::args::is_help_flag(token))
 }
 
 /// The word after the subcommand, or empty when there is none.
@@ -2250,16 +2256,19 @@ const CONDENSER_DEADLINE: Duration = Duration::from_secs(30);
 /// repository, not an answer worth waiting for.
 const GIT_DEADLINE: Duration = Duration::from_secs(5);
 
-/// One notification from argv.
-fn event_mode() {
-    // Lossy rather than validating: a stray byte in argv degrades into an
-    // unknown token, which the lenient contract already skips, instead of
-    // aborting an always-exit-0 notification.
-    let (event, warnings) = parse_args(
-        std::env::args_os()
-            .skip(1)
-            .map(|argument| argument.to_string_lossy().into_owned()),
-    );
+/// One notification from argv, or a usage print when `--help`/`-h` reached
+/// the parse in FLAG position.
+fn event_mode(argv: &[String]) {
+    let (event, warnings) = parse_args(argv.iter().cloned());
+    // HELP WINS BEFORE ANYTHING ELSE ON THIS PATH: no config load, no probe.
+    // It used to reach EVERYTHING when it fell through this same parser as an
+    // unknown token, which notified about an empty event and raised a banner
+    // titled "pns · done". Nothing about printing the commands needs the
+    // machine read.
+    if event.help {
+        print!("{USAGE}");
+        return;
+    }
     for warning in &warnings {
         eprintln!("pns: {warning}");
     }
@@ -3423,7 +3432,22 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// `hue.quiet_hours` on purpose: the gate lives at the event path's call site
 /// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
 /// inside the window, which is what keeps the window checkable while it is on.
-fn pulse_mode() {
+///
+/// THE WORD IS READ BEFORE THE CONFIG LOADS. `pulse --help` used to load the
+/// config first: with none it silently exited 0 having printed nothing, and
+/// with one it pulsed the room red, because a non-numeric word was read as a
+/// failing exit code. Reading the word first means `--help` and a bad code
+/// both answer with no machine read at all.
+fn pulse_mode() -> i32 {
+    let word = second_argument();
+    if pns::args::is_help_flag(&word) {
+        println!("{PULSE_USAGE}");
+        return 0;
+    }
+    let Some(behaviour) = pns::pulse::exit_behaviour(&word) else {
+        eprintln!("{PULSE_USAGE}");
+        return 2;
+    };
     let home = std::env::var("HOME").unwrap_or_default();
     // FAIL CLOSED, unlike an event. The roster fallback that keeps every
     // notification working through a broken config is an EVENT-mode rule:
@@ -3433,25 +3457,21 @@ fn pulse_mode() {
     let config = match load_config(&config_path(&home)) {
         Ok(LoadOutcome::Loaded(config)) => config,
         // Absent is not a mistake; never opting in earns no warning.
-        Ok(LoadOutcome::Missing) => return,
+        Ok(LoadOutcome::Missing) => return 0,
         Err(error) => {
             // The sanitized detail event mode prints, with the outcome THIS
             // mode had: there is no recoverable setting to fall back to, so
             // nothing pulses.
             eprintln!("pns: config error ({}); no pulse", error.detail());
-            return;
+            return 0;
         }
     };
-    fire_pulse(
-        enabled_hue_table(&config),
-        pns::pulse::exit_behaviour(
-            &std::env::args_os()
-                .nth(2)
-                .map(|code| code.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "0".to_string()),
-        ),
-    );
+    fire_pulse(enabled_hue_table(&config), behaviour);
+    0
 }
+
+const PULSE_USAGE: &str = "pns: usage: pns pulse [<exit-code>] | \
+pns pulse --help, -h (a bare `pulse` is a success pulse)";
 
 /// The `home` mode: one reading of the home probe, reported in one line, and
 /// the one stale-identifier alert that reading may earn.
