@@ -169,6 +169,11 @@ pub enum Spawned {
 /// for good. An abandoned thread finishes the job itself: by the time its
 /// spawn returns the budget is spent, so the `bounded_output` it then enters
 /// stops the group it just created.
+///
+/// ONLY WHILE UU LIVES, measured: `main` ends at `std::process::exit`, so a
+/// spawn whose kernel-side child already exists and that returns after uu has
+/// finished leaves it orphaned. Joining instead is the unbounded hang this
+/// exists to end, so that orphan is the accepted price.
 pub fn bounded_spawn(program: &str, args: &[&str], stdin: Stdio, budget: Duration) -> Spawned {
     let (send, receive) = std::sync::mpsc::channel();
     let owned_program = program.to_string();
@@ -338,6 +343,27 @@ pub(crate) mod tests {
             stdout: output.taken(),
             stderr: errors.taken(),
         }
+    }
+
+    #[test]
+    fn a_spawn_that_reaches_its_watchdog_with_the_budget_already_spent_still_stops_the_group() {
+        // THE ABANDONED THREAD'S OWN PATH. A spawn returning after the caller
+        // gave up enters `bounded_output` with a ZERO budget, which nothing
+        // else here reaches: `SystemRunner` refuses to spawn on a spent one.
+        let spawned = within(Duration::from_secs(5), || {
+            bounded_spawn(
+                "/bin/sh",
+                &["-c", "sleep 30"],
+                Stdio::null(),
+                Duration::ZERO,
+            )
+        });
+        let Spawned::Ran(finished) = spawned else {
+            panic!("the shell is there, so this ran");
+        };
+        // `Stopped` IS the proof the group is gone: it is reported only once
+        // both pipes reached EOF, which a group still holding them cannot do.
+        assert_eq!(finished.ended, Ended::Stopped);
     }
 
     #[test]
