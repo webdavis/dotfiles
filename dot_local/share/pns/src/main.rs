@@ -9787,12 +9787,13 @@ mod tests {
         // the time the first lamp's breath ended: all issued at once, late, a
         // jump rather than a breath.
         let bridge = scripted(true);
-        // TWO SHAPES THIS TEST OWNS, DELIBERATELY NOT THE LOCKED DEFAULTS. The
-        // interleave asserted below is the exact due-order these two durations
-        // produce, so reading either from `Lights::default()` would rewrite the
-        // expected order every time a cadence is retuned and this test would
-        // start failing for a reason it is not about. Leave these alone when a
-        // cadence change sends you grepping for a duration.
+        // TWO SHAPES THIS TEST OWNS, written out rather than read from
+        // `Lights::default()`. They equal the locked blocked and loop shapes as
+        // it happens, but the interleave asserted below is the exact due-order
+        // these two durations produce, so reading them from the defaults would
+        // rewrite the expected order every time a cadence is retuned and this
+        // test would start failing for a reason it is not about. Leave these
+        // alone when a cadence change sends you grepping for a duration.
         let quick = pns::config::Breath {
             duration_ms: 2000,
             high: 100,
