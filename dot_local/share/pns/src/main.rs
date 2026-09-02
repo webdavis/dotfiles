@@ -603,13 +603,12 @@ fn record_missed(
 /// backstop above and closed by the session's next event, which re-publishes
 /// the wait it is still in.
 ///
-/// THE BACKSTOP CAN SWEEP A MARKER THE NAG HAS NOT YET NUDGED, when
-/// `[lights.blocked] give_up_after_secs` is configured shorter than
-/// `[nag] after_secs`: the tick's own bound has no idea a nag record still
-/// names the session. That leaves the lamp dark for a wait that is still
-/// live, and the nag's own fire is what relights it: `pns nag` calls this,
-/// once per approval it counted, at its own clock, right after it cards
-/// them. Dark from the sweep until the fire, never longer.
+/// THE BACKSTOP CANNOT SWEEP A MARKER THE NAG HAS NOT YET NUDGED, and that is
+/// held at CONFIG LOAD rather than here: `[lights.blocked] give_up_after_secs`
+/// shorter than `[nag] after_secs` is refused by name (`config::parse_config`),
+/// because it is a config that gives up on a wait before it ever nudges about
+/// it. Nothing at this level re-publishes a swept marker, so nothing here has
+/// to tell an abandoned session from a live one.
 ///
 /// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason.
 fn update_blocked_marker(
@@ -4032,23 +4031,7 @@ fn nag_mode() -> i32 {
     // A CONFIG THAT TURNED THE FEATURE OFF BETWEEN ARMING AND FIRING MEANS NO
     // NUDGE, and the records go with it: the operator cancelled the timer, and
     // a card from it would be the feature ignoring them.
-    //
-    // ONE LOAD, KEPT, rather than `nag_after_secs()` called and its config
-    // dropped: the relight below needs `lamps_live` off the same read, and a
-    // second load could disagree with the first about a config edited between
-    // them.
-    let (after_secs, lamps_live) =
-        match load_config(&config_path(&std::env::var("HOME").unwrap_or_default())) {
-            Ok(LoadOutcome::Loaded(config)) => (
-                config.nag_after_secs,
-                config.lights.is_some() && enabled_hue_table(&config).is_some(),
-            ),
-            // AN UNREADABLE CONFIG MEANS OFF, `nag_after_secs`'s own fallback, and
-            // FALSE for the same reason: a feature that INTERRUPTS or ACCUMULATES
-            // markers nothing will sweep must not be switched on by a parse
-            // failure.
-            _ => (NAG_OFF, false),
-        };
+    let after_secs = nag_after_secs();
     if after_secs == NAG_OFF {
         let dropped = record_entries(&directory)
             .iter()
@@ -4185,14 +4168,6 @@ fn nag_mode() -> i32 {
         &HookPayload::default(),
         Attempt::Nudge,
     );
-    // THE RELIGHT, ONE PER APPROVAL THIS COUNTED, and this is the one place
-    // that still can (see `update_blocked_marker`'s doc for why the backstop
-    // can darken a wait this fire has not yet nudged). `held` is every
-    // session this fire is about to card for, which is exactly who is still
-    // waiting, so each earns its marker back at the fire's own clock.
-    for (_, _, session) in &held {
-        update_blocked_marker(&state, session, BLOCKED_STATE, lamps_live, Some(now));
-    }
     for (claim, _, _) in &held {
         if let Err(error) = std::fs::remove_file(claim) {
             eprintln!(
