@@ -504,7 +504,10 @@ stderr is read and printed by the comparison, not only captured.
    formatter that PR 1 lands is run as `stylua --check` against the backup copy with Homebrew's
    stylua BEFORE the flatten; the live config is clean under Mason's 2.3.1 today, and if Homebrew's
    2.5.2 wants a rewrite, the import PR adds the same `dot_config/nvim/**` exclusion for stylua and
-   PR 4d lifts every exclusion with the reformat as its own commit.
+   PR 4d lifts every exclusion with the reformat as its own commit. `diff -r` compares content only:
+   it is blind to a permission change and to a file replaced by a symlink with identical content
+   (both measured). Vacuous today, since the tracked tree has zero non-0644 files and zero symlinks,
+   but every later PR leans on this same check, so a mode change or a symlink swap would pass silent.
 2. **Lock.** The second diff.
 3. **Startup.** The five runs per phase are the 9.1 method (synthetic, with `User VeryLazy` fired by
    hand). The stderr check above is fatal on any nonempty log. The `median` function is the 9.1 median
