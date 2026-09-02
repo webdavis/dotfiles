@@ -285,8 +285,10 @@ fn config_field(text: &str, max_chars: usize) -> String {
 }
 
 /// The longest path a `ConfigChange` field carries into a card or the audit
-/// trail. Past `PATH_MAX` on both platforms this runs on, so no real path is
-/// ever cut, and short enough that the trail's own arithmetic holds: see
+/// trail. THE CARD AND AUDIT BUDGET, not a claim about every real path: it is
+/// macOS's own `PATH_MAX`, but Linux's is 4096, so a genuinely long Linux path
+/// IS visibly clipped here, with the cut marked rather than silent. Short
+/// enough that the trail's own arithmetic holds regardless: see
 /// `POLICY_SETTINGS_AUDIT_KEPT`.
 const CONFIG_PATH_MAX_CHARS: usize = 1024;
 
