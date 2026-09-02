@@ -6,24 +6,27 @@
 //! all uu runs nothing, logs what it found and exits clean, which is what
 //! makes a fresh install harmless.
 //!
-//! EVERY UNKNOWN KEY IS REFUSED BY NAME, and so is every unknown lane. The
-//! failure that buys is the one a silent pass-through cannot report: a lane
-//! spelled `[lanes.hedr]` is a week that quietly updates nothing while the
-//! operator reads a config that looks right.
+//! EVERY UNKNOWN KEY IS REFUSED BY NAME, and so is every lane whose `type`
+//! this build does not serve, or that states none on a name that is not itself
+//! a type. The failure that buys is the one a silent pass-through cannot
+//! report: a lane spelled `[lanes.hedr]` is a week that quietly updates
+//! nothing while the operator reads a config that looks right.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config; a MISSING file is its own outcome,
 //! distinct from both error and emptiness; a `[records]` block with no signing
 //! key is refused rather than left as a record path that can never land.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// The lanes this build knows how to run, in the order `uu run` runs them.
-///
-/// ONE ROSTER. The config refusal that names an unknown lane, the selection
-/// that decides what `uu run` executes, and the doctor's listing all read this,
-/// so a lane cannot be runnable and unnameable at the same time.
-pub const LANE_NAMES: &[&str] = &["herdr"];
+/// The lane TYPES this build knows how to run: the roster of BUILT-IN
+/// adapters, never the roster of names an operator may declare. A lane's NAME
+/// is the operator's own choice (a producer-API lane names itself whatever it
+/// likes); this is the roster its `type` is judged against, so the refusal
+/// that names an unknown type and the listing of what this build serves both
+/// read the one table.
+pub const LANE_TYPES: &[&str] = &["herdr"];
 
 /// Where the config lives for a given home directory. Pure, so the path rule
 /// is testable without an environment.
@@ -106,10 +109,35 @@ pub struct Alerts {
 /// command uu runs.
 pub const DEFAULT_ALERT_BINARY: &str = "pns";
 
-/// Every lane's block, present only when the operator wrote one.
-#[derive(Debug, Default, PartialEq)]
-pub struct Lanes {
-    pub herdr: Option<HerdrLane>,
+/// The lane REGISTRY: every declared `[lanes.<name>]` block, keyed by the name
+/// the operator chose. A `BTreeMap` orders lanes by NAME regardless of the
+/// file's own order (`toml::Table` is itself a `BTreeMap`, and neither this
+/// crate nor pns enables the `toml`/`indexmap` `preserve_order` feature, so a
+/// run's sequence never depends on where a block happens to sit in the file).
+pub type Lanes = BTreeMap<String, LaneKind>;
+
+/// One lane's ADAPTER, selected by its `type` key (the house rule: `type`
+/// selects backends everywhere). The kind carries the lane's own parsed
+/// settings; behavior lives in `lanes::run_lane`'s one dispatch match, never
+/// here.
+///
+/// A `Command` variant is next, in a later PR: a generic adapter that runs any
+/// executable the block names. Its stdin will be PRE-FILLED before the child
+/// spawns, rather than written to it after, because uu resets SIGPIPE to
+/// SIG_DFL at start-up (main.rs), and a write to a child's stdin after spawn
+/// can kill uu with status 141 if that child exits without reading it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LaneKind {
+    Herdr(HerdrLane),
+}
+
+impl LaneKind {
+    /// The `type` value this variant was parsed from.
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            LaneKind::Herdr(_) => "herdr",
+        }
+    }
 }
 
 /// `[lanes.herdr]`: the herdr binary to drive, and the plugin roster to
@@ -170,7 +198,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("schedule", &["day", "time"]),
     ("records", &["key", "url"]),
     ("alerts", &["binary"]),
-    ("lanes.herdr", &["binary", "plugins"]),
+    ("lanes.herdr", &["binary", "plugins", "type"]),
 ];
 
 /// The roster row for the file's own top level. THE EMPTY NAME, because that
@@ -187,7 +215,11 @@ fn keys_of(table: &str) -> Option<&'static [&'static str]> {
 }
 
 /// Whether a table admits a key, refusing it BY NAME and with the whole
-/// vocabulary spelled out when it does not.
+/// vocabulary spelled out when it does not. `table` is what the refusal NAMES
+/// as the offender; `vocabulary` is which `TABLE_KEYS` row judges it. The two
+/// differ only for a lane block, where an operator-chosen name (`lanes.mine`)
+/// is judged against its TYPE's row (`lanes.herdr`); every other caller passes
+/// the same string twice.
 ///
 /// THIS IS THE ONE GATE, and every table's match then has a fallthrough that
 /// does nothing. The alternative shape, a gate here AND a refusal in each
@@ -196,20 +228,27 @@ fn keys_of(table: &str) -> Option<&'static [&'static str]> {
 /// drift this arrangement could still admit, a key declared in the roster with
 /// no arm to read it, is what `every_key_the_roster_declares_is_actually_read`
 /// walks.
-fn admits(table: &str, key: &str) -> Result<(), ConfigError> {
-    match keys_of(table) {
-        Some(serves) if !serves.contains(&key) => Err(unknown_key(table, key)),
+fn admits(table: &str, vocabulary: &str, key: &str) -> Result<(), ConfigError> {
+    match keys_of(vocabulary) {
+        Some(serves) if !serves.contains(&key) => Err(unknown_key(table, vocabulary, key)),
         _ => Ok(()),
     }
 }
 
-/// The refusal itself, naming the table, the key, and the whole vocabulary.
-/// THE LISTING IS THE POINT: a refusal that only says a key is unknown leaves
-/// an operator guessing at the spelling, and guessing is what produced it.
-fn unknown_key(table: &str, key: &str) -> ConfigError {
+/// The refusal itself, naming the offending table, the key, and the
+/// vocabulary that answers for it. THE LISTING IS THE POINT: a refusal that
+/// only says a key is unknown leaves an operator guessing at the spelling,
+/// and guessing is what produced it. A lane's vocabulary is phrased around
+/// its TYPE ("a `herdr` lane serves ...") because the table named in the
+/// refusal may be a name the operator chose, not the type that governs it.
+fn unknown_key(table: &str, vocabulary: &str, key: &str) -> ConfigError {
+    let keys = keys_of(vocabulary).unwrap_or_default().join(", ");
+    let whose = match vocabulary.strip_prefix("lanes.") {
+        Some(kind) => format!("a `{kind}` lane"),
+        None => "the table".to_string(),
+    };
     ConfigError::Invalid(format!(
-        "unknown `{table}` key `{key}`; the table serves {}",
-        keys_of(table).unwrap_or_default().join(", ")
+        "unknown `{table}` key `{key}`; {whose} serves {keys}"
     ))
 }
 
@@ -271,7 +310,7 @@ fn parse_schedule(value: toml::Value) -> Result<Schedule, ConfigError> {
     let table = table_of("schedule", value)?;
     let mut schedule = Schedule::default();
     for (key, setting) in table {
-        admits("schedule", &key)?;
+        admits("schedule", "schedule", &key)?;
         match key.as_str() {
             "day" => schedule.weekday = weekday(&non_empty("schedule", &key, &setting)?)?,
             "time" => {
@@ -339,7 +378,7 @@ fn parse_records(value: toml::Value) -> Result<Records, ConfigError> {
     let mut url = DEFAULT_RECORD_URL.to_string();
     let mut key = None;
     for (name, setting) in table {
-        admits("records", &name)?;
+        admits("records", "records", &name)?;
         match name.as_str() {
             "url" => url = non_empty("records", &name, &setting)?,
             "key" => key = Some(non_empty("records", &name, &setting)?),
@@ -364,7 +403,7 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     let table = table_of("alerts", value)?;
     let mut binary = DEFAULT_ALERT_BINARY.to_string();
     for (name, setting) in table {
-        admits("alerts", &name)?;
+        admits("alerts", "alerts", &name)?;
         // One key, so an `if` rather than the match the other tables use;
         // `admits` above is still the one gate and nothing else can arrive.
         if name == "binary" {
@@ -374,41 +413,74 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     Ok(Alerts { binary })
 }
 
-/// `[lanes]`, whose vocabulary is the lane NAMES themselves.
+/// `[lanes]`, whose blocks are keyed by an operator-chosen NAME and dispatch
+/// on the TYPE each one states.
 ///
-/// AN UNKNOWN LANE IS REFUSED rather than ignored, which is the one place this
-/// file departs from pns's free-form plugin settings. A misspelled lane is a
-/// subject that silently never updates, and nothing else on the machine would
-/// ever say so.
+/// A TYPE IS REQUIRED, EXPLICIT OR IMPLIED, and an unrecognized one is
+/// refused rather than ignored, which is the one place this file departs
+/// from pns's free-form plugin settings. A lane declared but never dispatched
+/// is a subject that silently never updates, and nothing else on the machine
+/// would ever say so.
 fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
     let table = table_of("lanes", value)?;
-    let mut lanes = Lanes::default();
+    let mut lanes = Lanes::new();
     for (name, block) in table {
-        match name.as_str() {
-            "herdr" => lanes.herdr = Some(parse_herdr_lane(block)?),
-            _ => {
-                return Err(ConfigError::Invalid(format!(
-                    "unknown lane `{name}`; this build runs {}",
-                    LANE_NAMES.join(", ")
-                )));
-            }
-        }
+        let table_label = format!("lanes.{name}");
+        let fields = table_of(&table_label, block)?;
+        let kind = match lane_type(&name, &table_label, &fields)?.as_str() {
+            "herdr" => LaneKind::Herdr(parse_herdr_lane(&table_label, fields)?),
+            // `lane_type` never returns anything outside `LANE_TYPES`.
+            _ => unreachable!("lane_type only answers a member of LANE_TYPES"),
+        };
+        lanes.insert(name, kind);
     }
     Ok(lanes)
 }
 
-fn parse_herdr_lane(value: toml::Value) -> Result<HerdrLane, ConfigError> {
-    let table = table_of("lanes.herdr", value)?;
+/// The lane's TYPE: read from its own `type` key, or IMPLIED when the block
+/// says nothing and the NAME itself is a built-in type.
+///
+/// ONLY A BUILT-IN NAME GETS THIS DEFAULT, narrower on purpose than pns's
+/// "NOTHING GUESSES A BACKEND": it is what keeps a config written before the
+/// producer API (a bare `[lanes.herdr]`, no `type`) working unchanged. A name
+/// that is not a built-in type and states no `type` names nothing to dispatch
+/// on, so it is refused rather than guessed.
+fn lane_type(name: &str, table_label: &str, table: &toml::Table) -> Result<String, ConfigError> {
+    match table.get("type") {
+        Some(value) => {
+            let stated = non_empty(table_label, "type", value)?;
+            if LANE_TYPES.contains(&stated.as_str()) {
+                Ok(stated)
+            } else {
+                Err(ConfigError::Invalid(format!(
+                    "lane `{name}` has type `{stated}`, which is no lane type; this build serves \
+                     {}",
+                    LANE_TYPES.join(", ")
+                )))
+            }
+        }
+        None if LANE_TYPES.contains(&name) => Ok(name.to_string()),
+        None => Err(ConfigError::Invalid(format!(
+            "lane `{name}` names no `type`; this build serves {}",
+            LANE_TYPES.join(", ")
+        ))),
+    }
+}
+
+fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, ConfigError> {
     let mut lane = HerdrLane {
         binary: DEFAULT_HERDR_BINARY.to_string(),
         plugins: Vec::new(),
     };
     for (name, setting) in table {
-        admits("lanes.herdr", &name)?;
+        admits(table_label, "lanes.herdr", &name)?;
         match name.as_str() {
-            "binary" => lane.binary = non_empty("lanes.herdr", &name, &setting)?,
+            "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
             "plugins" => lane.plugins = parse_plugins(&setting)?,
-            // `admits` above is the ONE gate; nothing reaches here.
+            // Read by `lane_type` before this block was dispatched; nothing
+            // is left to do with it here.
+            "type" => {}
+            // `admits` above is the ONE gate; nothing else reaches here.
             _ => {}
         }
     }
@@ -543,10 +615,89 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_lane_is_refused_by_name_rather_than_silently_never_running() {
+    fn a_lane_named_after_no_built_in_type_and_naming_no_type_is_refused_by_name() {
         let detail = refusal("[lanes.hedr]\n");
-        assert!(detail.contains("unknown lane `hedr`"), "{detail}");
+        assert!(detail.contains("lane `hedr` names no `type`"), "{detail}");
         assert!(detail.contains("herdr"), "{detail}");
+    }
+
+    #[test]
+    fn an_unknown_lane_type_is_refused_naming_it_and_the_known_types() {
+        let detail = refusal("[lanes.mine]\ntype = \"hedr\"\n");
+        assert!(detail.contains("lane `mine` has type `hedr`"), "{detail}");
+        assert!(detail.contains("herdr"), "{detail}");
+    }
+
+    #[test]
+    fn the_herdr_lane_still_parses_with_its_type_written_out() {
+        assert_eq!(
+            parsed("[lanes.herdr]\ntype = \"herdr\"\n")
+                .lanes
+                .get("herdr"),
+            Some(&LaneKind::Herdr(HerdrLane {
+                binary: DEFAULT_HERDR_BINARY.to_string(),
+                plugins: Vec::new(),
+            }))
+        );
+    }
+
+    #[test]
+    fn a_herdr_lane_may_carry_any_name_once_its_type_says_herdr() {
+        assert_eq!(
+            parsed("[lanes.mine]\ntype = \"herdr\"\n").lanes.get("mine"),
+            Some(&LaneKind::Herdr(HerdrLane {
+                binary: DEFAULT_HERDR_BINARY.to_string(),
+                plugins: Vec::new(),
+            }))
+        );
+    }
+
+    #[test]
+    fn every_lane_type_refuses_a_key_it_does_not_serve_and_so_does_a_user_named_lane() {
+        // The built-in roster, judged by its own name...
+        for kind in LANE_TYPES {
+            let detail = refusal(&format!("[lanes.{kind}]\nbogus = 1\n"));
+            assert!(
+                detail.contains(&format!("unknown `lanes.{kind}` key `bogus`")),
+                "{detail}"
+            );
+        }
+        // ...and an operator-chosen name of that same type, judged the same
+        // way: the table named in the refusal is the CHOSEN name, and the
+        // vocabulary spelled out is still the TYPE's.
+        let detail = refusal("[lanes.mine]\ntype = \"herdr\"\nbogus = 1\n");
+        assert!(
+            detail.contains("unknown `lanes.mine` key `bogus`"),
+            "{detail}"
+        );
+        assert!(detail.contains("a `herdr` lane serves"), "{detail}");
+    }
+
+    #[test]
+    fn the_templates_own_herdr_lane_shape_parses() {
+        // dot_config/uu/private_config.toml.tmpl's [lanes.herdr] block,
+        // verbatim, with its two templated values stood in for by a
+        // placeholder: this cannot render headless (it reads the vault), so
+        // this is what proves the SHAPE the template ships is one the parser
+        // still accepts once `type` is added.
+        let config = parsed(
+            "[lanes.herdr]\n\
+             type = \"herdr\"\n\
+             binary = \"/home/example/.local/bin/herdr\"\n\
+             plugins = [\n\
+               { id = \"worktrunk\", repo = \"owner/herdr-worktrunk\" },\n\
+             ]\n",
+        );
+        assert_eq!(
+            config.lanes.get("herdr"),
+            Some(&LaneKind::Herdr(HerdrLane {
+                binary: "/home/example/.local/bin/herdr".to_string(),
+                plugins: vec![Plugin {
+                    id: "worktrunk".to_string(),
+                    repo: "owner/herdr-worktrunk".to_string(),
+                }],
+            }))
+        );
     }
 
     #[test]
@@ -569,7 +720,7 @@ mod tests {
                 "[lanes.herdr]\nplugin = []\n",
                 "lanes.herdr",
                 "plugin",
-                "binary, plugins",
+                "binary, plugins, type",
             ),
         ] {
             let detail = refusal(text);
@@ -741,11 +892,11 @@ mod tests {
     #[test]
     fn a_lane_block_with_nothing_in_it_is_the_lane_on_with_its_defaults() {
         assert_eq!(
-            parsed("[lanes.herdr]\n").lanes.herdr,
-            Some(HerdrLane {
+            parsed("[lanes.herdr]\n").lanes.get("herdr"),
+            Some(&LaneKind::Herdr(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
-            })
+            }))
         );
     }
 
@@ -758,8 +909,11 @@ mod tests {
                { id = \"herdr-bar\", repo = \"other/herdr-bar\" },\n\
              ]\n",
         );
+        let Some(LaneKind::Herdr(herdr)) = config.lanes.get("herdr") else {
+            panic!("expected a herdr lane, got {:?}", config.lanes.get("herdr"));
+        };
         assert_eq!(
-            config.lanes.herdr.unwrap().plugins,
+            herdr.plugins,
             vec![
                 Plugin {
                     id: "worktrunk".to_string(),
@@ -881,14 +1035,16 @@ mod tests {
     }
 
     #[test]
-    fn every_lane_the_roster_names_has_a_block_the_parser_accepts() {
-        // The roster is what the refusal lists and what selection walks. A name
-        // in it that the parser refuses would advertise a lane nobody can turn
-        // on.
-        for lane in LANE_NAMES {
+    fn every_built_in_lane_type_has_a_minimal_block_the_parser_accepts() {
+        // One minimal, valid block per BUILT-IN TYPE (the WEEKDAY_NAMES
+        // pattern): a type in the roster that the parser refuses would
+        // advertise a lane nobody can turn on.
+        let fixtures: &[(&str, &str)] = &[("herdr", "[lanes.herdr]\n")];
+        assert_eq!(LANE_TYPES.len(), fixtures.len());
+        for (kind, text) in fixtures {
             assert!(
-                parse_config(&format!("[lanes.{lane}]\n")).is_ok(),
-                "the roster names `{lane}` but the parser refuses its block"
+                parse_config(text).is_ok(),
+                "the roster names `{kind}` but the parser refuses its minimal block"
             );
         }
     }

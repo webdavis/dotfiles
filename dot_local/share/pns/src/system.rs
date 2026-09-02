@@ -364,6 +364,7 @@ pub struct SystemProbes<R: CommandRunner> {
     marker_mtime: std::cell::OnceCell<Option<u64>>,
     phone_atime: std::cell::OnceCell<Option<u64>>,
     screen_locked: std::cell::OnceCell<Option<bool>>,
+    now: std::cell::OnceCell<Option<u64>>,
 }
 
 impl<R: CommandRunner> SystemProbes<R> {
@@ -375,7 +376,40 @@ impl<R: CommandRunner> SystemProbes<R> {
             marker_mtime: std::cell::OnceCell::new(),
             phone_atime: std::cell::OnceCell::new(),
             screen_locked: std::cell::OnceCell::new(),
+            now: std::cell::OnceCell::new(),
         }
+    }
+
+    /// The wall clock, taken once and remembered like the four probes beside
+    /// it: see the struct doc. THE FIFTH MEMOIZED READING, and the one the
+    /// four beside it are aged against, which is why forwarding to the phone
+    /// and deciding what to deliver must read this same cell rather than each
+    /// taking their own: a second boundary between two wall-clock reads is
+    /// what drifted a phone reading and a desk reading apart in R4-1. AN
+    /// UNREADABLE CLOCK IS REMEMBERED TOO: the first reader's `None` is the
+    /// second reader's `None`, so the two can never disagree about whether
+    /// there was a clock at all.
+    pub fn now_secs(&self) -> Option<u64> {
+        *self.now.get_or_init(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|since_epoch| since_epoch.as_secs())
+        })
+    }
+
+    /// Seeds the clock reading for a test, so a suite can pin "now" to an
+    /// exact second instead of racing the real one.
+    ///
+    /// `cfg(test)`-ONLY AND NEVER FROM THE ENVIRONMENT. The four probes
+    /// beside this one stay live in production no matter what a test does,
+    /// because nothing here reads an override out of `std::env`: unlike the
+    /// desk and phone thresholds, the wall clock has no operator-facing knob
+    /// to seed it by accident.
+    #[cfg(test)]
+    pub fn with_clock(self, now: u64) -> Self {
+        let _ = self.now.set(Some(now));
+        self
     }
 }
 
@@ -505,6 +539,13 @@ impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
     /// layout names the origin's tab as well, so the third call is gone.
     /// Either call failing yields None, which the model reads as Unknown
     /// rather than as "not visible".
+    ///
+    /// NO CELL, UNLIKE THE OTHER FOUR PROBES ON THIS STRUCT: this has exactly
+    /// one production reader (`engine::operator_visibility`), so "one probe
+    /// set is one reading" already holds by call site alone, with nothing to
+    /// memoize against. A second production reader would need the same
+    /// `OnceCell` the other four carry, to keep that property true once it is
+    /// no longer free.
     fn session_view(&self, origin_pane: &str) -> Option<crate::surface::SessionView> {
         let focused_tab = parse_focused_tab(&self.herdr("workspace", &["list"])?)?;
         let layout = parse_layout(&self.herdr("pane", &["layout", "--pane", origin_pane])?)?;
@@ -830,6 +871,22 @@ mod tests {
         assert_eq!(probes.idle_secs(), None);
         assert_eq!(probes.idle_secs(), None);
         assert_eq!(calls.get(), 1);
+    }
+
+    #[test]
+    fn the_clock_is_the_fifth_memoized_reading() {
+        // A wall clock read twice can answer twice: a second boundary between
+        // the two reads is exactly what drifted a phone reading and a desk
+        // reading apart in R4-1. Seeding a fixed value and asking twice is
+        // what proves this answers the CELL and not the clock: a mutant that
+        // bypassed the cell would answer the real epoch here, not 42.
+        let probes = probes_answering("unused").with_clock(42);
+        assert_eq!(probes.now_secs(), Some(42));
+        assert_eq!(
+            probes.now_secs(),
+            Some(42),
+            "and the same answer both times"
+        );
     }
 
     // --- parse_idle_nanoseconds --------------------------------------------

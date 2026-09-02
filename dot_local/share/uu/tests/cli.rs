@@ -123,6 +123,10 @@ fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
+fn stderr(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stderr).to_string()
+}
+
 /// A loopback port with nothing behind it: bound only to learn a number the
 /// kernel says is free, then released. A connection there is REFUSED at once,
 /// so the record path's failure arm is exercised without waiting out a
@@ -142,6 +146,32 @@ fn a_machine_with_no_config_updates_nothing_and_exits_clean() {
         !home.marker().exists(),
         "a run that did nothing must not invent a success"
     );
+}
+
+#[test]
+fn a_lane_asked_for_by_name_on_a_configless_machine_is_refused_with_exit_one() {
+    // The bare run above is clean by design; a lane named on the command line
+    // is a request, and a request that could not run is not a success.
+    let home = Home::new("no-config-by-name");
+    let output = home.uu(&["run", "herdr"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(stderr(&output).contains("no config"), "{output:?}");
+    assert!(!home.marker().exists(), "{output:?}");
+}
+
+#[test]
+fn a_lane_the_config_never_declares_is_refused_by_name_with_exit_one() {
+    // With no static roster of names left, this is the ONLY guard on `uu run
+    // <lane>`: a name nothing declares must exit non-zero and stamp no
+    // success, or a typo reads as a run that worked.
+    let home = Home::new("undeclared").with_herdr_lane(0);
+    let output = home.uu(&["run", "hedr"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(
+        stderr(&output).contains("no `[lanes.hedr]` block"),
+        "{output:?}"
+    );
+    assert!(!home.marker().exists(), "{output:?}");
 }
 
 #[test]
@@ -248,6 +278,28 @@ fn the_doctor_never_prints_the_records_signing_key() {
     );
     assert!(!everything.contains("s3cr3t-value"), "{everything}");
     assert!(everything.contains("key set"), "{everything}");
+}
+
+#[test]
+fn the_doctor_lists_each_declared_lane_with_its_type() {
+    let home = Home::new("doctor-lanes").with_config("[lanes.herdr]\ntype = \"herdr\"\n");
+    let output = home.uu(&["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        stdout(&output).contains("lane herdr: on (herdr)"),
+        "{output:?}"
+    );
+}
+
+#[test]
+fn the_doctor_says_so_when_the_config_declares_no_lane() {
+    let home = Home::new("doctor-no-lanes").with_config("[schedule]\nday = \"sunday\"\n");
+    let output = home.uu(&["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        stdout(&output).contains("lanes: none declared"),
+        "{output:?}"
+    );
 }
 
 #[test]
