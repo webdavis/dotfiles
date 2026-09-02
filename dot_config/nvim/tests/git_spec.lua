@@ -80,6 +80,14 @@ return {
     assert(err:find("repo_name", 1, true), "the message does not name repo_name: " .. err)
   end,
 
+  ["url names its missing repo_name too"] = function()
+    -- url guards three arguments and only two were pinned, so a mutation of
+    -- this one survived.
+    local ok, err = pcall(git.url, { remote = "origin", account_name = "webdavis" })
+    assert(not ok, "accepted a call with no repo_name")
+    assert(err:find("repo_name", 1, true), "the message does not name repo_name: " .. err)
+  end,
+
   ["url names the argument it actually wants"] = function()
     -- It wanted `account_name` and said `user` (item 20).
     local ok, err = pcall(git.url, { remote = "origin", repo_name = "dotfiles" })
