@@ -6125,6 +6125,29 @@ fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
         "the trail stays inside the reader's own ceiling: {} bytes recorded",
         recorded.len()
     );
+
+    // THE SAME-SANDBOX CONTROL, in `a_non_policy_config_change_writes_no_policy_audit_entry`'s
+    // own style. Both assertions above hold vacuously if the writer never ran
+    // at all: a seeded line that nothing ever touches also "survives" and the
+    // file also stays "under the ceiling". Firing ONE ordinary
+    // `policy_settings` event now, on the same sandbox, proves the writer was
+    // reachable the whole time and the huge path above was really what it
+    // healed around.
+    let control = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "config-change",
+        &config_change_payload("s2", "policy_settings", Some("/etc/claude/second.json")),
+    );
+    assert!(control.status.success());
+    let recorded_after_control =
+        std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
+            .expect("the audit trail");
+    assert!(
+        recorded_after_control.contains("/etc/claude/second.json"),
+        "the control: an ordinary policy_settings event under this same setup \
+         appends to the trail: {recorded_after_control:?}"
+    );
 }
 
 #[test]
