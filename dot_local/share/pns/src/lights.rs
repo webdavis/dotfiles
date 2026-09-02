@@ -462,10 +462,29 @@ pns loop end [--pane <id>]";
 /// had died was never collected either. A name is a working file only when what
 /// follows the LAST such marker is a positive process id, which is a name only
 /// this crate's own writers produce.
+///
+/// THE RIGHTMOST OF THE TWO SUFFIXES, compared by OFFSET rather than tried one
+/// after the other: `a.new.b.sweep.1` is the sweep's own working file on a
+/// marker shaped like a publish, and trying `.new.` first found it, read the
+/// marker's own name as the owner, failed to parse it as a pid and answered
+/// `None`, so that working file was never collected. Two runs never write
+/// both suffixes into one name, so only one candidate is ever real; comparing
+/// offsets picks it without caring which writer's shape it was.
 pub fn working_owner(name: &str) -> Option<&str> {
-    let (_, owner) = name
-        .rsplit_once(WORKING_PENDING)
-        .or_else(|| name.rsplit_once(WORKING_SWEEP))?;
+    let pending = name.rfind(WORKING_PENDING).map(|at| (at, WORKING_PENDING));
+    let sweep = name.rfind(WORKING_SWEEP).map(|at| (at, WORKING_SWEEP));
+    let (at, marker) = match (pending, sweep) {
+        (Some(pending), Some(sweep)) => {
+            if pending.0 >= sweep.0 {
+                pending
+            } else {
+                sweep
+            }
+        }
+        (Some(only), None) | (None, Some(only)) => only,
+        (None, None) => return None,
+    };
+    let owner = &name[at + marker.len()..];
     (crate::parse_count(owner)? > 0).then_some(owner)
 }
 
@@ -1214,6 +1233,32 @@ mod tests {
         ] {
             assert_eq!(working_owner(marker), None, "{marker:?} is a marker");
         }
+    }
+
+    #[test]
+    fn a_working_file_is_told_by_its_rightmost_suffix_not_its_first() {
+        // A MARKER NAMED FOR THE SUFFIX ITSELF SITS TO THE LEFT of the sweep's
+        // own working file on that marker: `a.new.b` is the marker, and the
+        // sweep taking it writes `a.new.b.sweep.<pid>` beside it. The first
+        // `rsplit_once` this used to run found `.new.` and stopped there,
+        // reading the marker's own name as the owner and failing to parse it
+        // as a pid, so the sweep's working file was judged a marker too and
+        // was never collected: one abandoned run leaks a working file forever.
+        assert_eq!(
+            working_owner("a.new.b.sweep.1"),
+            Some("1"),
+            "the sweep's working file on a marker shaped like a publish"
+        );
+        assert_eq!(
+            working_owner("a.sweep.1.new.2"),
+            Some("2"),
+            "and the reverse nesting reads the same way"
+        );
+        assert_eq!(
+            working_owner("x.sweep.1"),
+            Some("1"),
+            "a plain sweep working file is unaffected"
+        );
     }
 
     #[test]
