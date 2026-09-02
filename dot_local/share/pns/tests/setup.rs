@@ -226,6 +226,15 @@ fn a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending
         "the real reason was not reported: {:?}",
         pty.transcript
     );
+    // THE DETAIL, not only the generic prefix: the underlying io::Error's
+    // own text is "stream did not contain valid UTF-8", and a build that
+    // reports the same generic prefix for every read failure would still
+    // pass without this.
+    assert!(
+        pty.transcript.contains("valid UTF-8"),
+        "the UTF-8 detail was not carried into the refusal: {:?}",
+        pty.transcript
+    );
     assert!(
         !pty.transcript
             .contains("the answers ended before the walk did"),
