@@ -586,10 +586,12 @@ pub const TOP_LEVEL: &str = "";
 ///
 /// THE SHARED STUB, lifted out of this module's own test for the shipped
 /// template so `config_text`'s tests can fake-render a secret action the same
-/// way: a rendered secret is not TOML (the action's own `"` sits unescaped
-/// inside a basic string), so a round-trip test has to stand in for chezmoi
-/// before it hands the text to `parse_config`, and one stub is what keeps that
-/// standing-in from drifting between the two callers.
+/// way: a rendered secret action carries no author quotes of its own (`|
+/// toToml` supplies them once chezmoi resolves the value), so `placeholder`
+/// must be a quoted string for the substituted text to stand in for what
+/// chezmoi would actually have produced. A round-trip test has to stand in
+/// for chezmoi before it hands the text to `parse_config`, and one stub is
+/// what keeps that standing-in from drifting between the two callers.
 #[cfg(test)]
 pub(crate) fn strip_chezmoi_actions(text: &str, placeholder: &str) -> String {
     text.lines()
@@ -3435,7 +3437,7 @@ mod tests {
     /// KEYS the file names and under which tables, and no action in it is a key
     /// or a table; they are one conditional wrapper and six secrets.
     fn rendered_template() -> String {
-        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "from-the-vault")
+        super::strip_chezmoi_actions(SHIPPED_TEMPLATE, "\"from-the-vault\"")
     }
 
     #[test]
