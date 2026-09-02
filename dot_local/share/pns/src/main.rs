@@ -7758,8 +7758,13 @@ fn keep_aside(path: &Path) -> Result<Option<PathBuf>, String> {
         .mode(CONFIG_FILE_MODE)
         .open(&backup)
         .map_err(|error| match error.kind() {
+            // THE NAME BEING TAKEN PROVES NOTHING ABOUT WHAT IT HOLDS: a run
+            // killed between this claim and the rename that follows it
+            // leaves an empty file at the same name, so the refusal says
+            // only that the name is spoken for, not what a prior run "kept"
+            // there.
             std::io::ErrorKind::AlreadyExists => format!(
-                "{} already exists, kept by a run earlier this same second; \
+                "{} is already claimed by another run this same second; \
                  nothing was written",
                 backup.display()
             ),
@@ -10036,7 +10041,7 @@ mod tests {
             "the refusal does not name the backup it could not claim: {refusal}"
         );
         assert!(
-            refusal.contains("already exists"),
+            refusal.contains("already claimed"),
             "the reason is a raw io::Error instead of naming the same-second collision: {refusal}"
         );
         assert_eq!(
@@ -10067,7 +10072,7 @@ mod tests {
             "the refusal does not say the claim itself failed: {refusal}"
         );
         assert!(
-            !refusal.contains("earlier this same second"),
+            !refusal.contains("this same second"),
             "a missing directory was blamed on a same-second collision: {refusal}"
         );
     }
