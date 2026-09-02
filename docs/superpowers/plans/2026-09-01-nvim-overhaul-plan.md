@@ -90,9 +90,11 @@ spec sections. Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01
   the warm median (runs 2 to 5 after `sudo purge`, no agent running, `User VeryLazy` fired by hand,
   every number labelled "synthetic") is `after <= before + 10` ms against the previously merged PR's
   number, and for PR 30d and PR 31 ALSO `after < baseline - 10` against the import-day baseline; G6
-  `just ship` before the push. Every PR runs G1 to G6. `just test-rust` applies only where a Rust crate
-  changes (PR 10b). The TUI run (`nvim --startuptime` in a herdr pane) is recorded beside G5 where a
-  task says so and is never the gate.
+  `just ship` before the push. Every PR runs G1 to G6, except PR 2 (the import): this program runs
+  agents continuously, so G5's no-agent-running precondition cannot hold there, and its warm median is
+  captured and labelled synthetic and advisory instead, re-run quiescent by the operator (3.7 step 5).
+  `just test-rust` applies only where a Rust crate changes (PR 10b). The TUI run (`nvim --startuptime`
+  in a herdr pane) is recorded beside G5 where a task says so and is never the gate.
 - **Merge main, then re-gate.** Before each review round the branch merges `main` and re-runs G1 to G5;
   a verdict on an un-re-gated branch is not a verdict (spec 11). Shared files serialize: the later PR
   waits for the earlier one to merge, and that edge is in its Depends line.

@@ -44,7 +44,10 @@ the same directory, one line per finding:
 1. PRs 5, 7, 19, 30b and 30c are split at the one-behavior boundary into 5a, 5b, 7a to 7f, 19a, 19b,
    30b1, 30b2 and 30c1 to 30c9; every cross-reference follows; section 11 now has 62 PRs (4, 9, 11,
    appendix A).
-1. The import proof computes both warm medians and asserts `after <= before + 10` (3.7).
+1. The import proof (PR 2) computes both warm medians but does not assert `after <= before + 10`
+   against them: this program runs agents continuously, which 9.1's no-agent-running precondition
+   cannot hold under, so the pair is captured, labelled synthetic and advisory, and left for the
+   operator to re-run quiescent (3.7).
 1. The health normalization replaces only the runtime directory, the state directory, `$TMPDIR` and
    timestamps, never every slash-prefixed token (3.7).
 1. The branch counts are refreshed with the compared commit ids recorded (2).
@@ -1264,7 +1267,11 @@ binding pre-change baseline is the one measured on the import day (section 2).
 **The one performance gate**, stated here and only referenced from 3.7, 10 and 11: a PR passes when
 its warm median is not slower than the warm median the previously merged PR recorded, within a 10 ms
 tolerance (`after <= before + 10`), both measured with this method on the same machine with no agent
-running. PR 30d (the flip) and PR 31 (the final acceptance) must ALSO beat the import-day baseline by
+running. PR 2 (the import) is the one exception: this program runs agents continuously, so the
+no-agent-running precondition above cannot hold for it, and section 2 already records agent load
+moving the warm median by more than twice this gate's tolerance. Its pair of warm medians is still
+captured, labelled synthetic and advisory, and left for the operator to re-run quiescent; it is not
+asserted. PR 30d (the flip) and PR 31 (the final acceptance) must ALSO beat the import-day baseline by
 more than that tolerance (`after < baseline - 10`). The tolerance is 10 ms because it is about 5
 percent of today's warm median and wider than the spread of the quiet batch's warm runs (181.7 and
 178.0 ms), so noise alone cannot fail a behavior-neutral PR, while the smallest eager plugin cost in
@@ -1287,8 +1294,9 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    lines are re-checked in a TUI `:checkhealth snacks`; if they persist there they are config bugs
    and are fixed.
 3. The warm headless startup median (synthetic, `User VeryLazy` fired by hand) passes the 9.1 gate:
-   within 10 ms of the previous PR's number for every PR, and below the import-day baseline by more
-   than 10 ms for PR 30d and PR 31. The TUI run of 9.1, inside a herdr pane, is the acceptance check
+   within 10 ms of the previous PR's number for every PR except PR 2 (captured and labelled advisory
+   instead, 9.1), and below the import-day baseline by more than 10 ms for PR 30d and PR 31. The TUI
+   run of 9.1, inside a herdr pane, is the acceptance check
    that the interactive editor starts without an error and with every `VeryLazy` plugin loaded; its
    number is recorded, not gated.
 4. `just test-unit` green, including `nvim-custom-api.bats`; `just lint-check` green (stylua and
