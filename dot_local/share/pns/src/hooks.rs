@@ -48,6 +48,18 @@ pub struct HookPayload {
     pub in_subagent: bool,
     /// What a non-turn event (a permission prompt, a plan) is about.
     pub message: String,
+    /// A `PostModelSwitch` event's prior model, empty when the event is not a
+    /// model switch.
+    pub from_model: String,
+    /// A `PostModelSwitch` event's new model, empty when the event is not a
+    /// model switch.
+    pub to_model: String,
+    /// A `PostModelSwitch` event's cause: `auto`, `command`, `picker`, `sdk`
+    /// or `resume`. The hooks reference documents these as the whole set, so
+    /// only `auto` (an automatic session model change) is routed anywhere;
+    /// every other value is silence, at least until D4b's resume audit
+    /// record.
+    pub source: String,
 }
 
 /// Read a payload, treating anything unparseable as an empty one.
@@ -94,6 +106,9 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         .into_iter()
         .find(|stated| !stated.is_empty())
         .unwrap_or_else(|| tool_request(&payload)),
+        from_model: text("from_model"),
+        to_model: text("to_model"),
+        source: text("source"),
     }
 }
 
@@ -237,7 +252,7 @@ fn one_line(value: &serde_json::Value) -> String {
 /// Cc set (C0, DEL and C1), so multibyte text an operator actually wrote passes
 /// through whole; a range test written in bytes would cut a character in half
 /// and a range written in codepoints would have to restate the same set worse.
-fn flattened(text: &str) -> String {
+pub fn flattened(text: &str) -> String {
     text.split(|character: char| character.is_whitespace() || character.is_control())
         .filter(|word| !word.is_empty())
         .collect::<Vec<_>>()
