@@ -1,6 +1,71 @@
 return {
   {
     "neovim/nvim-lspconfig",
+    -- `init`, not `config`: mason-lspconfig's `automatic_enable` starts a server on the
+    -- FileType of a file named on the command line, which happens before a scheduled
+    -- `config` callback runs. A server table registered there would lose the race and the
+    -- client would start on nvim-lspconfig's defaults.
+    init = function()
+      vim.lsp.config("clangd", {
+        root_markers = {
+          "compile_commands.json",
+          "compile_flags.txt",
+          "configure.ac", -- AutoTools
+          "Makefile",
+          "configure.ac",
+          "configure.in",
+          "config.h.in",
+          "meson.build",
+          "meson_options.txt",
+          "build.ninja",
+          ".git",
+        },
+        capabilities = {
+          offsetEncoding = { "utf-16" },
+        },
+        cmd = {
+          "clangd",
+          "--background-index",
+          "--clang-tidy",
+          "--header-insertion=iwyu",
+          "--completion-style=detailed",
+          "--function-arg-placeholders",
+          "--fallback-style=llvm",
+        },
+        init_options = {
+          usePlaceholders = true,
+          completeUnimported = true,
+          clangdFileStatus = true,
+        },
+      })
+
+      vim.lsp.config("lua_ls", {
+        settings = {
+          Lua = {
+            workspace = {
+              checkThirdParty = false,
+            },
+            codeLens = {
+              enable = true,
+            },
+            completion = {
+              callSnippet = "Replace",
+            },
+            doc = {
+              privateName = { "^_" },
+            },
+            hint = {
+              enable = true,
+              setType = false,
+              paramType = true,
+              paramName = "Disable",
+              semicolon = "Disable",
+              arrayIndex = "Disable",
+            },
+          },
+        },
+      })
+    end,
     config = vim.schedule_wrap(function(_, _)
       -- Enable virtual diagnostics.
       -- stylua: ignore start
@@ -65,105 +130,6 @@ return {
         "zls",
       },
       automatic_enable = true,
-      servers = {
-        stylua = { enabled = false },
-        lua_ls = {
-          -- mason = false, -- set to false if you don't want this server to be installed with mason
-          -- Use this to add any additional keymaps
-          -- for specific lsp servers
-          -- keys = {},
-          settings = {
-            Lua = {
-              workspace = {
-                checkThirdParty = false,
-              },
-              codeLens = {
-                enable = true,
-              },
-              completion = {
-                callSnippet = "Replace",
-              },
-              doc = {
-                privateName = { "^_" },
-              },
-              hint = {
-                enable = true,
-                setType = false,
-                paramType = true,
-                paramName = "Disable",
-                semicolon = "Disable",
-                arrayIndex = "Disable",
-              },
-            },
-          },
-        },
-        ansiblels = {},
-        clangd = {
-          keys = {
-            { "<leader>ch", "<cmd>ClangdSwitchSourceHeader<cr>", desc = "Switch Source/Header (C/C++)" },
-          },
-          root_markers = {
-            "compile_commands.json",
-            "compile_flags.txt",
-            "configure.ac", -- AutoTools
-            "Makefile",
-            "configure.ac",
-            "configure.in",
-            "config.h.in",
-            "meson.build",
-            "meson_options.txt",
-            "build.ninja",
-            ".git",
-          },
-          capabilities = {
-            offsetEncoding = { "utf-16" },
-          },
-          cmd = {
-            "clangd",
-            "--background-index",
-            "--clang-tidy",
-            "--header-insertion=iwyu",
-            "--completion-style=detailed",
-            "--function-arg-placeholders",
-            "--fallback-style=llvm",
-          },
-          init_options = {
-            usePlaceholders = true,
-            completeUnimported = true,
-            clangdFileStatus = true,
-          },
-        },
-        dockerls = {},
-        docker_compose_language_service = {},
-        -- elixirls = {
-        --   keys = {
-        --     {
-        --       "<leader>cp",
-        --       function()
-        --         local params = vim.lsp.util.make_position_params()
-        --         LazyVim.lsp.execute({
-        --           command = "manipulatePipes:serverid",
-        --           arguments = { "toPipe", params.textDocument.uri, params.position.line, params.position.character },
-        --         })
-        --       end,
-        --       desc = "To Pipe",
-        --     },
-        --     {
-        --       "<leader>cP",
-        --       function()
-        --         local params = vim.lsp.util.make_position_params()
-        --         LazyVim.lsp.execute({
-        --           command = "manipulatePipes:serverid",
-        --           arguments = { "fromPipe", params.textDocument.uri, params.position.line, params.position.character },
-        --         })
-        --       end,
-        --       desc = "From Pipe",
-        --     },
-        --   },
-        -- },
-        marksman = {},
-        nil_ls = {},
-      },
     },
   },
   {
