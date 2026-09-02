@@ -556,6 +556,7 @@ mod tests {
             local_only: true,
             remote_only: true,
             long_running: true,
+            help: false,
         };
         let decision = decision(GateInputs {
             pane_present: true,

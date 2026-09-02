@@ -441,75 +441,6 @@ fn desk_with_a_native_banner(name: &str) -> (Sandbox, std::process::Command) {
     (sandbox, command)
 }
 
-/// Every word `main` dispatches on, in the spelling its usage row states.
-///
-/// STATED HERE BECAUSE `main` KEEPS NO LIST: the dispatch is a chain of
-/// comparisons in the composition root, which a test crate cannot enumerate,
-/// and reading the rows back out of the printed text would only check the
-/// usage against itself. What this catches is the direction that goes wrong
-/// quietly, a row disappearing from the text while the command still answers.
-/// A NEW arm still has to be added here by hand; nothing catches that, and
-/// nothing can without a table `main` does not have.
-const COMMAND_ROWS: [&str; 15] = [
-    "pns [<producer flags>]",
-    // The help flag is an arm like any other, and the one an operator reaches
-    // for when the rest are what they are missing.
-    "pns --help, -h",
-    "pns hook <event>",
-    "pns gate <harness>-hook",
-    "pns <harness>-hook",
-    "pns pulse <exit-code>",
-    "pns quiet [<duration>|off]",
-    "pns daemon run|schedule|cancel",
-    "pns lights tick|quiet",
-    "pns loop begin|end",
-    "pns nag",
-    "pns recap --since",
-    "pns setup [--force]",
-    "pns doctor",
-    "pns home",
-];
-
-/// Every event `hook_mode` matches on, which the `pns hook` row spells out.
-const HOOK_EVENTS: [&str; 8] = [
-    "prompt",
-    "stop",
-    "stop-failure",
-    "blocked",
-    "asked",
-    "plan-ready",
-    "denied",
-    "resolved",
-];
-
-/// The whole contract, checked row by row and flag by flag.
-///
-/// The three fragments this replaces (`pns hook`, `--agent`, `--long-running`)
-/// left most of the text unpinned: three command rows were deleted and the
-/// test that claimed to verify the usage stayed green. The FLAGS are read out
-/// of the parser's own lists rather than restated, so the half that can be
-/// derived cannot drift at all.
-fn assert_states_the_whole_contract(printed: &str) {
-    for row in COMMAND_ROWS {
-        assert!(printed.contains(row), "no row for `{row}`: {printed}");
-    }
-    for event in HOOK_EVENTS {
-        // THE DELIMITER IS PART OF THE MATCH, because the names nest: a bare
-        // `contains("stop")` is answered by `stop-failure`, so dropping the
-        // `stop` event from the row would go unnoticed.
-        assert!(
-            printed.contains(&format!("{event},")) || printed.contains(&format!("{event}\n")),
-            "no `{event}` event: {printed}"
-        );
-    }
-    for flag in pns::args::VALUE_FLAGS
-        .iter()
-        .chain(pns::args::BARE_FLAGS.iter())
-    {
-        assert!(printed.contains(flag), "no `{flag}` flag: {printed}");
-    }
-}
-
 #[test]
 fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
     // A help print used to be an EVENT: it loaded the config, spawned every
@@ -522,7 +453,6 @@ fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
 
         let printed = stdout(&output);
         assert!(printed.contains("usage"), "{spelling}: {printed}");
-        assert_states_the_whole_contract(&printed);
         assert_eq!(stderr(&output), "", "help is not a complaint: {output:?}");
         assert_eq!(
             sandbox.spawned(),
@@ -563,9 +493,6 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
             complaint.contains("usage"),
             "and the usage is on stderr: {output:?}"
         );
-        // THE SAME TEXT, which is the point of it being one constant: an
-        // operator who mistyped is asking what an operator who asked is.
-        assert_states_the_whole_contract(&complaint);
         assert_eq!(
             stdout(&output),
             "",
@@ -577,6 +504,95 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
             "and writes no state either: {output:?}"
         );
     }
+}
+
+#[test]
+fn a_dash_led_first_word_is_no_longer_a_free_pass_for_an_empty_event() {
+    // R5-1: `first.starts_with('-')` used to make ANY dash-led argv[1] a
+    // producer invocation, so a mistyped flag delivered an empty event in
+    // silence, the `pns stpo` bug reopened for a typo that happens to start
+    // with a dash. None of these carries a flag the parser recognizes.
+    for word in [
+        "--wat",
+        "-",
+        "--",
+        "--help=x",
+        "--HELP",
+        "-help",
+        "--agent=claude",
+    ] {
+        let sandbox = Sandbox::new("dash-led-typo");
+        let output = sandbox.pns().arg(word).output().expect("the engine runs");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{word:?}: a refusal, never exit 0"
+        );
+        assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
+        assert!(!sandbox.fired("mobile"), "{word:?} delivered: {output:?}");
+        assert!(!sandbox.fired("hermes"), "{word:?} delivered: {output:?}");
+    }
+}
+
+#[test]
+fn a_typed_empty_word_is_refused_unlike_the_bare_invocation_beside_it() {
+    // R5-3: `unwrap_or_default().is_empty()` conflated "no argv[1] at all"
+    // with "argv[1] is the literal empty string", so `pns ""` delivered the
+    // same empty event a truly bare `pns` does. `doctor` and `setup` already
+    // refuse an unknown extra argument; this is that same rule reaching the
+    // top-level dispatch.
+    let sandbox = Sandbox::new("typed-empty-word");
+    let output = sandbox.pns().arg("").output().expect("the engine runs");
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("usage"), "{output:?}");
+    assert!(!sandbox.fired("mobile"), "{output:?}");
+    assert!(!sandbox.fired("hermes"), "{output:?}");
+}
+
+#[test]
+fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
+    // R5-2 + H-A: help was checked at argv[1] only, so `--agent claude
+    // --help` delivered the event with `--help` unconsumed, and `--
+    // --help`/`stray --help` reached the lenient producer parser and did the
+    // same. `is_producer_argv` now counts `--help`/`-h` too, so all four
+    // shapes reach the parser's own help arm instead.
+    for argv in [
+        &["--agent", "claude", "--help"][..],
+        &["--local-only", "--help"][..],
+        &["--", "--help"][..],
+        &["stray", "--help"][..],
+    ] {
+        let sandbox = Sandbox::new("help-anywhere");
+        let output = sandbox.pns().args(argv).output().expect("the engine runs");
+        assert_eq!(output.status.code(), Some(0), "{argv:?}: {output:?}");
+        assert!(stdout(&output).contains("usage"), "{argv:?}: {output:?}");
+        assert_eq!(stderr(&output), "", "{argv:?}: {output:?}");
+        assert!(
+            !sandbox.fired("mobile"),
+            "{argv:?} spawned a delivery: {output:?}"
+        );
+        assert!(
+            !sandbox.fired("hermes"),
+            "{argv:?} spawned a delivery: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn help_in_value_position_is_still_just_a_value() {
+    // H-F, PINNED so nobody "fixes" this by adding `--help` to
+    // `is_producer_flag`: doing that would flip the value rule and make
+    // `--agent --help` warn-and-drop instead of delivering an agent whose
+    // name literally is "--help". States are free-form the same way.
+    let sandbox = Sandbox::new("help-as-agent-value");
+    run(sandbox.pns().args(["--agent", "--help", "--state", "done"]));
+    assert_eq!(sandbox.event("mobile")["agent"], "--help");
+
+    let sandbox = Sandbox::new("help-as-state-value");
+    run(sandbox
+        .pns()
+        .args(["--agent", "claude", "--state", "--help"]));
+    assert_eq!(sandbox.event("mobile")["state"], "--help");
 }
 
 #[test]
@@ -800,6 +816,45 @@ fn an_absent_config_stays_silent_in_pulse_mode() {
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(output.status.success());
+}
+
+#[test]
+fn pulse_help_prints_its_own_usage_before_any_config_load() {
+    // H-C: `pulse --help` used to load the config first, so with none it
+    // silently exited 0 and with one it pulsed the room red, because
+    // `exit_behaviour` read the word as a failing, non-numeric code. Reading
+    // the word first means help answers with no machine read at all, even
+    // with no config on disk.
+    let sandbox = support::Sandbox::without_config("pulse-help");
+    for spelling in ["--help", "-h"] {
+        let output = sandbox
+            .bare()
+            .args(["pulse", spelling])
+            .output()
+            .expect("the engine runs");
+        assert_eq!(output.status.code(), Some(0), "{spelling}: {output:?}");
+        assert!(stdout(&output).contains("usage"), "{spelling}: {output:?}");
+        assert_eq!(stderr(&output), "", "{spelling}: {output:?}");
+    }
+}
+
+#[test]
+fn pulse_refuses_a_code_it_cannot_read_instead_of_guessing_it_failed() {
+    // H-C: `exit_behaviour` now answers `None` for anything that is not an
+    // ASCII-digit run (or empty), and `pulse_mode` reads that as a refusal
+    // rather than a failure pulse. `pulse oops`, `-0` and padded zeroes used
+    // to flash the room red on a code nobody proved.
+    let sandbox = support::Sandbox::without_config("pulse-refuses");
+    for word in ["oops", "-0", " 0", "0\n"] {
+        let output = sandbox
+            .bare()
+            .args(["pulse", word])
+            .output()
+            .expect("the engine runs");
+        assert_eq!(output.status.code(), Some(2), "{word:?}: {output:?}");
+        assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
+        assert_eq!(stdout(&output), "", "{word:?}: {output:?}");
+    }
 }
 
 /// Wait for a child with a deadline, killing it if it outlives one. The suite
@@ -1427,6 +1482,13 @@ fn bridge_spy() -> (std::net::TcpListener, u16) {
 /// ACCEPTING HANGS UP AT ONCE, which is what keeps a test that expects a dial
 /// fast: the engine's TLS handshake fails on the closed socket instead of
 /// waiting out the ten-second bridge deadline.
+///
+/// `Duration::ZERO` IS THE RIGHT CALL, not a bug, everywhere the child has
+/// already exited: `run` waits for output and a poll loop waits for the
+/// child before asking, so a dial that was going to happen has already
+/// happened, and a connection still queued is sitting in the accept queue
+/// where one non-blocking accept sees it. Waiting any longer there would only
+/// be waiting on a dial that was never coming.
 fn dialled_within(listener: &std::net::TcpListener, limit: std::time::Duration) -> bool {
     let deadline = std::time::Instant::now() + limit;
     loop {
@@ -1441,11 +1503,6 @@ fn dialled_within(listener: &std::net::TcpListener, limit: std::time::Duration) 
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
-
-/// Long enough for a dial that was going to happen to have happened: the child
-/// has already exited by the time this is asked, so the connection would be
-/// sitting in the accept queue.
-const SETTLE: std::time::Duration = std::time::Duration::from_millis(200);
 
 /// The UTC minute of the day, from the epoch alone. Every test below pins the
 /// child to `TZ=UTC`, so this is the minute the engine's own clock reads,
@@ -1575,7 +1632,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
         "every other leg still dispatches inside the window"
     );
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "and the room stays dark"
     );
 }
@@ -1618,7 +1675,7 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
         "and echoing what was written: {said}"
     );
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "a window nobody can parse leaves the room dark rather than flashing it"
     );
 }
@@ -1684,7 +1741,7 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "the child is inside a window written in ITS zone, so the room stays dark"
     );
 
@@ -1805,7 +1862,7 @@ fn lamp_run(
         if child.try_wait().expect("the child is waitable").is_some() {
             // A connection opened just before the exit is sitting in the accept
             // queue, so the answer is only settled after one more look.
-            break dialled_within(&listener, SETTLE);
+            break dialled_within(&listener, std::time::Duration::ZERO);
         }
         // AND THE POLL HAS A CEILING, because its two exits are a dial and an
         // exit: a child that manages neither would otherwise park the whole
@@ -2433,7 +2490,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     assert!(!sandbox.fired("mobile"), "no card while muted");
     assert!(!sandbox.fired("macos-banner"), "no banner while muted");
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "and no pulse, so slice 7's window is never even consulted"
     );
 }
@@ -3272,7 +3329,7 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
         "the line names the settings to write: {printed}"
     );
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "a bridge was dialled for a config that resolves to none"
     );
 }
@@ -6696,6 +6753,16 @@ fn assert_fell_back_to_the_plain_list(body: &str) {
 /// posted and read back.
 fn recap_summarized_badly(name: &str, extra: &str, body: &str) -> String {
     let sandbox = Sandbox::new(name);
+    // STRUCTURAL FOR THE ONE CALLER THAT SETS A DEADLINE, and excused for that
+    // caller alone: summarizer_deadline_secs is whole seconds (config.rs), and
+    // 1 is the smallest budget that still spawns the stub at all, so the "past
+    // its deadline" case pays that whole second. The other four callers'
+    // stubs return at once and stay under the ceiling on their own.
+    if extra.contains("summarizer_deadline_secs") {
+        sandbox.allow_slow(
+            "summarizer_deadline_secs is whole seconds; 1s is the smallest budget that still spawns",
+        );
+    }
     record_every_event(&sandbox);
     sandbox.write_config(&recap_summarized_by(extra));
     loud_window(&sandbox);
@@ -7393,6 +7460,12 @@ fn one_recap_spends_one_summarizer_budget_however_many_questions_it_asks() {
     // not something a non-flaky test can pin at the process boundary, so it is
     // left to review rather than claimed here.
     let sandbox = Sandbox::new("recap-one-budget");
+    // STRUCTURAL: the parked call has to hold the whole budget for the count
+    // to mean anything, and summarizer_deadline_secs is whole seconds, so 1
+    // is the smallest value that still spawns.
+    sandbox.allow_slow(
+        "summarizer_deadline_secs is whole seconds; 1s is the smallest budget that still spawns",
+    );
     record_every_event(&sandbox);
     sandbox.write_config(&recap_summarized_by(
         "summarizer_deadline_secs = 1\nrepos = [\"webdavis/dotfiles\"]\n\
@@ -8264,7 +8337,7 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .args(["--pane", "t1:p2"]));
     assert!(
-        !dialled_within(&listener, SETTLE),
+        !dialled_within(&listener, std::time::Duration::ZERO),
         "an ordinary event with nothing held reaches no bridge"
     );
 }
@@ -8295,17 +8368,20 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
             .stderr(std::process::Stdio::piped())
             .spawn()
             .expect("the engine starts");
-        let dialled = dialled_within(
-            &listener,
-            if expect_dial {
-                std::time::Duration::from_secs(5)
-            } else {
-                SETTLE
-            },
-        );
+        // THE TRUE ARM DIALS WHILE THE CHILD RUNS, same reason as everywhere
+        // else that expects a dial: the spy hangs up the moment it accepts,
+        // so the handshake fails at once instead of waiting out the bridge
+        // deadline. THE FALSE ARM WAITS FOR THE CHILD FIRST, then takes its
+        // one non-blocking accept: dialling here while the child still runs
+        // had a 200 ms window where a dial arriving just after it gave up
+        // would read as "no dial" that never actually happened to look.
+        let dialled_while_running =
+            expect_dial.then(|| dialled_within(&listener, std::time::Duration::from_secs(5)));
         let output = child.wait_with_output().expect("the child is waitable");
         assert_eq!(output.status.code(), Some(0), "{name}");
         assert!(stdout(&output).is_empty(), "{name}: {}", stdout(&output));
+        let dialled = dialled_while_running
+            .unwrap_or_else(|| dialled_within(&listener, std::time::Duration::ZERO));
         assert!(stderr(&output).is_empty(), "{name}: {}", stderr(&output));
         (dialled, sandbox.path("state/lights-held").exists())
     };

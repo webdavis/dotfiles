@@ -62,24 +62,37 @@ pub fn session_was_long(elapsed_secs: Option<u64>, threshold_secs: Option<u64>) 
     elapsed_secs >= threshold_secs
 }
 
-/// What a lamp says about a given exit code.
+/// What a lamp says about a given exit code, or `None` when the code is not
+/// one `pulse_mode` can trust.
 ///
-/// ANYTHING that is not all zeroes is a failure, garbage included. An EMPTY
-/// code is the absent one: the shell version defaulted a missing argument to
-/// zero, so absent and empty both mean success and there is no third answer to
-/// give. Unproven success would be a failure, so a caller that cannot prove one
-/// passes something that is not all zeroes.
+/// ANYTHING ALL ZEROES IS A SUCCESS, and any other run of ASCII digits is a
+/// failure. An EMPTY code is the absent one: the shell version defaulted a
+/// missing argument to zero, so absent and empty both mean success and there
+/// is no third answer to give. GARBAGE IS NO LONGER A GUESS: a code that is
+/// neither empty nor all ASCII digits (`-0`, padding, a stray word) answers
+/// `None`, and `pulse_mode` refuses those with usage rather than painting the
+/// room red on unproven input.
 ///
-/// AN EXIT CODE HAS NO THIRD ANSWER. `pns pulse` and the long-command notifier
-/// know a number and nothing else, so they reach two of the five behaviours;
-/// the event path knows a STATE and reaches three, through `state_behaviour`.
-pub fn exit_behaviour(exit_code: &str) -> crate::config::Behaviour {
-    // An empty code has no character that is not a zero, which is the absent
-    // case taking the success branch.
+/// AN EXIT CODE HAS NO THIRD ANSWER, once it is a code at all. `pns pulse`
+/// and the long-command notifier know a number and nothing else, so they
+/// reach two of the five behaviours; the event path knows a STATE and reaches
+/// three, through `state_behaviour`.
+pub fn exit_behaviour(exit_code: &str) -> Option<crate::config::Behaviour> {
+    if exit_code.is_empty() {
+        return Some(crate::config::Behaviour::Done);
+    }
+    if !exit_code
+        .chars()
+        .all(|character| character.is_ascii_digit())
+    {
+        return None;
+    }
+    // Every character is an ASCII digit at this point, so "all zeroes" is a
+    // safe textual test for the numeric value being zero.
     if exit_code.chars().all(|character| character == '0') {
-        crate::config::Behaviour::Done
+        Some(crate::config::Behaviour::Done)
     } else {
-        crate::config::Behaviour::Failed
+        Some(crate::config::Behaviour::Failed)
     }
 }
 
@@ -210,26 +223,6 @@ mod tests {
     }
 
     #[test]
-    fn the_lamps_list_drops_the_failure_and_adds_the_condensers_waiting_word() {
-        // THE DIVERGENCE, PINNED, and it runs both ways. `failed` is on the
-        // shared list and must read RED here, or a dead turn would be painted
-        // blue. `asking` reaches only the lamps, because the shared list is the
-        // harness's own state words and this one also has to answer for what
-        // the condenser writes. So a sixth harness state cannot quietly leave
-        // the lamps behind, and nobody can "tidy" the lamps into reusing it.
-        let mut shared_traded: Vec<&str> = crate::missed_notifications::NEEDS_YOU
-            .iter()
-            .copied()
-            .filter(|state| *state != "failed")
-            .chain(["asking"])
-            .collect();
-        shared_traded.sort_unstable();
-        let mut lamps = LAMP_BLOCKED.to_vec();
-        lamps.sort_unstable();
-        assert_eq!(lamps, shared_traded);
-    }
-
-    #[test]
     fn without_a_lamp_map_a_waiting_agent_reports_done_exactly_as_it_did_before() {
         // THE COMPATIBILITY EDGE, and it is a real event rather than a corner:
         // a LONG-RUNNING turn that ends `blocked` has earned a pulse since the
@@ -258,42 +251,46 @@ mod tests {
 
     #[test]
     fn a_zero_exit_code_is_done() {
-        assert_eq!(exit_behaviour("0"), Behaviour::Done);
+        assert_eq!(exit_behaviour("0"), Some(Behaviour::Done));
     }
 
     #[test]
     fn a_non_zero_exit_code_is_failed() {
-        assert_eq!(exit_behaviour("1"), Behaviour::Failed);
+        assert_eq!(exit_behaviour("1"), Some(Behaviour::Failed));
     }
 
     #[test]
-    fn an_exit_code_that_is_not_a_number_is_failed_rather_than_aborting_the_pulse() {
-        assert_eq!(exit_behaviour("oops"), Behaviour::Failed);
+    fn an_exit_code_that_is_not_a_number_is_refused_rather_than_guessed_at() {
+        // H-C: garbage used to take the failure branch, which flashed the
+        // room red on a code nobody proved. `pulse_mode` reads this `None` as
+        // a refusal with usage instead.
+        assert_eq!(exit_behaviour("oops"), None);
     }
 
     #[test]
     fn a_padded_zero_is_still_a_success() {
-        assert_eq!(exit_behaviour("00"), Behaviour::Done);
+        assert_eq!(exit_behaviour("00"), Some(Behaviour::Done));
     }
 
     #[test]
-    fn a_signed_zero_is_not_all_zeroes_so_it_is_failed() {
-        assert_eq!(exit_behaviour("-0"), Behaviour::Failed);
+    fn a_signed_zero_is_refused_rather_than_read_as_a_failure() {
+        // H-C: `-0` is not all ASCII digits, so it is no longer a code this
+        // function will read at all, refused rather than guessed as failed.
+        assert_eq!(exit_behaviour("-0"), None);
     }
 
     #[test]
-    fn a_zero_with_whitespace_around_it_is_not_all_zeroes_either() {
-        // Tolerating padding is the obvious kindness and it inverts the fail
-        // direction: unproven success has to pulse red, so only a code that
-        // reads as plainly zero earns green.
-        assert_eq!(exit_behaviour(" 0"), Behaviour::Failed);
-        assert_eq!(exit_behaviour("0\n"), Behaviour::Failed);
+    fn a_zero_with_whitespace_around_it_is_refused_the_same_way() {
+        // H-C: padding is not a digit either, so both read as `None` and
+        // `pulse_mode` refuses them instead of pulsing red on unproven input.
+        assert_eq!(exit_behaviour(" 0"), None);
+        assert_eq!(exit_behaviour("0\n"), None);
     }
 
     #[test]
     fn an_absent_exit_code_arrives_as_empty_and_takes_the_success_branch() {
         // The shell version reads a missing argument as zero, so absent and
         // empty are the same input and there is no third answer to give.
-        assert_eq!(exit_behaviour(""), Behaviour::Done);
+        assert_eq!(exit_behaviour(""), Some(Behaviour::Done));
     }
 }

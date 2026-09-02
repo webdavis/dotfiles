@@ -98,11 +98,41 @@ test-integration: validate-tests
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# The four Rust crates' inline unit tests, the one camp that is not a shell
-# suite: a `#[cfg(test)] mod tests` beside the code in each. The two herdr
-# plugins cover the pure decision functions in their src/main.rs (every Command
-# call sits behind an untested boundary by design); pns and uu are libraries
-# whose whole content is the pure decision core.
+# The four Rust crates' tests, the one camp that is not a shell suite. The two
+# herdr plugins cover the pure decision functions in their src/main.rs (every
+# Command call sits behind an untested boundary by design) with inline
+# `#[cfg(test)] mod tests`. pns and uu are NOT pure-decision libraries: each
+# has four (pns) or one (uu) integration binaries under tests/ that spawn the
+# real compiled engine as a subprocess against a private sandboxed HOME,
+# alongside their own inline unit tests.
+#
+# THE RUST CAMP RUNS UNDER A ONE-SECOND TEST BUDGET, enforced by a Drop guard
+# on each integration binary's sandbox harness (pns: tests/support/mod.rs;
+# uu: tests/cli.rs's Home). A sandbox alive past one second at its own drop
+# WARNS on stderr, greppable as "test budget"; past five seconds it FAILS the
+# build, unless the test called `allow_slow("reason")` on it because the cost
+# is structural (an epoch-second lease, a whole-second deadline config key)
+# rather than a regression. This is a LOWER BOUND on the test's own sandbox
+# lifetime, not an upper bound on the code, and it says nothing about a unit
+# test, none of which owns a sandbox or runs over a second alone today.
+#
+# THE AGGREGATE IS STILL MULTI-SECOND, and that is not a bug in the budget:
+# each pns integration binary spawns 100-200 real subprocesses, and warm,
+# parallel per-binary totals here run daemon ~5s (one structural
+# `allow_slow` test dominates it), dispatch ~4s, hooks ~1.5s, native ~0.3s.
+# The one-second line bounds each TEST's own sandbox, not the sum of ~200 of
+# them.
+#
+# TWO STABLE ALTERNATIVES TO THE NIGHTLY-ONLY `--report-time --ensure-time`
+# CALIBRATION FLAGS WERE REJECTED, not adopted: `RUSTC_BOOTSTRAP=1
+# RUST_TEST_TIME_UNIT=500,1000 cargo +stable test -- -Z unstable-options
+# --report-time --ensure-time` works on stable 1.88 (verified with a scratch
+# crate) but is an escape hatch that changes cargo's rustc fingerprint, and it
+# measures the same contended wall clock the guard already accounts for;
+# cargo-nextest is not installed and would be a new Brewfile.dev and CI
+# dependency for one calibration run. The Drop guard needs neither: it is
+# ordinary safe Rust, so it runs identically on nightly here and on CI's
+# stable macOS.
 #
 # THE CRATES ARE ENUMERATED BY HAND. treefmt has no Rust coverage and nothing
 # discovers a manifest, so a new crate is invisible to this gate until its
@@ -122,9 +152,10 @@ test-e2e: validate-tests
 # turned off. --all-targets so the test modules are linted too, since that is
 # where most of those crates' code lives.
 #
-# Cheap enough to sit in the default camp list: about 2.5s per crate against an
-# empty target/, well under a second warm. target/ is crate-local, gitignored
-# and .chezmoiignore'd, so a developer pays the build once.
+# The two herdr plugins' own build cost is cheap enough to sit in the default
+# camp list: about 2.5s per crate against an empty target/, well under a
+# second warm. target/ is crate-local, gitignored and .chezmoiignore'd, so a
+# developer pays the build once.
 test-rust:
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.toml
