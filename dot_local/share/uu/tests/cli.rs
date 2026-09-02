@@ -617,6 +617,85 @@ fn a_success_between_deferrals_resets_the_staleness_streak() {
     );
 }
 
+// --- the streak file's own I/O -----------------------------------------------
+
+#[test]
+fn an_unwritable_streak_directory_alerts_instead_of_staying_silent_forever() {
+    // ROW 2, DIRECTION A, reproduced by hand before this fix: a plain file
+    // sitting where the lane's own directory belongs makes every write fail,
+    // and before this fix that failure only reached stderr, so a lane stuck
+    // this way never once reached the staleness threshold no matter how many
+    // times it deferred.
+    let home = Home::new("streak-unwritable-dir");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    std::fs::create_dir_all(home.dir.join(".local/state/uu")).expect("state dir");
+    std::fs::write(home.dir.join(".local/state/uu/lanes"), "")
+        .expect("occupy the lanes path with a plain file");
+    for _ in 0..4 {
+        home.uu(&["run"]);
+    }
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args"))
+        .expect("an unwritable streak directory must be reported loudly, not stay silent");
+    assert!(alerts.contains("could not be recorded"), "{alerts}");
+}
+
+#[test]
+fn a_streak_file_made_read_only_between_runs_is_still_correctly_advanced() {
+    // ROW 2, DIRECTION B, reproduced by hand before this fix: once the
+    // streak file itself could not be written, the persisted value never
+    // advanced past whatever first crossed the threshold, so every run after
+    // it re-tripped the identical staleness alert forever. Publishing the
+    // streak by rename fixes this directly: a rename only needs write
+    // permission on the DIRECTORY, so a read-only streak FILE no longer
+    // blocks anything.
+    let home = Home::new("streak-readonly-file");
+    let stub = home.write_stub(
+        "updater",
+        "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
+    );
+    let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        stub.display(),
+        pns_stub.display(),
+    ));
+    home.uu(&["run"]);
+    home.uu(&["run"]);
+    let streak_file = home.dir.join(".local/state/uu/lanes/mine/streak");
+    assert_eq!(std::fs::read_to_string(&streak_file).unwrap().trim(), "2");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&streak_file, std::fs::Permissions::from_mode(0o444))
+        .expect("make the streak file read-only");
+    // The third deferral must still cross the threshold and persist past it,
+    // exactly as it would have with a writable file.
+    home.uu(&["run"]);
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert_eq!(alerts.matches("consecutive").count(), 1, "{alerts}");
+    assert_eq!(
+        std::fs::read_to_string(&streak_file).unwrap().trim(),
+        "3",
+        "a read-only file must not block the streak from actually advancing"
+    );
+    // A fourth deferral must not re-trip: the value truly advanced, so this
+    // is no longer the run that first crosses the threshold.
+    home.uu(&["run"]);
+    let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
+    assert_eq!(
+        alerts.matches("consecutive").count(),
+        1,
+        "a fourth straight deferral must not alert again now that persistence works: {alerts}"
+    );
+}
+
 #[test]
 fn a_record_the_gateway_never_received_leaves_the_marker_unmoved() {
     // The marker is what the NEXT record measures its gap from, so a run
