@@ -340,6 +340,13 @@ the two agree, so they must be moved together by hand. The same hand-sync applie
 against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
 the pre-commit hook; CI never commits).
 
+**stylua is deliberately NOT pinned.** It is also a byte rewriter, same class of risk as mdformat, but
+Homebrew has no declarative version pin the way `uv`'s `==` does. The cost: a newer stylua on a fresh
+machine or CI runner can rewrite or reject Lua that was clean under the older one. Accepted because the
+failure is visible, not silent: the drift gate goes red on a file nobody touched, which is a signal to
+investigate, not corruption that slips through. A version skew shows up as `just lint-check` failing on
+unmodified `dot_config/nvim/**/*.lua` files right after a `brew upgrade stylua`.
+
 ### CI
 
 GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and on pull
