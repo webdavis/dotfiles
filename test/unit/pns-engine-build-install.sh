@@ -25,24 +25,34 @@ chmod +x "$script"
 
 home="$scratch/home"
 marker="$home/.cache/pns-build/engine.retry"
+pending="$home/.cache/pns-build/restart-pending"
 installed="$home/.local/libexec/pns/pns"
 
 # The script kickstarts the pns LaunchAgent after installing a CHANGED binary,
 # and a sandboxed HOME does nothing to launchctl: without a stub on PATH this
-# test bounces the operator's live daemon on every run. The stub answers as an
-# unloaded label (exit 113, "Could not find service") and records the attempt.
+# test bounces the operator's live daemon on every run. The stub records the
+# exact invocation and answers whatever status the test puts in
+# launchctl.status, defaulting to 113 ("Could not find service", the unloaded-
+# label case) when that file is absent, so a phase that never sets it keeps
+# the original quiet behavior.
 stubbin="$scratch/stubbin"
 kickstarts="$scratch/kickstarts"
+launchctl_status="$scratch/launchctl.status"
 mkdir -p "$stubbin"
 : >"$kickstarts"
 cat >"$stubbin/launchctl" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$kickstarts"
+if [[ -f "$launchctl_status" ]]; then
+  exit "\$(cat "$launchctl_status")"
+fi
 exit 113
 STUB
 chmod +x "$stubbin/launchctl"
 
-run_script() { HOME="$home" PATH="$stubbin:$PATH" "$script" >/dev/null 2>&1; }
+stdout_log="$scratch/stdout"
+stderr_log="$scratch/stderr"
+run_script() { HOME="$home" PATH="$stubbin:$PATH" "$script" >"$stdout_log" 2>"$stderr_log"; }
 
 # --- no toolchain: nothing installed, and the trigger stays retryable ------
 mkdir -p "$home"
@@ -132,6 +142,11 @@ run_script || {
   echo "the first install must kickstart the daemon exactly once" >&2
   exit 1
 }
+expected_kickstart="kickstart -k gui/$(id -u)/com.webdavis.pns-daemon"
+[[ "$(head -n1 "$kickstarts")" == "$expected_kickstart" ]] || {
+  printf 'the kickstart must target the exact label; got: %s\n' "$(head -n1 "$kickstarts")" >&2
+  exit 1
+}
 
 # --- a rebuild while the old binary is RUNNING still replaces it -----------
 # The real mid-apply hazard: a producer (an agent hook, a long command, a
@@ -156,6 +171,49 @@ kill "$running" 2>/dev/null || true
 wait "$running" 2>/dev/null || true
 [[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
   echo "an identical reinstall must not kickstart the daemon" >&2
+  exit 1
+}
+
+# --- a kickstart failure is loud: nonzero exit, a stderr line, and a marker
+# that forces the next apply to retry regardless of what it rebuilds --------
+echo 5 >"$launchctl_status"
+# Drop the sleeper stub so the rebuild changes bytes again (back to the plain
+# script binary) and the kickstart is attempted.
+rm -f "$home/.stub-build-sleeper"
+run_script && {
+  echo "a kickstart failure must fail the apply" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 3 ]] || {
+  echo "a failed kickstart is still attempted once" >&2
+  exit 1
+}
+grep -q 'daemon NOT restarted' "$stderr_log" || {
+  echo "a kickstart failure must print an attributed line to stderr" >&2
+  exit 1
+}
+[[ -e $pending ]] || {
+  echo "a kickstart failure must leave a restart-pending marker" >&2
+  exit 1
+}
+
+# --- the pending marker forces a retry even on an IDENTICAL rebuild, and a
+# successful kickstart clears it and prints the restarted line -------------
+echo 0 >"$launchctl_status"
+run_script || {
+  echo "the retried kickstart must succeed and the apply must exit 0" >&2
+  exit 1
+}
+[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 4 ]] || {
+  echo "the pending marker must force one more kickstart on an unchanged binary" >&2
+  exit 1
+}
+grep -q 'daemon restarted on a new binary' "$stdout_log" || {
+  echo "a successful kickstart must print the restarted line" >&2
+  exit 1
+}
+[[ ! -e $pending ]] || {
+  echo "a successful kickstart must clear the restart-pending marker" >&2
   exit 1
 }
 
