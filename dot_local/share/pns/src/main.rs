@@ -7509,11 +7509,21 @@ impl Hushed {
             ));
         }
         // BLOCKED FOR THE READ, not disabled: each one is still delivered,
-        // once the guard drops and the mask is restored. SIGTTIN AND SIGTTOU
-        // JOIN THE SET `readpassphrase(3)` HOLDS: a read that becomes a
-        // background job would otherwise be stopped by SIGTTIN with echo
-        // still off, and Drop's own `tcsetattr` from a background group can
-        // raise SIGTTOU before it gets the chance to restore.
+        // once the guard drops and the mask is restored. THIS IS THE WHOLE
+        // SET `readpassphrase(3)` HOLDS, all nine of them, because the doc
+        // comment above cites that function as the model and a quietly
+        // shorter set is the model's holes without its name. SIGTTIN and
+        // SIGTTOU: a read that becomes a background job would otherwise be
+        // stopped by SIGTTIN with echo still off, and Drop's own
+        // `tcsetattr` from a background group can raise SIGTTOU before it
+        // gets the chance to restore. SIGALRM: an alarm armed before the
+        // walk began would otherwise end the process mid-prompt, and a
+        // process that dies before `Drop` leaves the operator's terminal
+        // echo-off with no prompt in front of it. SIGPIPE is inert today
+        // (the Rust runtime sets it to `SIG_IGN` before `main`, so it ends
+        // nothing to begin with) and is held anyway, so this set does not
+        // have to be re-argued against the manual page every time the
+        // runtime's own default moves.
         for signal in [
             libc::SIGINT,
             libc::SIGQUIT,
@@ -7522,6 +7532,8 @@ impl Hushed {
             libc::SIGHUP,
             libc::SIGTTIN,
             libc::SIGTTOU,
+            libc::SIGALRM,
+            libc::SIGPIPE,
         ] {
             if unsafe { libc::sigaddset(&mut blocked, signal) } != 0 {
                 return Err(format!(

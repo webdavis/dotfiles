@@ -416,48 +416,60 @@ fn a_signal_sent_during_the_hidden_read_is_held_until_the_guard_drops() {
     // discarded rather than delivered once the process group is orphaned,
     // and this harness (like CI) starts as its own session leader, so a
     // `waitpid(WUNTRACED)` on it would hang to the deadline instead of
-    // observing anything. It is reviewed, not pinned.
+    // observing anything. SIGPIPE is not covered either: the Rust runtime
+    // sets it to `SIG_IGN` before `main`, so a delivered one ends nothing
+    // and there is no moment of delivery to observe. Both are reviewed
+    // rather than pinned.
+    //
+    // SIGALRM RIDES THE SAME WALK: it is the other signal `readpassphrase(3)`
+    // holds that an ordinary kill can deliver, and an alarm landing mid-read
+    // would otherwise end the process before `Drop` ever restored echo.
     use std::os::unix::process::ExitStatusExt;
 
-    let sandbox = Sandbox::without_config("setup-signal-pending");
-    let mut pty = Pty::open();
-    let mut child = pty.spawn(sandbox.bare().args(["setup"]));
+    for (name, signal) in [
+        ("setup-signal-pending-interrupt", libc::SIGINT),
+        ("setup-signal-pending-alarm", libc::SIGALRM),
+    ] {
+        let sandbox = Sandbox::without_config(name);
+        let mut pty = Pty::open();
+        let mut child = pty.spawn(sandbox.bare().args(["setup"]));
 
-    pty.read_until("or press enter to pair later: ", PTY_DEADLINE)
-        .expect("the first prompt");
+        pty.read_until("or press enter to pair later: ", PTY_DEADLINE)
+            .expect("the first prompt");
 
-    // THE GUARD IS ALREADY ARMED HERE, so a correct build holds this rather
-    // than acting on it immediately.
-    let sent = unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGINT) };
-    assert_eq!(sent, 0, "kill: {}", std::io::Error::last_os_error());
-    // NO POLL, NO SLEEP: on a correct build the signal is blocked, so the
-    // child is deterministically still alive the instant after `kill`
-    // returns, rather than something that has to be waited out.
-    assert!(
-        matches!(child.try_wait(), Ok(None)),
-        "the child died from a signal the guard should still be holding"
-    );
+        // THE GUARD IS ALREADY ARMED HERE, so a correct build holds this
+        // rather than acting on it immediately.
+        let sent = unsafe { libc::kill(child.id() as libc::pid_t, signal) };
+        assert_eq!(sent, 0, "kill: {}", std::io::Error::last_os_error());
+        // NO POLL, NO SLEEP: on a correct build the signal is blocked, so
+        // the child is deterministically still alive the instant after
+        // `kill` returns, rather than something that has to be waited out.
+        assert!(
+            matches!(child.try_wait(), Ok(None)),
+            "the child died from signal {signal}, which the guard should still be holding"
+        );
 
-    pty.write_all(b"do-not-echo-this-token\n");
-    pty.read_to_eof(PTY_DEADLINE).expect("the wizard exits");
-    let status = child.wait().expect("the wizard is reaped");
+        pty.write_all(b"do-not-echo-this-token\n");
+        pty.read_to_eof(PTY_DEADLINE).expect("the wizard exits");
+        let status = child.wait().expect("the wizard is reaped");
 
-    // THE HELD SIGNAL LANDS ONCE THE GUARD DROPS: `Drop` restores the
-    // terminal before it unblocks the mask, so the pending SIGINT is
-    // delivered only after echo is already back on, and it is what ends
-    // the process rather than a normal exit.
-    assert_eq!(
-        status.signal(),
-        Some(libc::SIGINT),
-        "the held SIGINT was not delivered once the guard dropped: {:?}",
-        pty.transcript
-    );
-    let after_exit = pty.tcgetattr();
-    assert_ne!(
-        after_exit.c_lflag & libc::ECHO,
-        0,
-        "the terminal was not restored before the pending signal was delivered"
-    );
+        // THE HELD SIGNAL LANDS ONCE THE GUARD DROPS: `Drop` restores the
+        // terminal before it unblocks the mask, so the pending signal is
+        // delivered only after echo is already back on, and it is what ends
+        // the process rather than a normal exit.
+        assert_eq!(
+            status.signal(),
+            Some(signal),
+            "the held signal {signal} was not delivered once the guard dropped: {:?}",
+            pty.transcript
+        );
+        let after_exit = pty.tcgetattr();
+        assert_ne!(
+            after_exit.c_lflag & libc::ECHO,
+            0,
+            "the terminal was not restored before signal {signal} was delivered"
+        );
+    }
 }
 
 #[test]
