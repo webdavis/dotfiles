@@ -3,8 +3,13 @@
 //! Everything here is WIRING. The roster is one constant and one constructor
 //! in `registry`, so there is no second construction of it to diverge; the
 //! environment and the config are read once at this edge, and every decision
-//! is delegated to the library. It exits 0 on every path, because a
-//! notification must never fail the work it reports on.
+//! is delegated to the library. The producer path exits 0 on every path,
+//! because a notification must never fail the work it reports on, and so
+//! does `pns hook <event>` for every event but `blocked`, which, like
+//! `pns gate`, passes through moshi's own exit code (see `moshi_decision`).
+//! The hand-typed verbs refuse a bad invocation with exit 2, with two gaps
+//! still open: `home` is a diagnostic that always exits 0, and a word
+//! trailing `lights tick` is dropped rather than refused.
 
 use std::collections::BTreeMap;
 use std::io::{IsTerminal, Read, Seek, Write};
@@ -2030,14 +2035,18 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
 /// the harness prompt in front of them already is one.
 ///
 /// It is handed the caller's probe set rather than building its own, which is
-/// what makes this reading and the delivery plan's reading the SAME one: they
-/// are two questions about one moment, and a boundary crossed between two
-/// measurements cards a phone with no round trip behind it.
+/// what makes this reading and the delivery plan's reading the SAME one FOR
+/// `blocking_event`: they are two questions about one moment, and a boundary
+/// crossed between two measurements cards a phone with no round trip behind
+/// it. `pns gate <harness>-hook` (see `gate_mode`) calls this with its own
+/// throwaway probe set and runs no delivery plan at all, so the claim does
+/// not extend to that caller.
 fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
-    // THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off this probe set's own
-    // memoized cell rather than a fresh wall-clock read: see R4-1. Two reads
-    // of the wall clock for one event is the boundary that drifted a phone
-    // reading and a desk reading apart.
+    // FOR `blocking_event`, THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off
+    // this probe set's own memoized cell rather than a fresh wall-clock read:
+    // see R4-1. Two reads of the wall clock for one event is the boundary
+    // that drifted a phone reading and a desk reading apart. `gate_mode`
+    // calls this with its own throwaway probe set and runs no delivery plan.
     pns::engine::operator_surface(probes, &overrides_from_env(), probes.now_secs())
         != pns::surface::Surface::Desk
 }
@@ -3565,11 +3574,22 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
 /// failing exit code. Reading the word first means `--help` and a bad code
 /// both answer with no machine read at all.
 fn pulse_mode() -> i32 {
-    let word = second_argument();
-    if pns::args::is_help_flag(&word) {
+    // THE WHOLE TAIL IS READ, not just the word right after `pulse`: H-B
+    // requires help to win in flag position anywhere, and an unknown extra
+    // word to be refused rather than silently dropped.
+    let tail: Vec<String> = std::env::args_os()
+        .skip(2)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    if tail.iter().any(|token| pns::args::is_help_flag(token)) {
         println!("{PULSE_USAGE}");
         return 0;
     }
+    if tail.len() > 1 {
+        eprintln!("{PULSE_USAGE}");
+        return 2;
+    }
+    let word = tail.first().cloned().unwrap_or_default();
     let Some(behaviour) = pns::pulse::exit_behaviour(&word) else {
         eprintln!("{PULSE_USAGE}");
         return 2;
@@ -5437,10 +5457,14 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
 /// sample, so the edge would land earlier than the true touch and news the
 /// operator had already seen could arm the lamp. Reading it last puts the
 /// residual the other way: `t_now` is later than the sample by at most the
-/// probe spawns above this line, 0-1 second, so the desk touch reads that
-/// much YOUNGER than it was, never older. The direction is DARK: news that
-/// landed inside that residual reads as seen and the lamp stays off, and no
-/// edge can arm it early.
+/// four bounded spawns above this line (one `ioreg` for idle, then the phone
+/// probe's `pgrep`, `pgrep -P` and `ps`), each capped at `PROBE_DEADLINE`
+/// (5 seconds in `system.rs`), so the bound is four five-second receive
+/// budgets, plus spawn and cleanup overhead on top, sub-second in the common
+/// case. The desk touch reads that much YOUNGER
+/// than it was, never older. The direction is DARK: news that landed inside
+/// that residual reads as seen and the lamp stays off, and no edge can arm
+/// it early.
 ///
 /// HOISTING `let now = now_secs()?;` ABOVE THE SAMPLES WOULD BREAK THIS
 /// SILENTLY: no test can catch a clock read moving a few hundred milliseconds
@@ -9103,6 +9127,30 @@ mod tests {
             "1000\n",
             "the marker holds the DECISION's clock, not a fresh wall-clock read \
              taken inside this function"
+        );
+
+        // NO CLOCK IS NO MARKER: an unreadable clock must not default to
+        // epoch zero, which would write a marker that reads as already
+        // expired the moment it lands, or that never ages out at all read
+        // the other way. SEEDED, not absent: a `None` case starting with no
+        // marker on disk cannot tell "correctly wrote nothing" apart from a
+        // `None => remove_file(marker)` mutant, since removing a file that
+        // was never there is itself a silent no-op.
+        let unreadable_clock_marker =
+            pns::lights::blocked_marker(&state, "s2").expect("a usable session id");
+        std::fs::create_dir_all(
+            unreadable_clock_marker
+                .parent()
+                .expect("the needs directory"),
+        )
+        .expect("the needs directory");
+        std::fs::write(&unreadable_clock_marker, "999\n").expect("a wait already in progress");
+        update_blocked_marker(&state, "s2", "blocked", true, None);
+        assert_eq!(
+            std::fs::read_to_string(&unreadable_clock_marker).expect("the marker"),
+            "999\n",
+            "an unreadable clock must touch no marker at all, neither writing \
+             one at epoch zero nor removing the one already there"
         );
     }
 
