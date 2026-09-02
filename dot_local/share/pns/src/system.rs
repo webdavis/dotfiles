@@ -381,14 +381,15 @@ impl<R: CommandRunner> SystemProbes<R> {
     }
 
     /// The wall clock, taken once and remembered like the four probes beside
-    /// it: see the struct doc. THE FIFTH MEMOIZED READING, and the one the
-    /// four beside it are aged against, which is why forwarding to the phone
-    /// and deciding what to deliver must read this same cell rather than each
-    /// taking their own: a second boundary between two wall-clock reads is
-    /// what drifted a phone reading and a desk reading apart in R4-1. AN
-    /// UNREADABLE CLOCK IS REMEMBERED TOO: the first reader's `None` is the
-    /// second reader's `None`, so the two can never disagree about whether
-    /// there was a clock at all.
+    /// it: see the struct doc. THE FIFTH MEMOIZED READING. Of the four beside
+    /// it, only the phone atime and the marker mtime are epochs aged against
+    /// this clock; idle is already an age and screen lock is a boolean. Which
+    /// is why forwarding to the phone and deciding what to deliver must read
+    /// this same cell rather than each taking their own: a second boundary
+    /// between two wall-clock reads is what drifted a phone reading and a
+    /// desk reading apart in R4-1. AN UNREADABLE CLOCK IS REMEMBERED TOO: the
+    /// first reader's `None` is the second reader's `None`, so the two can
+    /// never disagree about whether there was a clock at all.
     pub fn now_secs(&self) -> Option<u64> {
         *self.now.get_or_init(|| {
             std::time::SystemTime::now()
