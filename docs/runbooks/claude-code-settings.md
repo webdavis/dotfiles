@@ -15,9 +15,17 @@ Fields fall into **three** categories, not two.
 Overwritten from the template on every apply, whatever the live file holds.
 
 - `permissions.allow` (read-only tools: Read, Grep, Glob, WebFetch, WebSearch, plus eight read-only
-  `Bash(...)` globs), `permissions.deny` (`Read(.env)`, `Read(.env.*)`, `Read(secrets/**)`,
-  `Read(credentials.json)`, `Read(.aws/credentials)`, `Read(.ssh/id_*)`), `permissions.defaultMode` =
-  `bypassPermissions`.
+  `Bash(...)` globs: `find`, `cat`, `ls`, `head`, `tail`, `wc`, `grep`, `tree`), `permissions.deny` (14
+  rules, listed below), `permissions.defaultMode` = `bypassPermissions`.
+  - `Read(.env)`, `Read(.env.*)`, `Read(secrets/**)`, `Read(credentials.json)`,
+    `Read(~/.aws/credentials)`, `Read(~/.ssh/id_*)`, `Read(~/.ssh/*_rsa)`, `Read(~/.ssh/*_ed25519)`,
+    `Read(~/.claude/.credentials.json)`, `Read(~/.codex/auth.json)`, `Read(~/.config/pns/config.toml)`,
+    `Read(~/.config/osquery/webhook-secret)`, `Read(~/.hermes/.env)`, `Read(~/**/*.kdbx)`.
+  - The `~/` prefixes are load-bearing and the first four rules lack one deliberately. A bare or
+    `./`-prefixed pattern is CURRENT-DIRECTORY relative, which is exactly right for a project's own
+    `.env`, `secrets/` and `credentials.json`, and was wrong for the home-anchored rules:
+    `Read(.ssh/id_*)` in user settings matched a project's own `.ssh` directory and never `~/.ssh` (found
+    2026-08-05).
 - `hooks`, 12 event keys:
   - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
   - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in
@@ -46,14 +54,14 @@ Overwritten from the template on every apply, whatever the live file holds.
     dialog is shown and exit code 2 alone would decline the request outright.
   - `PostToolBatch` runs `pns hook resolved` async with no matcher, clearing the nag record when an
     assistant tool batch resolves, whether the operator approved the call or denied it: a denied call
-    still produces a tool_result, so it resolves the batch rather than skipping it. The classifier's
-    own refusals are `PermissionDenied`'s to report, not this entry's.
+    still produces a tool_result, so it resolves the batch rather than skipping it. The classifier's own
+    refusals are `PermissionDenied`'s to report, not this entry's.
   - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, calling `pns hook asked`
     and `pns hook plan-ready`.
-  - `SessionStart` is herdr's own agent-state integration, and ownership is split. `herdr integration
-    install claude` creates the hook FILE at `~/.claude/hooks/herdr-agent-state.sh`, which is
-    deliberately unmanaged, and writes this ENTRY the first time. The template then redeclares the
-    same entry, because the `hooks` write is whole-value and would otherwise erase it.
+  - `SessionStart` is herdr's own agent-state integration, and ownership is split.
+    `herdr integration install claude` creates the hook FILE at `~/.claude/hooks/herdr-agent-state.sh`,
+    which is deliberately unmanaged, and writes this ENTRY the first time. The template then redeclares
+    the same entry, because the `hooks` write is whole-value and would otherwise erase it.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (29 today), each set to
   `user-invocable-only`, sourced from `dot_agents/custom-skill-lock.json` and gated by
   `test/unit/skills-roster-fanout.sh`. Per key, so overrides the user sets for other skills drift freely.
@@ -63,14 +71,24 @@ Overwritten from the template on every apply, whatever the live file holds.
   spinner tips anywhere), `effortLevel` (= `xhigh`, the top of the `low`/`medium`/`high`/`xhigh` enum;
   stable rather than free-drift so a `/config` write cannot quietly leave a session on a lower reasoning
   budget).
-- Five `extraKnownMarketplaces` entries, each with `autoUpdate` = `true`: `ponytail`, `openai-codex`,
-  `worktrunk`, `last30days-skill`, `plannotator`. Claude Code refreshes a marketplace and its installed
-  plugins at startup on its own, but only defaults that on for marketplaces Anthropic publishes (read out
-  of the shipped 2.1.220 binary on 2026-08-03), so without these five entries those plugins sit at their
-  install version forever. The write is per marketplace key, so a marketplace added with
-  `claude plugin marketplace add` keeps its own entry. What those silent startup updates changed is
-  recorded weekly by `~/.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh`; see the
-  plugin update record in `docs/runbooks/agent-skills-store.md`.
+- `env`, six keys, written per key so an env var the operator sets by hand drifts freely:
+  `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` = `1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` = `1`,
+  `DISABLE_TELEMETRY` = `1`, `DISABLE_ERROR_REPORTING` = `1`, `DISABLE_NON_ESSENTIAL_MODEL_CALLS` = `1`,
+  `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = `75`.
+- `attribution.commit` and `attribution.pr`, both set to the empty string, which is the native switch for
+  the co-author trailer and the generated-with footer the global rules already forbid by hand.
+- `extraKnownMarketplaces`, six entries on darwin and five on Linux. The five GitHub ones each carry
+  `autoUpdate` = `true`: `ponytail`, `openai-codex`, `worktrunk`, `last30days-skill`, `plannotator`.
+  Claude Code refreshes a marketplace and its installed plugins at startup on its own, but only defaults
+  that on for marketplaces Anthropic publishes (read out of the shipped 2.1.220 binary on 2026-08-03), so
+  without those five entries those plugins sit at their install version forever. The sixth, `pns`, is
+  darwin-only and deliberately carries NO `autoUpdate`: it is this repo's own marketplace, a directory at
+  `~/.claude/pns-marketplace` that chezmoi converges on every apply, and `.chezmoiignore` drops that
+  directory on Linux, where declaring it would be a startup refresh that always fails. The write is per
+  marketplace key, so a marketplace added with `claude plugin marketplace add` keeps its own entry. What
+  those silent startup updates changed is recorded weekly by
+  `~/.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh`; see the plugin update record in
+  `docs/runbooks/agent-skills-store.md`.
 
 `plannotator` is declared here rather than installed from its own `curl | bash` script on purpose. That
 script writes a binary, hooks, skills and slash commands into `~/.claude/` and `~/.codex/`, which are
@@ -86,20 +104,21 @@ and any future setting `/config` adds.
 ## 3. `enabledPlugins`, which is neither
 
 The **roster** is chezmoi-controlled and the per-plugin **state** is not. The template declares thirteen
-plugin ids (keys are `<name>@<marketplace>`, which is the form Claude Code writes, not the bare name the
-CLI prints on success) and the write is whole-value, so a marketplace plugin enabled live but missing
-from the declaration is turned OFF by the next apply. Within that roster, both members of Claude Code's
-own union for this key are the machine's to set and are carried through unchanged: the JSON boolean
-`false` that `claude plugin disable` writes, and the JSON array of version constraints that its schema
-calls the extended format (a plugin held at a reviewed release). Every other shape renders `true`: an
-absent key, a JSON null, a string and a number.
+plugin ids on every OS and appends `pns@pns` on darwin, so fourteen on this machine (keys are
+`<name>@<marketplace>`, which is the form Claude Code writes, not the bare name the CLI prints on
+success) and the write is whole-value, so a marketplace plugin enabled live but missing from the
+declaration is turned OFF by the next apply. Within that roster, both members of Claude Code's own union
+for this key are the machine's to set and are carried through unchanged: the JSON boolean `false` that
+`claude plugin disable` writes, and the JSON array of version constraints that its schema calls the
+extended format (a plugin held at a reviewed release). Every other shape renders `true`: an absent key, a
+JSON null, a string and a number.
 
-So `claude plugin disable <id>` STICKS across applies for the thirteen declared ids, and applying is not
-the way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
+So `claude plugin disable <id>` STICKS across applies for the declared ids, and applying is not the way
+to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
 containment verb a scheduled apply can silently revoke is not containment.
 
-**The promise stops at the thirteen, and an erased entry costs different things depending on where the
-plugin came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped
+**The promise stops at the declared roster, and an erased entry costs different things depending on where
+the plugin came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped
 binary on 2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged
 settings' `enabledPlugins` entries and skips any whose value is undefined, so an id the file does not
 hold is never loaded. Erasing an undeclared marketplace plugin's `false` therefore leaves it off, by a
