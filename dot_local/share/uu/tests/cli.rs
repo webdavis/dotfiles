@@ -879,6 +879,40 @@ fn a_streak_file_made_read_only_between_runs_is_still_correctly_advanced() {
 }
 
 #[test]
+fn a_lane_that_outlives_its_deadline_fails_instead_of_holding_the_run_open() {
+    // THE WIRE, which no unit test reaches: the deadline the LANE'S OWN BLOCK
+    // declares has to be the one the spawn is bounded by. A run handed some
+    // other duration would wait the stub out and report a clean self-update.
+    //
+    // The stub leaves a `sleep` behind holding its stdout and exits at once,
+    // which is the hang this bounds: waiting on the child answers immediately
+    // and the READ is what blocks. Its 4 seconds outlast the 1-second deadline
+    // by enough that a run finishing here finished because uu stopped it.
+    let home = Home::new("lane-deadline").with_herdr_lane_and(
+        "sleep 4 &
+exit 0
+",
+        "deadline_secs = 1
+",
+    );
+    // STRUCTURAL: `deadline_secs` is whole seconds, so one second is the
+    // shortest deadline a config can state and the shortest this can take.
+    home.allow_slow("the smallest deadline a config can express is one second");
+    let output = home.uu(&["run"]);
+    let said = stdout(&output);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a lane failure is not a run failure: {output:?}"
+    );
+    assert!(
+        said.contains("lane `herdr` exceeded its 1s deadline"),
+        "{said}"
+    );
+    assert!(said.contains("1 failure(s)"), "{said}");
+}
+
+#[test]
 fn a_record_the_gateway_never_received_leaves_the_marker_unmoved() {
     // The marker is what the NEXT record measures its gap from, so a run
     // stamped successful after its entry was refused makes the following entry

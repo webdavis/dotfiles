@@ -223,10 +223,11 @@ fn squash(line: &str) -> String {
 /// THE CHILD'S WORLD: `run[0]` is the program, `run[1..]` its arguments, and
 /// argv[0] the child sees is `run[0]` verbatim. Env and working directory are
 /// INHERITED from uu's own process; under the tracked LaunchAgent that is the
-/// plist's own PATH plus HOME, with the working directory at `/`. The child
-/// must not leave anything behind holding its stdout or stderr open (a
-/// backgrounded process, a detached daemon), or uu waits for it forever:
-/// no lane has a deadline, by design (`SystemRunner` in main.rs says why).
+/// plist's own PATH plus HOME, with the working directory at `/`. It runs in
+/// a PROCESS GROUP OF ITS OWN, bounded by the lane's `deadline_secs`: a child
+/// that leaves something behind holding its stdout or stderr (a backgrounded
+/// process, a detached daemon) has that group killed at the deadline and the
+/// lane reports the overrun as a failure.
 pub fn run_command(
     name: &str,
     lane: &CommandLane,
@@ -255,16 +256,6 @@ pub fn run_command(
     report
 }
 
-/// The lanes this config declares, in NAME order.
-///
-/// ORDER IS THE NAME'S, never the file's. `Lanes` is a `BTreeMap`, so this is
-/// always sorted regardless of which block the operator happened to type
-/// first, and a run whose sequence changes when a block moves is a run nobody
-/// can reason about.
-pub fn enabled_lanes(config: &Config) -> Vec<&str> {
-    config.lanes.keys().map(String::as_str).collect()
-}
-
 /// Run one named lane, or `None` when this config declares none by that name.
 /// Dispatches on the lane's own kind; a name the parser accepted always
 /// carries a kind this build knows how to run, because an unrecognized `type`
@@ -275,7 +266,7 @@ pub fn run_lane(
     facts: &RunFacts,
     runner: &dyn CommandRunner,
 ) -> Option<LaneReport> {
-    match config.lanes.get(name)? {
+    match &config.lanes.get(name)?.kind {
         // The herdr lane predates the run event and has no use for it.
         LaneKind::Herdr(lane) => Some(run_herdr(name, lane, runner)),
         LaneKind::Command(lane) => Some(run_command(name, lane, facts, runner)),
@@ -469,6 +460,11 @@ mod tests {
         }
     }
 
+    /// The declared lanes, in the order a run reaches them.
+    fn names(config: &Config) -> Vec<&str> {
+        config.lanes.keys().map(String::as_str).collect()
+    }
+
     fn lane(plugins: &[(&str, &str)]) -> HerdrLane {
         HerdrLane {
             binary: "herdr".to_string(),
@@ -493,7 +489,7 @@ mod tests {
     #[test]
     fn a_config_with_no_lane_block_enables_nothing() {
         let config = parse_config("").unwrap();
-        assert!(enabled_lanes(&config).is_empty());
+        assert!(config.lanes.is_empty());
         assert_eq!(
             run_lane("herdr", &config, &stub_facts(), &ScriptedRunner::new(&[])),
             None,
@@ -504,7 +500,7 @@ mod tests {
     #[test]
     fn a_lane_block_with_nothing_in_it_turns_the_lane_on() {
         let config = parse_config("[lanes.herdr]\n").unwrap();
-        assert_eq!(enabled_lanes(&config), vec!["herdr"]);
+        assert_eq!(names(&config), vec!["herdr"]);
         assert!(run_lane("herdr", &config, &stub_facts(), &ScriptedRunner::new(&[])).is_some());
     }
 
@@ -552,7 +548,7 @@ mod tests {
         let config =
             parse_config("[lanes.zeta]\ntype = \"herdr\"\n\n[lanes.alpha]\ntype = \"herdr\"\n")
                 .unwrap();
-        assert_eq!(enabled_lanes(&config), vec!["alpha", "zeta"]);
+        assert_eq!(names(&config), vec!["alpha", "zeta"]);
     }
 
     // --- the run_with_input spy -------------------------------------------------
