@@ -3473,6 +3473,37 @@ mod tests {
         );
     }
 
+    /// THE STUB ONLY READS THE GRAMMAR of a secret action, which is what
+    /// keeps a dropped `| toToml` or an unknown field from passing itself off
+    /// as vault output. It reads neither WHICH entry a line names nor WHICH
+    /// field it takes off that entry, so pointing hue's `bridge` at
+    /// `.Password` or a line at another vault entry leaves every other
+    /// template test green while the deployed file quietly carries the wrong
+    /// credential, and both are one character.
+    ///
+    /// NOTHING RENDERS THIS TEMPLATE IN A TEST, so its own text is the only
+    /// place that agreement can sit until PR S2 generates the file from
+    /// `config_text::render` and compares the two byte for byte. The list is
+    /// exact rather than a `contains` per line, so a sixth secret appearing,
+    /// or one of these five going away, is the same red.
+    #[test]
+    fn the_shipped_template_names_the_entry_and_field_of_every_secret() {
+        let secrets: Vec<&str> = SHIPPED_TEMPLATE
+            .lines()
+            .filter(|line| line.contains("keepassxc"))
+            .collect();
+        assert_eq!(
+            secrets,
+            [
+                r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#,
+                r#"key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}"#,
+                r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#,
+                r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#,
+                r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#,
+            ]
+        );
+    }
+
     #[test]
     fn the_shipped_config_template_still_parses_through_this_schema() {
         // THE FENCE UNDER THE SWEEP. Judging every plugin table's keys can
