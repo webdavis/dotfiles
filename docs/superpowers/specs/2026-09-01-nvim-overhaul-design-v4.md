@@ -441,7 +441,9 @@ and corrupts the median without erroring) and treats a nonempty stderr log as fa
    before the flatten and showing that its only output names `README.md`. Chezmoi does not delete the
    four files it does not manage (`README.md`, `docs/`, `.github/`, `.gitignore`), and `CLAUDE.md` is
    byte-identical because the import PR excludes `dot_config/nvim/**` from mdformat AND taplo (3.8),
-   the second because `stylua.toml` is itself a TOML file taplo would otherwise reformat. The stylua
+   the second because `stylua.toml` is itself a TOML file taplo reads. taplo leaves that file
+   unchanged as it stands (measured 2026-09-02), so that exclusion is precautionary, not load-bearing
+   today, while the mdformat one is: mdformat rewrites both `CLAUDE.md` and `docs/todo.md`. The stylua
    formatter that PR 1 lands is run as `stylua --check` against the backup copy with Homebrew's
    stylua BEFORE the flatten; the live config is clean under Mason's 2.3.1 today, and if Homebrew's
    2.5.2 wants a rewrite, the import PR adds the same `dot_config/nvim/**` exclusion for stylua and
@@ -529,8 +531,10 @@ PR 4d removes that line and commits the rewrap of `CLAUDE.md` and `docs/todo.md`
 formatting-only commit, called out in its body.
 
 `taplo` excludes nothing under `dot_config/` either, and `dot_config/nvim/stylua.toml` is a TOML file
-it would format, breaking check 1 of 3.7 the same way. PR 2 adds `dot_config/nvim/**` to the taplo
-`excludes` list alongside `dot_aerospace.toml`, and PR 4d lifts it with the other exclusions.
+it reads. It agrees with that file byte for byte as it stands (measured 2026-09-02), so the exclusion
+guards against a later hand edit drifting from taplo's style rather than against a rewrite waiting to
+happen. PR 2 adds `dot_config/nvim/**` to the taplo `excludes` list alongside `dot_aerospace.toml`,
+and PR 4d lifts it with the other exclusions, with no taplo reformat to commit unless it drifts.
 
 ### 3.9 Bootstrap script
 

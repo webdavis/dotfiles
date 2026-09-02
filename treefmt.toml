@@ -64,9 +64,12 @@ excludes = [
 ]
 
 # dot_aerospace.toml keeps user-preferred visual alignment taplo would strip.
-# dot_config/nvim/stylua.toml is the deployed, hand-maintained file stylua
-# itself reads on save; taplo's own formatting would rewrite it and break the
-# import PR's byte-diff proof the same way mdformat would. PR 4d lifts this too.
+# dot_config/nvim/stylua.toml is the deployed, hand-maintained file stylua itself
+# reads on save. taplo agrees with it byte for byte as it stands (measured
+# 2026-09-02), so unlike the mdformat exclusion this one changes nothing today;
+# it is here so a later hand edit to that file cannot break the import PR's
+# byte-diff proof through a formatter nobody was watching. PR 4d lifts it too,
+# and has no taplo reformat to commit unless the file drifts first.
 [formatter.taplo]
 command = "taplo"
 options = ["format"]
