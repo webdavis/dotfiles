@@ -1558,6 +1558,90 @@ mod tests {
     }
 
     #[test]
+    fn the_target_declaration_key_roster_is_exactly_shows_dim_window_and_dim_behaviours() {
+        // THE EXACT KEY SET, not merely "an unknown key is refused": a fourth
+        // key added to `render_target`'s own hardcoded list would pass every
+        // existing test without ever being asserted as belonging.
+        let (_, roster_keys) = crate::config::TABLE_KEYS
+            .iter()
+            .find(|(name, _)| *name == crate::config::TARGET_KEYS)
+            .expect("TARGET_KEYS is declared in the roster");
+        let mut roster_keys = roster_keys.to_vec();
+        roster_keys.sort_unstable();
+        assert_eq!(roster_keys, ["dim_behaviours", "dim_window", "shows"]);
+    }
+
+    #[test]
+    fn declarations_at_every_level_render_sorted_hostile_names_quoted_with_their_own_notes() {
+        // ONE SAFE ROOM IS NOT ENOUGH: lamp and zone rendering, the sort
+        // order, a hostile name and a target's own note all need their own
+        // exercise, or removing any of them survives every existing test.
+        let mut lamps = toml::Table::new();
+        lamps.insert("Zeta Lamp".to_string(), toml::Value::Table(toml::Table::new()));
+        lamps.insert("Alpha Lamp".to_string(), toml::Value::Table(toml::Table::new()));
+
+        let mut hostile_target = toml::Table::new();
+        hostile_target.insert(
+            "note".to_string(),
+            toml::Value::String("the desk lamp".to_string()),
+        );
+        let mut rooms = toml::Table::new();
+        rooms.insert("Zeta Room".to_string(), toml::Value::Table(toml::Table::new()));
+        rooms.insert(
+            "Alpha \"Room\"".to_string(),
+            toml::Value::Table(hostile_target),
+        );
+
+        let mut zones = toml::Table::new();
+        zones.insert("Zeta Zone".to_string(), toml::Value::Table(toml::Table::new()));
+        zones.insert("Alpha Zone".to_string(), toml::Value::Table(toml::Table::new()));
+
+        let mut lights = toml::Table::new();
+        lights.insert("lamp".to_string(), toml::Value::Table(lamps));
+        lights.insert("room".to_string(), toml::Value::Table(rooms));
+        lights.insert("zone".to_string(), toml::Value::Table(zones));
+        let mut values = toml::Table::new();
+        values.insert("lights".to_string(), toml::Value::Table(lights));
+
+        let text = render(&values).expect("declarations at every level render");
+
+        // SORTED, ALPHA BEFORE ZETA, at each of the three levels: `toml::Table`
+        // is BTreeMap-ordered, so this catches sorting being disabled.
+        for level in ["lamp", "room", "zone"] {
+            let alpha = text
+                .find(&format!("[lights.{level}.\"Alpha"))
+                .unwrap_or_else(|| panic!("no Alpha declaration at `{level}`: {text}"));
+            let zeta = text
+                .find(&format!("[lights.{level}.\"Zeta"))
+                .unwrap_or_else(|| panic!("no Zeta declaration at `{level}`: {text}"));
+            assert!(
+                alpha < zeta,
+                "`{level}` did not sort Alpha before Zeta: {text}"
+            );
+        }
+
+        // A QUOTE IN THE NAME IS ESCAPED, never raw-interpolated into the
+        // heading, which would otherwise close the TOML key string early.
+        assert!(
+            text.contains("[lights.room.\"Alpha \\\"Room\\\"\"]"),
+            "{text}"
+        );
+        // AND ITS OWN NOTE renders above its own heading, not the room's name
+        // it happens to share no other target with.
+        assert!(
+            text.contains("# the desk lamp\n[lights.room.\"Alpha \\\"Room\\\"\"]"),
+            "{text}"
+        );
+
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        let lights = config.lights.expect("lights was armed");
+        assert!(lights.lamps.contains_key("Alpha Lamp"));
+        assert!(lights.lamps.contains_key("Zeta Lamp"));
+        assert!(lights.zones.contains_key("Alpha Zone"));
+        assert!(lights.zones.contains_key("Zeta Zone"));
+    }
+
+    #[test]
     fn a_hostile_literal_crosses_as_one_inert_string_and_never_as_structure() {
         // THE OTHER INJECTION CASE: a plain value, not a note. A quote could
         // close the string, a newline could open a heading or a key on the
