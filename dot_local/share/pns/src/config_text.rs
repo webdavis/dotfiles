@@ -600,6 +600,12 @@ const EXAMPLE_DECLARATION: &str = "# [lights.room.\"Studio\"]\n\
 /// A PASTED SECRET IS UNTRUSTED TEXT and is escaped rather than refused: raw
 /// interpolation composes a file that will not load at best, and at worst one
 /// whose value stops where the operator's own quote did.
+///
+/// `{` AND `}` ARE ESCAPED TOO, even though TOML itself has no complaint about
+/// either one bare: this text is what an eventual `.tmpl` file regenerates
+/// from, and chezmoi's own template engine reads a live `{{ ... }}` action
+/// anywhere in that file, quotes or no quotes. Splitting the pair into two
+/// `\uXXXX` escapes keeps a pasted value from ever handing chezmoi one.
 pub fn quoted(value: &str) -> String {
     let mut quoted = String::with_capacity(value.len() + 2);
     quoted.push('"');
@@ -607,6 +613,7 @@ pub fn quoted(value: &str) -> String {
         match character {
             '\\' => quoted.push_str("\\\\"),
             '"' => quoted.push_str("\\\""),
+            '{' | '}' => quoted.push_str(&format!("\\u{:04X}", character as u32)),
             // TOML admits no bare control character inside a basic string.
             control if control < ' ' || control == '\u{7f}' => {
                 quoted.push_str(&format!("\\u{:04X}", control as u32));
@@ -843,7 +850,15 @@ fn render_target(
 fn take_note(settings: &mut toml::Table) -> Result<Option<String>, String> {
     match settings.remove("note") {
         None => Ok(None),
-        Some(toml::Value::String(note)) => Ok(Some(note)),
+        Some(toml::Value::String(note)) => {
+            // A NOTE IS A RAW COMMENT, never a quoted string, so `quoted`'s
+            // brace-splitting cannot stand between it and chezmoi's template
+            // engine: refuse the opening outright rather than write it.
+            if note.contains("{{") {
+                return Err("`note` cannot open a chezmoi template action".to_string());
+            }
+            Ok(Some(note))
+        }
         Some(other) => Err(format!(
             "`note` has type `{}`, not a string",
             other.type_str()
@@ -1397,6 +1412,50 @@ mod tests {
             config.plugins["hermes"].settings["key"].as_str(),
             Some(hostile)
         );
+    }
+
+    #[test]
+    fn a_literal_holding_a_chezmoi_action_opening_crosses_with_its_braces_broken_up() {
+        // A LITERAL IS UNTRUSTED TEXT THIS RENDER MUST NEVER HAND CHEZMOI A LIVE
+        // ACTION FROM: `quoted` is also what the closing prose relies on to keep
+        // an eventual S2-generated `.tmpl` file inert wherever a value sits, so
+        // `{{` and `}}` must never survive a quoted string as an adjacent pair.
+        let hostile = "before{{ printf \"pwned\" }}after";
+        let mut hermes = toml::Table::new();
+        hermes.insert("key".to_string(), toml::Value::String(hostile.to_string()));
+        let mut plugins = toml::Table::new();
+        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("a hostile literal renders");
+        assert!(!text.contains("{{"), "a live action opening survived: {text}");
+        assert!(!text.contains("}}"), "a live action close survived: {text}");
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        assert_eq!(
+            config.plugins["hermes"].settings["key"].as_str(),
+            Some(hostile)
+        );
+    }
+
+    #[test]
+    fn a_note_holding_a_chezmoi_action_opening_is_refused_by_name() {
+        // A NOTE IS WRITTEN AS A RAW COMMENT, never a quoted string, so `quoted`'s
+        // brace-splitting cannot protect it: chezmoi's template engine reads
+        // `{{ ... }}` inside a comment exactly like anywhere else in the file, so
+        // the only safe answer is refusing the note outright.
+        let mut hermes = toml::Table::new();
+        hermes.insert(
+            "note".to_string(),
+            toml::Value::String("safe {{ printf \"pwned\" }} unsafe".to_string()),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let error = render(&values).expect_err("a note opening a chezmoi action must be refused");
+        assert!(error.contains("note"), "{error}");
     }
 
     #[test]
