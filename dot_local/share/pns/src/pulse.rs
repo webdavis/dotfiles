@@ -33,10 +33,11 @@ pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 /// the operator breathes in.
 ///
 /// IT TOOK OVER FROM THE DEEP BLUE THAT NOW BELONGS TO `LOOP_COLOR`. Blocked
-/// and loop sat 0.067 apart in CIE xy, against 0.192 for the next-closest pair
-/// in the whole set, and in daylight the two lamps read as one. This pair is
-/// 0.192 apart, so the weakest distance in the vocabulary is now the same as
-/// every other one.
+/// and loop sat 0.067 apart in the xy space the bridge takes, against 0.192 for
+/// the next-closest pair in the whole set, and in daylight the two lamps read
+/// as one. This pair is 0.207 apart, so the closest two colours in the
+/// vocabulary are no longer these: they are failure and the unread success, at
+/// that same 0.192 the swap does not touch.
 pub const BLOCKED_COLOR: PulseColor = PulseColor {
     x: 0.3395,
     y: 0.1379,
