@@ -1196,7 +1196,11 @@ mod tests {
         ] {
             assert!(text.contains(expected), "{expected} should be live: {text}");
         }
-        for expected in ["\nreplay_card = true\n", "\ndigest = true\n", "\ndigest_as_thread = true\n"] {
+        for expected in [
+            "\nreplay_card = true\n",
+            "\ndigest = true\n",
+            "\ndigest_as_thread = true\n",
+        ] {
             assert!(text.contains(expected), "{expected} should be live: {text}");
         }
         // AND, WHILE LIGHTS IS ABSENT, none of its own defaults leak out live.
@@ -1227,7 +1231,11 @@ mod tests {
         // `threshold_secs`, `lease_timeout_secs`) sit behind that prose
         // rather than right after the previous key's line, so they are
         // checked on their own.
-        for expected in ["\nafter_secs = 300\n", "\nthreshold_secs = 300\n", "\nlease_timeout_secs = 3900\n"] {
+        for expected in [
+            "\nafter_secs = 300\n",
+            "\nthreshold_secs = 300\n",
+            "\nlease_timeout_secs = 3900\n",
+        ] {
             assert!(
                 armed.contains(expected),
                 "{expected} should be live once lights is armed: {armed}"
@@ -1612,8 +1620,14 @@ mod tests {
         // order, a hostile name and a target's own note all need their own
         // exercise, or removing any of them survives every existing test.
         let mut lamps = toml::Table::new();
-        lamps.insert("Zeta Lamp".to_string(), toml::Value::Table(toml::Table::new()));
-        lamps.insert("Alpha Lamp".to_string(), toml::Value::Table(toml::Table::new()));
+        lamps.insert(
+            "Zeta Lamp".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
+        lamps.insert(
+            "Alpha Lamp".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
 
         let mut hostile_target = toml::Table::new();
         hostile_target.insert(
@@ -1621,15 +1635,24 @@ mod tests {
             toml::Value::String("the desk lamp".to_string()),
         );
         let mut rooms = toml::Table::new();
-        rooms.insert("Zeta Room".to_string(), toml::Value::Table(toml::Table::new()));
+        rooms.insert(
+            "Zeta Room".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
         rooms.insert(
             "Alpha \"Room\"".to_string(),
             toml::Value::Table(hostile_target),
         );
 
         let mut zones = toml::Table::new();
-        zones.insert("Zeta Zone".to_string(), toml::Value::Table(toml::Table::new()));
-        zones.insert("Alpha Zone".to_string(), toml::Value::Table(toml::Table::new()));
+        zones.insert(
+            "Zeta Zone".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
+        zones.insert(
+            "Alpha Zone".to_string(),
+            toml::Value::Table(toml::Table::new()),
+        );
 
         let mut lights = toml::Table::new();
         lights.insert("lamp".to_string(), toml::Value::Table(lamps));
@@ -1717,7 +1740,10 @@ mod tests {
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
         let text = render(&values).expect("a hostile literal renders");
-        assert!(!text.contains("{{"), "a live action opening survived: {text}");
+        assert!(
+            !text.contains("{{"),
+            "a live action opening survived: {text}"
+        );
         assert!(!text.contains("}}"), "a live action close survived: {text}");
         let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
         assert_eq!(
@@ -1753,7 +1779,12 @@ mod tests {
         // rides straight into the comment and makes `parse_config` refuse the
         // text `render` just claimed to succeed on. CRLF is normalized first,
         // since it is an ordinary line ending rather than a hostile control.
-        for hostile in ["line one\r\nline two", "bad\u{0}byte", "bad\u{7f}byte", "lone\rcarriage"] {
+        for hostile in [
+            "line one\r\nline two",
+            "bad\u{0}byte",
+            "bad\u{7f}byte",
+            "lone\rcarriage",
+        ] {
             let mut hermes = toml::Table::new();
             hermes.insert("note".to_string(), toml::Value::String(hostile.to_string()));
             hermes.insert(
@@ -1771,7 +1802,8 @@ mod tests {
                 // plain newline rather than refused as a control character.
                 let text = result.expect("CRLF normalizes rather than refusing");
                 assert!(text.contains("# line one\n# line two\n"), "{text}");
-                let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+                let config =
+                    parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
                 assert!(config.plugins.contains_key("hermes"));
             } else {
                 let error = result.expect_err(&format!(
@@ -1804,10 +1836,7 @@ mod tests {
             !text.contains("Everything else is armed with a credential"),
             "{text}"
         );
-        assert!(
-            text.contains("need no credential at all"),
-            "{text}"
-        );
+        assert!(text.contains("need no credential at all"), "{text}");
     }
 
     #[test]
