@@ -663,20 +663,33 @@ pub fn render(values: &toml::Table) -> Result<String, String> {
     out.push('\n');
 
     let mut plugins = take_table(&mut remaining, "plugins")?;
-    render_core(&mut out, find_table("plugins.mobile"), &mut plugins)?;
-    render_opt_in(&mut out, find_table("plugins.hermes"), &mut plugins)?;
-    render_core(&mut out, find_table("plugins.macos-banner"), &mut plugins)?;
-    render_opt_in(&mut out, find_table("plugins.hue"), &mut plugins)?;
-    render_opt_in(&mut out, find_table("plugins.router"), &mut plugins)?;
+    // LAYOUT IS WALKED ONCE, IN ITS OWN ORDER, and `opt_in` is what decides
+    // `render_core` versus `render_opt_in` for every table: nothing here
+    // hand-picks a table by name, so a table added, reordered or flipped in
+    // LAYOUT changes what this walk writes without a matching edit here.
+    // `lights` IS THE ONE HARDCODED BRANCH, because its seven headings share
+    // one presence flag rather than each carrying its own; every
+    // `lights.<x>` entry is written by that one call and skipped here.
+    for table in LAYOUT {
+        if table.name == "lights" {
+            render_lights(&mut out, &mut remaining)?;
+        } else if table.name.starts_with("lights.") {
+            continue;
+        } else if table.name.starts_with("plugins.") {
+            if table.opt_in {
+                render_opt_in(&mut out, table, &mut plugins)?;
+            } else {
+                render_core(&mut out, table, &mut plugins)?;
+            }
+        } else if table.opt_in {
+            render_opt_in(&mut out, table, &mut remaining)?;
+        } else {
+            render_core(&mut out, table, &mut remaining)?;
+        }
+    }
     if let Some(name) = plugins.keys().next() {
         return Err(format!("unknown plugin `{name}`"));
     }
-
-    render_core(&mut out, find_table("daemon"), &mut remaining)?;
-    render_core(&mut out, find_table("recap"), &mut remaining)?;
-    render_opt_in(&mut out, find_table("focus"), &mut remaining)?;
-    render_opt_in(&mut out, find_table("nag"), &mut remaining)?;
-    render_lights(&mut out, &mut remaining)?;
 
     out.push_str(TRAILER);
 
@@ -1022,6 +1035,45 @@ fn secret_action(table: &toml::Table) -> Result<String, String> {
 mod tests {
     use super::render;
     use crate::config::parse_config;
+
+    #[test]
+    fn render_walks_every_layout_table_and_writes_no_heading_outside_it() {
+        // LAYOUT IS THE SOURCE OF TRUTH: every table it declares must show up
+        // in the render, commented or live, and every heading the render
+        // writes must be one LAYOUT actually declares. A `render` that
+        // enumerates tables by hand rather than walking LAYOUT can drift from
+        // this without any test noticing.
+        let text = render(&toml::Table::new()).expect("an empty walk still renders");
+        let layout_names: std::collections::HashSet<&str> =
+            super::LAYOUT.iter().map(|table| table.name).collect();
+
+        for table in super::LAYOUT {
+            if table.name.starts_with("lights.") {
+                continue; // governed by the single [lights] presence flag
+            }
+            let live = format!("[{}]\n", table.name);
+            let commented = format!("# [{}]\n", table.name);
+            assert!(
+                text.contains(&live) || text.contains(&commented),
+                "`{}` from LAYOUT never appears in the render: {text}",
+                table.name
+            );
+        }
+
+        for line in text.lines() {
+            let heading = line.strip_prefix("# [").or_else(|| line.strip_prefix('['));
+            let Some(heading) = heading.and_then(|rest| rest.strip_suffix(']')) else {
+                continue;
+            };
+            if heading.contains('"') {
+                continue; // a lamp/room/zone target declaration, not a LAYOUT table
+            }
+            assert!(
+                layout_names.contains(heading),
+                "the render wrote a heading `{heading}` LAYOUT never declares"
+            );
+        }
+    }
 
     /// A values table naming every core and opt-in table, all literals: the
     /// shape `Answers::values()` produces once every question is answered.
