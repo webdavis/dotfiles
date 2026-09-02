@@ -365,6 +365,10 @@ type DeskHandle = std::thread::JoinHandle<(Option<u64>, Option<bool>)>;
 pub struct SystemProbes<R: CommandRunner> {
     runner: Arc<R>,
     marker_path: String,
+    /// Where a phone reading's terminal name resolves to. Always `TTY_DIR`
+    /// in production; a test points it at a fixture directory instead of
+    /// stubbing `newest_terminal_atime` a second time, see `with_tty_dir`.
+    tty_dir: String,
     idle: std::cell::OnceCell<Option<u64>>,
     marker_mtime: std::cell::OnceCell<Option<u64>>,
     phone_atime: std::cell::OnceCell<Option<u64>>,
@@ -383,6 +387,7 @@ impl<R: CommandRunner> SystemProbes<R> {
         Self {
             runner: Arc::new(runner),
             marker_path,
+            tty_dir: TTY_DIR.to_string(),
             idle: std::cell::OnceCell::new(),
             marker_mtime: std::cell::OnceCell::new(),
             phone_atime: std::cell::OnceCell::new(),
@@ -422,6 +427,19 @@ impl<R: CommandRunner> SystemProbes<R> {
     #[cfg(test)]
     pub fn with_clock(self, now: u64) -> Self {
         let _ = self.now.set(Some(now));
+        self
+    }
+
+    /// Points the phone chain's terminal lookup at a fixture directory
+    /// instead of `TTY_DIR`, so a test's canned `ps` output can name a
+    /// device the test itself created and stamped, rather than a real
+    /// `/dev` entry whose presence varies by machine.
+    ///
+    /// `cfg(test)`-ONLY, same as `with_clock` beside it: production always
+    /// takes the `TTY_DIR` default set in `new`.
+    #[cfg(test)]
+    pub fn with_tty_dir(mut self, dir: String) -> Self {
+        self.tty_dir = dir;
         self
     }
 }
@@ -509,14 +527,14 @@ impl<R: CommandRunner> crate::probes::PhoneMarkerProbe for SystemProbes<R> {
 /// empty leaves None. None is never fresh, which drops the phone out of
 /// the arbitration rather than parking the operator on it: a phone that
 /// cannot be read must not silence the banner.
-fn phone_reading<R: CommandRunner>(runner: &R) -> Option<u64> {
+fn phone_reading<R: CommandRunner>(runner: &R, tty_dir: &str) -> Option<u64> {
     let servers = parse_pids(&runner.run(PGREP_PATH, &["-x", "mosh-server"])?);
     let clients = parse_pids(&pgrep_children(runner, &servers)?);
     if clients.is_empty() {
         return None;
     }
     let terminals = runner.run(PS_PATH, &["-o", "tty=", "-p", &clients.join(",")])?;
-    newest_terminal_atime(TTY_DIR, &terminals)
+    newest_terminal_atime(tty_dir, &terminals)
 }
 
 /// Every child of the given parents, in one call. No parents means no call:
@@ -534,7 +552,7 @@ impl<R: CommandRunner + Send + Sync + 'static> crate::probes::PhoneInputProbe fo
         self.join_phone();
         *self
             .phone_atime
-            .get_or_init(|| phone_reading(&*self.runner))
+            .get_or_init(|| phone_reading(&*self.runner, &self.tty_dir))
     }
 }
 
@@ -660,8 +678,9 @@ impl<R: CommandRunner + Send + Sync + 'static> crate::probes::ProbeStart for Sys
         }
         if wants.phone && self.phone_atime.get().is_none() && self.phone_handle_absent() {
             let runner = Arc::clone(&self.runner);
+            let tty_dir = self.tty_dir.clone();
             let handle = std::thread::Builder::new()
-                .spawn(move || phone_reading(&*runner))
+                .spawn(move || phone_reading(&*runner, &tty_dir))
                 .ok();
             self.phone_handle.set(handle);
         }
@@ -1051,13 +1070,26 @@ mod tests {
             "/usr/sbin/ioreg -n Root -d1".to_string(),
             ROOT_LOCKED.to_string(),
         ));
+        // DISCOVERY's canned `ps` output names "ttys000", a real `/dev`
+        // entry only on a machine with an open terminal by that name. A CI
+        // runner has none, so the phone join reads None there against
+        // TTY_DIR and this test's own "joined value" assertion goes flaky
+        // by host rather than by behavior. The fixture directory below is
+        // what `with_tty_dir` points the phone chain at instead, so the
+        // assertion is a real number every machine can produce.
+        const JOINED_PHONE_ATIME: u64 = 1_650_000_000;
+        let tty_dir = std::env::temp_dir().join(format!("pns-tty-join-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tty_dir);
+        std::fs::create_dir_all(&tty_dir).expect("fixture dir");
+        terminal_with_atime(&tty_dir, "ttys000", JOINED_PHONE_ATIME);
         let probes = SystemProbes::new(
             ExactArgvRunner {
                 answers: scripted,
                 calls: Mutex::new(Vec::new()),
             },
             "/marker".to_string(),
-        );
+        )
+        .with_tty_dir(tty_dir.to_string_lossy().into_owned());
         for _ in 0..2 {
             probes.start(Wants {
                 desk: true,
@@ -1087,8 +1119,11 @@ mod tests {
         // worker passed every one of them. Assert the joined values too.
         assert_eq!(probes.idle_secs(), Some(5), "the joined idle answer");
         assert_eq!(probes.screen_locked(), Some(true), "the joined lock answer");
-        assert!(
-            probes.phone_input_atime_secs().is_some(),
+        let phone_reading = probes.phone_input_atime_secs();
+        let _ = std::fs::remove_dir_all(&tty_dir);
+        assert_eq!(
+            phone_reading,
+            Some(JOINED_PHONE_ATIME),
             "the joined phone answer"
         );
     }
