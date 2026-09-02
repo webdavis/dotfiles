@@ -3269,6 +3269,51 @@ fn an_unanswered_approval_is_nudged_once_through_the_ordinary_paths() {
     );
 }
 
+/// `nag_config`, plus the lamps switched on (a map, and the transport
+/// enabled): what a fire needs to relight the wait it just nudged.
+fn nag_config_with_lamps(after_secs: u64) -> String {
+    format!("{}{LAMPS_ON}", nag_config(after_secs))
+}
+
+#[test]
+fn a_fired_nudge_relights_the_wait_it_just_nudged() {
+    // THE BLUE LAMP WENT DARK AT THE NUDGE, deliberately (a nudge returns
+    // before `update_blocked_marker` in the ordinary event path, per its own
+    // doc comment), so without this the operator's lamp says nobody is
+    // waiting on them while a card just told them somebody is. The fire is
+    // the one place that still knows every session it counted.
+    let sandbox = Sandbox::new("nag-relights-marker");
+    sandbox.write_config(&nag_config_with_lamps(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+
+    support::run(&mut nag(&sandbox));
+
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "the fire relights the marker for the session it just nudged"
+    );
+}
+
+#[test]
+fn a_fired_nudge_relights_nothing_when_the_lamps_are_not_live() {
+    // BOTH SWITCHES, same rule as the ordinary event path: a `[lights]` table
+    // with hue disabled (or absent, here) must not accumulate a marker
+    // nothing will ever sweep.
+    let sandbox = Sandbox::new("nag-relights-marker-lamps-off");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+
+    support::run(&mut nag(&sandbox));
+
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "the lamps are not live, so the fire writes no marker"
+    );
+}
+
 #[test]
 fn a_second_fire_nudges_nothing() {
     // THE ONE-NUDGE-MAXIMUM PIN: the first fire CONSUMES the record, so there
