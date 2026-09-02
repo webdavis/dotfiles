@@ -303,8 +303,16 @@ fn start_of_turn(payload: &HookPayload) {
     }
     // Only when none is there: a second prompt inside one turn must not
     // restart the clock.
-    if !marker.exists() {
-        let _ = std::fs::write(&marker, now_secs().unwrap_or_default().to_string());
+    // NO CLOCK IS NO MARKER, never a marker at epoch zero: the same rule
+    // `update_blocked_marker` states beside its own clock. A marker at zero
+    // would measure the turn from 1970, so `consume_turn_marker` would call a
+    // two-second turn long-running and it would earn the watch card and the
+    // pulse; no marker measures nothing, and `session_was_long` reads that as
+    // not long.
+    if !marker.exists()
+        && let Some(now) = now_secs()
+    {
+        let _ = std::fs::write(&marker, now.to_string());
     }
 }
 
@@ -500,18 +508,27 @@ fn record_missed(
 /// the wait it is still in.
 ///
 /// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason.
-fn update_blocked_marker(state_dir: &Path, session_id: &str, event_state: &str, lamps_live: bool) {
+fn update_blocked_marker(
+    state_dir: &Path,
+    session_id: &str,
+    event_state: &str,
+    lamps_live: bool,
+    now: Option<u64>,
+) {
     let Some(marker) = pns::lights::blocked_marker(state_dir, session_id) else {
         return;
     };
     match pns::lights::blocked_marker_action(event_state) {
         pns::lights::Action::Start if !lamps_live => {}
         pns::lights::Action::Start => {
-            // NO CLOCK IS NO MARKER, never a marker at epoch zero: the bound
-            // that expires an abandoned wait is measured against this number,
-            // and a zero would be expired the moment it was written or, read
-            // the other way, would be a wait nobody could age out.
-            if let Some(now) = now_secs() {
+            // THE DECISION'S OWN CLOCK, as record_news beside it: this reads
+            // the moment the decision was made for, never a fresh one taken
+            // inside this function. NO CLOCK IS NO MARKER, never a marker at
+            // epoch zero: the bound that expires an abandoned wait is
+            // measured against this number, and a zero would be expired the
+            // moment it was written or, read the other way, would be a wait
+            // nobody could age out.
+            if let Some(now) = now {
                 let _ = publish_state_line(&marker, &now.to_string());
             }
         }
@@ -1909,7 +1926,11 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
 /// are two questions about one moment, and a boundary crossed between two
 /// measurements cards a phone with no round trip behind it.
 fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
-    pns::engine::operator_surface(probes, &overrides_from_env(), now_secs())
+    // THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off this probe set's own
+    // memoized cell rather than a fresh wall-clock read: see R4-1. Two reads
+    // of the wall clock for one event is the boundary that drifted a phone
+    // reading and a desk reading apart.
+    pns::engine::operator_surface(probes, &overrides_from_env(), probes.now_secs())
         != pns::surface::Surface::Desk
 }
 
@@ -2345,10 +2366,12 @@ fn run_event(
     // against it.
     let durable_route = selection.iter().any(|plugin| plugin.name == "hermes");
 
-    let now_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|since_epoch| since_epoch.as_secs());
+    // THE SAME CLOCK `forward_to_moshi` READS, off this probe set's own
+    // memoized cell: see R4-1. On the blocked path that read came first and
+    // this answers the same second; on every other path this is the first and
+    // only read. A second wall-clock read here is exactly the boundary that
+    // let a phone reading and a desk reading about one event disagree.
+    let now_secs = probes.now_secs();
     // THE MUTE IS AN INPUT TO THE DECISION, stated here and nowhere else. It
     // is never a filter over `decision.legs` afterwards: which legs are
     // decorative is routing's policy, and re-deriving it here would be the
@@ -2459,7 +2482,13 @@ fn run_event(
     // bulb, so a table with hue switched off lights nothing, runs no tick, and
     // must not accumulate markers nothing will ever sweep.
     let lamps_live = lights.is_some() && hue_table.is_some();
-    update_blocked_marker(&state_dir(), session_id, &event.state, lamps_live);
+    update_blocked_marker(
+        &state_dir(),
+        session_id,
+        &event.state,
+        lamps_live,
+        decision.inputs.now_secs,
+    );
     // AND THE NEWS RECORD BESIDE IT, under the same ordering contract and the
     // same fail-quiet rule. It is what arms the unread lamp, and it is written
     // WHATEVER THE DELIVERY DID: a card that was suppressed, muted or dropped is
@@ -2628,7 +2657,11 @@ fn register_lights_tick(
     decision: &pns::engine::Decision,
     overrides: &Overrides,
 ) {
-    let (Some(lights), Some(now)) = (lights, now_secs()) else {
+    // THE DECISION'S OWN CLOCK, like record_news and renew_loop_lease beside
+    // this call: a fresh wall-clock read here would be a second reading of the
+    // same moment, which is exactly the boundary R4-1 exists to close. NO
+    // CLOCK IS NO REGISTRATION, never a job due at epoch zero.
+    let (Some(lights), Some(now)) = (lights, decision.inputs.now_secs) else {
         return;
     };
     let lease = if pns::missed_notifications::was_missed(decision, overrides) {
@@ -5254,6 +5287,27 @@ fn lights_house(state: &Path, lights: &pns::config::Lights, now: u64) -> Standin
 /// When the operator last touched this machine, by ANY road: the desk, the
 /// phone's input, or the deliberate phone marker. The rule is
 /// `lights::last_interaction`'s; this reads the three probes and hands them in.
+///
+/// THE CLOCK IS READ LAST, BY DESIGN, after the three samples rather than
+/// before them. The two phone edges are file times and need no clock; the
+/// desk edge is the one `lights::last_interaction` computes, as
+/// `t_now - idle(t_sample)`. Reading `t_now` first would put it BEFORE the
+/// sample, so the edge would land earlier than the true touch and news the
+/// operator had already seen could arm the lamp. Reading it last puts the
+/// residual the other way: `t_now` is later than the sample by at most the
+/// probe spawns above this line, 0-1 second, so the desk touch reads that
+/// much YOUNGER than it was, never older. The direction is DARK: news that
+/// landed inside that residual reads as seen and the lamp stays off, and no
+/// edge can arm it early.
+///
+/// HOISTING `let now = now_secs()?;` ABOVE THE SAMPLES WOULD BREAK THIS
+/// SILENTLY: no test can catch a clock read moving a few hundred milliseconds
+/// earlier, so the order below is load-bearing and not provable by a diff
+/// alone. Do not reorder it.
+///
+/// THE OVERRIDES ARE NOT CONSULTED HERE. `PNS_IDLE_SECS` and
+/// `PNS_PHONE_INPUT_AGE` steer the delivery decision in `engine::decide`, not
+/// this reading: the unread lamp always sees the machine's own probes.
 fn last_interaction() -> Option<u64> {
     let probes = system_probes();
     pns::lights::last_interaction(
@@ -8731,25 +8785,31 @@ mod tests {
             .expect("the needs directory");
         std::fs::write(&marker, "1000\n").expect("a wait in progress");
 
-        update_blocked_marker(&state, "s1", "done", false);
+        update_blocked_marker(&state, "s1", "done", false, Some(1_000));
         assert!(
             !marker.exists(),
             "the wait ended, so the marker goes, lamps live or not: it is one \
              unlink and it clears a leftover from when they were"
         );
 
-        update_blocked_marker(&state, "s1", "blocked", false);
+        update_blocked_marker(&state, "s1", "blocked", false, Some(1_000));
         assert!(
             !marker.exists(),
             "but STARTING one stays gated: a machine that never asked for the \
              lamps must not accumulate files that nothing will ever sweep"
         );
 
-        update_blocked_marker(&state, "s1", "blocked", true);
+        update_blocked_marker(&state, "s1", "blocked", true, Some(1_000));
         assert!(
             marker.exists(),
             "and a machine with them live starts the wait, which is what makes \
              the two assertions above a difference rather than a dead path"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&marker).expect("the marker"),
+            "1000\n",
+            "the marker holds the DECISION's clock, not a fresh wall-clock read \
+             taken inside this function"
         );
     }
 
