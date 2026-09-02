@@ -55,10 +55,16 @@
 # forever and nothing else would notice.
 UNATTENDED_LOG_ROUTE="unattended-upgrades"
 
-# The gateway URL is pns's business now: the post below names the ROUTE with
-# --channel and pns derives the endpoint from its own default gateway, so the
-# host:port lives in exactly one place. run_after_68 probes the live hermes
-# config's real port, which is the check that catches a drift there.
+# The gateway URL is pns's business for THIS caller: the post below names the
+# ROUTE with --channel and pns derives the endpoint from its own default
+# gateway (DEFAULT_HERMES_URL in dot_local/share/pns/src/channels/hermes.rs).
+# That is NOT the only copy of the host:port, though: uu's own config template
+# hardcodes the identical gateway URL separately, in its [records] block at
+# dot_config/uu/private_config.toml.tmpl, because uu posts its own weekly
+# record straight to hermes rather than through this library. Deriving one
+# from the other is a design question, not settled here. run_after_68 probes
+# the live hermes config's real port, which is the check that catches a drift
+# between either hardcoded copy and the real gateway.
 
 # The machine this entry is about. The channel aggregates unattended jobs, and
 # the daemon-host role is expected to move to a second Mac, so an entry that does
