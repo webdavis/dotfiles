@@ -301,7 +301,8 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
 
   ```bash
   set -euo pipefail
-  for required in "$S"/{before,after}/{health.norm,state.json}; do
+  for required in "$S"/{before,after}/{health.norm,state.json} \
+    "$S"/{before,after}/err-{1,2,3,4,5}.log; do
     [[ -f "$required" ]] || { echo "FATAL: comparison input is missing: $required" >&2; exit 1; }
   done
   diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim

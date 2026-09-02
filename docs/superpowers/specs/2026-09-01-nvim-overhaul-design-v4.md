@@ -408,7 +408,8 @@ gate's 10ms tolerance):
 
 ```bash
 set -euo pipefail
-for required in "$S"/{before,after}/{health.norm,state.json}; do
+for required in "$S"/{before,after}/{health.norm,state.json} \
+  "$S"/{before,after}/err-{1,2,3,4,5}.log; do
   [[ -f "$required" ]] || { echo "FATAL: comparison input is missing: $required" >&2; exit 1; }
 done
 diff -r --exclude=.git --exclude=.claude --exclude=.DS_Store --exclude=README.md "$B" ~/.config/nvim
@@ -1237,7 +1238,7 @@ for i in 1 2 3 4 5; do
 done
 grep -h "NVIM STARTED" "$S"/st-{1,2,3,4,5}.log       # run 1 is the cold number, recorded, not gated
 grep -h "NVIM STARTED" "$S"/st-{2,3,4,5}.log | sort -n | awk '{a[NR]=$1} END {print (a[2]+a[3])/2}'
-err_report="$(wc -c "$S"/err-*.log | awk '$1 != 0 && $2 != "total"')"
+err_report="$(wc -c "$S"/err-{1,2,3,4,5}.log | awk '$1 != 0 && $2 != "total"')"
 [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
 ```
 
