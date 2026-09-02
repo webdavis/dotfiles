@@ -445,6 +445,13 @@ diff <(grep -Ev "$RACING" "$S/before/state.json") <(grep -Ev "$RACING" "$S/after
 diff <(grep -E "$RACING" "$S/before/state.json" | sort) <(grep -E "$RACING" "$S/after/state.json" | sort) || true
 check_racing_variant before "$S/before/state.json"
 check_racing_variant after "$S/after/state.json"
+for f in "$S/before/dump.err" "$S/after/dump.err"; do
+  if [[ -s "$f" ]]; then
+    printf '%s (%s bytes):\n' "$f" "$(wc -c <"$f" | tr -d ' ')"; cat "$f"
+  else
+    printf '%s: empty\n' "$f"
+  fi
+done
 err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
 [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
 median() {
@@ -469,7 +476,7 @@ and corrupts the median without erroring) and treats a nonempty stderr log as fa
 `as` rows are checked against the two known race outcomes rather than dropped from the gate wholesale:
 exempting them made a genuine new regression on any of the three invisible, so each side's racing
 subset must equal one of the two byte-for-byte, and anything else fails the gate the same way every
-other row does.
+other row does. The dump's own stderr is read and printed by the comparison, not only captured.
 
 1. **Bytes.** The first diff. `README.md` is excluded because the README commit (3.6 step 2) is the
    ONE working-tree change between the backup and the flatten: the three drain commits and the stash

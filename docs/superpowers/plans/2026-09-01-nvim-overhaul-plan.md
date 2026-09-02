@@ -337,6 +337,13 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
   diff <(grep -E "$RACING" "$S/before/state.json" | sort) <(grep -E "$RACING" "$S/after/state.json" | sort) || true
   check_racing_variant before "$S/before/state.json"
   check_racing_variant after "$S/after/state.json"
+  for f in "$S/before/dump.err" "$S/after/dump.err"; do
+    if [[ -s "$f" ]]; then
+      printf '%s (%s bytes):\n' "$f" "$(wc -c <"$f" | tr -d ' ')"; cat "$f"
+    else
+      printf '%s: empty\n' "$f"
+    fi
+  done
   err_report="$(wc -c "$S"/*/err-*.log | awk '$1 != 0 && $2 != "total"')"
   [[ -z "$err_report" ]] || { echo "$err_report"; echo "FATAL: a startup run wrote to stderr" >&2; exit 1; }
   median() {
@@ -360,9 +367,9 @@ profile, never a hard gate; a hard gate on it would fail every future PR, includ
   each side's racing subset must equal one of the two byte-for-byte, and anything else fails the same
   way every other row does. A diff of two MISSING files is empty and a grep over a missing file inside
   a process substitution reports nothing, so every comparison input is checked to exist before any of
-  them is read. The dump's own stderr goes to `$P/dump.err`, printed by the comparison but not gated: 6
-  of 10 dumps of the identical unchanged config wrote the same `aerial.nvim` treesitter stack trace
-  from a scheduled callback (measured 2026-09-02). Uncaptured, a scheduled error could change
+  them is read. The dump's own stderr goes to `$P/dump.err`, read and printed by the comparison (not
+  gated): 6 of 10 dumps of the identical unchanged config wrote the same `aerial.nvim` treesitter stack
+  trace from a scheduled callback (measured 2026-09-02). Uncaptured, a scheduled error could change
   what the capture sees while nothing recorded that it happened.
 - [ ] **Step 12, OPERATOR:** when the three 3.6 guards (`status --porcelain`, `rev-list
   origin/main..HEAD`, `stash list`, all in `~/.config/nvim`) print nothing, `trash ~/.config/nvim/.git`.
