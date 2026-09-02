@@ -641,7 +641,7 @@ written
 - Compatibility contract: `read_max` travels with `kept` because the two are one decision. "Every caller
   states both numbers together, and the doc comment on each depth does the arithmetic".
 
-### 16. Every child process is bounded in time AND in bytes, and past the ceiling is no answer
+### 16. Every child `run_bounded` starts is bounded in time AND in bytes, and past the ceiling is no answer
 
 Given a probe, the condenser, a summarizer, `gh` or `moshi-hook` that hangs, writes without end, or exits
 non-zero
@@ -678,7 +678,10 @@ and reaped, and the caller gets `None`
   `-s read-only`. Its home is created `0700` "because it points at the live Codex credentials". Bytes are
   read, not a string: "the size that matters is the size on the wire, and a lossy conversion grows an
   invalid byte into three"; the lossy conversion happens only after the size has been judged.
-- Process ownership and cleanup: `run_bounded` owns the kill and the reap.
+- Process ownership and cleanup: `run_bounded` owns the kill and the reap. TWO CHILDREN NEVER REACH
+  IT, and nothing bounds them: the detached recap (`src/main.rs:spawn_recap`) and an executable
+  channel (`src/main.rs:deliver`), recorded as findings U1 and U2 in
+  `persistence-and-process-lifecycle.md`. The heading is scoped to this function for that reason.
 - Compatibility contract: `doctor::within_cap` is checked in the DOCTOR rather than in the shared spawn,
   "every other caller of that spawn reads a different tool, and one of them is a condenser whose whole
   job is to answer at length".
