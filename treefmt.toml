@@ -57,14 +57,21 @@ excludes = [
   "dot_agents/**",
   "docs/superpowers/**",
   "docs/research/2026-04-12-worktrunk.md",
+  # The editor formats its own CLAUDE.md on save; mdformat's 105-column wrap
+  # would fight that and break the import PR's byte-diff proof. PR 4d lifts
+  # this alongside the stylua/luacheck exclusions.
+  "dot_config/nvim/**",
 ]
 
 # dot_aerospace.toml keeps user-preferred visual alignment taplo would strip.
+# dot_config/nvim/stylua.toml is the deployed, hand-maintained file stylua
+# itself reads on save; taplo's own formatting would rewrite it and break the
+# import PR's byte-diff proof the same way mdformat would. PR 4d lifts this too.
 [formatter.taplo]
 command = "taplo"
 options = ["format"]
 includes = ["*.toml"]
-excludes = ["dot_aerospace.toml"]
+excludes = ["dot_aerospace.toml", "dot_config/nvim/**"]
 
 [formatter.actionlint]
 command = "actionlint"
