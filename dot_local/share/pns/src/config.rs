@@ -3055,6 +3055,10 @@ mod tests {
                 "[lights.blocked]\ngive_up_after_secs = 604801\n",
                 "give_up_after_secs",
             ),
+            ("[lights.loop]\nflare = 0\n", "flare"),
+            ("[lights.loop]\nflare = 101\n", "flare"),
+            ("[lights.loop]\nflare_ms = 199\n", "flare_ms"),
+            ("[lights.loop]\nflare_ms = 5001\n", "flare_ms"),
             ("[lights.loop]\nthreshold_secs = 0\n", "threshold_secs"),
             ("[lights.loop]\nthreshold_secs = 86401\n", "threshold_secs"),
             (
@@ -3081,6 +3085,12 @@ mod tests {
             "[lights.done]\nduration_ms = 200\nbrightness = 1\n",
             "[lights.done]\nduration_ms = 5000\nbrightness = 100\n",
             "[lights.loop]\nthreshold_secs = 1\nlease_timeout_secs = 60\n",
+            // THE ACCENT'S FLOOR AND THE BRIGHTNESS CEILING, both reachable.
+            // Its own ceiling is not: `accent_agrees` keeps the flash under
+            // `duration_ms`, which is itself capped at `MAX_FADE_MS`, so
+            // `flare_ms` can never reach the range's top end and there is no
+            // honest row to write for one.
+            "[lights.loop]\nhigh = 99\nflare = 100\nflare_ms = 200\n",
             "[lights.unread]\nafter_secs = 0\n",
             "[lights.blocked]\ngive_up_after_secs = 60\n",
             "[lights.blocked]\ngive_up_after_secs = 604800\n",
