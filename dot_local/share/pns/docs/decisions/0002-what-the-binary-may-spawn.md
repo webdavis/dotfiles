@@ -39,8 +39,12 @@ pseudoterminal is found.
 1. The recap's **summarizer**, where the operator names the command word by word and pns runs exactly
    what they wrote.
 
-Both are operator-supplied by construction, so they are governed by the bounds placed on them rather than
-by membership of a list.
+Both are operator-supplied by construction, so membership of a list is not what governs them. What
+governs them is the bound each one is given, and today the two differ. The summarizer runs through
+`src/system.rs:run_bounded` with a deadline and a byte cap (`src/main.rs:summarize`). An executable
+channel has neither: `src/main.rs:deliver` spawns it and calls `child.wait()`, recorded as finding U2
+in `docs/specs/persistence-and-process-lifecycle.md`. Bounding the channel is work the process adapter
+has to do, not a property it can assume it inherited.
 
 ## Consequence for the refactor
 
