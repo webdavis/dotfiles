@@ -542,24 +542,6 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
 /// the file itself, so there is no name a lookup could use.
 pub const TOP_LEVEL: &str = "";
 
-/// How many `key = value` pairs a config-shaped text documents, commented
-/// lines included, having checked each one against the roster row of the
-/// heading above it.
-///
-/// THE SCAN READS THE COMMENTED LINES TOO, which is the half a parse cannot
-/// reach: most of a documented config is documentation, and a key documented
-/// there but refused by the code is a line an operator uncomments and then
-/// cannot load.
-///
-/// ONE SCANNER FOR BOTH TEXTS HELD TO THIS SCHEMA, the shipped template and
-/// what `pns setup` composes. Two copies would be two things to keep in
-/// agreement with the roster, which is the drift the roster itself exists to
-/// prevent, and the count is returned rather than pinned here because only the
-/// template has a number worth pinning.
-///
-/// WHITESPACE-EXACT in two places (`# ` and ` = `), which is what the
-/// template's own count is a fence around: a text writing `key= value` on a run
-/// of lines drops exactly that run and nothing else says so.
 /// A chezmoi-templated text with its actions taken out: a directive standing
 /// on its own line goes with the line, and an action inside a value becomes
 /// `placeholder`.
@@ -590,6 +572,24 @@ pub(crate) fn strip_chezmoi_actions(text: &str, placeholder: &str) -> String {
         .join("\n")
 }
 
+/// How many `key = value` pairs a config-shaped text documents, commented
+/// lines included, having checked each one against the roster row of the
+/// heading above it.
+///
+/// THE SCAN READS THE COMMENTED LINES TOO, which is the half a parse cannot
+/// reach: most of a documented config is documentation, and a key documented
+/// there but refused by the code is a line an operator uncomments and then
+/// cannot load.
+///
+/// ONE SCANNER FOR BOTH TEXTS HELD TO THIS SCHEMA, the shipped template and
+/// what `pns setup` composes. Two copies would be two things to keep in
+/// agreement with the roster, which is the drift the roster itself exists to
+/// prevent, and the count is returned rather than pinned here because only the
+/// template has a number worth pinning.
+///
+/// WHITESPACE-EXACT in two places (`# ` and ` = `), which is what the
+/// template's own count is a fence around: a text writing `key= value` on a run
+/// of lines drops exactly that run and nothing else says so.
 #[cfg(test)]
 pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
     let mut table = String::new();
