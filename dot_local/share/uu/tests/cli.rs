@@ -306,10 +306,9 @@ fn an_unknown_command_is_usage_on_stderr_and_exit_two() {
     let home = Home::new("usage");
     let output = home.uu(&["bogus"]);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("usage"),
-        "{output:?}"
-    );
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("usage"), "{output:?}");
+    assert!(err.contains("lane types: herdr"), "{output:?}");
 }
 
 #[cfg(test)]
