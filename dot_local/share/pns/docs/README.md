@@ -38,6 +38,7 @@ process ownership and cleanup, and which outputs or exit codes are compatibility
 | `configuration.md`                     | Loading, strict decoding, bounds, secrets, and template rendering                                      |
 | `persistence-and-process-lifecycle.md` | The state directory, the file protocols, and every spawned child                                       |
 | `privacy-and-hostile-input.md`         | Sanitization, ceilings, and where a secret may and may not go                                          |
+| `unpinned-behaviors.md` | Every specified behavior no test pins, which is what a later move must close first |
 
 ## `decisions/`
 
@@ -58,6 +59,12 @@ history, rather than restating the measurement at every site.
 | `0009` | A compiled-in destination beats an executable of the same name, unless the directory is overridden |
 | `0010` | A notification never fails the work it reports on                                                  |
 | `0011` | The shipped configuration template is pinned from outside the crate, and that pin has to leave     |
+
+These documents are deliberately NOT formatted by mdformat. They use a three-line
+`Given` / `When` / `Then` form in which the line breaks carry the meaning, and mdformat's reflow collapses
+the three into one paragraph. `dot_local/share/pns/docs/**` is therefore in the mdformat `excludes` list
+in `treefmt.toml`, beside `docs/superpowers/**`, which is excluded for the same reason. Do not "fix" that
+by removing the exclusion.
 
 ## `test-baseline.tsv` and `test-baseline.md`
 

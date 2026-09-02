@@ -90,6 +90,15 @@ name:
 
 A removal with no row is a regression in the review, not in the code, and is treated as one.
 
+## The other half of the safety net
+
+The name set proves a move dropped no TEST. It cannot prove a move dropped no BEHAVIOR, because a
+behavior that no test pins leaves the set unchanged when it breaks.
+`docs/specs/unpinned-behaviors.md` is the list of those, and the rule that goes with it: before a later
+pull request moves the code behind one of them, it writes the missing test first, against the code in its
+current location, and lands it before the move. That list is the known minimum rather than a complete
+one, so the per-behavior mutation check stays required whether or not a behavior appears on it.
+
 ## Test classification
 
 This is step 3 of the refactoring procedure. It classifies at the level of target and module, with the
