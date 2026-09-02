@@ -320,11 +320,11 @@ fn hook_mode(event: &str) -> i32 {
             &payload,
             Attempt::First,
         ),
-        // `PostModelSwitch`, restricted to the one `source` the hooks
-        // reference documents as unrequested: `command`, `picker` and `sdk`
-        // are the operator or the harness choosing a model on purpose, and
-        // `resume` is D4b's own follow-up (a state-only audit record, not a
-        // notification). Only `auto` is routed, and it is routed as an
+        // `PostModelSwitch`, restricted to the one `source` that is news:
+        // `command`, `picker` and `sdk` are the operator or the harness
+        // choosing a model on purpose, and `resume`, which the harness also
+        // does on its own, is D4b's own follow-up (a state-only audit record,
+        // not a notification). Only `auto` is routed, and it is routed as an
         // OBSERVATION: it is news about the session, not a turn needing the
         // operator's attention, so it must not clear a wait, renew a lease or
         // claim the return moment. Labelled "automatic session model
