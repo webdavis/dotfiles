@@ -1974,9 +1974,12 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
 /// the harness prompt in front of them already is one.
 ///
 /// It is handed the caller's probe set rather than building its own, which is
-/// what makes this reading and the delivery plan's reading the SAME one: they
-/// are two questions about one moment, and a boundary crossed between two
-/// measurements cards a phone with no round trip behind it.
+/// what makes this reading and the delivery plan's reading the SAME one FOR
+/// `blocking_event`: they are two questions about one moment, and a boundary
+/// crossed between two measurements cards a phone with no round trip behind
+/// it. `pns gate <harness>-hook` (see `gate_mode`) calls this with its own
+/// throwaway probe set and runs no delivery plan at all, so the claim does
+/// not extend to that caller.
 fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
     // THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off this probe set's own
     // memoized cell rather than a fresh wall-clock read: see R4-1. Two reads
