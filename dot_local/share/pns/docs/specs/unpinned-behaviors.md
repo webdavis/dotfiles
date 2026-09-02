@@ -21,6 +21,18 @@ covers and prove a test goes red, against an unmutated control at the same relat
 list as the known minimum and run that check before every move, whether or not the behavior appears
 here.
 
+**A row count is not a gap count.** Four specifications (`lighting-policy.md`, `missed-notifications.md`,
+`quiet-behavior.md` and `routing-and-delivery.md`) end with a `## Gaps` section that collects their own
+`NOT ESTABLISHED:` lines a second time, and the derivation harvested both copies. A gap declared inside a
+behavior AND repeated in that collection therefore appears twice: once under its behavior number, once
+under the `(spec preamble or a table row)` bucket. `routing-and-delivery.md` carries the most, 13 rows
+for 8 distinct gaps. The catch-all bucket consequently MIXES those twins with genuinely unattributed
+gaps, which are the ones declared in a table row or a preamble and belong to no behavior number
+(`lighting-policy.md`'s eight rows are all of that second kind). Nothing here is missing because of it:
+the list is the union of both copies, so a duplicate costs a second look, never a gap. But do not read a
+row count as a gap count, and before treating a catch-all row as open work, check whether the same gap
+already has a behavior-numbered row above it.
+
 Two entries are findings rather than merely missing tests, and are called out because a test alone will
 not close them:
 
