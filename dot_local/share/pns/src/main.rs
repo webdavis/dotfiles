@@ -9354,8 +9354,8 @@ mod tests {
              group write would reach one that answered any of the three differently"
         );
         assert!(
-            puts[0].1.contains(r#""x":0.1532"#) && puts[0].1.contains(r#""brightness":30.0"#),
-            "the arm states the blocked blue and the first fade in one write: {}",
+            puts[0].1.contains(r#""x":0.3395"#) && puts[0].1.contains(r#""brightness":30.0"#),
+            "the arm states the blocked magenta and the first fade in one write: {}",
             puts[0].1
         );
         assert!(
@@ -9658,6 +9658,73 @@ mod tests {
     }
 
     #[test]
+    fn only_a_resumed_breath_can_be_starved_by_its_cadence_and_the_intervals_that_do_it_are_named()
+    {
+        // WHERE THE FADE CEILING ACTUALLY COSTS SOMETHING, swept rather than
+        // sampled. `tick_bridge_deadline` divides the interval by five, so the
+        // budget is a STEP FUNCTION of the refresh and four sample points can
+        // sit either side of a hole without landing in one. This walks every
+        // interval the config accepts.
+        //
+        // A FRESH BREATH CANNOT BE STARVED BY ITS DURATION, at any cadence or
+        // any interval: its first fade is due at zero, so any budget above
+        // nothing schedules one. That is asserted on every pass below, and it
+        // is the property that keeps a slow shape safe.
+        //
+        // A RESUMED ONE CAN. `resume_from` caps `first_due_ms` at one step, so
+        // the worst record the previous tick can leave is a fade due a whole
+        // step from now, and `breath_fades` is empty once that lands at or past
+        // the budget.
+        //
+        // AN EMPTY SCHEDULE IS ONE SKIPPED TICK, NEVER A DARK LAMP, and never
+        // two ticks running. It issues no fade, so it reports no landing, so
+        // `lights_tick` writes that lamp a BARE entry; `resume_from` reads a
+        // bare entry as the default resume, due at zero, which the assertion
+        // below proves always schedules. The lamp finishes the fade already in
+        // flight on the bridge and holds that end for one interval, then
+        // breathes again.
+        let shipped = pns::config::Lights::default();
+        let slowest = shipped.looping.breath;
+        let worst_resume = pns::lights::Resume {
+            first_due_ms: pns::lights::step_ms(&slowest),
+            from_high: true,
+        };
+        let mut starved = Vec::new();
+        for refresh_secs in pns::config::MIN_REFRESH_SECS..=pns::config::MAX_REFRESH_SECS {
+            let three = u64::try_from(tick_bridge_deadline(refresh_secs).as_millis() * 3)
+                .expect("a resolve in milliseconds");
+            let budget_ms = refresh_secs * 1000 - three;
+            assert!(
+                !pns::lights::breath_fades(budget_ms, &slowest, pns::lights::Resume::default())
+                    .is_empty(),
+                "refresh {refresh_secs}s: a FRESH {}ms breath came back empty against the \
+                 {budget_ms}ms left after three bridge calls at their full deadline",
+                slowest.duration_ms
+            );
+            if pns::lights::breath_fades(budget_ms, &slowest, worst_resume).is_empty() {
+                starved.push(refresh_secs);
+            }
+        }
+        // THE HOLES, STATED RATHER THAN ROUNDED AWAY. At a hand-set ten- or
+        // eleven-second refresh the three calls may take six of it, and 5,950ms
+        // of resumed phase does not fit what is left. The shipped twelve-second
+        // interval clears it by exactly one fade lead.
+        //
+        // THIS IS NOT A PROPERTY OF SIX THOUSAND. The floor was always this
+        // tight: the 4,000ms shape cleared it by the same fifty milliseconds,
+        // and ANY cadence over 4,049ms opens at least one of these (5,000ms
+        // opens the ten-second one). Widening the shape did not create the
+        // edge, it crossed it.
+        assert_eq!(
+            starved,
+            vec![10, 11],
+            "the intervals where a resumed {}ms breath skips a tick against the worst \
+             resolve; a change here is a change to how long a lamp can hold still",
+            slowest.duration_ms
+        );
+    }
+
+    #[test]
     fn a_tick_whose_record_moved_under_it_stands_down_rather_than_re_arming_the_lamps() {
         // THE RACE THE SOURCE USED TO ADMIT TO. The house is derived BEFORE the
         // bridge work, which is seconds of network, and the operator's return
@@ -9802,6 +9869,13 @@ mod tests {
         // the time the first lamp's breath ended: all issued at once, late, a
         // jump rather than a breath.
         let bridge = scripted(true);
+        // TWO SHAPES THIS TEST OWNS, DELIBERATELY NOT THE LOCKED DEFAULTS. The
+        // interleave asserted below is the exact due-order these two durations
+        // produce, so reading either from `Lights::default()` would rewrite the
+        // expected order every time a cadence is retuned and this test would
+        // start failing for a reason it is not about. The 4000 here is NOT the
+        // loop default (that is 6000): leave it alone when a cadence change
+        // sends you grepping for 4000.
         let quick = pns::config::Breath {
             duration_ms: 2000,
             high: 100,

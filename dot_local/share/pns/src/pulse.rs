@@ -28,11 +28,18 @@ pub const SUCCESS_COLOR: PulseColor = PulseColor { x: 0.17, y: 0.70 };
 /// the two drift into looking like different events.
 pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 
-/// The deepest blue the studio lamps report, operator-locked on 2026-08-31.
-/// It is the colour a question waiting on the operator breathes in.
+/// Magenta, set on a Studio lamp by the operator on 2026-09-02 and read back
+/// off the bridge rather than computed. It is the colour a question waiting on
+/// the operator breathes in.
+///
+/// IT TOOK OVER FROM THE DEEP BLUE THAT NOW BELONGS TO `LOOP_COLOR`. Blocked
+/// and loop sat 0.067 apart in CIE xy, against 0.192 for the next-closest pair
+/// in the whole set, and in daylight the two lamps read as one. This pair is
+/// 0.192 apart, so the weakest distance in the vocabulary is now the same as
+/// every other one.
 pub const BLOCKED_COLOR: PulseColor = PulseColor {
-    x: 0.1532,
-    y: 0.0475,
+    x: 0.3395,
+    y: 0.1379,
 };
 
 /// Daylight, for the unread lamp's SUCCESS flavour: a run that finished while
@@ -43,11 +50,17 @@ pub const BLOCKED_COLOR: PulseColor = PulseColor {
 /// merely gone unseen must not compete with it.
 pub const UNREAD_SUCCESS_COLOR: PulseColor = PulseColor { x: 0.50, y: 0.40 };
 
-/// Deep violet, picked on the lamp by the operator on 2026-09-01: the loop
-/// lamp, breathing while long-running work is in flight.
+/// The deepest blue the studio lamps report, operator-locked on 2026-08-31
+/// under the observe-adjust-lock protocol and moved here from `BLOCKED_COLOR`
+/// on 2026-09-02: the loop lamp, breathing while long-running work is in
+/// flight.
+///
+/// THE PAIR SWAPPED RATHER THAN THE VIOLET MOVING, so no colour nobody has
+/// looked at enters the set: this blue had already been locked on a real lamp,
+/// and the violet it displaces leaves the vocabulary entirely.
 pub const LOOP_COLOR: PulseColor = PulseColor {
-    x: 0.213,
-    y: 0.0766,
+    x: 0.1532,
+    y: 0.0475,
 };
 
 /// True when a session ran long enough to be worth a light pulse.

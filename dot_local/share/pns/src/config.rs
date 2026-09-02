@@ -276,7 +276,7 @@ const DEFAULT_REFRESH_SECS: u64 = 12;
 /// (`BRIDGE_DEADLINE`), so an interval shorter than one call can start a tick
 /// while the last one is still dialling. Below this the knob is asking for a
 /// pile of children rather than a faster lamp.
-const MIN_REFRESH_SECS: u64 = 10;
+pub const MIN_REFRESH_SECS: u64 = 10;
 
 /// And the ceiling: THE LONGEST INTERVAL A BREATHING LAMP MAY BE GIVEN.
 ///
@@ -322,7 +322,7 @@ const DEFAULT_UNREAD_BREATH: Breath = Breath {
     low: 10,
 };
 const DEFAULT_LOOP_BREATH: Breath = Breath {
-    duration_ms: 4000,
+    duration_ms: 6000,
     high: 60,
     low: 10,
 };
@@ -2885,7 +2885,7 @@ mod tests {
             shipped.looping,
             Looping {
                 breath: Breath {
-                    duration_ms: 4000,
+                    duration_ms: 6000,
                     high: 60,
                     low: 10
                 },
