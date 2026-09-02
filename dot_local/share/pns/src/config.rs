@@ -3444,6 +3444,19 @@ mod tests {
     }
 
     #[test]
+    fn the_shipped_template_states_the_blocked_backstop_at_its_default_uncommented() {
+        // DEFAULTS VISIBLE IN CONFIG (operator ruling): the key fence counts a
+        // commented line too, and the parser reads the same number whether the
+        // line is there or not, so only the line itself pins the ruling.
+        assert!(
+            rendered_template()
+                .lines()
+                .any(|line| line == "give_up_after_secs = 57600"),
+            "the template must state the blocked backstop, uncommented, at 57600"
+        );
+    }
+
+    #[test]
     fn every_key_the_template_documents_is_a_key_the_roster_serves() {
         // THE SCANNER IS THE SHARED ONE, so the template and what `pns setup`
         // composes are held to the roster by the same reader rather than by
