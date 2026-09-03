@@ -32,6 +32,13 @@ local REPO_COMMAND = "gh repo view --json nameWithOwner --jq '.nameWithOwner'"
 local OWNER = "sentinel-owner"
 local NAME = "sentinel-repo"
 
+-- Not "main" and not "master": the two names `git.default_branch` answers with
+-- on its own, so a case that reached the local checks instead of `gh` cannot
+-- pass by accident either.
+local TRUNK = "sentinel-trunk"
+
+local DEFAULT_BRANCH_COMMAND = ("gh api repos/%s/%s --jq .default_branch"):format(OWNER, NAME)
+
 return {
   ["repo reads the owner and the name out of one gh call"] = function()
     local repo, err = with_shell({ [REPO_COMMAND] = { 0, OWNER .. "/" .. NAME } }, github.repo)
@@ -53,6 +60,48 @@ return {
     local repo, err = with_shell({ [REPO_COMMAND] = { 0, "" } }, github.repo)
     assert(repo == nil, "returned a repo for an empty answer")
     assert(type(err) == "string", "err was a " .. type(err))
+  end,
+
+  -- Bugs #4 and #4b. The fallback used to live in `git.default_branch`, where
+  -- it built its command with two `%s` and one argument, so every call that
+  -- reached it raised `bad argument #3 to 'format'`. Both halves of the
+  -- repository are in the command string below, and `with_shell` refuses any
+  -- command it was not given, so a one-argument format goes red here.
+  ["default_branch reads the repository's default branch from one gh call"] = function()
+    local branch, err = with_shell({ [DEFAULT_BRANCH_COMMAND] = { 0, TRUNK } }, function()
+      return github.default_branch({ owner = OWNER, name = NAME })
+    end)
+    assert(err == nil, "reported " .. tostring(err))
+    assert(branch == TRUNK, "branch was " .. tostring(branch))
+  end,
+
+  ["default_branch reports a failed gh call as an operational failure"] = function()
+    local branch, err = with_shell({ [DEFAULT_BRANCH_COMMAND] = { 1, "" } }, function()
+      return github.default_branch({ owner = OWNER, name = NAME })
+    end)
+    assert(branch == nil, "returned a branch anyway")
+    assert(type(err) == "string", "err was a " .. type(err))
+    assert(err:find("gh auth login", 1, true), "the message does not say how to fix it: " .. err)
+  end,
+
+  ["default_branch treats an empty answer from a successful gh call as a failure"] = function()
+    local branch, err = with_shell({ [DEFAULT_BRANCH_COMMAND] = { 0, "" } }, function()
+      return github.default_branch({ owner = OWNER, name = NAME })
+    end)
+    assert(branch == nil, "returned a branch for an empty answer")
+    assert(type(err) == "string", "err was a " .. type(err))
+  end,
+
+  -- `repo` hands back a table whose `owner` and `name` are nil when the answer
+  -- carried no slash, so a half-filled repository does reach here.
+  ["default_branch refuses a repository missing its owner or its name"] = function()
+    local ok, err = pcall(github.default_branch, { owner = OWNER })
+    assert(not ok, "accepted a repository with no name")
+    assert(err:find("name", 1, true), "the message does not name `name`: " .. tostring(err))
+
+    local ok_owner, err_owner = pcall(github.default_branch, { name = NAME })
+    assert(not ok_owner, "accepted a repository with no owner")
+    assert(err_owner:find("owner", 1, true), "the message does not name `owner`: " .. tostring(err_owner))
   end,
 
   ["account resolves the name and the username from gitconfig"] = function()

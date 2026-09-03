@@ -226,28 +226,22 @@ local function latest_commit(opts)
   return { hash = hash, summary = util.normalize(summary), body = util.normalize(body) }
 end
 
-local function default_branch(opts)
-  local repo = opts.repo
-
-  -- Check for common default branch names locally.
-  local main_ok, _ = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/main" })
+-- Local only (spec 6.2): the remote-tracking refs this checkout already has,
+-- and nothing else. Asking GitHub is `github.default_branch`, which the keymap
+-- layer falls through to; keeping the network call here is what gave this
+-- function a repository argument it then read off a string (item 4).
+local function default_branch()
+  local main_ok = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/main" })
   if main_ok == 0 then
     return "main"
   end
-  local master_ok, _ = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/master" })
+
+  local master_ok = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/master" })
   if master_ok == 0 then
     return "master"
   end
 
-  if repo then
-    -- Fallback to GitHub API:
-    local _, default_branch_name = M.runner({
-      cmd = string.format("curl -s https://api.github.com/repos/%s/%s | jq -r .default_branch", repo),
-    })
-    return default_branch_name and util.trim(default_branch_name)
-  else
-    return nil, "Error: Could not detect default remote branch"
-  end
+  return nil, "no default branch"
 end
 
 local function url(opts)

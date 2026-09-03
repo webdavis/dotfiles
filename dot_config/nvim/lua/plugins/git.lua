@@ -994,8 +994,15 @@ return {
           return
         end
 
-        local repo = github.repo().nameWithOwner
-        local branch_name = use_current_branch and git.current_branch().name or git.default_branch(repo)
+        local repo_info = github.repo()
+        local repo = repo_info.nameWithOwner
+
+        -- `git.default_branch` only knows this checkout's remote-tracking refs;
+        -- a clone with neither `origin/main` nor `origin/master` falls through
+        -- to GitHub, which is the one place that answer can come from.
+        local branch_name = use_current_branch and git.current_branch().name
+          or git.default_branch()
+          or github.default_branch({ owner = repo_info.owner, name = repo_info.name })
 
         local url = "https://github.com/" .. repo
         if url_suffix ~= "" then
