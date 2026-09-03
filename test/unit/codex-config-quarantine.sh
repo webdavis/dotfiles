@@ -41,7 +41,10 @@ fail() {
 [[ -f $SCRIPT ]] || fail "the quarantine script is missing: $SCRIPT"
 command -v taplo >/dev/null 2>&1 || fail "taplo is missing, so no case here would exercise a verdict"
 
-sandbox="$(mktemp -d)"
+# pwd -P because mktemp -d hands back a path through the /var symlink, and the
+# taplo case below turns on whether a tool sees the config file as living under
+# the directory it found its own configuration in.
+sandbox="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 
 rc=0
@@ -52,6 +55,11 @@ declare -a backups=()
 run_script() { # <home>
   rc=0
   output="$(HOME="$1" bash "$SCRIPT" 2>&1)" || rc=$?
+}
+
+run_script_in() { # <working-directory> <home>
+  rc=0
+  output="$(cd "$1" && HOME="$2" bash "$SCRIPT" 2>&1)" || rc=$?
 }
 
 collect_backups() { # <home>
@@ -183,5 +191,42 @@ output="$(HOME="$noparser_home" PATH="$sandbox/empty-path" /bin/bash "$SCRIPT" 2
   fail "no parser: the corrupt config was touched without a verdict"
 [[ ! -d $noparser_home/workspaces/backups ]] ||
   fail "no parser: the script quarantined a file it could not check"
+
+# --- a taplo config in the working directory -------------------------------
+# The verdict must come from the file's syntax and nothing else. taplo searches
+# from its working directory upwards for a taplo.toml, chezmoi runs this script
+# with whatever working directory the apply inherited, and a rule found that way
+# swings the verdict BOTH ways: a schema rule fails a config that parses, which
+# would quarantine a healthy file and cost every hook approval on the machine,
+# and an exclude rule collects no files at all and passes a config that does not
+# parse. Both cases put the config under the same directory the taplo config
+# sits in, because that is what a taplo rule's include patterns are resolved
+# against, and it is the shape an apply run from the home directory has.
+healthy_home="$sandbox/taplo-config-in-cwd-healthy"
+mkdir -p "$healthy_home/.codex"
+printf 'model = "gpt-5.6-sol"\n' >"$healthy_home/.codex/config.toml"
+cat >"$healthy_home/taplo.toml" <<'SCHEMA_RULE_TAPLO_CONFIG'
+[[rule]]
+include = ["**/config.toml"]
+schema.path = "/nonexistent-schema.json"
+SCHEMA_RULE_TAPLO_CONFIG
+run_script_in "$healthy_home" "$healthy_home"
+[[ $rc -eq 0 ]] || fail "taplo schema rule in cwd: exit $rc, want 0"
+[[ $(cat "$healthy_home/.codex/config.toml") == 'model = "gpt-5.6-sol"' ]] ||
+  fail "taplo schema rule in cwd: a config the template can read was quarantined"
+[[ ! -d $healthy_home/workspaces/backups ]] ||
+  fail "taplo schema rule in cwd: a config the template can read was moved to the backup directory"
+
+corrupt_home="$sandbox/taplo-config-in-cwd-corrupt"
+mkdir -p "$corrupt_home/.codex"
+printf 'this file is not toml\n' >"$corrupt_home/.codex/config.toml"
+cat >"$corrupt_home/taplo.toml" <<'EXCLUDING_TAPLO_CONFIG'
+include = ["never-matches/*.toml"]
+EXCLUDING_TAPLO_CONFIG
+run_script_in "$corrupt_home" "$corrupt_home"
+[[ $rc -eq 0 ]] || fail "taplo exclude rule in cwd: exit $rc, want 0"
+collect_backups "$corrupt_home"
+[[ ${#backups[@]} -eq 1 ]] ||
+  fail "taplo exclude rule in cwd: ${#backups[@]} backups, want 1 (the verdict followed the config, not the syntax)"
 
 printf 'codex-config-quarantine: OK\n'

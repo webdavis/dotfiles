@@ -54,7 +54,15 @@ command -v taplo >/dev/null 2>&1 || exit 0
 # equivalent here. RESIDUAL: taplo and Go's TOML reader are different
 # implementations, so a file one accepts and the other rejects would still abort
 # the apply. No such shape is known; none was searched for.
-if taplo check "$config" >/dev/null 2>&1; then
+#
+# --no-auto-config IS LOAD BEARING. Without it taplo walks up from its working
+# directory looking for a taplo.toml, and chezmoi runs this script with whatever
+# working directory the apply inherited. Measured 2026-09-03 on taplo 0.10.0: a
+# rule there naming a schema makes a file that PARSES exit 1, which would
+# quarantine a healthy config and drop every hook approval on the machine, and a
+# rule that excludes the file makes taplo check zero files and exit 0, which
+# lets real garbage through. The verdict has to be syntax and nothing else.
+if taplo check --no-auto-config "$config" >/dev/null 2>&1; then
   exit 0
 fi
 
