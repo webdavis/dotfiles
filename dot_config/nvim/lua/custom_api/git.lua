@@ -35,7 +35,7 @@ end
 -- ╰──────╯
 local function initialized(opts)
   local _ = opts
-  local code, _ = M.runner({ cmd = "git rev-parse --git-dir" })
+  local code, _ = M.runner({ cmd = { "git", "rev-parse", "--git-dir" } })
 
   if code ~= 0 then
     return nil, "Project hasn't been initialized. Run `git init` to start tracking."
@@ -47,7 +47,7 @@ end
 local function top_level(opts)
   local _ = opts
 
-  local code, top_level_dir = M.runner({ cmd = "git rev-parse --show-toplevel", notify_error = true })
+  local code, top_level_dir = M.runner({ cmd = { "git", "rev-parse", "--show-toplevel" }, notify_error = true })
 
   if code ~= 0 then
     return nil
@@ -69,7 +69,7 @@ local function is_current_branch(line)
 end
 
 local function fetch_branches()
-  local exit_code, branches_output = M.runner({ cmd = "git branch -vv" })
+  local exit_code, branches_output = M.runner({ cmd = { "git", "branch", "-vv" } })
 
   if exit_code ~= 0 then
     local message = {
@@ -80,7 +80,7 @@ local function fetch_branches()
   end
 
   local _, current_name = M.runner({
-    cmd = "git branch --show-current",
+    cmd = { "git", "branch", "--show-current" },
     notify_error = true,
   })
 
@@ -207,7 +207,7 @@ local function latest_commit(opts)
     error("Missing required argument `repo_name`")
   end
 
-  local hash_exit, hash = M.runner({ cmd = "git rev-parse --short HEAD" })
+  local hash_exit, hash = M.runner({ cmd = { "git", "rev-parse", "--short", "HEAD" } })
   if hash_exit ~= 0 then
     return nil,
       string.format(
@@ -216,7 +216,7 @@ local function latest_commit(opts)
       )
   end
 
-  local message_exit, message = M.runner({ cmd = "git log -1 --pretty=%B" })
+  local message_exit, message = M.runner({ cmd = { "git", "log", "-1", "--pretty=%B" } })
   if message_exit ~= 0 then
     return { hash = hash }, string.format("Commit `%s` has no message.", hash)
   end
@@ -231,12 +231,12 @@ end
 -- layer falls through to; keeping the network call here is what gave this
 -- function a repository argument it then read off a string (item 4).
 local function default_branch()
-  local main_ok = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/main" })
+  local main_ok = M.runner({ cmd = { "git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/main" } })
   if main_ok == 0 then
     return "main"
   end
 
-  local master_ok = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/master" })
+  local master_ok = M.runner({ cmd = { "git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/master" } })
   if master_ok == 0 then
     return "master"
   end
@@ -260,8 +260,7 @@ local function url(opts)
     error("Missing required argument `repo_name`")
   end
 
-  local cmd = { cmd = string.format("git config --get remote.%s.url", remote) }
-  local code, remote_url = M.runner(cmd)
+  local code, remote_url = M.runner({ cmd = { "git", "config", "--get", "remote." .. remote .. ".url" } })
 
   if code ~= 0 then
     local lines = {

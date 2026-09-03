@@ -297,7 +297,7 @@ return {
                 return
               end
 
-              local gh_exit, _ = util.run_shell_command({ cmd = "gh repo view '" .. project .. "'" })
+              local gh_exit, _ = util.run_shell_command({ cmd = { "gh", "repo", "view", project } })
 
               if gh_exit == 0 then
                 local message = {
@@ -312,7 +312,9 @@ return {
               if not is_initialized then
                 table.insert(cmds, "git init")
               end
-              table.insert(cmds, 'gh repo create --public "' .. project .. '"')
+              -- overseer_runner joins its commands into one shell line, so the
+              -- name typed at the prompt is quoted for that shell here.
+              table.insert(cmds, "gh repo create --public " .. vim.fn.shellescape(project))
 
               overseer.overseer_runner({ cmds = cmds })
             end)
@@ -987,6 +989,8 @@ return {
           " | xargs -I{} osascript -e 'name of application id \"{}\"'",
         }, "")
 
+        -- A string on purpose: this is a real pipeline, and every word of it is
+        -- a literal written above, with nothing interpolated into it.
         local ok, default_browser = util.run_shell_command({ cmd = detect_default_browser_cmd })
 
         if not ok or not default_browser then
@@ -1090,7 +1094,7 @@ return {
                 title = "Open in Browser",
               }
             )
-            util.run_shell_command({ cmd = "open " .. remote_repo_info.url })
+            util.run_shell_command({ cmd = { "open", remote_repo_info.url } })
           end,
           desc = ("Open GitHub: %s"):format(mapping_desc),
         }
@@ -1133,8 +1137,9 @@ return {
           return
         end
 
-        local exit_code, _ =
-          util.run_shell_command({ cmd = "git ls-files --error-unmatch " .. vim.fn.fnameescape(bufname) })
+        -- The buffer name is one argv word, so it needs no escaping: fnameescape
+        -- quotes for Vim's command line, which is not what this ever reached.
+        local exit_code, _ = util.run_shell_command({ cmd = { "git", "ls-files", "--error-unmatch", bufname } })
 
         if exit_code ~= 0 then
           vim.notify(

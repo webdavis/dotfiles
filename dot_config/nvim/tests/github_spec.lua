@@ -9,10 +9,12 @@ local function collect(...)
   return select("#", ...), { ... }
 end
 
--- `replies` maps a command string to the `{ exit_code, output }` the real
--- runner would have returned, already trimmed the way it trims. An unlisted
--- command is an error rather than a fallthrough, so a call that asked for the
--- wrong thing cannot pass quietly.
+-- Every call here interpolates a value, so argv is the only form allowed
+-- through the seam and the fake refuses shell text outright. `replies` maps the
+-- argv words joined by spaces to the `{ exit_code, output }` the real runner
+-- would have returned, already trimmed the way it trims. An unlisted command is
+-- an error rather than a fallthrough, so a call that asked for the wrong thing
+-- cannot pass quietly.
 --
 -- It cannot catch a call that skipped `github.runner` altogether, though: a
 -- real `gh` that fails reports the same `nil, message` shape the fake does, so
@@ -24,8 +26,10 @@ local function with_shell(replies, fn)
   local real_runner = github.runner
   seen = {}
   github.runner = function(opts)
-    table.insert(seen, opts.cmd)
-    local reply = replies[opts.cmd] or error("unexpected shell command: " .. tostring(opts.cmd))
+    assert(type(opts.cmd) == "table", "runner was handed shell text: " .. tostring(opts.cmd))
+    local command = table.concat(opts.cmd, " ")
+    table.insert(seen, command)
+    local reply = replies[command] or error("unexpected shell command: " .. command)
     return reply[1], reply[2]
   end
   local count, results = collect(pcall(fn))
@@ -34,7 +38,7 @@ local function with_shell(replies, fn)
   return unpack(results, 2, count)
 end
 
-local REPO_COMMAND = "gh repo view --json nameWithOwner --jq '.nameWithOwner'"
+local REPO_COMMAND = "gh repo view --json nameWithOwner --jq .nameWithOwner"
 
 -- Deliberately not this repository. A call that reached the real `gh` would
 -- answer with the true remote, so these values cannot pass by accident.
@@ -49,7 +53,7 @@ local TRUNK = "sentinel-trunk"
 local DEFAULT_BRANCH_COMMAND = ("gh api repos/%s/%s --jq .default_branch"):format(OWNER, NAME)
 
 -- What a real `gh api` prints for a repository it cannot see, measured. Both
--- halves are there because `vim.fn.system` captures stderr as well as stdout.
+-- halves are there because the runner appends stderr to a failed command's output.
 local GH_NOT_FOUND = '{"message":"Not Found","status":"404"}gh: Not Found (HTTP 404)'
 
 return {

@@ -4,9 +4,10 @@
 local git = require("custom_api.git")
 
 -- git.lua reaches the shell through `git.runner` (spec 6.2), so a spec answers
--- for the shell by replacing that one field. `replies` maps a command string to
--- the `{ exit_code, output }` the real runner would have returned, already
--- trimmed the way it trims.
+-- for the shell by replacing that one field. Argv is the only form allowed
+-- through the seam, so the fakes refuse shell text outright. `replies` maps the
+-- argv words joined by spaces to the `{ exit_code, output }` the real runner
+-- would have returned, already trimmed the way it trims.
 -- `#` is undefined on a table with an embedded nil, and `nil, "message"` is
 -- exactly the shape under test, so the count comes from `select` instead.
 local function collect(...)
@@ -16,7 +17,9 @@ end
 local function with_shell(replies, fn)
   local real_runner = git.runner
   git.runner = function(opts)
-    local reply = replies[opts.cmd] or error("unexpected shell command: " .. tostring(opts.cmd))
+    assert(type(opts.cmd) == "table", "runner was handed shell text: " .. tostring(opts.cmd))
+    local command = table.concat(opts.cmd, " ")
+    local reply = replies[command] or error("unexpected shell command: " .. command)
     return reply[1], reply[2]
   end
   local count, results = collect(pcall(fn))
@@ -40,8 +43,10 @@ local function default_branch(replies)
   local seen = {}
   local real_runner = git.runner
   git.runner = function(opts)
-    table.insert(seen, opts.cmd)
-    local reply = replies[opts.cmd] or error("unexpected shell command: " .. tostring(opts.cmd))
+    assert(type(opts.cmd) == "table", "runner was handed shell text: " .. tostring(opts.cmd))
+    local command = table.concat(opts.cmd, " ")
+    table.insert(seen, command)
+    local reply = replies[command] or error("unexpected shell command: " .. command)
     return reply[1], reply[2]
   end
   local count, results = collect(pcall(git.default_branch))
@@ -206,6 +211,19 @@ return {
     local run = default_branch({ [MAIN_REF] = { 1, "" }, [MASTER_REF] = { 1, "" } })
     assert(run.name == nil, "returned " .. tostring(run.name))
     assert(run.err == "no default branch", "err was " .. tostring(run.err))
+  end,
+
+  ["url asks for the remote's URL with the remote name as one argv word"] = function()
+    -- The remote name is interpolated into the command, so this is one of the
+    -- two callers a shell must never see. `with_shell` refuses shell text, so a
+    -- caller that went back to building a string fails here.
+    local remote_url = with_shell({
+      ["git config --get remote.upstream.url"] = { 0, "git@github.com:webdavis/dotfiles.git" },
+    }, function()
+      return git.url({ remote = "upstream", account_name = "webdavis", repo_name = "dotfiles" })
+    end)
+
+    assert(remote_url == "git@github.com:webdavis/dotfiles.git", "got " .. tostring(remote_url))
   end,
 
   ["url names its missing repo_name too"] = function()
