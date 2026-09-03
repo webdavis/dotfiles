@@ -260,8 +260,14 @@ after_secs = 300
 
 [lights.loop]
 duration_ms = 4000
-high = 60
+high = 80
 low = 10
+# The accent at the peak, which is the one shape that has one: the lamp
+# rises to `high`, flashes to `flare` for `flare_ms`, then falls back
+# to `low`. The flash must be brighter than `high` and briefer than
+# `duration_ms`.
+flare = 100
+flare_ms = 200
 # How long work must run continuously before the lamp arms itself, in
 # seconds. Both an agent herdr calls working and a tracked shell command
 # count.

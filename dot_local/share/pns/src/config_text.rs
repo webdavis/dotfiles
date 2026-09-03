@@ -490,12 +490,25 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "high",
                 prose: "",
-                sample: Sample::Default("60"),
+                sample: Sample::Default("80"),
             },
             Key {
                 name: "low",
                 prose: "",
                 sample: Sample::Default("10"),
+            },
+            Key {
+                name: "flare",
+                prose: "# The accent at the peak, which is the one shape that has one: the lamp\n\
+                         # rises to `high`, flashes to `flare` for `flare_ms`, then falls back\n\
+                         # to `low`. The flash must be brighter than `high` and briefer than\n\
+                         # `duration_ms`.\n",
+                sample: Sample::Default("100"),
+            },
+            Key {
+                name: "flare_ms",
+                prose: "",
+                sample: Sample::Default("200"),
             },
             Key {
                 name: "threshold_secs",
@@ -1243,7 +1256,7 @@ mod tests {
             "[lights.failed]\nduration_ms = 4000\nbrightness = 100\n",
             "[lights.blocked]\nduration_ms = 2000\nhigh = 100\nlow = 30\n",
             "[lights.unread]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
-            "[lights.loop]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
+            "[lights.loop]\nduration_ms = 4000\nhigh = 80\nlow = 10\n",
             "[lights.dim]\nduration_ms = 3000\nhigh = 7\nlow = 1\n",
         ] {
             assert!(

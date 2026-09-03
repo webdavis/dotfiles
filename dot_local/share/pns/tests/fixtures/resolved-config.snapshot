@@ -112,10 +112,14 @@ Config {
                 after_secs: 300,
             },
             looping: Looping {
-                breath: Breath {
-                    duration_ms: 4000,
-                    high: 60,
-                    low: 10,
+                breathe_then_flare: BreatheThenFlare {
+                    breath: Breath {
+                        duration_ms: 4000,
+                        high: 80,
+                        low: 10,
+                    },
+                    flare: 100,
+                    flare_ms: 200,
                 },
                 threshold_secs: 360,
                 lease_timeout_secs: 3900,

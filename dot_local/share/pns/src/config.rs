@@ -177,11 +177,34 @@ pub struct Unread {
     pub after_secs: u64,
 }
 
-/// The loop lamp: its breath, how long work must run before the automatic
+/// The loop lamp's motion: a breath with an accent at its peak.
+///
+/// THE LOOP'S OWN SHAPE TYPE, and not two more fields on `Breath`, for the
+/// config ruling stated at `Lights`: only the knobs that APPLY to a behaviour
+/// exist. `Breath` is what the blocked lamp, both unread lamps and the shared
+/// dim form run, none of which flare, so an accent parked on `Breath` would be
+/// four dead knobs on three behaviours for a reader to set and watch do
+/// nothing.
+///
+/// IT COMPOSES A `Breath` RATHER THAN RESTATING ONE. The two fades either side
+/// of the accent are an ordinary breath and are parsed, bounded and checked by
+/// the same arm every other breathing shape uses; the accent is the only thing
+/// this type adds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BreatheThenFlare {
+    pub breath: Breath,
+    /// The brightness the accent reaches, above the breath's own `high`.
+    pub flare: u8,
+    /// How long the accent takes, which is what makes it a flash rather than a
+    /// third fade.
+    pub flare_ms: u64,
+}
+
+/// The loop lamp: its motion, how long work must run before the automatic
 /// trigger arms, and how long a hand-taken lease survives without renewal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Looping {
-    pub breath: Breath,
+    pub breathe_then_flare: BreatheThenFlare,
     pub threshold_secs: u64,
     pub lease_timeout_secs: u64,
 }
@@ -246,7 +269,7 @@ impl Default for Lights {
                 after_secs: DEFAULT_UNREAD_AFTER_SECS,
             },
             looping: Looping {
-                breath: DEFAULT_LOOP_BREATH,
+                breathe_then_flare: DEFAULT_LOOP_MOTION,
                 threshold_secs: DEFAULT_LOOP_THRESHOLD_SECS,
                 lease_timeout_secs: DEFAULT_LEASE_TIMEOUT_SECS,
             },
@@ -275,7 +298,7 @@ const DEFAULT_REFRESH_SECS: u64 = 12;
 /// (`BRIDGE_DEADLINE`), so an interval shorter than one call can start a tick
 /// while the last one is still dialling. Below this the knob is asking for a
 /// pile of children rather than a faster lamp.
-const MIN_REFRESH_SECS: u64 = 10;
+pub const MIN_REFRESH_SECS: u64 = 10;
 
 /// And the ceiling: THE LONGEST INTERVAL A BREATHING LAMP MAY BE GIVEN.
 ///
@@ -320,10 +343,18 @@ const DEFAULT_UNREAD_BREATH: Breath = Breath {
     high: 60,
     low: 10,
 };
-const DEFAULT_LOOP_BREATH: Breath = Breath {
-    duration_ms: 4000,
-    high: 60,
-    low: 10,
+/// The loop's motion, operator-locked by eye on a real Studio lamp
+/// (2026-09-02) after six other motions were shown and rejected: from 10, rise
+/// to 80 over four seconds, flash to 100 for two hundred milliseconds at the
+/// peak, and fall back to 10 over four seconds.
+const DEFAULT_LOOP_MOTION: BreatheThenFlare = BreatheThenFlare {
+    breath: Breath {
+        duration_ms: 4000,
+        high: 80,
+        low: 10,
+    },
+    flare: 100,
+    flare_ms: 200,
 };
 
 /// The dim form: the same seamless cadence at the faintest levels the hardware
@@ -541,6 +572,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "lights.loop",
         &[
             "duration_ms",
+            "flare",
+            "flare_ms",
             "high",
             "lease_timeout_secs",
             "low",
@@ -1333,10 +1366,18 @@ fn parse_looping(setting: &toml::Value, mut looping: Looping) -> Result<Looping,
                     MAX_THRESHOLD_SECS,
                 )?;
             }
-            _ => breath_key(WHERE, key, stated, &mut looping.breath)?,
+            "flare" => {
+                looping.breathe_then_flare.flare = percent(WHERE, key, stated)?;
+            }
+            "flare_ms" => {
+                looping.breathe_then_flare.flare_ms =
+                    bounded(WHERE, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
+            }
+            _ => breath_key(WHERE, key, stated, &mut looping.breathe_then_flare.breath)?,
         }
     }
-    ends_agree(WHERE, &looping.breath)?;
+    ends_agree(WHERE, &looping.breathe_then_flare.breath)?;
+    accent_agrees(WHERE, &looping.breathe_then_flare)?;
     Ok(looping)
 }
 
@@ -1369,6 +1410,35 @@ fn ends_agree(where_it_is: &str, breath: &Breath) -> Result<(), ConfigError> {
             "`{where_it_is}` has low {} above high {}, so a fade to `high` would \
              move the lamp down and one to `low` would move it up",
             breath.low, breath.high
+        )));
+    }
+    Ok(())
+}
+
+/// An accent that does not rise ABOVE the peak, or that is not BRIEFER than
+/// the fades it sits between, is refused rather than run as something that is
+/// no longer the locked motion.
+///
+/// THE SECOND HALF ALSO HOLDS THE SCHEDULING MARGIN. A resumed breath may start
+/// as much as one leg's step into what is left of a tick's interval, so the
+/// worst case a config can produce is its LONGEST leg; keeping the accent under
+/// `duration_ms` keeps that longest leg the breath's own, exactly as it was
+/// before the accent existed. Without it, `flare_ms` would be a second way to
+/// write a leg too slow for the interval it runs in.
+fn accent_agrees(where_it_is: &str, motion: &BreatheThenFlare) -> Result<(), ConfigError> {
+    if motion.flare <= motion.breath.high {
+        return Err(ConfigError::Invalid(format!(
+            "`{where_it_is}` has flare {} at or below high {}, so the accent \
+             would not rise above the peak it is meant to accent",
+            motion.flare, motion.breath.high
+        )));
+    }
+    if motion.flare_ms >= motion.breath.duration_ms {
+        return Err(ConfigError::Invalid(format!(
+            "`{where_it_is}` has flare_ms {} at or above duration_ms {}, so the \
+             accent would be a third fade of the breath rather than a flash at \
+             its peak",
+            motion.flare_ms, motion.breath.duration_ms
         )));
     }
     Ok(())
@@ -1854,8 +1924,8 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Behaviour, Blocked, Breath, ConfigError, Lights, LoadOutcome, Looping, Pulse, Target,
-        Unread, config_path, load_config, parse_config, submit_deadline,
+        Behaviour, Blocked, Breath, BreatheThenFlare, ConfigError, Lights, LoadOutcome, Looping,
+        Pulse, Target, Unread, config_path, load_config, parse_config, submit_deadline,
     };
     use std::time::Duration;
 
@@ -2870,10 +2940,14 @@ mod tests {
         assert_eq!(
             shipped.looping,
             Looping {
-                breath: Breath {
-                    duration_ms: 4000,
-                    high: 60,
-                    low: 10
+                breathe_then_flare: BreatheThenFlare {
+                    breath: Breath {
+                        duration_ms: 4000,
+                        high: 80,
+                        low: 10
+                    },
+                    flare: 100,
+                    flare_ms: 200,
                 },
                 threshold_secs: 300,
                 lease_timeout_secs: 3900,
@@ -2981,6 +3055,10 @@ mod tests {
                 "[lights.blocked]\ngive_up_after_secs = 604801\n",
                 "give_up_after_secs",
             ),
+            ("[lights.loop]\nflare = 0\n", "flare"),
+            ("[lights.loop]\nflare = 101\n", "flare"),
+            ("[lights.loop]\nflare_ms = 199\n", "flare_ms"),
+            ("[lights.loop]\nflare_ms = 5001\n", "flare_ms"),
             ("[lights.loop]\nthreshold_secs = 0\n", "threshold_secs"),
             ("[lights.loop]\nthreshold_secs = 86401\n", "threshold_secs"),
             (
@@ -3007,6 +3085,12 @@ mod tests {
             "[lights.done]\nduration_ms = 200\nbrightness = 1\n",
             "[lights.done]\nduration_ms = 5000\nbrightness = 100\n",
             "[lights.loop]\nthreshold_secs = 1\nlease_timeout_secs = 60\n",
+            // THE ACCENT'S FLOOR AND THE BRIGHTNESS CEILING, both reachable.
+            // Its own ceiling is not: `accent_agrees` keeps the flash under
+            // `duration_ms`, which is itself capped at `MAX_FADE_MS`, so
+            // `flare_ms` can never reach the range's top end and there is no
+            // honest row to write for one.
+            "[lights.loop]\nhigh = 99\nflare = 100\nflare_ms = 200\n",
             "[lights.unread]\nafter_secs = 0\n",
             "[lights.blocked]\ngive_up_after_secs = 60\n",
             "[lights.blocked]\ngive_up_after_secs = 604800\n",
@@ -3118,6 +3202,82 @@ mod tests {
             parse_config("[lights.blocked]\nhigh = 40\nlow = 40\n").is_ok(),
             "equal ends are a lamp that holds steady, which is a shape rather than \
              a mistake"
+        );
+    }
+
+    #[test]
+    fn an_accent_that_does_not_rise_above_the_peak_or_stay_brief_is_refused() {
+        // THE MOTION IS A BREATH WITH A FLASH AT ITS PEAK, so an accent at or
+        // below `high` has nothing to accent and one as long as the fades
+        // around it is a third fade rather than a flash.
+        for (written, names) in [
+            ("[lights.loop]\nflare = 80\n", "at or below high 80"),
+            ("[lights.loop]\nflare = 40\n", "at or below high 80"),
+            (
+                "[lights.loop]\nflare_ms = 4000\n",
+                "at or above duration_ms 4000",
+            ),
+            (
+                "[lights.loop]\nflare_ms = 4500\n",
+                "at or above duration_ms 4000",
+            ),
+        ] {
+            let said = refusal(written);
+            assert!(
+                said.contains(names),
+                "{written:?} must name both values: {said}"
+            );
+            assert!(
+                said.contains("lights.loop"),
+                "and the table it is about: {said}"
+            );
+        }
+        // AND THE OTHER BREATHING SHAPES HAVE NO ACCENT TO REFUSE, because they
+        // have no accent at all: the knob exists only where it applies.
+        for elsewhere in [
+            "[lights.blocked]\nflare = 100\n",
+            "[lights.unread]\nflare_ms = 200\n",
+            "[lights.dim]\nflare = 100\n",
+        ] {
+            assert!(
+                refusal(elsewhere).contains("flare"),
+                "{elsewhere:?} names a key that behaviour does not have"
+            );
+        }
+        assert!(
+            parse_config("[lights.loop]\nhigh = 80\nflare = 81\nflare_ms = 3999\n").is_ok(),
+            "one step above the peak and one millisecond under the breath are both \
+             still an accent"
+        );
+    }
+
+    #[test]
+    fn the_accent_can_never_become_the_slowest_leg_of_the_loops_own_cycle() {
+        // WHAT HOLDS THE SCHEDULING MARGIN. A resumed breath may start as much
+        // as one leg's step into what a tick has left of its interval, so the
+        // worst case any config can produce is its LONGEST leg. Keeping the
+        // accent under `duration_ms` keeps that longest leg the breath's own,
+        // exactly where it sat before the accent existed, so `flare_ms` is not
+        // a second way to write a leg too slow for the interval it runs in.
+        for (duration_ms, flare_ms) in [(200, 200), (1000, 5000), (4000, 4000), (5000, 5000)] {
+            let written =
+                format!("[lights.loop]\nduration_ms = {duration_ms}\nflare_ms = {flare_ms}\n");
+            assert!(
+                parse_config(&written).is_err(),
+                "{written:?} lets the accent match or outlast the fades around it"
+            );
+        }
+        // AND THE SHIPPED MOTION'S OWN LONGEST LEG IS ITS BREATH'S, unchanged by
+        // the accent it now carries.
+        let motion = Lights::default().looping.breathe_then_flare;
+        let cycle = crate::lights::breathe_then_flare_cycle(&motion);
+        assert_eq!(
+            cycle
+                .iter()
+                .map(|leg| crate::lights::step_ms(leg.duration_ms))
+                .max(),
+            Some(crate::lights::step_ms(motion.breath.duration_ms)),
+            "the accent is never the leg a resume inherits its worst case from"
         );
     }
 
@@ -3500,7 +3660,9 @@ mod tests {
         ("lights.failed", "brightness", "100"),
         ("lights.failed", "duration_ms", "4000"),
         ("lights.loop", "duration_ms", "4000"),
-        ("lights.loop", "high", "60"),
+        ("lights.loop", "flare", "100"),
+        ("lights.loop", "flare_ms", "200"),
+        ("lights.loop", "high", "80"),
         ("lights.loop", "lease_timeout_secs", "3900"),
         ("lights.loop", "low", "10"),
         ("lights.loop", "threshold_secs", "300"),

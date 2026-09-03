@@ -809,30 +809,28 @@ pub fn pulse_body(
 /// between two ticks. THIS RUNS ON EVERY TICK, resumed or not: an externally
 /// switched-off lamp comes back on with its first fade whichever end the
 /// held record names.
-pub fn breath_arm_body(
-    color: crate::pulse::PulseColor,
-    fade: &crate::lights::Fade,
-    duration_ms: u64,
-) -> String {
+pub fn breath_arm_body(color: crate::pulse::PulseColor, fade: &crate::lights::Fade) -> String {
     serde_json::json!({
         "on": {"on": true},
         "color": {"xy": {"x": color.x, "y": color.y}},
         "dimming": dimming(fade.brightness),
-        "dynamics": {"duration": duration_ms},
+        "dynamics": {"duration": fade.duration_ms},
     })
     .to_string()
 }
 
 /// Every fade after the first: brightness and how long to take getting there,
-/// and nothing else.
+/// and nothing else. THE DURATION IS THE FADE'S OWN, so the accent at the peak
+/// of the loop's motion is issued at its own short duration rather than at the
+/// duration of the fades around it.
 ///
 /// NO COLOUR AND NO `on`. The arm already stated both, and repeating them would
 /// be two more fields the bridge has to reconcile mid-transition on every fade
 /// of every breath.
-pub fn fade_body(fade: &crate::lights::Fade, duration_ms: u64) -> String {
+pub fn fade_body(fade: &crate::lights::Fade) -> String {
     serde_json::json!({
         "dimming": dimming(fade.brightness),
-        "dynamics": {"duration": duration_ms},
+        "dynamics": {"duration": fade.duration_ms},
     })
     .to_string()
 }
@@ -861,30 +859,47 @@ pub fn clear_held<B: Bridge>(bridge: &B, held: &[String]) {
     }
 }
 
-/// The colour and the breath one held state runs at, dim form or full.
+/// The colour and the CYCLE one held state runs at, dim form or full.
 ///
 /// THE ONE MAPPING from a state to what it looks like, read by the tick and by
 /// nothing else. Its two halves travel together because a dim breath in a full
 /// colour, or the reverse, is a lamp saying half of one thing.
+///
+/// THE SHAPE IS SETTLED HERE AND NOWHERE ELSE. This is the only place that
+/// knows the loop runs a three-leg motion while everything else runs a two-leg
+/// breath; the driver below schedules whichever cycle it is handed. That is
+/// also why the accent is a property of the RENDER rather than of the
+/// behaviour: a loop lamp inside its dim window runs the shared dim breath, so
+/// the same state has an accent at full and none dimmed.
 pub fn held_render(
     held: crate::lights::Held,
     lights: &crate::config::Lights,
     showing: Showing,
-) -> (crate::pulse::PulseColor, crate::config::Breath) {
-    let (color, breath) = match held {
-        crate::lights::Held::Blocked => (crate::pulse::BLOCKED_COLOR, lights.blocked.breath),
-        crate::lights::Held::Looping => (crate::pulse::LOOP_COLOR, lights.looping.breath),
-        crate::lights::Held::UnreadFailure => (crate::pulse::FAILURE_COLOR, lights.unread.breath),
-        crate::lights::Held::UnreadSuccess => {
-            (crate::pulse::UNREAD_SUCCESS_COLOR, lights.unread.breath)
-        }
+) -> (crate::pulse::PulseColor, Vec<crate::lights::Leg>) {
+    let (color, cycle) = match held {
+        crate::lights::Held::Blocked => (
+            crate::pulse::BLOCKED_COLOR,
+            crate::lights::breath_cycle(&lights.blocked.breath),
+        ),
+        crate::lights::Held::Looping => (
+            crate::pulse::LOOP_COLOR,
+            crate::lights::breathe_then_flare_cycle(&lights.looping.breathe_then_flare),
+        ),
+        crate::lights::Held::UnreadFailure => (
+            crate::pulse::FAILURE_COLOR,
+            crate::lights::breath_cycle(&lights.unread.breath),
+        ),
+        crate::lights::Held::UnreadSuccess => (
+            crate::pulse::UNREAD_SUCCESS_COLOR,
+            crate::lights::breath_cycle(&lights.unread.breath),
+        ),
     };
     // THE DIM FORM IS ONE SHAPE FOR EVERY BEHAVIOUR, which is what the operator
     // locked: the colour still says which state it is, and the shape says the
     // house is asleep.
     match showing {
-        Showing::Dimmed => (color, lights.dim),
-        Showing::Dark | Showing::Full => (color, breath),
+        Showing::Dimmed => (color, crate::lights::breath_cycle(&lights.dim)),
+        Showing::Dark | Showing::Full => (color, cycle),
     }
 }
 
@@ -1980,42 +1995,46 @@ mod tests {
             (
                 crate::lights::Held::Blocked,
                 crate::pulse::BLOCKED_COLOR,
-                shipped.blocked.breath,
+                crate::lights::breath_cycle(&shipped.blocked.breath),
             ),
             (
                 crate::lights::Held::Looping,
                 crate::pulse::LOOP_COLOR,
-                shipped.looping.breath,
+                crate::lights::breathe_then_flare_cycle(&shipped.looping.breathe_then_flare),
             ),
             (
                 crate::lights::Held::UnreadFailure,
                 crate::pulse::FAILURE_COLOR,
-                shipped.unread.breath,
+                crate::lights::breath_cycle(&shipped.unread.breath),
             ),
             (
                 crate::lights::Held::UnreadSuccess,
                 crate::pulse::UNREAD_SUCCESS_COLOR,
-                shipped.unread.breath,
+                crate::lights::breath_cycle(&shipped.unread.breath),
             ),
         ];
-        for (held, color, breath) in expected {
+        for (held, color, cycle) in expected {
             assert_eq!(
                 held_render(held, &shipped, Showing::Full),
-                (color, breath),
+                (color, cycle),
                 "{held:?} runs its own colour at its own shape"
             );
             // THE DIM FORM IS ONE SHAPE FOR EVERY BEHAVIOUR, which is what the
             // operator locked: the colour still says which state it is, and only
-            // the shape says the house is asleep.
+            // the shape says the house is asleep. THE LOOP LOSES ITS ACCENT
+            // HERE: the dim form is a plain two-leg breath for every behaviour,
+            // so the flare is a property of the render and not of the state.
             assert_eq!(
                 held_render(held, &shipped, Showing::Dimmed),
-                (color, shipped.dim),
+                (color, crate::lights::breath_cycle(&shipped.dim)),
                 "{held:?} keeps its colour in the dim form"
             );
         }
         // THE LOCKED FIGURES, carried by the decision rather than echoed from a
-        // constant: magenta at 100 down to 30 in two-second fades, and the deep
-        // blue and the two unread colours at 60 down to 10 in four-second ones.
+        // constant: magenta at 100 down to 30 in two-second fades, the two
+        // unread colours at 60 down to 10 in four-second ones, and the deep
+        // blue rising from 10 to 80 over four seconds, flashing to 100 for two
+        // hundred milliseconds at the peak, and falling back.
         assert_eq!(
             held_render(crate::lights::Held::Blocked, &shipped, Showing::Full),
             (
@@ -2023,11 +2042,16 @@ mod tests {
                     x: 0.3395,
                     y: 0.1379
                 },
-                crate::config::Breath {
-                    duration_ms: 2000,
-                    high: 100,
-                    low: 30
-                }
+                vec![
+                    crate::lights::Leg {
+                        brightness: 30,
+                        duration_ms: 2000
+                    },
+                    crate::lights::Leg {
+                        brightness: 100,
+                        duration_ms: 2000
+                    },
+                ]
             )
         );
         assert_eq!(
@@ -2037,12 +2061,23 @@ mod tests {
                     x: 0.1532,
                     y: 0.0475
                 },
-                crate::config::Breath {
-                    duration_ms: 4000,
-                    high: 60,
-                    low: 10
-                }
-            )
+                vec![
+                    crate::lights::Leg {
+                        brightness: 10,
+                        duration_ms: 4000
+                    },
+                    crate::lights::Leg {
+                        brightness: 80,
+                        duration_ms: 4000
+                    },
+                    crate::lights::Leg {
+                        brightness: 100,
+                        duration_ms: 200
+                    },
+                ]
+            ),
+            "the accent sits between the rise and the fall, which is what puts it \
+             at the peak"
         );
         assert_eq!(
             held_render(crate::lights::Held::UnreadSuccess, &shipped, Showing::Full).0,
@@ -2056,11 +2091,16 @@ mod tests {
         );
         assert_eq!(
             held_render(crate::lights::Held::Blocked, &shipped, Showing::Dimmed).1,
-            crate::config::Breath {
-                duration_ms: 3000,
-                high: 7,
-                low: 1
-            },
+            vec![
+                crate::lights::Leg {
+                    brightness: 1,
+                    duration_ms: 3000
+                },
+                crate::lights::Leg {
+                    brightness: 7,
+                    duration_ms: 3000
+                },
+            ],
             "the locked dim form"
         );
     }
@@ -2075,16 +2115,37 @@ mod tests {
             high: 100,
             low: 30,
         };
-        let fades = crate::lights::breath_fades(12_000, &breath, crate::lights::Resume::default());
+        let cycle = crate::lights::breath_cycle(&breath);
+        let fades = crate::lights::breath_fades(12_000, &cycle, crate::lights::Resume::default());
         assert_eq!(
-            breath_arm_body(crate::pulse::BLOCKED_COLOR, &fades[0], breath.duration_ms),
+            breath_arm_body(crate::pulse::BLOCKED_COLOR, &fades[0]),
             r#"{"color":{"xy":{"x":0.3395,"y":0.1379}},"dimming":{"brightness":30.0},"dynamics":{"duration":2000},"on":{"on":true}}"#,
         );
         assert_eq!(
-            fade_body(&fades[1], breath.duration_ms),
+            fade_body(&fades[1]),
             r#"{"dimming":{"brightness":100.0},"dynamics":{"duration":2000}}"#,
             "no colour and no `on`: the arm stated both, and repeating them is two \
              more fields the bridge reconciles mid-transition on every fade"
+        );
+        // AND EACH FADE IS ISSUED AT ITS OWN LEG'S DURATION, which is what the
+        // accent needs: a body built from the shape rather than the fade would
+        // tell the bridge to take four seconds over a two hundred millisecond
+        // flash.
+        let accent = crate::lights::breathe_then_flare_cycle(&crate::config::BreatheThenFlare {
+            breath: crate::config::Breath {
+                duration_ms: 4000,
+                high: 80,
+                low: 10,
+            },
+            flare: 100,
+            flare_ms: 200,
+        });
+        let flare =
+            crate::lights::breath_fades(12_000, &accent, crate::lights::Resume::default())[2];
+        assert_eq!(
+            fade_body(&flare),
+            r#"{"dimming":{"brightness":100.0},"dynamics":{"duration":200}}"#,
+            "the accent is issued at its own two hundred milliseconds"
         );
     }
 
