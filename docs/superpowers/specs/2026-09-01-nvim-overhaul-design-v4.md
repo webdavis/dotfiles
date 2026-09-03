@@ -1391,6 +1391,7 @@ names the group and the label matches the prefix letter), and the new groups fol
 | dial vs boole `<C-a>`/`<C-x>` | gone: dial binds nothing today; PR 25 gives dial the keys after boole is deleted, in the same commit |
 | git-blame `<C-g>B*`         | same `lhs`, rebuilt (5.2), group row unchanged                                                    |
 | `<leader>gm` (git-messenger) | re-pointed at `gitsigns.blame_line({ full = true })`                                              |
+| `<leader>gM` (new)          | `gitsigns.blame()`, the scroll-bound blame split. Added by operator ruling 2026-09-03: `blame_line` draws a static float, so re-pointing `<leader>gm` alone drops git-messenger's `o`/`O` walk back through a line's older commits. The split's `r` reblames at the commit under the cursor, which is the same traversal |
 | `<leader>d` group           | renamed "do"; `<leader>dt`, `<leader>dp`, `<leader>ds` (delegate) removed                          |
 | `<leader>L` group           | renamed "lazy"; descriptions "LazyVim: …" become "Lazy: …"                                         |
 | `<leader>A` group           | row added, "herdr" (PR 4c)                                                                         |
