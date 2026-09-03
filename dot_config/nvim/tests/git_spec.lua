@@ -2,13 +2,11 @@
 -- texts that name their own parameters. Extended in PR 7a to 7c.
 
 local git = require("custom_api.git")
-local util = require("custom_api.util")
 
--- git.lua reaches the shell through `util.run_shell_command`, looked up on the
--- table at call time, so a spec can answer for it. `replies` maps a command
--- string to the `{ exit_code, output }` the real runner would have returned,
--- already trimmed the way it trims. PR 7b replaces this with an injected
--- `git.runner`.
+-- git.lua reaches the shell through `git.runner` (spec 6.2), so a spec answers
+-- for the shell by replacing that one field. `replies` maps a command string to
+-- the `{ exit_code, output }` the real runner would have returned, already
+-- trimmed the way it trims.
 -- `#` is undefined on a table with an embedded nil, and `nil, "message"` is
 -- exactly the shape under test, so the count comes from `select` instead.
 local function collect(...)
@@ -16,13 +14,13 @@ local function collect(...)
 end
 
 local function with_shell(replies, fn)
-  local real_runner = util.run_shell_command
-  util.run_shell_command = function(opts)
+  local real_runner = git.runner
+  git.runner = function(opts)
     local reply = replies[opts.cmd] or error("unexpected shell command: " .. tostring(opts.cmd))
     return reply[1], reply[2]
   end
   local count, results = collect(pcall(fn))
-  util.run_shell_command = real_runner
+  git.runner = real_runner
   assert(results[1], results[2])
   return unpack(results, 2, count)
 end

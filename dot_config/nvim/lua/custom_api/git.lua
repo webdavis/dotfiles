@@ -2,6 +2,11 @@ local M = {}
 
 local util = require("custom_api.util")
 
+-- The shell seam (spec 6.2). Every shell call in this module goes through
+-- `M.runner`, so a test replaces this one field instead of reaching into
+-- `util`, and nothing here shells out behind the seam's back.
+M.runner = util.run_shell_command
+
 -- ╭──────────╮
 -- │  Helpers │
 -- ╰──────────╯
@@ -30,7 +35,7 @@ end
 -- ╰──────╯
 local function initialized(opts)
   local _ = opts
-  local code, _ = util.run_shell_command({ cmd = "git rev-parse --git-dir" })
+  local code, _ = M.runner({ cmd = "git rev-parse --git-dir" })
 
   if code ~= 0 then
     return nil, "Project hasn't been initialized. Run `git init` to start tracking."
@@ -42,7 +47,7 @@ end
 local function top_level(opts)
   local _ = opts
 
-  local code, top_level_dir = util.run_shell_command({ cmd = "git rev-parse --show-toplevel", notify_error = true })
+  local code, top_level_dir = M.runner({ cmd = "git rev-parse --show-toplevel", notify_error = true })
 
   if code ~= 0 then
     return nil
@@ -64,7 +69,7 @@ local function is_current_branch(line)
 end
 
 local function fetch_branches()
-  local exit_code, branches_output = util.run_shell_command({ cmd = "git branch -vv" })
+  local exit_code, branches_output = M.runner({ cmd = "git branch -vv" })
 
   if exit_code ~= 0 then
     local message = {
@@ -74,7 +79,7 @@ local function fetch_branches()
     return nil, table.concat(message, "\n")
   end
 
-  local _, current_name = util.run_shell_command({
+  local _, current_name = M.runner({
     cmd = "git branch --show-current",
     notify_error = true,
   })
@@ -202,7 +207,7 @@ local function latest_commit(opts)
     error("Missing required argument `repo_name`")
   end
 
-  local hash_exit, hash = util.run_shell_command({ cmd = "git rev-parse --short HEAD" })
+  local hash_exit, hash = M.runner({ cmd = "git rev-parse --short HEAD" })
   if hash_exit ~= 0 then
     return nil,
       string.format(
@@ -211,7 +216,7 @@ local function latest_commit(opts)
       )
   end
 
-  local message_exit, message = util.run_shell_command({ cmd = "git log -1 --pretty=%B" })
+  local message_exit, message = M.runner({ cmd = "git log -1 --pretty=%B" })
   if message_exit ~= 0 then
     return { hash = hash }, string.format("Commit `%s` has no message.", hash)
   end
@@ -225,18 +230,18 @@ local function default_branch(opts)
   local repo = opts.repo
 
   -- Check for common default branch names locally.
-  local main_ok, _ = util.run_shell_command({ cmd = "git show-ref --verify --quiet refs/remotes/origin/main" })
+  local main_ok, _ = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/main" })
   if main_ok == 0 then
     return "main"
   end
-  local master_ok, _ = util.run_shell_command({ cmd = "git show-ref --verify --quiet refs/remotes/origin/master" })
+  local master_ok, _ = M.runner({ cmd = "git show-ref --verify --quiet refs/remotes/origin/master" })
   if master_ok == 0 then
     return "master"
   end
 
   if repo then
     -- Fallback to GitHub API:
-    local _, default_branch_name = util.run_shell_command({
+    local _, default_branch_name = M.runner({
       cmd = string.format("curl -s https://api.github.com/repos/%s/%s | jq -r .default_branch", repo),
     })
     return default_branch_name and util.trim(default_branch_name)
@@ -262,7 +267,7 @@ local function url(opts)
   end
 
   local cmd = { cmd = string.format("git config --get remote.%s.url", remote) }
-  local code, remote_url = util.run_shell_command(cmd)
+  local code, remote_url = M.runner(cmd)
 
   if code ~= 0 then
     local lines = {
