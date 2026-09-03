@@ -19,7 +19,10 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
    `~/.local/share/pns`, the binary installs at `~/.local/libexec/pns/pns`, and the build runs
    `--locked`.
 2. **The justfile recipes** `test-rust` and `pns-config-render` pass
-   `--manifest-path dot_local/share/pns/Cargo.toml` with no `--workspace`.
+   `--manifest-path dot_local/share/pns/Cargo.toml`. The workspace conversion has since landed:
+   `crates/pns-{domain,application,protocol,adapters,cli}` exist as skeletons and `test-rust` already
+   passes `--workspace` on its pns lines. `pns-config-render` is a `cargo run` and needs none. Read
+   both recipes before assuming either shape.
 3. **`dot_local/share/uu`** depends on pns by path and imports
    `pns::channels::hermes::{SignedPost, UreqSignedPost, PostOutcome, delivered, outcome_line, sign}`,
    so one signed-POST seam exists rather than two. Do not keep that path alive behind a facade: put
@@ -138,12 +141,16 @@ tick, and reads none of them. Two more deserve a look during classification: not
 Each is a real defect measured against the code. The refactor is the vehicle for all of them; none is
 fixed by a patch that leaves the structure alone.
 
+**Every line number below was read on 2026-09-03 and several have already drifted.** `main.rs` was
+11,937 lines then and is under active refactor, so grep for the named symbol rather than jumping to a
+line.
+
 **The delivery answer is not authoritative, and it is the highest-cost defect.** `was_missed`
 (`missed_notifications.rs:79`) asks the *plan* whether a banner or card was intended, never whether a
 destination accepted anything. Its own doc comment admits two of the three holes. Three more
 authorities compete with the plan: Hermes runs independently of presence and mute, a blocked event
-can flash Hue when `plan.pulse` is false, and approval forwarding (`main.rs:2407`) decides from
-surface alone before the plan exists, deliberately ignoring visibility, Focus and mute.
+can flash Hue when `plan.pulse` is false, and approval forwarding (`forward_to_moshi` in `main.rs`)
+decides from surface alone before the plan exists, deliberately ignoring visibility, Focus and mute.
 
 **One instant is not one observation.** The memoized clock makes two call sites share an epoch, which
 was the 2026-08 fix, but `now` is read before the slow probes, desk idle comes back as an age while
@@ -157,7 +164,7 @@ unreadable clock discards the phone and marker timestamps while leaving the desk
 eligible. A tie between two equally fresh inputs resolves to Desk.
 
 **The crash windows are open.** Delivery happens before both the decision record and the missed
-journal (`main.rs:2905`). The replay path deletes its claim before delivering, and the test
+journal on `main.rs`'s post path. The replay path deletes its claim before delivering, and the test
 `the_claim_never_survives_the_run_whether_the_replay_delivered_or_not` passes, pinning that loss
 window as intended behavior. On a daemon restart mid-drain, `~claim` files are excluded from scans
 while `fire` deletes its claim before spawning, so either window loses the job.

@@ -33,7 +33,7 @@ restrictive database permissions, typed codecs, crash-recovery tests, and multip
 tests.
 
 Create **semantic repositories, not one generic state store**: one per family of records, named for
-what it holds. One SQLite type may implement several application-owned repository traits. Provide
+what it holds. One SQLite type may implement several application-owned repository interfaces. Provide
 in-memory implementations for fast application and contract tests, and run the same contract suite
 against both.
 
@@ -144,7 +144,8 @@ against those same definitions. Retain golden and anti-drift tests.
 Do not create a large custom schema language unless it demonstrably reduces more complexity than it
 introduces.
 
-**Give secrets a type that cannot reveal its value through ordinary `Debug` or `Display`.** Keep
+**Give secrets a type that cannot reveal its value through the language's ordinary debug and display
+conversions** (Rust's `Debug` and `Display`, Swift's `description` and `debugDescription`). Keep
 secrets out of diagnostics, traces, protocol responses, and test failure text. Where a shipped
 template pulls secrets from a password manager, the exact template action is a contract pinned by
 tests, with the test stub refusing any other action: preserve both.
@@ -153,6 +154,6 @@ Add an explicit configuration version and migrations. A version key changes the 
 which the operator sees on `chezmoi diff` and applies themselves. Say so in the report.
 
 Where a generated file is rendered from committed values, keep the renderer's own tests against
-**fixtures the crate owns**, and pin `template == render(values)` from the outer repository instead.
+**fixtures the package owns**, and pin `template == render(values)` from the outer repository instead.
 A package that reaches out of its own folder, by a compile-time file include or a runtime path join, stops building
 the day it moves repositories.

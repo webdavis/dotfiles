@@ -14,9 +14,10 @@ The worked example is [`ESSENTIAL-FEED-EXAMPLE.md`](ESSENTIAL-FEED-EXAMPLE.md), 
 `essentialdevelopercom/essential-feed-case-study` on 2026-09-03. Facts below are marked
 **(measured)** where they come from that repository or from a probe run on this machine.
 
-Toolchain here (measured): Apple Swift 6.3.3; `swift`, `swiftc` and `xcodebuild` at `/usr/bin`;
-`sourcekit-lsp`, `xcode-build-server`, `xcbeautify`, `swiftformat` and `swiftlint` installed and
-declared in `.chezmoidata/system_packages_autoinstall.yaml`. Neovim drives builds and tests through
+Toolchain here (measured): Apple Swift 6.3.3; `swift`, `swiftc`, `xcodebuild` and `sourcekit-lsp` at
+`/usr/bin`, shipped with the toolchain and declared nowhere; `xcode-build-server`, `xcbeautify`,
+`swiftformat` and `swiftlint` from Homebrew, declared in
+`.chezmoidata/system_packages_autoinstall.yaml`. Neovim drives builds and tests through
 `xcodebuild.nvim`.
 
 ## Where the boundary goes, and what enforces it
@@ -53,9 +54,16 @@ either). Draw a folder boundary inside a module for the rest. This is a delibera
 Rust five-crate rule, and the reason it is safe is that the one direction that actually goes wrong,
 UI or infrastructure leaking inward, is exactly the one the module split still catches.
 
-**Gotcha (measured).** After adding a target to `Package.swift`, an incremental `swift build` can
-print `Build complete!` without compiling the new target at all. Run `swift package clean` before
-trusting a green build that followed a manifest edit.
+**The enforcement holds only on a CLEAN build (measured 2026-09-03, reproduced).** Add a file whose
+sole content is `import C` to a target that does not declare `C`: an incremental `swift build` prints
+`Compiling A Bad.swift`, then `Build complete!`, and exits 0. `swift package clean` followed by the
+same `swift build` then reports `error: no such module 'C'`. A module built under an earlier
+configuration stays visible on the incremental search path, so the one check the whole architecture
+rests on reads green while the boundary is broken.
+
+**Run `swift package clean` before treating any green build as evidence of the dependency
+direction**, and have CI build clean rather than incrementally. The same caution applies after editing
+`Package.swift`.
 
 ### What the domain excludes
 
@@ -248,6 +256,11 @@ target.
 For an Xcode project rather than a package, `xcodebuild clean build test -project <p> -scheme <s>`,
 piped through `xcbeautify`. `just lint-check` and `just ship` still gate the repository as a whole.
 
+The neutral method requires the build to run from a committed lockfile. In Swift that is
+`Package.resolved`, committed, with `--disable-automatic-resolution` on `swift build` and `swift test`
+as the analogue of cargo's `--locked`. **Not measured**: no Swift package of ours exists to run it
+against yet, so confirm the flag on the first one rather than trusting this line.
+
 **No `just test-swift` recipe exists yet (measured: neither the justfile nor
 `.github/workflows/lint.yml` mentions Swift).** The first Swift tool this repository owns adds one
 alongside its entry in CI's gate list, and the two must be edited together by hand.
@@ -294,3 +307,6 @@ Rules from the neutral skill with no answer in the case study, recorded rather t
 - **A busy-database policy.** It uses CoreData, not SQLite with concurrent writers, so it has no
   answer to the multiprocess contention rule. A Swift tool of ours with several writing processes
   needs that rule worked out before the first store lands.
+- **The committed-lockfile gate.** `Package.resolved` plus `--disable-automatic-resolution` is the
+  intended analogue of `--locked`, but its behavior was not measured and it awaits the operator's
+  ruling alongside the file-size numbers above.
