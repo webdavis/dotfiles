@@ -1274,7 +1274,9 @@ inventory; it is the LSP gap list decided 2026-09-03.
 `lua/config/options.lua`, the lock.
 
 - [ ] **Step 1:** the double `BufWritePre` format. Two handlers format on write today, lsp-format's
-  own `on_attach` hook and the global one at `lsp.lua:362` (verified 2026-09-03); keep exactly one
+  own `on_attach` hook, reached from the `LspAttach` autocmd at `lsp.lua:369`, and the global
+  `BufWritePre` at `lsp.lua:377`, both registered in the `AutoformatGroup` augroup created at
+  `lsp.lua:364` (re-read against the live config 2026-09-03); keep exactly one
   and say in the body which and why. Before and after, a `:verbose autocmd BufWritePre` dump in the
   body showing two handlers then one. Commit: `fix(nvim): format once on write`.
 - [ ] **Step 2:** diagnostics: `severity_sort`, sign icons, `source = "if_many"`,
