@@ -32,7 +32,26 @@ Measured on Swift 6.3.3, with SwiftPM targets:
 - A cycle declared in the manifest is refused before compilation:
   `error: cyclic dependency declaration found: A -> B -> A`.
 
-That is the same guarantee Cargo gives, through a different file.
+Both were measured on a CLEAN build, and that qualifier is the whole rule:
+
+**A GREEN INCREMENTAL BUILD IS NOT EVIDENCE OF ANYTHING. CLEAN FIRST, OR THE GATE IS THEATRE.**
+Measured 2026-09-03 and reproduced deterministically: add a file whose sole content is `import C` to
+a target that does not declare `C`, and `swift build` prints `Compiling A Bad.swift`, then
+`Build complete!`, and exits 0. Only `swift package clean` followed by the same `swift build` reports
+`error: no such module 'C'`. A module built under an earlier configuration stays visible on the
+incremental search path, so the single check this entire architecture rests on **reads green while
+the boundary is broken**. That is worse than having no check, because it is a check that lies.
+
+So:
+
+- **Run `swift package clean` before any build you intend to treat as proof of the dependency
+  direction.** Reviewing a module boundary off an incremental build proves nothing.
+- **CI must build clean.** An incremental CI gate will pass the pull request that breaks the
+  architecture.
+- The same applies after editing `Package.swift`.
+
+With that qualifier attached, it is the same guarantee Cargo gives, through a different file. Without
+it, it is not a guarantee at all.
 
 **The five roles do not need five modules, and in practice they should not be.** The case study
 (measured) draws exactly three hard boundaries:
@@ -53,17 +72,6 @@ category of code** (the UI must not be reachable from the domain; the app must n
 either). Draw a folder boundary inside a module for the rest. This is a deliberate adaptation of the
 Rust five-crate rule, and the reason it is safe is that the one direction that actually goes wrong,
 UI or infrastructure leaking inward, is exactly the one the module split still catches.
-
-**The enforcement holds only on a CLEAN build (measured 2026-09-03, reproduced).** Add a file whose
-sole content is `import C` to a target that does not declare `C`: an incremental `swift build` prints
-`Compiling A Bad.swift`, then `Build complete!`, and exits 0. `swift package clean` followed by the
-same `swift build` then reports `error: no such module 'C'`. A module built under an earlier
-configuration stays visible on the incremental search path, so the one check the whole architecture
-rests on reads green while the boundary is broken.
-
-**Run `swift package clean` before treating any green build as evidence of the dependency
-direction**, and have CI build clean rather than incrementally. The same caution applies after editing
-`Package.swift`.
 
 ### What the domain excludes
 
