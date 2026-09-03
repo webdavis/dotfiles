@@ -1620,9 +1620,9 @@ Lanes after PR 2 and PR 3, which are strictly first and second; a lane is the su
 | standalone    | PR 4a, 4b, 4c, 4d, 6b, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
 | last          | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31                              |
 
-**The bashunit program (D8), which is not one of the 67.** PR 28a's Bash row depends on it, so its
+**The bashunit program (D8), which is not one of the 68.** PR 28a's Bash row depends on it, so its
 pull requests are listed here to make that cell resolve; they belong to their own program and their
-own lanes, and none of them is counted in the 67 above.
+own lanes, and none of them is counted in the 68 above.
 
 | PR    | Behavior                                                                                  | Depends on |
 | ----- | ------------------------------------------------------------------------------------------- | ---------- |
