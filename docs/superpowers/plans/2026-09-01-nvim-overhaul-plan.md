@@ -5,7 +5,7 @@
 > syntax for tracking.
 
 **Goal:** Move the live Neovim config into chezmoi unchanged, then land every fix, drop, add, custom
-plugin and the lazy-load pass as 68 small reviewed pull requests, ending at a verified clean editor.
+plugin and the lazy-load pass as 69 small reviewed pull requests, ending at a verified clean editor.
 
 **Architecture:** One task per pull request in the spec's section 11 order and lanes. The source is
 `dot_config/nvim/`; pure Lua under `lua/custom_api/` has headless tests in `tests/` run by
@@ -42,6 +42,11 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 - `xcode-select -p` is `/Applications/Xcode.app/Contents/Developer` (Xcode 26.6); `sourcekit-lsp` is
   `/usr/bin/sourcekit-lsp`; the four Homebrew Swift tools are on PATH. PR 3 installs nothing.
 - `stylua`, `luacheck` and `go` are NOT installed on dresden (PR 1 and PR 27 install them).
+- `nvim-treesitter` was un-archived 2026-07-19. Measured on the live config 2026-09-03: both
+  `nvim-treesitter` (`treesitter.lua:153`, lock `7efc1b58`) and `nvim-treesitter-textobjects`
+  (`treesitter.lua:31`, lock `ecd03f58`) already declare `branch = "main"` and already call the
+  rewritten API, so PR 29e is a deliberate bump and a re-verification, not a modules migration.
+  `nvim-treesitter-context` is still on `master` (lock `64dd4cf3`).
 - The four surviving spec pins re-read with `git ls-remote <repo> HEAD`: xcodebuild.nvim `633eb71`,
   neotest `27bf921`, nvim-mcp `0b5ace3`, claudecode.nvim `2390c6e`. Re-read at each PR and recorded.
   Three pins the plan carried are GONE (2026-09-03): vim-slime, because PR 11 adds no plugin (spec
@@ -118,7 +123,7 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 | -------------------- | ----------------------------------------------------------- |
 | first, second        | PR 1, then PR 2, then PR 3 (strictly serial)                |
 | custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 15, then PR 14 last |
-| LSP and tools        | PR 5a, 5b, 17a, 27, 29a, 29c, 29d                           |
+| LSP and tools        | PR 5a, 5b, 17a, 27, 29a, 29c, 29d, 29e                      |
 | drops and git        | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 24a, 24b, 25            |
 | standalone           | PR 4a, 4b, 4c, 4d, 6b, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
 | last                 | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31, then task 63     |
@@ -129,7 +134,7 @@ refactor that builds `--elapsed`. PR 28a's Bash row waits on T1 and T2 of the ba
 
 A lane is the suggested order; the Depends line is what holds a PR back, and it names every
 shared-file predecessor (spec 11 lists the files per edge). `lazy-lock.json` is left out: one key per
-edit, keep both sides, re-gate. The 30c rows depend on PR 1 to 29d (the lane rule, spec 11) plus the
+edit, keep both sides, re-gate. The 30c rows depend on PR 1 to 29e (the lane rule, spec 11) plus the
 shared-file predecessor their Depends line names.
 
 ### Task 1: PR 1, lint infrastructure (spec 3.8)
@@ -1326,6 +1331,37 @@ bumps a pin has merged (PR 28b is the last). Brief: `brief-nvim-pin-refresh.md`.
   own. A pin that fails a gate is reverted to its old value in the same PR and named in the body.
   Commit: `build(nvim): refresh the plugin pins`.
 
+### Task 47c: PR 29e, nvim-treesitter current (spec 5.5)
+
+Lane: LSP and tools. Depends on: PR 29d (`lazy-lock.json` order: the blanket refresh holds the two
+treesitter pins back for this PR), PR 29b (`treesitter-context`). Brief:
+`brief-nvim-treesitter-current.md`. Closes nothing new; it revisits item 36. Its own PR and not a
+rider on 29d because the `main` line is an API surface, not just a version (operator, 2026-09-03).
+
+**Files:** Modify `lua/plugins/treesitter.lua`, `lazy-lock.json`. Possibly
+`lua/plugins/textobjects.lua` and the `aerial` spec, by what step 1 finds.
+
+- [ ] **Step 1, investigate before touching anything, pasted in the body:** which branch each of the
+  three plugins pins TODAY and which is upstream's supported line now. The plan's verified-facts
+  entry records the 2026-09-03 reading (`nvim-treesitter` and `nvim-treesitter-textobjects` both on
+  `main` and both already on the rewritten API, `nvim-treesitter-context` on `master`); re-read it,
+  because upstream has moved once since the un-archive already. Then list every feature in this
+  config that reads treesitter, and for each one say which API it goes through: highlight, indent,
+  incremental selection, textobjects (`select`, `move`, `repeatable_move`), `aerial` and
+  `treesitter-context`. A feature nobody can name an API path for is the one that breaks silently.
+- [ ] **Step 2:** move to the supported branch if step 1 says it moved, and pin all three with
+  `git ls-remote <repo> HEAD` recorded. If step 1 confirms the branch is already right, say so in the
+  body and this step is the pin bump alone. Commits: `build(nvim): bring nvim-treesitter current`,
+  and a separate `refactor(nvim): …` only if an API actually changed under it.
+- [ ] **Step 3, live re-verification, pasted:** every feature from step 1's list, exercised in a real
+  pane on the six filetypes the dump gate covers: highlight renders, indent behaves on a fresh block,
+  incremental selection grows and shrinks, each textobject and each `[`/`]` move fires (including the
+  `[s`/`]s` pair the dump gate flags as racing), `aerial` populates a symbol tree, and the context bar
+  renders. A feature that cannot be shown working is a revert, not a note.
+- [ ] **Step 4:** Gates G1 to G6, with G4 at TEN runs a side rather than the usual count, because a
+  treesitter change moves buffer-local maps and the extra runs are what separate a real move from the
+  known race. `:checkhealth nvim-treesitter` clean, pasted before and after.
+
 ### Task 48: PR 29b, health floor, the treesitter runtimepath line (spec 4, 5.5, 10.2)
 
 Lane: standalone. Depends on: PR 2. Brief: `brief-nvim-treesitter-health.md`. Closes 36 (note), 68,
@@ -1366,7 +1402,7 @@ Lane: last. Depends on: PR 30b1 (`git.lua`). Brief: `brief-nvim-triggers-octo.md
 - [ ] **Step 2:** Gates G1 to G6; G4 unchanged; G5 records the drop; the `<leader>gh` maps fire live
   and the octo `<localleader>` popup still appears.
 
-The nine 30c tasks below share one shape (spec 9, spec 11): lane last; each depends on PR 1 to 29d
+The nine 30c tasks below share one shape (spec 9, spec 11): lane last; each depends on PR 1 to 29e
 (the lane rule) plus the shared-file predecessor its Depends line names; each adds ONE trigger to ONE
 spec file and changes nothing else there; each runs gates G1 to G6 with G4 unchanged (lazy `keys`
 still dump) and G5 recording the drop; every keymap and command the trigger names fires live, and one
@@ -1377,7 +1413,7 @@ marks them lazy, verified 2026-09-01 against the live spec files.
 
 ### Task 52: PR 30c1, startup trigger for treesj (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-treesj.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-treesj.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `treesj.lua` gains `keys` for its five `<leader>j` maps. Commit: `perf(nvim):
   lazy-load treesj`.
@@ -1385,7 +1421,7 @@ Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-treesj.md`. Clos
 
 ### Task 53: PR 30c2, startup trigger for auto-save (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d; PR 24 (`autosave.lua`). Brief: `brief-nvim-trigger-autosave.md`.
+Lane: last. Depends on: PR 1 to 29e; PR 24 (`autosave.lua`). Brief: `brief-nvim-trigger-autosave.md`.
 Closes 48 (part).
 
 - [ ] **Step 1:** `autosave.lua` gains `event = { "InsertLeave", "TextChanged" }` and the `<leader>uv`
@@ -1394,7 +1430,7 @@ Closes 48 (part).
 
 ### Task 54: PR 30c3, startup trigger for overseer (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d; PR 14 (`overseer.lua`). Brief: `brief-nvim-trigger-overseer.md`.
+Lane: last. Depends on: PR 1 to 29e; PR 14 (`overseer.lua`). Brief: `brief-nvim-trigger-overseer.md`.
 Closes 48 (part).
 
 - [ ] **Step 1:** `overseer.lua` gains `cmd` plus its `<leader>o` and `<M-…>` keys. Commit:
@@ -1404,7 +1440,7 @@ Closes 48 (part).
 
 ### Task 55: PR 30c4, startup trigger for harpoon (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d; PR 22a (`harpoon.lua`). Brief: `brief-nvim-trigger-harpoon.md`.
+Lane: last. Depends on: PR 1 to 29e; PR 22a (`harpoon.lua`). Brief: `brief-nvim-trigger-harpoon.md`.
 Closes 48 (part).
 
 - [ ] **Step 1:** `harpoon.lua` gains `keys` (`<C-p>`, `<C-n>` and its `<leader>` maps). Commit:
@@ -1413,7 +1449,7 @@ Closes 48 (part).
 
 ### Task 56: PR 30c5, startup trigger for urlview (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-urlview.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-urlview.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `urlview.lua` gains `cmd` and its `<leader>U` keys. Commit: `perf(nvim): lazy-load
   urlview`.
@@ -1421,21 +1457,21 @@ Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-urlview.md`. Clo
 
 ### Task 57: PR 30c6, startup trigger for sort (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-sort.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-sort.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `sort.lua` gains `cmd = "Sort"` and its keys. Commit: `perf(nvim): lazy-load sort`.
 - [ ] **Step 2:** the shared gates above; `:Sort` and its keys fire live.
 
 ### Task 58: PR 30c7, startup trigger for live-rename (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-live-rename.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-live-rename.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `live-rename.lua` gains `keys`. Commit: `perf(nvim): lazy-load live-rename`.
 - [ ] **Step 2:** the shared gates above; the rename map fires live on an LSP buffer.
 
 ### Task 59: PR 30c8, startup trigger for aerial (spec 9)
 
-Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-aerial.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-aerial.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `aerial.lua` gains `cmd` and its keys. Commit: `perf(nvim): lazy-load aerial`.
 - [ ] **Step 2:** the shared gates above; the aerial toggle fires live and the PR 2 close-sidebars
@@ -1443,7 +1479,7 @@ Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-aerial.md`. Clos
 
 ### Task 60: PR 30c9, startup trigger for claudecode.nvim (spec 9, 7.2)
 
-Lane: last. Depends on: PR 1 to 29d; PR 16 (`claudecode.lua`). Brief:
+Lane: last. Depends on: PR 1 to 29e; PR 16 (`claudecode.lua`). Brief:
 `brief-nvim-trigger-claudecode.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `claudecode.lua` gains `event = "VeryLazy"` (the lock file must exist before the CLI

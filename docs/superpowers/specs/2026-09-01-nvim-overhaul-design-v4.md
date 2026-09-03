@@ -78,6 +78,9 @@ v4.4 folds the decisions of 2026-09-03
    by construction; PR 9's third criterion is reframed around what the injection leaves over, and a
    server that fails it may still be usable (7.3).
 
+1. `nvim-treesitter` was un-archived on 2026-07-19, so PR 29e brings it current on its own rather
+   than inside the 29d pin refresh, because the `main` line is an API surface (5.5, 11).
+
 One item in that document is NOT decided and stays an open question here: whether the osquery
 pipeline's Rust port is scheduled next (12.8). The bashunit scope, open when this slice began, was
 decided while it ran: the whole corpus moves off bats (12.1).
@@ -827,10 +830,18 @@ case where the rename changed the realpath.
   commit, PR 26c; the bufferline path at `ui.lua:69-70` is already v2-correct.
 - `nvim-hlslens`: `4254054` to `be2d7b2` (bug #15). PR 26b.
 - `none-ls`: no forced bump (item 34).
-- `nvim-treesitter`: already on `main` (item 36 struck). The plugin was archived 2026-04-03; the pin
-  keeps working but receives no fixes, and nvim 0.12's builtin treesitter is the long-term path. Flag
-  only. `nvim-treesitter-context` is still on `master`; during PR 29b confirm the context bar renders on
-  0.12.5 and `:checkhealth` stays clean, then leave it.
+- `nvim-treesitter`: UN-ARCHIVED 2026-07-19 with clason back, after the 2026-04-03 archival this spec
+  wrote "flag only" against, so the pin now receives fixes again and the operator wants it current.
+  That is PR 29e, its own pull request rather than a rider on the 29d pin refresh, because the `main`
+  line is an API surface and not just a version. Measured on the live config 2026-09-03: BOTH
+  `nvim-treesitter` (`treesitter.lua:153`, lock `7efc1b58`) and `nvim-treesitter-textobjects`
+  (`treesitter.lua:31`, lock `ecd03f58`) already declare `branch = "main"` and already call the
+  rewritten API (`require("nvim-treesitter")` at `treesitter.lua:156`, and
+  `nvim-treesitter-textobjects.select`, `.move` and `.repeatable_move`), so the modules-system
+  migration is behind this config, not ahead of it, and PR 29e is a deliberate bump plus a
+  re-verification rather than a rewrite. `nvim-treesitter-context` is still on `master` (lock
+  `64dd4cf3`) and `aerial` reads treesitter through its own path, so what each of them needs is
+  PR 29e's to decide; PR 29b keeps only its own check that the context bar renders on 0.12.5.
 - Everything else keeps its pin. `dial`, `markview` and `toggleterm` stay (item 35).
 - `lazy-lock.json`'s newest pin is 2025-12-30 against Neovim 0.12.5, and several plugins predate
   0.12. The refresh is its own pull request with the full gate harness (PR 29d), never a side effect
@@ -1539,11 +1550,11 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
 ## 11. The pull request sequence
 
 One pull request per behavior, small (operator rule 2026-08-10): a PR changes one plugin, one bug, one
-option or one mechanism, so 68 PRs (v4.3 split 5, 7, 19, 30b and 30c; v4.4 split 28 and added 6b,
-24a, 24b, 29c and 29d; the letter and digit suffixes keep the old numbers readable). Each has the review
-pipeline the memory describes and its own keymap dump diff. The **Depends on** cell is complete: it
-names every PR whose merge the row needs for its behavior AND every earlier PR that edits a file the
-row edits (the shared-file rule below), so a
+option or one mechanism, so 69 PRs (v4.3 split 5, 7, 19, 30b and 30c; v4.4 split 28 and added 6b,
+24a, 24b, 29c, 29d and 29e; the letter and digit suffixes keep the old numbers readable). Each has
+the review pipeline the memory describes and its own keymap dump diff. The **Depends on** cell is
+complete: it names every PR whose merge the row needs for its behavior AND every earlier PR that
+edits a file the row edits (the shared-file rule below), so a
 PR opens for review only when every PR in its cell is merged. `lazy-lock.json` is the one shared file
 left out of those cells: every lock edit adds, removes or moves ONE key, a textual conflict there is
 resolved by keeping both sides, and the re-gate rule below re-proves the result.
@@ -1603,19 +1614,20 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 29a | Health floor: none-ls executable gating (`lsp.lua`)                                                     | PR 27                 | 68 (none-ls half), 71 (health half)         |
 | PR 29b | Health floor: the treesitter runtimepath investigation and the treesitter-context check                | PR 2                  | 36 (note), 68, 71 (health half)             |
 | PR 29c | LSP polish: remove the double `BufWritePre` format (lsp-format's `on_attach` hook, reached from the `LspAttach` autocmd at `lsp.lua:369`, and the global `BufWritePre` at `lsp.lua:377`, both in the `AutoformatGroup` augroup); diagnostics `severity_sort`, sign icons, `source = "if_many"`, `virtual_lines = { current_line = true }`; `vim.o.winborder` (and 0.12's `pumborder`) replacing noice's `lsp_doc_border` and blink's `rounded`; `vim.lsp.codelens.enable()` and inlay hints enabled at attach (both dead config today); delete `options.lua:17` (`vim.g.deprecation_warnings`, a LazyVim leftover); pin blink.cmp to `version = "1.*"` | PR 29a, PR 12 (`lsp.lua`), PR 22b (`noice.lua`), PR 17b (`blink-cmp.lua`), PR 20 (`options.lua`) | none (LSP polish) |
-| PR 29d | Pin refresh: `lazy-lock.json` alone, whose newest pin is 2025-12-30 against Neovim 0.12.5, under the full gate harness so a regression it causes is attributable to it | PR 29c, PR 28b (the last PR that adds a pin) | none (pin refresh) |
+| PR 29d | Pin refresh: `lazy-lock.json` alone, whose newest pin is 2025-12-30 against Neovim 0.12.5, under the full gate harness so a regression it causes is attributable to it. The two `main`-branch treesitter pins are held back and left to PR 29e, so the un-archived line is bumped deliberately and not swept along | PR 29c, PR 28b (the last PR that adds a pin) | none (pin refresh) |
+| PR 29e | nvim-treesitter current (5.5): confirm the branch the config pins, list every feature that reads the old modules system (highlight, indent, incremental selection, textobjects, `aerial`, `treesitter-context`), move to the supported line if it has moved again, pin it, and re-verify every treesitter-backed feature live on the six filetypes; the dump gate runs at ten runs a side | PR 29d (`lazy-lock.json` order), PR 29b (`treesitter-context`) | none (36 revisited) |
 | PR 30a | Startup: triggers for the LSP group (`lsp.lua`)                                                         | PR 29a, PR 12, PR 29c (`lsp.lua`) | 48 (part)                       |
 | PR 30b1 | Startup: triggers for fugitive and its deps (`git.lua`)                                                | PR 24                 | 48 (part)                                   |
 | PR 30b2 | Startup: triggers for octo (`git.lua`)                                                                 | PR 30b1               | 48 (part)                                   |
-| PR 30c1 | Startup: `keys` for treesj (`treesj.lua`)                                                              | PR 1 to 29d           | 48 (part)                                   |
-| PR 30c2 | Startup: `event` and the toggle key for auto-save (`autosave.lua`)                                     | PR 1 to 29d; PR 24 (`autosave.lua`) | 48 (part)                     |
-| PR 30c3 | Startup: `cmd` and `keys` for overseer (`overseer.lua`)                                                | PR 1 to 29d; PR 14 (`overseer.lua`) | 48 (part)                     |
-| PR 30c4 | Startup: `keys` for harpoon (`harpoon.lua`)                                                            | PR 1 to 29d; PR 22a (`harpoon.lua`) | 48 (part)                     |
-| PR 30c5 | Startup: `cmd` and `keys` for urlview (`urlview.lua`)                                                  | PR 1 to 29d           | 48 (part)                                   |
-| PR 30c6 | Startup: `cmd` and `keys` for sort (`sort.lua`)                                                        | PR 1 to 29d           | 48 (part)                                   |
-| PR 30c7 | Startup: `keys` for live-rename (`live-rename.lua`)                                                    | PR 1 to 29d           | 48 (part)                                   |
-| PR 30c8 | Startup: `cmd` and `keys` for aerial (`aerial.lua`)                                                    | PR 1 to 29d           | 48 (part)                                   |
-| PR 30c9 | Startup: `event = "VeryLazy"` for claudecode.nvim (`claudecode.lua`)                                   | PR 1 to 29d; PR 16 (`claudecode.lua`) | 48 (part)                   |
+| PR 30c1 | Startup: `keys` for treesj (`treesj.lua`)                                                              | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c2 | Startup: `event` and the toggle key for auto-save (`autosave.lua`)                                     | PR 1 to 29e; PR 24 (`autosave.lua`) | 48 (part)                     |
+| PR 30c3 | Startup: `cmd` and `keys` for overseer (`overseer.lua`)                                                | PR 1 to 29e; PR 14 (`overseer.lua`) | 48 (part)                     |
+| PR 30c4 | Startup: `keys` for harpoon (`harpoon.lua`)                                                            | PR 1 to 29e; PR 22a (`harpoon.lua`) | 48 (part)                     |
+| PR 30c5 | Startup: `cmd` and `keys` for urlview (`urlview.lua`)                                                  | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c6 | Startup: `cmd` and `keys` for sort (`sort.lua`)                                                        | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c7 | Startup: `keys` for live-rename (`live-rename.lua`)                                                    | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c8 | Startup: `cmd` and `keys` for aerial (`aerial.lua`)                                                    | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c9 | Startup: `event = "VeryLazy"` for claudecode.nvim (`claudecode.lua`)                                   | PR 1 to 29e; PR 16 (`claudecode.lua`) | 48 (part)                   |
 | PR 30d | Startup: `defaults.lazy = true`, with `lazy = false` written only onto the untriggered must-load set of the section 9 table; the strict gate | PR 30a, 30b1, 30b2, 30c1 to 30c9 | 48 |
 | PR 31 | Bootstrap script, the clean-home apply, the final acceptance record                                      | PR 30d                | 50, 66 (bootstrap), 69, 70, 72              |
 
@@ -1623,7 +1635,7 @@ PR 30a to 30c9 move the number on their own: lazy.nvim marks a spec lazy wheneve
 `keys`, `ft` or `cmd`, even with `defaults.lazy = false` (`lazy/core/plugin.lua:235-241` in the
 installed pin: `plugin.lazy = plugin._.dep or defaults.lazy or plugin.event or plugin.keys or
 plugin.ft or plugin.cmd`), so each trigger PR is measured by the 9.1 gate and 30d only flips the
-default for the specs that have none. The `PR 1 to 29d` cell on the 30c rows is the lane rule made
+default for the specs that have none. The `PR 1 to 29e` cell on the 30c rows is the lane rule made
 explicit: no trigger lands before the functional work, so the trigger PRs are measured against a
 finished config; the second entry in that cell is the shared-file predecessor.
 
@@ -1633,14 +1645,14 @@ Lanes after PR 2 and PR 3, which are strictly first and second; a lane is the su
 | Lane          | Order                                                                  |
 | ------------- | ---------------------------------------------------------------------- |
 | custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 15, then 14 last (it waits on PR 28b and on the pns refactor) |
-| LSP and tools | PR 5a, 5b, 17a, 27, 29a, 29c, 29d                                      |
+| LSP and tools | PR 5a, 5b, 17a, 27, 29a, 29c, 29d, 29e                                 |
 | drops and git | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 24a, 24b, 25                       |
 | standalone    | PR 4a, 4b, 4c, 4d, 6b, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
 | last          | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31                              |
 
-**The bashunit program (D8), which is not one of the 68.** PR 28a's Bash row depends on it, so its
+**The bashunit program (D8), which is not one of the 69.** PR 28a's Bash row depends on it, so its
 pull requests are listed here to make that cell resolve; they belong to their own program and their
-own lanes, and none of them is counted in the 68 above. It is specified elsewhere, in
+own lanes, and none of them is counted in the 69 above. It is specified elsewhere, in
 `docs/superpowers/specs/2026-09-03-bashunit-migration-design.md` and the plan beside it, written
 investigation-first against bashunit 0.50.1; the rows below are the outline those two expand, not
 the design. Every bats test this spec still names is bats until T1 lands and bashunit after it.
@@ -1774,7 +1786,7 @@ re-gated since its last merge of `main` is not a verdict.
 | 33   | nvim-surround ^4                              | 5.5         | PR 26a    |
 | 34   | none-ls no forced bump                        | 1, 5.5      | PR 26a (recorded as no-op) |
 | 35   | keep dial, markview, toggleterm               | 5.5         | resolved  |
-| 36   | treesitter master to main                     | 5.5         | STRUCK; archival note and context check in PR 29b |
+| 36   | treesitter master to main                     | 5.5         | STRUCK as worded (the config is already on `main`); the un-archived line is brought current in PR 29e, context check in PR 29b |
 | 37   | gopls (D)                                     | 5.3         | PR 27     |
 | 38   | conform / nvim-lint                           | 1           | deferred (non-goal) |
 | 39   | raw-text send to the agent pane (no vim-slime) | 7.4        | PR 11     |
@@ -1807,7 +1819,7 @@ re-gated since its last merge of `main` is not a verdict.
 | 66   | headless Lua test wired to just and bootstrap | 6.3         | PR 6 (harness), PR 31 (bootstrap) |
 | 67   | pure-helper tests                             | 6.3         | PR 7a     |
 | 68   | runtimepath bug                               | 2, 4        | PR 29b    |
-| 69   | sequence                                      | 11          | PR 1 to PR 31, 68 rows |
+| 69   | sequence                                      | 11          | PR 1 to PR 31, 69 rows |
 | 70   | success criteria                              | 10          | PR 31     |
 | 71   | checkhealth, startuptime, bugs live, lint     | 10          | every PR; lint from PR 1, health floor PR 29a and 29b |
 | 72   | clean-home apply (full apply, not --exclude)  | 10.10       | PR 31     |
