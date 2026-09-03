@@ -11,11 +11,20 @@ end
 
 -- `replies` maps a command string to the `{ exit_code, output }` the real
 -- runner would have returned, already trimmed the way it trims. An unlisted
--- command is an error rather than a fallthrough, so a call that skipped the
--- runner cannot pass quietly.
+-- command is an error rather than a fallthrough, so a call that asked for the
+-- wrong thing cannot pass quietly.
+--
+-- It cannot catch a call that skipped `github.runner` altogether, though: a
+-- real `gh` that fails reports the same `nil, message` shape the fake does, so
+-- a bypassed failure case still goes green. `seen` records the commands the
+-- runner was handed, and a case that reads it closes that hole.
+local seen = {}
+
 local function with_shell(replies, fn)
   local real_runner = github.runner
+  seen = {}
   github.runner = function(opts)
+    table.insert(seen, opts.cmd)
     local reply = replies[opts.cmd] or error("unexpected shell command: " .. tostring(opts.cmd))
     return reply[1], reply[2]
   end
@@ -73,6 +82,8 @@ return {
     end)
     assert(err == nil, "reported " .. tostring(err))
     assert(branch == TRUNK, "branch was " .. tostring(branch))
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
   end,
 
   ["default_branch reports a failed gh call as an operational failure"] = function()
@@ -82,6 +93,8 @@ return {
     assert(branch == nil, "returned a branch anyway")
     assert(type(err) == "string", "err was a " .. type(err))
     assert(err:find("gh auth login", 1, true), "the message does not say how to fix it: " .. err)
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
   end,
 
   ["default_branch treats an empty answer from a successful gh call as a failure"] = function()
@@ -90,6 +103,8 @@ return {
     end)
     assert(branch == nil, "returned a branch for an empty answer")
     assert(type(err) == "string", "err was a " .. type(err))
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
   end,
 
   -- `repo` hands back a table whose `owner` and `name` are nil when the answer
