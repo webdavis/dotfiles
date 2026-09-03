@@ -259,6 +259,20 @@ return {
         end,
         desc = "Gitsigns: blame line (full)",
       })
+
+      -- git-messenger's `o`/`O` walked back through a line's older commits from
+      -- inside its popup, which is why it set `into_popup_after_show`. A
+      -- `blame_line` float is static, so the walk lives here instead: a
+      -- scroll-bound blame split whose `r` reblames at the commit under the
+      -- cursor, which is the same traversal without the popup.
+      map({
+        mode = "n",
+        lhs = "<leader>gM",
+        rhs = function()
+          gitsigns.blame()
+        end,
+        desc = "Gitsigns: blame file (walk commits)",
+      })
     end,
   },
   {
