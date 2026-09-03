@@ -248,6 +248,17 @@ return {
       }
 
       require("gitsigns").setup(opts)
+
+      -- `<leader>gm` outlived git-messenger.vim and keeps its reach: global, not
+      -- buffer-local like the `<leader>gB` blame above.
+      map({
+        mode = "n",
+        lhs = "<leader>gm",
+        rhs = function()
+          gitsigns.blame_line({ full = true })
+        end,
+        desc = "Gitsigns: blame line (full)",
+      })
     end,
   },
   {
@@ -1168,44 +1179,6 @@ return {
       { "<C-g>y", "<cmd>GitLink<cr>", mode = { "n", "v" }, desc = "Yank git link" },
       { "<C-g>oL", "<cmd>GitLink!<cr>", mode = { "n", "v" }, desc = "Git Linker: browse (line in file)" },
     },
-  },
-  {
-    "rhysd/git-messenger.vim",
-    config = function()
-      -- Ensure the cursor always moves to the popup window after `:GitMessenger` is run.
-      vim.g.git_messenger_into_popup_after_show = 1
-      vim.g.git_messenger_always_into_popup = 1
-
-      local function git_messenger()
-        local bufname = vim.api.nvim_buf_get_name(0)
-
-        if not git.initialized() then
-          return
-        end
-
-        -- The buffer name is one argv word, so it needs no escaping: fnameescape
-        -- quotes for Vim's command line, which is not what this ever reached.
-        local exit_code, _ = util.run_shell_command({ cmd = { "git", "ls-files", "--error-unmatch", bufname } })
-
-        if exit_code ~= 0 then
-          vim.notify(
-            "File `" .. bufname .. "` is not tracked by *" .. github.repo().name .. "*",
-            log_warning,
-            { title = "Git Messenger" }
-          )
-          return
-        end
-
-        vim.cmd("GitMessenger")
-      end
-
-      map({
-        mode = "n",
-        lhs = "<leader>gm",
-        rhs = git_messenger,
-        desc = "Git Messenger: toggle",
-      })
-    end,
   },
   {
     -- TODO: git-blame: put this somewhere so that it's only available when attached to a git project. (E.g. on_attach)
