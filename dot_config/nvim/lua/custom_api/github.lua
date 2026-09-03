@@ -94,7 +94,7 @@ local function default_branch(opts)
       )
   end
 
-  return util.trim(result)
+  return result
 end
 
 M.account = account
