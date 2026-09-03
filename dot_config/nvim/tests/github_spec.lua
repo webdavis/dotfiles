@@ -48,6 +48,10 @@ local TRUNK = "sentinel-trunk"
 
 local DEFAULT_BRANCH_COMMAND = ("gh api repos/%s/%s --jq .default_branch"):format(OWNER, NAME)
 
+-- What a real `gh api` prints for a repository it cannot see, measured. Both
+-- halves are there because `vim.fn.system` captures stderr as well as stdout.
+local GH_NOT_FOUND = '{"message":"Not Found","status":"404"}gh: Not Found (HTTP 404)'
+
 return {
   ["repo reads the owner and the name out of one gh call"] = function()
     local repo, err = with_shell({ [REPO_COMMAND] = { 0, OWNER .. "/" .. NAME } }, github.repo)
@@ -86,8 +90,13 @@ return {
     assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
   end,
 
+  -- The output is deliberately not empty. A `gh` that cannot see the repository
+  -- exits non-zero and still prints, so the exit code is the only thing that
+  -- catches it; an empty reply here would let the `result == ""` clause carry
+  -- the case on its own and leave the exit code unchecked, which is the shape
+  -- that actually reaches the mapping.
   ["default_branch reports a failed gh call as an operational failure"] = function()
-    local branch, err = with_shell({ [DEFAULT_BRANCH_COMMAND] = { 1, "" } }, function()
+    local branch, err = with_shell({ [DEFAULT_BRANCH_COMMAND] = { 1, GH_NOT_FOUND } }, function()
       return github.default_branch({ owner = OWNER, name = NAME })
     end)
     assert(branch == nil, "returned a branch anyway")
