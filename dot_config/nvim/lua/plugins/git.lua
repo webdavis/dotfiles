@@ -506,19 +506,6 @@ return {
       map({ mode = "n", lhs = "<C-g>bR", rhs = "Git branch -rv", desc = "Fugitive: remotes (verbose)" })
       map({ mode = "n", lhs = "<C-g>bA", rhs = "Git branch --all -vv", desc = "Fugitive: local + remote (verbose)" })
 
-      map({
-        mode = "n",
-        lhs = "<C-g>bc",
-        rhs = function()
-          local branch = git.current_branch().name
-          if not branch then
-            return
-          end
-          vim.notify("**Current Branch:** `" .. branch .. "`", log_info, { title = "Active Git Branch" })
-        end,
-        desc = "Notify: current",
-      })
-
       local function format_section(label, text, metatext)
         if text and text:match("%S") then
           if metatext and metatext:match("%S") then
