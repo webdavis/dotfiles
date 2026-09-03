@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Personal Neovim configuration powered by lazy.nvim (standalone, not the LazyVim framework). All configuration is in Lua targeting LuaJIT 5.1 (Neovim's runtime).
+Personal Neovim configuration powered by lazy.nvim (standalone, not the LazyVim framework). All
+configuration is in Lua targeting LuaJIT 5.1 (Neovim's runtime).
 
 ## Lint and Format Commands
 
@@ -20,16 +21,19 @@ stylua init.lua lua/
 luacheck init.lua lua/
 ```
 
-Formatting rules are in `stylua.toml` (2-space indent, 120 column width, double quotes). Linting rules are in `.luacheckrc`.
+Formatting rules are in `stylua.toml` (2-space indent, 120 column width, double quotes). Linting rules
+are in `.luacheckrc`.
 
 ## Architecture
 
 **Loading order** (`init.lua`):
-1. Optional profiling setup (`PROFILE=1 nvim`)
-2. `custom_api` loaded; `map()` set as global (`_G.map`)
-3. `config/options.lua` → `config/keymaps.lua` → `config/autocmds.lua` → `config/lazy.lua`
 
-**Plugin system**: lazy.nvim loads all specs from `lua/plugins/`. Each plugin file returns a lazy.nvim spec table. Plugins are **not** lazy-loaded by default (`lazy = false`).
+1. Optional profiling setup (`PROFILE=1 nvim`)
+1. `custom_api` loaded; `map()` set as global (`_G.map`)
+1. `config/options.lua` → `config/keymaps.lua` → `config/autocmds.lua` → `config/lazy.lua`
+
+**Plugin system**: lazy.nvim loads all specs from `lua/plugins/`. Each plugin file returns a lazy.nvim
+spec table. Plugins are **not** lazy-loaded by default (`lazy = false`).
 
 ### Key directories
 
@@ -41,6 +45,7 @@ Formatting rules are in `stylua.toml` (2-space indent, 120 column width, double 
 ### Custom API (`lua/custom_api/`)
 
 Modules are accessed via `require("custom_api")`:
+
 - `util` — `map()` (global keymap helper), `trim()`, `overseer_runner()`, shell command execution
 - `git` — Git CLI wrappers (branch parsing, URL generation, protocol conversion)
 - `github` — GitHub CLI (`gh`) integration for account/repo info
@@ -49,7 +54,9 @@ Modules are accessed via `require("custom_api")`:
 
 ### The `map()` function
 
-The global `map()` is the primary way keymaps are defined outside of plugin `keys` specs. It wraps `vim.keymap.set` with:
+The global `map()` is the primary way keymaps are defined outside of plugin `keys` specs. It wraps
+`vim.keymap.set` with:
+
 - Auto `noremap = true`
 - Auto `silent` unless RHS starts with `:`
 - Accepts `lhs` as a string or table of strings (multiple keys)
@@ -61,7 +68,8 @@ map({ mode = "n", lhs = "<leader>x", rhs = function() ... end, desc = "Do thing"
 
 ## Conventions
 
-- **Keymaps**: Global keymaps in `config/keymaps.lua`; plugin-specific keymaps in their respective plugin file's `keys` field
+- **Keymaps**: Global keymaps in `config/keymaps.lua`; plugin-specific keymaps in their respective plugin
+  file's `keys` field
 - **Leader**: `<Space>` (leader), `\` (localleader)
 - **Which-key groups** are defined in `lua/plugins/which-key.lua`
 - **LSP servers** are configured in `lua/plugins/lsp.lua` via mason + lspconfig
