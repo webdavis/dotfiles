@@ -24,10 +24,12 @@ start = function(bufnr)
     -- because the buffer then goes stale with nothing to show for it. A name
     -- that resolves to nothing (an unwritten buffer, a deleted file) is the
     -- ordinary case and stays quiet. Reached from the re-arm below it is also
-    -- the known ceiling: a writer that unlinks the file and recreates it a tick
-    -- or more later leaves nothing to watch, so the buffer stops following for
-    -- good. Neovim says E211 on that `checktime`, and the focus-change group in
-    -- `config/autocmds.lua` still catches the recreated file on the next focus.
+    -- the known ceiling: anything that leaves the buffer's own path resolving
+    -- to nothing stops the buffer following for good, measured on a writer that
+    -- unlinks the file and recreates it a tick or more later and on a rename of
+    -- a parent directory. Neovim says E211 on that `checktime`, and the
+    -- focus-change group in `config/autocmds.lua` still catches the file on the
+    -- next focus.
     if name ~= "" and vim.uv.fs_lstat(name) then
       vim.notify_once(
         "auto_reload: cannot resolve " .. name .. ", buffer will not follow the file",
@@ -49,6 +51,10 @@ start = function(bufnr)
         M.unwatch(bufnr)
         return
       end
+      -- On a buffer with unsaved changes `checktime` prompts (W12) instead of
+      -- reloading, and this fires while Neovim sits idle, where before only a
+      -- focus change reached it. That prompt is Neovim's own answer to the
+      -- conflict, so it stands.
       vim.cmd("checktime " .. bufnr)
       -- The watch is on the inode, so a writer that renames a new file into
       -- place (most formatters, and any agent that writes a temp file and

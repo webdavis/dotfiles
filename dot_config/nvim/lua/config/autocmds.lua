@@ -26,6 +26,9 @@ vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
 -- sits idle in one herdr pane and an agent writes the file from another, so a
 -- normal file buffer also watches its own file.
 local auto_reload = require("custom_api.auto_reload")
+-- Held in a local and reused below, because `augroup` above passes
+-- `clear = true`: calling it a second time for this group would delete the
+-- autocmd the first call registered.
 local auto_reload_group = augroup("auto_reload")
 
 vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
