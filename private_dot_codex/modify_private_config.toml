@@ -1,0 +1,179 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /*
+  Selective field control for ~/.codex/config.toml.
+
+  Why: Codex WRITES this file while it runs. Measured 2026-09-03, the deployed
+  file carried one more [projects.*] entry than a snapshot taken two days
+  earlier, with everything else byte-identical, so Codex re-serializes the whole
+  document from its own model rather than appending. A plain chezmoi template
+  would overwrite that on every apply.
+
+  How: this is a chezmoi modify-template (https://www.chezmoi.io/user-guide/
+  manage-different-types-of-file/#modify-templates), the same mechanism
+  private_dot_claude/modify_settings.json uses for ~/.claude/settings.json. It
+  receives the current ~/.codex/config.toml on .chezmoi.stdin, parses it,
+  overlays the fields below, and writes the merged document back.
+
+  Three categories of field, not two:
+
+    STABLE       overwritten from here on every apply, whatever the live file
+                 says: the model and reasoning settings, the sandbox and
+                 approval policy, notify, tui.vim_mode_default, [features],
+                 [memories], the two git [marketplaces.*] identities, and the
+                 four MCP servers this repo declares.
+    FREE-DRIFT   passed through untouched: [hooks.state], the desktop app's
+                 own [desktop] block and the MCP servers it injects, the
+                 [plugins.*] roster, tui.model_availability_nux, the
+                 marketplace freshness fields, and anything else Codex adds.
+    [projects.*] the ROSTER of trusted project roots is declared here and every
+                 UNDECLARED live entry is preserved. So an apply grants trust
+                 to exactly the five roots below and revokes nothing the
+                 operator granted at the Codex prompt.
+
+  [hooks.state] IS HOOK TRUST AND IS NEVER WRITTEN FROM HERE. Its 21 entries
+  today are the hook approvals the operator granted interactively, and the
+  standing rule is that Codex hook trust is operator-only. Writing a snapshot
+  from source would let an apply silently RE-GRANT trust the operator had
+  revoked, so this template only ever reads it back out of the live file. On a
+  fresh machine there is nothing to read and the rendered file carries NO
+  [hooks.state] at all: Codex re-prompts, which is the correct outcome.
+
+  THE LAYOUT IS NORMALIZED, and that is a real cost rather than a detail. The
+  merged document is re-serialized by toToml, which sorts every key and indents
+  nested tables, where Codex writes flat and in its own insertion order. The two
+  never agree, so this file shows a large `chezmoi diff` whenever Codex has
+  touched it since the last apply, and the diff is layout rather than drift.
+  Comparing the two PARSED documents is the way to see real drift.
+
+  KNOWN LIMIT: a live file that is non-empty and does not parse aborts the
+  WHOLE apply from here, taking every later target and every run_after_ script
+  with it, because fromToml hard errors on bad input (measured 2026-09-03,
+  chezmoi 2.72.1) and Go's text/template has no recover. An EMPTY or
+  whitespace-only file is fine: fromToml returns an empty map for it. The
+  Claude settings path repairs the unparseable case with a quarantine script
+  running before the template; nothing equivalent exists here yet.
+*/ -}}
+{{- /* .chezmoi.stdin is only set when chezmoi runs the modify template against
+       a real target file, so safe access keeps this renderable under
+       `chezmoi execute-template` for ad-hoc testing. */ -}}
+{{- $stdin := index .chezmoi "stdin" | default "" | trim -}}
+{{- $merged := fromToml $stdin -}}
+{{- $home := .chezmoi.homeDir -}}
+
+{{- /* --- stable: model, reasoning and personality --- */ -}}
+{{- $merged = setValueAtPath "model" "gpt-5.6-sol" $merged -}}
+{{- $merged = setValueAtPath "model_reasoning_effort" "max" $merged -}}
+{{- $merged = setValueAtPath "personality" "pragmatic" $merged -}}
+{{- $merged = setValueAtPath "service_tier" "default" $merged -}}
+
+{{- /* --- stable: sandbox and approvals. workspace-write plus on-request is
+       the pair that keeps Codex inside the project it was started in and still
+       asks before stepping outside it, so neither belongs to free drift: a
+       runtime write that loosened either one would survive every apply
+       otherwise. --- */ -}}
+{{- $merged = setValueAtPath "sandbox_mode" "workspace-write" $merged -}}
+{{- $merged = setValueAtPath "approval_policy" "on-request" $merged -}}
+{{- $merged = setValueAtPath "approvals_reviewer" "guardian_subagent" $merged -}}
+
+{{- /* --- stable: the turn-ended notifier, which is the Computer Use client
+       inside the Codex app bundle under ~/.codex. --- */ -}}
+{{- $merged = setValueAtPath "notify" (list
+    (printf "%s/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient" $home)
+    "turn-ended") $merged -}}
+
+{{- /* --- stable: feature and memory toggles, written PER KEY so a feature
+       Codex adds later drifts freely instead of being erased. js_repl is off
+       deliberately and is the reason this block is stable rather than
+       free-drift. --- */ -}}
+{{- $merged = setValueAtPath "features.hooks" true $merged -}}
+{{- $merged = setValueAtPath "features.memories" true $merged -}}
+{{- $merged = setValueAtPath "features.prevent_idle_sleep" true $merged -}}
+{{- $merged = setValueAtPath "features.js_repl" false $merged -}}
+{{- $merged = setValueAtPath "memories.generate_memories" true $merged -}}
+{{- $merged = setValueAtPath "memories.use_memories" true $merged -}}
+
+{{- /* --- stable: vim mode. Written per key, which is what leaves the sibling
+       tui.model_availability_nux alone: those are UI onboarding counters Codex
+       increments as it shows a new model, and a snapshot of them in version
+       control would replay the onboarding on every apply. --- */ -}}
+{{- $merged = setValueAtPath "tui.vim_mode_default" true $merged -}}
+
+{{- /* --- stable: the two marketplaces fetched from git, IDENTITY ONLY.
+       source_type and source say where a marketplace comes from and are a
+       deliberate choice; last_updated and last_revision say how fresh the local
+       copy is, are written by Codex when it refreshes, and are deliberately NOT
+       declared, because a snapshot of them would reset the record of a refresh
+       that really happened on every apply.
+
+       The other two marketplaces in the live file, openai-bundled and
+       openai-primary-runtime, are local caches the Codex app manages under
+       ~/.codex/.tmp and ~/.cache, so both entries are left to free drift
+       entirely rather than pinned to a cache path this repo does not own. --- */ -}}
+{{- $merged = setValueAtPath (list "marketplaces" "claude-plugins-official" "source_type") "git" $merged -}}
+{{- $merged = setValueAtPath (list "marketplaces" "claude-plugins-official" "source") "https://github.com/anthropics/claude-plugins-official.git" $merged -}}
+{{- $merged = setValueAtPath (list "marketplaces" "ponytail" "source_type") "git" $merged -}}
+{{- $merged = setValueAtPath (list "marketplaces" "ponytail" "source") "https://github.com/DietrichGebert/ponytail.git" $merged -}}
+
+{{- /* --- stable: the four MCP servers this repo declares, whole entry each,
+       because a server missing its command or url is one Codex rejects. Three
+       of them carry the secrets, which come from KeePassXC at apply time and
+       are the reason this target needs the vault unlocked.
+
+       The three servers the Codex app injects (node_repl, computer-use and
+       cua_repl) are NOT declared: they carry the app's own build version and
+       absolute paths inside /Applications, so declaring them would force a
+       stale build number back over a live one after every app update. Same for
+       shell_environment_policy, whose one key is a client hash the app
+       computes. --- */ -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "composio" "url") "https://connect.composio.dev/mcp" $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "composio" "http_headers" "x-consumer-api-key") (keepassxc "Composio :: API Key :: MCP").Password $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "command") "uvx" $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "args") (list "workspace-mcp" "--tool-tier" "complete") $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_ID") (keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").UserName $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_SECRET") (keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").Password $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "OAUTHLIB_INSECURE_TRANSPORT") "1" $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "command") (printf "%s/.local/bin/cua-driver" $home) $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
+
+{{- /* --- the declared project ROSTER, trusted, with every live entry this
+       repo does not name PRESERVED.
+
+       Preserving is deliberate and it cuts both ways. It means a root the
+       operator trusts at the Codex prompt tomorrow survives the next apply,
+       which is what makes the roster safe to keep short. It also means this
+       template revokes nothing, so the trust the live file already carries for
+       the filesystem root and for a dozen throwaway ~/Documents/Codex
+       scratch directories stays until it is removed by hand or by Codex. What
+       the roster controls is what this REPOSITORY grants, and it grants these
+       five roots and nothing else.
+
+       ~/.local/share/chezmoi is deliberately absent even though the live file
+       trusts it: CLAUDE.md records that this checkout IS the chezmoi source
+       directory, so that path does not exist on this machine, and a declared
+       grant for a path nothing has created is a grant waiting for whatever
+       creates it first. --- */ -}}
+{{- $declaredProjects := list
+    (printf "%s/workspaces/Ivy" $home)
+    (printf "%s/workspaces/Ivy/webdavis/dotfiles" $home)
+    (printf "%s/workspaces/Ivy/webdavis/homelab" $home)
+    (printf "%s/workspaces/webdavis/uriel" $home)
+    (printf "%s/.hermes/skills" $home) -}}
+{{- /* Kind-guarded before it is indexed. `projects` legitimately arrives as
+       something other than a map: it is absent on a fresh machine, and chezmoi
+       hard errors on `index` against an untyped nil. */ -}}
+{{- $projects := dict -}}
+{{- if eq (kindOf (index $merged "projects")) "map" -}}
+{{-   $projects = index $merged "projects" -}}
+{{- end -}}
+{{- range $projectPath := $declaredProjects -}}
+{{-   $entry := index $projects $projectPath -}}
+{{-   if ne (kindOf $entry) "map" -}}
+{{-     $entry = dict -}}
+{{-   end -}}
+{{-   $projects = set $projects $projectPath (set $entry "trust_level" "trusted") -}}
+{{- end -}}
+{{- $merged = set $merged "projects" $projects -}}
+
+{{ $merged | toToml }}
