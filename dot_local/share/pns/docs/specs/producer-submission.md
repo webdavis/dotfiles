@@ -353,7 +353,7 @@ Then the clock is read once through the probe set's memoized cell, `Overrides::f
   mute the operator, and one able to clear it would end a mute they are still inside
   (`src/engine.rs:Overrides`, the `muted` and `focus_active` fields). There is also no environment hatch
   for the Focus store path; the test seam is the sandbox's own `HOME` (`src/main.rs:focus_now`).
-- Timeout and cancellation: the Focus store is read through `readable_ring` under `RING_READ_MAX` (256
+- Timeout and cancellation: the Focus store is read through `readable_state_file` under `RING_READ_MAX` (256
   KiB), so an oversized store is refused rather than slurped (`src/main.rs:focus_now`,
   `src/main.rs:RING_READ_MAX`).
 - Idempotency and duplicates: `now_secs` is memoized, including a `None`, so the blocked path's earlier

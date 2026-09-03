@@ -736,7 +736,7 @@ it never moves the exit code.
 - Fail direction: reporting, never grading. The comment at `src/main.rs:doctor_mode` states the rule: "a
   Focus being on is not a fault".
 
-- Thresholds: the two store files are read through `readable_ring` at `RING_READ_MAX`, 262,144 bytes; the
+- Thresholds: the two store files are read through `readable_state_file` at `RING_READ_MAX`, 262,144 bytes; the
   live store is 6 KiB. A store past that ceiling reads as `FileTooLarge`, which is the unreadable
   sentence.
 
@@ -747,7 +747,7 @@ it never moves the exit code.
   a variable naming this path would let any producer force the answer in either direction. The test seam
   is the sandbox's own `HOME`.
 
-- Timeout and cancellation: a named pipe at either path is refused by `readable_ring`'s regular-file
+- Timeout and cancellation: a named pipe at either path is refused by `readable_state_file`'s regular-file
   check rather than opened, so it cannot park the doctor.
 
 - Idempotency and duplicates: one line per run.
@@ -963,7 +963,7 @@ for any of it.
   and the other by looking at the file.
 - Thresholds: `src/decision_log.rs:KEPT` is 5 entries. The heading counts what it is ABOUT TO SHOW rather
   than the cap, so one entry reads `the last decision,` and never `the last 5 decisions,`. The file is
-  read through `readable_ring` at `RING_READ_MAX`, 262,144 bytes; past that the read fails with
+  read through `readable_state_file` at `RING_READ_MAX`, 262,144 bytes; past that the read fails with
   `FileTooLarge` and lands on the unreadable sentence.
 - Required side effects: none. Read only.
 - Forbidden side effects: NEVER APPENDED TO. `src/main.rs:decision_section` states why: "A doctor that
@@ -1002,7 +1002,7 @@ Then it counts non-blank lines, says what will deliver them, and writes nothing.
   which also asserts the absent sentence never appears for it.
 - Fail direction: the zero sentence is deliberately about what is RECORDED, not about what was missed: an
   empty journal means either nothing was missed or a write did not land, and the line claims neither.
-- Thresholds: singular at one entry, plural above. Read through `readable_ring` at 262,144 bytes.
+- Thresholds: singular at one entry, plural above. Read through `readable_state_file` at 262,144 bytes.
 - Required side effects: none. Read only.
 - Forbidden side effects: NOTHING HERE PARSES AN ENTRY. The contents go straight to
   `src/missed_notifications.rs:waiting_line`, which counts lines and has no parse at all, so the
