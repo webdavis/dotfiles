@@ -212,6 +212,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "pns-adapters"
+version = "0.1.0"
+dependencies = [
+ "pns-application",
+ "pns-domain",
+ "pns-protocol",
+]
+
+[[package]]
+name = "pns-application"
+version = "0.1.0"
+dependencies = [
+ "pns-domain",
+]
+
+[[package]]
+name = "pns-cli"
+version = "0.1.0"
+dependencies = [
+ "pns-adapters",
+ "pns-application",
+ "pns-domain",
+ "pns-protocol",
+]
+
+[[package]]
+name = "pns-domain"
+version = "0.1.0"
+
+[[package]]
+name = "pns-protocol"
+version = "0.1.0"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
