@@ -68,7 +68,37 @@ local function repo()
   }
 end
 
+local function default_branch(opts)
+  opts = opts or {}
+  local owner = opts.owner
+  local name = opts.name
+
+  if not owner then
+    error("Missing required argument `owner`")
+  end
+  if not name then
+    error("Missing required argument `name`")
+  end
+
+  local exit, result = M.runner({
+    cmd = string.format("gh api repos/%s/%s --jq .default_branch", owner, name),
+  })
+
+  if exit ~= 0 or not result or result == "" then
+    return nil,
+      string.format(
+        "Failed to get the default branch of '%s/%s'.\n"
+          .. "Make sure you're logged in with `gh auth login` and the repo exists.",
+        owner,
+        name
+      )
+  end
+
+  return result
+end
+
 M.account = account
 M.repo = repo
+M.default_branch = default_branch
 
 return M

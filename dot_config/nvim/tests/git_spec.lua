@@ -31,6 +31,29 @@ local function latest_commit(replies)
   end)
 end
 
+-- `with_shell` errors on an unlisted command, which catches a call that asked
+-- the shell for the wrong thing. It cannot catch a call that skipped `runner`
+-- altogether, and this repository HAS an `origin/main`, so a real shell would
+-- answer "main" and a bypassed test would still pass. These cases therefore
+-- also assert WHICH commands the runner was handed, from `seen`.
+local function default_branch(replies)
+  local seen = {}
+  local real_runner = git.runner
+  git.runner = function(opts)
+    table.insert(seen, opts.cmd)
+    local reply = replies[opts.cmd] or error("unexpected shell command: " .. tostring(opts.cmd))
+    return reply[1], reply[2]
+  end
+  local count, results = collect(pcall(git.default_branch))
+  git.runner = real_runner
+  assert(results[1], results[2])
+  local name, err = unpack(results, 2, count)
+  return { seen = seen, name = name, err = err }
+end
+
+local MAIN_REF = "git show-ref --verify --quiet refs/remotes/origin/main"
+local MASTER_REF = "git show-ref --verify --quiet refs/remotes/origin/master"
+
 return {
   -- ╭───────────────╮
   -- │ Pure helpers  │
@@ -156,6 +179,33 @@ return {
     local ok, err = pcall(git.latest_commit, {})
     assert(not ok, "accepted a call with no repo_name")
     assert(err:find("repo_name", 1, true), "the message does not name repo_name: " .. err)
+  end,
+
+  -- Bug #4. `default_branch` read `opts.repo` and the caller handed it a
+  -- string, so the read silently found nil; called with nothing at all it
+  -- raised on the index. It takes no argument now.
+  ["default_branch names main when origin/main is present"] = function()
+    local run = default_branch({ [MAIN_REF] = { 0, "" } })
+    assert(run.name == "main", "name was " .. tostring(run.name))
+    assert(run.err == nil, "reported " .. tostring(run.err))
+    assert(#run.seen == 1, "asked the shell " .. #run.seen .. " times, not once")
+    assert(run.seen[1] == MAIN_REF, "asked for " .. tostring(run.seen[1]))
+  end,
+
+  ["default_branch falls back to master when only origin/master is present"] = function()
+    local run = default_branch({ [MAIN_REF] = { 1, "" }, [MASTER_REF] = { 0, "" } })
+    assert(run.name == "master", "name was " .. tostring(run.name))
+    assert(run.err == nil, "reported " .. tostring(run.err))
+    assert(#run.seen == 2, "asked the shell " .. #run.seen .. " times, not twice")
+    assert(run.seen[2] == MASTER_REF, "second command was " .. tostring(run.seen[2]))
+  end,
+
+  -- The GitHub fallback lives in `github.default_branch` now (item 56), so
+  -- there is nothing left here to reach for when both refs are missing.
+  ["default_branch reports no default branch when neither ref is present"] = function()
+    local run = default_branch({ [MAIN_REF] = { 1, "" }, [MASTER_REF] = { 1, "" } })
+    assert(run.name == nil, "returned " .. tostring(run.name))
+    assert(run.err == "no default branch", "err was " .. tostring(run.err))
   end,
 
   ["url names its missing repo_name too"] = function()

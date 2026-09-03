@@ -3,6 +3,7 @@
 -- ╰─────────────╯
 local git = require("custom_api.git")
 local github = require("custom_api.github")
+local try = require("custom_api.try")
 local util = require("custom_api.util")
 
 -- ╭─────────────╮
@@ -264,10 +265,17 @@ return {
         rhs = function()
           local is_initialized = git.initialized({ quiet = true })
 
-          local user = github.username()
-          if not user then
+          -- `github.username()` never existed on either side, so this errored
+          -- every time the mapping was pressed (item 1). The username is one
+          -- field of the account, and `try` is what turns a `gh` that is not
+          -- logged in into a notification instead of a raised error.
+          local account = try(function()
+            return github.account()
+          end, { label = "github.account" })
+          if not account then
             return
           end
+          local user = account.username
 
           local directory = util.get_cwd_basename()
 
@@ -994,8 +1002,27 @@ return {
           return
         end
 
-        local repo = github.repo().nameWithOwner
-        local branch_name = use_current_branch and git.current_branch().name or git.default_branch(repo)
+        -- `github.repo` reports a `gh` that cannot answer as `nil, message`, so
+        -- reading a field straight off the call raises on the index instead.
+        local repo_info = try(function()
+          return github.repo()
+        end, { label = "github.repo" })
+        if not repo_info then
+          return
+        end
+        local repo = repo_info.nameWithOwner
+
+        -- `git.default_branch` only knows this checkout's remote-tracking refs;
+        -- a clone with neither `origin/main` nor `origin/master` falls through
+        -- to GitHub, which is the one place that answer can come from. That call
+        -- reports a `gh` failure as `nil, message` and raises on a repository
+        -- whose answer carried no slash, and `try` is what keeps both out of the
+        -- mapping and in a notification.
+        local branch_name = use_current_branch and git.current_branch().name
+          or git.default_branch()
+          or try(function()
+            return github.default_branch({ owner = repo_info.owner, name = repo_info.name })
+          end, { label = "github.default_branch" })
 
         local url = "https://github.com/" .. repo
         if url_suffix ~= "" then
