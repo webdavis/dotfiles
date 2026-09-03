@@ -103,8 +103,12 @@ mod tests {
     }
 
     #[test]
-    fn a_clean_upgrade_is_one_recorded_line_and_no_failure() {
-        let report = run_uv("uv", &lane(), &StubRunner::clean());
+    fn a_clean_upgrade_is_one_recorded_line_under_the_lanes_own_name() {
+        // THE LANE'S OWN NAME, never the type's: `[lanes.tools]` with
+        // `type = "uv"` is recorded and alerted as `tools`, and a report
+        // carrying a hardcoded `uv` would name a lane nobody declared.
+        let report = run_uv("tools", &lane(), &StubRunner::clean());
+        assert_eq!(report.name, "tools");
         assert_eq!(report.failures, 0);
         assert_eq!(report.last_failure, None);
         assert_eq!(
