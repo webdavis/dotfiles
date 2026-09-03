@@ -8,8 +8,9 @@ life of one `job` from the moment a client writes it into the `spool` to the mom
 fires it, bounds the child it started, kills that child's process group and reaps it. The record format,
 the validation, the `claim` and `lease` protocol, the marker cancellation, the heartbeat, the enable
 switch and the shutdown behavior are all in scope, along with the three jobs the crate registers for
-itself (the lights `tick`, the nag, and the room sensor's `presence` poll). Out of scope: what a fired job then does (that is the event path,
-covered by `routing-and-delivery.md`), the lamp policy the lights tick applies, and the `quiet window`,
+itself (the lights `tick`, the nag, and the room sensor's `presence` poll). Out of scope: what a fired
+job then does (that is the event path, covered by `routing-and-delivery.md`), the lamp policy the
+lights tick applies, and the `quiet window`,
 `dim window` and `quiet hours` the tick reads. Everything below is derived from the crate at
 `dot_local/share/pns` and its tests only. Where the code does not settle a question the line begins
 `NOT ESTABLISHED:` and names what was looked for and where.
