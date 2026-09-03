@@ -37,10 +37,12 @@ const SHELL: &str = "/bin/sh";
 /// would otherwise compose `<dir>:`, and an EMPTY PATH ELEMENT IS THE WORKING
 /// DIRECTORY: every helper the child shells out to and does not find in
 /// `<dir>` would then be answered from wherever uu was started. What this
-/// cannot reach is a PATH that is not in the environment at all, where the
-/// shell substitutes its own default before this line runs (bash's ends in
-/// `.`, the same hazard); the launchd job that carries this lane states a
-/// PATH, so that case is the shell's to answer and not this script's.
+/// cannot reach is an empty element the INHERITED value already carries: a
+/// PATH that is not in the environment at all, where the shell substitutes
+/// its own default before this line runs (bash's ends in `.`, the same
+/// hazard), and one that itself ends in a colon, which this preserves. The
+/// launchd job that carries this lane states a PATH with neither, so both
+/// belong to whoever set that value and not to this script.
 const PREPEND_PATH: &str = r#"PATH="$1${PATH:+:$PATH}"; export PATH; shift; exec "$@""#;
 
 /// Upgrade every global npm package, and report what that took.
