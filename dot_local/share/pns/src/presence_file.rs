@@ -95,9 +95,40 @@ pub fn parse_presence_line(line: &str) -> Option<RawPresence> {
     })
 }
 
+/// One reading as the line the daemon publishes.
+///
+/// THERE IS NO UNCHECKED SPELLING OF THIS, and that is the whole design of the
+/// function: it renders the full line, hands it straight back to the parser
+/// above, and falls back to the poll-only shape unless what comes back is the
+/// reading that went in. The room is the bridge's text by way of the
+/// operator's config, so a name past `ROOM_MAX` or carrying a control
+/// character would otherwise publish a file the reader treats as NO READING AT
+/// ALL, which reads as a dead sensor rather than as the "nowhere" it really is.
+///
+/// A caller cannot bypass the check by rendering the line itself, because
+/// nothing else here builds one.
+pub fn render(reading: &RawPresence) -> String {
+    let poll_only = reading.poll_epoch.to_string();
+    let Some(edge) = &reading.edge else {
+        return poll_only;
+    };
+    let line = format!(
+        "{} {} {} {}",
+        reading.poll_epoch,
+        edge.epoch,
+        u8::from(edge.motion),
+        edge.room
+    );
+    if parse_presence_line(&line).as_ref() == Some(reading) {
+        line
+    } else {
+        poll_only
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Edge, RawPresence, parse_presence_line};
+    use super::{Edge, RawPresence, parse_presence_line, render};
 
     // --- parse_presence_line ------------------------------------------------
 
@@ -155,6 +186,75 @@ mod tests {
             parse_presence_line("1700000100 1700000090 1 3F\u{1b}[2JStudio"),
             None
         );
+    }
+
+    // --- render -------------------------------------------------------------
+
+    #[test]
+    fn what_the_writer_renders_is_what_the_reader_parses() {
+        // THE ROUND TRIP IS THE PROPERTY, over every shape a poll can produce:
+        // both record shapes, both motion flags, the punctuation a real room
+        // name carries, and the longest name the parse accepts.
+        for reading in [
+            RawPresence {
+                poll_epoch: 1_700_000_100,
+                edge: None,
+            },
+            RawPresence {
+                poll_epoch: 1_700_000_100,
+                edge: Some(Edge {
+                    epoch: 1_700_000_090,
+                    motion: true,
+                    room: "3F - Studio".to_string(),
+                }),
+            },
+            RawPresence {
+                poll_epoch: 1_700_000_100,
+                edge: Some(Edge {
+                    epoch: 0,
+                    motion: false,
+                    room: "1.5F - Staircase".to_string(),
+                }),
+            },
+            RawPresence {
+                poll_epoch: 1_700_000_100,
+                edge: Some(Edge {
+                    epoch: 1_700_000_090,
+                    motion: false,
+                    room: "r".repeat(64),
+                }),
+            },
+        ] {
+            assert_eq!(
+                parse_presence_line(&render(&reading)),
+                Some(reading.clone()),
+                "{reading:?} did not come back"
+            );
+        }
+    }
+
+    #[test]
+    fn a_reading_the_parser_would_refuse_renders_as_the_poll_alone() {
+        // The fallback is a REAL answer, "the bridge answered and no watched
+        // room reported", rather than a line that reads as no reading at all.
+        for room in ["r".repeat(65), "3F\nStudio".to_string(), String::new()] {
+            let line = render(&RawPresence {
+                poll_epoch: 1_700_000_100,
+                edge: Some(Edge {
+                    epoch: 1_700_000_090,
+                    motion: true,
+                    room: room.clone(),
+                }),
+            });
+            assert_eq!(line, "1700000100", "{room:?} was published anyway");
+            assert_eq!(
+                parse_presence_line(&line),
+                Some(RawPresence {
+                    poll_epoch: 1_700_000_100,
+                    edge: None,
+                })
+            );
+        }
     }
 
     #[test]
