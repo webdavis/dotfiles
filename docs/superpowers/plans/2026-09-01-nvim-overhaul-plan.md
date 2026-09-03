@@ -1015,7 +1015,7 @@ token in the summary when the row carries one, else the ledger file and the row'
 
 Lane: LSP and tools. Depends on: PR 5b (`lsp.lua`). Brief: `brief-nvim-drop-cspell.md`. Closes 23.
 
-- [ ] **Step 1:** remove the dep at `lsp.lua:247` and the lock line, one commit: `chore(nvim): drop
+- [ ] **Step 1:** remove the dep at `lsp.lua:232` and the lock line, one commit: `chore(nvim): drop
   cspell.nvim`.
 - [ ] **Step 2:** Gates G1 to G6; G4 shows one plugin name gone; `:checkhealth` has no new line.
 
@@ -1299,9 +1299,11 @@ inventory; it is the LSP gap list decided 2026-09-03.
 `lua/config/options.lua`, the lock.
 
 - [ ] **Step 1:** the double `BufWritePre` format. Two handlers format on write today, lsp-format's
-  own `on_attach` hook, reached from the `LspAttach` autocmd at `lsp.lua:369`, and the global
-  `BufWritePre` at `lsp.lua:377`, both registered in the `AutoformatGroup` augroup created at
-  `lsp.lua:364` (re-read against the live config 2026-09-03); keep exactly one
+  own `on_attach` hook, reached from the `LspAttach` autocmd at `lsp.lua:354`, and the global
+  `BufWritePre` at `lsp.lua:362`, both registered in the `AutoformatGroup` augroup created at
+  `lsp.lua:349` (measured against the TRACKED tree on `origin/main`, which is what every address in
+  these documents means; the live standalone repo is fifteen lines ahead in this file and is NOT the
+  reference); keep exactly one
   and say in the body which and why. Before and after, a `:verbose autocmd BufWritePre` dump in the
   body showing two handlers then one. Commit: `fix(nvim): format once on write`.
 - [ ] **Step 2:** diagnostics: `severity_sort`, sign icons, `source = "if_many"`,
