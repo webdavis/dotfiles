@@ -820,7 +820,8 @@ deleted, and `helpers.lua` with them once `pack` has no caller.
 - No module does anything on `require` beyond building its table.
 - `copy_URL_to_clipboard` becomes `copy_url_to_clipboard` (decision E). It lives in
   `lua/custom_api/git.lua:282`, exported at `:334`, NOT in `util.lua`, so its spec assertion belongs in
-  `git_spec`; the one caller is `lua/plugins/git.lua:35`.
+  `git_spec`; the one caller is `lua/plugins/git.lua:36`, which is `:35` until PR 7e's `overseer`
+  require at `plugins/git.lua:6` pushes it down one.
 
 ### 6.3 Headless Lua tests, run from the source tree
 
@@ -1416,7 +1417,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 7c | The GitHub default-branch fallback into `github`, `git.default_branch()` as `(name, err)`, the caller at `git.lua:997`: bugs #4 and #4b (`custom_api/git.lua`, `custom_api/github.lua`, `git.lua`) | PR 7b | 4, 5, 56 |
 | PR 7d | Bug #1: `github.account().username` at `git.lua:267` (`custom_api/github.lua`, `git.lua`)                | PR 7c                 | 1                                           |
 | PR 7e | Split `map` and `overseer_runner` out of `util.lua` into `keymap.lua` and `overseer.lua`, closure included (6.2 measures it as load-bearing, not redundant) (`custom_api/util.lua`, `custom_api/init.lua`, `init.lua`, `plugins/git.lua`, `tests/dump_state.lua`) | PR 7d | 57 |
-| PR 7f | Rename `copy_URL_to_clipboard` to `copy_url_to_clipboard` and its one caller (`custom_api/git.lua`, `plugins/git.lua:35`) | PR 7e | 60 |
+| PR 7f | Rename `copy_URL_to_clipboard` to `copy_url_to_clipboard` and its one caller (`custom_api/git.lua`, `plugins/git.lua:36`, after PR 7e) | PR 7e | 60 |
 | PR 8  | Delete `delegate.lua`; `<leader>d` regroup (`keymaps.lua`, `which-key.lua`)                             | PR 7f, PR 4c          | 6, 10, 61                                   |
 | PR 9  | MCP server evaluation ONLY: `nvim-mcp` installed by hand, the six criteria in table order, the row taken; one commit, the evaluation record; nothing installed by chezmoi, nothing registered, no CLAUDE.md edit | PR 2 | 62 (evaluation) |
 | PR 10a | By PR 9's row. `nvim-mcp` rows: the `run_onchange` install script, `lua/plugins/nvim-mcp.lua`, the registrations in `modify_private_dot_claude.json` and the Codex config template, the 7.5 rule in both CLAUDE.md files, and on the resolver row also the resolver with its bats test as the registered command. Crate rows: the custom crate's design spec only | PR 9, PR 4d (`dot_config/nvim/CLAUDE.md`), the PR that lands `private_dot_codex/private_config.toml.tmpl` on `main` (number recorded in PR 9's record) | 62 (ship), 63, 73 (MCP half), custom #4 (resolver) on the `nvim-mcp` rows |

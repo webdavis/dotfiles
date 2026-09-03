@@ -638,7 +638,8 @@ Lane: custom_api. Depends on: PR 7e (`plugins/git.lua`, the file they share). Br
 `brief-nvim-rename-copy-url.md`. Closes 60.
 
 **Files:** Modify `lua/custom_api/git.lua:282` (the function, exported at `:334`, NOT `util.lua`)
-and `lua/plugins/git.lua:35` (the one caller).
+and `lua/plugins/git.lua:36` (the one caller: it sits at `:35` on this task's base, and PR 7e's
+`overseer` require at `plugins/git.lua:6` pushes it down one before this task runs).
 
 - [ ] **Step 1, red:** `git_spec` asserts `git.copy_url_to_clipboard` exists and the old name is
   nil. FAIL. Not `util_spec`: the function has never lived in `util`, so a `util_spec` assertion goes
