@@ -13,7 +13,7 @@
          running this by hand on a Wednesday would post a weekly entry and a dead
          LaunchAgent would look alive, inverting the one signal that record
          carries. Mirrors the same marker in
-         com.webdavis.homebrew-weekly-upgrade.plist.tmpl. -->
+         com.webdavis.update-skills.plist.tmpl. -->
     <string>--scheduled</string>
   </array>
   <key>EnvironmentVariables</key>
@@ -25,10 +25,12 @@
   </dict>
   <key>RunAtLoad</key>
   <false/>
-  <!-- Monday 13:00, an hour after com.webdavis.homebrew-weekly-upgrade, so the
-       two weekly records do not land in the channel at the same minute and the
-       reading is taken well into a working day, when a Claude Code session has
-       had the chance to start and perform the auto-update this reports on.
+  <!-- Monday 13:00. The hour it used to sit an hour behind is gone with the
+       Homebrew weekly job, and com.webdavis.update-skills claims all
+       twenty-four Monday hours, so this no longer offsets anything; 13:00 is
+       kept because the reading has to be taken well into a working day, when a
+       Claude Code session has had the chance to start and perform the
+       auto-update this reports on.
        launchd coalesces missed intervals into one run on wake, which is why
        every entry states its own gap rather than the channel being a heartbeat
        anyone counts (see unattended-log-lib.sh). -->

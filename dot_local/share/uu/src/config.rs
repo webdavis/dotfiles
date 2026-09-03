@@ -30,7 +30,7 @@ use crate::deadline::{DEFAULT_LANE_DEADLINE, parse_deadline};
 /// likes); this is the roster its `type` is judged against, so the refusal
 /// that names an unknown type and the listing of what this build serves both
 /// read the one table.
-pub const LANE_TYPES: &[&str] = &["command", "herdr"];
+pub const LANE_TYPES: &[&str] = &["brew", "command", "herdr", "npm", "uv"];
 
 /// Where the config lives for a given home directory. Pure, so the path rule
 /// is testable without an environment.
@@ -147,16 +147,60 @@ pub struct Lane {
 /// reading it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LaneKind {
+    Brew(BrewLane),
     Command(CommandLane),
     Herdr(HerdrLane),
+    Npm(NpmLane),
+    Uv(UvLane),
 }
 
 impl LaneKind {
     /// The `type` value this variant was parsed from.
     pub fn type_name(&self) -> &'static str {
         match self {
+            LaneKind::Brew(_) => "brew",
             LaneKind::Command(_) => "command",
             LaneKind::Herdr(_) => "herdr",
+            LaneKind::Npm(_) => "npm",
+            LaneKind::Uv(_) => "uv",
+        }
+    }
+}
+
+/// `[lanes.brew]`: Homebrew formulae, casks and Mac App Store apps, plus the
+/// two repairs only this lane is positioned to make.
+///
+/// EVERY PATH IS A KEY, and every key ships at its default, because a machine
+/// whose Homebrew prefix or state directory differs has nothing else to
+/// change. The three under the operator's home CANNOT carry a default here
+/// (this module never reads the environment), so an empty one turns its step
+/// into a stated skip rather than a guess.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BrewLane {
+    pub brew: String,
+    pub mas: String,
+    pub tailscaled: String,
+    pub osquery_converge: String,
+    pub mas_manifest: String,
+    pub upgrade_record: String,
+}
+
+/// The Homebrew commands when no key states them.
+pub const DEFAULT_BREW: &str = "/opt/homebrew/bin/brew";
+pub const DEFAULT_MAS: &str = "/opt/homebrew/bin/mas";
+/// The build `brew upgrade` moves, which is NOT the copy the system daemon
+/// runs; the lane's own step is what reconciles the two.
+pub const DEFAULT_TAILSCALED: &str = "/opt/homebrew/opt/tailscale/bin/tailscaled";
+
+impl Default for BrewLane {
+    fn default() -> Self {
+        BrewLane {
+            brew: DEFAULT_BREW.to_string(),
+            mas: DEFAULT_MAS.to_string(),
+            tailscaled: DEFAULT_TAILSCALED.to_string(),
+            osquery_converge: String::new(),
+            mas_manifest: String::new(),
+            upgrade_record: String::new(),
         }
     }
 }
@@ -179,6 +223,31 @@ pub struct HerdrLane {
 
 /// The herdr command when no key states one.
 pub const DEFAULT_HERDR_BINARY: &str = "herdr";
+
+/// `[lanes.npm]`: the npm to run. There is no roster key, because
+/// `npm update -g` is already every globally installed package.
+///
+/// THE PATH IS REQUIRED AND ABSOLUTE, with no default. The lane runs npm with
+/// its OWN directory first on PATH so npm's `#!/usr/bin/env node` shebang
+/// finds the node beside it, and the directory fnm installs both into lives
+/// under the operator's home, which this file can state and a compiled-in
+/// default cannot compose.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NpmLane {
+    pub binary: String,
+}
+
+/// `[lanes.uv]`: the uv binary to drive. There is no roster key, because
+/// `uv tool upgrade --all` is already every tool uv installed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UvLane {
+    pub binary: String,
+}
+
+/// The uv command when no key states one, resolved on the running process's
+/// own PATH exactly as `DEFAULT_HERDR_BINARY` is. The shipped config states an
+/// absolute path instead, because the weekly job's PATH is the plist's.
+pub const DEFAULT_UV_BINARY: &str = "uv";
 
 /// One GitHub-sourced herdr plugin: the installed id, and the source to
 /// reinstall it from.
@@ -227,11 +296,26 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("schedule", &["day", "time"]),
     ("records", &["key", "url"]),
     ("alerts", &["binary"]),
+    (
+        "lanes.brew",
+        &[
+            "brew",
+            "deadline_secs",
+            "mas",
+            "mas_manifest",
+            "osquery_converge",
+            "tailscaled",
+            "type",
+            "upgrade_record",
+        ],
+    ),
     ("lanes.command", &["deadline_secs", "run", "type"]),
     (
         "lanes.herdr",
         &["binary", "deadline_secs", "plugins", "type"],
     ),
+    ("lanes.npm", &["binary", "deadline_secs", "type"]),
+    ("lanes.uv", &["binary", "deadline_secs", "type"]),
 ];
 
 /// The roster row for the file's own top level. THE EMPTY NAME, because that
@@ -487,8 +571,11 @@ fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
             None => DEFAULT_LANE_DEADLINE,
         };
         let kind = match lane_type(&name, &table_label, &fields)?.as_str() {
+            "brew" => LaneKind::Brew(parse_brew_lane(&table_label, fields)?),
             "command" => LaneKind::Command(parse_command_lane(&table_label, fields)?),
             "herdr" => LaneKind::Herdr(parse_herdr_lane(&table_label, fields)?),
+            "npm" => LaneKind::Npm(parse_npm_lane(&table_label, fields)?),
+            "uv" => LaneKind::Uv(parse_uv_lane(&table_label, fields)?),
             // `lane_type` never returns anything outside `LANE_TYPES`.
             _ => unreachable!("lane_type only answers a member of LANE_TYPES"),
         };
@@ -527,6 +614,27 @@ fn lane_type(name: &str, table_label: &str, table: &toml::Table) -> Result<Strin
     }
 }
 
+fn parse_brew_lane(table_label: &str, table: toml::Table) -> Result<BrewLane, ConfigError> {
+    let mut lane = BrewLane::default();
+    for (name, setting) in table {
+        admits(table_label, "lanes.brew", &name)?;
+        match name.as_str() {
+            "brew" => lane.brew = non_empty(table_label, &name, &setting)?,
+            "mas" => lane.mas = non_empty(table_label, &name, &setting)?,
+            "tailscaled" => lane.tailscaled = non_empty(table_label, &name, &setting)?,
+            "osquery_converge" => lane.osquery_converge = non_empty(table_label, &name, &setting)?,
+            "mas_manifest" => lane.mas_manifest = non_empty(table_label, &name, &setting)?,
+            "upgrade_record" => lane.upgrade_record = non_empty(table_label, &name, &setting)?,
+            // Read by `lane_type` before this block was dispatched; nothing
+            // is left to do with it here.
+            "type" => {}
+            // `admits` above is the ONE gate; nothing else reaches here.
+            _ => {}
+        }
+    }
+    Ok(lane)
+}
+
 fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, ConfigError> {
     let mut lane = HerdrLane {
         binary: DEFAULT_HERDR_BINARY.to_string(),
@@ -537,6 +645,50 @@ fn parse_herdr_lane(table_label: &str, table: toml::Table) -> Result<HerdrLane, 
         match name.as_str() {
             "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
             "plugins" => lane.plugins = parse_plugins(table_label, &setting)?,
+            // Read by `lane_type` before this block was dispatched; nothing
+            // is left to do with it here.
+            "type" => {}
+            // `admits` above is the ONE gate; nothing else reaches here.
+            _ => {}
+        }
+    }
+    Ok(lane)
+}
+
+/// `[lanes.<name>]` with `type = "npm"`: `binary` is required and absolute,
+/// because the lane derives the directory it puts first on the child's PATH
+/// from it. A bare name resolved on whatever PATH uu inherited is the exact
+/// mistake the prepend exists to prevent, so it is refused rather than run.
+fn parse_npm_lane(table_label: &str, table: toml::Table) -> Result<NpmLane, ConfigError> {
+    let mut binary = None;
+    for (name, setting) in table {
+        admits(table_label, "lanes.npm", &name)?;
+        match name.as_str() {
+            "binary" => binary = Some(absolute(table_label, &name, &setting)?),
+            // Read by `lane_type` before this block was dispatched; nothing
+            // is left to do with it here.
+            "type" => {}
+            // `admits` above is the ONE gate; nothing else reaches here.
+            _ => {}
+        }
+    }
+    let binary = binary.ok_or_else(|| {
+        ConfigError::Invalid(format!(
+            "`{table_label}` has no `binary`, so it names no npm to run; state the full path to \
+             npm, whose own directory the lane puts first on PATH"
+        ))
+    })?;
+    Ok(NpmLane { binary })
+}
+
+fn parse_uv_lane(table_label: &str, table: toml::Table) -> Result<UvLane, ConfigError> {
+    let mut lane = UvLane {
+        binary: DEFAULT_UV_BINARY.to_string(),
+    };
+    for (name, setting) in table {
+        admits(table_label, "lanes.uv", &name)?;
+        match name.as_str() {
+            "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
             // Read by `lane_type` before this block was dispatched; nothing
             // is left to do with it here.
             "type" => {}
@@ -684,6 +836,19 @@ fn non_empty(table: &str, key: &str, setting: &toml::Value) -> Result<String, Co
     }
 }
 
+/// A `non_empty` string that also has to be an ABSOLUTE path, for a key whose
+/// whole job is to name a file whose directory the lane then derives.
+fn absolute(table: &str, key: &str, setting: &toml::Value) -> Result<String, ConfigError> {
+    let stated = non_empty(table, key, setting)?;
+    if !stated.starts_with('/') {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` is `{stated}`, which is not an absolute path; the lane runs it \
+             with its own directory first on PATH, so it must name the file in full"
+        )));
+    }
+    Ok(stated)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -792,6 +957,62 @@ mod tests {
             Some(&LaneKind::Herdr(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
+            }))
+        );
+    }
+
+    #[test]
+    fn an_npm_lane_runs_the_npm_it_was_pointed_at_under_any_name() {
+        assert_eq!(
+            kind(
+                &parsed("[lanes.globals]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\n"),
+                "globals"
+            ),
+            Some(&LaneKind::Npm(NpmLane {
+                binary: "/fnm/bin/npm".to_string(),
+            }))
+        );
+    }
+
+    #[test]
+    fn an_npm_lane_that_names_no_binary_is_refused_rather_than_defaulted() {
+        // There is no useful compiled-in default: fnm's npm lives under the
+        // operator's home, and a bare `npm` off the inherited PATH is the
+        // wrong-node bug the lane exists to prevent.
+        let detail = refusal("[lanes.npm]\n");
+        assert!(detail.contains("`lanes.npm` has no `binary`"), "{detail}");
+    }
+
+    #[test]
+    fn an_npm_binary_that_is_not_an_absolute_path_is_refused_by_name() {
+        for stated in ["npm", "bin/npm", "~/bin/npm"] {
+            let detail = refusal(&format!("[lanes.npm]\nbinary = {stated:?}\n"));
+            assert!(
+                detail.contains("is not an absolute path"),
+                "case {stated:?}: {detail}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_uv_lane_defaults_to_the_uv_command_on_the_running_path() {
+        assert_eq!(
+            kind(&parsed("[lanes.uv]\n"), "uv"),
+            Some(&LaneKind::Uv(UvLane {
+                binary: DEFAULT_UV_BINARY.to_string(),
+            }))
+        );
+    }
+
+    #[test]
+    fn a_uv_lane_may_carry_any_name_and_drive_the_binary_it_states() {
+        assert_eq!(
+            kind(
+                &parsed("[lanes.tools]\ntype = \"uv\"\nbinary = \"/opt/homebrew/bin/uv\"\n"),
+                "tools"
+            ),
+            Some(&LaneKind::Uv(UvLane {
+                binary: "/opt/homebrew/bin/uv".to_string(),
             }))
         );
     }
@@ -1206,10 +1427,14 @@ mod tests {
                 let mut rendered = line.to_string();
                 while let Some(start) = rendered.find("{{") {
                     let end = start + rendered[start..].find("}}").expect("a closed action") + 2;
+                    // ABSOLUTE, because every bare action in the template is
+                    // `.chezmoi.homeDir` and a home directory always is; a
+                    // relative stand-in would fail a key that requires a full
+                    // path for a reason the real render never has.
                     let stand_in = if rendered[start..end].contains("| quote") {
                         "\"stand-in\""
                     } else {
-                        "stand-in"
+                        "/stand-in"
                     };
                     rendered.replace_range(start..end, stand_in);
                 }
@@ -1231,11 +1456,51 @@ mod tests {
         assert_eq!(
             kind(&config, "herdr"),
             Some(&LaneKind::Herdr(HerdrLane {
-                binary: "stand-in/.local/bin/herdr".to_string(),
+                binary: "/stand-in/.local/bin/herdr".to_string(),
                 plugins: vec![Plugin {
                     id: "stand-in".to_string(),
                     repo: "stand-in".to_string(),
                 }],
+            }))
+        );
+        // THE LANE THE FILE TURNS ON, not only that the file loads. A block
+        // dropped from the template leaves a machine whose global packages
+        // quietly stop being upgraded, and a parse that still succeeds is
+        // exactly what makes that invisible.
+        assert_eq!(
+            kind(&config, "npm"),
+            Some(&LaneKind::Npm(NpmLane {
+                binary: "/stand-in/.local/share/fnm/aliases/default/bin/npm".to_string(),
+            }))
+        );
+        // AND THE SAME FOR THE OTHER LANE: a block dropped from the template
+        // leaves a machine whose uv tools quietly stop being upgraded, and a
+        // parse that still succeeds is exactly what makes that invisible.
+        assert_eq!(
+            kind(&config, "uv"),
+            Some(&LaneKind::Uv(UvLane {
+                binary: "/opt/homebrew/bin/uv".to_string(),
+            }))
+        );
+        // AND THE LANE THAT CARRIES THE REPAIRS. Dropping this block costs
+        // more than upgrades: the osquery converge and the upgrade record the
+        // file-integrity page correlates against both live inside it, so the
+        // machine would run a root daemon on the vendor default config after
+        // the next cask upgrade with nothing saying so. EVERY PATH IS
+        // ASSERTED, because a key silently missing from the block is how one
+        // step turns into a stated skip nobody reads.
+        assert_eq!(
+            kind(&config, "brew"),
+            Some(&LaneKind::Brew(BrewLane {
+                brew: DEFAULT_BREW.to_string(),
+                mas: DEFAULT_MAS.to_string(),
+                tailscaled: DEFAULT_TAILSCALED.to_string(),
+                osquery_converge: "/stand-in/.local/libexec/osquery/osquery-converge.sh"
+                    .to_string(),
+                mas_manifest: "/stand-in/.local/state/homebrew/mas.Brewfile".to_string(),
+                upgrade_record:
+                    "/stand-in/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv"
+                        .to_string(),
             }))
         );
     }
@@ -1351,20 +1616,68 @@ mod tests {
     }
 
     #[test]
+    fn a_brew_lane_that_states_no_path_runs_at_the_defaults_the_template_ships() {
+        let config = parsed("[lanes.brew]\n");
+        let Some(LaneKind::Brew(lane)) = kind(&config, "brew") else {
+            panic!("expected a brew lane");
+        };
+        assert_eq!(lane.brew, DEFAULT_BREW);
+        assert_eq!(lane.mas, DEFAULT_MAS);
+        assert_eq!(lane.tailscaled, DEFAULT_TAILSCALED);
+        // The three under the operator's home have no default to guess.
+        assert_eq!(lane.osquery_converge, "");
+        assert_eq!(lane.mas_manifest, "");
+        assert_eq!(lane.upgrade_record, "");
+    }
+
+    #[test]
+    fn every_brew_path_the_block_states_is_the_one_the_lane_carries() {
+        let config = parsed(
+            "[lanes.brew]\nbrew = \"/b\"\nmas = \"/m\"\ntailscaled = \"/t\"\n\
+             osquery_converge = \"/c\"\nmas_manifest = \"/f\"\nupgrade_record = \"/r\"\n",
+        );
+        let Some(LaneKind::Brew(lane)) = kind(&config, "brew") else {
+            panic!("expected a brew lane");
+        };
+        assert_eq!(
+            (
+                lane.brew.as_str(),
+                lane.mas.as_str(),
+                lane.tailscaled.as_str(),
+                lane.osquery_converge.as_str(),
+                lane.mas_manifest.as_str(),
+                lane.upgrade_record.as_str()
+            ),
+            ("/b", "/m", "/t", "/c", "/f", "/r")
+        );
+    }
+
+    #[test]
     fn every_built_in_lane_type_has_a_minimal_block_the_parser_accepts() {
         // One minimal, valid block per BUILT-IN TYPE (the WEEKDAY_NAMES
         // pattern): a type in the roster that the parser refuses would
         // advertise a lane nobody can turn on.
         let fixtures: &[(&str, &str)] = &[
+            ("brew", "[lanes.brew]\n"),
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),
+            ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
+            ("uv", "[lanes.uv]\n"),
         ];
         assert_eq!(LANE_TYPES.len(), fixtures.len());
-        for (kind, text) in fixtures {
-            assert!(
-                parse_config(text).is_ok(),
-                "the roster names `{kind}` but the parser refuses its minimal block"
-            );
+        for (lane_type, text) in fixtures {
+            let config = parse_config(text).unwrap_or_else(|error| {
+                panic!("the roster names `{lane_type}` but the parser refuses its block: {error:?}")
+            });
+            // AND CALLS ITSELF WHAT THE ROSTER CALLS IT. Each fixture block
+            // names its lane after its own type, and `type_name` is the word
+            // doctor prints beside the lane, so a kind wired to the wrong
+            // literal there tells the operator a lane is something it is not.
+            let lane = config
+                .lanes
+                .get(*lane_type)
+                .expect("each fixture names its lane after its type");
+            assert_eq!(lane.kind.type_name(), *lane_type);
         }
     }
 }

@@ -208,7 +208,7 @@ done
 
 log() { printf '[update-skills] %s\n' "$*"; }
 
-# ── The weekly RECORD (task #89). Sourced, not duplicated: homebrew-weekly-upgrade.sh
+# ── The weekly RECORD (task #89). Sourced, not duplicated: report-plugin-updates.sh
 # posts the same entry shape and the two must not drift. A missing library is
 # LOUD and never fatal -- this job's work matters more than its bookkeeping, but
 # a silently absent record is exactly the invisibility the record exists to end.
@@ -298,7 +298,7 @@ __update_skills_record() {
 # lane self-describing: a skill IS clawhub-tracked exactly when it carries one.
 #
 # The RENDERING lives in helpers/log-entries.sh, shared with
-# homebrew-weekly-upgrade.sh: the two weekly jobs must report in the same shape,
+# report-plugin-updates.sh: the two weekly jobs must report in the same shape,
 # and two copies of that logic would drift into two different-looking logs.
 
 # __update_skills_change_snapshot <lane> -- one "<name><TAB><fingerprint>" line
@@ -368,7 +368,7 @@ __update_skills_change_snapshot() {
   # store renders as a clean week.
 }
 
-# Per-lane readability, mirroring homebrew-weekly-upgrade.sh: a lane is NOT
+# Per-lane readability, mirroring uu's brew lane: a lane is NOT
 # COMPARED when either of its two readings failed, because half a comparison is
 # not one.
 LOG_NPX_SNAPSHOT_OK=1

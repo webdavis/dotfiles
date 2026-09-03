@@ -27,7 +27,7 @@
 #   managed-bin-known-good.sha256 the chezmoi-MANAGED scripts under ~/.local/bin.
 #                                 These are not pipeline files, but most of them
 #                                 run UNATTENDED (LaunchAgents and shell hooks fire
-#                                 update-skills.sh, homebrew-weekly-upgrade.sh and
+#                                 update-skills.sh, uu and
 #                                 the claude-* hooks with nobody watching), so a
 #                                 tamper there executes on a timer. Only the
 #                                 MANIFESTED paths are tracked there, because the
