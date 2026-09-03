@@ -411,7 +411,7 @@ return {
       mode = "n",
       lhs = "<M-[>",
       rhs = function()
-        toggle_runner("OverseerWatchRun")
+        vim.cmd("OverseerWatchRun")
       end,
       desc = overseer_watch_run_desc,
     })
