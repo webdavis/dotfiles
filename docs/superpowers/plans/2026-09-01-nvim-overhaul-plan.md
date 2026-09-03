@@ -629,7 +629,7 @@ what makes 95 bare-command mappings run.
 
 ### Task 16: PR 7f, rename `copy_URL_to_clipboard` (spec 6.2, decision E)
 
-Lane: custom_api. Depends on: PR 7e (`custom_api/util.lua`, `git.lua`). Brief:
+Lane: custom_api. Depends on: PR 7e (`plugins/git.lua`, the file they share). Brief:
 `brief-nvim-rename-copy-url.md`. Closes 60.
 
 **Files:** Modify `lua/custom_api/git.lua:282` (the function, exported at `:334`, NOT `util.lua`)
