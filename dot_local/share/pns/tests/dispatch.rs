@@ -3482,6 +3482,59 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
 }
 
 #[test]
+fn the_doctor_reads_the_room_off_the_state_file_and_judges_it_against_the_configs_own_rooms() {
+    // THE ONE PLACE THE PURE HALVES ARE COMPOSED, and until this test the one
+    // place nothing covered: the units above pin the parse and the policy as
+    // functions, while the state file's own NAME, the read, and the config's
+    // rooms and stale bound reaching `classify` live in the composition root.
+    // Replacing that whole body with a constant `unknown (no reading)` left
+    // every other test in this crate green.
+    let sandbox = Sandbox::new("doctor-presence-reading");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n\
+         [plugins.presence]\nenabled = true\ntype = \"hue\"\nrooms = [\"3F - Studio\"]\n"
+    ));
+    std::fs::create_dir_all(sandbox.state()).expect("the state directory");
+    let published = sandbox.state().join("presence");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock after 1970")
+        .as_secs();
+
+    // MOTION REPORTED NOW, so the printed age is zero however long this test
+    // takes and the assertion is not a race against the clock.
+    std::fs::write(&published, format!("{now} {now} 1 3F - Studio\n")).expect("the reading");
+    let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
+    assert!(
+        reported.contains("presence: 3F - Studio (0s ago)"),
+        "the published room never reached the report: {reported}"
+    );
+
+    // AND THE OPERATOR'S OWN LIST IS WHAT ADMITS IT. A room nobody listed is
+    // not a claim about where they are, so the same fresh line reads unknown.
+    std::fs::write(&published, format!("{now} {now} 1 3F - Hallway\n")).expect("the reading");
+    let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
+    assert!(
+        reported.contains("presence: unknown (the reported room is not one this config watches)"),
+        "a room the config never watched was reported as one: {reported}"
+    );
+
+    // AND A WRITER THAT STOPPED IS UNKNOWN, which is the whole guarantee: the
+    // bound the config states has to reach the judgement, or a dead bridge
+    // pins the operator in the last room it saw them in for good.
+    std::fs::write(
+        &published,
+        format!("{} {} 1 3F - Studio\n", now - 60, now - 60),
+    )
+    .expect("the reading");
+    let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
+    assert!(
+        reported.contains("presence: unknown (stale, poll 60s old)"),
+        "a poll nobody refreshed still named a room: {reported}"
+    );
+}
+
+#[test]
 fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel() {
     // A DOCTOR THAT QUIETLY IGNORED AN ARGUMENT is a check the operator
     // believes was narrower or wider than it was, which is worse than no check
