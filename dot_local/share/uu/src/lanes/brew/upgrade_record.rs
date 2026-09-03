@@ -86,8 +86,12 @@ pub fn write(path: &str, epoch: i64, iso: &str, rows: &[String]) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::super::repairs::tests::lane;
+    use super::super::run_brew;
     use super::super::tests::facts;
     use super::*;
+    use crate::lanes::{CommandRunner, Ran};
+    use std::cell::RefCell;
+    use std::time::Duration;
 
     /// A directory of this test's own. Removed at the end of each test; a
     /// panicking test leaves one behind in TMPDIR, which is the trade for not
@@ -189,6 +193,53 @@ mod tests {
         let why = publish(&recording, &facts(), false, &[]).expect("nothing is written");
         assert!(why.contains("could not be read"), "{why}");
         assert!(!path.exists(), "no record is better than a blind one");
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn the_record_is_on_disk_before_the_first_upgrade_step_not_only_after_it() {
+        // THE WHOLE POINT OF PUBLISHING TWICE. A page fired mid-run has to
+        // read a record that dates the window it is inside; published only at
+        // the end, a watched file rewritten in the first seconds of a run is
+        // correlated against the PREVIOUS week instead.
+        struct Watching {
+            path: PathBuf,
+            seen: RefCell<Option<String>>,
+        }
+        impl CommandRunner for Watching {
+            fn run(&self, _program: &str, args: &[&str]) -> Result<String, String> {
+                if args == ["update"] {
+                    *self.seen.borrow_mut() = fs::read_to_string(&self.path).ok();
+                }
+                Ok(String::new())
+            }
+            fn run_with_deadline(
+                &self,
+                program: &str,
+                args: &[&str],
+                _most: Duration,
+            ) -> Result<String, String> {
+                self.run(program, args)
+            }
+            fn run_with_input(&self, _: &str, _: &[&str], _: &str) -> Result<Ran, String> {
+                unreachable!("the brew lane never hands a child stdin")
+            }
+        }
+
+        let directory = scratch("mid-run");
+        let path = directory.join("last-upgrade-changes.tsv");
+        let mut recording = lane();
+        recording.upgrade_record = path.to_str().unwrap().to_string();
+        let runner = Watching {
+            path: path.clone(),
+            seen: RefCell::new(None),
+        };
+        run_brew("brew", &recording, &facts(), &runner);
+        assert_eq!(
+            runner.seen.into_inner(),
+            Some("1760000000\t2025-10-09T07:33:20Z\n".to_string()),
+            "the record has to exist, and date this run, before the first upgrade step"
+        );
         let _ = fs::remove_dir_all(&directory);
     }
 
