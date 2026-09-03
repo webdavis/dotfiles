@@ -1482,6 +1482,27 @@ mod tests {
                 binary: "/opt/homebrew/bin/uv".to_string(),
             }))
         );
+        // AND THE LANE THAT CARRIES THE REPAIRS. Dropping this block costs
+        // more than upgrades: the osquery converge and the upgrade record the
+        // file-integrity page correlates against both live inside it, so the
+        // machine would run a root daemon on the vendor default config after
+        // the next cask upgrade with nothing saying so. EVERY PATH IS
+        // ASSERTED, because a key silently missing from the block is how one
+        // step turns into a stated skip nobody reads.
+        assert_eq!(
+            kind(&config, "brew"),
+            Some(&LaneKind::Brew(BrewLane {
+                brew: DEFAULT_BREW.to_string(),
+                mas: DEFAULT_MAS.to_string(),
+                tailscaled: DEFAULT_TAILSCALED.to_string(),
+                osquery_converge: "/stand-in/.local/libexec/osquery/osquery-converge.sh"
+                    .to_string(),
+                mas_manifest: "/stand-in/.local/state/homebrew/mas.Brewfile".to_string(),
+                upgrade_record:
+                    "/stand-in/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv"
+                        .to_string(),
+            }))
+        );
     }
 
     /// The template's commented `[lanes.example]` block, uncommented by
