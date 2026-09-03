@@ -72,6 +72,10 @@ pub enum RegistryError {
     /// The config names a plugin nothing registered, enabled or not: the
     /// typo is the defect either way.
     UnknownPlugin(String),
+    /// A plugin the config switched on that needs another one it did not.
+    /// BOTH ARE NAMED, because the fix is in the other table and an operator
+    /// reading only the first name would go and edit the one that is right.
+    Unsatisfied { plugin: String, needs: String },
 }
 
 /// A vetted selection, and the only value a plan can be computed over. The
@@ -187,15 +191,27 @@ impl Registry {
                 return Err(RegistryError::UnknownPlugin(name.clone()));
             }
         }
+        let switched_on = |name: &str| {
+            config
+                .plugins
+                .get(name)
+                .is_some_and(|selected| selected.enabled)
+        };
+        // AND A BORROWED CREDENTIAL IS CHECKED, so a sensor that reads another
+        // plugin's bridge and key is refused out loud rather than selected
+        // into a reading it can never take.
+        for (plugin, needs) in REQUIRES {
+            if switched_on(plugin) && !switched_on(needs) {
+                return Err(RegistryError::Unsatisfied {
+                    plugin: plugin.to_string(),
+                    needs: needs.to_string(),
+                });
+            }
+        }
         Ok(Selection(
             self.registrations
                 .iter()
-                .filter(|entry| {
-                    config
-                        .plugins
-                        .get(entry.name)
-                        .is_some_and(|selected| selected.enabled)
-                })
+                .filter(|entry| switched_on(entry.name))
                 .copied()
                 .collect(),
         ))
@@ -236,13 +252,22 @@ pub fn roster() -> Registry {
 /// run against the real thing. Each entry states its KIND, so a sensor rides
 /// in the same list as the channels rather than in a second one the
 /// composition root has to remember.
-pub const ROSTER: [Registration; 5] = [
+pub const ROSTER: [Registration; 6] = [
     Registration {
         // The home probe's router: an INPUT, so it holds no delivery order to
         // state and sits ahead of the channels, whose order is delivery order.
         // `pns home` reads it; no event can route to it, because a sensor
         // carries no routing for a plan to read.
         name: "router",
+        kind: PluginKind::Sensor,
+    },
+    Registration {
+        // Which ROOM the operator is in, read off the state file the daemon
+        // publishes. A second INPUT, beside the router and ahead of the
+        // channels for the same reason. It borrows `[plugins.hue]`'s bridge
+        // and key rather than declaring its own, which is what `REQUIRES`
+        // above holds it to.
+        name: PRESENCE,
         kind: PluginKind::Sensor,
     },
     Registration {
@@ -295,6 +320,20 @@ pub const ROSTER: [Registration; 5] = [
     },
 ];
 
+/// WHICH PLUGIN BORROWS WHICH. A sensor that reads another plugin's
+/// credential rather than declaring its own is refused when that other plugin
+/// is off, because the alternative is a table the operator switched on that
+/// silently never reads anything.
+///
+/// DATA BESIDE `CORE`, for the same reason: this is selection policy, and the
+/// roster states what a plugin IS.
+const REQUIRES: [(&str, &str); 1] = [(PRESENCE, "hue")];
+
+/// The room-presence sensor's config name, spelled once. Three modules select
+/// on it (the roster, the doctor's own check, and the settings reader), and a
+/// literal in each is three spellings to drift.
+pub const PRESENCE: &str = "presence";
+
 /// THE CORE: what a machine with no usable config runs. Names rather than a
 /// flag on the declaration, because this is a selection policy and the roster
 /// states what a plugin IS; a name here that nothing registers simply selects
@@ -340,6 +379,9 @@ pub fn select_plugins(
                 let detail = match error {
                     RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
                     RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
+                    RegistryError::Unsatisfied { plugin, needs } => {
+                        format!("`{plugin}` is enabled and needs `{needs}`, which is not")
+                    }
                 };
                 (registry.all(), Some(every_plugin_warning(&detail)))
             }
@@ -512,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn the_production_roster_carries_the_router_sensor_beside_the_four_channels() {
+    fn the_production_roster_carries_the_two_sensors_beside_the_four_channels() {
         // The const has to SAY what each entry is, so the sensor rides in the
         // same declaration as the channels rather than in a second list the
         // composition root has to remember to register. The sensor is first
@@ -527,6 +569,7 @@ mod tests {
             declared,
             vec![
                 ("router", true),
+                ("presence", true),
                 ("mobile", false),
                 ("macos-banner", false),
                 ("hermes", false),
@@ -535,11 +578,63 @@ mod tests {
         );
         assert_eq!(
             super::roster().names(),
-            vec!["router", "mobile", "macos-banner", "hermes", "hue"]
+            vec![
+                "router",
+                "presence",
+                "mobile",
+                "macos-banner",
+                "hermes",
+                "hue"
+            ]
         );
     }
 
     // --- selection by config ------------------------------------------------
+
+    #[test]
+    fn a_presence_table_switched_on_without_hue_is_refused_naming_both() {
+        // Presence reads the bridge through `[plugins.hue]`'s own address and
+        // key. Selected without it, the sensor is a table the operator turned
+        // on that could never take a reading, and a silent one is worse than
+        // the refusal: the fix is in the OTHER table, so both are named.
+        let config = parse_config("[plugins.presence]\nenabled = true\ntype = \"hue\"\n").unwrap();
+        assert_eq!(
+            super::roster().enabled(&config),
+            Err(RegistryError::Unsatisfied {
+                plugin: "presence".to_string(),
+                needs: "hue".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn a_hue_table_switched_off_refuses_presence_just_as_an_absent_one_does() {
+        let config = parse_config(
+            "[plugins.presence]\nenabled = true\ntype = \"hue\"\n\
+             [plugins.hue]\nenabled = false\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            super::roster().enabled(&config),
+            Err(RegistryError::Unsatisfied { .. })
+        ));
+    }
+
+    #[test]
+    fn presence_is_selected_once_hue_carries_the_bridge_it_reads() {
+        let config = parse_config(
+            "[plugins.presence]\nenabled = true\ntype = \"hue\"\n\
+             [plugins.hue]\nenabled = true\n",
+        )
+        .unwrap();
+        let names: Vec<&str> = super::roster()
+            .enabled(&config)
+            .expect("hue carries it")
+            .iter()
+            .map(|entry| entry.name)
+            .collect();
+        assert_eq!(names, vec!["presence", "hue"]);
+    }
 
     #[test]
     fn the_config_selects_and_registration_order_beats_config_order() {

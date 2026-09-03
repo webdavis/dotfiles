@@ -2390,6 +2390,39 @@ fn system_probes() -> SystemProbes<SystemCommandRunner> {
         .to_string_lossy()
         .into_owned(),
     )
+    // OFF `state_dir`, which is where the daemon publishes it and which
+    // `PNS_STATE_DIR` already redirects, so the reading follows a sandboxed
+    // run without a second environment knob of its own.
+    .with_presence_path(
+        state_dir()
+            .join(pns::presence_file::STATE_FILE)
+            .to_string_lossy()
+            .into_owned(),
+    )
+}
+
+/// What the room sensor reads right now, off ONE probe set: the line and the
+/// clock it is aged against come from the same set, so the two cannot
+/// straddle a boundary.
+///
+/// A TABLE THIS COULD NOT READ IS NO READING, never a room: the refusal was
+/// already printed, and inventing a room out of settings nobody could parse
+/// is the fail-open this whole reading is shaped to avoid.
+fn presence_status(settings: Option<&pns::config::Presence>) -> pns::presence::PresenceStatus {
+    let Some(settings) = settings else {
+        return pns::presence::PresenceStatus::Unknown(pns::presence::Unreadable::NoReading);
+    };
+    let probes = system_probes();
+    pns::presence::classify(
+        probes
+            .presence_line()
+            .as_deref()
+            .and_then(pns::presence_file::parse_presence_line),
+        probes.now_secs(),
+        settings.stale_after_secs,
+        &settings.rooms,
+        &settings.exclude,
+    )
 }
 
 /// Start moshi on the stream. `None` is "not installed", which is the
@@ -4170,6 +4203,22 @@ fn doctor_mode() -> i32 {
             eprintln!("{warning}");
         }
     }
+    // THE ROOM SENSOR'S OWN SETTINGS, read here because the census below has
+    // one line to print about them. A refusal is LOUD and leaves the reading
+    // absent rather than half-honoured.
+    let presence_settings = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => match pns::config::parse_presence(config) {
+            Ok(settings) => settings,
+            Err(error) => {
+                eprintln!(
+                    "pns: config error ({}); the room sensor is unread",
+                    error.detail()
+                );
+                None
+            }
+        },
+        _ => None,
+    };
     let registry = roster();
     // WHAT LOADING FOUND, taken BEFORE `select_plugins` consumes it: the
     // census reports a plugin the selection left out, and which sentence is
@@ -4230,6 +4279,11 @@ fn doctor_mode() -> i32 {
                 pns::doctor::Outcome::Failed(NO_HUE_BRIDGE_LINE.to_string())
             }
             pns::doctor::CheckKind::Pulse => pulse_outcome(hue_table.clone()),
+            // A READING, NEVER A SEND: nothing is dispatched to a sensor, and
+            // what an operator cannot see any other way is what it says now.
+            pns::doctor::CheckKind::Presence => {
+                pns::doctor::Outcome::Presence(presence_status(presence_settings.as_ref()))
+            }
             // BY NAME, never by position. The legs above are these checks in
             // this order and `dispatch_legs` answers one outcome per leg, so
             // the two agree today; a positional pairing that ever stopped

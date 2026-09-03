@@ -3053,11 +3053,12 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
         &printed[1..],
         [
             "router: skipped, a sensor and never a delivery destination",
+            "presence: skipped, not enabled in the config",
             "mobile: sent, this channel reports no outcome",
             "macos-banner: sent, this channel reports no outcome",
             "hermes: sent, this channel reports no outcome",
             "hue: skipped, not enabled in the config",
-            "pns doctor: 3 sent, 0 failed, 2 skipped",
+            "pns doctor: 3 sent, 0 failed, 3 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
@@ -3257,7 +3258,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
         "the last leg still got its turn after an earlier failure: {printed}"
     );
     assert!(
-        printed.contains("pns doctor: 1 sent, 2 failed, 2 skipped"),
+        printed.contains("pns doctor: 1 sent, 2 failed, 3 skipped"),
         "{printed}"
     );
 }
@@ -3288,7 +3289,7 @@ fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_m
         );
     }
     assert!(
-        printed.contains("pns doctor: 0 sent, 3 failed, 2 skipped"),
+        printed.contains("pns doctor: 0 sent, 3 failed, 3 skipped"),
         "the summary has to count what the lines say: {printed}"
     );
 }
@@ -3456,11 +3457,12 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         printed,
         [
             "router: skipped, not enabled in the config",
+            "presence: skipped, not enabled in the config",
             "mobile: skipped, not enabled in the config",
             "macos-banner: skipped, not enabled in the config",
             "hermes: skipped, not enabled in the config",
             "hue: skipped, not enabled in the config",
-            "pns doctor: 0 sent, 0 failed, 5 skipped",
+            "pns doctor: 0 sent, 0 failed, 6 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
@@ -7614,7 +7616,7 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     let lines: Vec<&str> = printed.lines().collect();
     let summary = lines
         .iter()
-        .position(|line| *line == "pns doctor: 3 sent, 0 failed, 2 skipped")
+        .position(|line| *line == "pns doctor: 3 sent, 0 failed, 3 skipped")
         .unwrap_or_else(|| panic!("no summary line in {printed}"));
     assert_eq!(lines[summary + 1], PAIRED_LINE, "{printed}");
     assert_eq!(lines[summary + 2], MOSHI_SAYS_LINE, "{printed}");
@@ -7735,7 +7737,7 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
         "a call that never answered relays nothing: {printed}"
     );
     assert!(
-        printed.contains("pns doctor: 3 sent, 0 failed, 2 skipped"),
+        printed.contains("pns doctor: 3 sent, 0 failed, 3 skipped"),
         "and the sections printed before it survived: {printed}"
     );
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
@@ -7802,7 +7804,7 @@ fn an_unpaired_host_exits_one_while_the_summary_still_reads_zero_failed() {
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
-        printed.contains("pns doctor: 3 sent, 0 failed, 2 skipped"),
+        printed.contains("pns doctor: 3 sent, 0 failed, 3 skipped"),
         "{printed}"
     );
     assert!(
