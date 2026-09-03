@@ -236,6 +236,28 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn an_empty_manifest_declares_nothing_and_reads_the_same_as_an_absent_one() {
+        // The apply publishes the file whether or not anything is declared,
+        // so EXISTS is not the question. `brew bundle` on an empty Brewfile
+        // would succeed and say nothing, which is a step the record carries
+        // for work that could not have happened.
+        let manifest = std::env::temp_dir().join(format!(
+            "uu-brew-empty-manifest-{}.Brewfile",
+            std::process::id()
+        ));
+        fs::write(&manifest, "").expect("an empty manifest");
+        let runner = ScriptedRunner::new(&[]);
+        let mut report = report();
+        let mut empty = lane();
+        empty.mas_manifest = manifest.to_string_lossy().to_string();
+        mas_declarations(&mut report, &runner, &empty, Duration::from_secs(180));
+        let _ = fs::remove_file(&manifest);
+        assert_eq!(report.failures, 0);
+        assert!(said(&report, "nothing to install"), "{report:?}");
+        assert!(runner.calls().is_empty(), "{:?}", runner.calls());
+    }
+
+    #[test]
     fn a_published_mas_manifest_is_installed_under_the_bound() {
         let runner = ScriptedRunner::new(&[]);
         let mut report = report();

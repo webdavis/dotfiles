@@ -198,6 +198,29 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_row_names_the_state_it_is_in_and_keeps_the_empty_column_of_the_side_that_is_gone() {
+        // THE FORMAT CONTRACT WITH A READER THIS CRATE DOES NOT OWN. The
+        // osquery file-integrity page splits on each tab in turn precisely so
+        // an absent side stays where it was written: an `added` row that
+        // dropped its empty column decodes as (name, added, version, EMPTY)
+        // and renders a package that had just appeared as one that had just
+        // been removed. The three state words are that page's own vocabulary,
+        // and a row it cannot recognise voids the whole correlation.
+        assert_eq!(
+            tuple_row(&change("new", State::Added, "", "0.1")),
+            "new\tadded\t\t0.1"
+        );
+        assert_eq!(
+            tuple_row(&change("gone", State::Removed, "1.0", "")),
+            "gone\tremoved\t1.0\t"
+        );
+        assert_eq!(
+            tuple_row(&change("jq", State::Changed, "1.7.0", "1.7.1")),
+            "jq\tchanged\t1.7.0\t1.7.1"
+        );
+    }
+
+    #[test]
     fn a_tab_inside_a_field_is_deleted_so_a_row_cannot_shift_its_own_columns() {
         let row = tuple_row(&change("na\tme", State::Changed, "1\t0", "2\t0"));
         assert_eq!(row, "name\tchanged\t10\t20");

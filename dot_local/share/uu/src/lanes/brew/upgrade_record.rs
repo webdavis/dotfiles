@@ -91,6 +91,7 @@ mod tests {
     use super::*;
     use crate::lanes::{CommandRunner, Ran};
     use std::cell::RefCell;
+    use std::path::Path;
     use std::time::Duration;
 
     /// A directory of this test's own. Removed at the end of each test; a
@@ -196,49 +197,120 @@ mod tests {
         let _ = fs::remove_dir_all(&directory);
     }
 
+    /// A runner whose two `brew list --versions` readings DIFFER, and which
+    /// reads the record back at the first upgrade step. One double answers
+    /// both questions the record has to survive: that it is on disk before
+    /// the work, and that it carries what the work moved.
+    struct Upgrading {
+        path: PathBuf,
+        listings: RefCell<Vec<&'static str>>,
+        seen: RefCell<Option<String>>,
+    }
+
+    impl Upgrading {
+        fn watching(path: &Path, listings: &[&'static str]) -> Self {
+            Upgrading {
+                path: path.to_path_buf(),
+                listings: RefCell::new(listings.to_vec()),
+                seen: RefCell::new(None),
+            }
+        }
+    }
+
+    impl CommandRunner for Upgrading {
+        fn run(&self, _program: &str, args: &[&str]) -> Result<String, String> {
+            if args == ["update"] {
+                *self.seen.borrow_mut() = fs::read_to_string(&self.path).ok();
+            }
+            if args == ["list", "--versions"] {
+                let mut left = self.listings.borrow_mut();
+                if left.is_empty() {
+                    return Ok(String::new());
+                }
+                return Ok(left.remove(0).to_string());
+            }
+            Ok(String::new())
+        }
+        fn run_with_deadline(
+            &self,
+            program: &str,
+            args: &[&str],
+            _most: Duration,
+        ) -> Result<String, String> {
+            self.run(program, args)
+        }
+        fn run_with_input(&self, _: &str, _: &[&str], _: &str) -> Result<Ran, String> {
+            unreachable!("the brew lane never hands a child stdin")
+        }
+    }
+
     #[test]
     fn the_record_is_on_disk_before_the_first_upgrade_step_not_only_after_it() {
         // THE WHOLE POINT OF PUBLISHING TWICE. A page fired mid-run has to
         // read a record that dates the window it is inside; published only at
         // the end, a watched file rewritten in the first seconds of a run is
         // correlated against the PREVIOUS week instead.
-        struct Watching {
-            path: PathBuf,
-            seen: RefCell<Option<String>>,
-        }
-        impl CommandRunner for Watching {
-            fn run(&self, _program: &str, args: &[&str]) -> Result<String, String> {
-                if args == ["update"] {
-                    *self.seen.borrow_mut() = fs::read_to_string(&self.path).ok();
-                }
-                Ok(String::new())
-            }
-            fn run_with_deadline(
-                &self,
-                program: &str,
-                args: &[&str],
-                _most: Duration,
-            ) -> Result<String, String> {
-                self.run(program, args)
-            }
-            fn run_with_input(&self, _: &str, _: &[&str], _: &str) -> Result<Ran, String> {
-                unreachable!("the brew lane never hands a child stdin")
-            }
-        }
-
         let directory = scratch("mid-run");
         let path = directory.join("last-upgrade-changes.tsv");
         let mut recording = lane();
         recording.upgrade_record = path.to_str().unwrap().to_string();
-        let runner = Watching {
-            path: path.clone(),
-            seen: RefCell::new(None),
-        };
+        let runner = Upgrading::watching(&path, &[]);
         run_brew("brew", &recording, &facts(), &runner);
         assert_eq!(
             runner.seen.into_inner(),
             Some("1760000000\t2025-10-09T07:33:20Z\n".to_string()),
             "the record has to exist, and date this run, before the first upgrade step"
+        );
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn the_closing_publish_carries_what_the_run_actually_moved_in_the_direction_it_moved() {
+        // WHAT THE RECORD IS FOR. A lane that published twice and named
+        // nothing either time satisfies every other test here, and leaves the
+        // file-integrity page correlating against an empty week forever. The
+        // DIRECTION is pinned in the same breath: readings handed over the
+        // wrong way round render an upgrade as a downgrade.
+        let directory = scratch("what-moved");
+        let path = directory.join("last-upgrade-changes.tsv");
+        let mut recording = lane();
+        recording.upgrade_record = path.to_str().unwrap().to_string();
+        let runner = Upgrading::watching(&path, &["jq 1.7.0\n", "jq 1.7.1\n"]);
+        let report = run_brew("brew", &recording, &facts(), &runner);
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "1760000000\t2025-10-09T07:33:20Z\njq\tchanged\t1.7.0\t1.7.1\n"
+        );
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|line| line.contains("`jq` `1.7.0` -> `1.7.1`")),
+            "{report:?}"
+        );
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn a_write_that_could_not_be_made_leaves_the_record_the_page_reads_whole() {
+        // WHY IT IS A TEMP FILE AND A RENAME. Writing the destination
+        // directly turns a failed write into a truncated record, and the
+        // file-integrity page reads whatever is there: a torn record is a
+        // wrong correlation, which is worse than last week's right one.
+        let directory = scratch("torn");
+        let path = directory.join("last-upgrade-changes.tsv");
+        let name = path.to_str().unwrap();
+        write(name, 1_760_000_000, "2025-10-09T07:33:20Z", &[]).expect("last week's record");
+        // The temp file's own path, occupied by something no write can
+        // replace: the one way to fail the write without failing the rename.
+        fs::create_dir(format!("{name}.tmp")).expect("the temp path is taken");
+        let why = write(name, 1_760_600_000, "2025-10-16T07:33:20Z", &[])
+            .expect_err("a write that cannot be made is stated");
+        assert!(why.contains(".tmp"), "{why}");
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "1760000000\t2025-10-09T07:33:20Z\n",
+            "last week's record survives a write that could not be made"
         );
         let _ = fs::remove_dir_all(&directory);
     }

@@ -212,7 +212,10 @@ pub(crate) mod tests {
             .deadlines()
             .into_iter()
             .map(|(call, most)| {
-                assert_eq!(most, MAS_DEADLINE, "{call:?}");
+                // THE LITERAL, not `MAS_DEADLINE`: asserting the constant
+                // against itself passes at every value it could hold, and
+                // three minutes is what the bash job bounded these at.
+                assert_eq!(most, Duration::from_secs(180), "{call:?}");
                 call
             })
             .collect();
