@@ -47,7 +47,7 @@ every integration target, so the pair (target, test) is the key, not the test na
 The result column came from a full run, which passed:
 
 ```
-cargo test --locked --manifest-path dot_local/share/pns/Cargo.toml
+cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
 ```
 
 The NAME column did not come from that run's output, and this matters. A test that prints to standard
@@ -56,11 +56,12 @@ speed-guard warning merged with the following result line and produced a name th
 therefore taken from the deterministic listing:
 
 ```
-cargo test --locked --manifest-path dot_local/share/pns/Cargo.toml -- --list
+cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml -- --list
 ```
 
 Regenerate with the same two commands. Take names from `--list` and results from the run, never names
-from the run.
+from the run. Both carry `--workspace` because pns is a workspace now: without that word cargo covers
+the root package alone and drops every member crate's tests from the regenerated baseline, silently.
 
 ## How a later step diffs against it
 
