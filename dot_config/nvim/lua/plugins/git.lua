@@ -33,7 +33,7 @@ local function copy_url_mapping_helper(lhs, remote, protocol)
           return
         end
 
-        local message = git.copy_URL_to_clipboard({
+        local message = git.copy_url_to_clipboard({
           url = url,
           remote = remote,
           protocol = protocol,
