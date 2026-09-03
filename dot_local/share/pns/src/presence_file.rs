@@ -167,7 +167,7 @@ mod tests {
         let at_the_bound = "r".repeat(64);
         assert!(
             parse_presence_line(&format!("1700000100 1700000090 1 {at_the_bound}")).is_some(),
-            "one character under the bound is still a room"
+            "the bound itself is still a room: only PAST it is malformed"
         );
     }
 }

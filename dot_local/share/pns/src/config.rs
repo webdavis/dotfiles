@@ -1973,14 +1973,14 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
         Some(setting) => strings("presence", "exclude", "a list of room names", setting)?,
         None => Vec::new(),
     };
-    let poll_secs = count(settings, "poll_secs", DEFAULT_PRESENCE_POLL_SECS)?;
+    let poll_secs = presence_count(settings, "poll_secs", DEFAULT_PRESENCE_POLL_SECS)?;
     if !(MIN_PRESENCE_POLL_SECS..=MAX_PRESENCE_POLL_SECS).contains(&poll_secs) {
         return Err(ConfigError::Invalid(format!(
             "`presence` key `poll_secs` is {poll_secs}, outside \
              {MIN_PRESENCE_POLL_SECS}..{MAX_PRESENCE_POLL_SECS}"
         )));
     }
-    let stale_after_secs = count(
+    let stale_after_secs = presence_count(
         settings,
         "stale_after_secs",
         DEFAULT_PRESENCE_STALE_AFTER_SECS,
@@ -2003,9 +2003,11 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
     }))
 }
 
-/// One whole-second count off a plugin's settings, or the default when the
-/// table states none. The refusal names the table and the key.
-fn count(settings: &toml::Table, key: &str, default: u64) -> Result<u64, ConfigError> {
+/// One whole-second count off `[plugins.presence]`, or the default when the
+/// table states none. NAMED FOR ITS TABLE, because the refusal it writes names
+/// that table too: a second caller under a generic name would report its own
+/// key under `presence`.
+fn presence_count(settings: &toml::Table, key: &str, default: u64) -> Result<u64, ConfigError> {
     let Some(stated) = settings.get(key) else {
         return Ok(default);
     };
