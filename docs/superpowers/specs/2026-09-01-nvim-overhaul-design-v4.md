@@ -871,7 +871,8 @@ say scaled headings are Kitty-only and drop to plain on any repaint. `markdown-p
 ## 6. The `custom_api` redesign and its tests
 
 v3 section 1 stands as the design; this section restates only what the plan needs and adds the test
-harness. `delegate.lua` leaves in PR 8; `init.lua` drops its `M.delegate` line.
+harness. `delegate.lua` leaves in PR 8; the `init.lua` umbrella that re-exported it is already
+gone (7.1).
 
 ### 6.1 Errors (item 54)
 
@@ -997,9 +998,9 @@ The workspace of the current pane is `HERDR_WORKSPACE_ID` (there is no `HERDR_SE
 
 `custom_api/delegate.lua` goes, with its `require(...).setup()` at `keymaps.lua:6`. The umbrella
 that used to re-export it, `custom_api/init.lua`, is already gone: the shell-safety follow-up
-deleted it. The which-key `<leader>d` group "delegate" keeps two
-keymaps that were never delegates (`<leader>dx` chmod, `<leader>da` code action); the group is renamed
-"do" (section 8.3). Bugs #5 and #9 close as moot.
+deleted it. The which-key `<leader>d` group "delegate" keeps three keymaps that were never delegates
+(`<leader>dx` chmod, `<leader>da` code action, and `<leader>dd` Lazydocker, whose `keys` spec lives in
+`lua/plugins/docker.lua`); the group is renamed "do" (section 8.3). Bugs #5 and #9 close as moot.
 
 ### 7.2 `claudecode.nvim` with provider `none` and a herdr pane launch
 
@@ -1380,7 +1381,8 @@ follows the rename rule above.
 
 The one stated improvement to the existing pattern: stale group names are corrected where the group's
 contents changed, and only there. "lazyvim" becomes "lazy" (the config is not LazyVim), "delegate"
-becomes "do" (its two survivors are actions), and the new groups follow the naming style.
+becomes "do" (its three survivors are one-shot commands with no shared subject, so no subject noun
+names the group and the label matches the prefix letter), and the new groups follow the naming style.
 
 ### 8.3 Conflicts to resolve and the proposed new keymaps
 
