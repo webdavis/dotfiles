@@ -139,6 +139,7 @@ mod tests {
         let fixtures: &[(&str, &str)] = &[
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),
+            ("uv", "[lanes.uv]\n"),
         ];
         assert_eq!(LANE_TYPES.len(), fixtures.len());
         for (kind, text) in fixtures {
