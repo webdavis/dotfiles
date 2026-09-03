@@ -158,7 +158,10 @@
        the filesystem root and for a dozen throwaway ~/Documents/Codex
        scratch directories stays until it is removed by hand or by Codex. What
        the roster controls is what this REPOSITORY grants, and it grants these
-       five roots and nothing else.
+       five roots and nothing else. The five it DOES name are forced back to
+       trusted every apply, so revoking one of them at the Codex prompt lasts
+       until the next one; taking it off this list is how it goes away for
+       good.
 
        ~/.local/share/chezmoi is deliberately absent even though the live file
        trusts it: CLAUDE.md records that this checkout IS the chezmoi source
