@@ -3,6 +3,7 @@
 -- ╰─────────────╯
 local git = require("custom_api.git")
 local github = require("custom_api.github")
+local overseer = require("custom_api.overseer")
 local try = require("custom_api.try")
 local util = require("custom_api.util")
 
@@ -313,7 +314,7 @@ return {
               end
               table.insert(cmds, 'gh repo create --public "' .. project .. '"')
 
-              util.overseer_runner({ cmds = cmds })
+              overseer.overseer_runner({ cmds = cmds })
             end)
           end)
         end,
@@ -726,7 +727,7 @@ return {
         mode = "n",
         lhs = "<C-g>lr",
         rhs = function()
-          util.overseer_runner({
+          overseer.overseer_runner({
             cmds = "git log --pretty=format:'%<(7)%C(yellow)%h%C(reset) %<(15,trunc)%C(cyan)%ar%C(reset) %<(16,trunc)%C(green)%an%C(reset) %<(80,trunc)%s'",
           })
         end,
@@ -787,7 +788,7 @@ return {
           }
           local git_cmd = table.concat(args, " ")
 
-          util.overseer_runner({ cmds = git_cmd })
+          overseer.overseer_runner({ cmds = git_cmd })
         end,
         desc = "Overseer: my contributions this-week (color)",
       })
@@ -796,7 +797,7 @@ return {
         mode = "n",
         lhs = "<C-g>lsr",
         rhs = function()
-          util.overseer_runner({
+          overseer.overseer_runner({
             cmds = "git log --no-merges --pretty=format:'%<(7)%C(yellow)%h%C(reset) %<(15,trunc)%C(cyan)%ar%C(reset) %<(16,trunc)%C(green)%an%C(reset) %<(80,trunc)%s' origin/main..HEAD",
           })
         end,
@@ -864,7 +865,7 @@ return {
           if not commit.hash then
             return
           end
-          util.overseer_runner({ cmds = "git diff --color-words" })
+          overseer.overseer_runner({ cmds = "git diff --color-words" })
         end,
         desc = "Overseer: emphasize changed words",
       })
@@ -877,7 +878,7 @@ return {
           if not commit.hash then
             return
           end
-          util.overseer_runner({ cmds = "git diff --color-moved" })
+          overseer.overseer_runner({ cmds = "git diff --color-moved" })
         end,
         desc = "Overseer: emphasize moved lines",
       })
