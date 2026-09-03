@@ -1709,11 +1709,12 @@ re-gated since its last merge of `main` is not a verdict.
    stylua only if Homebrew's stylua disagrees with the clean Mason check), and PR 4d lifts them with the
    rewrap as its own commit. The alternative, a permanent exclusion, would leave the editor's own
    markdown the only unformatted markdown in the repo.
-8. **The osquery pipeline's Rust port.** OUTSIDE this program and recorded here because 12.1's Bash
-   answer turns on it. 191 of the 209 bats tests are the osquery pipeline and no port is scheduled
-   anywhere. Proposed: record the port as the next Rust program after this overhaul, ahead of SP4 and
-   SP5. NEEDS OPERATOR; nothing in this plan depends on the answer, and 12.1 recommendation A is the
-   one that stays correct whichever way it goes.
+8. **The osquery pipeline's Rust port.** OUTSIDE this program, and recorded here because it is what
+   eventually retires the bash tests 12.1's answer creates. 191 of the 209 bats tests are the osquery
+   pipeline and no port is scheduled anywhere. Proposed: record the port as the next Rust program
+   after this overhaul, ahead of SP4 and SP5. NEEDS OPERATOR. Nothing in this plan or in the bashunit
+   program waits on the answer: the operator's addendum of 2026-09-03 ruled that the twelve osquery
+   files migrate to bashunit now and that the port deletes them when it lands.
 
 ## 13. Appendix A: inventory item to section and pull request
 
