@@ -54,6 +54,14 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 export USER="${USER:-$(whoami)}"
+{{ if eq .chezmoi.os "darwin" -}}
+# Suffix custom_api/preview_host.resolve appends to the hostname for the markdown
+# preview server; without it the preview binds to loopback and no other device can
+# reach it. It belongs in this NON-INTERACTIVE-SAFE block rather than beside the
+# aliases: it is read by a child process (nvim), so an `ssh dresden nvim ...` or a
+# `bash -lc` launch, neither of which is interactive, would otherwise get loopback.
+export NVIM_MKDP_HOST=home.webdavis.io
+{{- end }}
 
 # Bash history is handled entirely by atuin's daemon (v2 §1.1). Bash built-in
 # history flags (HISTFILE, HISTSIZE, histappend, HISTCONTROL, HISTIGNORE) were
@@ -294,10 +302,6 @@ if [[ $- == *i* ]]; then
   alias ping='ping --apple-time'
   alias bu='brew upgrade --formula'
   alias rm='trash-put'
-
-  # Suffix custom_api/preview_host.resolve appends to the hostname for the markdown
-  # preview server; without it the preview binds to loopback and no other device can reach it.
-  export NVIM_MKDP_HOST=home.webdavis.io
   {{- end }}
 
   # Disable flow control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes flow
