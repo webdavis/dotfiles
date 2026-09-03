@@ -254,7 +254,6 @@ return {
     "tpope/vim-fugitive",
     dependencies = {
       "tpope/vim-rhubarb",
-      "junegunn/gv.vim",
       "stevearc/overseer.nvim",
       "folke/snacks.nvim",
     },
