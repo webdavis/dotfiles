@@ -959,11 +959,12 @@ pair; neotest's results edge is `lua/neotest/client/events/init.lua`.
 
 ### Task 27: PR 15, custom #2, the review-ledger quickfix (spec 7.7)
 
-Lane: agent. Depends on: PR 7f. Brief: `brief-nvim-review-ledger.md`. Closes custom #2. Shrunk
-2026-09-03: no `custom_api` module and no fixture file. `~/.claude/pipeline/findings-register.sh` is
-NOT tracked by this repository (verified: `git ls-files private_dot_claude` returns no pipeline
-entry), so Neovim cannot call a `quickfix` subcommand living there, and a second parser in Lua would
-be a second thing to keep in step with the table format. One awk program, inline in the command.
+Lane: agent. Depends on: PR 7f, PR 8 (`keymaps.lua`). Brief: `brief-nvim-review-ledger.md`. Closes custom
+#2. Shrunk 2026-09-03: no `custom_api` module and no fixture file.
+`~/.claude/pipeline/findings-register.sh` is NOT tracked by this repository (verified: `git ls-files
+private_dot_claude` returns no pipeline entry), so Neovim cannot call a `quickfix` subcommand living
+there, and a second parser in Lua would be a second thing to keep in step with the table format. One awk
+program, inline in the command.
 
 **Files:** Modify `lua/config/keymaps.lua` (the `:ReviewLedger[!] [file]` command, about ten lines; no
 keymap). Create `tests/ledger_awk_spec.lua`.

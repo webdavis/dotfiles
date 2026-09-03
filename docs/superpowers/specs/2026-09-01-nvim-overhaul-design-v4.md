@@ -909,6 +909,8 @@ dot_config/nvim/tests/
                        # default_branch with a fake runner, latest_commit (table, err)
   github_spec.lua      # account().username resolves with a fake runner; default_branch fallback
   try_spec.lua         # the label is reported verbatim, never "anonymous"; traceback present
+  herdr_spec.lua       # 7.4: may_send over all five states (PR 11), then agent_name and
+                       # plan_launch (PR 13)
   ledger_awk_spec.lua  # 7.7 #2: the :ReviewLedger awk, fed a heredoc through vim.system
   annotate_spec.lua    # 7.7 #3: the annotation composer
                        # 7.7 #1 has no module and no spec file: pns owns the tier
@@ -1559,7 +1561,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 23 | git-blame: rebuild the three keymaps on `custom_api` and gitsigns `on_attach`, then drop the plugin (`git.lua`, `custom_api/git.lua`, `custom_api/github.lua`) | PR 7f, PR 18 | 21, 28 |
 | PR 16 | Custom #3: the line annotator, `compose_text` into `herdr-nvim`'s `comments.add` and `ui.decorate`, `<leader>Cx`; no send path; shares the `<leader>C` keymap file with PR 13 | PR 12, PR 13, PR 23 | custom #3 |
 | PR 14 | Custom #1: the editor-side pns producer, no module: the overseer, `xcodebuild.nvim` and neotest edges each call `pns --elapsed <secs>` (`overseer.lua`, the xcodebuild spec, `neotest.lua`) | PR 7f, PR 3, PR 19b, PR 28b (`neotest.lua`), and the pns refactor that builds `--elapsed` | custom #1 |
-| PR 15 | Custom #2: `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline awk in `keymaps.lua`; no module, no fixture | PR 7f | custom #2 |
+| PR 15 | Custom #2: `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline awk in `keymaps.lua`; no module, no fixture | PR 7f, PR 8 (`keymaps.lua`) | custom #2 |
 | PR 17a | Drop cspell (`lsp.lua`)                                                                                 | PR 5b                 | 23                                          |
 | PR 17b | Drop gitmoji (`blink-cmp.lua`)                                                                          | PR 2                  | 24                                          |
 | PR 17c | Drop nvim-notify (`noice.lua`)                                                                          | PR 2                  | 25                                          |
@@ -1655,7 +1657,10 @@ encode:
 - `lua/custom_api/util.lua`: PR 6, 7e. `lua/custom_api/init.lua`: PR 6, 7e, 8.
 - `tests/git_spec.lua`: PR 6, 7a, 7b, 7c, 7f, 23. `tests/github_spec.lua`: PR 7b, 7c, 7d, 23.
 - `lua/custom_api/herdr.lua`: PR 11 (creates it, with the seam and the interrupt policy), 13
-  (extends it with the launch helper), 16 (reads it).
+  (extends it with the launch helper), 16 (reads it). `tests/herdr_spec.lua`: PR 11 (creates it for
+  `may_send`), 13 (adds `agent_name` and `plan_launch`).
+- `lua/config/keymaps.lua`: PR 4b (the `<leader>L` descriptions), 8 (drops the `delegate.setup()` at
+  `:6` and regroups `<leader>d`), 15 (adds `:ReviewLedger`).
 - `lua/plugins/claudecode.lua`, the `<leader>C` keymap file: PR 12, 11, 13, 16, 30c9.
 - `lua/plugins/noice.lua`: PR 17c, 22b, 29c. `lua/plugins/blink-cmp.lua`: PR 17b, 29c.
 - `lua/config/autocmds.lua`: PR 4b, 20. `lua/config/options.lua`: PR 20, 29c.
@@ -1669,8 +1674,8 @@ encode:
 Two rules keep that from being a pipeline gap. First, two PRs that touch the same file are serialized:
 the later one waits for the earlier one to merge before it opens for review, and that edge is in its
 **Depends on** cell (which is why PR 20 depends on PR 4b, PR 22b on PR 17c, PR 24 on PR 23, PR 16 on
-PR 13, PR 13 on PR 11, PR 12 on PR 29a, and PR 10a on PR 4d). Second, every PR merges `main` into its
-branch immediately before each review round
+PR 13, PR 13 on PR 11, PR 12 on PR 29a, PR 15 on PR 8, and PR 10a on PR 4d). Second, every PR
+merges `main` into its branch immediately before each review round
 and re-runs its whole gate after the merge: the dump diff (3.7 check 5), the startup median against
 the 9.1 gate, `just test-unit` and `just lint-check`. A review verdict on a branch that has not been
 re-gated since its last merge of `main` is not a verdict.
