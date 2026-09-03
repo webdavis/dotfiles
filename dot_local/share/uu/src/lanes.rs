@@ -15,6 +15,8 @@
 //! plugins until restart, so a failure costs the next restart rather than the
 //! current session.
 
+use std::time::Duration;
+
 use crate::config::{CommandLane, Config, HerdrLane, LaneKind};
 use crate::record::{RunFacts, lane_event};
 
@@ -125,6 +127,22 @@ pub enum Verdict {
 /// recording.
 pub trait CommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String>;
+
+    /// `run`, under a bound of ITS OWN as well as the lane's.
+    ///
+    /// THE LANE DEADLINE IS THE WHOLE LANE'S, so a step that takes all of it
+    /// costs every step after it. A subject known to wedge rather than fail
+    /// (the App Store hangs indefinitely on a broken session) is bounded here
+    /// instead, so one wedged step costs itself and the rest of the lane
+    /// still runs. Whichever bound is smaller, the step's own or what is left
+    /// of the lane's, is the one that expires.
+    fn run_with_deadline(
+        &self,
+        program: &str,
+        args: &[&str],
+        most: Duration,
+    ) -> Result<String, String>;
+
     fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String>;
 }
 
@@ -346,6 +364,9 @@ mod tests {
         stdout: String,
         calls: RefCell<Vec<Vec<String>>>,
         inputs: RefCell<Vec<String>>,
+        /// Every bounded call, with the bound it was given: what a lane test
+        /// asserts a step's own deadline against without a real clock.
+        deadlines: RefCell<Vec<(Vec<String>, Duration)>>,
     }
 
     impl ScriptedRunner {
@@ -361,6 +382,7 @@ mod tests {
                 stdout: String::new(),
                 calls: RefCell::new(Vec::new()),
                 inputs: RefCell::new(Vec::new()),
+                deadlines: RefCell::new(Vec::new()),
             }
         }
 
@@ -400,6 +422,11 @@ mod tests {
             self.calls.borrow().clone()
         }
 
+        /// Every call made under a bound, with that bound.
+        pub(crate) fn deadlines(&self) -> Vec<(Vec<String>, Duration)> {
+            self.deadlines.borrow().clone()
+        }
+
         /// Every `input` a call to `run_with_input` was given, in call order:
         /// the spy `run_with_input` itself never touches (BRIEF U8).
         fn inputs(&self) -> Vec<String> {
@@ -408,6 +435,18 @@ mod tests {
     }
 
     impl CommandRunner for ScriptedRunner {
+        fn run_with_deadline(
+            &self,
+            program: &str,
+            args: &[&str],
+            most: Duration,
+        ) -> Result<String, String> {
+            let mut call = vec![program.to_string()];
+            call.extend(args.iter().map(|word| word.to_string()));
+            self.deadlines.borrow_mut().push((call, most));
+            self.run(program, args)
+        }
+
         fn run(&self, program: &str, args: &[&str]) -> Result<String, String> {
             let mut call = vec![program.to_string()];
             call.extend(args.iter().map(|word| word.to_string()));
@@ -806,6 +845,15 @@ mod tests {
                     }
                 }
                 Ok(String::new())
+            }
+
+            fn run_with_deadline(
+                &self,
+                program: &str,
+                args: &[&str],
+                _most: Duration,
+            ) -> Result<String, String> {
+                self.run(program, args)
             }
 
             fn run_with_input(

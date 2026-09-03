@@ -143,6 +143,26 @@ impl CommandRunner for SystemRunner {
         ))
     }
 
+    /// A SECOND RUNNER FOR THE ONE STEP, holding the smaller of the two
+    /// bounds and its own clock. Delegating to `run` this way is what keeps
+    /// every overrun sentence composed in one place, and naming the step in
+    /// the label is what stops a step's bound being reported as the lane's
+    /// `deadline_secs`. The lane's own clock is untouched, so the step is
+    /// still charged against it.
+    fn run_with_deadline(
+        &self,
+        program: &str,
+        args: &[&str],
+        most: Duration,
+    ) -> Result<String, String> {
+        SystemRunner::for_lane(
+            &format!("{} step {program}", self.lane),
+            most.min(self.remaining()),
+            most,
+        )
+        .run(program, args)
+    }
+
     fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String> {
         if input.len() > MAX_EVENT_INPUT {
             return Err(format!(
@@ -464,6 +484,33 @@ mod tests {
         assert!(!escaped.contains("was killed"), "{escaped}");
         let stopped = runner.overrun(&Ended::Stopped, b"");
         assert!(stopped.contains("process group was killed"), "{stopped}");
+    }
+
+    #[test]
+    fn a_step_with_its_own_bound_is_killed_at_that_bound_rather_than_holding_the_lane() {
+        // The App Store wedges indefinitely on a broken session, and the lane
+        // deadline is the WHOLE lane's: a step that takes all of it costs
+        // every step after it. A step bound cannot be reported as the lane's,
+        // either, or the operator is sent to a `deadline_secs` that reads
+        // correct.
+        let runner = runner();
+        let failure = within(Duration::from_secs(5), move || {
+            runner.run_with_deadline("/bin/sh", &["-c", "sleep 30"], Duration::from_millis(200))
+        })
+        .expect_err("a step that outlives its own bound is stopped there");
+        assert!(failure.contains("200ms"), "{failure}");
+        assert!(failure.contains("step"), "{failure}");
+        assert!(failure.contains("killed"), "{failure}");
+    }
+
+    #[test]
+    fn a_step_that_finishes_inside_its_bound_answers_with_what_it_printed() {
+        // The positive control: a mutant that failed every bounded step would
+        // satisfy the timeout test above on its own.
+        let stdout = runner()
+            .run_with_deadline("/bin/sh", &["-c", "printf '3 upgraded\\n'"], Duration::from_secs(5))
+            .expect("a quick command runs well inside its bound");
+        assert_eq!(stdout, "3 upgraded\n");
     }
 
     #[test]
