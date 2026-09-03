@@ -714,19 +714,6 @@ fn table_of(table: &str, value: toml::Value) -> Result<toml::Table, ConfigError>
 /// than read as "use the default": the operator wrote a value, and silently
 /// substituting another is a setting they believe they set. A blank one is the
 /// worse of the two, because the file reads as though the setting was made.
-/// A `non_empty` string that also has to be an ABSOLUTE path, for a key whose
-/// whole job is to name a directory the lane can derive.
-fn absolute(table: &str, key: &str, setting: &toml::Value) -> Result<String, ConfigError> {
-    let stated = non_empty(table, key, setting)?;
-    if !stated.starts_with('/') {
-        return Err(ConfigError::Invalid(format!(
-            "`{table}` key `{key}` is `{stated}`, which is not an absolute path; the lane runs it \
-             with its own directory first on PATH, so it must name the file in full"
-        )));
-    }
-    Ok(stated)
-}
-
 fn non_empty(table: &str, key: &str, setting: &toml::Value) -> Result<String, ConfigError> {
     match setting.as_str() {
         Some(blank) if blank.trim().is_empty() => Err(ConfigError::Invalid(format!(
@@ -738,6 +725,19 @@ fn non_empty(table: &str, key: &str, setting: &toml::Value) -> Result<String, Co
             setting.type_str()
         ))),
     }
+}
+
+/// A `non_empty` string that also has to be an ABSOLUTE path, for a key whose
+/// whole job is to name a file whose directory the lane then derives.
+fn absolute(table: &str, key: &str, setting: &toml::Value) -> Result<String, ConfigError> {
+    let stated = non_empty(table, key, setting)?;
+    if !stated.starts_with('/') {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` is `{stated}`, which is not an absolute path; the lane runs it \
+             with its own directory first on PATH, so it must name the file in full"
+        )));
+    }
+    Ok(stated)
 }
 
 #[cfg(test)]
