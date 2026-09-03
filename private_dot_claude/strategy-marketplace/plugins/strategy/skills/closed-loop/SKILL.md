@@ -1,25 +1,36 @@
 ---
-name: follow-up
-description: Run a slice that exists because a review found something, with no re-review and no new tasks, terminating in its own PR. Use when a task was created by a review, when a task says Strategy-F, or when the user says "/strategy:follow-up".
+name: closed-loop
+description: Run a slice that exists because a review found something, where every finding feeds back into the same iteration and nothing is deferred. Use when a task was created by a review, when a task says Strategy-F, or when the user says "/strategy:closed-loop".
 ---
 
-# Follow-up
+# Closed-loop
 
-Work that exists BECAUSE step 4a, 4b or 7 of an earlier slice found something. It is
-[planned](../planned/SKILL.md) minus steps 7 and 8, plus a terminal verification step, 6v, that the
-other two do not have.
+**The loop is CLOSED because no finding leaves it.** Everything a review finds feeds back into this same
+iteration and is fixed here. Nothing is deferred, nothing is planned for later, and no task is created.
+Its sibling [open-loop](../open-loop/SKILL.md) is the one that may let findings out as future work, and
+that difference is the primary one between them.
+
+## When to use this
+
+The work exists BECAUSE step 4a, 4b or 7 of an earlier slice found something. If it came from the plan
+or the spec instead, you want [open-loop](../open-loop/SKILL.md).
+
+**This was called Strategy-F**, and every ledger, checklist and memory in this repository still says
+`F`. Both verifier scripts still take the letter, so pass `F` to them.
+
+Structurally it is [open-loop](../open-loop/SKILL.md) minus steps 7 and 8, plus a terminal verification
+step, 6v, that the other two do not have.
 
 Those two steps are cut for one reason, and it is the whole point of this strategy. They are the only
 steps that can enqueue work for a later step: step 7 earns another fix, which earns another review;
 step 8 mints tasks. Every other step resolves its own findings, so reviews are safe to stack and
-DEFERRALS are not. A task created by a follow-up review would be depth two, and there is no such thing.
-**Follow-up work terminates in its own PR.**
+DEFERRALS are not. A task created by a review here would be depth two, and there is no such thing.
+**This work terminates in its own PR.**
 
 The rule that falls out, and the register enforces it mechanically: a finding is FIXED IN-ROUND or
 ACCEPTED with a written rationale. It is never deferred into a new task.
 
-Read [the ledger grammar](../../ledger-grammar.md) before ticking anything. This strategy is `F` in both
-scripts.
+Read [the ledger grammar](../../ledger-grammar.md) before ticking anything.
 
 ## Open both ledgers at step 1, before any code exists
 
@@ -47,7 +58,7 @@ and it refuses a TASK disposition outright.
 | 6v   | TERMINAL verification: check the fix, run the gates, FIX in place       | quoted verdict |
 | 9    | Gates, push, verify the ref landed, open PR, merge                      | PR number      |
 
-Steps 1 through 6 behave exactly as they do under [planned](../planned/SKILL.md): the same brief gap,
+Steps 1 through 6 behave exactly as they do under [open-loop](../open-loop/SKILL.md): the same brief gap,
 the same differential-test rule, the same separate worktrees for the parallel 4a and 4b, the same
 constructed mutation lens with an unmutated control, and the same code-quality section on every review
 charter ranked below correctness. Read that skill for those; only the differences are below.
@@ -100,8 +111,8 @@ section, carrying no disposition. It never enters the register.
 
 ## Who runs each
 
-Same roster as [planned](../planned/SKILL.md), with 6v going to Fable by inheritance and steps 7 and 8
-having no owner because they do not exist. The verifier's printed WHO column is not enforced and is
+Same roster as [open-loop](../open-loop/SKILL.md), with 6v going to Fable by inheritance and steps 7
+and 8 having no owner because they do not exist. The verifier's printed WHO column is not enforced and is
 stale; `pipeline-model-allocation.md` in this project's memory directory is the live source.
 
 ## What this strategy does NOT do
@@ -116,7 +127,10 @@ stale; `pipeline-model-allocation.md` in this project's memory directory is the 
 
 ## The siblings
 
-- [planned](../planned/SKILL.md): plan-derived work, all ten steps, and the only strategy that may file
-  follow-up tasks. If the work came from the plan rather than from a review, you are in the wrong skill.
-- [test-first](../test-first/SKILL.md): no prose brief and no brief review, for behaviour that can be
-  stated as a failing test before it can be stated as a paragraph.
+- [open-loop](../open-loop/SKILL.md): plan-derived work, all ten steps, and the only strategy whose
+  findings may leave the loop as tasks. If the work came from the plan rather than from a review, you
+  are in the wrong skill.
+- [orchestrator-loop](../orchestrator-loop/SKILL.md): the orchestrator is inside the loop, writing the
+  failing tests and the seams itself instead of briefing an implementer, and its two reviews run
+  concurrently. It is closed-loop in the findings sense too, so the three names do not sit on one axis.
+  Pick it when the behaviour can be stated as a failing test before it can be stated as a paragraph.

@@ -1,15 +1,33 @@
 ---
-name: test-first
-description: Run a slice where the orchestrator writes the failing tests and the seams first and an implementer makes them green, with no prose brief and no brief review. Use when the behaviour can be stated as a test, when a task says Strategy-B, or when the user says "/strategy:test-first".
+name: orchestrator-loop
+description: Run a slice where the orchestrator is inside the loop, writing the failing tests and the seams itself instead of briefing an implementer, with two concurrent reviews and no deferred findings. Use when the behaviour can be stated as a test, when a task says Strategy-B, or when the user says "/strategy:orchestrator-loop".
 ---
 
-# Test-first
+# Orchestrator-loop
 
-The orchestrator writes the FAILING TESTS and the trait seams before anyone implements. There is no
-prose brief and no brief review, because a concrete failing test says what a paragraph of instructions
-only gestures at. The tests are the specification, the red state and the design in one artifact.
+**The ORCHESTRATOR is inside the loop.** In the other two it writes a brief and hands it to an
+implementer; here it writes the FAILING TESTS and the trait seams ITSELF, and those tests are the
+specification. There is no prose brief and no brief review, because a concrete failing test says what a
+paragraph of instructions only gestures at. The tests are the spec, the red state and the design in one
+artifact. The second difference is that its two reviews run CONCURRENTLY rather than one after the
+other.
 
-This strategy exists because [planned](../planned/SKILL.md) was rejected as too slow and too heavy: a
+**It is also closed-loop in the findings sense**: every finding is fixed in this iteration and none
+becomes a task. The three names do not sit on one axis. Two of them
+([open-loop](../open-loop/SKILL.md) and [closed-loop](../closed-loop/SKILL.md)) name what happens to a
+FINDING; this one names WHO is inside the loop, and on the findings axis it behaves like
+[closed-loop](../closed-loop/SKILL.md).
+
+## When to use this
+
+The behaviour can be stated as a failing test before it can be stated as a paragraph. If you find
+yourself writing a paragraph of instructions for an implementer instead, you want
+[open-loop](../open-loop/SKILL.md).
+
+**This was called Strategy-B.** Unlike the other two it has no letter of its own: the verifier scripts
+take only `A` and `F`, and it runs the `F` ledgers, as below.
+
+This strategy exists because [open-loop](../open-loop/SKILL.md) was rejected as too slow and too heavy: a
 slice ran two to three hours and roughly a million tokens across four agent dispatches. This one runs
 about an hour.
 
@@ -103,7 +121,7 @@ lenses. Untested. Worth an A/B if slices run long.
 ## What this strategy does NOT do
 
 - **No prose brief and no brief review.** If you find yourself writing a paragraph of instructions for
-  an implementer, you are running [planned](../planned/SKILL.md) instead, and should say so.
+  an implementer, you are running [open-loop](../open-loop/SKILL.md) instead, and should say so.
 - **It creates no tasks.** It runs the `F` ledgers, and the register mechanically refuses a TASK
   disposition. Findings are fixed in-round or accepted with a written rationale.
 - It has no step 7, so there is no second review of the fix and no fix-review loop.
@@ -111,7 +129,8 @@ lenses. Untested. Worth an A/B if slices run long.
 
 ## The siblings
 
-- [planned](../planned/SKILL.md): all ten steps, a written brief that gets reviewed before any code
-  exists, and the only strategy that may file follow-up tasks.
-- [follow-up](../follow-up/SKILL.md): for work that exists BECAUSE a review found something. Same `F`
-  ledgers as this one, but with a real brief and a real brief review at steps 1 and 2.
+- [open-loop](../open-loop/SKILL.md): all ten steps, a written brief that gets reviewed before any code
+  exists, and the only strategy whose findings may leave the loop as tasks.
+- [closed-loop](../closed-loop/SKILL.md): for work that exists BECAUSE a review found something. Same
+  findings discipline and the same `F` ledgers as this one, but the orchestrator is back outside the
+  loop: a real brief at step 1 and a real brief review at step 2.

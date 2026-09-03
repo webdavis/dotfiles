@@ -1,20 +1,31 @@
 ---
-name: planned
-description: Run a slice that came from a plan or spec through the full pipeline, with both merge gates. Use when starting plan-derived work, when a task says Strategy-A, or when the user says "/strategy:planned".
+name: open-loop
+description: Run a slice from a plan or spec through the full pipeline, where findings may leave as tasks that outlive the pull request. Use when starting plan-derived work, when a task says Strategy-A, or when the user says "/strategy:open-loop".
 ---
 
-# Planned
+# Open-loop
 
-Work written up from the plan or the spec. Every step runs, and this is the only strategy whose reviews
-may create follow-up tasks. Those tasks then run [follow-up](../follow-up/SKILL.md), which is what keeps
-the tree exactly two levels deep and provably finite.
+**The loop is OPEN because findings can leave it.** A review here may file a task that outlives this
+pull request, and this is the only strategy allowed to create future work. Its sibling
+[closed-loop](../closed-loop/SKILL.md) feeds every finding back into the same iteration instead, and
+that difference is the primary one between them.
 
-Decide the strategy when the TASK IS CREATED and write it in the task description, so it is never a
-judgement call later.
+## When to use this
+
+The work came from the plan or the spec, and you are willing for some of what the reviews find to be
+scheduled rather than fixed now. If the work exists BECAUSE an earlier review found something, you want
+[closed-loop](../closed-loop/SKILL.md). Decide when the TASK IS CREATED and write it in the task
+description, so it is never a judgement call later.
+
+Every step runs. Tasks filed at step 8 then run [closed-loop](../closed-loop/SKILL.md), which cannot
+file tasks of its own, and that is what keeps the tree exactly two levels deep and provably finite.
+
+**This was called Strategy-A**, and every ledger, checklist and memory in this repository still says
+`A`. Both verifier scripts still take the letter, so pass `A` to them.
 
 Read [the ledger grammar](../../ledger-grammar.md) before ticking anything: it carries the two verifier
 scripts, what counts as evidence, the verdict rule, the register's dispositions, and how to record a
-deviation. This strategy is `A` in both scripts.
+deviation.
 
 ## Open both ledgers at step 1, before any code exists
 
@@ -123,13 +134,16 @@ the queue.
 - It does not force every finding into this PR. Step 8 exists, so a finding may legitimately leave as a
   task. Under the other two strategies it may not, and the register mechanically refuses.
 - It does not skip step 7. The fix gets an independent re-review, exactly once, never a loop.
-- It has no step 6v. Terminal verification belongs to follow-up, which has no step 7 to do that job.
+- It has no step 6v. Terminal verification belongs to [closed-loop](../closed-loop/SKILL.md), which has
+  no step 7 to do that job.
 - It does not let a review run unbounded over the repository.
 
 ## The siblings
 
-- [test-first](../test-first/SKILL.md): no prose brief and no brief review, because failing tests written
-  first say what a paragraph of instructions only gestures at. Pick it when the behaviour can be stated
-  as a test before it can be stated as a paragraph.
-- [follow-up](../follow-up/SKILL.md): for work that exists BECAUSE a review found something. Pick it when
-  the task was created by step 4a, 4b or 7. It creates no tasks of its own.
+- [closed-loop](../closed-loop/SKILL.md): every finding feeds back into the same iteration and is fixed
+  there. Nothing is deferred and nothing is planned for later. Pick it when the task was created by
+  step 4a, 4b or 7.
+- [orchestrator-loop](../orchestrator-loop/SKILL.md): the orchestrator is inside the loop, writing the
+  failing tests and the seams itself instead of briefing an implementer, and its two reviews run
+  concurrently. It is closed-loop in the findings sense as well, so the three names do not sit on one
+  axis. Pick it when the behaviour can be stated as a test before it can be stated as a paragraph.

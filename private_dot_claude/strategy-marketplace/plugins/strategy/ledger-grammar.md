@@ -9,8 +9,9 @@ because the script is what refuses the merge. Read them when the stakes are high
 - `~/.claude/pipeline/slice-checklist.sh` proves every STEP ran.
 - `~/.claude/pipeline/findings-register.sh` proves every FINDING was resolved.
 
-Both know exactly two strategies, `A` and `F`. There is no third letter, so `test-first` runs the
-ledgers as `F` and deviates the steps it does not have.
+Both know exactly two strategies, `A` and `F`, which are the letters `open-loop` and `closed-loop` used
+to be called. There is no third letter, so `orchestrator-loop` runs the ledgers as `F` and deviates the
+step it does not have.
 
 ## Opening the ledgers
 
