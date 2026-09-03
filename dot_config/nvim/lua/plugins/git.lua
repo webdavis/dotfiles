@@ -3,6 +3,7 @@
 -- ╰─────────────╯
 local git = require("custom_api.git")
 local github = require("custom_api.github")
+local try = require("custom_api.try")
 local util = require("custom_api.util")
 
 -- ╭─────────────╮
@@ -264,10 +265,17 @@ return {
         rhs = function()
           local is_initialized = git.initialized({ quiet = true })
 
-          local user = github.username()
-          if not user then
+          -- `github.username()` never existed on either side, so this errored
+          -- every time the mapping was pressed (item 1). The username is one
+          -- field of the account, and `try` is what turns a `gh` that is not
+          -- logged in into a notification instead of a raised error.
+          local account = try(function()
+            return github.account()
+          end, { label = "github.account" })
+          if not account then
             return
           end
+          local user = account.username
 
           local directory = util.get_cwd_basename()
 

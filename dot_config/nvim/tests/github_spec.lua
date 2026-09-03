@@ -125,6 +125,21 @@ return {
     assert(person.username == OWNER, "username was " .. tostring(person.username))
   end,
 
+  -- Item 1. `<C-g>i` builds a `gh repo clone <user>/<project>` line out of
+  -- `account().username`, so a username that never resolved has to arrive as a
+  -- failure and not as a table with a nil field: the mapping would otherwise
+  -- concatenate nil and raise deep inside the second prompt's callback.
+  ["account reports an operational failure when only the username is unresolvable"] = function()
+    local person, err = with_shell({
+      ["git config --get user.name"] = { 0, "Sentinel Person" },
+      ["git config --get github.username"] = { 1, "" },
+      ["gh api user --jq .login"] = { 1, "" },
+    }, github.account)
+    assert(person == nil, "returned a person with no username")
+    assert(type(err) == "string", "err was a " .. type(err))
+    assert(err:find("github.username", 1, true), "the message does not name the setting: " .. err)
+  end,
+
   ["account reports an operational failure when neither source answers"] = function()
     local person, err = with_shell({
       ["git config --get user.name"] = { 1, "" },
