@@ -28,11 +28,19 @@ pub const SUCCESS_COLOR: PulseColor = PulseColor { x: 0.17, y: 0.70 };
 /// the two drift into looking like different events.
 pub const FAILURE_COLOR: PulseColor = PulseColor { x: 0.675, y: 0.322 };
 
-/// The deepest blue the studio lamps report, operator-locked on 2026-08-31.
-/// It is the colour a question waiting on the operator breathes in.
+/// Magenta, set on a Studio lamp by the operator on 2026-09-02 and read back
+/// off the bridge rather than computed. It is the colour a question waiting on
+/// the operator breathes in.
+///
+/// IT TOOK OVER FROM THE DEEP BLUE THAT NOW BELONGS TO `LOOP_COLOR`. Blocked
+/// and loop sat 0.067 apart in the xy space the bridge takes, against 0.192 for
+/// the next-closest pair in the whole set, and in daylight the two lamps read
+/// as one. This pair is 0.207 apart, so the closest two colours in the
+/// vocabulary are no longer these: they are failure and the unread success, at
+/// that same 0.192 the swap does not touch.
 pub const BLOCKED_COLOR: PulseColor = PulseColor {
-    x: 0.1532,
-    y: 0.0475,
+    x: 0.3395,
+    y: 0.1379,
 };
 
 /// Daylight, for the unread lamp's SUCCESS flavour: a run that finished while
@@ -43,11 +51,18 @@ pub const BLOCKED_COLOR: PulseColor = PulseColor {
 /// merely gone unseen must not compete with it.
 pub const UNREAD_SUCCESS_COLOR: PulseColor = PulseColor { x: 0.50, y: 0.40 };
 
-/// Deep violet, picked on the lamp by the operator on 2026-09-01: the loop
-/// lamp, breathing while long-running work is in flight.
+/// The deepest blue the studio lamps report, operator-locked on 2026-08-31
+/// under the observe-adjust-lock protocol and moved here from `BLOCKED_COLOR`
+/// on 2026-09-02: the loop lamp, breathing while long-running work is in
+/// flight.
+///
+/// THE BLUE MOVED AND THE VIOLET LEFT, rather than the two trading places, so
+/// no colour nobody has looked at enters the set: this blue had already been
+/// locked on a real lamp, and the violet it displaces leaves the vocabulary
+/// entirely.
 pub const LOOP_COLOR: PulseColor = PulseColor {
-    x: 0.213,
-    y: 0.0766,
+    x: 0.1532,
+    y: 0.0475,
 };
 
 /// True when a session ran long enough to be worth a light pulse.
@@ -96,13 +111,13 @@ pub fn exit_behaviour(exit_code: &str) -> Option<crate::config::Behaviour> {
     }
 }
 
-/// The states that put a lamp on BLUE: an agent waiting on the operator.
+/// The states that hold a lamp BLOCKED: an agent waiting on the operator.
 ///
 /// IT TRADES ONE WORD WITH `missed_notifications::NEEDS_YOU` IN EACH
 /// DIRECTION. That constant is right to carry `failed`, because a turn that
 /// died needs the operator every bit as much as one that asked; the lamps must
-/// tell them apart, since red says it died and blue says it is waiting, so
-/// reusing the shared list would paint every failure blue.
+/// tell them apart, since `failed` says it died and `blocked` says it is
+/// waiting, so reusing the shared list would hold every failure blocked.
 ///
 /// AND `asking` IS ON THIS LIST ALONE. The shared list is the harness's own
 /// state words, while a lamp also has to answer for what the CONDENSER writes:
@@ -119,12 +134,12 @@ pub const LAMP_BLOCKED: [&str; 5] = ["blocked", "asked", "plan-ready", "denied",
 /// the event path used to ask whether the state was `failed` and hand the
 /// success branch an exit code of zero for everything else.
 ///
-/// `lamps_are_mapped` IS THE `[lights]` TABLE'S PRESENCE, and blue exists only
-/// behind it. Without the map there is one room-shaped pulse and two colours,
-/// which is what has shipped since the bash; a long-running turn that ends
-/// `blocked` has earned a pulse all along and flashed GREEN for it. Turning
-/// that flash blue would be a new behaviour arriving on a machine that wrote no
-/// map and asked for nothing.
+/// `lamps_are_mapped` IS THE `[lights]` TABLE'S PRESENCE, and `blocked` exists
+/// only behind it. Without the map there is one room-shaped pulse and two
+/// colours, which is what has shipped since the bash; a long-running turn that
+/// ends `blocked` has earned a pulse all along and flashed GREEN for it.
+/// Turning that flash into the blocked colour would be a new behaviour arriving
+/// on a machine that wrote no map and asked for nothing.
 ///
 /// IT IS ONE ANSWER RATHER THAN A COLOUR AND A SEPARATE OPT-IN GATE. The
 /// composition root asks this once and reads the opt-in off the answer, so
@@ -189,7 +204,7 @@ mod tests {
     fn every_waiting_state_says_blocked_and_a_failure_says_failed() {
         // THE ONE MAPPING, and the reason the lights do not reuse
         // `missed_notifications::NEEDS_YOU`: that list holds `failed`, which
-        // must read RED here. A lamp that painted a dead turn blue would tell
+        // must read RED here. A lamp that held a dead turn blocked would tell
         // the operator to come and answer a question nobody asked.
         for state in ["blocked", "asked", "plan-ready", "denied"] {
             assert_eq!(
@@ -212,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn the_condensers_own_waiting_word_lights_the_blue_lamp() {
+    fn the_condensers_own_waiting_word_lights_the_blocked_lamp() {
         // `asking` IS A REAL STATE ON EVERY CONDENSED TURN, not a corner. The
         // condenser classifies each one as done, asking or blocked
         // (`hooks::condenser_prompt`), and `asking` is its word for a turn that
@@ -230,10 +245,11 @@ mod tests {
         // because the event path asked one question ("is this failed?") and
         // handed everything else the success branch.
         //
-        // BLUE IS A FEATURE OF THE MAP, not of the state word. Without the map
-        // there is no third colour to show, no lamp that means "waiting" rather
-        // than "finished", and turning that flash blue would be a new behaviour
-        // arriving on a machine that asked for nothing.
+        // THE BLOCKED LAMP IS A FEATURE OF THE MAP, not of the state word.
+        // Without the map there is no third colour to show, no lamp that means
+        // "waiting" rather than "finished", and turning that flash into the
+        // blocked colour would be a new behaviour arriving on a machine that
+        // asked for nothing.
         for state in LAMP_BLOCKED {
             assert_eq!(
                 state_behaviour(state, false),

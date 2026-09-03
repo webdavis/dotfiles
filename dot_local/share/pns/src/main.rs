@@ -418,7 +418,7 @@ fn quota_observation_detail(notification_type: &str, message: &str) -> Option<St
 /// Claude Code's interactive-mode reference documents that after a sleep of
 /// more than about thirty minutes the session stops and reads `Your usage
 /// limit has reset - press enter to continue`, which is a wait on the operator
-/// by the same definition every other blue lamp here uses. So this calls the
+/// by the same definition every other blocked lamp here uses. So this calls the
 /// marker's own Start operation directly, a state-only file write in D1's
 /// style, rather than routing the whole event through `Attempt::First` and
 /// picking up the journal, the presence edge and the loop-lease renewal that
@@ -441,7 +441,7 @@ fn quota_observation_detail(notification_type: &str, message: &str) -> Option<St
 /// screen is already telling the operator to press Enter. Arming after the
 /// delivery plan would let an Enter inside that window clear nothing, because
 /// there would be no marker yet, and then take a marker published behind it:
-/// a blue lamp for a session that is working again, held until that turn's own
+/// a blocked lamp for a session that is working again, held until that turn's own
 /// Stop. Ordering cannot CLOSE that race, which is the harness's to close, but
 /// it shrinks the window from a plan of network legs to one file write.
 ///
@@ -492,7 +492,7 @@ fn hook_mode(event: &str) -> i32 {
         // operator typing, which answers ANY live wait their session could be
         // holding: `resolved`'s PostToolBatch signal never fires for a
         // PermissionRequest (Claude Code decides that off this hook's own
-        // stdout), so without this the lamp stayed blue until the turn's Stop,
+        // stdout), so without this the lamp stayed blocked until the turn's Stop,
         // one whole tool call after the operator had already answered.
         "prompt" => {
             start_of_turn(&payload);
@@ -850,7 +850,7 @@ fn record_missed(
     );
 }
 
-/// Start or end this session's wait on the operator, which is what the blue
+/// Start or end this session's wait on the operator, which is what the blocked
 /// lamp is derived from.
 ///
 /// ONE FILE PER WAITING SESSION, named by the session id through
@@ -867,7 +867,7 @@ fn record_missed(
 /// tool batch coming back, and each is why the two arms carry a comment of
 /// their own. The worst case left is a wait whose session produces neither
 /// before its turn ends, and the SUBAGENT RESIDUAL, which `resolved` skips by
-/// design and which therefore does hold blue until the parent's own Stop. The
+/// design and which therefore does hold blocked until the parent's own Stop. The
 /// tick's own bound is what stops an abandoned session holding it forever, and
 /// the day item 21's rebuild wires a real answered signal this consumes it at
 /// the same call site.
@@ -3051,20 +3051,20 @@ fn run_event(
     // widening it would change what every card, banner and log line says about
     // an event that earned no card. The blocked lamp is not a delivery, it is
     // a colour on a bulb, so it earns its own condition here: an agent waiting
-    // on the operator lights blue whether or not it ran long.
+    // on the operator holds blocked whether or not it ran long.
     //
     // IT NEEDS A `[lights]` TABLE, which is the opt-in, and the opt-in is read
     // off the BEHAVIOUR rather than tested a second time here: `state_behaviour`
     // only answers blocked for a mapped machine, so the colour a lamp shows
     // and the gate that lets it fire cannot come out disagreeing about one
-    // event. Without the map there is no blue to show, and a long-running
+    // event. Without the map there is no blocked lamp to show, and a long-running
     // blocked turn keeps the green it has flashed since the bash.
     //
     // AND IT RESPECTS THE SILENCE, through the same predicate arbitration uses
     // rather than a second copy of it: a muted operator gets no lamp, which is
     // the shipped rule that the lights are decoration too.
     //
-    // THIS FLASH IS NOT WHAT HOLDS THE LAMP BLUE. `pulse_render` answers
+    // THIS FLASH IS NOT WHAT HOLDS THE LAMP BLOCKED. `pulse_render` answers
     // `None` for every held behaviour, Blocked included, so this call fires
     // once, at the moment the wait begins, and does nothing after. The
     // TICK lights it off the marker `update_blocked_marker` just published,
@@ -5062,7 +5062,7 @@ fn loop_mode(verb: &str) -> i32 {
 ///
 /// LOUD, because a human is waiting on the answer and the lamp is a liveness
 /// signal: reporting that a loop has ended while its lease is still on disk
-/// leaves the violet breathing for the whole timeout with nothing behind it,
+/// leaves the loop lamp breathing for the whole timeout with nothing behind it,
 /// and the operator has been told the opposite.
 ///
 /// A LEASE THAT IS NOT THERE IS NOT A FAILURE. `pns loop end` on a machine that
@@ -9355,8 +9355,8 @@ mod tests {
              group write would reach one that answered any of the three differently"
         );
         assert!(
-            puts[0].1.contains(r#""x":0.1532"#) && puts[0].1.contains(r#""brightness":30.0"#),
-            "the arm states the blocked blue and the first fade in one write: {}",
+            puts[0].1.contains(r#""x":0.3395"#) && puts[0].1.contains(r#""brightness":30.0"#),
+            "the arm states the blocked magenta and the first fade in one write: {}",
             puts[0].1
         );
         assert!(
@@ -9788,6 +9788,13 @@ mod tests {
         // the time the first lamp's breath ended: all issued at once, late, a
         // jump rather than a breath.
         let bridge = scripted(true);
+        // TWO SHAPES THIS TEST OWNS, written out rather than read from
+        // `Lights::default()`. They equal the locked blocked and loop shapes as
+        // it happens, but the interleave asserted below is the exact due-order
+        // these two durations produce, so reading them from the defaults would
+        // rewrite the expected order every time a cadence is retuned and this
+        // test would start failing for a reason it is not about. Leave these
+        // alone when a cadence change sends you grepping for a duration.
         let quick = pns::config::Breath {
             duration_ms: 2000,
             high: 100,
@@ -10032,7 +10039,7 @@ mod tests {
         // resume taken on the fixture path alone delays it. The slow loop shape
         // lands its last fade almost four seconds past the interval that issued
         // it; the next tick, now holding BLOCKED, would wait that fade out
-        // before its first blue body reached the lamp, because the first fade of
+        // before its first blocked body reached the lamp, because the first fade of
         // every tick is the one that carries the colour. The same delay hits an
         // unread lamp that has to turn red.
         let lights = *pns::config::parse_config(
@@ -10063,7 +10070,7 @@ mod tests {
         let held_after_the_loop = read_held(&state).expect("a record this tick wrote");
 
         // TICK TWO holds BLOCKED instead. Resumed off the loop's phase it would
-        // sleep 3,400ms before its first blue body; it starts down at once
+        // sleep 3,400ms before its first blocked body; it starts down at once
         // instead, and only then keeps the blocked cadence.
         let sleeps: RefCell<Vec<Duration>> = RefCell::new(Vec::new());
         let clock = FakeClock::default();
@@ -10086,7 +10093,7 @@ mod tests {
         assert_eq!(
             sleeps.borrow().first().copied(),
             Some(Duration::from_millis(1_950)),
-            "the first blue fade is issued before anything is slept for, so the \
+            "the first blocked fade is issued before anything is slept for, so the \
              first sleep is the blocked shape's own step"
         );
     }
