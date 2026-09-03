@@ -9,10 +9,11 @@ plugin and the lazy-load pass as 68 small reviewed pull requests, ending at a ve
 
 **Architecture:** One task per pull request in the spec's section 11 order and lanes. The source is
 `dot_config/nvim/`; pure Lua under `lua/custom_api/` has headless tests in `tests/` run by
-`nvim --headless --clean -l tests/run.lua`; bash pieces are bats tested. Every PR ships a dump diff.
+`nvim --headless --clean -l tests/run.lua`; bash pieces are bats tested until the bashunit
+program's T1 lands and bashunit tested after it (spec 11). Every PR ships a dump diff.
 
-**Tech Stack:** Neovim 0.12.5, lazy.nvim, LuaJIT, bash 3.2, bats-core, chezmoi, treefmt (stylua,
-luacheck), herdr 0.8.2, herdr-nvim, pns, gh-axi.
+**Tech Stack:** Neovim 0.12.5, lazy.nvim, LuaJIT, bash 3.2, bats-core then bashunit, chezmoi,
+treefmt (stylua, luacheck), herdr 0.8.2, herdr-nvim, pns, gh-axi.
 
 **Spec:** `docs/superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md` (v4.4); every task names its
 spec sections. The 2026-09-03 amendments are folded in here too; the decision record is
@@ -23,7 +24,8 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 
 - Decision H: the import carries zero change; every fix is a later PR (spec 3.7).
 - One PR per behavior, small (operator rule 2026-08-10); at most two lanes open at once.
-- Every test passes within a second; bash tests are bats, Lua tests use the headless runner (6.3).
+- Every test passes within a second; bash tests are bats until the bashunit program's T1 lands and
+  bashunit after it, Lua tests use the headless runner (6.3).
 - We test the behavior of tools we wrote, nothing else: no plugin, chezmoi or launchd assertions.
 - No em-dashes anywhere. Markdown wraps at 105 columns. Conventional Commits, no AI trailer.
 - `trash`, never `rm`, for anything including agent scratch. No removal mechanisms in the repo.

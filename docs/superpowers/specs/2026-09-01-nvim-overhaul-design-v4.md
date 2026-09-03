@@ -1624,7 +1624,10 @@ Lanes after PR 2 and PR 3, which are strictly first and second; a lane is the su
 
 **The bashunit program (D8), which is not one of the 68.** PR 28a's Bash row depends on it, so its
 pull requests are listed here to make that cell resolve; they belong to their own program and their
-own lanes, and none of them is counted in the 68 above.
+own lanes, and none of them is counted in the 68 above. It is specified elsewhere, in
+`docs/superpowers/specs/2026-09-03-bashunit-migration-design.md` and the plan beside it, written
+investigation-first against bashunit 0.50.1; the rows below are the outline those two expand, not
+the design. Every bats test this spec still names is bats until T1 lands and bashunit after it.
 
 | PR    | Behavior                                                                                  | Depends on |
 | ----- | ------------------------------------------------------------------------------------------- | ---------- |
