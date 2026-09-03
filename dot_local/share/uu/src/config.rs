@@ -1331,6 +1331,16 @@ mod tests {
                 }],
             }))
         );
+        // THE LANE THE FILE TURNS ON, not only that the file loads. A block
+        // dropped from the template leaves a machine whose global packages
+        // quietly stop being upgraded, and a parse that still succeeds is
+        // exactly what makes that invisible.
+        assert_eq!(
+            kind(&config, "npm"),
+            Some(&LaneKind::Npm(NpmLane {
+                binary: "/stand-in/.local/share/fnm/aliases/default/bin/npm".to_string(),
+            }))
+        );
     }
 
     /// The template's commented `[lanes.example]` block, uncommented by
