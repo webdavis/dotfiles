@@ -86,6 +86,11 @@ Library
 .config/pns
 # And so is the /pns: plugin, which is nothing but commands for that engine.
 .claude/pns-marketplace
+# The /strategy: plugin is macOS-only for a different reason: it is a second
+# DIRECTORY marketplace, and a marketplace whose path is absent fails its
+# refresh at every startup, so the declaration in modify_settings.json is
+# darwin-gated and this has to agree with it.
+.claude/strategy-marketplace
 # uu rides on the pns engine for alerts and on its hermes client for records,
 # so it is macOS-only for the same reasons and its builder is darwin-gated too.
 .local/libexec/uu
