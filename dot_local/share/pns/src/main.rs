@@ -1254,7 +1254,9 @@ fn replay_missed(
 /// rather than as a recap of nothing: the count would be zero, and zero is
 /// under every threshold.
 fn activity_in(since: u64, until: u64) -> Vec<pns::missed_notifications::Entry> {
-    let Ok(contents) = readable_ring(&state_dir().join(ACTIVITY), ACTIVITY_READ_MAX) else {
+    let Ok(contents) =
+        pns::system::readable_state_file(&state_dir().join(ACTIVITY), ACTIVITY_READ_MAX)
+    else {
         return Vec::new();
     };
     pns::missed_notifications::entries(&contents)
@@ -1764,7 +1766,7 @@ fn take_claim(claim: &Path) -> Claimed {
     if std::fs::rename(claim, &held).is_err() {
         return Claimed::Nothing;
     }
-    let Ok(contents) = readable_ring(&held, RING_READ_MAX) else {
+    let Ok(contents) = pns::system::readable_state_file(&held, RING_READ_MAX) else {
         return Claimed::LeftForAdoption;
     };
     if std::fs::remove_file(&held).is_err() {
@@ -1903,7 +1905,7 @@ fn append_ring_line(path: &Path, line: &str, kept: usize, read_max: u64) -> std:
         .open(path)?
         .write_all(format!("{separator}{line}\n").as_bytes())?;
 
-    let contents = match readable_ring(path, read_max) {
+    let contents = match pns::system::readable_state_file(path, read_max) {
         Ok(contents) => contents,
         // THE HEAL. What could not be read back cannot be pruned either, so
         // leaving it would leave the ring unbounded from here on. The line
@@ -1970,45 +1972,6 @@ fn ends_mid_line(path: &Path) -> std::io::Result<bool> {
     let mut last = [0u8; 1];
     ring.read_exact(&mut last)?;
     Ok(last[0] != b'\n')
-}
-
-/// One of this tool's state files read back whole, or the reason it was
-/// refused: nothing at the path, something there that is not a regular file,
-/// too large to pull into memory, or bytes no reader can decode.
-///
-/// EVERY READER OF THESE FILES GOES THROUGH IT, the prune's read-back and the
-/// doctor's two sections alike, because a raw `read_to_string` on a path an
-/// operator, a backup tool or another program can reach is the same two bugs
-/// wherever it is written. A FIFO parks the open forever, for READING as much
-/// as for writing, which wedges the hook that appended or the command a human
-/// is waiting on. A file some other hand grew to gigabytes is otherwise
-/// learned about by allocating it.
-///
-/// `symlink_metadata`, so the link itself is judged rather than whatever it
-/// points at, matching the append's own refusal a few lines up. The SIZE IS
-/// CHECKED FIRST for the reason above; `read_max` is the CALLER'S ceiling, far
-/// above anything that caller writes and far below a size worth reading, so
-/// only a file some other hand left there can reach it.
-///
-/// THE REFUSALS ARE `io::Error`s rather than an absence, so a caller that has
-/// to tell "there is no file" from "the file could not be read" still can:
-/// the doctor says a different sentence for each, and the prune heals on
-/// either.
-fn readable_ring(path: &Path, read_max: u64) -> std::io::Result<String> {
-    let found = std::fs::symlink_metadata(path)?;
-    if !found.is_file() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "the state file is not a regular file",
-        ));
-    }
-    if found.len() > read_max {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::FileTooLarge,
-            "the state file is larger than this reads",
-        ));
-    }
-    std::fs::read_to_string(path)
 }
 
 /// The most of the decision ring or the journal that is ever read into memory.
@@ -2426,6 +2389,39 @@ fn system_probes() -> SystemProbes<SystemCommandRunner> {
         )
         .to_string_lossy()
         .into_owned(),
+    )
+    // OFF `state_dir`, which is where the daemon publishes it and which
+    // `PNS_STATE_DIR` already redirects, so the reading follows a sandboxed
+    // run without a second environment knob of its own.
+    .with_presence_path(
+        state_dir()
+            .join(pns::presence_file::STATE_FILE)
+            .to_string_lossy()
+            .into_owned(),
+    )
+}
+
+/// What the room sensor reads right now, off ONE probe set: the line and the
+/// clock it is aged against come from the same set, so the two cannot
+/// straddle a boundary.
+///
+/// A TABLE THIS COULD NOT READ IS NO READING, never a room: the refusal was
+/// already printed, and inventing a room out of settings nobody could parse
+/// is the fail-open this whole reading is shaped to avoid.
+fn presence_status(settings: Option<&pns::config::Presence>) -> pns::presence::PresenceStatus {
+    let Some(settings) = settings else {
+        return pns::presence::PresenceStatus::Unknown(pns::presence::Unreadable::NoReading);
+    };
+    let probes = system_probes();
+    pns::presence::classify(
+        probes
+            .presence_line()
+            .as_deref()
+            .and_then(pns::presence_file::parse_presence_line),
+        probes.now_secs(),
+        settings.stale_after_secs,
+        &settings.rooms,
+        &settings.exclude,
     )
 }
 
@@ -4207,6 +4203,22 @@ fn doctor_mode() -> i32 {
             eprintln!("{warning}");
         }
     }
+    // THE ROOM SENSOR'S OWN SETTINGS, read here because the census below has
+    // one line to print about them. A refusal is LOUD and leaves the reading
+    // absent rather than half-honoured.
+    let presence_settings = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => match pns::config::parse_presence(config) {
+            Ok(settings) => settings,
+            Err(error) => {
+                eprintln!(
+                    "pns: config error ({}); the room sensor is unread",
+                    error.detail()
+                );
+                None
+            }
+        },
+        _ => None,
+    };
     let registry = roster();
     // WHAT LOADING FOUND, taken BEFORE `select_plugins` consumes it: the
     // census reports a plugin the selection left out, and which sentence is
@@ -4267,6 +4279,11 @@ fn doctor_mode() -> i32 {
                 pns::doctor::Outcome::Failed(NO_HUE_BRIDGE_LINE.to_string())
             }
             pns::doctor::CheckKind::Pulse => pulse_outcome(hue_table.clone()),
+            // A READING, NEVER A SEND: nothing is dispatched to a sensor, and
+            // what an operator cannot see any other way is what it says now.
+            pns::doctor::CheckKind::Presence => {
+                pns::doctor::Outcome::Presence(presence_status(presence_settings.as_ref()))
+            }
             // BY NAME, never by position. The legs above are these checks in
             // this order and `dispatch_legs` answers one outcome per leg, so
             // the two agree today; a positional pairing that ever stopped
@@ -7261,7 +7278,7 @@ const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
 /// operator came to read out of the ring by the act of going to look at it.
 fn decision_section() -> Vec<String> {
     let now = now_secs();
-    match readable_ring(&state_dir().join(DECISIONS), RING_READ_MAX) {
+    match pns::system::readable_state_file(&state_dir().join(DECISIONS), RING_READ_MAX) {
         Ok(contents) => pns::decision_log::section(Some(&contents), now),
         // ABSENT IS ITS OWN STATE, and the one the section has an honest line
         // for. Anything else is a directory or a permission problem, which is
@@ -7293,7 +7310,7 @@ const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be re
 /// and a doctor that still named "the next event" would be telling the
 /// operator a lie their own setting makes permanent.
 fn missed_line(replay_card: bool) -> String {
-    match readable_ring(&state_dir().join(MISSED_NOTIFICATIONS), RING_READ_MAX) {
+    match pns::system::readable_state_file(&state_dir().join(MISSED_NOTIFICATIONS), RING_READ_MAX) {
         Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents), replay_card),
         // ABSENT IS ITS OWN STATE, and the one the line has an honest sentence
         // for. Anything else is a directory or a permission problem, which is
@@ -8963,7 +8980,7 @@ struct FocusReading {
 /// the same direction. It is reported rather than errored for exactly that
 /// reason, and the doctor says it in a clause of its own.
 ///
-/// READ THROUGH `readable_ring` for the reasons that function states about
+/// READ THROUGH `readable_state_file` for the reasons that function states about
 /// this tool's own files, which hold for a foreign one just as well: a FIFO at
 /// the path would park the event forever, and a file some other hand grew is
 /// otherwise learned about by allocating it. The live store is 6 KiB against
@@ -8976,8 +8993,10 @@ fn focus_now(home: &str, silence: &[String]) -> std::io::Result<FocusReading> {
         });
     }
     let store = Path::new(home).join(FOCUS_DB);
-    let assertions = readable_ring(&store.join("Assertions.json"), RING_READ_MAX)?;
-    let catalog = readable_ring(&store.join("ModeConfigurations.json"), RING_READ_MAX);
+    let assertions =
+        pns::system::readable_state_file(&store.join("Assertions.json"), RING_READ_MAX)?;
+    let catalog =
+        pns::system::readable_state_file(&store.join("ModeConfigurations.json"), RING_READ_MAX);
     Ok(FocusReading {
         silenced: pns::focus::silenced(
             &pns::focus::active_modes(&assertions),

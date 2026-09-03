@@ -28,6 +28,7 @@ pub mod lights;
 pub mod missed_notifications;
 pub mod nag;
 pub mod presence;
+pub mod presence_file;
 pub mod probes;
 pub mod pulse;
 pub mod quiet;

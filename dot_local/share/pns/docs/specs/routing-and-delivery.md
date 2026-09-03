@@ -240,19 +240,24 @@ Given an operator config with `[plugins.<name>]` tables
 When `Registry::enabled` runs
 
 Then a name nothing registered is refused as `RegistryError::UnknownPlugin(name)` whether or not it is
-switched on, and the result is a `Selection` in REGISTRATION order whatever order the config listed.
+switched on, a plugin switched on without the one it borrows a credential from is refused as
+`RegistryError::Unsatisfied { plugin, needs }` naming both, and the result is a `Selection` in
+REGISTRATION order whatever order the config listed.
 
 - **Success:** `Selection`'s inner list is private with no public constructor, so a `Selection` can only
   come out of `Registry::enabled`, `Registry::all` or `Registry::core` (`src/registry.rs:Selection`).
   Fabricated registrations cannot reach routing.
 - **Failure sources:** A config typo. Two plugins claiming one name, refused at registration as
-  `RegistryError::Duplicate(name)`.
+  `RegistryError::Duplicate(name)`. A borrowed credential the config did not switch on: `REQUIRES` pairs
+  `presence` with `hue`, because the room sensor reads the bridge through `[plugins.hue]`'s own address
+  and key rather than declaring its own (`src/registry.rs:REQUIRES`).
 - **Fail direction:** Loud. A typo'd plugin name that silently no-ops is a notification quietly turned
   off (`src/registry.rs` module comment). `build_registry` PANICS on a refused registration, which is
   safe on an always-exit-0 path because the only reachable refusal is a duplicate name in a compiled-in
   const.
-- **Thresholds:** `ROSTER` has exactly 5 entries and `CORE` exactly 2, both typed as fixed-size arrays
-  (`src/registry.rs:ROSTER`, `src/registry.rs:CORE`).
+- **Thresholds:** `ROSTER` has exactly 6 entries, `REQUIRES` exactly 1 pair and `CORE` exactly 2, all
+  typed as fixed-size arrays (`src/registry.rs:ROSTER`, `src/registry.rs:REQUIRES`,
+  `src/registry.rs:CORE`).
 - **Required side effects:** None from the registry itself.
 - **Forbidden side effects:** No IO.
 - **Timeout and cancellation:** Not applicable.

@@ -165,6 +165,55 @@ pub const LAYOUT: &[Table] = &[
         ],
     },
     Table {
+        name: "plugins.presence",
+        prose: "# Which room you are in, read off the bridge's per-room motion roll-up so\n\
+                 # the lamp that signals is the one beside you. A SENSOR, not a\n\
+                 # destination: no event routes to it. It reads the bridge through\n\
+                 # [plugins.hue] above, so switching this on with that one off is refused\n\
+                 # by name.\n",
+        opt_in: true,
+        keys: &[
+            Key {
+                name: "enabled",
+                prose: "",
+                sample: Sample::Default("true"),
+            },
+            Key {
+                name: "type",
+                prose: "# Which compiled-in backend answers. \"hue\" is the only one today, and a\n\
+                         # table naming none, or naming one nothing answers, is refused out loud.\n",
+                sample: Sample::Default("\"hue\""),
+            },
+            Key {
+                name: "rooms",
+                prose: "# The rooms a reading may name, spelled the way the bridge spells them. A\n\
+                         # room with no motion sensor or MotionAware area never reports, and an\n\
+                         # empty list watches nothing at all.\n",
+                sample: Sample::Example("[]"),
+            },
+            Key {
+                name: "exclude",
+                prose: "# Rooms whose presence is discarded even when they are listed above: a\n\
+                         # room you pass through, or one you never want lit.\n",
+                sample: Sample::Example("[]"),
+            },
+            Key {
+                name: "poll_secs",
+                prose: "# How often the bridge is read, in seconds, bounded 2 to 60.\n",
+                sample: Sample::Default("5"),
+            },
+            Key {
+                name: "stale_after_secs",
+                prose: "# How old that read may be before there is no reading at all. A BRIDGE\n\
+                         # THAT STOPPED ANSWERING IS UNKNOWN, never \"present\" and never \"away\":\n\
+                         # presence only ever narrows which lamp signals, so not knowing costs\n\
+                         # the narrowing and nothing else. It may not be under poll_secs, or\n\
+                         # every reading would age out before the next read replaced it.\n",
+                sample: Sample::Default("15"),
+            },
+        ],
+    },
+    Table {
         name: "plugins.router",
         prose: "# The home probe: whether the phone is on the home wifi, answered by the\n\
                  # router's own client list. A SENSOR rather than a destination, so no\n\
@@ -1616,6 +1665,43 @@ mod tests {
         );
         let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
         assert!(config.plugins["hermes"].enabled);
+    }
+
+    #[test]
+    fn a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor() {
+        // THE WHOLE ROUND TRIP, because the three statements of this table (the
+        // layout that writes it, the roster that admits its keys, and the
+        // registry that selects its name) are three edits and nothing else
+        // holds them together.
+        let mut presence = toml::Table::new();
+        presence.insert(
+            "rooms".to_string(),
+            toml::Value::Array(vec![toml::Value::String("3F - Studio".to_string())]),
+        );
+        let mut plugins = toml::Table::new();
+        plugins.insert("presence".to_string(), toml::Value::Table(presence));
+        plugins.insert("hue".to_string(), toml::Value::Table(toml::Table::new()));
+        let mut values = toml::Table::new();
+        values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+        let text = render(&values).expect("an armed presence table renders");
+        let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+        let settings = crate::config::parse_presence(&config)
+            .unwrap_or_else(|error| panic!("{error:?}\n{text}"))
+            .expect("the table is on");
+        assert_eq!(settings.rooms, vec!["3F - Studio".to_string()]);
+        assert_eq!(
+            (settings.poll_secs, settings.stale_after_secs),
+            (5, 15),
+            "the written defaults are the ones the reader takes"
+        );
+        let selected: Vec<&str> = crate::registry::roster()
+            .enabled(&config)
+            .expect("hue is written beside it")
+            .iter()
+            .map(|entry| entry.name)
+            .collect();
+        assert!(selected.contains(&"presence"), "{selected:?}");
     }
 
     #[test]
