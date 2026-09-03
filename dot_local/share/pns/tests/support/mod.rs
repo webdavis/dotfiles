@@ -53,6 +53,14 @@ const TEST_CEILING_MS: u128 = 5_000;
 /// reading), which is the most a single data point supports. A CI sandbox
 /// that ever passes 20 s is evidence this number was wrong rather than a
 /// reason to raise it again: re-measure the ratio first.
+///
+/// KNOWN COST, because 20 s sits ABOVE this harness's own 10 s deadlines
+/// (`poll_until`, and the capture stream's read timeout): a test that
+/// regresses into ONE hung poll spends ~10 s and now PASSES in CI, where it
+/// still fails here. CI keeps catching two stacked ones, a real hang, and
+/// anything structurally worse. That is the price of a gate that stopped
+/// failing unrelated pull requests, and the single-poll case is still caught
+/// by a local `just test-rust`.
 const CI_CEILING_FACTOR: u128 = 4;
 
 /// Whether a sandbox that lived `elapsed_ms` has earned the review warning.
