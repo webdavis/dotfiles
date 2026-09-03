@@ -428,17 +428,21 @@ SORT_NVIM_WINS='{"kind":"keymap","mode":"n","lhs":"[s","buffer":0,"desc":"Previo
 {"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"Next delimiter","noremap":1,"silent":1,"expr":1,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/motions.lua:68>"}
 {"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}
 {"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"Around sortable region","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@/Users/stephen/.local/share/nvim/lazy/sort.nvim/lua/sort/textobjects.lua:104>"}'
-TEXTOBJECTS_WINS='{"kind":"keymap","mode":"n","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
-{"kind":"keymap","mode":"n","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
-{"kind":"keymap","mode":"o","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
-{"kind":"keymap","mode":"o","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
-{"kind":"keymap","mode":"o","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}
-{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
-{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:123>"}
-{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
-{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:122>"}
-{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}
-{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/util.lua:141:fn:@<config>/lua/plugins/treesitter.lua:97>"}'
+# The closure's own address is baked into TEXTOBJECTS_WINS below, and check_racing_variant is a
+# HARD gate. PR 7e moved that closure from custom_api/util.lua:141 to custom_api/keymap.lua:114
+# and these rows moved with it. An edit ABOVE the closure in keymap.lua moves it again and makes
+# this gate FATAL on a correct run, so repoint these rows in the same commit.
+TEXTOBJECTS_WINS='{"kind":"keymap","mode":"n","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"n","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"o","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"o","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"o","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:97>"}
+{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"x","lhs":"[s","buffer":0,"desc":"previous local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:123>"}
+{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"x","lhs":"]s","buffer":0,"desc":"next local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:122>"}
+{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:97>"}
+{"kind":"keymap","mode":"x","lhs":"as","buffer":0,"desc":"local scope","noremap":1,"silent":1,"expr":0,"nowait":0,"rhs":"<callback:@<config>/lua/custom_api/keymap.lua:114:fn:@<config>/lua/plugins/treesitter.lua:97>"}'
 check_racing_variant() {
   local label="$1" file="$2" subset
   subset="$(grep -E "$RACING" "$file" | sort)"
@@ -795,13 +799,28 @@ deleted, and `helpers.lua` with them once `pack` has no caller.
   keymap at `git.lua:997` calls `git.default_branch()` and falls through to `github.default_branch`
   with `github.repo()`'s owner and name. That closes #4 and #4b.
 - `map` and `overseer_runner` move out of `util.lua` into `custom_api/keymap.lua` and
-  `custom_api/overseer.lua`; `util.lua` keeps the string helpers and `run_shell_command`. The
-  redundant closure in `map` (`util.lua:141-147`) is dropped: `vim.keymap.set` handles a string or a
-  function `rhs` natively.
+  `custom_api/overseer.lua`; `util.lua` keeps the string helpers and `run_shell_command`. **The
+  closure in `map` (`util.lua:141-147`) STAYS.** An earlier revision of this section called it
+  redundant, on the grounds that `vim.keymap.set` handles a string or a function `rhs` natively. That
+  is true of a function and FALSE of a string: `vim.keymap.set` takes a string `rhs` as a KEY SEQUENCE
+  typed in the target mode, never as an Ex command, so the closure's `vim.cmd(rhs)` branch is the only
+  reason a bare command string runs anything. Measured 2026-09-02 with a user command `ProbeRan` and
+  two mappings under `nvim --headless --clean -l`: the direct form
+  (`vim.keymap.set("n", lhs, "ProbeRan", opts)`) left the command unrun and typed `P`, `r`, `o` instead
+  (`E353: Nothing in register "`), while the same `rhs` through the closure ran it. 95 mappings in this
+  config pass a bare command string (`vnew`, `quit`, `qa!`, `Git status -sb`, `Lazy sync`,
+  `AerialToggle`, `Mason`, `GBrowse`), and a `sequence = true` mapping already bypasses the closure,
+  which is what that flag is for. Deleting it was also self-contradictory as a zero-behavior-change
+  step: `dump_state.lua` fingerprints the closed-over `rhs` upvalue precisely to tell these mappings
+  apart, so the deletion moves 274 dump rows (measured against the shipped tree), 95 of them changing
+  from `<callback:...:str:quit>` to a literal `"quit"`. The closure's `type(rhs) == "function"` branch
+  IS redundant on its own, but dropping only that half still moves those rows, so it is its own task
+  with its own evidence rather than a rider on a move.
 - `latest_commit` returns `({ hash, summary, body }, err)`.
 - No module does anything on `require` beyond building its table.
-- `copy_URL_to_clipboard` becomes `copy_url_to_clipboard` (decision E); the one caller is
-  `git.lua:33`.
+- `copy_URL_to_clipboard` becomes `copy_url_to_clipboard` (decision E). It lives in
+  `lua/custom_api/git.lua:282`, exported at `:334`, NOT in `util.lua`, so its spec assertion belongs in
+  `git_spec`; the one caller is `lua/plugins/git.lua:35`.
 
 ### 6.3 Headless Lua tests, run from the source tree
 

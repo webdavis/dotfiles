@@ -90,9 +90,9 @@ local function project_keymap(m)
     -- shows up as a changed row instead of comparing equal (amendment I6).
     local info = debug.getinfo(m.callback, "Su")
     local fingerprint = string.format("%s:%d", normalize_source(info.source), info.linedefined or -1)
-    -- custom_api.util's `map()` wraps every mapping whose rhs is not a bare Vim
+    -- custom_api.keymap's `map()` wraps every mapping whose rhs is not a bare Vim
     -- command in the SAME literal closure, defined once at one fixed line
-    -- (util.lua:141 today). Source+line alone therefore fingerprints every one
+    -- (keymap.lua:114 today). Source+line alone therefore fingerprints every one
     -- of those wrapped mappings identically regardless of the action it runs:
     -- 305 real mappings collapsed to one row, and changing `<leader>00` from
     -- `quit` to `quit!` produced no diff (sol finding 1). Fingerprint what the
