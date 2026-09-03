@@ -249,6 +249,23 @@ the roster is declared, the per-plugin disable state is read back out of the liv
 model, the plugin-state trade and the corrupt-file recovery path are in
 `docs/runbooks/claude-code-settings.md`.
 
+### Codex settings
+
+`private_dot_codex/modify_private_config.toml` is the same mechanism for `~/.codex/config.toml`, which
+Codex rewrites from its own model while it runs. Stable fields are overwritten on every apply (model and
+reasoning, sandbox and approval policy, `notify`, `[features]`, `[memories]`, `tui.vim_mode_default`, the
+two git marketplaces and the four MCP servers this repo declares), everything else drifts freely, and
+`[projects.*]` is the third case: the roster of trusted roots is declared and every undeclared live entry
+is preserved.
+
+**`[hooks.state]` is hook trust and is never written from source.** It is only ever read back out of the
+live file, because a snapshot in version control would let an apply silently re-grant trust the operator
+revoked at the Codex prompt; a fresh machine renders none of it and Codex re-prompts, which is correct. A
+no-op apply emits the live file back byte for byte instead of re-serializing, so `just d` stays quiet.
+`fromToml` hard errors on input that is not TOML and a modify-template that errors aborts the WHOLE
+apply, so `.chezmoiscripts/run_before_13-quarantine-unparseable-codex-config.sh` moves an unparseable
+file into `~/workspaces/backups` first, at the cost of every hook approval on the machine.
+
 ### Agent skills (cross-harness store)
 
 `~/.agents/skills` is the single canonical skills store (37 roster skills), serving Claude Code (chezmoi
