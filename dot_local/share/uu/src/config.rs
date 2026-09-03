@@ -1454,11 +1454,19 @@ mod tests {
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
         ];
         assert_eq!(LANE_TYPES.len(), fixtures.len());
-        for (kind, text) in fixtures {
-            assert!(
-                parse_config(text).is_ok(),
-                "the roster names `{kind}` but the parser refuses its minimal block"
-            );
+        for (lane_type, text) in fixtures {
+            let config = parse_config(text).unwrap_or_else(|error| {
+                panic!("the roster names `{lane_type}` but the parser refuses its block: {error:?}")
+            });
+            // AND CALLS ITSELF WHAT THE ROSTER CALLS IT. Each fixture block
+            // names its lane after its own type, and `type_name` is the word
+            // doctor prints beside the lane, so a kind wired to the wrong
+            // literal there tells the operator a lane is something it is not.
+            let lane = config
+                .lanes
+                .get(*lane_type)
+                .expect("each fixture names its lane after its type");
+            assert_eq!(lane.kind.type_name(), *lane_type);
         }
     }
 }

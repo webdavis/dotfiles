@@ -211,8 +211,12 @@ mod tests {
     }
 
     #[test]
-    fn a_clean_upgrade_is_one_recorded_line_and_no_failure() {
-        let report = run_npm("npm", &lane(), &StubRunner::clean());
+    fn a_clean_upgrade_is_one_recorded_line_under_the_lanes_own_name() {
+        // THE LANE'S OWN NAME, never the type's: `[lanes.globals]` with
+        // `type = "npm"` is recorded and alerted as `globals`, and a report
+        // carrying a hardcoded `npm` would name a lane nobody declared.
+        let report = run_npm("globals", &lane(), &StubRunner::clean());
+        assert_eq!(report.name, "globals");
         assert_eq!(report.failures, 0);
         assert_eq!(report.last_failure, None);
         assert_eq!(report.lines, vec![format!("{NPM} update -g: ok")]);
