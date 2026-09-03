@@ -859,7 +859,13 @@ of 7.3 is: a research document with an outcome table, and no install in the eval
   `<leader>Ac`, `<leader>As` and `<leader>AS` do not already give.
 
 Not adopted, recorded so they are not proposed again: `sidekick.nvim` (dormant since 2026-04-22) and
-`md-render` (it needs Ghostty's OSC 66 support).
+`delphinus/md-render.nvim`, REJECTED by the operator on 2026-09-03 ("I will stick with markview"), so
+it gets no evaluation task either. `OXY2DEV/markview.nvim` stays as the in-buffer renderer. The
+reason is not a missing terminal capability, which an earlier revision of this line claimed: Ghostty
+does support the graphics protocol md-render wants. It is that the markdown here is notes, specs and
+pull request bodies, where images are rare, and that md-render is one maintainer whose own caveats
+say scaled headings are Kitty-only and drop to plain on any repaint. `markdown-preview.nvim` and
+`markdown-plus.nvim` are unaffected; neither overlaps.
 
 ## 6. The `custom_api` redesign and its tests
 
