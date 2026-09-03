@@ -216,6 +216,12 @@ return {
     assert(err:find("repo_name", 1, true), "the message does not name repo_name: " .. err)
   end,
 
+  ["copy_URL_to_clipboard is spelled copy_url_to_clipboard"] = function()
+    -- Decision E: the acronym is lowercased like every other name in this API.
+    assert(git.copy_URL_to_clipboard == nil, "the old spelling is still " .. type(git.copy_URL_to_clipboard))
+    assert(type(git.copy_url_to_clipboard) == "function", "copy_url_to_clipboard is missing")
+  end,
+
   ["url names the argument it actually wants"] = function()
     -- It wanted `account_name` and said `user` (item 20).
     local ok, err = pcall(git.url, { remote = "origin", repo_name = "dotfiles" })
