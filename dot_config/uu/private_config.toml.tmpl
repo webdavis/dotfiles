@@ -68,6 +68,18 @@ type = "npm"
 binary = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/npm"
 deadline_secs = 21600
 
+# Every tool uv installed, upgraded in place, weekly: `uv tool upgrade --all`
+# is already the whole roster, so there is nothing to list here. uv narrates on
+# stderr, which a clean run drops, so a clean week records one ok line and
+# nothing else; the exit code is the verdict. A uv that is not installed at the
+# path below is a FAILURE rather than the quiet skip the old weekly job made of
+# it, because a declared lane that upgrades nothing is the thing worth hearing
+# about.
+[lanes.uv]
+type = "uv"
+binary = "/opt/homebrew/bin/uv"
+deadline_secs = 21600
+
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
 # locked contract (a JSON run event on stdin, the exit code as the verdict),
 # with no core code to touch. Uncomment and rename the block to turn one on;
