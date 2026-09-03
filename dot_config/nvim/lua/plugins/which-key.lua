@@ -32,7 +32,7 @@ return {
         { "<leader>b", group = "buffer" },
         { "<leader>c", group = "format／lint" },
         { "<leader>cz", group = "freeze" },
-        { "<leader>d", group = "delegate" },
+        { "<leader>d", group = "do" },
         { "<leader>D", group = "debug" },
         { "<leader>Dp", group = "profiler" },
         { "<leader>e", group = "file exploration" },
