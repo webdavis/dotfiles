@@ -54,7 +54,6 @@ that pulled in a module with a side effect at load ran that side effect too earl
 - `keymap` — `map()`, the global keymap helper
 - `git` — Git CLI wrappers (branch parsing, URL generation, protocol conversion)
 - `github` — GitHub CLI (`gh`) integration for account/repo info
-- `delegate` — Tmux delegate window management (send commands/selections to a tmux pane)
 - `try`: the keymap-layer error boundary; turns a raise or a `nil, message` result into one notification
 
 ### The `map()` function

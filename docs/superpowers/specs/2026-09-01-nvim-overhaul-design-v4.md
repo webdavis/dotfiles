@@ -871,7 +871,8 @@ say scaled headings are Kitty-only and drop to plain on any repaint. `markdown-p
 ## 6. The `custom_api` redesign and its tests
 
 v3 section 1 stands as the design; this section restates only what the plan needs and adds the test
-harness. `delegate.lua` leaves in PR 8; `init.lua` drops its `M.delegate` line.
+harness. `delegate.lua` leaves in PR 8; the `init.lua` umbrella that re-exported it is already
+gone (7.1).
 
 ### 6.1 Errors (item 54)
 
