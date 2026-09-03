@@ -1295,6 +1295,16 @@ mod tests {
                 }],
             }))
         );
+        // THE LANE THE FILE TURNS ON, not only that the file loads. A block
+        // dropped from the template leaves a machine whose uv tools quietly
+        // stop being upgraded, and a parse that still succeeds is exactly
+        // what makes that invisible.
+        assert_eq!(
+            kind(&config, "uv"),
+            Some(&LaneKind::Uv(UvLane {
+                binary: "/opt/homebrew/bin/uv".to_string(),
+            }))
+        );
     }
 
     /// The template's commented `[lanes.example]` block, uncommented by
