@@ -640,12 +640,12 @@ Brief: `brief-nvim-github-account.md`. Closes 1.
 
 ### Task 15: PR 7e, split `map` and `overseer_runner` out of util (spec 6.2)
 
-Lane: custom_api. Depends on: PR 7d (`custom_api/util.lua`, `custom_api/init.lua` after PR 6). Brief:
+Lane: custom_api. Depends on: PR 7d (`custom_api/util.lua` after PR 6). Brief:
 `brief-nvim-split-util.md`. Closes 57.
 
 **Files:** Create `lua/custom_api/keymap.lua` (`map`), `lua/custom_api/overseer.lua`
 (`overseer_runner`). Modify `lua/custom_api/util.lua` (keeps the string helpers and
-`run_shell_command`), `lua/custom_api/init.lua`, every caller of `map` and `overseer_runner`.
+`run_shell_command`), every caller of `map` and `overseer_runner`.
 
 **Interfaces:** `custom_api.keymap.map({ mode, lhs, rhs, desc })` keeps the closure at
 `util.lua:141-147`, which moves with it and lands at `keymap.lua:114`. Spec 6.2 called that closure
@@ -691,9 +691,10 @@ and `lua/plugins/git.lua:36` (the one caller: it sits at `:35` on this task's ba
 Lane: custom_api. Depends on: PR 7f, PR 4c (`which-key.lua`). Brief: `brief-nvim-delete-delegate.md`.
 Closes 6, 10, 61.
 
-**Files:** Delete `lua/custom_api/delegate.lua`. Modify `lua/custom_api/init.lua` (drop
-`M.delegate`), `lua/config/keymaps.lua:6` (drop the `setup()`), `lua/plugins/which-key.lua`
-(`<leader>d` group "do").
+**Files:** Delete `lua/custom_api/delegate.lua`. Modify `lua/config/keymaps.lua:6` (drop the
+`setup()`) and `lua/plugins/which-key.lua` (`<leader>d` group "do"). There is no
+`lua/custom_api/init.lua` left to edit: the shell-safety follow-up deleted the umbrella so that
+nothing loads `delegate.lua` before `vim.g.mapleader` is set.
 
 - [ ] **Step 1:** the three edits plus the delete in one commit: `refactor(nvim): delete delegate.lua
   and rename the <leader>d group to do`.

@@ -29,7 +29,7 @@ are in `.luacheckrc`.
 **Loading order** (`init.lua`):
 
 1. Optional profiling setup (`PROFILE=1 nvim`)
-1. `custom_api` loaded; `map()` set as global (`_G.map`)
+1. `custom_api.keymap` loaded; `map()` set as global (`_G.map`)
 1. `config/options.lua` → `config/keymaps.lua` → `config/autocmds.lua` → `config/lazy.lua`
 
 **Plugin system**: lazy.nvim loads all specs from `lua/plugins/`. Each plugin file returns a lazy.nvim
