@@ -21,6 +21,10 @@ run_spec() {
   [[ "$output" == *"ok $1:"* ]]
 }
 
+@test "custom_api auto_reload_spec passes" {
+  run_spec auto_reload_spec
+}
+
 @test "custom_api util_spec passes" {
   run_spec util_spec
 }
