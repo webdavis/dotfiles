@@ -38,25 +38,36 @@
   fresh machine there is nothing to read and the rendered file carries NO
   [hooks.state] at all: Codex re-prompts, which is the correct outcome.
 
-  THE LAYOUT IS NORMALIZED, and that is a real cost rather than a detail. The
-  merged document is re-serialized by toToml, which sorts every key and indents
-  nested tables, where Codex writes flat and in its own insertion order. The two
-  never agree, so this file shows a large `chezmoi diff` whenever Codex has
-  touched it since the last apply, and the diff is layout rather than drift.
-  Comparing the two PARSED documents is the way to see real drift.
+  A NO-OP APPLY IS QUIET. When the overlays change nothing, the live file is
+  emitted back byte for byte instead of being re-serialized, so `chezmoi diff`
+  and `just d` print nothing at all. See the branch at the foot of this file for
+  why that is a correctness property and not a nicety. When something HAS
+  drifted, the write is a full toToml re-serialization and the layout changes
+  with it, so that one diff mixes the drift with a few hundred lines of
+  reordering. Comparing the two PARSED documents is the way to read it.
 
   KNOWN LIMIT: a live file that is non-empty and does not parse aborts the
   WHOLE apply from here, taking every later target and every run_after_ script
   with it, because fromToml hard errors on bad input (measured 2026-09-03,
   chezmoi 2.72.1) and Go's text/template has no recover. An EMPTY or
   whitespace-only file is fine: fromToml returns an empty map for it. The
-  Claude settings path repairs the unparseable case with a quarantine script
-  running before the template; nothing equivalent exists here yet.
+  repair therefore runs BEFORE this template, in
+  .chezmoiscripts/run_before_13-quarantine-unparseable-codex-config.sh, which
+  moves an unparseable file into ~/workspaces/backups and leaves an empty file
+  for this template to rebuild from. What that move costs is [hooks.state]:
+  it is READ from the live file rather than declared here, so a quarantine
+  drops every hook approval and Codex re-prompts for all of them. That is the
+  safe direction to fail, and the script says so at the time.
 */ -}}
 {{- /* .chezmoi.stdin is only set when chezmoi runs the modify template against
        a real target file, so safe access keeps this renderable under
-       `chezmoi execute-template` for ad-hoc testing. */ -}}
-{{- $stdin := index .chezmoi "stdin" | default "" | trim -}}
+       `chezmoi execute-template` for ad-hoc testing.
+
+       Kept BOTH trimmed and raw. The trimmed copy is what gets parsed, and the
+       raw copy is what a no-op apply emits back byte for byte, trailing newline
+       included. */ -}}
+{{- $raw := index .chezmoi "stdin" | default "" -}}
+{{- $stdin := $raw | trim -}}
 {{- $merged := fromToml $stdin -}}
 {{- $home := .chezmoi.homeDir -}}
 
@@ -176,4 +187,20 @@
 {{- end -}}
 {{- $merged = set $merged "projects" $projects -}}
 
+{{- /* A NO-OP APPLY EMITS THE LIVE FILE BACK UNCHANGED, and that is the whole
+       reason this branch exists rather than always serializing. toToml sorts
+       every key and indents nested tables, where Codex writes flat and in its
+       own insertion order, so an unconditional re-serialize rewrites the file
+       after every Codex session and buries real drift under several hundred
+       lines of layout in `chezmoi diff` and `just d`. The operator's standing
+       ruling is that a no-op apply prints nothing.
+
+       The comparison is against a SECOND, FRESH parse of the same stdin, never
+       against a copy taken earlier: setValueAtPath and set both mutate the map
+       they are handed, so a snapshot taken before the overlays would have been
+       mutated alongside $merged and compared equal to itself every time. */ -}}
+{{- if deepEqual $merged (fromToml $stdin) -}}
+{{- $raw -}}
+{{- else -}}
 {{ $merged | toToml }}
+{{- end -}}
