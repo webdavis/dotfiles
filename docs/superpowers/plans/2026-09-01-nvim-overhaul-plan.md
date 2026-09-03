@@ -699,7 +699,8 @@ nothing loads `delegate.lua` before `vim.g.mapleader` is set.
 - [ ] **Step 1:** the three edits plus the delete in one commit: `refactor(nvim): delete delegate.lua
   and rename the <leader>d group to do`.
 - [ ] **Step 2:** Gates G1 to G6. G4 shows exactly `<leader>dt`, `<leader>dp`, `<leader>ds` removed
-  and the group renamed; `<leader>dx` and `<leader>da` stay. No test.
+  and the group renamed; `<leader>dx`, `<leader>da` and `<leader>dd` (Lazydocker, from
+  `lua/plugins/docker.lua`) stay. No test.
 
 ### Task 18: PR 9, MCP server evaluation only (spec 7.3)
 

@@ -1,9 +1,8 @@
 -- Keymaps
 
--- ┏━━━━━━━━━━━━━━━━━┓
--- ┃    Delegates    ┃
--- ┗━━━━━━━━━━━━━━━━━┛
-require("custom_api.delegate").setup()
+-- ┏━━━━━━━━━━┓
+-- ┃    Do    ┃
+-- ┗━━━━━━━━━━┛
 
 map({
   mode = "n",
