@@ -1,0 +1,11 @@
+{
+  "name": "strategy",
+  "owner": {"name": "webdavis"},
+  "plugins": [
+    {
+      "name": "strategy",
+      "source": "./plugins/strategy",
+      "description": "The three slice pipelines: planned, test-first and follow-up."
+    }
+  ]
+}

@@ -461,20 +461,21 @@
        and all five source names are in the shipped 2.1.220 binary, read
        2026-08-02).
 
-       Six of these come from marketplaces Anthropic does not ship: ponytail,
-       worktrunk, last30days, codex, plannotator and pns. An entry here only records
-       that the plugin should be ENABLED once installed, and enabling a plugin
-       that is not installed is inert, so the declaration is safe on a fresh
-       machine. The marketplaces themselves are declared in the block below.
+       Seven of these come from marketplaces Anthropic does not ship: ponytail,
+       worktrunk, last30days, codex, plannotator, pns and strategy. An entry here
+       only records that the plugin should be ENABLED once installed, and enabling
+       a plugin that is not installed is inert, so the declaration is safe on a
+       fresh machine. The marketplaces themselves are declared in the block below.
 
-       `pns@pns` IS THIS REPO'S OWN, out of a marketplace deployed under
-       ~/.claude/pns-marketplace rather than fetched from anywhere. Installing
-       it is still one deliberate command: `claude plugin install pns@pns`
-       fails on 2.1.257 with "Invalid channel" (the release-channel parser
-       takes the `@marketplace` suffix as a channel name), even though
-       `--help` still documents that `plugin@marketplace` spelling. The
-       WORKAROUND on 2.1.257 is the bare `claude plugin install pns`, which is
-       what worked on this machine on 2026-09-01. --- */ -}}
+       `pns@pns` and `strategy@strategy` ARE THIS REPO'S OWN, out of marketplaces
+       deployed under ~/.claude/pns-marketplace and ~/.claude/strategy-marketplace
+       rather than fetched from anywhere. Installing one is still one deliberate
+       command: `claude plugin install pns@pns` fails on 2.1.257 with "Invalid
+       channel" (the release-channel parser takes the `@marketplace` suffix as a
+       channel name), even though `--help` still documents that
+       `plugin@marketplace` spelling. The WORKAROUND on 2.1.257 is the bare
+       `claude plugin install pns`, which is what worked on this machine on
+       2026-09-01. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
@@ -489,12 +490,14 @@
     "worktrunk@worktrunk"
     "last30days@last30days-skill"
     "plannotator@plannotator" -}}
-{{- /* DARWIN ONLY, so this declaration and .chezmoiignore agree: the pns
-       marketplace is a DIRECTORY on disk, and that directory is not deployed on
-       Linux. Declaring a marketplace whose path is not there is a refresh that
-       fails at every startup, which the five github ones above cannot do. */ -}}
+{{- /* DARWIN ONLY, so these declarations and .chezmoiignore agree: both the pns
+       and the strategy marketplaces are DIRECTORIES on disk, and neither
+       directory is deployed on Linux. Declaring a marketplace whose path is not
+       there is a refresh that fails at every startup, which the five github ones
+       above cannot do. */ -}}
 {{- if eq .chezmoi.os "darwin" -}}
 {{-   $declaredPlugins = append $declaredPlugins "pns@pns" -}}
+{{-   $declaredPlugins = append $declaredPlugins "strategy@strategy" -}}
 {{- end -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
@@ -531,7 +534,7 @@
        WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
        schema declares `source` REQUIRED, so writing the flag alone onto a fresh
        machine would produce an entry Claude Code rejects. The repo owns these
-       six keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       seven keys and nothing else under extraKnownMarketplaces: setValueAtPath
        writes at the path, so a marketplace the operator adds through
        `claude plugin marketplace add` keeps its own entry untouched (measured
        2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
@@ -565,6 +568,8 @@
 {{- if eq .chezmoi.os "darwin" -}}
 {{-   $merged = setValueAtPath "extraKnownMarketplaces.pns" (dict
       "source" (dict "source" "directory" "path" (printf "%s/.claude/pns-marketplace" $home))) $merged -}}
+{{-   $merged = setValueAtPath "extraKnownMarketplaces.strategy" (dict
+      "source" (dict "source" "directory" "path" (printf "%s/.claude/strategy-marketplace" $home))) $merged -}}
 {{- end -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
