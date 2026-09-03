@@ -140,9 +140,9 @@ pub fn session_of(file_name: &str) -> Option<String> {
 /// cannot, whatever the id contains.
 ///
 /// THE RENAME IS THE OWNERSHIP TEST and this is the name it renames to. A plain
-/// unlink does not arbitrate on APFS (measured, eight racers all told they
-/// succeeded), which is why the fire takes a record by rename before reading it
-/// for anything.
+/// unlink does not arbitrate on this filesystem, which is why the fire takes a
+/// record by rename before reading it for anything. The measurement behind that
+/// is in `docs/decisions/0001-ownership-by-rename-not-by-unlink.md`.
 pub fn claim_path(record: &std::path::Path, pid: u32) -> std::path::PathBuf {
     let name = record.file_name().unwrap_or_default().to_string_lossy();
     record.with_file_name(format!("{name}{CLAIM_INFIX}{pid}"))

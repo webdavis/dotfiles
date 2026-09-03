@@ -56,6 +56,12 @@ tmp.*
 # Same, for the pns crate.
 .local/share/pns/target
 
+# The pns specifications, decision records and test baseline: development
+# artifacts for people working ON pns, never runtime inputs the binary reads.
+# They live in the crate so they travel when pns is extracted to its own
+# repository, which is about the git repo and not about what reaches $HOME.
+.local/share/pns/docs
+
 # Same, for the uu crate.
 .local/share/uu/target
 

@@ -2932,7 +2932,7 @@ fn a_prompt_from_a_waiting_session_ends_its_wait() {
     // THE OPERATOR ANSWERED BY TYPING, which `resolved` cannot see: the
     // PostToolBatch clearing signal never fires for a PermissionRequest wait
     // (Claude Code decides that off the hook's stdout, not off a later tool
-    // batch), so the lamp used to stay blue until the turn's Stop hook, one
+    // batch), so the lamp used to stay blocked until the turn's Stop hook, one
     // whole tool call after the operator already answered.
     let sandbox = Sandbox::new("lights-blocked-prompt-clears");
     sandbox.write_config(LAMPS_ON);
@@ -5205,7 +5205,7 @@ fn a_stale_wait_arms_the_needs_marker_before_the_card_is_delivered() {
     // presses Enter on a screen that is already telling them to. Arming
     // AFTER the delivery plan means a whole plan of network legs runs first,
     // and an Enter inside that window clears nothing (there is no marker yet)
-    // and then gets a marker published behind it: a blue lamp for a session
+    // and then gets a marker published behind it: a blocked lamp for a session
     // that is already working again, held until its turn's own Stop.
     // Arming first cannot close the race, which is the harness's to close,
     // but it shrinks the window from a delivery plan to one file write.
