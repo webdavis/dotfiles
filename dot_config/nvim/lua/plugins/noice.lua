@@ -33,7 +33,7 @@ return {
     presets = {
       bottom_search = false,
       long_message_to_split = true,
-      inc_rename = true, -- enables an input dialog for inc-rename.nvim
+      inc_rename = false, -- the preset's plugin, inc-rename.nvim, is not installed
       lsp_doc_border = true, -- add a border to hover docs and signature help
       command_palette = {
         views = {
