@@ -10,7 +10,13 @@ map({
   lhs = "<leader>dx",
   rhs = function()
     local file = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
-    vim.cmd("!chmod +x " .. file)
+    -- argv, not `:!`, which hands the path to the shell: a tracked file named
+    -- `a$(...)b` runs the substitution before chmod ever sees it.
+    local result = vim.system({ "chmod", "+x", file }):wait()
+    if result.code ~= 0 then
+      vim.notify("Could not chmod +x *" .. file .. "*: " .. (result.stderr or ""), vim.log.levels.ERROR)
+      return
+    end
     vim.notify("⚡ Made *" .. file .. "* executable", vim.log.levels.INFO)
   end,
   desc = "Action: chmod +x %>",
