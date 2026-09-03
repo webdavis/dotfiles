@@ -90,7 +90,7 @@ mod tests {
     use super::super::tests::facts;
     use super::*;
     use crate::lanes::{CommandRunner, Ran};
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::path::Path;
     use std::time::Duration;
 
@@ -204,6 +204,7 @@ mod tests {
     struct Upgrading {
         path: PathBuf,
         listings: RefCell<Vec<&'static str>>,
+        refuse_first_listing: Cell<bool>,
         seen: RefCell<Option<String>>,
     }
 
@@ -212,8 +213,17 @@ mod tests {
             Upgrading {
                 path: path.to_path_buf(),
                 listings: RefCell::new(listings.to_vec()),
+                refuse_first_listing: Cell::new(false),
                 seen: RefCell::new(None),
             }
+        }
+
+        /// The same runner with the BEFORE reading refused: one reading taken
+        /// and one missing is the only shape that separates "nothing could be
+        /// compared" from "everything installed is new".
+        fn refusing_the_first_reading(self) -> Self {
+            self.refuse_first_listing.set(true);
+            self
         }
     }
 
@@ -223,6 +233,9 @@ mod tests {
                 *self.seen.borrow_mut() = fs::read_to_string(&self.path).ok();
             }
             if args == ["list", "--versions"] {
+                if self.refuse_first_listing.replace(false) {
+                    return Err("exit 1".to_string());
+                }
                 let mut left = self.listings.borrow_mut();
                 if left.is_empty() {
                     return Ok(String::new());
@@ -286,6 +299,35 @@ mod tests {
                 .lines
                 .iter()
                 .any(|line| line.contains("`jq` `1.7.0` -> `1.7.1`")),
+            "{report:?}"
+        );
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn a_run_that_could_not_read_what_was_installed_before_it_names_nothing_as_new() {
+        // NO COMPARISON IS NO ROWS. With the before reading missing and the
+        // after reading taken, a lane that compared against an empty listing
+        // would write EVERY installed package into the record as `added`, and
+        // the file-integrity page would wave that at any watched file that
+        // changed this week. Both readings failing is the harmless case and
+        // hides this one: only one of the two missing separates them.
+        let directory = scratch("half-read");
+        let path = directory.join("last-upgrade-changes.tsv");
+        let mut recording = lane();
+        recording.upgrade_record = path.to_str().unwrap().to_string();
+        let runner = Upgrading::watching(&path, &["jq 1.7.1\n"]).refusing_the_first_reading();
+        let report = run_brew("brew", &recording, &facts(), &runner);
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "1760000000\t2025-10-09T07:33:20Z\n",
+            "a run with nothing to compare against records no package rows"
+        );
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|line| line.contains("NOT COMPARED")),
             "{report:?}"
         );
         let _ = fs::remove_dir_all(&directory);
