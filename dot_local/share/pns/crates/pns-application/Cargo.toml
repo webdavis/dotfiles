@@ -1,0 +1,15 @@
+# pns-application: the use cases, and the ports they own.
+#
+# Depends on pns-domain and on nothing else in the workspace. A use case names
+# the external capability it needs (a destination, a clock, a repository, a
+# snapshot reader) as a trait it declares itself, and an adapter implements
+# that trait from the outside. Pointing this crate at pns-adapters would invert
+# that, so the edge does not exist and the compiler is what says so.
+
+[package]
+name = "pns-application"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pns-domain = { path = "../pns-domain" }

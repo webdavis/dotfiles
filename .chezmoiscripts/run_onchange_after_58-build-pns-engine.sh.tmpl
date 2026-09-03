@@ -8,9 +8,12 @@ set -euo pipefail
 # compiles it, so without this script every producer repointed at the binary
 # would find nothing there.
 #
-# Re-runs whenever any build input changes: every crate source file, the
-# manifest and the lock are hashed below, globbed rather than listed so a new
-# module cannot silently miss the trigger.
+# Re-runs whenever any build input changes: every source file, every manifest
+# and the lock are hashed below, globbed rather than listed so a new module or
+# a new workspace member cannot silently miss the trigger. The member manifests
+# are globbed for the same reason as the sources: a dependency added to one of
+# them changes the binary this installs, and only the root manifest used to be
+# read.
 {{ $crate := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
 {{ range (glob (joinPath $crate "**/*.rs")) }}
 #   {{ . }} {{ include . | sha256sum }}
@@ -20,6 +23,9 @@ set -euo pipefail
 {{- end }}
 #   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
 #   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
+{{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
 #
 # Retry state, the same mechanism the herdr plugin build uses: chezmoi records a
 # run_onchange script as done on ANY exit 0, so a skipped build (no toolchain)

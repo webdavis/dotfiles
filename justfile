@@ -151,6 +151,12 @@ test-e2e: validate-tests
 # turned off. --all-targets so the test modules are linted too, since that is
 # where most of those crates' code lives.
 #
+# pns is a WORKSPACE and the other three crates are not, which is why only its
+# three lines carry --workspace (--all is what cargo fmt calls the same thing).
+# Its root manifest is still a package as well as the workspace root, so
+# without those words cargo tests, formats and lints that one package and
+# skips every member crate without saying so.
+#
 # The two herdr plugins' own build cost is cheap enough to sit in the default
 # camp list: about 2.5s per crate against an empty target/, well under a
 # second warm. target/ is crate-local, gitignored and .chezmoiignore'd, so a
@@ -158,9 +164,9 @@ test-e2e: validate-tests
 test-rust:
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.toml
-  cargo test --locked --manifest-path dot_local/share/pns/Cargo.toml
-  cargo fmt --check --manifest-path dot_local/share/pns/Cargo.toml
-  cargo clippy --locked --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
+  cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
+  cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
   cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml
   cargo fmt --check --manifest-path dot_local/share/uu/Cargo.toml
   cargo clippy --locked --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings

@@ -22,6 +22,9 @@ pub mod brew;
 use crate::config::{CommandLane, Config, HerdrLane, LaneKind};
 use crate::record::{RunFacts, lane_event};
 
+pub mod npm;
+pub mod uv;
+
 /// What one lane did: how many things went wrong, whether it DEFERRED instead
 /// of running, the lines the record carries about it, and the last of those
 /// lines that reported a FAILURE.
@@ -291,6 +294,8 @@ pub fn run_lane(
         // The herdr lane predates the run event and has no use for it.
         LaneKind::Herdr(lane) => Some(run_herdr(name, lane, runner)),
         LaneKind::Command(lane) => Some(run_command(name, lane, facts, runner)),
+        LaneKind::Npm(lane) => Some(npm::run_npm(name, lane, runner)),
+        LaneKind::Uv(lane) => Some(uv::run_uv(name, lane, runner)),
     }
 }
 
@@ -566,6 +571,8 @@ pub(crate) mod tests {
             ("brew", "[lanes.brew]\n", "brew"),
             ("command", "[lanes.command]\nrun = [\"x\"]\n", "command"),
             ("herdr", "[lanes.herdr]\n", "herdr"),
+            ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n", "npm"),
+            ("uv", "[lanes.uv]\n", "uv"),
         ];
         assert_eq!(crate::config::LANE_TYPES.len(), fixtures.len());
         for (kind, block, name) in fixtures {

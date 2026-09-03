@@ -1,0 +1,15 @@
+# pns-adapters: everything concrete, organized by the capability it provides.
+#
+# Depends inward only: on the ports in pns-application, the policy types in
+# pns-domain, and the wire contracts in pns-protocol. Nothing depends on this
+# crate except pns-cli, which composes it.
+
+[package]
+name = "pns-adapters"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pns-application = { path = "../pns-application" }
+pns-domain = { path = "../pns-domain" }
+pns-protocol = { path = "../pns-protocol" }
