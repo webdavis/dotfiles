@@ -18,9 +18,10 @@ if vim.env.PROFILE then
   })
 end
 
--- Global Helpers
-local api = require("custom_api")
-_G.map = api.keymap.map
+-- Global Helpers. This runs BEFORE config.options assigns vim.g.mapleader, so it
+-- must require the one module that publishes `map` and nothing else: a module
+-- that installs a mapping at load would install it against no leader.
+_G.map = require("custom_api.keymap").map
 
 -- Import Config
 require("config.options")

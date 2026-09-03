@@ -29,7 +29,7 @@ are in `.luacheckrc`.
 **Loading order** (`init.lua`):
 
 1. Optional profiling setup (`PROFILE=1 nvim`)
-1. `custom_api` loaded; `map()` set as global (`_G.map`)
+1. `custom_api.keymap` loaded; `map()` set as global (`_G.map`)
 1. `config/options.lua` → `config/keymaps.lua` → `config/autocmds.lua` → `config/lazy.lua`
 
 **Plugin system**: lazy.nvim loads all specs from `lua/plugins/`. Each plugin file returns a lazy.nvim
@@ -39,14 +39,19 @@ spec table. Plugins are **not** lazy-loaded by default (`lazy = false`).
 
 - `lua/config/` — Core config: options, keymaps, autocmds, lazy.nvim setup
 - `lua/plugins/` — One file per plugin (or plugin group), each returning a lazy.nvim spec
-- `lua/custom_api/` — Custom utility modules exported via `custom_api/init.lua`
+- `lua/custom_api/` — Custom utility modules, each required by its own name
 - `lua/overseer/template/user/` — Custom Overseer task templates
 
 ### Custom API (`lua/custom_api/`)
 
-Modules are accessed via `require("custom_api")`:
+Each module is required by its own name, `require("custom_api.git")`. There is no umbrella module:
+`init.lua` requires the one module it needs before `config.options` sets the leader key, so an umbrella
+that pulled in a module with a side effect at load ran that side effect too early. Requiring a
+`custom_api` module must do nothing but return it.
 
-- `util` — `map()` (global keymap helper), `trim()`, `overseer_runner()`, shell command execution
+- `util` — `trim()`, `normalize()`, and `run_shell_command()`, whose `cmd` is argv words as a table (no
+  shell) or a string for a deliberate pipeline
+- `keymap` — `map()`, the global keymap helper
 - `git` — Git CLI wrappers (branch parsing, URL generation, protocol conversion)
 - `github` — GitHub CLI (`gh`) integration for account/repo info
 - `delegate` — Tmux delegate window management (send commands/selections to a tmux pane)

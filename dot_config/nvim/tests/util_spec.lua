@@ -52,6 +52,29 @@ return {
     )
   end,
 
+  ["run_shell_command runs a table command as argv, with no shell in between"] = function()
+    -- The table form exists to keep interpolated values (branch names, remote
+    -- URLs, repository names) out of a shell. Joining it back into shell text
+    -- is what this pins against, so the fixture value is one the shell WOULD
+    -- execute: the marker file appears only if a shell saw it.
+    local marker = vim.fn.tempname() .. "-nvim-shell-safety-PWNED"
+    local payload = "a$(touch " .. marker .. ")b"
+
+    -- Escaping the payload and running it through a shell anyway would satisfy
+    -- every assertion below on its own, so 'shell was avoided' is pinned
+    -- separately: point 'shell' at a path that does not exist, and any run that
+    -- reaches `vim.fn.system` fails outright. Only the argv path survives it.
+    local real_shell = vim.o.shell
+    vim.o.shell = "/nonexistent/nvim-shell-safety-no-such-shell"
+    local ok, code, output = pcall(util.run_shell_command, { cmd = { "printf", "%s", payload } })
+    vim.o.shell = real_shell
+
+    assert(ok, "the table form went through a shell: " .. tostring(code))
+    assert(vim.uv.fs_stat(marker) == nil, "a shell ran the substitution: " .. marker .. " exists")
+    assert(code == 0, "exit code was " .. tostring(code))
+    assert(output == payload, "callee received " .. tostring(output) .. ", not the literal value")
+  end,
+
   ["run_shell_command returns the exit code and the trimmed output, and nothing else"] = function()
     -- This is the caller the trim fix narrowed from three values to two: gsub's
     -- substitution count used to ride out of `trim` and become a third result.

@@ -995,8 +995,9 @@ The workspace of the current pane is `HERDR_WORKSPACE_ID` (there is no `HERDR_SE
 
 ### 7.1 `delegate.lua` is deleted (item 61)
 
-`custom_api/delegate.lua` goes, with its `require(...).setup()` at `keymaps.lua:6` and the
-`M.delegate` line in `custom_api/init.lua`. The which-key `<leader>d` group "delegate" keeps two
+`custom_api/delegate.lua` goes, with its `require(...).setup()` at `keymaps.lua:6`. The umbrella
+that used to re-export it, `custom_api/init.lua`, is already gone: the shell-safety follow-up
+deleted it. The which-key `<leader>d` group "delegate" keeps two
 keymaps that were never delegates (`<leader>dx` chmod, `<leader>da` code action); the group is renamed
 "do" (section 8.3). Bugs #5 and #9 close as moot.
 
@@ -1586,7 +1587,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 7b | Inject the shell runner into `git` and `github`, with the fake-runner tests (`custom_api/git.lua`, `custom_api/github.lua`, both specs) | PR 7a | 55 |
 | PR 7c | The GitHub default-branch fallback into `github`, `git.default_branch()` as `(name, err)`, the caller at `git.lua:997`: bugs #4 and #4b (`custom_api/git.lua`, `custom_api/github.lua`, `git.lua`) | PR 7b | 4, 5, 56 |
 | PR 7d | Bug #1: `github.account().username` at `git.lua:267` (`custom_api/github.lua`, `git.lua`)                | PR 7c                 | 1                                           |
-| PR 7e | Split `map` and `overseer_runner` out of `util.lua` into `keymap.lua` and `overseer.lua`, closure included (6.2 measures it as load-bearing, not redundant) (`custom_api/util.lua`, `custom_api/init.lua`, `init.lua`, `plugins/git.lua`, `tests/dump_state.lua`) | PR 7d | 57 |
+| PR 7e | Split `map` and `overseer_runner` out of `util.lua` into `keymap.lua` and `overseer.lua`, closure included (6.2 measures it as load-bearing, not redundant) (`custom_api/util.lua`, `init.lua`, `plugins/git.lua`, `tests/dump_state.lua`) | PR 7d | 57 |
 | PR 7f | Rename `copy_URL_to_clipboard` to `copy_url_to_clipboard` and its one caller (`custom_api/git.lua`, `plugins/git.lua:36`, after PR 7e) | PR 7e | 60 |
 | PR 6b | The Lua suite runs directly: delete `test/unit/nvim-custom-api.bats`, give `test/run-test-suite.sh` a Lua camp that runs `dot_config/nvim/tests/run.lua` under `nvim --headless --clean -l`, counted in the summary and subject to the slow-test warning; the bats file's two runner self-checks become the Lua runner's own tests; `test/validate-tests.sh` learns the shape | PR 6 | none (operator ruling: one testing framework does not call another) |
 | PR 8  | Delete `delegate.lua`; `<leader>d` regroup (`keymaps.lua`, `which-key.lua`)                             | PR 7f, PR 4c          | 6, 10, 61                                   |
@@ -1696,7 +1697,8 @@ encode:
 - `lua/plugins/git.lua`: PR 7c, 7d, 7e, 7f, 17d, 17e, 18, 23, 24, 30b1, 30b2.
 - `lua/custom_api/git.lua`: PR 6, 7a, 7b, 7c, 7f, 23.
 - `lua/custom_api/github.lua`: PR 6, 7b, 7c, 7d, 23.
-- `lua/custom_api/util.lua`: PR 6, 7e. `lua/custom_api/init.lua`: PR 6, 7e, 8.
+- `lua/custom_api/util.lua`: PR 6, 7e. `lua/custom_api/init.lua`: PR 6, 7e, then DELETED by the
+  shell-safety follow-up, which is why no later PR lists it.
 - `tests/git_spec.lua`: PR 6, 7a, 7b, 7c, 7f, 23. `tests/github_spec.lua`: PR 7b, 7c, 7d, 23.
 - `tests/run.lua`: PR 6 (creates it), 6b (the suite runner calls it directly and its two self-checks
   move in). `test/unit/nvim-custom-api.bats`: PR 6 (creates it), 6b (deletes it).

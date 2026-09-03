@@ -13,10 +13,10 @@ M.runner = util.run_shell_command
 local function account(opts)
   _ = opts or {}
 
-  local fullname_exit, fullname = M.runner({ cmd = "git config --get user.name" })
+  local fullname_exit, fullname = M.runner({ cmd = { "git", "config", "--get", "user.name" } })
 
   if fullname_exit ~= 0 then
-    fullname_exit, fullname = M.runner({ cmd = "gh api user --jq .name" })
+    fullname_exit, fullname = M.runner({ cmd = { "gh", "api", "user", "--jq", ".name" } })
   end
 
   if fullname_exit ~= 0 then
@@ -26,10 +26,10 @@ local function account(opts)
         .. "Additionally, run `gh auth login` to login to GitHub"
   end
 
-  local username_exit, username = M.runner({ cmd = "git config --get github.username" })
+  local username_exit, username = M.runner({ cmd = { "git", "config", "--get", "github.username" } })
 
   if username_exit ~= 0 then
-    username_exit, username = M.runner({ cmd = "gh api user --jq .login" })
+    username_exit, username = M.runner({ cmd = { "gh", "api", "user", "--jq", ".login" } })
   end
 
   if username_exit ~= 0 then
@@ -47,7 +47,7 @@ local function repo()
   local jq_filter = ".nameWithOwner"
 
   local exit, result = M.runner({
-    cmd = string.format("gh repo view --json %s --jq '%s'", json_field, jq_filter),
+    cmd = { "gh", "repo", "view", "--json", json_field, "--jq", jq_filter },
   })
 
   if exit ~= 0 or not result or result == "" then
@@ -81,7 +81,7 @@ local function default_branch(opts)
   end
 
   local exit, result = M.runner({
-    cmd = string.format("gh api repos/%s/%s --jq .default_branch", owner, name),
+    cmd = { "gh", "api", ("repos/%s/%s"):format(owner, name), "--jq", ".default_branch" },
   })
 
   if exit ~= 0 or not result or result == "" then
