@@ -20,7 +20,7 @@ end
 
 -- Global Helpers
 local api = require("custom_api")
-_G.map = api.util.map
+_G.map = api.keymap.map
 
 -- Import Config
 require("config.options")

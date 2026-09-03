@@ -279,7 +279,7 @@ local function url(opts)
   return remote_url
 end
 
-local function copy_URL_to_clipboard(opts)
+local function copy_url_to_clipboard(opts)
   opts = opts or {}
   local remote = opts.remote
   local protocol = opts.protocol
@@ -331,7 +331,7 @@ M.current_branch = current_branch
 M.all_branches = all_branches
 M.default_branch = default_branch
 M.latest_commit = latest_commit
-M.copy_URL_to_clipboard = copy_URL_to_clipboard
+M.copy_url_to_clipboard = copy_url_to_clipboard
 M.url = url
 
 return M
