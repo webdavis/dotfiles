@@ -602,6 +602,9 @@
 {{- $merged = setValueAtPath "skillOverrides.owasp-security" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.tool-architecture" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.tool-architecture-rust" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.tool-architecture-swift" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}
 
 {{ $merged | toPrettyJson }}

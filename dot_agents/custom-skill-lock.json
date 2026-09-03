@@ -62,6 +62,9 @@
     "to-spec": "on-demand",
     "to-tickets": "on-demand",
     "todoist-cli": "core",
+    "tool-architecture": "on-demand",
+    "tool-architecture-rust": "on-demand",
+    "tool-architecture-swift": "on-demand",
     "triage": "on-demand",
     "video-transcript-downloader": "on-demand",
     "wait-what": "on-demand",
@@ -195,6 +198,15 @@
     ],
     "todoist-cli": [
       "default"
+    ],
+    "tool-architecture": [
+      "nicodemus"
+    ],
+    "tool-architecture-rust": [
+      "nicodemus"
+    ],
+    "tool-architecture-swift": [
+      "nicodemus"
     ],
     "triage": [
       "nicodemus"
