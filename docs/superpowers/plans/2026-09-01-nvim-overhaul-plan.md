@@ -625,7 +625,12 @@ what makes 95 bare-command mappings run.
   `plugins/git.lua` shifts every function defined below it. Normalise both, each rule derived from the
   commit rather than from the diff, and check `mode`, `lhs`, `buffer`, `desc`, `noremap`, `silent`,
   `expr` and `nowait` UNNORMALISED as the independent control. Measured: 1180 stable rows a side, zero
-  differences. Commit: `refactor(nvim): split map and overseer_runner out of util`.
+  differences. **Live: press one of the six rebound `overseer.overseer_runner` keymaps.** No gate
+  reaches a rewired call site: the call sits in a keymap closure's body, which the dump never runs, so
+  reverting one to the old `util.overseer_runner` leaves all 1180 rows identical and `just test-nvim`
+  and `just lint-check` both green (measured), while the key raises a nil call when pressed. Task 16's
+  caller carries the same exposure and the same answer. Commit:
+  `refactor(nvim): split map and overseer_runner out of util`.
 
 ### Task 16: PR 7f, rename `copy_URL_to_clipboard` (spec 6.2, decision E)
 
