@@ -149,18 +149,21 @@ impl CommandRunner for SystemRunner {
     /// the label is what stops a step's bound being reported as the lane's
     /// `deadline_secs`. The lane's own clock is untouched, so the step is
     /// still charged against it.
+    ///
+    /// DECLARED IS THE EFFECTIVE BOUND, not the step's own request. A step
+    /// bound is not a `deadline_secs` and no config key carries it, so
+    /// handing `out_of_time` a larger declared value would print a setting
+    /// the operator can never find; the number in the sentence is always the
+    /// bound that actually expired.
     fn run_with_deadline(
         &self,
         program: &str,
         args: &[&str],
         most: Duration,
     ) -> Result<String, String> {
-        SystemRunner::for_lane(
-            &format!("{} step {program}", self.lane),
-            most.min(self.remaining()),
-            most,
-        )
-        .run(program, args)
+        let bound = most.min(self.remaining());
+        SystemRunner::for_lane(&format!("{} step {program}", self.lane), bound, bound)
+            .run(program, args)
     }
 
     fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String> {
@@ -501,6 +504,30 @@ mod tests {
         assert!(failure.contains("200ms"), "{failure}");
         assert!(failure.contains("step"), "{failure}");
         assert!(failure.contains("killed"), "{failure}");
+    }
+
+    #[test]
+    fn a_step_bound_larger_than_the_lane_has_left_does_not_extend_the_lane() {
+        // THE STEP BOUND IS A CEILING, NEVER A GRANT. Whichever of the two is
+        // smaller is the one that expires, or a 180-second App Store step on
+        // a lane with milliseconds left would hold the run lock well past the
+        // deadline the operator wrote, and every lane after it in name order
+        // would pay for it.
+        let failure = within(Duration::from_secs(5), || {
+            impatient("brew").run_with_deadline(
+                "/bin/sh",
+                &["-c", "sleep 30"],
+                Duration::from_secs(30),
+            )
+        })
+        .expect_err("the lane's remaining time is what expires here");
+        assert!(failure.contains("brew step /bin/sh"), "{failure}");
+        assert!(failure.contains("killed"), "{failure}");
+        // NEVER THE STEP'S OWN 30 SECONDS, and never a `deadline_secs` the
+        // operator could go looking for: the number in the sentence has to be
+        // the bound that actually expired.
+        assert!(!failure.contains("30s"), "{failure}");
+        assert!(!failure.contains("deadline_secs"), "{failure}");
     }
 
     #[test]
