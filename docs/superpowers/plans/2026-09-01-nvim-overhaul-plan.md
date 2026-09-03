@@ -5,7 +5,7 @@
 > syntax for tracking.
 
 **Goal:** Move the live Neovim config into chezmoi unchanged, then land every fix, drop, add, custom
-plugin and the lazy-load pass as 62 small reviewed pull requests, ending at a verified clean editor.
+plugin and the lazy-load pass as 67 small reviewed pull requests, ending at a verified clean editor.
 
 **Architecture:** One task per pull request in the spec's section 11 order and lanes. The source is
 `dot_config/nvim/`; pure Lua under `lua/custom_api/` has headless tests in `tests/` run by
@@ -14,8 +14,10 @@ plugin and the lazy-load pass as 62 small reviewed pull requests, ending at a ve
 **Tech Stack:** Neovim 0.12.5, lazy.nvim, LuaJIT, bash 3.2, bats-core, chezmoi, treefmt (stylua,
 luacheck), herdr 0.8.2, herdr-nvim, pns, gh-axi.
 
-**Spec:** `docs/superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md` (v4.3); every task names its
-spec sections. Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
+**Spec:** `docs/superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md` (v4.4); every task names its
+spec sections. The 2026-09-03 amendments are folded in here too; the decision record is
+`~/.claude/pipeline/decision-nvim-overhaul-amendments-2026-09-03.md`.
+Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 
 ## Global Constraints
 
@@ -38,9 +40,11 @@ spec sections. Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01
 - `xcode-select -p` is `/Applications/Xcode.app/Contents/Developer` (Xcode 26.6); `sourcekit-lsp` is
   `/usr/bin/sourcekit-lsp`; the four Homebrew Swift tools are on PATH. PR 3 installs nothing.
 - `stylua`, `luacheck` and `go` are NOT installed on dresden (PR 1 and PR 27 install them).
-- All seven spec pins re-read with `git ls-remote <repo> HEAD`: xcodebuild.nvim `633eb71`, neotest
-  `27bf921`, nvim-mcp `0b5ace3`, claudecode.nvim `2390c6e`, vim-slime `305b4d8`, neotest-swift
-  `7487799`, neotest-rust (`rouge8/neotest-rust`) `2c9941d`. Re-read at each PR and recorded.
+- The four surviving spec pins re-read with `git ls-remote <repo> HEAD`: xcodebuild.nvim `633eb71`,
+  neotest `27bf921`, nvim-mcp `0b5ace3`, claudecode.nvim `2390c6e`. Re-read at each PR and recorded.
+  Three pins the plan carried are GONE (2026-09-03): vim-slime, because PR 11 adds no plugin (spec
+  7.4); `webdavis/neotest-swift`, an empty scaffold; and `rouge8/neotest-rust`, archived 2025-08-19.
+  The neotest adapter set is now the table in spec 5.3, and its pins are read at PR 28a and PR 28b.
 - `private_dot_codex/private_config.toml.tmpl` is UNTRACKED in this worktree (another slice is landing
   it) and has no pull request yet; the registering PR (10a or 10b) waits for the PR that lands it on
   `main` and extends it (spec 2, 7.3), and PR 9's record writes that PR's number down the day it
@@ -53,11 +57,13 @@ spec sections. Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01
 
 - Branch harness: every measurement after PR 2 runs the branch through `XDG_CONFIG_HOME` (below).
 - PR 2 runs a pre-merge preview of the 3.7 proof through the harness; the post-apply run is binding.
-- `custom_api/herdr.lua` is a thin wrapper over `herdr-nvim`'s lookup; PR 11 creates it, PR 13 extends
-  it (a spec edge since v4.3), PR 16 reuses it. The lookup itself is never rewritten.
-- `task_events.detail` renders `35s` under a minute and `5m12s` from a minute (10.9 asserts `(35s)`).
+- `custom_api/herdr.lua` is the one shared herdr seam over `herdr-nvim`'s lookup and `dispatch.send`,
+  and it states the interrupt policy once (spec 7.4); PR 11 creates it, PR 13 extends it, PR 16 reads
+  it. The lookup itself is never rewritten.
+- The duration string is pns's, not the editor's: the editor passes `--elapsed <secs>` and pns picks
+  the tier and renders the detail (spec 7.7 #1).
 - The auto-reload watch (5.4) and the preview host (bug #11) are `custom_api` modules with specs.
-- neotest adapters (12.1 default): `webdavis/neotest-swift` and `rouge8/neotest-rust`.
+- neotest adapters: the table in spec 5.3, one per language, PR 28a then PR 28b.
 - PR 10a ships `nvim-mcp` (install, registrations, the 7.5 rule, plus the resolver on that row) or is
   the crate design spec, by the row PR 9's record names; PR 10b ships and registers the crate.
 - The acceptance record (task 63) is the last commit on PR 31's branch, so PR 31 carries it (spec 11).
@@ -109,15 +115,18 @@ spec sections. Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01
 | Lane                 | Order                                                       |
 | -------------------- | ----------------------------------------------------------- |
 | first, second        | PR 1, then PR 2, then PR 3 (strictly serial)                |
-| custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 14, 15 |
-| LSP and tools        | PR 5a, 5b, 17a, 27, 29a                                     |
-| drops and git        | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 25                      |
-| standalone           | PR 4a, 4b, 4c, 4d, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28, 29b |
+| custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 15, then PR 14 last |
+| LSP and tools        | PR 5a, 5b, 17a, 27, 29a, 29c, 29d                           |
+| drops and git        | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 24a, 24b, 25            |
+| standalone           | PR 4a, 4b, 4c, 4d, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
 | last                 | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31, then task 63     |
+
+PR 14 is last in its lane because it waits on PR 28b (the neotest spec it edges) and on the pns
+refactor that builds `--elapsed`; nothing else in the lane waits on work outside this program.
 
 A lane is the suggested order; the Depends line is what holds a PR back, and it names every
 shared-file predecessor (spec 11 lists the files per edge). `lazy-lock.json` is left out: one key per
-edit, keep both sides, re-gate. The 30c rows depend on PR 1 to 29b (the lane rule, spec 11) plus the
+edit, keep both sides, re-gate. The 30c rows depend on PR 1 to 29d (the lane rule, spec 11) plus the
 shared-file predecessor their Depends line names.
 
 ### Task 1: PR 1, lint infrastructure (spec 3.8)
@@ -673,8 +682,16 @@ reaches `~/.claude.json` or the Codex template.
 - [ ] **Step 1:** `cargo install --git https://github.com/linw1995/nvim-mcp --rev 0b5ace3` by hand,
   outside chezmoi; the six criteria in table order (5 and 6, then 4, then 1 to 3) against the live
   setup (two workspaces, two Neovim panes in one), each pass, fail or undecided with its command and
-  output, and the one row taken. Criterion 5's hand check is the 10.8 loop run once by hand; the
-  recorded 10.8 check belongs to the registering PR. The record also names the PR that lands
+  output, and the one row taken. Criterion 3 is run on what SYMMETRIC INJECTION leaves over
+  (2026-09-03, spec 7.3): a Neovim that spawns an agent pane pins its socket with
+  `herdr pane split --env NVIM_MCP_SOCKET=…`, and an agent pane that spawns a Neovim pane pins it the
+  other way, so the criterion measures only the case of two panes neither of which created the other,
+  and the record states how often that case actually arises. Every candidate is LIVENESS-CHECKED
+  before it counts (connect to the socket, ask for the three ids), and a socket that refuses or times
+  out is skipped and its stale path unlinked, so a crashed instance never makes a lone live Neovim
+  read as ambiguous; the record shows one run with a deliberately stale socket present.
+  Criterion 5's hand check is the 10.8 loop run once by hand; the recorded 10.8 check belongs to the
+  registering PR. The record also names the PR that lands
   `private_dot_codex/private_config.toml.tmpl` on `main` once it has a number (7.3). Commit:
   `docs(nvim): record the nvim-mcp evaluation`. A "5 or 6 undecided" day ends with only this commit
   and the one-day extension.
@@ -777,37 +794,37 @@ or `(NEW FILE - proposed)` or `buftype == "acwrite"`, else true.
   `feat(nvim): add claudecode.nvim with provider none`, `feat(nvim): keep auto-save off proposed
   buffers`.
 
-### Task 22: PR 11, vim-slime with the herdr target (spec 7.4)
+### Task 22: PR 11, the shared herdr seam (spec 7.4)
 
-Lane: agent. Depends on: PR 12 (`claudecode.lua`, the group). Brief: `brief-nvim-slime.md`. Closes 39.
+Lane: agent. Depends on: PR 12 (`claudecode.lua`, the group). Brief: `brief-nvim-herdr-seam.md`.
+Closes 39. vim-slime is NOT added (decision 2026-09-03): no plugin, no pin, no autoload target file,
+no `g:slime_target`, and no `<leader>CP`.
 
-**Files:** Create `dot_config/nvim/autoload/slime/targets/herdr.vim`, `lua/custom_api/herdr.lua`,
-`lua/plugins/slime.lua` (`commit = "305b4d8"`, `g:slime_no_mappings = 1`, `g:slime_target =
-"herdr"`). Modify `lua/plugins/claudecode.lua` (keys `<leader>Cp` pipe, `<leader>CP` set target,
-`desc = "Slime: …"`), `lazy-lock.json`.
+**Files:** Create `lua/custom_api/herdr.lua`, `tests/herdr_spec.lua`. Modify
+`lua/plugins/claudecode.lua` (key `<leader>Cp`, `desc = "Claude: send selection or paragraph"`).
 
 **Interfaces:** `herdr.agent_pane()` wraps `herdr-nvim` (`lua/herdr-nvim/agents.lua`, module path
-verified from the installed plugin at PR time): `agents.list()` filtered to `kind == "claude"`, then
-`agents.resolve()`, else `ui.pick_agent`; returns the pane id or nil. No unit test: glue over a
-third-party API, checked live. The target: `config` prompts with `agent_pane()` as the default, `send`
-runs `herdr pane send-text` then `herdr pane send-keys <pane> <enter-name>`, `ValidEnv` checks
-`$HERDR_ENV`.
+re-read from the installed plugin at PR time): `agents.list()` filtered to `kind == "claude"`, then
+`agents.resolve()`, else `ui.pick_agent`; returns the pane id or nil. `herdr.may_send(status)` (pure)
+is the spec 7.4 table: `send` on `idle` and `done`, warn-and-send on `working` and `unknown`, REFUSE
+on `blocked`. `herdr.send(text, { submit })` reads `herdr agent get <pane>`
+(`.result.agent.agent_status`), applies `may_send`, then delegates to `herdr-nvim`'s
+`dispatch.send(pane_id, text, opts, exec)` (`submit` runs `herdr agent prompt`, which presses Enter;
+otherwise `herdr pane send-text`, which does not). `herdr.send_selection_or_paragraph()` takes the
+visual selection, or the paragraph under the cursor, and sends it with `submit = true`.
 
-- [ ] **Step 1, the recorded check, before binding anything (7.4), pasted in the body:**
-
-  ```bash
-  p=$(herdr pane split --current --direction down --cwd "$PWD" --no-focus | jq -r .result.pane.pane_id)
-  herdr pane send-text "$p" $'printf "%s|" a b\nprintf "%s|" c d\n'   # two lines in one send
-  herdr pane send-keys "$p" enter                                    # the spelling under test
-  sleep 1; herdr pane read "$p" --lines 6                            # expect a|b| then c|d|
-  herdr pane close "$p"
-  ```
-
-  If `enter` is rejected, try `return` then `cr`; the accepted spelling is what the target binds. If
-  the two lines arrive merged or truncated, `send` splits on newlines, one `send-text` per line.
-- [ ] **Step 2:** implement the wrapper, the target and the spec. Live: `<leader>Cp` on a paragraph
-  lands in the agent pane and runs. Gates G1 to G6; G4 shows `<leader>Cp` and `<leader>CP`. Commits:
-  `feat(nvim): wrap the herdr-nvim agent lookup`, `feat(nvim): add vim-slime with a herdr target`.
+- [ ] **Step 1, red:** `herdr_spec`: `may_send` over all five states, with `blocked` the only refusal
+  and `unknown` warning rather than refusing. FAIL. **Step 2:** implement the seam and the keymap.
+  `agent_pane` and `send_selection_or_paragraph` get no unit test: they are glue over a third-party
+  API and over `getpos`, checked live.
+- [ ] **Mutants:** `may_send` true on `blocked` (red); `may_send` false on `done` (red).
+- [ ] **Step 3, live, pasted:** `<leader>Cp` on a paragraph reaches the agent pane and runs (`submit`
+  presses Enter, so no key name is sent and nothing is split on newlines). Against a `blocked` agent
+  the same key refuses with a notice and the approval dialog is untouched, which is the check the
+  refusal exists for.
+- [ ] **Step 4:** Gates G1 to G6; G4 shows `<leader>Cp` and NO `<leader>CP`. Commits:
+  `feat(nvim): add the shared herdr seam over herdr-nvim`, `feat(nvim): send the selection or
+  paragraph to the agent pane`.
 
 ### Task 23: PR 13, the launch helper `<leader>Cc` (spec 7.2)
 
@@ -815,8 +832,8 @@ Lane: agent. Depends on: PR 12 (`claudecode.lua`), PR 11 (`custom_api/herdr.lua`
 `brief-nvim-launch-helper.md`. Closes 77 (launch).
 
 **Files:** Modify `lua/custom_api/herdr.lua` (`agent_name`, `plan_launch`, `launch_or_attach`),
-`lua/plugins/claudecode.lua` (`<leader>Cc`, `desc = "Claude: launch or attach --ide"`). Create
-`tests/herdr_spec.lua`.
+`tests/herdr_spec.lua` (created by PR 11), `lua/plugins/claudecode.lua` (`<leader>Cc`,
+`desc = "Claude: launch or attach --ide"`).
 
 **Interfaces:** `herdr.agent_name(pane_id)` (pure) returns `"claude-"` plus the id lowercased with
 `:` as `-` (`wW:p3K` gives `claude-ww-p3k`). `herdr.plan_launch(pane_id, cwd, servername)` (pure)
@@ -854,89 +871,96 @@ through `git.runner`. `github.commit_url(sha)` builds the GitHub commit URL from
   three appearing in the buffer-local pass, group row unchanged. Commits: `feat(nvim): rebuild the
   blame keymaps on custom_api and gitsigns`, `chore(nvim): drop git-blame.nvim`.
 
-### Task 25: PR 16, custom #3, the agent-context sender (spec 7.7, 8.3)
+### Task 25: PR 16, custom #3, the line annotator (spec 7.7, 8.3)
 
 Lane: agent. Depends on: PR 12, PR 13 (`claudecode.lua`), PR 23 (`blame_sha`). Brief:
-`brief-nvim-agent-context.md`. Closes custom #3.
+`brief-nvim-annotate.md`. Closes custom #3. Shrunk 2026-09-03: there is no send path here, so the
+state gate, the one-slot queue, the detached `herdr agent wait`, the recheck and the state machine
+are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>as` and `<leader>aS`.
 
-**Files:** Create `lua/custom_api/agent_context.lua`, `tests/agent_context_spec.lua`. Modify
-`lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: send context"`).
+**Files:** Create `lua/custom_api/annotate.lua`, `tests/annotate_spec.lua`. Modify
+`lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
+blame"`).
 
-**Interfaces:** `compose_text(parts)` with `parts = { mention, diagnostic, func, blame }` (any but
-`mention` may be nil) returns one string, one part per line. `may_send(status)` (pure) is true on
-`idle` or `done`, false on `working`, `blocked`, `unknown`. `compose()` gathers `@<rel>:<line>`, the
-first `vim.diagnostic.get` on the line, the enclosing treesitter node whose type ends in
-`function_definition`, `function_declaration` or `method_definition`, `git.blame_sha` plus
-`git.latest_commit`. `send(text)`: `herdr.agent_pane()`, `herdr agent get <pane>` for
-`.result.agent.agent_status`; on `may_send` run `herdr pane send-text <pane> <text>` (no Enter);
-otherwise hold it in a one-slot queue (a newer send replaces it, with a notice) and run `herdr agent
-wait <pane> --until idle --until done --timeout 600000` detached through `vim.system`, sending on
-exit 0 and dropping with a notice otherwise. BEST-EFFORT, and the header says so (7.7): two herdr
-calls cannot be atomic, so three rules narrow the window. One waiter: `send` while a `wait` is
-running replaces the queued text and starts no second `wait` (`M.waiter` is the one handle). Recheck:
-immediately before EVERY `send-text`, on the direct path and in the waiter's `on_exit` alike, read
-`agent get` again and send only if `may_send` still holds. Drop, never retry: a failed recheck drops
-the text with a notice naming the state seen. Never `agent prompt`; the header says this is stricter
-than `herdr-nvim`'s `dispatch.send`. The state machine is pure: `next_action(state, queued, waiting)`
-returns `send`, `queue`, `replace` or `drop` so the rules are unit-tested without herdr.
+**Interfaces:** `annotate.compose_text(parts)` (pure) with
+`parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, one
+part per line, with no blank line where a part is nil. `annotate.line()` gathers the parts,
+`@<rel>:<line>` for the mention, the first `vim.diagnostic.get` on the line, the enclosing treesitter
+node whose type ends in `function_definition`, `function_declaration` or `method_definition`, and
+`git.blame_sha` plus `git.latest_commit`, then calls `herdr-nvim`'s
+`comments.add(bufnr, line, line, text)` and passes the returned id to `ui.decorate(id)` (both read at
+the installed plugin: `lua/herdr-nvim/comments.lua:6`, `lua/herdr-nvim/ui.lua:50`).
 
-- [ ] **Step 1, red:** `may_send` for all five states; `next_action`: idle with nothing queued is
-  `send`; working with no waiter is `queue`; working with a waiter running is `replace` (no second
-  waiter); a recheck that reads `working` after exit 0 is `drop`; all four parts; mention only; nil
-  parts leave no blank line. FAIL. **Step 2:** implement, with a fake `agent get` sequence in the spec
-  (`idle` then `working` between check and send gives `drop`). Live (10.9): `<leader>Cx` on a
-  diagnostic line with the agent `idle` puts the three lines in the prompt unsent; with it `working`
-  nothing is typed until it settles, then the held text arrives; a second `<leader>Cx` while it waits
-  replaces the queued text and `ps` shows one `herdr agent wait`. Pasted.
-- [ ] **Mutants:** `may_send` true on `working` (red); skip the recheck before the send (the
-  `idle`-then-`working` case red); start a second waiter on `replace` (red); drop the diagnostic
-  (red); join with spaces.
-- [ ] **Step 3:** Gates G1 to G6; G4 shows `<leader>Cx`. Commit: `feat(nvim): send cursor context to
-  the agent pane when it is idle`.
+- [ ] **Step 1, red:** `annotate_spec`: all four parts join one per line; mention only; a nil middle
+  part leaves no blank line; the order is mention, diagnostic, function, blame. FAIL. **Step 2:**
+  implement; the module name confirmed with the operator first (rename rule). No fake herdr and no
+  state fixture: nothing here reads an agent's state.
+- [ ] **Mutants:** join with spaces (red); drop the diagnostic part (red); emit an empty line for a
+  nil part (red).
+- [ ] **Step 3, live (10.9), pasted:** `<leader>Cx` on a line with a diagnostic adds one `herdr-nvim`
+  annotation carrying the at-mention, the diagnostic, the enclosing function and the blame line, and
+  it is decorated in the buffer; `<leader>al` lists it; `<leader>as` pastes it into the agent's input
+  unsent. Nothing is typed into the agent by `<leader>Cx` itself.
+- [ ] **Step 4:** Gates G1 to G6; G4 shows `<leader>Cx`. Commit: `feat(nvim): annotate a line with
+  its diagnostic and blame`.
 
 ### Task 26: PR 14, custom #1, the editor-side pns producer (spec 7.7, 10.9)
 
-Lane: agent. Depends on: PR 7f, PR 3 (the xcodebuild spec), PR 19b (`overseer.lua`). Brief:
-`brief-nvim-task-events.md`. Closes custom #1.
+Lane: agent, LAST in the lane. Depends on: PR 7f, PR 3 (the xcodebuild spec), PR 19b
+(`overseer.lua`), PR 28b (`neotest.lua`), AND the pns refactor that builds `--elapsed <secs>` (the
+operator froze pns work pending that refactor on 2026-09-03; the requirement is written into
+`~/.claude/pipeline/pns-refactor-prompt-v2.md`). Brief: `brief-nvim-pns-producer.md`. Closes custom
+#1. Re-sequenced 2026-09-03: there is no Lua module, because the tier is pns's to decide, and the
+three edges land together here rather than two here and one in the neotest PR.
 
-**Files:** Create `lua/custom_api/task_events.lua`, `tests/task_events_spec.lua`. Modify
-`lua/plugins/overseer.lua` (an `on_complete` component), `lua/plugins/xcodebuild.lua` (`User`
-autocmds). The neotest edge is PR 28's.
+**Files:** Modify `lua/plugins/overseer.lua` (an `on_complete` component), `lua/plugins/xcodebuild.lua`
+(the `User` autocmd pair), `lua/plugins/neotest.lua` (the `client.listeners.results` edge). No
+`lua/custom_api/` file and no spec file.
 
-**Interfaces:** `task_events.tier(seconds)` returns `"none"` under 30, `"notify"` from 30, `"long"`
-from 300. `task_events.detail(tool, task, seconds)` returns `"<tool>: <task> (35s)"` under a minute,
-`(5m12s)` from one. `report({ tool, task, state, seconds })` runs `~/.local/libexec/pns/pns --agent
-nvim --state done|failed --project <cwd basename> --detail <detail> --pane $HERDR_PANE_ID` plus
-`--long-running` at `"long"`, nothing at `"none"`. Edge, verified at the pin: xcodebuild.nvim fires
-`User` patterns `XcodebuildBuild{Started,Finished}` and `XcodebuildTests{Started,Finished}`
-(`lua/xcodebuild/broadcasting/events.lua`), duration between the pair.
+**Interfaces:** each edge runs `vim.system` on `~/.local/libexec/pns/pns` with
+`--agent nvim --state done|failed --project <cwd basename> --detail "<tool>: <task>" --elapsed <secs>
+--pane "$HERDR_PANE_ID"`. The editor never applies the 30 and 300 thresholds and never renders a
+duration string: it states the seconds and pns picks the tier. Edge facts, re-verified at the pins:
+`xcodebuild.nvim` fires `User` patterns `XcodebuildBuild{Started,Finished}` and
+`XcodebuildTests{Started,Finished}` (`lua/xcodebuild/broadcasting/events.lua`), duration between the
+pair; neotest's results edge is `lua/neotest/client/events/init.lua`.
 
-- [ ] **Step 1, red:** `tier` at 29, 30, 299, 300; `detail` at 35 and 312; `report` under a fake
-  `vim.system` records argv, none at 10 s, `--long-running` at 300 s. FAIL. **Step 2:** implement; the
-  two edges; the module name confirmed with the operator first. Live (10.9): a 35 s overseer task
-  gives one Discord card whose detail reads `overseer: <task> (35s)`; a 10 s one gives none. The
-  banner is not asserted (the engine suppresses it for the watched pane).
-- [ ] **Mutants:** threshold 30 to 31 (red at 30); drop `--long-running` (red); report at `"none"`.
-- [ ] **Step 3:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): report task completions to pns`.
+- [ ] **Step 1:** confirm `pns --help` lists `--elapsed` before writing any edge; if it does not, the
+  pns refactor has not landed and this task does not start. Paste the help line.
+- [ ] **Step 2:** the three edges. No unit test: nothing pure is left in the editor, and a test that
+  asserted the argv would be asserting a tool we did not write is about to reject or accept.
+- [ ] **Step 3, live (10.9), pasted:** a 35 s overseer task gives one Discord card whose detail names
+  the tool and the task; a 10 s one gives none; the 35 s run's `--elapsed 35` appears in the pasted
+  command line. The banner is not asserted (the engine suppresses it for the watched pane).
+- [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): report task completions to pns`.
 
 ### Task 27: PR 15, custom #2, the review-ledger quickfix (spec 7.7)
 
-Lane: agent. Depends on: PR 7f. Brief: `brief-nvim-review-ledger.md`. Closes custom #2.
+Lane: agent. Depends on: PR 7f. Brief: `brief-nvim-review-ledger.md`. Closes custom #2. Shrunk
+2026-09-03: no `custom_api` module and no fixture file. `~/.claude/pipeline/findings-register.sh` is
+NOT tracked by this repository (verified: `git ls-files private_dot_claude` returns no pipeline
+entry), so Neovim cannot call a `quickfix` subcommand living there, and a second parser in Lua would
+be a second thing to keep in step with the table format. One awk program, inline in the command.
 
-**Files:** Create `lua/custom_api/review_ledger.lua`, `tests/review_ledger_spec.lua`,
-`tests/fixtures/findings-sample.md`. Modify `lua/config/keymaps.lua` (the `:ReviewLedger[!] [file]`
-command; no keymap).
+**Files:** Modify `lua/config/keymaps.lua` (the `:ReviewLedger[!] [file]` command, about ten lines; no
+keymap). Create `tests/ledger_awk_spec.lua`.
 
-**Interfaces:** `review_ledger.parse(lines, path, include_fixed)` returns quickfix items
-`{ filename, lnum, text }`; `filename`/`lnum` from a `path:line` token in the summary when present,
-else `path` and the row's line; `text = "F<n> <severity> <disposition>: <summary>"`; `FIXED` rows
-skipped unless `include_fixed`. Default file: newest `~/.claude/pipeline/slices/findings-*.md`.
+**Interfaces:** `:ReviewLedger[!] [file]` runs `setqflist` over `systemlist("awk ...")` with
+`errorformat = "%f:%l: %m"`. The awk reads rows starting `| F<n>` from a findings register whose
+columns are `id, step, severity, summary, disposition, evidence`, and emits one
+`<file>:<line>: F<n> <severity> <disposition>: <summary>` per row: `<file>:<line>` from a `path:line`
+token in the summary when the row carries one, else the ledger file and the row's own line number.
+`FIXED` rows are skipped unless the command was banged. Default file: the newest
+`~/.claude/pipeline/slices/findings-*.md`.
 
-- [ ] **Step 1, red:** a row with `path:line`; a row without; a FIXED row skipped then included with
-  the bang; a non-`| F` line ignored. FAIL. **Step 2:** implement; the command. Live: `:ReviewLedger`
-  on a real findings file, `:cnext` lands on the row. Pasted.
-- [ ] **Mutants:** never skip FIXED (red); ignore the `path:line` token (red).
-- [ ] **Step 3:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): load a findings ledger into the
+- [ ] **Step 1, red:** `ledger_awk_spec` pipes a heredoc of three rows (one with a `path:line` token,
+  one without, one `FIXED`) through the same awk with `vim.system` and asserts the output lines, then
+  the same input with the bang flag asserting four lines. FAIL. (`vim.system` is a core API and is
+  available under the `--clean` runner, measured 2026-09-03.) **Step 2:** implement the command.
+- [ ] **Mutants:** never skip `FIXED` (red); ignore the `path:line` token (red).
+- [ ] **Step 3, live, pasted:** `:ReviewLedger` on a real findings file fills the quickfix list and
+  `:cnext` lands on the ledger row; `:ReviewLedger!` additionally lists the `FIXED` rows.
+- [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): load a findings ledger into the
   quickfix list`.
 
 ### Task 28: PR 17a, drop cspell (spec 5.1)
@@ -1074,6 +1098,41 @@ Lane: drops and git. Depends on: PR 23 (`git.lua`), PR 12 (`autosave.lua`). Brie
 - [ ] **Step 2:** Gates G1 to G6; G4 shows the telescope maps gone. The octo `<localleader>` groups are
   outside the dump (3.7): press `\` in an octo buffer and record the popup in the body. No test.
 
+### Task 40a: PR 24a, evaluate atlas.nvim against octo (spec 5.6)
+
+Lane: drops and git. Depends on: PR 24. Brief: `brief-nvim-eval-atlas.md`. Closes nothing; an adopt
+outcome becomes its own later pull request, and this one installs nothing through chezmoi. Budget:
+one working day, the same shape as the MCP evaluation (spec 7.3).
+
+**Files:** Create `docs/research/2026-09-atlas-nvim-evaluation.md`. Nothing else.
+
+- [ ] **Step 1:** install `emrearmagan/atlas.nvim` by hand for the day, outside chezmoi, and run it
+  against the same repositories octo is used on today. The outcome table names, per row, what octo
+  does and what atlas does: list and filter pull requests, read and post review comments, approve and
+  request changes, check out a pull request branch, and reach a non-GitHub forge (which is the one
+  thing octo cannot do at all). Each row is a pass, a fail or an undecided with the command and the
+  output.
+- [ ] **Step 2:** the body states adopt or not adopt with its reason, and on adopt names the PR that
+  would drop octo and what it would have to rebuild (the eight `<localleader>` groups octo adds per
+  buffer, spec 8.1). Gates G1, G2, G6 (a document: G3 to G5 unchanged by construction, stated). No
+  `chezmoi apply`. Commit: `docs(nvim): record the atlas.nvim evaluation`.
+
+### Task 40b: PR 24b, evaluate review.nvim against the annotation flow (spec 5.6)
+
+Lane: drops and git. Depends on: PR 16 (the annotation flow it is judged against). Brief:
+`brief-nvim-eval-review.md`. Closes nothing. Budget: one working day.
+
+**Files:** Create `docs/research/2026-09-review-nvim-evaluation.md`. Nothing else.
+
+- [ ] **Step 1:** install `vuki656/review.nvim` by hand for the day, outside chezmoi. The outcome
+  table asks one question per row: does it do something `<leader>ac` (comment a line or selection),
+  `<leader>al` (list), `<leader>as` (paste into the agent's input) and `<leader>aS` (send) do not
+  already do, and does its comment survive an edit above it the way a `herdr-nvim` extmark comment
+  does. Each row with its command and output.
+- [ ] **Step 2:** the body states adopt or not adopt with its reason; the default is not to adopt,
+  because a second annotation store is a second place the operator has to look. Gates G1, G2, G6.
+  No `chezmoi apply`. Commit: `docs(nvim): record the review.nvim evaluation`.
+
 ### Task 41: PR 25, dial augends then drop boole (spec 5.1, 8.3)
 
 Lane: drops and git. Depends on: PR 2. Brief: `brief-nvim-dial-augends.md`. Closes 30.
@@ -1117,19 +1176,60 @@ Lane: LSP and tools. Depends on: PR 17a (`lsp.lua`). Brief: `brief-nvim-gopls.md
 - [ ] **Step 2:** Gates G1 to G6; `:checkhealth mason` shows Go available. No test.
 - [ ] **Step 3, OPERATOR:** `chezmoi apply` reconciles the bundle.
 
-### Task 46: PR 28, neotest (spec 5.3, 8.3, 12.1)
+### Task 46: PR 28a, neotest core and the eager adapters (spec 5.3, 8.3, 12.1)
 
-Lane: standalone. Depends on: PR 3, PR 12 (`which-key.lua`), PR 14 (`task_events`). Brief:
-`brief-nvim-neotest.md`. Closes 44.
+Lane: standalone. Depends on: PR 3, PR 12 (`which-key.lua`), and for the Bash row only, T1
+(`bashunit-toolchain`) and T2 (`neotest-bashunit`) of the bashunit migration program. Brief:
+`brief-nvim-neotest-core.md`.
+Closes 44 (part). Re-scoped 2026-09-03: both adapter pins the plan carried are dropped
+(`webdavis/neotest-swift` is an empty scaffold, one `lua/.gitkeep`; `rouge8/neotest-rust` was
+archived 2025-08-19), the set is now one adapter per language (spec 5.3), and the pns edge is NOT
+here: PR 14 adds all three edges together. Bash is an adapter we write over bashunit, and Zig rides
+`nvim-neotest/neotest-vim-test` rather than an overseer template.
 
-- [ ] **Step 1:** `lua/plugins/neotest.lua`: `nvim-neotest/neotest` `commit = "27bf921"`,
-  `nvim-neotest/nvim-nio`, adapters `webdavis/neotest-swift` (`7487799`) and `rouge8/neotest-rust`
-  (`2c9941d`), keys `<leader>tt` nearest, `tf` file, `ta` all, `ts` summary, `to` output, `tS` stop,
-  group row `{ "<leader>t", group = "test" }`; the `client.listeners.results` edge
-  (`lua/neotest/client/events/init.lua` at the pin) reporting through `task_events.report`.
-- [ ] **Step 2:** Gates G1 to G6; G4 shows the six maps and the group; live: `<leader>tt` on a Rust
-  test runs; a 35 s run gives the 10.9 card. Commit: `feat(nvim): add neotest with Swift and Rust
-  adapters`. No unit test.
+**Files:** Create `lua/plugins/neotest.lua`. Modify `lua/plugins/which-key.lua`, the lock.
+
+- [ ] **Step 1:** `nvim-neotest/neotest` `commit = "27bf921"` plus `nvim-neotest/nvim-nio`; every
+  eager adapter: `mrcjkb/rustaceanvim` (its own neotest adapter; its README says never to add
+  neotest-rust), `nvim-neotest/neotest-python`, `fredrikaverpil/neotest-golang`, our own
+  `neotest-bashunit` (loaded with `dir = "~/.local/share/neotest-bashunit"`, the way the pns crate is
+  loaded), and `nvim-neotest/neotest-vim-test` configured for vim-test's `zigtest` runner (v3.3.1,
+  updated 2026-05-07; `lawrence-laz/neotest-zig` is rejected, pinned to Zig 0.14 with issue #41 open
+  ten months). Keys `<leader>tt` nearest, `tf` file, `ta` all, `ts` summary, `to` output, `tS` stop;
+  group row `{ "<leader>t", group = "test" }`. Each pin read with `git ls-remote <repo> HEAD` and
+  recorded. No pns call.
+- [ ] **Step 2, per-adapter verification, each in a real pane, each pasted:** the nearest test runs
+  in a scratch cargo crate (Rust); pytest in a scratch virtual environment (Python); `go test` in a
+  scratch module (Go); a `.test.sh` file runs per test with its output and a jump to the failing
+  line (Bash); a scratch `zig build test` project runs per test (Zig). An adapter that cannot be
+  shown working is removed from this PR rather than shipped unproven, and the body says which and
+  why.
+- [ ] **Step 3:** Gates G1 to G6; G4 shows the six maps and the group row. No unit test here: the
+  third-party adapters are not ours, and `neotest-bashunit`'s own headless Lua tests live with the
+  adapter (T2), not in this PR. Commit: `feat(nvim): add neotest with the Rust, Python, Go, Bash and
+  Zig adapters`.
+- [ ] **Step 4:** if T1 and T2 of the bashunit program have not merged when this PR opens, the Bash
+  row ships in a later PR of its own and the body says so; the other four rows do not wait.
+
+### Task 46b: PR 28b, the filetype-lazy adapters (spec 5.3)
+
+Lane: standalone. Depends on: PR 28a. Brief: `brief-nvim-neotest-langs.md`. Closes 44 (part).
+
+**Files:** Modify `lua/plugins/neotest.lua`, the lock.
+
+- [ ] **Step 1:** the ft-lazy adapters: `marilari88/neotest-vitest` and `nvim-neotest/neotest-jest`
+  plus `AkisArou/neotest-nodejs` for node:test (JS/TS), `MisanthropicBit/neotest-busted` (Lua),
+  `rcasia/neotest-java` (Java), `jfpedroza/neotest-elixir` (Elixir), and
+  `mmllr/neotest-swift-testing` FROM CODEBERG (the GitHub repository has been an archived redirect
+  since 2026-04-28), Swift Testing only, XCTest staying on `xcodebuild.nvim`. Each pin read with
+  `git ls-remote` and recorded; the Codeberg remote is recorded as a Codeberg URL, not a GitHub
+  one.
+- [ ] **Step 2, per-adapter verification, each in a real pane, each pasted:** a vitest and a jest
+  scratch project; one busted spec; a JUnit 5 scratch project; `mix test` in a scratch app; one Swift
+  Testing target. An adapter that cannot be shown working is removed from this PR rather than shipped
+  unproven, and the body says which and why.
+- [ ] **Step 3:** Gates G1 to G6; G4 unchanged (the keys and the group row landed in PR 28a). No unit
+  test. Commit: `feat(nvim): add the filetype-lazy neotest adapters`.
 
 ### Task 47: PR 29a, health floor, none-ls gating (spec 4, 10.2)
 
@@ -1140,6 +1240,49 @@ Lane: LSP and tools. Depends on: PR 27 (`lsp.lua`). Brief: `brief-nvim-none-ls-g
   function(utils) return utils.executable("<bin>") end })`. Commit: `fix(nvim): gate none-ls sources
   on their binaries`.
 - [ ] **Step 2:** Gates G1 to G6; the health file loses the three ERROR lines, nothing else changes.
+
+### Task 47a: PR 29c, LSP polish (spec 4, 10.2)
+
+Lane: LSP and tools. Depends on: PR 29a, PR 12 (`lsp.lua`), PR 22b (`noice.lua`), PR 17b
+(`blink-cmp.lua`), PR 20 (`options.lua`). Brief: `brief-nvim-lsp-polish.md`. Closes nothing in the
+inventory; it is the LSP gap list decided 2026-09-03.
+
+**Files:** Modify `lua/plugins/lsp.lua`, `lua/plugins/noice.lua`, `lua/plugins/blink-cmp.lua`,
+`lua/config/options.lua`, the lock.
+
+- [ ] **Step 1:** the double `BufWritePre` format. Two handlers format on write today, lsp-format's
+  own `on_attach` hook and the global one at `lsp.lua:362` (verified 2026-09-03); keep exactly one
+  and say in the body which and why. Before and after, a `:verbose autocmd BufWritePre` dump in the
+  body showing two handlers then one. Commit: `fix(nvim): format once on write`.
+- [ ] **Step 2:** diagnostics: `severity_sort`, sign icons, `source = "if_many"`,
+  `virtual_lines = { current_line = true }`. Commit: `feat(nvim): configure diagnostic display`.
+- [ ] **Step 3:** `vim.o.winborder` (and 0.12's `pumborder`) replacing noice's `lsp_doc_border` and
+  blink's `rounded`, so the border is set once for every float rather than per plugin. Commit:
+  `refactor(nvim): set the float border once`.
+- [ ] **Step 4:** `vim.lsp.codelens.enable()` and inlay hints enabled at attach; both are dead config
+  today, so the body shows a code lens and an inlay hint rendering in a real buffer. Commit:
+  `feat(nvim): enable code lenses and inlay hints`.
+- [ ] **Step 5:** delete `options.lua:17` (`vim.g.deprecation_warnings`, a LazyVim leftover, and this
+  config is not LazyVim); pin blink.cmp to `version = "1.*"`. Commits: `chore(nvim): drop the last
+  LazyVim option`, `build(nvim): pin blink.cmp to 1.x`.
+- [ ] **Step 6:** Gates G1 to G6; G4 unchanged (no keymap moves). Not in this PR, and the body says
+  so: noice onto `vim._core.ui2` (a private API) and none-ls plus lsp-format onto conform (a tidy-up
+  with no reported defect behind it).
+
+### Task 47b: PR 29d, pin refresh (spec 5.5)
+
+Lane: LSP and tools. Depends on: PR 29c, and it does not open until every pull request that adds or
+bumps a pin has merged (PR 28b is the last). Brief: `brief-nvim-pin-refresh.md`. Closes nothing.
+
+**Files:** Modify `lazy-lock.json` only.
+
+- [ ] **Step 1:** `:Lazy update`, then the lock committed on its own. The newest pin in the lock today
+  is 2025-12-30 against Neovim 0.12.5 and several plugins predate 0.12, so this is where a plugin
+  that has since broken shows up. The body lists every pin that moved, old and new.
+- [ ] **Step 2:** Gates G1 to G6 with the full harness, and G5 read carefully: this is the one PR in
+  the program that can move the startup number without meaning to, which is why it is a PR of its
+  own. A pin that fails a gate is reverted to its old value in the same PR and named in the body.
+  Commit: `build(nvim): refresh the plugin pins`.
 
 ### Task 48: PR 29b, health floor, the treesitter runtimepath line (spec 4, 5.5, 10.2)
 
@@ -1154,8 +1297,8 @@ Lane: standalone. Depends on: PR 2. Brief: `brief-nvim-treesitter-health.md`. Cl
 
 ### Task 49: PR 30a, startup triggers for the LSP group (spec 9)
 
-Lane: last. Depends on: PR 29a, PR 12 (`lsp.lua`). Brief: `brief-nvim-triggers-lsp.md`. Closes 48
-(part).
+Lane: last. Depends on: PR 29a, PR 12, PR 29c (`lsp.lua`). Brief: `brief-nvim-triggers-lsp.md`.
+Closes 48 (part).
 
 - [ ] **Step 1:** `event = { "BufReadPre", "BufNewFile" }` on `mason-lspconfig`, `nvim-lspconfig`,
   `none-ls`, `lsp-format`; Mason `cmd = "Mason"` plus the same event through its dependents. Commit:
@@ -1181,7 +1324,7 @@ Lane: last. Depends on: PR 30b1 (`git.lua`). Brief: `brief-nvim-triggers-octo.md
 - [ ] **Step 2:** Gates G1 to G6; G4 unchanged; G5 records the drop; the `<leader>gh` maps fire live
   and the octo `<localleader>` popup still appears.
 
-The nine 30c tasks below share one shape (spec 9, spec 11): lane last; each depends on PR 1 to 29b
+The nine 30c tasks below share one shape (spec 9, spec 11): lane last; each depends on PR 1 to 29d
 (the lane rule) plus the shared-file predecessor its Depends line names; each adds ONE trigger to ONE
 spec file and changes nothing else there; each runs gates G1 to G6 with G4 unchanged (lazy `keys`
 still dump) and G5 recording the drop; every keymap and command the trigger names fires live, and one
@@ -1192,7 +1335,7 @@ marks them lazy, verified 2026-09-01 against the live spec files.
 
 ### Task 52: PR 30c1, startup trigger for treesj (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-treesj.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-treesj.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `treesj.lua` gains `keys` for its five `<leader>j` maps. Commit: `perf(nvim):
   lazy-load treesj`.
@@ -1200,7 +1343,7 @@ Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-treesj.md`. Clos
 
 ### Task 53: PR 30c2, startup trigger for auto-save (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b; PR 24 (`autosave.lua`). Brief: `brief-nvim-trigger-autosave.md`.
+Lane: last. Depends on: PR 1 to 29d; PR 24 (`autosave.lua`). Brief: `brief-nvim-trigger-autosave.md`.
 Closes 48 (part).
 
 - [ ] **Step 1:** `autosave.lua` gains `event = { "InsertLeave", "TextChanged" }` and the `<leader>uv`
@@ -1209,7 +1352,7 @@ Closes 48 (part).
 
 ### Task 54: PR 30c3, startup trigger for overseer (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b; PR 14 (`overseer.lua`). Brief: `brief-nvim-trigger-overseer.md`.
+Lane: last. Depends on: PR 1 to 29d; PR 14 (`overseer.lua`). Brief: `brief-nvim-trigger-overseer.md`.
 Closes 48 (part).
 
 - [ ] **Step 1:** `overseer.lua` gains `cmd` plus its `<leader>o` and `<M-…>` keys. Commit:
@@ -1219,7 +1362,7 @@ Closes 48 (part).
 
 ### Task 55: PR 30c4, startup trigger for harpoon (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b; PR 22a (`harpoon.lua`). Brief: `brief-nvim-trigger-harpoon.md`.
+Lane: last. Depends on: PR 1 to 29d; PR 22a (`harpoon.lua`). Brief: `brief-nvim-trigger-harpoon.md`.
 Closes 48 (part).
 
 - [ ] **Step 1:** `harpoon.lua` gains `keys` (`<C-p>`, `<C-n>` and its `<leader>` maps). Commit:
@@ -1228,7 +1371,7 @@ Closes 48 (part).
 
 ### Task 56: PR 30c5, startup trigger for urlview (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-urlview.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-urlview.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `urlview.lua` gains `cmd` and its `<leader>U` keys. Commit: `perf(nvim): lazy-load
   urlview`.
@@ -1236,21 +1379,21 @@ Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-urlview.md`. Clo
 
 ### Task 57: PR 30c6, startup trigger for sort (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-sort.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-sort.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `sort.lua` gains `cmd = "Sort"` and its keys. Commit: `perf(nvim): lazy-load sort`.
 - [ ] **Step 2:** the shared gates above; `:Sort` and its keys fire live.
 
 ### Task 58: PR 30c7, startup trigger for live-rename (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-live-rename.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-live-rename.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `live-rename.lua` gains `keys`. Commit: `perf(nvim): lazy-load live-rename`.
 - [ ] **Step 2:** the shared gates above; the rename map fires live on an LSP buffer.
 
 ### Task 59: PR 30c8, startup trigger for aerial (spec 9)
 
-Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-aerial.md`. Closes 48 (part).
+Lane: last. Depends on: PR 1 to 29d. Brief: `brief-nvim-trigger-aerial.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `aerial.lua` gains `cmd` and its keys. Commit: `perf(nvim): lazy-load aerial`.
 - [ ] **Step 2:** the shared gates above; the aerial toggle fires live and the PR 2 close-sidebars
@@ -1258,7 +1401,7 @@ Lane: last. Depends on: PR 1 to 29b. Brief: `brief-nvim-trigger-aerial.md`. Clos
 
 ### Task 60: PR 30c9, startup trigger for claudecode.nvim (spec 9, 7.2)
 
-Lane: last. Depends on: PR 1 to 29b; PR 16 (`claudecode.lua`). Brief:
+Lane: last. Depends on: PR 1 to 29d; PR 16 (`claudecode.lua`). Brief:
 `brief-nvim-trigger-claudecode.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `claudecode.lua` gains `event = "VeryLazy"` (the lock file must exist before the CLI
@@ -1337,8 +1480,9 @@ Depends on: PR 31 gated and applied (its step 4), on PR 31's branch before its m
 - [ ] **Step 5:** the 7.3 row taken, which of PR 10a and 10b shipped and registered the server and
   which was skipped, the 10.8 loop from both harnesses as that registering PR recorded it.
 - [ ] **Step 6:** the live bug checks (10.6), Swift (10.7), custom plugins (10.9: the Discord card,
-  the ledger, the idle and working sends), the clean-home apply (10.10) and the quiet second apply
-  (10.11), each with the PR that proved it.
+  the ledger with and without the bang, the annotation and its paste, the paragraph send and the
+  blocked refusal), the clean-home apply (10.10) and the quiet second apply (10.11), each with the
+  PR that proved it.
 - [ ] **Step 7:** walk appendix A: all 78 inventory items plus A to H and custom #1 to #4 closed, each
   with its merged PR number; the five struck items listed as struck; 22, 38, 64 recorded as
   informational, deferred, deferred. Nothing open means the program is done.
