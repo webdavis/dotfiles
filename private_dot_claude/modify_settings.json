@@ -19,7 +19,7 @@
     STABLE       overwritten from here on every apply, whatever the live file
                  says: permissions, hooks, statusLine, skillOverrides,
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
-                 effortLevel, and the six extraKnownMarketplaces entries this
+                 effortLevel, and the seven extraKnownMarketplaces entries this
                  repo declares.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.

@@ -24,6 +24,10 @@ The behaviour can be stated as a failing test before it can be stated as a parag
 yourself writing a paragraph of instructions for an implementer instead, you want
 [open-loop](../open-loop/SKILL.md).
 
+On the findings axis this behaves exactly like [closed-loop](../closed-loop/SKILL.md): every finding is
+fixed in this iteration and none becomes a task. So choosing between the two is a question of who writes
+the tests, never a question of what happens to a finding.
+
 **This was called Strategy-B.** Unlike the other two it has no letter of its own: the verifier scripts
 take only `A` and `F`, and it runs the `F` ledgers, as below.
 
