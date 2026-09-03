@@ -23,8 +23,8 @@ Toolchain here (measured): Apple Swift 6.3.3; `swift`, `swiftc`, `xcodebuild` an
 ## Where the boundary goes, and what enforces it
 
 **A module is the unit of enforcement**, whether it is a SwiftPM target or an Xcode framework
-target. A module can only `import` what it declares as a dependency, so the inward dependency the
-method forbids does not compile.
+target. A module cannot `import` something unreachable from what it declares, so the inward
+dependency the method forbids does not compile.
 
 Measured on Swift 6.3.3, with SwiftPM targets:
 
@@ -50,8 +50,19 @@ So:
   architecture.
 - The same applies after editing `Package.swift`.
 
-With that qualifier attached, it is the same guarantee Cargo gives, through a different file. Without
-it, it is not a guarantee at all.
+**AND IT REACHES ONLY AS FAR AS THE DECLARED CHAIN. A TRANSITIVE MODULE IS IMPORTABLE UNDECLARED.**
+Measured 2026-09-03 on a fresh build directory, so this one is not the incremental hole: with target
+`A` declaring only `B`, and `B` declaring `C`, a file in `A` may `import C` and call `C`'s functions,
+and `swift build` exits 0. Cargo refuses the same shape outright (`error[E0433]`, measured), so this
+is NOT the guarantee Cargo gives. It is the weaker one: a module may reach anything its declared
+neighbours pull in.
+
+The architecture survives that, because the direction it protects runs the other way. The domain
+declares no module of ours, so nothing of ours is transitively reachable from it, and UI or
+infrastructure still cannot leak inward. What does not survive is reviewing a MIDDLE module off the
+build alone: `<Tool>UI` declares `<Tool>`, so it can import whatever `<Tool>` imports, a persistence
+framework included, and compile. Read that module's import lines by hand; the compiler is not
+checking them for you.
 
 **The five roles do not need five modules, and in practice they should not be.** The case study
 (measured) draws exactly three hard boundaries:
