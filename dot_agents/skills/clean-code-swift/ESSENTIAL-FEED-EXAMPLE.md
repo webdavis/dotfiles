@@ -1,8 +1,9 @@
 # Worked example: the Essential Feed case study
 
 `essentialdevelopercom/essential-feed-case-study`, read at commit `706a0da` on 2026-09-03. A teaching
-repository for an iOS image feed, 120 Swift files. Everything here was measured from the source, not
-recalled.
+repository for an iOS image feed. It tracks 124 Swift files; the 120 measured below are its three
+architecture targets, excluding the standalone `Prototype/` throwaway app. Everything here was
+measured from the source, not recalled.
 
 It is a worked example of the method, not a specification. Where its shape and the method differ, the
 difference is noted rather than smoothed over.
@@ -50,7 +51,7 @@ Three modules, three Xcode framework targets:
 
 | Module            | Files | Imports (measured, whole module)       |
 | ----------------- | ----- | -------------------------------------- |
-| `EssentialFeed`   | 28    | `Foundation` (28), `CoreData` (5)      |
+| `EssentialFeed`   | 36    | `Foundation` (28), `CoreData` (5)      |
 | `EssentialFeediOS`| 15    | `UIKit` (15), `EssentialFeed` (4)      |
 | `EssentialApp`    | 8     | `EssentialFeed` (7), `UIKit` (6), `EssentialFeediOS` (4), `os`, `CoreData` |
 
@@ -179,8 +180,8 @@ CI runs `xcodebuild clean build test` with `-enableThreadSanitizer YES`.
 
 | | files | total lines | median | p90 | max | over the 200 production cap |
 | --- | --- | --- | --- | --- | --- | --- |
-| production | 59 | 2,058 | 23 | 62 | 164 | 0 |
-| tests | 61 | 4,574 | 46 | 153 | 590 | n/a |
+| production | 59 | 2,058 | 24 | 62 | 164 | 0 |
+| tests | 61 | 4,574 | 50 | 156 | 590 | n/a |
 
 Largest production files: `FeedService.swift` 164, `ListViewController.swift` 119, `ErrorView.swift`
 109, `FeedImageCellController.swift` 96, `FeedViewAdapter.swift` 90.

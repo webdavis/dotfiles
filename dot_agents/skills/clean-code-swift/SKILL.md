@@ -80,7 +80,7 @@ The filesystem and networking APIs, any database framework, `ProcessInfo` enviro
 library; reach into Foundation only for a genuine primitive such as `UUID`, `Date` or `URL`.
 
 The case study holds to this exactly (measured): its framework module imports only Foundation and
-CoreData across 28 files, and never UIKit. The UI module imports UIKit and the framework. Nothing
+CoreData across its 36 files, and never UIKit. The UI module imports UIKit and the framework. Nothing
 imports the app.
 
 ## The composition root
@@ -293,14 +293,15 @@ The `tr`/`-0` is load-bearing: Xcode project folders routinely contain spaces, a
 The Rust skill's 300 and 500 do not apply here. Do not carry them across.
 
 The case study is the evidence that the production cap is a backstop rather than a squeeze. Measured
-across its 120 Swift files:
+across the 120 Swift files of its three architecture targets (the repository tracks 124; the four
+remaining sit in the standalone `Prototype/` throwaway app, which is not part of the architecture):
 
 | | files | total lines | median | p90 | max | over 200 |
 | --- | --- | --- | --- | --- | --- | --- |
-| production | 59 | 2,058 | 23 | 62 | 164 | 0 |
-| tests | 61 | 4,574 | 46 | 153 | 590 | n/a |
+| production | 59 | 2,058 | 24 | 62 | 164 | 0 |
+| tests | 61 | 4,574 | 50 | 156 | 590 | n/a |
 
-Every production file in a 493-star teaching repository sits under the cap, with a median of 23 and a
+Every production file in a 493-star teaching repository sits under the cap, with a median of 24 and a
 largest file of 164. Well-factored Swift does not come close, so a file approaching 200 is a
 responsibility problem long before it is a length problem.
 
