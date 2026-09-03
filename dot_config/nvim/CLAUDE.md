@@ -45,7 +45,7 @@ Modules are accessed via `require("custom_api")`:
 - `git` — Git CLI wrappers (branch parsing, URL generation, protocol conversion)
 - `github` — GitHub CLI (`gh`) integration for account/repo info
 - `delegate` — Tmux delegate window management (send commands/selections to a tmux pane)
-- `helpers` — Error-handling wrapper (`helpers.wrap`)
+- `try`: the keymap-layer error boundary; turns a raise or a `nil, message` result into one notification
 
 ### The `map()` function
 

@@ -1,15 +1,10 @@
 local M = {}
 
-local module_name = "custom_api.git"
-
-local helpers = require("custom_api.helpers")
 local util = require("custom_api.util")
 
 -- ╭──────────╮
 -- │  Helpers │
 -- ╰──────────╯
-local log_warning = vim.log.levels.WARN
-
 local function convert_remote_protocol(remote_url, from_prefix, to_prefix)
   local user_repo = remote_url:match("^" .. from_prefix .. "(.+)")
 
@@ -204,14 +199,12 @@ local function latest_commit(opts)
   local repo_name = opts.repo_name
 
   if not repo_name then
-    error("Missing required argument `project`")
+    error("Missing required argument `repo_name`")
   end
 
   local hash_exit, hash = util.run_shell_command({ cmd = "git rev-parse --short HEAD" })
   if hash_exit ~= 0 then
     return nil,
-      nil,
-      nil,
       string.format(
         "Unable to find latest commit.\n\nThis may occur if no commits have been made to *%s* yet.",
         repo_name
@@ -220,12 +213,12 @@ local function latest_commit(opts)
 
   local message_exit, message = util.run_shell_command({ cmd = "git log -1 --pretty=%B" })
   if message_exit ~= 0 then
-    return hash, nil, nil, string.format("Commit `%s` has no message.", hash)
+    return { hash = hash }, string.format("Commit `%s` has no message.", hash)
   end
 
   local summary, body = message:match("([^\n]*)\n?(.*)")
 
-  return hash, util.normalize(summary), util.normalize(body)
+  return { hash = hash, summary = util.normalize(summary), body = util.normalize(body) }
 end
 
 local function default_branch(opts)
@@ -262,7 +255,7 @@ local function url(opts)
     error("Missing required argument `remote`")
   end
   if not account_name then
-    error("Missing required argument `user`")
+    error("Missing required argument `account_name`")
   end
   if not repo_name then
     error("Missing required argument `repo_name`")
@@ -325,16 +318,13 @@ local function copy_URL_to_clipboard(opts)
   return ("Copied *%s* %s URL to clipboard: `%s`"):format(remote, protocol:upper(), final_URL)
 end
 
--- ╭─────────────────────╮
--- │  Wrapped Functions  │
--- ╰─────────────────────╯
-M.initialized = helpers.wrap(module_name, initialized, { log_level = log_warning })
-M.top_level = helpers.wrap(module_name, top_level, { log_level = log_warning })
-M.current_branch = helpers.wrap(module_name, current_branch, { log_level = log_warning })
-M.all_branches = helpers.wrap(module_name, all_branches, { log_level = log_warning })
-M.default_branch = helpers.wrap(module_name, default_branch)
-M.latest_commit = helpers.wrap(module_name, latest_commit, { log_level = log_warning })
-M.copy_URL_to_clipboard = helpers.wrap(module_name, copy_URL_to_clipboard, { log_level = log_warning })
-M.url = helpers.wrap(module_name, url, { log_level = log_warning })
+M.initialized = initialized
+M.top_level = top_level
+M.current_branch = current_branch
+M.all_branches = all_branches
+M.default_branch = default_branch
+M.latest_commit = latest_commit
+M.copy_URL_to_clipboard = copy_URL_to_clipboard
+M.url = url
 
 return M

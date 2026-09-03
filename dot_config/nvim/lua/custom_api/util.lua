@@ -3,10 +3,6 @@
 ---`map` supports multiple keys, automatic silent handling, and merging user-provided options.
 local M = {}
 
-local helpers = require("custom_api.helpers")
-
-local module_name = "custom_api.util"
-
 -- ╭───────────────────╮
 -- │  Helper Functions │
 -- ╰───────────────────╯
@@ -34,8 +30,12 @@ end
 -- ╰──────╯
 
 ---Remove surrounding whitespace from `s`.
+---
+---The outer parentheses are load-bearing: they drop `gsub`'s substitution
+---count, which every caller in tail position would otherwise return as a
+---second value of its own.
 function M.trim(s)
-  return (s or ""):gsub("^%s*(.-)%s*$", "%1")
+  return ((s or ""):gsub("^%s*(.-)%s*$", "%1"))
 end
 
 ---Remove surrounding whitespace and convert `s` to lowercase.
@@ -149,7 +149,7 @@ function M.map(opts)
   end
 end
 
-local function run_shell_command(opts)
+function M.run_shell_command(opts)
   opts = opts or error("Missing `command` argument. Provide a table with a `command` field.")
   local cmd = opts.cmd
   local notify_error = opts.notify_error
@@ -203,10 +203,5 @@ function M.overseer_runner(opts)
     })
     :start()
 end
-
--- ╭─────────────────────╮
--- │  Wrapped Functions  │
--- ╰─────────────────────╯
-M.run_shell_command = helpers.wrap(module_name, run_shell_command)
 
 return M

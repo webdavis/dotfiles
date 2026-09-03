@@ -528,8 +528,8 @@ return {
           return
         end
 
-        local hash, summary, body = git.latest_commit({ repo_name = github.repo().name })
-        local sections = build_sections(branch, hash, summary, body)
+        local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+        local sections = build_sections(branch, commit.hash, commit.summary, commit.body)
         local message = sections_to_message(sections)
 
         vim.notify(message, vim.log.levels.INFO, { title = "Active Git Branch & Latest Commit", timeout = 0 })
@@ -656,12 +656,12 @@ return {
         mode = "n",
         lhs = "<C-g>cp",
         rhs = function()
-          local _, summary, body = git.latest_commit({ repo_name = github.repo().name })
-          if not summary then
+          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          if not commit.summary then
             return
           end
 
-          vim.fn.setreg('"', summary .. "\n\n" .. (body or ""))
+          vim.fn.setreg('"', commit.summary .. "\n\n" .. (commit.body or ""))
           vim.cmd("normal! ]p")
         end,
         desc = "Fugitive: paste latest message into buffer",
@@ -672,16 +672,16 @@ return {
         mode = "n",
         lhs = "<C-g>cA",
         rhs = function()
-          local hash, _, _ = git.latest_commit({ repo_name = github.repo().name })
-          if not hash then
+          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          if not commit.hash then
             return nil
           end
 
           local function message_helper(subject)
-            return "No " .. subject .. " entered - author update cancelled for commit `" .. hash .. "`"
+            return "No " .. subject .. " entered - author update cancelled for commit `" .. commit.hash .. "`"
           end
 
-          vim.ui.input({ prompt = "Author for latest commit (" .. hash .. "): " }, function(author)
+          vim.ui.input({ prompt = "Author for latest commit (" .. commit.hash .. "): " }, function(author)
             if not author or author:match("^%s*$") then
               vim.notify(message_helper("author"), log_warning, notify_fugitive_title)
               return
@@ -852,8 +852,8 @@ return {
         mode = "n",
         lhs = "<C-g>dhw",
         rhs = function()
-          local hash, _, _ = git.latest_commit({ repo_name = github.repo().name })
-          if not hash then
+          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          if not commit.hash then
             return
           end
           util.overseer_runner({ cmds = "git diff --color-words" })
@@ -865,8 +865,8 @@ return {
         mode = "n",
         lhs = "<C-g>dhm",
         rhs = function()
-          local hash, _, _ = git.latest_commit({ repo_name = github.repo().name })
-          if not hash then
+          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          if not commit.hash then
             return
           end
           util.overseer_runner({ cmds = "git diff --color-moved" })

@@ -1,14 +1,6 @@
 local M = {}
 
-local module_name = "custom_api.github"
-
-local helpers = require("custom_api.helpers")
 local util = require("custom_api.util")
-
--- ╭──────────╮
--- │  Helpers │
--- ╰──────────╯
-local log_warning = vim.log.levels.WARN
 
 -- ╭──────╮
 -- │  API │
@@ -71,10 +63,7 @@ local function repo()
   }
 end
 
--- ╭─────────────────────╮
--- │  Wrapped Functions  │
--- ╰─────────────────────╯
-M.account = helpers.wrap(module_name, account, { log_level = log_warning })
-M.repo = helpers.wrap(module_name, repo, { log_level = log_warning })
+M.account = account
+M.repo = repo
 
 return M
