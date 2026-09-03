@@ -701,7 +701,7 @@ every citation below it in the file it touched.
 | 4   | high     | `default_branch` reads `opts.repo` from a string (`custom_api/git.lua:231`; caller `git.lua:997`) | the GitHub fallback moves into `github` (item 56); `git.default_branch()` takes no repo and returns `(name, err)` | PR 7c |
 | 4b  | high     | `string.format` with two `%s` and one arg (`custom_api/git.lua:247`)  | same move; `github.default_branch({owner, name})` supplies both                              | PR 7c |
 | 5   | medium   | `delegate.setup()` called twice                                       | moot: `delegate.lua` is deleted                                                              | PR 8  |
-| 6   | low      | duplicate, ungrouped `checktime` autocmd (`options.lua:116-118`)      | remove the `options.lua` copy; the auto-reload design (5.4) owns `checktime`                 | PR 20 |
+| 6   | low      | duplicate, ungrouped `checktime` autocmd (`options.lua:116-118` until PR 20 merged as #307 on 2026-09-03; the lines are gone from `main`) | remove the `options.lua` copy; the auto-reload design (5.4) owns `checktime`                 | PR 20 |
 | 8   | medium   | `extract_upstream` returns `i + 1`, dropping the first commit word (`custom_api/git.lua:101-112`) | return `i`; pinned by a unit test                                                | PR 7a |
 | 9   | medium   | literal `"\\<Esc>"` (`delegate.lua:100`)                              | moot: `delegate.lua` is deleted                                                              | PR 8  |
 | 10  | low      | `nvim_win_get_width(0)` at spec load (`harpoon.lua:6`)                | `opts = function() … end`                                                                    | PR 22a |
@@ -1698,6 +1698,8 @@ encode:
 - `lua/custom_api/github.lua`: PR 6, 7b, 7c, 7d, 23.
 - `lua/custom_api/util.lua`: PR 6, 7e. `lua/custom_api/init.lua`: PR 6, 7e, 8.
 - `tests/git_spec.lua`: PR 6, 7a, 7b, 7c, 7f, 23. `tests/github_spec.lua`: PR 7b, 7c, 7d, 23.
+- `tests/run.lua`: PR 6 (creates it), 6b (the suite runner calls it directly and its two self-checks
+  move in). `test/unit/nvim-custom-api.bats`: PR 6 (creates it), 6b (deletes it).
 - `lua/custom_api/herdr.lua`: PR 11 (creates it, with the seam and the interrupt policy), 13
   (extends it with the launch helper), 16 (reads it). `tests/herdr_spec.lua`: PR 11 (creates it for
   `may_send`), 13 (adds `agent_name` and `plan_launch`).

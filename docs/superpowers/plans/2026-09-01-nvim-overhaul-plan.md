@@ -1086,8 +1086,9 @@ Lane: standalone. Depends on: PR 4b (`autocmds.lua`). Brief: `brief-nvim-auto-re
 40.
 
 **Files:** Create `lua/custom_api/auto_reload.lua`, `tests/auto_reload_spec.lua`. Modify
-`lua/config/autocmds.lua` (the `nvim_config_auto_reload` augroup), `lua/config/options.lua:116-118`
-(delete the duplicate `checktime`).
+`lua/config/autocmds.lua` (the `nvim_config_auto_reload` augroup) and `lua/config/options.lua`
+(delete the duplicate `checktime`, which sat at `:116-118` until this PR merged as #307 on
+2026-09-03; the lines are gone from `main`).
 
 **Interfaces:** `auto_reload.watch(bufnr)` starts a `vim.uv.new_fs_event()` on
 `vim.uv.fs_realpath(name)` if none; the callback schedules `checktime <bufnr>` then re-arms (stop,
@@ -1302,8 +1303,8 @@ inventory; it is the LSP gap list decided 2026-09-03.
   own `on_attach` hook, reached from the `LspAttach` autocmd at `lsp.lua:354`, and the global
   `BufWritePre` at `lsp.lua:362`, both registered in the `AutoformatGroup` augroup created at
   `lsp.lua:349` (measured against the TRACKED tree on `origin/main`, which is what every address in
-  these documents means; the live standalone repo is fifteen lines ahead in this file and is NOT the
-  reference); keep exactly one
+  these documents means; an earlier reading of :369 and :377 came from a stale worktree fifteen lines
+  ahead of `main`, so re-measure before trusting any address here); keep exactly one
   and say in the body which and why. Before and after, a `:verbose autocmd BufWritePre` dump in the
   body showing two handlers then one. Commit: `fix(nvim): format once on write`.
 - [ ] **Step 2:** diagnostics: `severity_sort`, sign icons, `source = "if_many"`,
