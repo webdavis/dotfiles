@@ -795,16 +795,26 @@ mod guard_tests {
         assert!(message.starts_with("test budget:"), "{message}");
     }
 
-    /// The OTHER side of the boundary, on the real `Drop` path: a sandbox one
-    /// millisecond inside the ceiling in force must survive its own drop. It
-    /// is the only twin that fails a `Drop` reading the LOCAL constant while
-    /// running in CI, which is the defect this guard was carrying.
+    /// The OTHER side of the line, on the real `Drop` path: a sandbox inside
+    /// the ceiling in force must survive its own drop. It is the only twin
+    /// that fails a `Drop` reading the LOCAL constant while running in CI,
+    /// which is the defect this guard was carrying.
+    ///
+    /// THE MARGIN IS A SECOND, NOT A MILLISECOND. The drop path does real
+    /// work between the backdate and the reading (a `remove_dir_all`, plus
+    /// whatever the scheduler charges a thread in a loaded test binary), so a
+    /// one-millisecond margin is a wall-clock race: measured here, a 4,999 ms
+    /// backdate already reads 5,000 ms under load, and 3 ms of runner
+    /// slowness turns it red. That is the failure this whole guard was
+    /// changed to stop having, so the twin must not reintroduce it one level
+    /// down. The exact boundary is pinned by the pure twins instead, which
+    /// spend no wall clock to do it.
     #[test]
-    fn a_real_sandbox_just_inside_the_ceiling_does_not_fail() {
+    fn a_real_sandbox_well_inside_the_ceiling_does_not_fail() {
         assert!(
             drop_backdated(
                 "guard-twin-inside-ceiling",
-                live_ceiling_ms() as u64 - 1,
+                live_ceiling_ms() as u64 - 1_000,
                 None
             )
             .is_none(),
