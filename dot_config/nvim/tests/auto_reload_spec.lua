@@ -123,5 +123,31 @@ return {
 
     module.unwatch(bufnr)
     assert(module.handles[bufnr] == nil, "unwatch left the handle in the table")
+    -- Dropping the table entry is not enough. A handle that is stopped but never
+    -- closed stays alive in the loop for the life of the process, one per buffer
+    -- ever watched, and nothing outside the handle itself can see it.
+    assert(handle:is_closing(), "unwatch stopped the handle but never closed it")
+  end,
+
+  ["the augroup watches a normal file buffer without a manual watch call"] = function()
+    -- The cases above drive the module directly, which leaves the augroup in
+    -- `config/autocmds.lua` unpinned: delete its `BufReadPost` autocmd and all
+    -- four still pass while the feature is dead in every real Neovim. This one
+    -- goes through the real entry point and never calls `watch` itself.
+    local module = auto_reload()
+    require("config.autocmds")
+    local path = temp_file("one\n")
+    local bufnr = open(path)
+    assert(module.handles[bufnr], "BufReadPost started no watch on a normal file buffer")
+    arm()
+
+    write(path, "two two\n")
+
+    assert(reaches(bufnr, "two two"), "the buffer still reads " .. tostring(first_line(bufnr)))
+
+    module.unwatch(bufnr)
+    -- Every other case owns its own watches, so the augroup goes again: what the
+    -- runner happens to run after this must not depend on it being live.
+    vim.api.nvim_del_augroup_by_name("nvim_config_auto_reload")
   end,
 }
