@@ -951,8 +951,10 @@ Then every value in it came from the test's own sandbox, never from the operator
   the `Command`. The macOS Focus store is written into the sandbox's own `HOME`, with no variable naming
   the path, and "NOTHING HERE READS THE OPERATOR'S OWN STORE, which would answer differently on every run
   and on every machine".
-- Timeout and cancellation: `TEST_BUDGET_MS` = 1,000 warns; `TEST_CEILING_MS` = 5,000 fails the build,
-  unless the sandbox is excused or already unwinding.
+- Timeout and cancellation: `TEST_BUDGET_MS` = 1,000 warns; the ceiling fails the build, unless the
+  sandbox is excused or already unwinding. The ceiling depends on where the suite runs:
+  `TEST_CEILING_MS` = 5,000 on a developer's machine, multiplied by `CI_CEILING_FACTOR` = 4 when `CI`
+  holds a non-empty value, because the runner measured about four times slower on the same test.
 - Idempotency and duplicates: each sandbox is its own directory.
 - Privacy: `NOT ESTABLISHED:` nothing GATES a future test from reading the operator's real `$HOME`. The
   guarantee is the harness convention (`bare` with `env_clear`) plus the one explicit assertion in
