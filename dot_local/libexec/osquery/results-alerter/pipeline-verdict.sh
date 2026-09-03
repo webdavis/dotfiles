@@ -15,10 +15,10 @@
 #                                  monitor's body: everything under the pipeline
 #                                  home is tracked, so a planted file pages.
 #   managed-bin-known-good.sha256  the chezmoi-managed scripts under ~/.local/bin.
-#                                  Not pipeline files, but update-skills.sh,
-#                                  homebrew-weekly-upgrade.sh and the claude-*
-#                                  hooks run unattended from LaunchAgents and shell
-#                                  hooks, so a tamper there executes on a timer.
+#                                  Not pipeline files, but update-skills.sh, uu
+#                                  and the claude-* hooks run unattended from
+#                                  LaunchAgents and shell hooks, so a tamper
+#                                  there executes on a timer.
 #                                  Only manifested paths are tracked, because the
 #                                  same directory holds self-updating third-party
 #                                  shims that chezmoi cannot vouch for.

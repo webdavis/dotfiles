@@ -137,6 +137,7 @@ mod tests {
         // rather than inside it for: a lane type added later is bounded by
         // construction, not by its author remembering to carry the field.
         let fixtures: &[(&str, &str)] = &[
+            ("brew", "[lanes.brew]\n"),
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),

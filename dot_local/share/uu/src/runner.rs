@@ -13,6 +13,8 @@ use unattended_upgrades::lanes::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict
 
 use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
 
+mod bounds;
+
 /// The event handed to a command lane's child cannot exceed this, or
 /// `run_with_input`'s pre-filled pipe would have to write more than fits
 /// before a reader exists. XNU's own floor is 16 KiB; measured capacity on
@@ -143,6 +145,16 @@ impl CommandRunner for SystemRunner {
         ))
     }
 
+    /// One step under a bound of its own; `bounds` owns the reasoning.
+    fn run_with_deadline(
+        &self,
+        program: &str,
+        args: &[&str],
+        most: Duration,
+    ) -> Result<String, String> {
+        bounds::run_step(self, program, args, most)
+    }
+
     fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String> {
         if input.len() > MAX_EVENT_INPUT {
             return Err(format!(
@@ -196,7 +208,6 @@ impl CommandRunner for SystemRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::watchdog::tests::within;
 
     /// A runner whose budget no honest test child comes near.
     fn runner() -> SystemRunner {
@@ -386,73 +397,6 @@ mod tests {
         );
     }
 
-    // --- the lane deadline, against real children -------------------------
-
-    /// A runner whose budget is spent almost at once, so a deadline test is
-    /// over in a fraction of a second.
-    fn impatient(lane: &str) -> SystemRunner {
-        SystemRunner::for_lane(lane, Duration::from_millis(200), Duration::from_millis(200))
-    }
-
-    #[test]
-    fn a_child_that_runs_past_the_lane_deadline_fails_naming_it() {
-        let failure = within(Duration::from_secs(3), || {
-            impatient("slow").run("/bin/sh", &["-c", "sleep 30"])
-        })
-        .expect_err("this command outlives its lane's deadline");
-        assert!(failure.contains("lane `slow`"), "{failure}");
-        assert!(failure.contains("200ms deadline"), "{failure}");
-    }
-
-    #[test]
-    fn a_child_that_exits_while_a_grandchild_holds_the_pipe_still_hits_the_deadline() {
-        // THE HANG THIS EXISTS FOR, and it is not simply a slow child: the
-        // child exits at once and something it left behind keeps stdout open,
-        // so waiting on the child returns immediately and the READ is what
-        // blocks. A deadline that only bounded the wait would not bound this
-        // at all.
-        //
-        // THE GRANDCHILD OUTLIVES THE WHOLE WATCHDOG on purpose. At 30 seconds
-        // it cannot exit on its own inside the deadline plus both kill graces,
-        // so a run that finishes here finished because something killed it.
-        let ran = within(Duration::from_secs(3), || {
-            impatient("orphan").run_with_input(
-                "/bin/sh",
-                &["-c", "sleep 30 & printf 'got this far\\n'; exit 0"],
-                "the run event\n",
-            )
-        })
-        .expect("the child ran, it just left something behind");
-        // WHAT IT PRINTED IS KEPT. Those lines are how far the lane got, and
-        // a mutant that dropped stdout on the overrun path alone would satisfy
-        // every assertion below.
-        assert_eq!(ran.stdout, "got this far\n");
-        let Verdict::Failed(reason) = ran.verdict else {
-            panic!("an overrun is a failure, not {:?}", ran.verdict);
-        };
-        assert!(reason.contains("lane `orphan`"), "{reason}");
-        assert!(reason.contains("200ms deadline"), "{reason}");
-    }
-
-    #[test]
-    fn a_lane_that_spent_its_budget_refuses_the_next_command_without_running_it() {
-        // The budget belongs to the LANE, not to each spawn: the herdr lane
-        // alone spawns two commands per plugin, and a bound that reset every
-        // time would let a long roster hold the run lock for a multiple of the
-        // deadline the operator wrote.
-        let runner = impatient("spent");
-        std::thread::sleep(Duration::from_millis(250));
-        // A PROGRAM THAT IS NOT THERE, so the refusal proves nothing was
-        // spawned: a runner that attempted the spawn would report the missing
-        // program instead of the deadline it had already blown.
-        let refused = runner
-            .run("/no/such/uu-test-program", &[])
-            .expect_err("nothing may run once the lane is out of time");
-        assert!(refused.contains("lane `spent`"), "{refused}");
-        assert!(refused.contains("200ms deadline"), "{refused}");
-        assert!(!refused.contains("could not run"), "{refused}");
-    }
-
     #[test]
     fn a_deadline_that_did_not_stop_the_group_never_claims_that_it_did() {
         // `Escaped` means something outlived TERM and KILL and may still be
@@ -464,24 +408,5 @@ mod tests {
         assert!(!escaped.contains("was killed"), "{escaped}");
         let stopped = runner.overrun(&Ended::Stopped, b"");
         assert!(stopped.contains("process group was killed"), "{stopped}");
-    }
-
-    #[test]
-    fn a_lane_cut_short_by_the_run_says_so_rather_than_naming_its_own_setting() {
-        // One lock covers every lane, so a lane starting late gets what is
-        // left of the RUN rather than its own deadline. Reporting that as
-        // "exceeded its 200ms deadline" would send the operator to a config
-        // key that says 21600 and looks correct.
-        let runner = SystemRunner::for_lane(
-            "cut",
-            Duration::from_millis(200),
-            Duration::from_secs(21600),
-        );
-        let failure = within(Duration::from_secs(3), move || {
-            runner.run("/bin/sh", &["-c", "sleep 30"])
-        })
-        .expect_err("this command outlives what the run had left");
-        assert!(failure.contains("run's budget"), "{failure}");
-        assert!(failure.contains("deadline_secs is 21600s"), "{failure}");
     }
 }

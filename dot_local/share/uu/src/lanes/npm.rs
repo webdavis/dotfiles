@@ -88,6 +88,7 @@ mod tests {
     use super::*;
     use crate::lanes::Ran;
     use std::cell::RefCell;
+    use std::time::Duration;
 
     /// A runner that answers one scripted result and records every call it
     /// was asked to make. `Err` is the seam's own contract: an already
@@ -124,6 +125,15 @@ mod tests {
             call.extend(args.iter().map(|word| (*word).to_string()));
             self.calls.borrow_mut().push(call);
             self.answer.clone()
+        }
+
+        fn run_with_deadline(
+            &self,
+            _program: &str,
+            _args: &[&str],
+            _most: Duration,
+        ) -> Result<String, String> {
+            unreachable!("the npm lane bounds no step of its own")
         }
 
         fn run_with_input(

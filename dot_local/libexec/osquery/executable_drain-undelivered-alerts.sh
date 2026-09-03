@@ -44,7 +44,7 @@ OSQUERY_DRAIN_LOCK_FILE="${OSQUERY_DRAIN_LOCK_FILE:-${OSQUERY_UNDELIVERED_ALERTS
 # acquire is non-blocking (-t 0): an
 # overlapping run fails to take the lock and returns nonzero, so the caller skips
 # rather than queueing behind the running drain. House precedent: hue-pulse.sh,
-# homebrew-weekly-upgrade.sh, and update-skills.sh all guard with this same
+# update-skills.sh and uu all guard with this same
 # kernel-lock shape. The lockf binary path is overridable (OSQUERY_DRAIN_LOCKF_BIN)
 # so the platform-fallback and fail-closed paths can be exercised in tests.
 #

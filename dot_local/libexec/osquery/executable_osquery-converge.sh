@@ -6,7 +6,7 @@
 # WHY THIS EXISTS. The osquery cask reinstalls the vendor package on upgrade and
 # wipes our files out of /var/osquery (osquery.conf, packs/*.conf,
 # osquery.flags) while repopulating the vendor's own. That upgrade runs
-# UNATTENDED from the weekly Homebrew job, so before this tool the machine could
+# UNATTENDED from uu's brew lane, so before this tool the machine could
 # lose its whole detection config with nobody present, and the setup script that
 # wrote those files refired only when its OWN content changed. Nothing converged
 # after an external wipe.
@@ -20,8 +20,10 @@
 # TWO CALLERS, both safe on every run because this is idempotent and silent when
 # there is nothing to do:
 #   - .chezmoiscripts/run_after_50-setup-osquery.sh, on every apply;
-#   - the weekly Homebrew upgrade job, right after its upgrade pass, which is
-#     what closes the unattended wipe window.
+#   - uu's brew lane, right after its upgrade pass, which is what closes the
+#     unattended wipe window. The lane reaches this tool through its
+#     `osquery_converge` config key, and a tool that is not deployed is a
+#     FAILED step there rather than a quiet skip.
 #
 # THE DESIRED STATE is a set of ordinary chezmoi targets under
 # osquery-converge/desired/, so every repair channel reads one rendered source

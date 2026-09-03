@@ -18,7 +18,7 @@
 #     those skills get a real old -> new transition.
 #
 # Unit test: the SNAPSHOT reader in isolation via UPDATE_SKILLS_LIB_ONLY=1. The
-# rendering it feeds is shared with homebrew-weekly-upgrade.sh and is covered by
+# rendering it feeds is shared with report-plugin-updates.sh and is covered by
 # test/unit/unattended-log-lib.sh. No network, no generation machinery, no sleeps.
 set -uo pipefail
 
