@@ -54,6 +54,7 @@ excludes = [
   "private_dot_claude/commands/**",
   "private_dot_claude/output-styles/**",
   "private_dot_claude/pns-marketplace/**",
+  "private_dot_claude/strategy-marketplace/**",
   "dot_agents/**",
   "docs/superpowers/**",
   # The pns behavioral specifications use a three-line Given / When / Then
