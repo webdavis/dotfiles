@@ -1,22 +1,17 @@
 return {
   "ThePrimeagen/harpoon",
   branch = "harpoon2",
-  -- A function, not a table: a table literal is evaluated once while lazy.nvim
-  -- reads the spec, and that one width is then frozen for the session. Harpoon
-  -- carries no lazy trigger, so at startup both spellings measure the same
-  -- window; the difference shows on `:Lazy reload`, which clears lazy's opts
-  -- cache and re-resolves (measured in a 40-column split: 76 from the frozen
-  -- table, 36 from the function).
-  opts = function()
-    return {
-      menu = {
-        width = vim.api.nvim_win_get_width(0) - 4,
-      },
-      settings = {
-        save_on_toggle = false,
-      },
-    }
-  end,
+  -- No `menu` table here: that spelling is harpoon v1. On harpoon2 the quick
+  -- menu is sized inside ui.lua from the toggle_quick_menu argument
+  -- (`ui_width_ratio`, default 0.62569 of the editor), and merge_config files an
+  -- unrecognized top-level key as a per-list entry, so a `menu.width` in setup
+  -- reaches harpoon.config and never the window (measured: 5 and 200 both open
+  -- the same menu).
+  opts = {
+    settings = {
+      save_on_toggle = false,
+    },
+  },
   config = function(_, opts)
     local harpoon = require("harpoon")
 
