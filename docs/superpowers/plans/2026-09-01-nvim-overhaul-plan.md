@@ -707,14 +707,20 @@ reaches `~/.claude.json` or the Codex template.
 - [ ] **Step 1:** `cargo install --git https://github.com/linw1995/nvim-mcp --rev 0b5ace3` by hand,
   outside chezmoi; the six criteria in table order (5 and 6, then 4, then 1 to 3) against the live
   setup (two workspaces, two Neovim panes in one), each pass, fail or undecided with its command and
-  output, and the one row taken. Criterion 3 is run on what SYMMETRIC INJECTION leaves over
-  (2026-09-03, spec 7.3): a Neovim that spawns an agent pane pins its socket with
-  `herdr pane split --env NVIM_MCP_SOCKET=…`, and an agent pane that spawns a Neovim pane pins it the
-  other way, so the criterion measures only the case of two panes neither of which created the other,
-  and the record states how often that case actually arises. Every candidate is LIVENESS-CHECKED
-  before it counts (connect to the socket, ask for the three ids), and a socket that refuses or times
-  out is skipped and its stale path unlinked, so a crashed instance never makes a lone live Neovim
-  read as ambiguous; the record shows one run with a deliberately stale socket present.
+  output, and the one row taken. Criterion 3 is run against the five-step selection design of spec
+  7.3 (2026-09-03, which supersedes the earlier three-step one), so the question is not whether
+  nvim-mcp's heuristic is good but HOW MUCH of the case is left once injection covers the common one:
+  a Neovim that spawns an agent pane pins its socket with `herdr pane split --env
+  NVIM_MCP_SOCKET=…`, an agent pane that spawns a Neovim pane pins it the other way, and the record
+  states how often two panes neither of which created the other actually arise. A server that FAILS
+  criterion 3 may still be entirely usable under this design, and the record says so rather than
+  taking the crate row on that failure alone. Three of the five steps are exercised by hand and
+  recorded: a topology match read with `herdr pane layout --pane <id>` and never with `pane current`,
+  which answers the caller's own pane; an IDENTITY check, asking a candidate over the
+  remote-procedure-call channel for its pane id and pid and comparing both against the registry, run
+  once against a deliberately stale entry whose socket path has been reused by a different Neovim, so
+  the record shows presence and identity disagreeing; and the zero-candidate refusal naming its
+  reason.
   Criterion 5's hand check is the 10.8 loop run once by hand; the recorded 10.8 check belongs to the
   registering PR. The record also names the PR that lands
   `private_dot_codex/private_config.toml.tmpl` on `main` once it has a number (7.3). Commit:
@@ -739,25 +745,33 @@ composio), `private_dot_codex/private_config.toml.tmpl` (one `[mcp_servers.nvim]
 ten), `.chezmoitemplates/global-agent-rules.md` and `dot_config/nvim/CLAUDE.md` (the 7.5 rule
 verbatim), the lock. No project `.mcp.json`. On the as-is row (1, 2, 3 all pass) both registrations
 run `nvim-mcp` directly. On the resolver row (any of 1 to 3 fails or undecided) also create
-`dot_local/libexec/executable_nvim-mcp-connect.sh` (at most 80 lines, bash 3.2, `set -euo pipefail`)
-and `test/unit/nvim-mcp-connect.bats`, and both registrations run the resolver. Resolver order: if
-`NVIM_MCP_SOCKET` is set, `exec nvim-mcp --connect "$NVIM_MCP_SOCKET"`; else list
-`${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0` (the root `:help serverstart()` documents;
-`$TMPDIR` alone misses Linux) and ask each with `nvim --server "$sock" --remote-expr` for the joined
-`HERDR_WORKSPACE_ID`, `HERDR_TAB_ID`, `HERDR_PANE_ID` (the 7.3 expression) under a short deadline,
-skipping refusals and timeouts. `select_socket <workspace> <tab> <lines "socket workspace tab pane">`
-keeps the caller's workspace, prints the one candidate in the caller's tab, else the lone candidate in
-the workspace, else exits 1 with the candidate pane ids on stderr and the instruction (launch from
-`<leader>Cc` or export `NVIM_MCP_SOCKET`). Never focus.
+`dot_local/libexec/executable_nvim-mcp-connect.sh` (at most 150 lines, bash 3.2, `set -euo
+pipefail`) and `test/unit/nvim-mcp-connect.bats`, and both registrations run the resolver. Resolver
+order: the five steps of spec 7.3, which supersede the three-step order this task carried until
+2026-09-03. Injection first (`NVIM_MCP_SOCKET` set means `exec nvim-mcp --connect
+"$NVIM_MCP_SOCKET"`, still subject to the identity check); then the topology match through `herdr
+pane layout --pane <id>`, never `pane current`, which answers the caller's own pane; then IDENTITY,
+asking each candidate over the remote-procedure-call channel for its own pane id and pid and keeping
+only the ones that match the registry entry, pruning a mismatch on the spot; then a PICKER when more
+than one candidate verifies; then a refusal, with its reason named, only when none does. A resolved
+instance is memoized per agent and the identity check re-runs on every use. The registry is written
+by Neovim itself, `{ pane_id, socket, cwd, pid }` on start and deregistered on `VimLeavePre`, and the
+`${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0` listing (the root `:help serverstart()`
+documents; `$TMPDIR` alone misses Linux) is the fallback for an instance that died without running
+its autocommand. `select_socket <workspace> <tab> <lines "socket workspace tab pid">` is the pure
+function under test. Never focus.
 
 - [ ] **Step 1, red (resolver row only):** bats sourcing the function: the tab match wins over a
-  second candidate; a lone candidate in the workspace wins; two unpinned candidates exit 1 naming both
-  pane ids; another workspace's candidate is ignored; empty ids are skipped; `NVIM_MCP_SOCKET` set
-  short-circuits main; the listing glob resolves under `XDG_RUNTIME_DIR` when set and under
-  `${TMPDIR}nvim.${USER}` otherwise. FAIL, function undefined. **Step 2:** implement; `shellcheck`
-  clean. **Mutants:** drop the workspace filter (case 4 red); drop the tab match (case 1 red); print
-  the first socket when two remain (case 3 red); list `$TMPDIR/nvim.$USER` only (the
-  `XDG_RUNTIME_DIR` case red).
+  second candidate; a lone candidate in the workspace wins; a candidate whose reported pid does not
+  match its registry entry is dropped and its entry pruned, EVEN THOUGH its socket answered; two
+  verified candidates go to the picker rather than exiting 1; zero verified candidates refuse with
+  the reason named; another workspace's candidate is ignored; empty ids are skipped;
+  `NVIM_MCP_SOCKET` set short-circuits main but still runs the identity check; the listing glob
+  resolves under `XDG_RUNTIME_DIR` when set and under `${TMPDIR}nvim.${USER}` otherwise. FAIL,
+  function undefined. **Step 2:** implement; `shellcheck` clean. **Mutants:** drop the workspace
+  filter (case 6 red); drop the tab match (case 1 red); accept a candidate on presence alone without
+  comparing the pid (the stale-entry case red); pick the first socket when two verify (the picker
+  case red); list `$TMPDIR/nvim.$USER` only (the `XDG_RUNTIME_DIR` case red).
 - [ ] **Step 3:** the install script; the plugin spec; both registrations; the 7.5 rule in both
   CLAUDE.md files and the shared partial. Commits: `feat(chezmoi): install nvim-mcp at apply time`,
   `feat(nvim): resolve the pane's Neovim socket for nvim-mcp` (resolver row), `feat(agents): register

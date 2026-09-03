@@ -72,8 +72,11 @@ v4.4 folds the decisions of 2026-09-03
 1. Two pull requests join the LSP lane, PR 29c (LSP polish) and PR 29d (pin refresh) (11).
 1. Two evaluation pull requests join the drops lane, PR 24a (`atlas.nvim` against octo) and PR 24b
    (`review.nvim` against the `herdr-nvim` annotation flow) (5.6, 11).
-1. MCP instance selection gains symmetric environment injection and a per-candidate liveness check,
-   and PR 9's third criterion is reframed around what the injection leaves over (7.3).
+1. MCP instance selection is redesigned in five steps, injection both ways, a topology match, an
+   IDENTITY check rather than a liveness one, a picker instead of a refusal on more than one
+   candidate, and a refusal only on none, with sticky selection and a registry Neovim keeps correct
+   by construction; PR 9's third criterion is reframed around what the injection leaves over, and a
+   server that fails it may still be usable (7.3).
 
 One item in that document is NOT decided and stays an open question here: whether the osquery
 pipeline's Rust port is scheduled next (12.8). The bashunit scope, open when this slice began, was
@@ -1104,46 +1107,59 @@ as-is row needs no pinning, and the resolver row is reachable only after criteri
 every row exactly one PR registers a server (10a or 10b), and it is the PR whose server the operator
 keeps.
 
-**The injection is symmetric and every candidate is liveness-checked, decided 2026-09-03.** A Neovim
-that spawns an agent pane pins its own socket into that pane's environment
-(`herdr pane split --env NVIM_MCP_SOCKET=<vim.v.servername>`, 7.2; `--env` is verified to exist on
-0.8.2). The other direction is pinned the same way: an agent pane that spawns a Neovim pane exports
-the socket path into the split and the editor starts on it (`nvim --listen "$NVIM_MCP_SOCKET"`).
-Between the two, every pane pair where one side created the other is pinned, and discovery is only
-ever the leftover case of two panes neither of which created the other. That is what criterion 3 is
-measured against. Independently, every candidate discovery finds is LIVENESS-CHECKED before it is
-eligible: the resolver connects to the socket and asks for the three ids, a socket that refuses or
-times out is skipped, and its stale path is pruned on the spot, so a crashed instance never sits in
-the candidate list making a lone live Neovim look ambiguous.
+**Instance selection, decided 2026-09-03 (this supersedes the symmetric-injection-plus-liveness
+sketch it replaces).** The resolver, `~/.local/libexec/nvim-mcp-connect.sh` (it is the command the
+MCP registration runs, so `libexec` per the placement rules), identifies Neovim by pane id and by the
+environment of the pane the agent runs in, never by focus. Five steps, in order:
 
-The resolver, `~/.local/libexec/nvim-mcp-connect.sh` (it is the command the MCP registration runs, so
-`libexec` per the placement rules), identifies Neovim by pane id and by the environment of the pane the
-agent runs in, never by focus. In order:
-
-1. `NVIM_MCP_SOCKET` is set (the launch helper's `--env`, 7.2): exec the server with
-   `--connect "$NVIM_MCP_SOCKET"` and stop.
-1. Otherwise list `${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0`, the runtime root Neovim
-   documents (`:help serverstart()`, `vimfn.txt:8813`: "Example bash command to list all Nvim
-   servers: `ls ${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0`"); `$TMPDIR` alone is the
-   macOS case and misses every Linux socket. For each socket ask the instance for its own three ids
-   under a short deadline, and SKIP any socket that refuses or times out, unlinking the dead path in
-   the same pass (a crashed instance leaves its path behind, and a stale path left in the list makes
-   a lone live instance read as ambiguous):
+1. **Injection, both directions.** Whichever side creates the other writes the address down, so the
+   common case is created rather than inferred. A Neovim that spawns an agent pane passes its own
+   socket with `herdr pane split --env NVIM_MCP_SOCKET=<vim.v.servername>` (7.2; `--env` is verified
+   to exist on 0.8.2), and an agent pane that spawns a Neovim pane sets the variable the other way
+   and starts the editor on it (`nvim --listen "$NVIM_MCP_SOCKET"`). A variable that is set is used
+   as-is, subject to step 3, and discovery is only ever the leftover case of two panes neither of
+   which created the other. That is what criterion 3 is measured against.
+1. **Topology match.** The agent's pane is not the Neovim pane, but herdr knows both:
+   `herdr pane layout --pane <id>` gives that pane's tab and its siblings, and one sibling matches
+   the registry. Pass the pane id EXPLICITLY: `herdr pane current` answers the CALLER's pane, never
+   the session's focused one, so a resolver that asks it gets its own pane back and matches nothing.
+1. **Identity, not presence.** A socket that answers proves only that SOMETHING is there, and socket
+   paths are reused, so a stale registry entry can resolve to a DIFFERENT Neovim. After connecting,
+   ask the instance over the remote-procedure-call channel for its own pane id and pid and compare
+   both against the registry entry; only a match makes it a candidate, and a mismatch prunes the
+   entry on the spot. This is recurring bug class 14, identity is not presence, which has cost this
+   repository once already.
 
    ```bash
    nvim --server "$sock" --remote-expr \
-     'join([getenv("HERDR_WORKSPACE_ID"), getenv("HERDR_TAB_ID"), getenv("HERDR_PANE_ID")], " ")'
+     'join([getenv("HERDR_PANE_ID"), getpid()], " ")'
    ```
 
-   Keep the sockets whose workspace equals the caller's `$HERDR_WORKSPACE_ID`, which the agent's pane
-   exports like every pane.
-1. Narrow the way `herdr-nvim`'s `agents.resolve` does, mirrored from the editor's side: one candidate
-   in the caller's `$HERDR_TAB_ID` wins; else a lone candidate in the workspace wins; else REFUSE with
-   exit 1, the candidate pane ids on stderr, and the instruction to launch the agent from Neovim
-   (`<leader>Cc`) or export `NVIM_MCP_SOCKET`. Two unpinned Neovim panes in one workspace are
-   ambiguous, and a guess edits the wrong buffer.
+   The candidate list is then narrowed to the caller's `$HERDR_WORKSPACE_ID`, which the agent's pane
+   exports like every pane, and to the tab step 2 named.
+1. **Pick, do not stall.** More than one verified candidate is a PICKER, not a refusal: list them
+   with their file and their directory the way `herdr-nvim`'s `ui.pick_agent` already does for the
+   mirror problem, and let one keypress decide. Never guess, because a guess edits the wrong buffer.
+1. **Refuse only when nothing is alive.** Zero verified candidates is a refusal with the reason
+   named and the instruction to launch the agent from Neovim (`<leader>Cc`) or to export
+   `NVIM_MCP_SOCKET`.
 
-At most 80 lines of bash, with a bats test on the selection function fed fixture strings.
+**Sticky selection.** An instance resolved by injection or by the picker is remembered for that agent
+and reused, with step 3's identity check re-run on EVERY use; a failed check drops the memo and
+re-resolves. The cost of choosing is paid once per session rather than once per call.
+
+**The registry is correct by construction.** Neovim registers `{ pane_id, socket, cwd, pid }` on
+start and DEREGISTERS on `VimLeavePre`, so steps 3 and 5 are a backstop rather than the mechanism.
+The discovery fallback, listing `${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0` (the runtime
+root Neovim documents, `:help serverstart()`, `vimfn.txt:8813`; `$TMPDIR` alone is the macOS case and
+misses every Linux socket), is what covers an instance that died without running its autocommand.
+
+The resolver is capped at 150 lines of bash with a bats test on the selection function fed fixture
+strings. The 80-line cap this section carried was written against the three-step order and does not
+survive the registry, the identity check, the picker and the memo; PR 10a states its measured line
+count in the body, and a resolver that cannot fit is the signal to take the crate row instead. The
+picker is the one part that cannot live in the resolver alone: it runs where the agent runs and has
+no terminal of its own, so PR 10a records how the choice is presented before it builds it.
 
 The custom server, if built: a Rust crate under `~/.local/share/nvim-workspace-mcp` (proposed name,
 function-named, no handle; confirm before it is created), built by a `run_onchange_after_59`-style
@@ -1152,7 +1168,7 @@ script, exposing exactly five tools (`current_buffer`, `list_buffers`, `read_buf
 internally, reading the same three variables and the same `NVIM_MCP_SOCKET` pin.
 
 The budget: the PR 9 evaluation is one working day, extended once by the first row of the table and
-never otherwise; the resolver is at most 80 lines of bash plus its bats file; the custom crate gets
+never otherwise; the resolver is capped at 150 lines of bash plus its bats file; the custom crate gets
 its own design spec (PR 10a) before code and is capped at the five tools and about 600 lines of Rust
 (PR 10b). When the crate row is reached, the crate is still built inside this program, because no
 other candidate exists (the second one is Linux-only). Today's reading is that `linw1995/nvim-mcp`
