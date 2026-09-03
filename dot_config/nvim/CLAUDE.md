@@ -58,6 +58,8 @@ that pulled in a module with a side effect at load ran that side effect too earl
   reload-on-external-write autocmd in `config/autocmds.lua`
 - `overseer`: `overseer_runner()`, which chains commands into one Overseer orchestrator task
 - `try`: the keymap-layer error boundary; turns a raise or a `nil, message` result into one notification
+- `preview_host`: `resolve()`, the address markdown-preview advertises; takes the hostname and the
+  suffix as arguments rather than reading `vim.env` itself, so it can be tested
 
 ### The `map()` function
 
