@@ -993,7 +993,11 @@ Lane: standalone. Depends on: PR 2. Brief: `brief-nvim-overseer-watch-run.md`. C
 
 - [ ] **Step 1:** `<M-[>` to `vim.cmd("OverseerWatchRun")` (`overseer.lua:412-414`). Commit:
   `fix(nvim): bind <M-[> to OverseerWatchRun`.
-- [ ] **Step 2:** Gates G1 to G6; G4 shows `<M-[>` with a new `rhs` only; `<M-[>` runs live. No test.
+- [ ] **Step 2:** Gates G1 to G6; G4 is UNCHANGED, and the live press is the only gate that reaches
+  this fix. The dump fingerprints a callback by `<file>:<linedefined>` (`tests/dump_state.lua:91-113`,
+  wrapper and closed-over `rhs` alike), and this change rewrites the closure's BODY while its
+  `function()` line stays put, so all 1180 rows compare equal. Same exposure as task 15's step 3.
+  **Live: press `<M-[>` and confirm `OverseerWatchRun` fires.** No test.
 
 ### Task 35: PR 19b, overseer bug #14, the dead config
 
