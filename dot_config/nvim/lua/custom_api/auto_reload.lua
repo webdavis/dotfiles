@@ -23,7 +23,11 @@ start = function(bufnr)
     -- out loud: a watch that silently never starts is worse than no watch,
     -- because the buffer then goes stale with nothing to show for it. A name
     -- that resolves to nothing (an unwritten buffer, a deleted file) is the
-    -- ordinary case and stays quiet.
+    -- ordinary case and stays quiet. Reached from the re-arm below it is also
+    -- the known ceiling: a writer that unlinks the file and recreates it a tick
+    -- or more later leaves nothing to watch, so the buffer stops following for
+    -- good. Neovim says E211 on that `checktime`, and the focus-change group in
+    -- `config/autocmds.lua` still catches the recreated file on the next focus.
     if name ~= "" and vim.uv.fs_lstat(name) then
       vim.notify_once(
         "auto_reload: cannot resolve " .. name .. ", buffer will not follow the file",
