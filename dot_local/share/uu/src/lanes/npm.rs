@@ -32,7 +32,16 @@ const SHELL: &str = "/bin/sh";
 /// The child's whole program: put `$1` first on PATH, then run the command in
 /// the rest of the arguments in place. `$1` is passed in, never spliced into
 /// this text, so a directory with a space or a quote in it stays one word.
-const PREPEND_PATH: &str = r#"PATH="$1:$PATH"; export PATH; shift; exec "$@""#;
+///
+/// `${PATH:+:$PATH}` AND NOT `:$PATH`, because a PATH that is set and empty
+/// would otherwise compose `<dir>:`, and an EMPTY PATH ELEMENT IS THE WORKING
+/// DIRECTORY: every helper the child shells out to and does not find in
+/// `<dir>` would then be answered from wherever uu was started. What this
+/// cannot reach is a PATH that is not in the environment at all, where the
+/// shell substitutes its own default before this line runs (bash's ends in
+/// `.`, the same hazard); the launchd job that carries this lane states a
+/// PATH, so that case is the shell's to answer and not this script's.
+const PREPEND_PATH: &str = r#"PATH="$1${PATH:+:$PATH}"; export PATH; shift; exec "$@""#;
 
 /// Upgrade every global npm package, and report what that took.
 pub fn run_npm(name: &str, lane: &NpmLane, runner: &dyn CommandRunner) -> LaneReport {
@@ -156,7 +165,7 @@ mod tests {
                 [
                     SHELL,
                     "-c",
-                    r#"PATH="$1:$PATH"; export PATH; shift; exec "$@""#,
+                    r#"PATH="$1${PATH:+:$PATH}"; export PATH; shift; exec "$@""#,
                     "sh",
                     "/Users/someone/.local/share/fnm/aliases/default/bin",
                     NPM,
@@ -176,6 +185,29 @@ mod tests {
         // string: an empty PATH entry is the WORKING DIRECTORY, so that
         // spelling would hand the child whatever it happened to start in.
         assert_eq!(bin_dir("/npm"), "/");
+    }
+
+    #[test]
+    fn an_inherited_path_that_is_empty_leaves_the_child_no_empty_entry() {
+        // THE ONE TEST HERE THAT RUNS A REAL SHELL, because the property
+        // belongs to the script's text and not to the argv around it. An
+        // empty PATH element is the working directory, so the `:$PATH`
+        // spelling would hand a child on a machine with an empty PATH
+        // whatever uu happened to be started in.
+        let composed = std::process::Command::new(SHELL)
+            .args([
+                "-c",
+                PREPEND_PATH,
+                "sh",
+                "/fnm/bin",
+                "/bin/sh",
+                "-c",
+                r#"printf %s "$PATH""#,
+            ])
+            .env("PATH", "")
+            .output()
+            .expect("/bin/sh runs");
+        assert_eq!(String::from_utf8_lossy(&composed.stdout), "/fnm/bin");
     }
 
     #[test]
