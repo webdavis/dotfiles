@@ -29,7 +29,6 @@ return {
         { "<leader>0", group = "quit" },
         { "<leader>a", group = "aerial" },
         { "<leader>A", group = "herdr" },
-        { "<leader>b", group = "buffer" },
         { "<leader>c", group = "format／lint" },
         { "<leader>cz", group = "freeze" },
         { "<leader>d", group = "do" },
