@@ -5066,7 +5066,7 @@ fn presence_poll() -> i32 {
             deadline: pns::channels::hue::BRIDGE_DEADLINE,
         },
         &state_dir(),
-        &presence.rooms,
+        &presence,
         now,
     );
     0
@@ -5087,10 +5087,22 @@ fn presence_poll() -> i32 {
 fn write_presence_reading<B: pns::channels::hue::Bridge>(
     bridge: &B,
     state: &Path,
-    watched: &[String],
+    presence: &pns::config::Presence,
     now: u64,
 ) -> bool {
-    let Some(reading) = pns::presence_hue::poll(bridge, watched, now) else {
+    // THE EXCLUSION IS APPLIED BEFORE THE NEWEST EDGE IS CHOSEN, not left to
+    // the reader. `classify` refuses an excluded room outright, so publishing
+    // one would throw away the newest edge in a room that DOES count and
+    // answer Unknown. The key is documented for "a room you pass through",
+    // which is the room that reports MOST often, so the reading it swallowed
+    // would be the common case rather than the corner.
+    let watched: Vec<String> = presence
+        .rooms
+        .iter()
+        .filter(|room| !presence.exclude.contains(room))
+        .cloned()
+        .collect();
+    let Some(reading) = pns::presence_hue::poll(bridge, &watched, now) else {
         return false;
     };
     // FAIL-QUIET, in `remember_staleness`'s style: an unwritable state
@@ -9239,6 +9251,16 @@ mod tests {
         }
     }
 
+    /// The sensor's settings, watching one room and excluding none.
+    fn watching(rooms: &[&str], exclude: &[&str]) -> pns::config::Presence {
+        pns::config::Presence {
+            rooms: rooms.iter().map(|room| (*room).to_string()).collect(),
+            exclude: exclude.iter().map(|room| (*room).to_string()).collect(),
+            poll_secs: 5,
+            stale_after_secs: 15,
+        }
+    }
+
     #[test]
     fn a_poll_publishes_the_room_it_read_as_the_line_the_sensor_parses() {
         // THE WHOLE EDGE, END TO END: the bridge, the join, the render and the
@@ -9251,7 +9273,7 @@ mod tests {
         assert!(write_presence_reading(
             &bridge,
             &state,
-            &["3F - Studio".to_string()],
+            &watching(&["3F - Studio"], &[]),
             1_788_456_100
         ));
 
@@ -9296,7 +9318,7 @@ mod tests {
             assert!(!write_presence_reading(
                 &PollBridge(served),
                 &state,
-                &["3F - Studio".to_string()],
+                &watching(&["3F - Studio"], &[]),
                 1_788_456_100
             ));
             assert_eq!(
@@ -9305,6 +9327,61 @@ mod tests {
                 "a silent bridge published a reading anyway"
             );
         }
+    }
+
+    /// Two watched rooms report, the pass-through one more recently.
+    const TWO_ROOM_MOTION: &str = r#"{"data":[
+        {"owner":{"rid":"studio","rtype":"room"},
+         "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.413Z","motion":false}}},
+        {"owner":{"rid":"hallway","rtype":"room"},
+         "motion":{"motion_report":{"changed":"2026-09-03T17:25:00.000Z","motion":true}}}
+    ]}"#;
+
+    const TWO_ROOM_ROOMS: &str = r#"{"data":[
+        {"id":"studio","metadata":{"name":"3F - Studio"}},
+        {"id":"hallway","metadata":{"name":"3F - Hallway"}}
+    ]}"#;
+
+    #[test]
+    fn an_excluded_room_yields_to_the_newest_room_that_counts() {
+        // THE EXCLUSION HAS TO HAPPEN BEFORE THE COMPARISON. `exclude` is
+        // documented for "a room you pass through", and a pass-through room
+        // holds the newest edge nearly every poll. Publishing it and leaving
+        // `classify` to refuse it discards the studio the operator is sitting
+        // in and answers Unknown, so the key would blind the sensor exactly
+        // when it is doing its job.
+        let state = scratch("presence-exclude");
+        let settings = watching(&["3F - Studio", "3F - Hallway"], &["3F - Hallway"]);
+        let bridge = PollBridge(vec![
+            ("grouped_motion", TWO_ROOM_MOTION),
+            ("room", TWO_ROOM_ROOMS),
+        ]);
+
+        assert!(write_presence_reading(
+            &bridge,
+            &state,
+            &settings,
+            1_788_456_400
+        ));
+
+        let published = std::fs::read_to_string(state.join(pns::presence_file::STATE_FILE))
+            .expect("the state file");
+        assert_eq!(published, "1788456400 1788456009 0 3F - Studio\n");
+        // AND THE READER AGREES, which is the whole point: the same settings
+        // that name the exclusion now judge the line the writer chose.
+        assert_eq!(
+            pns::presence::classify(
+                pns::presence_file::parse_presence_line(&published),
+                Some(1_788_456_400),
+                settings.stale_after_secs,
+                &settings.rooms,
+                &settings.exclude,
+            ),
+            pns::presence::PresenceStatus::Room {
+                room: "3F - Studio".to_string(),
+                age_secs: 391,
+            }
+        );
     }
 
     #[test]
