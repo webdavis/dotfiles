@@ -17,6 +17,8 @@
 
 use std::time::Duration;
 
+pub mod brew;
+
 use crate::config::{CommandLane, Config, HerdrLane, LaneKind};
 use crate::record::{RunFacts, lane_event};
 
@@ -285,6 +287,7 @@ pub fn run_lane(
     runner: &dyn CommandRunner,
 ) -> Option<LaneReport> {
     match &config.lanes.get(name)?.kind {
+        LaneKind::Brew(lane) => Some(brew::run_brew(name, lane, facts, runner)),
         // The herdr lane predates the run event and has no use for it.
         LaneKind::Herdr(lane) => Some(run_herdr(name, lane, runner)),
         LaneKind::Command(lane) => Some(run_command(name, lane, facts, runner)),
@@ -342,7 +345,7 @@ pub fn run_herdr(name: &str, lane: &HerdrLane, runner: &dyn CommandRunner) -> La
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::config::{Plugin, parse_config};
     use crate::record::Marker;
@@ -351,7 +354,7 @@ mod tests {
     /// A runner that answers from a script and records every call. The script
     /// is keyed on the whole argument vector, so a test says exactly which
     /// invocation fails without depending on call order.
-    struct ScriptedRunner {
+    pub(crate) struct ScriptedRunner {
         failing: Vec<Vec<String>>,
         deferring: Vec<Vec<String>>,
         /// A deferral whose REASON TEXT is the test's own choice, checked
@@ -370,7 +373,7 @@ mod tests {
     }
 
     impl ScriptedRunner {
-        fn new(failing: &[&[&str]]) -> Self {
+        pub(crate) fn new(failing: &[&[&str]]) -> Self {
             ScriptedRunner {
                 failing: failing
                     .iter()
@@ -386,7 +389,7 @@ mod tests {
             }
         }
 
-        fn answering(mut self, stdout: &str) -> Self {
+        pub(crate) fn answering(mut self, stdout: &str) -> Self {
             self.stdout = stdout.to_string();
             self
         }
@@ -418,7 +421,7 @@ mod tests {
             self
         }
 
-        fn calls(&self) -> Vec<Vec<String>> {
+        pub(crate) fn calls(&self) -> Vec<Vec<String>> {
             self.calls.borrow().clone()
         }
 
@@ -560,6 +563,7 @@ mod tests {
         // runs. `command` needs a `run` to be valid at all, so the block is
         // spelled out per fixture rather than derived from the name alone.
         let fixtures: &[(&str, &str, &str)] = &[
+            ("brew", "[lanes.brew]\n", "brew"),
             ("command", "[lanes.command]\nrun = [\"x\"]\n", "command"),
             ("herdr", "[lanes.herdr]\n", "herdr"),
         ];

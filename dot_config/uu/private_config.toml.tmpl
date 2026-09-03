@@ -42,9 +42,8 @@ binary = "{{ .chezmoi.homeDir }}/.local/libexec/pns/pns"
 # next apply. Local plugins are built from source at apply time and are not
 # listed here.
 #
-# Lanes run in NAME order, not the order they are written below: when the
-# other ports land (e.g. a `brew` lane), `brew` runs before `herdr` regardless
-# of where either block sits in this file.
+# Lanes run in NAME order, not the order they are written below: `brew` runs
+# before `herdr` regardless of where either block sits in this file.
 [lanes.herdr]
 type = "herdr"
 binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
@@ -54,6 +53,35 @@ plugins = [
   { id = {{ .id | quote }}, repo = {{ .repo | quote }} },
 {{- end }}
 ]
+
+# Homebrew formulae and casks, Mac App Store apps, and the two repairs an
+# upgrade makes necessary. Every path below is at its default; change one only
+# on a machine whose Homebrew prefix or state directory differs.
+#
+# THE CONVERGE AND THE UPGRADE RECORD HAPPEN INSIDE THIS LANE. The osquery cask
+# reinstall wipes our config, packs and flags out of /var/osquery, and this
+# lane is the only thing on the machine that upgrades that cask, so the repair
+# runs immediately after `brew upgrade` and a converge tool that is not
+# deployed is a FAILED step rather than a quiet skip. The upgrade record is the
+# tab-separated file the osquery file-integrity page correlates a changed file
+# against, by that literal path; leave `upgrade_record` empty and the lane
+# still upgrades, while that page reports no recorded upgrade forever.
+#
+# THE ONE BOUND THAT IS NOT THE LANE'S. `mas outdated`, `mas upgrade` and the
+# declaration sync each run under 180 seconds of their own, because the App
+# Store hangs indefinitely on a wedged session and `deadline_secs` covers the
+# WHOLE lane: an unbounded mas step is a week in which nothing after it ran.
+# Nothing else here is bounded per step, so a `brew upgrade` that never returns
+# still costs the lane its deadline and every lane after it in name order.
+[lanes.brew]
+type = "brew"
+brew = "/opt/homebrew/bin/brew"
+mas = "/opt/homebrew/bin/mas"
+tailscaled = "/opt/homebrew/opt/tailscale/bin/tailscaled"
+osquery_converge = "{{ .chezmoi.homeDir }}/.local/libexec/osquery/osquery-converge.sh"
+mas_manifest = "{{ .chezmoi.homeDir }}/.local/state/homebrew/mas.Brewfile"
+upgrade_record = "{{ .chezmoi.homeDir }}/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv"
+deadline_secs = 21600
 
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
 # locked contract (a JSON run event on stdin, the exit code as the verdict),

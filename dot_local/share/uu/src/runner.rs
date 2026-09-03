@@ -508,7 +508,11 @@ mod tests {
         // The positive control: a mutant that failed every bounded step would
         // satisfy the timeout test above on its own.
         let stdout = runner()
-            .run_with_deadline("/bin/sh", &["-c", "printf '3 upgraded\\n'"], Duration::from_secs(5))
+            .run_with_deadline(
+                "/bin/sh",
+                &["-c", "printf '3 upgraded\\n'"],
+                Duration::from_secs(5),
+            )
             .expect("a quick command runs well inside its bound");
         assert_eq!(stdout, "3 upgraded\n");
     }
