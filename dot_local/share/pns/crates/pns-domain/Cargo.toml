@@ -1,0 +1,16 @@
+# pns-domain: PNS policy as total functions of their arguments.
+#
+# NO DEPENDENCIES, and that is the boundary rather than an accident of being
+# empty. The policy this crate will hold decides surface, presence and
+# visibility, the delivery plan, quiet and dim windows, pulse and lighting
+# precedence, home-probe staleness, missed-notification replay, recap budget,
+# nag cadence and job scheduling. None of that reads a file, opens a socket,
+# parses TOML or JSON, spawns a process, or asks the clock: a caller hands it
+# an observation and it answers. Keeping the dependency list empty is what
+# makes that checkable, so a `std`-only crate stays `std`-only unless a
+# dependency is a genuine domain primitive.
+
+[package]
+name = "pns-domain"
+version = "0.1.0"
+edition = "2024"

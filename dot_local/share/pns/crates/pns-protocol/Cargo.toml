@@ -1,0 +1,13 @@
+# pns-protocol: the versioned wire contracts, and nothing behind them.
+#
+# NO WORKSPACE DEPENDENCIES, deliberately, including pns-domain. This crate is
+# what a third-party producer compiles against and what an executable delivery
+# destination is handed; if it imported the domain, the internal model would
+# leak into an external contract and every domain change would become a wire
+# change. The translation between the two lives in the adapters, where a
+# version skew can be absorbed.
+
+[package]
+name = "pns-protocol"
+version = "0.1.0"
+edition = "2024"
