@@ -189,15 +189,6 @@ return {
           { "unique", soft = true },
         },
       },
-      bundles = {
-        -- When saving a bundle with OverseerSaveBundle or save_task_bundle(), filter the tasks with
-        -- these options (passed to list_tasks())
-        save_task_opts = {
-          bundleable = true,
-        },
-        -- Autostart tasks when they are loaded from a bundle
-        autostart_on_load = true,
-      },
       -- A list of components to preload on setup.
       -- Only matters if you want them to show up in the task editor.
       preload_components = {},
@@ -214,19 +205,6 @@ return {
       -- Cache template provider results if the provider takes longer than this to run.
       -- Time is in ms. Set to 0 to disable caching.
       template_cache_threshold = 100,
-      -- Configure where the logs go and what level to use
-      -- Types are "echo", "notify", and "file"
-      log = {
-        {
-          type = "echo",
-          level = vim.log.levels.WARN,
-        },
-        {
-          type = "file",
-          filename = "overseer.log",
-          level = vim.log.levels.WARN,
-        },
-      },
     })
 
     local overseer_title = { title = "Overseer" }
@@ -251,7 +229,7 @@ return {
 
     local overseer_watch_run_desc = "Overseer: watch-run"
     vim.api.nvim_create_user_command("OverseerWatchRun", function()
-      overseer.run_template({ name = "run script" }, function(task)
+      overseer.run_task({ name = "run script" }, function(task)
         if task then
           task:add_component({ "restart_on_save", paths = { vim.fn.expand("%:p") } })
           local main_win = vim.api.nvim_get_current_win()

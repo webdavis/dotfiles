@@ -45,6 +45,10 @@ run_spec() {
   run_spec github_spec
 }
 
+@test "custom_api preview_host_spec passes" {
+  run_spec preview_host_spec
+}
+
 @test "the runner exits non-zero on a failing case" {
   # A runner that reported failure only in its output would be a gate that
   # cannot fail, so the exit code is pinned against a spec built to fail.

@@ -311,7 +311,8 @@ return {
       vim.g.mkdp_open_to_the_world = true
       vim.g.vmt_auto_update_on_save = true
       vim.g.mkdp_echo_preview_url = true
-      vim.g.mkdp_open_ip = "dresden.home.webdavis.io"
+      -- Reachable from the rest of the network as <this host>.$NVIM_MKDP_HOST; loopback when unset.
+      vim.g.mkdp_open_ip = require("custom_api.preview_host").resolve(vim.fn.hostname(), vim.env.NVIM_MKDP_HOST)
       vim.g.mkdp_port = "8366"
     end,
   },

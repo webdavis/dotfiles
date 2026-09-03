@@ -1,10 +1,13 @@
 return {
   "ThePrimeagen/harpoon",
   branch = "harpoon2",
+  -- No `menu` table here: that spelling is harpoon v1. On harpoon2 the quick
+  -- menu is sized inside ui.lua from the toggle_quick_menu argument
+  -- (`ui_width_ratio`, default 0.62569 of the editor), and merge_config files an
+  -- unrecognized top-level key as a per-list entry, so a `menu.width` in setup
+  -- reaches harpoon.config and never the window (measured: 5 and 200 both open
+  -- the same menu).
   opts = {
-    menu = {
-      width = vim.api.nvim_win_get_width(0) - 4,
-    },
     settings = {
       save_on_toggle = false,
     },
