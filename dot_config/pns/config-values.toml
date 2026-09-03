@@ -46,12 +46,12 @@ dim_behaviours = ["blocked", "unread", "loop"]
 [lights.lamp."3F - Studio - HCL3"]
 shows = ["loop", "blocked", "unread"]
 
-[lights.room."3F - Master Bedroom"]
+[lights.room."3F - MBedroom"]
 shows = ["done", "failed"]
 dim_window = "22:00-07:00"
 dim_behaviours = []
 
-[lights.lamp."3F - Master Bedroom - HCL3"]
+[lights.lamp."3F - MBedroom - HCL3"]
 shows = ["loop", "blocked", "unread"]
 
 [lights.room."2F - Kitchen"]

@@ -21,6 +21,9 @@ return {
           information = { "undercurl" },
         },
       },
+      -- Upstream 058e83d turned auto-detection on by default; its vim.pack.get()
+      -- call leaves an empty site/pack/core that :checkhealth lazy then flags.
+      auto_integrations = false,
       integrations = {
         aerial = true,
         alpha = true,
@@ -57,7 +60,7 @@ return {
     config = function(_, opts)
       require("catppuccin").setup(opts)
 
-      vim.cmd.colorscheme("catppuccin")
+      vim.cmd.colorscheme("catppuccin-nvim")
     end,
   },
   {

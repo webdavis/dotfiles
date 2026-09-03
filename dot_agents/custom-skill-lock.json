@@ -4,6 +4,9 @@
   "tiers": {
     "ask-matt": "on-demand",
     "chrome-devtools-axi": "core",
+    "clean-code": "on-demand",
+    "clean-code-rust": "on-demand",
+    "clean-code-swift": "on-demand",
     "code-review": "on-demand",
     "codebase-design": "on-demand",
     "conventional-commits": "core",
@@ -78,6 +81,15 @@
     ],
     "chrome-devtools-axi": [
       "butters"
+    ],
+    "clean-code": [
+      "nicodemus"
+    ],
+    "clean-code-rust": [
+      "nicodemus"
+    ],
+    "clean-code-swift": [
+      "nicodemus"
     ],
     "code-review": [
       "nicodemus"
