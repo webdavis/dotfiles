@@ -574,6 +574,9 @@
        fails the build when the two sets diverge. Per-key setValueAtPath (not
        one whole-dict overwrite) so overrides the user sets for other skills
        via /config pass through untouched. --- */ -}}
+{{- $merged = setValueAtPath "skillOverrides.clean-code" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.clean-code-rust" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.defuddle" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.elevenlabs" "user-invocable-only" $merged -}}
@@ -602,9 +605,6 @@
 {{- $merged = setValueAtPath "skillOverrides.owasp-security" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-rust" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}
 
 {{ $merged | toPrettyJson }}

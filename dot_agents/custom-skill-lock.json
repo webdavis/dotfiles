@@ -4,6 +4,9 @@
   "tiers": {
     "ask-matt": "on-demand",
     "chrome-devtools-axi": "core",
+    "clean-code": "on-demand",
+    "clean-code-rust": "on-demand",
+    "clean-code-swift": "on-demand",
     "code-review": "on-demand",
     "codebase-design": "on-demand",
     "conventional-commits": "core",
@@ -62,9 +65,6 @@
     "to-spec": "on-demand",
     "to-tickets": "on-demand",
     "todoist-cli": "core",
-    "clean-code": "on-demand",
-    "clean-code-rust": "on-demand",
-    "clean-code-swift": "on-demand",
     "triage": "on-demand",
     "video-transcript-downloader": "on-demand",
     "wait-what": "on-demand",
@@ -81,6 +81,15 @@
     ],
     "chrome-devtools-axi": [
       "butters"
+    ],
+    "clean-code": [
+      "nicodemus"
+    ],
+    "clean-code-rust": [
+      "nicodemus"
+    ],
+    "clean-code-swift": [
+      "nicodemus"
     ],
     "code-review": [
       "nicodemus"
@@ -198,15 +207,6 @@
     ],
     "todoist-cli": [
       "default"
-    ],
-    "clean-code": [
-      "nicodemus"
-    ],
-    "clean-code-rust": [
-      "nicodemus"
-    ],
-    "clean-code-swift": [
-      "nicodemus"
     ],
     "triage": [
       "nicodemus"
