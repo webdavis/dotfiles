@@ -28,6 +28,8 @@ pub enum CheckKind {
     /// A signal to the lights, which no event dispatches: counted in rooms,
     /// because the bridge acknowledges no write.
     Pulse,
+    /// A reading rather than a send: what the room sensor currently says.
+    Presence,
     /// Nothing to check, and why.
     Skipped(&'static str),
 }
@@ -80,6 +82,8 @@ pub enum Outcome {
     Failed(String),
     /// The lights, and how many rooms were signalled.
     Signalled(usize),
+    /// What the room sensor reads right now, in every state it can be in.
+    Presence(crate::presence::PresenceStatus),
     /// Nothing was checked, and why.
     Skipped(&'static str),
 }
@@ -115,6 +119,12 @@ fn kind_of(entry: &Registration, selected: &Selection, config: ConfigState) -> C
         return CheckKind::Skipped(not_selected(config));
     }
     match entry.kind {
+        // THE ONE SENSOR WITH SOMETHING TO REPORT. Nothing is sent to it and
+        // nothing ever will be, but its reading is the one thing about it an
+        // operator cannot see any other way, and a bare `skipped, a sensor`
+        // line would leave a machine whose bridge stopped answering looking
+        // exactly like one that is fine.
+        PluginKind::Sensor if entry.name == crate::registry::PRESENCE => CheckKind::Presence,
         PluginKind::Sensor => CheckKind::Skipped(A_SENSOR),
         // A channel the binary drives in its own mode is checkable, just not
         // as a leg: no event routes to it, so a send would never happen and
@@ -143,7 +153,56 @@ pub fn line(check: &Check, outcome: &Outcome) -> String {
         Outcome::Signalled(1) => format!("{plugin}: signalled 1 room ({WATCH_FOR_IT})"),
         Outcome::Signalled(rooms) => format!("{plugin}: signalled {rooms} rooms ({WATCH_FOR_IT})"),
         Outcome::Skipped(reason) => format!("{plugin}: skipped, {reason}"),
+        Outcome::Presence(status) => presence_said(plugin, status),
     }
+}
+
+/// The room sensor's line, in every state the reading can be in.
+///
+/// UNKNOWN NAMES WHICH KIND OF UNKNOWN, because the five are five different
+/// things to go and fix: nothing published yet, a daemon or a bridge that
+/// stopped, a clock, a wrong epoch, and a room the config does not watch.
+fn presence_said(plugin: &str, status: &crate::presence::PresenceStatus) -> String {
+    use crate::presence::{PresenceStatus, Unreadable};
+    match status {
+        PresenceStatus::Room { room, age_secs } => {
+            format!("{plugin}: {} ({age_secs}s ago)", shown_room(room))
+        }
+        // THE BRIDGE ANSWERED AND ANSWERED "NOT THERE", which is a different
+        // fact from not knowing and is worth its own word.
+        PresenceStatus::Nowhere { poll_age_secs } => {
+            format!("{plugin}: nowhere (poll {poll_age_secs}s ago)")
+        }
+        PresenceStatus::Unknown(reason) => {
+            let said = match reason {
+                Unreadable::NoReading => "no reading".to_string(),
+                Unreadable::NoClock => "the clock could not be read".to_string(),
+                Unreadable::Stale { poll_age_secs } => {
+                    format!("stale, poll {poll_age_secs}s old")
+                }
+                Unreadable::Future => "future epoch".to_string(),
+                Unreadable::NotWatched => {
+                    "the reported room is not one this config watches".to_string()
+                }
+            };
+            format!("{plugin}: unknown ({said})")
+        }
+    }
+}
+
+/// The room name, made safe to put on a terminal.
+///
+/// THE BRIDGE CHOSE THIS TEXT, exactly as moshi chose the sentence beside it,
+/// so it crosses the same filter: an unfiltered newline in a room name forges
+/// a second `pns doctor:` line the operator would read as pns's own verdict.
+/// A name that filters away to nothing is NAMED AS SUCH rather than printed
+/// as a blank, which would read as a room whose name is empty.
+fn shown_room(room: &str) -> String {
+    let shown = printable(room);
+    if shown.trim().is_empty() {
+        return "a room whose name will not print".to_string();
+    }
+    shown
 }
 
 /// What the operator has to do to confirm a pulse, since nothing else can.
@@ -559,6 +618,12 @@ fn verdict(outcome: &Outcome) -> Verdict {
         Outcome::Signalled(0) => Verdict::Failed,
         Outcome::Signalled(_) => Verdict::Sent,
         Outcome::Skipped(_) => Verdict::Skipped,
+        // A READING IS NEVER A SEND, in any state. Nothing was delivered
+        // through the sensor and nothing failed to be, so it counts with the
+        // checks that had nothing to send rather than moving the exit code
+        // in either direction: a bridge that stopped answering costs the
+        // lights their narrowing, and no notification at all.
+        Outcome::Presence(_) => Verdict::Skipped,
     }
 }
 
@@ -684,6 +749,7 @@ mod tests {
     };
     use crate::channels::hue as pns_hue;
     use crate::config::{Behaviour, parse_config};
+    use crate::presence::{PresenceStatus, Unreadable};
     use crate::registry::{Registry, Selection, roster};
 
     /// The roster's own selection for a config, both halves the census takes.
@@ -703,6 +769,126 @@ mod tests {
             .find(|check| check.plugin == plugin)
             .unwrap_or_else(|| panic!("{plugin} is registered"))
             .kind
+    }
+
+    // --- the room sensor -----------------------------------------------------
+
+    /// `line` for a presence reading, which is the only outcome that check
+    /// takes.
+    fn presence_line_for(status: PresenceStatus) -> String {
+        line(
+            &Check {
+                plugin: "presence",
+                kind: CheckKind::Presence,
+            },
+            &Outcome::Presence(status),
+        )
+    }
+
+    #[test]
+    fn the_selected_room_sensor_is_a_reading_rather_than_the_sensor_skip() {
+        // The router is the sensor with nothing to report and keeps the skip;
+        // this one has a reading, and a bare "a sensor" line would leave a
+        // machine whose bridge died looking like one that is fine.
+        let config = "[plugins.presence]\nenabled = true\ntype = \"hue\"\n\
+                      [plugins.hue]\nenabled = true\n";
+        assert_eq!(kind_for(config, "presence"), CheckKind::Presence);
+        assert_eq!(kind_for(config, "router"), CheckKind::Skipped(NOT_ENABLED));
+    }
+
+    #[test]
+    fn a_room_sensor_the_config_never_switched_on_is_still_a_skip() {
+        // NOT SELECTED IS ASKED FIRST, or a plugin nobody enabled would print
+        // a reading and read as switched on.
+        assert_eq!(
+            kind_for("[plugins.hermes]\nenabled = true\n", "presence"),
+            CheckKind::Skipped(NOT_ENABLED)
+        );
+    }
+
+    #[test]
+    fn a_known_room_is_named_with_the_age_of_its_motion_edge() {
+        assert_eq!(
+            presence_line_for(PresenceStatus::Room {
+                room: "3F - Studio".to_string(),
+                age_secs: 4,
+            }),
+            "presence: 3F - Studio (4s ago)"
+        );
+    }
+
+    #[test]
+    fn a_fresh_poll_that_found_nobody_says_nowhere_rather_than_unknown() {
+        assert_eq!(
+            presence_line_for(PresenceStatus::Nowhere { poll_age_secs: 3 }),
+            "presence: nowhere (poll 3s ago)"
+        );
+    }
+
+    #[test]
+    fn every_way_of_not_knowing_says_which_way_it_is() {
+        // FIVE DIFFERENT EDITS: nothing published yet, a daemon or bridge that
+        // stopped, a clock, a wrong epoch, and a room nobody watches. One
+        // wording for all of them sends four operators in five to the wrong
+        // file.
+        assert_eq!(
+            presence_line_for(PresenceStatus::Unknown(Unreadable::NoReading)),
+            "presence: unknown (no reading)"
+        );
+        assert_eq!(
+            presence_line_for(PresenceStatus::Unknown(Unreadable::NoClock)),
+            "presence: unknown (the clock could not be read)"
+        );
+        assert_eq!(
+            presence_line_for(PresenceStatus::Unknown(Unreadable::Stale {
+                poll_age_secs: 42
+            })),
+            "presence: unknown (stale, poll 42s old)"
+        );
+        assert_eq!(
+            presence_line_for(PresenceStatus::Unknown(Unreadable::Future)),
+            "presence: unknown (future epoch)"
+        );
+        assert_eq!(
+            presence_line_for(PresenceStatus::Unknown(Unreadable::NotWatched)),
+            "presence: unknown (the reported room is not one this config watches)"
+        );
+    }
+
+    #[test]
+    fn a_room_name_the_bridge_chose_is_filtered_before_it_reaches_the_terminal() {
+        // An unfiltered newline forges a second `pns doctor:` line the operator
+        // reads as pns's own verdict, and an escape rewrites the ones above it.
+        let said = presence_line_for(PresenceStatus::Room {
+            room: "3F\n\u{1b}[2Kpns doctor: all clear".to_string(),
+            age_secs: 1,
+        });
+        assert_eq!(said.lines().count(), 1, "{said}");
+        assert!(!said.contains('\u{1b}'), "{said}");
+        // AND A NAME THAT FILTERS AWAY TO NOTHING IS NAMED, never printed as a
+        // blank that reads as a room with no name.
+        assert_eq!(
+            presence_line_for(PresenceStatus::Room {
+                room: "\u{30ad}\u{30c3}\u{30c1}\u{30f3}".to_string(),
+                age_secs: 1,
+            }),
+            "presence: a room whose name will not print (1s ago)"
+        );
+    }
+
+    #[test]
+    fn a_reading_is_never_counted_as_a_send_however_good_it_is() {
+        // Nothing was delivered through a sensor and nothing failed to be, so
+        // a green reading must not be what makes `pns doctor` exit 0.
+        let outcomes = vec![Outcome::Presence(PresenceStatus::Room {
+            room: "3F - Studio".to_string(),
+            age_secs: 1,
+        })];
+        assert_eq!(
+            summary(&outcomes),
+            "pns doctor: 0 sent, 0 failed, 1 skipped"
+        );
+        assert_eq!(exit_code(&outcomes, &pairing_report(None, None)), 1);
     }
 
     // --- the census ----------------------------------------------------------

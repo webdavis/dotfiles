@@ -295,7 +295,7 @@ Then the operation is refused, the path is left exactly as it was found, and the
 Three separate guards implement this. `src/main.rs:append_ring_line` checks `symlink_metadata` before the
 open, "so a state directory that does not exist yet fails the lock's own exclusive create" and an
 irregular file is "Refused and never repaired: deleting something this tool did not put there, on a path
-it only ever appends to, is a bigger action than skipping one record." `src/main.rs:readable_ring`
+it only ever appends to, is a bigger action than skipping one record." `src/system.rs:readable_state_file`
 refuses a non-regular file and a file over `read_max` without reading it, because "A FIFO parks the open
 forever, for READING as much as for writing, which wedges the hook that appended or the command a human
 is waiting on." `src/main.rs:claim_by_rename` verifies after the rename and renames back: "anything that
@@ -313,7 +313,7 @@ is not a regular file goes straight back to the journal's own path, untouched an
   well. It is never read and never removed."
 - Fail direction: the notification still goes out. All three FIFO tests assert exit 0, the live event
   delivered, and empty stdout and stderr.
-- Thresholds: `readable_ring` refuses at `found.len() > read_max`, so a file of exactly `RING_READ_MAX`
+- Thresholds: `readable_state_file` refuses at `found.len() > read_max`, so a file of exactly `RING_READ_MAX`
   (262,144 bytes) is read and one byte more is refused.
 - Required side effects: the path still holds what it held. Every FIFO test asserts
   `symlink_metadata(...).file_type().is_fifo()` afterwards.
@@ -342,7 +342,7 @@ When `pns doctor` runs
 
 Then it prints one line naming how many notifications are waiting, and it leaves the file byte for byte as it found it.
 
-`src/main.rs:missed_line` reads through `readable_ring` and hands the contents to
+`src/main.rs:missed_line` reads through `readable_state_file` and hands the contents to
 `src/missed_notifications.rs:waiting_line`, which "COUNTS AND NEVER PARSES, and that is the privacy rule
 made structural rather than promised: there is no code path in here that could emit a field, because
 nothing in here ever looks inside a line."
@@ -396,7 +396,7 @@ once, and the sentence says all three."
   event anything should ever replay." Nothing in this path may render an entry;
   `src/missed_notifications.rs:waiting_line` warns that "Anyone tempted to make this 'more helpful' by
   rendering the newest entry is about to print the operator's own text to a terminal."
-- Timeout and cancellation: the read goes through `readable_ring`, which refuses a FIFO by
+- Timeout and cancellation: the read goes through `readable_state_file`, which refuses a FIFO by
   `symlink_metadata` before opening it, so the doctor cannot park.
 - Idempotency and duplicates: the doctor is a pure read, so running it any number of times changes
   nothing and delivers nothing.
@@ -817,7 +817,7 @@ of `now` is no window either, because "A clock that moved backwards is not a bra
 - Forbidden side effects: an entry with no clock is in no window: "Its writer had no readable clock, so
   nothing can place it, and counting it would put an event of unknown age inside a bracket that is
   entirely about age."
-- Timeout and cancellation: bounded by `readable_ring`'s size ceiling.
+- Timeout and cancellation: bounded by `readable_state_file`'s size ceiling.
 - Idempotency and duplicates: the activity ring is "NEVER CLAIMED AND NEVER CONSUMED, unlike the journal.
   It is a rolling window pruned by depth alone, which is what lets the detached recap child re-read it
   safely and what makes a recap idempotent by WINDOW rather than by deletion"

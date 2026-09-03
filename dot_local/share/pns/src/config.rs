@@ -588,6 +588,17 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("plugins.macos-banner", &["enabled"]),
     (
+        "plugins.presence",
+        &[
+            "enabled",
+            "exclude",
+            "poll_secs",
+            "rooms",
+            "stale_after_secs",
+            "type",
+        ],
+    ),
+    (
         "plugins.mobile",
         &[
             "enabled",
@@ -1921,11 +1932,128 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
     Ok(Duration::from_secs(count))
 }
 
+/// The `[plugins.presence]` settings, typed.
+///
+/// THE ONLY BACKEND IS THE BRIDGE, so `type` is required and refused by name
+/// the way `[plugins.mobile]`'s and `[plugins.router]`'s are: a table naming a
+/// backend nothing implements contributes no settings at all rather than
+/// having its numbers read as this one's.
+///
+/// `Ok(None)` IS THE INERT TABLE, absent or switched off, which is the reading
+/// `armed_mobile` and `enabled_hue_table` already give theirs.
+pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> {
+    let Some(entry) = config
+        .plugins
+        .get(crate::registry::PRESENCE)
+        .filter(|entry| entry.enabled)
+    else {
+        return Ok(None);
+    };
+    let settings = &entry.settings;
+    match settings.get("type").and_then(toml::Value::as_str) {
+        Some(PRESENCE_TYPE) => {}
+        Some(named) => {
+            return Err(ConfigError::Invalid(format!(
+                "[plugins.presence] has type `{named}`, which no compiled-in backend answers; \
+                 the only type is `{PRESENCE_TYPE}`"
+            )));
+        }
+        None => {
+            return Err(ConfigError::Invalid(format!(
+                "no `type` in [plugins.presence]; the only type is `{PRESENCE_TYPE}`"
+            )));
+        }
+    }
+
+    let rooms = match settings.get("rooms") {
+        Some(setting) => strings("presence", "rooms", "a list of room names", setting)?,
+        None => Vec::new(),
+    };
+    let exclude = match settings.get("exclude") {
+        Some(setting) => strings("presence", "exclude", "a list of room names", setting)?,
+        None => Vec::new(),
+    };
+    let poll_secs = presence_count(settings, "poll_secs", DEFAULT_PRESENCE_POLL_SECS)?;
+    if !(MIN_PRESENCE_POLL_SECS..=MAX_PRESENCE_POLL_SECS).contains(&poll_secs) {
+        return Err(ConfigError::Invalid(format!(
+            "`presence` key `poll_secs` is {poll_secs}, outside \
+             {MIN_PRESENCE_POLL_SECS}..{MAX_PRESENCE_POLL_SECS}"
+        )));
+    }
+    let stale_after_secs = presence_count(
+        settings,
+        "stale_after_secs",
+        DEFAULT_PRESENCE_STALE_AFTER_SECS,
+    )?;
+    // A BOUND UNDER THE INTERVAL IS THE FEATURE OFF BY ACCIDENT: every reading
+    // would age past it before the next poll could refresh it, so the sensor
+    // would answer Unknown for good and say nothing about why.
+    if stale_after_secs < poll_secs {
+        return Err(ConfigError::Invalid(format!(
+            "`presence` key `stale_after_secs` is {stale_after_secs}, under the \
+             {poll_secs}-second `poll_secs`, so every reading would be stale before \
+             the next poll replaced it"
+        )));
+    }
+    Ok(Some(Presence {
+        rooms,
+        exclude,
+        poll_secs,
+        stale_after_secs,
+    }))
+}
+
+/// One whole-second count off `[plugins.presence]`, or the default when the
+/// table states none. NAMED FOR ITS TABLE, because the refusal it writes names
+/// that table too: a second caller under a generic name would report its own
+/// key under `presence`.
+fn presence_count(settings: &toml::Table, key: &str, default: u64) -> Result<u64, ConfigError> {
+    let Some(stated) = settings.get(key) else {
+        return Ok(default);
+    };
+    stated
+        .as_integer()
+        .and_then(|count| u64::try_from(count).ok())
+        .ok_or_else(|| {
+            ConfigError::Invalid(format!(
+                "`presence` key `{key}` has type `{}`, not a count of seconds",
+                stated.type_str()
+            ))
+        })
+}
+
+/// The `[plugins.presence]` settings this crate can act on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Presence {
+    /// The bridge's own room names, verbatim, that a reading may name.
+    pub rooms: Vec<String>,
+    /// Rooms whose presence is discarded even when they are listed.
+    pub exclude: Vec<String>,
+    pub poll_secs: u64,
+    pub stale_after_secs: u64,
+}
+
+/// The only backend that fills the presence state file today.
+const PRESENCE_TYPE: &str = "hue";
+
+/// How often the daemon reads the bridge, and the range it is held to. THE
+/// FLOOR IS A COURTESY TO THE BRIDGE and the ceiling is the point at which a
+/// reading is older than the turn it would narrow.
+const DEFAULT_PRESENCE_POLL_SECS: u64 = 5;
+const MIN_PRESENCE_POLL_SECS: u64 = 2;
+const MAX_PRESENCE_POLL_SECS: u64 = 60;
+
+/// How old a poll may be before there is no reading: three intervals at the
+/// default, which rides out two missed polls without claiming a room nobody
+/// refreshed.
+const DEFAULT_PRESENCE_STALE_AFTER_SECS: u64 = 15;
+
 #[cfg(test)]
 mod tests {
     use super::{
         Behaviour, Blocked, Breath, BreatheThenFlare, ConfigError, Lights, LoadOutcome, Looping,
-        Pulse, Target, Unread, config_path, load_config, parse_config, submit_deadline,
+        Presence, Pulse, Target, Unread, config_path, load_config, parse_config, parse_presence,
+        submit_deadline,
     };
     use std::time::Duration;
 
@@ -3598,6 +3726,107 @@ mod tests {
         }
     }
 
+    // --- [plugins.presence] --------------------------------------------------
+
+    /// A presence table with `hue` beside it, which is what the registry
+    /// insists on before the sensor is selected at all.
+    fn presence_config(body: &str) -> super::Config {
+        parse_config(&format!(
+            "[plugins.hue]\nenabled = true\n[plugins.presence]\nenabled = true\n{body}"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn an_armed_presence_table_reads_its_rooms_its_exclusions_and_its_two_intervals() {
+        let config = presence_config(
+            "type = \"hue\"\nrooms = [\"3F - Studio\", \"2F - Kitchen\"]\n\
+             exclude = [\"3F - Master Bedroom\"]\npoll_secs = 10\nstale_after_secs = 30\n",
+        );
+        assert_eq!(
+            parse_presence(&config).unwrap(),
+            Some(Presence {
+                rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
+                exclude: vec!["3F - Master Bedroom".to_string()],
+                poll_secs: 10,
+                stale_after_secs: 30,
+            })
+        );
+    }
+
+    #[test]
+    fn a_presence_table_stating_no_intervals_takes_the_shipped_ones() {
+        let config = presence_config("type = \"hue\"\n");
+        let presence = parse_presence(&config).unwrap().expect("the table is on");
+        assert_eq!((presence.poll_secs, presence.stale_after_secs), (5, 15));
+    }
+
+    #[test]
+    fn a_poll_interval_outside_its_range_is_refused_by_name_at_both_ends() {
+        for stated in ["1", "61"] {
+            let said = match parse_presence(&presence_config(&format!(
+                "type = \"hue\"\npoll_secs = {stated}\n"
+            ))) {
+                Err(error) => error.detail().to_string(),
+                Ok(_) => panic!("`poll_secs = {stated}` is outside the range"),
+            };
+            assert!(
+                said.contains("poll_secs") && said.contains(stated),
+                "the refusal names the key and the value: {said}"
+            );
+        }
+        // AND THE ENDS THEMSELVES ARE INSIDE IT, or the bound is one short at
+        // each end and nobody could tell from the refusal.
+        for stated in ["2", "60"] {
+            assert!(
+                parse_presence(&presence_config(&format!(
+                    "type = \"hue\"\npoll_secs = {stated}\nstale_after_secs = 180\n"
+                )))
+                .is_ok(),
+                "`poll_secs = {stated}` is inside the range"
+            );
+        }
+    }
+
+    #[test]
+    fn a_stale_bound_under_the_poll_interval_is_refused_by_name() {
+        // Every reading would age out before the next poll could replace it,
+        // so the sensor would answer unknown for good and never say why.
+        let said = match parse_presence(&presence_config(
+            "type = \"hue\"\npoll_secs = 30\nstale_after_secs = 20\n",
+        )) {
+            Err(error) => error.detail().to_string(),
+            Ok(_) => panic!("a bound under the interval is refused"),
+        };
+        assert!(
+            said.contains("stale_after_secs") && said.contains("poll_secs"),
+            "the refusal names both keys: {said}"
+        );
+    }
+
+    #[test]
+    fn a_presence_table_naming_no_backend_is_refused_by_name() {
+        for body in ["", "type = \"aqara\"\n"] {
+            let said = match parse_presence(&presence_config(body)) {
+                Err(error) => error.detail().to_string(),
+                Ok(_) => panic!("{body:?} names no backend this answers"),
+            };
+            assert!(
+                said.contains("type") && said.contains("hue"),
+                "the refusal names the key and the one backend: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_presence_table_the_operator_switched_off_is_inert_settings_and_all() {
+        let config = parse_config(
+            "[plugins.presence]\nenabled = false\ntype = \"aqara\"\npoll_secs = 900\n",
+        )
+        .unwrap();
+        assert_eq!(parse_presence(&config).unwrap(), None);
+    }
+
     // --- the roster, the template and the doctor's wording ------------------
 
     /// One valid value for every key the roster declares, which is what makes
@@ -3681,6 +3910,12 @@ mod tests {
         ("plugins.hue", "quiet_hours", "\"22:00-07:00\""),
         ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
         ("plugins.macos-banner", "enabled", "true"),
+        ("plugins.presence", "enabled", "true"),
+        ("plugins.presence", "exclude", "[\"3F - Master Bedroom\"]"),
+        ("plugins.presence", "poll_secs", "5"),
+        ("plugins.presence", "rooms", "[\"3F - Studio\"]"),
+        ("plugins.presence", "stale_after_secs", "15"),
+        ("plugins.presence", "type", "\"hue\""),
         ("plugins.mobile", "enabled", "true"),
         ("plugins.mobile", "mobile_watch_card", "false"),
         ("plugins.mobile", "submit_deadline_secs", "5"),

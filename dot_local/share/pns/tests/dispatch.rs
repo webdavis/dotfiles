@@ -3053,11 +3053,12 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
         &printed[1..],
         [
             "router: skipped, a sensor and never a delivery destination",
+            "presence: skipped, not enabled in the config",
             "mobile: sent, this channel reports no outcome",
             "macos-banner: sent, this channel reports no outcome",
             "hermes: sent, this channel reports no outcome",
             "hue: skipped, not enabled in the config",
-            "pns doctor: 3 sent, 0 failed, 2 skipped",
+            "pns doctor: 3 sent, 0 failed, 3 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
@@ -3257,7 +3258,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
         "the last leg still got its turn after an earlier failure: {printed}"
     );
     assert!(
-        printed.contains("pns doctor: 1 sent, 2 failed, 2 skipped"),
+        printed.contains("pns doctor: 1 sent, 2 failed, 3 skipped"),
         "{printed}"
     );
 }
@@ -3288,7 +3289,7 @@ fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_m
         );
     }
     assert!(
-        printed.contains("pns doctor: 0 sent, 3 failed, 2 skipped"),
+        printed.contains("pns doctor: 0 sent, 3 failed, 3 skipped"),
         "the summary has to count what the lines say: {printed}"
     );
 }
@@ -3456,11 +3457,12 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         printed,
         [
             "router: skipped, not enabled in the config",
+            "presence: skipped, not enabled in the config",
             "mobile: skipped, not enabled in the config",
             "macos-banner: skipped, not enabled in the config",
             "hermes: skipped, not enabled in the config",
             "hue: skipped, not enabled in the config",
-            "pns doctor: 0 sent, 0 failed, 5 skipped",
+            "pns doctor: 0 sent, 0 failed, 6 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
@@ -3477,6 +3479,59 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "{channel} received a payload from a config that enabled nothing"
         );
     }
+}
+
+#[test]
+fn the_doctor_reads_the_room_off_the_state_file_and_judges_it_against_the_configs_own_rooms() {
+    // THE ONE PLACE THE PURE HALVES ARE COMPOSED, and until this test the one
+    // place nothing covered: the units above pin the parse and the policy as
+    // functions, while the state file's own NAME, the read, and the config's
+    // rooms and stale bound reaching `classify` live in the composition root.
+    // Replacing that whole body with a constant `unknown (no reading)` left
+    // every other test in this crate green.
+    let sandbox = Sandbox::new("doctor-presence-reading");
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\n\
+         [plugins.presence]\nenabled = true\ntype = \"hue\"\nrooms = [\"3F - Studio\"]\n"
+    ));
+    std::fs::create_dir_all(sandbox.state()).expect("the state directory");
+    let published = sandbox.state().join("presence");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock after 1970")
+        .as_secs();
+
+    // MOTION REPORTED NOW, so the printed age is zero however long this test
+    // takes and the assertion is not a race against the clock.
+    std::fs::write(&published, format!("{now} {now} 1 3F - Studio\n")).expect("the reading");
+    let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
+    assert!(
+        reported.contains("presence: 3F - Studio (0s ago)"),
+        "the published room never reached the report: {reported}"
+    );
+
+    // AND THE OPERATOR'S OWN LIST IS WHAT ADMITS IT. A room nobody listed is
+    // not a claim about where they are, so the same fresh line reads unknown.
+    std::fs::write(&published, format!("{now} {now} 1 3F - Hallway\n")).expect("the reading");
+    let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
+    assert!(
+        reported.contains("presence: unknown (the reported room is not one this config watches)"),
+        "a room the config never watched was reported as one: {reported}"
+    );
+
+    // AND A WRITER THAT STOPPED IS UNKNOWN, which is the whole guarantee: the
+    // bound the config states has to reach the judgement, or a dead bridge
+    // pins the operator in the last room it saw them in for good.
+    std::fs::write(
+        &published,
+        format!("{} {} 1 3F - Studio\n", now - 60, now - 60),
+    )
+    .expect("the reading");
+    let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
+    assert!(
+        reported.contains("presence: unknown (stale, poll 60s old)"),
+        "a poll nobody refreshed still named a room: {reported}"
+    );
 }
 
 #[test]
@@ -7614,7 +7669,7 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     let lines: Vec<&str> = printed.lines().collect();
     let summary = lines
         .iter()
-        .position(|line| *line == "pns doctor: 3 sent, 0 failed, 2 skipped")
+        .position(|line| *line == "pns doctor: 3 sent, 0 failed, 3 skipped")
         .unwrap_or_else(|| panic!("no summary line in {printed}"));
     assert_eq!(lines[summary + 1], PAIRED_LINE, "{printed}");
     assert_eq!(lines[summary + 2], MOSHI_SAYS_LINE, "{printed}");
@@ -7735,7 +7790,7 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
         "a call that never answered relays nothing: {printed}"
     );
     assert!(
-        printed.contains("pns doctor: 3 sent, 0 failed, 2 skipped"),
+        printed.contains("pns doctor: 3 sent, 0 failed, 3 skipped"),
         "and the sections printed before it survived: {printed}"
     );
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
@@ -7802,7 +7857,7 @@ fn an_unpaired_host_exits_one_while_the_summary_still_reads_zero_failed() {
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
-        printed.contains("pns doctor: 3 sent, 0 failed, 2 skipped"),
+        printed.contains("pns doctor: 3 sent, 0 failed, 3 skipped"),
         "{printed}"
     );
     assert!(

@@ -396,7 +396,7 @@ lock's own exclusive create rather than being papered over.
 - Privacy: the lock file is empty and `0600`.
 - Process ownership and cleanup: `HeldLock` (behavior 6) removes it on every exit path.
 - Compatibility contract: the lock's name is `<ring>.lock` (`src/main.rs:ring_lock_path`), which places
-  it beside the ring in the same directory a `readable_ring` reader may scan.
+  it beside the ring in the same directory a `readable_state_file` reader may scan.
 
 ### 5. A ring lock is waited for, bounded, and aged out
 
@@ -577,7 +577,7 @@ Then `symlink_metadata` judges the link itself, anything that is not a regular f
 a file larger than the caller's `read_max` is refused unread, and undecodable bytes are an error rather
 than a lossy string.
 
-`src/main.rs:readable_ring`: "EVERY READER OF THESE FILES GOES THROUGH IT ... A FIFO parks the open
+`src/system.rs:readable_state_file`: "EVERY READER OF THESE FILES GOES THROUGH IT ... A FIFO parks the open
 forever, for READING as much as for writing, which wedges the hook that appended or the command a human
 is waiting on. A file some other hand grew to gigabytes is otherwise learned about by allocating it." The
 same refusal appears at the append (`append_ring_line`), at the spool (`src/daemon.rs:peek`,
@@ -611,7 +611,7 @@ same refusal appears at the append (`append_ring_line`), at the spool (`src/daem
   planted.
 - Process ownership and cleanup: `src/main.rs:claim_by_rename` names the residue: "A RENAME BACK THAT
   FAILS LEAVES IT AT THE CLAIM PATH, which is a state nothing here can improve on."
-- Compatibility contract: `readable_ring` returns `io::Error`s rather than an absence "so a caller that
+- Compatibility contract: `readable_state_file` returns `io::Error`s rather than an absence "so a caller that
   has to tell 'there is no file' from 'the file could not be read' still can: the doctor says a different
   sentence for each".
 

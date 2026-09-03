@@ -445,7 +445,7 @@ Then the event is silenced only if an ASSERTED mode matches a listed name or ide
   dressed as a check (`src/focus.rs:active_modes`). The store path is HOME-relative with NO environment
   hatch, so no producer can force the answer in either direction; the test seam is the sandbox's own
   `HOME` (`src/main.rs:focus_now`).
-- Timeout and cancellation: the two files are read through `src/main.rs:readable_ring` with the 256 KiB
+- Timeout and cancellation: the two files are read through `src/system.rs:readable_state_file` with the 256 KiB
   `RING_READ_MAX` ceiling and a regular-file check, so a FIFO at either path is refused rather than
   parking the event. The live store measures 6 KiB against that ceiling (`src/main.rs:focus_now`).
 - Idempotency and duplicates: the reading is a SET, because the live store on this machine carries the
