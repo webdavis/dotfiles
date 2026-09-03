@@ -118,6 +118,7 @@ packages:
         - gnu-getopt
         - gnu-sed
         - gnupg
+        - go
         - gogcli
         - grpcurl
         - himalaya
