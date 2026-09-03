@@ -138,7 +138,7 @@ fn epoch_from_utc(stamp: &str) -> Option<u64> {
         return None;
     }
     let bytes = stamp.as_bytes();
-    if [bytes[4], bytes[7], bytes[10], bytes[13], bytes[16]] != [b'-', b'-', b'T', b':', b':'] {
+    if [bytes[4], bytes[7], bytes[10], bytes[13], bytes[16]] != *b"--T::" {
         return None;
     }
     // THE FRACTION IS OPTIONAL AND EVERYTHING ELSE IS NOT: `Z` alone, or a
