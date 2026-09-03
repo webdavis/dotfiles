@@ -413,6 +413,12 @@ pub struct SystemProbes<R: CommandRunner> {
     phone_atime: std::cell::OnceCell<Option<u64>>,
     screen_locked: std::cell::OnceCell<Option<bool>>,
     now: std::cell::OnceCell<Option<u64>>,
+    /// Where the presence reading is published, which is the daemon's
+    /// state file. EMPTY UNTIL A CALLER POINTS THIS AT ONE, see
+    /// `with_presence_path`: an unpointed probe set reads no line, which
+    /// is the Unknown every consumer of this reading already fails to.
+    presence_path: String,
+    presence_line: std::cell::OnceCell<Option<String>>,
     /// Set by `start` and taken by the first read that needs it: see
     /// `ProbeStart` and `join_desk`. `None` means either nothing was ever
     /// started, or a thread already ran and was already joined.
@@ -432,6 +438,8 @@ impl<R: CommandRunner> SystemProbes<R> {
             phone_atime: std::cell::OnceCell::new(),
             screen_locked: std::cell::OnceCell::new(),
             now: std::cell::OnceCell::new(),
+            presence_path: String::new(),
+            presence_line: std::cell::OnceCell::new(),
             desk_handle: std::cell::Cell::new(None),
             phone_handle: std::cell::Cell::new(None),
         }
@@ -454,6 +462,50 @@ impl<R: CommandRunner> SystemProbes<R> {
                 .ok()
                 .map(|since_epoch| since_epoch.as_secs())
         })
+    }
+
+    /// THE SIXTH MEMOIZED READING: the presence state file's one line, RAW.
+    ///
+    /// NOTHING IS JUDGED HERE. No clock, no staleness bound, no room list:
+    /// this module says what the machine reported and `presence::classify`
+    /// says what it means, which is the split the module doc opens with. It
+    /// is memoized like the five beside it, so the doctor and the eventual
+    /// routing cannot read two different lines inside one event.
+    ///
+    /// READ THROUGH THE BOUNDED READER, so a FIFO at that path is refused on
+    /// its metadata rather than opened, and a file some other hand grew is
+    /// refused rather than allocated.
+    pub fn presence_line(&self) -> Option<String> {
+        self.presence_line
+            .get_or_init(|| {
+                readable_state_file(
+                    std::path::Path::new(&self.presence_path),
+                    crate::presence_file::READ_MAX,
+                )
+                .ok()
+            })
+            .clone()
+    }
+
+    /// Points this probe set at the presence state file.
+    ///
+    /// A BUILDER RATHER THAN A THIRD CONSTRUCTOR ARGUMENT, and the default is
+    /// no path at all. The composition root sets it; anything that does not
+    /// reads no line, which is the same Unknown a machine with the daemon
+    /// switched off already gets, so a caller that never wires it is degraded
+    /// rather than wrong.
+    pub fn with_presence_path(mut self, path: String) -> Self {
+        self.presence_path = path;
+        self
+    }
+
+    /// Seeds the presence reading for a test, so a suite can drive a line
+    /// without a file. `cfg(test)`-ONLY and never from the environment, the
+    /// same rule `with_clock` below states.
+    #[cfg(test)]
+    pub fn with_presence_line(self, line: &str) -> Self {
+        let _ = self.presence_line.set(Some(line.to_string()));
+        self
     }
 
     /// Seeds the clock reading for a test, so a suite can pin "now" to an
@@ -1581,6 +1633,104 @@ mod tests {
             reading.is_some(),
             "the dangling link's own mtime is the reading"
         );
+    }
+
+    // --- the presence reading -----------------------------------------------
+
+    /// A scratch path of this test's own, removed first so a previous run
+    /// cannot seed it.
+    fn scratch_path(name: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("pns-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    fn probes_at(path: &std::path::Path) -> SystemProbes<FakeRunner> {
+        SystemProbes::new(FakeRunner::failing(), "/marker".to_string())
+            .with_presence_path(path.to_string_lossy().into_owned())
+    }
+
+    #[test]
+    fn the_presence_line_is_read_once_however_often_it_is_asked_for() {
+        // ONE PROBE SET IS ONE READING. The doctor asks and the routing will
+        // ask again inside the same event; a second read could straddle the
+        // daemon's next write and answer a different room from the first.
+        let path = scratch_path("presence-once");
+        std::fs::write(&path, b"1000 990 1 3F - Studio").unwrap();
+        let probes = probes_at(&path);
+        let first = probes.presence_line();
+        std::fs::write(&path, b"2000 1990 1 2F - Kitchen").unwrap();
+        let second = probes.presence_line();
+        std::fs::remove_file(&path).ok();
+        assert_eq!(first.as_deref(), Some("1000 990 1 3F - Studio"));
+        assert_eq!(second, first, "the second ask must not re-read the file");
+    }
+
+    #[test]
+    fn an_absent_presence_file_is_no_reading() {
+        assert_eq!(
+            probes_at(std::path::Path::new("/nonexistent/pns-presence")).presence_line(),
+            None
+        );
+    }
+
+    #[test]
+    fn a_fifo_at_the_presence_path_is_refused_on_its_metadata_and_never_opened() {
+        // MEASURED ELSEWHERE IN THIS CRATE: opening a FIFO blocks until the
+        // other end opens, for reading as much as for writing, so a read that
+        // trusted the path would park the hook for the life of the machine.
+        // The deadline is what makes a regression a FAILURE rather than a
+        // suite that hangs with nothing to read.
+        let path = scratch_path("presence-fifo");
+        assert!(
+            std::process::Command::new("/usr/bin/mkfifo")
+                .arg(&path)
+                .status()
+                .expect("mkfifo runs")
+                .success(),
+            "the fixture has to be a real FIFO"
+        );
+        // THE READER RUNS DETACHED, never joined: a regression parks it on the
+        // open for good, and a scoped thread would wait for it and hang the
+        // suite instead of failing it.
+        let (report, reading) = std::sync::mpsc::channel();
+        let reader = path.clone();
+        std::thread::spawn(move || report.send(probes_at(&reader).presence_line()));
+        let answered = reading.recv_timeout(std::time::Duration::from_secs(5));
+        std::fs::remove_file(&path).ok();
+        assert_eq!(
+            answered,
+            Ok(None),
+            "the FIFO was opened and the read parked"
+        );
+    }
+
+    #[test]
+    fn a_presence_file_past_the_read_cap_is_no_reading() {
+        let path = scratch_path("presence-huge");
+        std::fs::write(
+            &path,
+            vec![b'x'; (crate::presence_file::READ_MAX + 1) as usize],
+        )
+        .unwrap();
+        let reading = probes_at(&path).presence_line();
+        std::fs::remove_file(&path).ok();
+        assert_eq!(reading, None);
+    }
+
+    #[test]
+    fn a_symlink_at_the_presence_path_is_no_reading() {
+        // The LINK is judged, never its target: the state file is this tool's
+        // own, and a link standing in for it is something another hand put
+        // there.
+        let target = scratch_path("presence-target");
+        let link = scratch_path("presence-link");
+        std::fs::write(&target, b"1000 990 1 3F - Studio").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let reading = probes_at(&link).presence_line();
+        std::fs::remove_file(&link).ok();
+        std::fs::remove_file(&target).ok();
+        assert_eq!(reading, None);
     }
 
     // --- the phone's input clock -------------------------------------------
