@@ -382,8 +382,13 @@ return {
         lhs = "<C-g>SP",
         rhs = function()
           local index = util.trim(vim.fn.input("Stash index to pop: "))
-          if index ~= "" then
+          -- A stash index is a number, so it is checked as one before it is
+          -- spliced into an ex command line. Anything else typed here would be
+          -- read as Vim syntax rather than as an index.
+          if index:match("^%d+$") then
             vim.cmd("Git stash pop " .. index)
+          elseif index ~= "" then
+            vim.notify("Not a stash index: *" .. index .. "*", log_warning, notify_fugitive_title)
           end
         end,
         desc = "Pop: by index <#>",
@@ -397,8 +402,13 @@ return {
         lhs = "<C-g>SA",
         rhs = function()
           local index = util.trim(vim.fn.input("Stash index to pop: "))
-          if index ~= "" then
+          -- A stash index is a number, so it is checked as one before it is
+          -- spliced into an ex command line. Anything else typed here would be
+          -- read as Vim syntax rather than as an index.
+          if index:match("^%d+$") then
             vim.cmd("Git stash apply " .. index)
+          elseif index ~= "" then
+            vim.notify("Not a stash index: *" .. index .. "*", log_warning, notify_fugitive_title)
           end
         end,
         desc = "Apply: by index <#>",
@@ -454,8 +464,22 @@ return {
             end
             new_branch = util.trim(new_branch)
 
-            local cmd = "Git checkout -b " .. new_branch
-            vim.cmd(cmd)
+            -- Fugitive's own argv entry point. Splicing the name into a `:Git`
+            -- command line instead lets it be re-read as Vim syntax: a newline
+            -- runs a second ex command, `%` expands to the current file, and a
+            -- leading dash becomes another git flag. FugitiveExecute passes the
+            -- word through untouched, and DidChange refreshes the summary the
+            -- `:Git` form would have refreshed.
+            local result = vim.fn.FugitiveExecute({ "checkout", "-b", new_branch })
+            vim.fn.FugitiveDidChange()
+
+            if result.exit_status ~= 0 then
+              vim.notify(
+                "Checkout failed for branch *" .. new_branch .. "*\n\n" .. table.concat(result.stderr or {}, "\n"),
+                log_warning,
+                notify_fugitive_title
+              )
+            end
           end)
 
         end,
@@ -706,7 +730,26 @@ return {
               end
 
               email = util.trim(email)
-              vim.cmd('Git commit -C HEAD --amend --author="' .. author .. " <" .. email .. '>"')
+              -- One argv word, so the double quotes that used to wrap it are
+              -- gone with the shell they were quoting for. An author typed with
+              -- a `"` in it used to close them early and turn the rest of the
+              -- name into further `git commit` flags.
+              local result = vim.fn.FugitiveExecute({
+                "commit",
+                "-C",
+                "HEAD",
+                "--amend",
+                "--author=" .. author .. " <" .. email .. ">",
+              })
+              vim.fn.FugitiveDidChange()
+
+              if result.exit_status ~= 0 then
+                vim.notify(
+                  "Amend failed\n\n" .. table.concat(result.stderr or {}, "\n"),
+                  log_warning,
+                  notify_fugitive_title
+                )
+              end
             end)
           end)
         end,
@@ -947,7 +990,11 @@ return {
               return
             end
 
-            vim.cmd("Git push -u origin '" .. branch .. "'")
+            -- HEAD is the branch this already resolved, so nothing has to be
+            -- spliced in. The single quotes it replaces were not a defence: a
+            -- branch name may legally contain one, and closing them early made
+            -- the remainder into further `git push` flags.
+            vim.cmd("Git push -u origin HEAD")
           end)
         end,
         desc = "Fugitive: push -u origin <branch>",
