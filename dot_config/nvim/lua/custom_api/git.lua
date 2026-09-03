@@ -104,7 +104,7 @@ local function extract_upstream(tokens)
 
   local upstream = table.concat(parts, " ")
 
-  return upstream, i + 1
+  return upstream, i
 end
 
 local function parse_branch_line(line)
@@ -317,6 +317,14 @@ local function copy_URL_to_clipboard(opts)
 
   return ("Copied *%s* %s URL to clipboard: `%s`"):format(remote, protocol:upper(), final_URL)
 end
+
+-- The pure helpers are exported so the spec can call them directly (spec 6.3);
+-- they take strings and tables and reach nothing outside this file.
+M.convert_remote_protocol = convert_remote_protocol
+M.normalize_branch = normalize_branch
+M.is_current_branch = is_current_branch
+M.extract_upstream = extract_upstream
+M.parse_branch_line = parse_branch_line
 
 M.initialized = initialized
 M.top_level = top_level
