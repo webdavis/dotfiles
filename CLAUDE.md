@@ -147,11 +147,11 @@ the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts unde
 deployed state and the manifests derived from the same source state. The by-name form existed to dodge
 the vault, which is no longer a goal now that the operator applies with it unlocked.
 
-Thirteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
-`~/.aws/credentials`, `~/.claude.json`, `~/.composio/user_data.json`, `~/.config/atuin/config.toml`,
-`~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`, `~/.config/pns/config.toml`,
-`~/.config/uu/config.toml`, `~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
-`~/Library/Application Support/Claude/claude_desktop_config.json`, and
+Fourteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+`~/.aws/credentials`, `~/.claude.json`, `~/.codex/config.toml`, `~/.composio/user_data.json`,
+`~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`,
+`~/.config/pns/config.toml`, `~/.config/uu/config.toml`, `~/.config/gogcli/credentials.json`,
+`~/.hermes/.env`, `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 
@@ -248,6 +248,23 @@ stable fields in `~/.claude/settings.json` (permissions, hooks, `skillOverrides`
 the roster is declared, the per-plugin disable state is read back out of the live file. The full field
 model, the plugin-state trade and the corrupt-file recovery path are in
 `docs/runbooks/claude-code-settings.md`.
+
+### Codex settings
+
+`private_dot_codex/modify_private_config.toml` is the same mechanism for `~/.codex/config.toml`, which
+Codex rewrites from its own model while it runs. Stable fields are overwritten on every apply (model and
+reasoning, sandbox and approval policy, `notify`, `[features]`, `[memories]`, `tui.vim_mode_default`, the
+two git marketplaces and the four MCP servers this repo declares), everything else drifts freely, and
+`[projects.*]` is the third case: the roster of trusted roots is declared and every undeclared live entry
+is preserved.
+
+**`[hooks.state]` is hook trust and is never written from source.** It is only ever read back out of the
+live file, because a snapshot in version control would let an apply silently re-grant trust the operator
+revoked at the Codex prompt; a fresh machine renders none of it and Codex re-prompts, which is correct. A
+no-op apply emits the live file back byte for byte instead of re-serializing, so `just d` stays quiet.
+`fromToml` hard errors on input that is not TOML and a modify-template that errors aborts the WHOLE
+apply, so `.chezmoiscripts/run_before_13-quarantine-unparseable-codex-config.sh` moves an unparseable
+file into `~/workspaces/backups` first, at the cost of every hook approval on the machine.
 
 ### Agent skills (cross-harness store)
 

@@ -65,11 +65,14 @@ excludes = [
 ]
 
 # dot_aerospace.toml keeps user-preferred visual alignment taplo would strip.
+# modify_ templates share the .toml extension but hold Go template directives
+# taplo cannot parse; both spellings because patterns match whole paths from the
+# tree root.
 [formatter.taplo]
 command = "taplo"
 options = ["format"]
 includes = ["*.toml"]
-excludes = ["dot_aerospace.toml"]
+excludes = ["dot_aerospace.toml", "modify_*", "**/modify_*"]
 
 [formatter.actionlint]
 command = "actionlint"
