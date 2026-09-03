@@ -164,7 +164,7 @@ impl LaneKind {
 }
 
 /// `[lanes.brew]`: Homebrew formulae, casks and Mac App Store apps, plus the
-/// three repairs only this lane is positioned to make.
+/// two repairs only this lane is positioned to make.
 ///
 /// EVERY PATH IS A KEY, and every key ships at its default, because a machine
 /// whose Homebrew prefix or state directory differs has nothing else to
