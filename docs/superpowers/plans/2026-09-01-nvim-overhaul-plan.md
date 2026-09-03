@@ -769,7 +769,10 @@ function under test. Never focus.
 - [ ] **Step 1, red (resolver row only):** bats sourcing the function: the tab match wins over a
   second candidate; a lone candidate in the workspace wins; a candidate whose reported pid does not
   match its registry entry is dropped and its entry pruned, EVEN THOUGH its socket answered; two
-  verified candidates go to the picker rather than exiting 1; zero verified candidates refuse with
+  verified candidates return the ENUMERATION (pane id, cwd, current file, pid, and the argument that
+  disambiguates) rather than an error string, so the agent can act on it; a candidate the caller then
+  chooses is remembered and re-verified by the identity check on its next use, and a memo whose
+  identity check fails is dropped rather than reused; zero verified candidates refuse with
   the reason named; another workspace's candidate is ignored; empty ids are skipped;
   `NVIM_MCP_SOCKET` set short-circuits main but still runs the identity check; the listing glob
   resolves under `XDG_RUNTIME_DIR` when set and under `${TMPDIR}nvim.${USER}` otherwise. FAIL,

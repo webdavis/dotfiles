@@ -841,7 +841,8 @@ case where the rename changed the realpath.
   migration is behind this config, not ahead of it, and PR 29e is a deliberate bump plus a
   re-verification rather than a rewrite. `nvim-treesitter-context` is still on `master` (lock
   `64dd4cf3`) and `aerial` reads treesitter through its own path, so what each of them needs is
-  PR 29e's to decide; PR 29b keeps only its own check that the context bar renders on 0.12.5.
+  PR 29e's to decide, and `treesitter-context` on `master` is the ONE piece of real migration work
+  left in it; PR 29b keeps only its own check that the context bar renders on 0.12.5.
 - Everything else keeps its pin. `dial`, `markview` and `toggleterm` stay (item 35).
 - `lazy-lock.json`'s newest pin is 2025-12-30 against Neovim 0.12.5, and several plugins predate
   0.12. The refresh is its own pull request with the full gate harness (PR 29d), never a side effect
@@ -1154,9 +1155,14 @@ environment of the pane the agent runs in, never by focus. Five steps, in order:
 
    The candidate list is then narrowed to the caller's `$HERDR_WORKSPACE_ID`, which the agent's pane
    exports like every pane, and to the tab step 2 named.
-1. **Pick, do not stall.** More than one verified candidate is a PICKER, not a refusal: list them
-   with their file and their directory the way `herdr-nvim`'s `ui.pick_agent` already does for the
-   mirror problem, and let one keypress decide. Never guess, because a guess edits the wrong buffer.
+1. **Pick, do not stall.** More than one verified candidate is a PICKER, not a refusal, and the
+   picker is a TOOL RESULT rather than a user interface: the MCP server is something the agent
+   calls, so it returns a refusal whose payload ENUMERATES the candidates (pane id, cwd, current
+   file, pid) together with the exact argument that disambiguates them. The agent then asks its own
+   user or applies a rule its caller supplied. No terminal is required anywhere, which is what makes
+   this reachable from a resolver that owns no window. Never guess, because a guess edits the wrong
+   buffer, and never return a bare error string, because that ends the turn instead of continuing
+   it.
 1. **Refuse only when nothing is alive.** Zero verified candidates is a refusal with the reason
    named and the instruction to launch the agent from Neovim (`<leader>Cc`) or to export
    `NVIM_MCP_SOCKET`.
@@ -1175,8 +1181,7 @@ The resolver is capped at 150 lines of bash with a bats test on the selection fu
 strings. The 80-line cap this section carried was written against the three-step order and does not
 survive the registry, the identity check, the picker and the memo; PR 10a states its measured line
 count in the body, and a resolver that cannot fit is the signal to take the crate row instead. The
-picker is the one part that cannot live in the resolver alone: it runs where the agent runs and has
-no terminal of its own, so PR 10a records how the choice is presented before it builds it.
+picker needs no terminal, because it is the structured tool result of step 4 rather than a window.
 
 The custom server, if built: a Rust crate under `~/.local/share/nvim-workspace-mcp` (proposed name,
 function-named, no handle; confirm before it is created), built by a `run_onchange_after_59`-style
