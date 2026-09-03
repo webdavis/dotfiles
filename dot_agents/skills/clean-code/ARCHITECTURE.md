@@ -286,6 +286,11 @@ Targets, after the formatter has run:
 - above 400 total lines normally requires decomposition
 - **no handwritten source file may exceed 500 total lines. There is no waiver.**
 
+**These are the default numbers, and a language skill may carry its own.** Where it states them, they
+win, the same way they win on every other number here. Swift's are already different by operator
+ruling: a 200-line hard cap on production files and a 700-line allowance for test files. Read the
+language skill's file-size section before applying anything above.
+
 At completion the entry-point file is below 150 lines; module-declaration files primarily declare or
 curate modules and public exports; no existing large file is grandfathered; large acceptance suites
 are decomposed by behavior.

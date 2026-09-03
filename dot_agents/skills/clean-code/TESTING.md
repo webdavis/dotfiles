@@ -39,7 +39,7 @@ before you trust the result.
 child has a failure mode that is not red, it is *never finishing*, and a hang reads as "still
 running". Give every such test a deadline and fail on it, and **mutation-verify by making the subject
 hang, not only by making it answer wrongly.** A test guarding whether a message reached a destination
-at all is the least acceptable place in a crate for a test that cannot fail.
+at all is the least acceptable place in a codebase for a test that cannot fail.
 
 **Nothing exercises the composition root.** A slice whose tests all exercise pure functions passes
 with the composing function replaced by a constant, because no test ever calls it. Check that

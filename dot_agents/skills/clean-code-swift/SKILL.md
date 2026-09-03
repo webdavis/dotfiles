@@ -321,5 +321,6 @@ Rules from the neutral skill with no answer in the case study, recorded rather t
   answer to the multiprocess contention rule. A Swift tool of ours with several writing processes
   needs that rule worked out before the first store lands.
 - **The committed-lockfile gate.** `Package.resolved` plus `--disable-automatic-resolution` is the
-  intended analogue of `--locked`, but its behavior was not measured and it awaits the operator's
-  ruling alongside the file-size numbers above.
+  intended analogue of `--locked`, but its behavior was not measured. Confirm it against the first
+  Swift package this repository owns before treating it as a gate. The file-size numbers above are
+  no longer open: the operator ruled them on 2026-09-03.
