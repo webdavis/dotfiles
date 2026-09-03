@@ -793,6 +793,10 @@ mod guard_tests {
         let message = drop_backdated("guard-twin-ceiling", live_ceiling_ms() as u64 + 1, None)
             .expect("a sandbox over the ceiling must fail its own drop");
         assert!(message.starts_with("test budget:"), "{message}");
+        assert!(
+            message.contains(&format!("over the {} ms ceiling", live_ceiling_ms())),
+            "the message must name the line actually in force: {message}"
+        );
     }
 
     /// The OTHER side of the line, on the real `Drop` path: a sandbox inside
