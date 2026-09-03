@@ -899,7 +899,7 @@ through `git.runner`. `github.commit_url(sha)` builds the GitHub commit URL from
 Lane: agent. Depends on: PR 12, PR 13 (`claudecode.lua`), PR 23 (`blame_sha`). Brief:
 `brief-nvim-annotate.md`. Closes custom #3. Shrunk 2026-09-03: there is no send path here, so the
 state gate, the one-slot queue, the detached `herdr agent wait`, the recheck and the state machine
-are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>as` and `<leader>aS`.
+are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>As` and `<leader>AS`.
 
 **Files:** Create `lua/custom_api/annotate.lua`, `tests/annotate_spec.lua`. Modify
 `lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
@@ -922,7 +922,7 @@ the installed plugin: `lua/herdr-nvim/comments.lua:6`, `lua/herdr-nvim/ui.lua:50
   nil part (red).
 - [ ] **Step 3, live (10.9), pasted:** `<leader>Cx` on a line with a diagnostic adds one `herdr-nvim`
   annotation carrying the at-mention, the diagnostic, the enclosing function and the blame line, and
-  it is decorated in the buffer; `<leader>al` lists it; `<leader>as` pastes it into the agent's input
+  it is decorated in the buffer; `<leader>Al` lists it; `<leader>As` pastes it into the agent's input
   unsent. Nothing is typed into the agent by `<leader>Cx` itself.
 - [ ] **Step 4:** Gates G1 to G6; G4 shows `<leader>Cx`. Commit: `feat(nvim): annotate a line with
   its diagnostic and blame`.
@@ -1148,8 +1148,8 @@ Lane: drops and git. Depends on: PR 16 (the annotation flow it is judged against
 **Files:** Create `docs/research/2026-09-review-nvim-evaluation.md`. Nothing else.
 
 - [ ] **Step 1:** install `vuki656/review.nvim` by hand for the day, outside chezmoi. The outcome
-  table asks one question per row: does it do something `<leader>ac` (comment a line or selection),
-  `<leader>al` (list), `<leader>as` (paste into the agent's input) and `<leader>aS` (send) do not
+  table asks one question per row: does it do something `<leader>Ac` (comment a line or selection),
+  `<leader>Al` (list), `<leader>As` (paste into the agent's input) and `<leader>AS` (send) do not
   already do, and does its comment survive an edit above it the way a `herdr-nvim` extmark comment
   does. Each row with its command and output.
 - [ ] **Step 2:** the body states adopt or not adopt with its reason; the default is not to adopt,

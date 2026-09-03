@@ -60,7 +60,7 @@ v4.4 folds the decisions of 2026-09-03
 1. `custom_api/herdr.lua` is the one shared herdr seam and states the interrupt policy once; PR 11,
    PR 13 and PR 16 all go through it (7.4).
 1. Custom #3 shrinks to a line annotator: `compose_text()` feeds `herdr-nvim`'s `comments.add` and
-   `ui.decorate`, delivery is `herdr-nvim`'s own `<leader>as` and `<leader>aS`, and the queue, the
+   `ui.decorate`, delivery is `herdr-nvim`'s own `<leader>As` and `<leader>AS`, and the queue, the
    detached waiter, the recheck and the state machine are deleted (7.7, 8.3, 10.9).
 1. Custom #2 is `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline `awk`, with no
    module and no fixture file (7.7, 6.3, 10.9).
@@ -842,7 +842,7 @@ of 7.3 is: a research document with an outcome table, and no install in the eval
   forges. Judged against what octo does today, on the same repositories.
 - `vuki656/review.nvim`, which comments on a diff and sends the comments to the agent (PR 24b):
   judged against the `herdr-nvim` annotation flow, and adopted only if it adds something
-  `<leader>ac`, `<leader>as` and `<leader>aS` do not already give.
+  `<leader>Ac`, `<leader>As` and `<leader>AS` do not already give.
 
 Not adopted, recorded so they are not proposed again: `sidekick.nvim` (dormant since 2026-04-22) and
 `md-render` (it needs Ghostty's OSC 66 support).
@@ -1280,16 +1280,18 @@ cursor node to the first node whose type ends in `function_definition`, `functio
 `method_definition`; empty when no parser is attached), and the line's blame SHA and summary through
 `git.blame_sha` (5.2) and `git.latest_commit`. That string goes to `herdr-nvim`'s own annotation
 store, `comments.add(bufnr, line, line, text)`, and the id it returns goes to `ui.decorate(id)`, so
-the annotation sits in the buffer exactly like one typed with `<leader>ac`.
+the annotation sits in the buffer exactly like one typed with `<leader>Ac`.
 
-Delivery is not this plugin's job. `herdr-nvim` already ships `<leader>as` (paste every pending
-comment into the agent's input) and `<leader>aS` (send them, auto-submitting), both resolving the
-agent with the lookup of 7.4. So there is no send path here, and with it go the state gate, the
-one-slot queue, the detached `herdr agent wait`, the recheck and the state machine v4.3 carried:
-nothing is ever typed into an agent by this keymap, so there is nothing to race and nothing to be
-best-effort about. The composer is a text function over data the editor already holds. Pure and
-tested: `compose_text(parts)`, including that a nil part leaves no blank line. The module name
-(`custom_api/annotate.lua` proposed) follows the rename rule above.
+Delivery is not this plugin's job. `herdr-nvim` already ships `<leader>As` (paste every pending comment
+into the agent's input) and `<leader>AS` (send them, auto-submitting), both resolving the agent with the
+lookup of 7.4. The prefix is the UPPERCASE `A`: the plugin's own default is `<leader>a` and this config
+overrides it (`herdr-nvim.lua:6`, 8.1), so every `herdr-nvim` key in this spec and its plan is
+`<leader>A<letter>`. So there is no send path here, and with it go the state gate, the one-slot queue,
+the detached `herdr agent wait`, the recheck and the state machine v4.3 carried: nothing is ever typed
+into an agent by this keymap, so there is nothing to race and nothing to be best-effort about. The
+composer is a text function over data the editor already holds. Pure and tested: `compose_text(parts)`,
+including that a nil part leaves no blank line. The module name (`custom_api/annotate.lua` proposed)
+follows the rename rule above.
 
 ## 8. Keymap and which-key design
 
@@ -1351,7 +1353,7 @@ becomes "do" (its two survivors are actions), and the new groups follow the nami
 | `<leader>A` group           | row added, "herdr" (PR 4c)                                                                         |
 | Swift                       | `<leader>x` group "xcode" (operator decision 2026-09-02 swapped this from `<leader>X`, see below): `xb` build, `xr` run, `xt` test (all), `xT` test (current), `xs` select scheme, `xd` select device, `xl` toggle logs, `xp` project manager; `cond` on darwin. Shipped wider than this proposal after the 66-command audit: 19 maps under `<leader>x` and 8 nvim-dap maps under `<leader>D`, listed in `lua/plugins/xcodebuild.lua` |
 | Tests                       | `<leader>t` group "test": `tt` nearest, `tf` file, `ta` all, `ts` summary, `to` output, `tS` stop |
-| Agent                       | `<leader>C` group "claude": `Cs` send selection (visual), `Ca` add current file, `Cy` accept diff, `Cn` deny diff, `Cc` launch or attach `claude --ide` (7.2), `Cp` send selection or paragraph to the agent pane (7.4), `Cx` annotate line with diagnostic and blame (7.7 #3). No `CP`: `agent_pane()` resolves the target, so there is no target to set. Delivery of the annotations is `herdr-nvim`'s own `<leader>as` and `<leader>aS` |
+| Agent                       | `<leader>C` group "claude": `Cs` send selection (visual), `Ca` add current file, `Cy` accept diff, `Cn` deny diff, `Cc` launch or attach `claude --ide` (7.2), `Cp` send selection or paragraph to the agent pane (7.4), `Cx` annotate line with diagnostic and blame (7.7 #3). No `CP`: `agent_pane()` resolves the target, so there is no target to set. Delivery of the annotations is `herdr-nvim`'s own `<leader>As` and `<leader>AS` |
 | Review ledger               | `:ReviewLedger` command only, no keymap; it is a quickfix producer and `<leader>X` (moved here from `<leader>x` by the same swap) already holds the quickfix maps |
 
 The implementer finalizes the letters under the rule; the table is the proposal the plan starts from.
@@ -1507,7 +1509,7 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    `:ReviewLedger` on a real findings file fills the quickfix list and `:cnext` lands on the ledger
    row, and `:ReviewLedger!` additionally lists the `FIXED` rows (PR 15). `<leader>Cx` on a line with
    a diagnostic adds one `herdr-nvim` annotation carrying the at-mention, the diagnostic, the
-   enclosing function and the blame line, decorated in the buffer, and `<leader>as` then pastes it
+   enclosing function and the blame line, decorated in the buffer, and `<leader>As` then pastes it
    into the agent's input unsent (PR 16); nothing is typed into an agent by `<leader>Cx` itself.
    `<leader>Cp` on a paragraph reaches the agent pane and, against a `blocked` agent, refuses with a
    notice instead of answering the approval (PR 11, 7.4).
@@ -1572,7 +1574,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 22b | noice: bug #17, `inc_rename` (`noice.lua`)                                                              | PR 17c                | 18                                          |
 | PR 24 | Drop telescope (octo on snacks); the octo `<localleader>` groups checked by hand (`git.lua`, `chezmoi.lua`, `autosave.lua`) | PR 23, PR 12 | 29, 32 |
 | PR 24a | Evaluate `atlas.nvim` against octo (5.6): a research document with an outcome table and no install; the body states adopt or not, and an adopt outcome is its own later PR | PR 24 | none (5.6) |
-| PR 24b | Evaluate `review.nvim` against the `herdr-nvim` annotation flow (5.6): same shape, adopted only if it adds something `<leader>ac`, `<leader>as` and `<leader>aS` lack | PR 16 | none (5.6) |
+| PR 24b | Evaluate `review.nvim` against the `herdr-nvim` annotation flow (5.6): same shape, adopted only if it adds something `<leader>Ac`, `<leader>As` and `<leader>AS` lack | PR 16 | none (5.6) |
 | PR 25 | dial spec with boole's augends, then drop boole                                                          | PR 2                  | 30                                          |
 | PR 26a | Bump nvim-surround to ^4 (`textobjects.lua`)                                                            | PR 2                  | 33, 34 (none-ls no-op recorded here)        |
 | PR 26b | Bump hlslens +1 (bug #15)                                                                                | PR 2                  | 16                                          |
