@@ -1,14 +1,19 @@
 return {
   "ThePrimeagen/harpoon",
   branch = "harpoon2",
-  opts = {
-    menu = {
-      width = vim.api.nvim_win_get_width(0) - 4,
-    },
-    settings = {
-      save_on_toggle = false,
-    },
-  },
+  -- A function, not a table: a table literal reads the width while lazy.nvim is
+  -- still reading the spec, so the menu is sized off whatever the window happened
+  -- to be at startup rather than at the moment harpoon loads.
+  opts = function()
+    return {
+      menu = {
+        width = vim.api.nvim_win_get_width(0) - 4,
+      },
+      settings = {
+        save_on_toggle = false,
+      },
+    }
+  end,
   config = function(_, opts)
     local harpoon = require("harpoon")
 
