@@ -160,7 +160,7 @@ Config {
                     dim_window: None,
                     dim_behaviours: [],
                 },
-                "3F - Master Bedroom - HCL3": Target {
+                "3F - MBedroom - HCL3": Target {
                     shows: Some(
                         [
                             Looping,
@@ -200,7 +200,7 @@ Config {
                         Looping,
                     ],
                 },
-                "3F - Master Bedroom": Target {
+                "3F - MBedroom": Target {
                     shows: Some(
                         [
                             Done,

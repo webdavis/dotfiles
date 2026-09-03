@@ -3741,13 +3741,13 @@ mod tests {
     fn an_armed_presence_table_reads_its_rooms_its_exclusions_and_its_two_intervals() {
         let config = presence_config(
             "type = \"hue\"\nrooms = [\"3F - Studio\", \"2F - Kitchen\"]\n\
-             exclude = [\"3F - Master Bedroom\"]\npoll_secs = 10\nstale_after_secs = 30\n",
+             exclude = [\"3F - MBedroom\"]\npoll_secs = 10\nstale_after_secs = 30\n",
         );
         assert_eq!(
             parse_presence(&config).unwrap(),
             Some(Presence {
                 rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
-                exclude: vec!["3F - Master Bedroom".to_string()],
+                exclude: vec!["3F - MBedroom".to_string()],
                 poll_secs: 10,
                 stale_after_secs: 30,
             })
@@ -3911,7 +3911,7 @@ mod tests {
         ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
         ("plugins.macos-banner", "enabled", "true"),
         ("plugins.presence", "enabled", "true"),
-        ("plugins.presence", "exclude", "[\"3F - Master Bedroom\"]"),
+        ("plugins.presence", "exclude", "[\"3F - MBedroom\"]"),
         ("plugins.presence", "poll_secs", "5"),
         ("plugins.presence", "rooms", "[\"3F - Studio\"]"),
         ("plugins.presence", "stale_after_secs", "15"),
@@ -4061,10 +4061,10 @@ mod tests {
         "lights.dim",
         r#"lights.lamp."1F - Front door - HCL1""#,
         r#"lights.lamp."2F - Kitchen - HCD6""#,
-        r#"lights.lamp."3F - Master Bedroom - HCL3""#,
+        r#"lights.lamp."3F - MBedroom - HCL3""#,
         r#"lights.lamp."3F - Studio - HCL3""#,
         r#"lights.room."2F - Kitchen""#,
-        r#"lights.room."3F - Master Bedroom""#,
+        r#"lights.room."3F - MBedroom""#,
         r#"lights.room."3F - Studio""#,
     ];
 
