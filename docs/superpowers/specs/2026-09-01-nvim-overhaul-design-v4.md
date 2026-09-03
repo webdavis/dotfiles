@@ -700,7 +700,7 @@ force-installs anything still named there). Each drop is one atomic commit with 
 | `cspell.nvim`       | remove the dep at `lsp.lua:247`                                                                        | none (author-deprecated)          | PR 17a |
 | `gitmoji.nvim`      | dep `blink-cmp.lua:114`, provider `:261-263`, `sources.default` `:279`                                 | none                              | PR 17b |
 | `nvim-notify`       | remove the dep at `noice.lua:11`; noice falls back to `snacks.notifier` (already enabled)              | `snacks.notifier`                 | PR 17c |
-| `gv.vim`            | remove from fugitive deps `git.lua:255`                                                                | `Snacks.picker.git_log` (`<leader>gl` exists) | PR 17d |
+| `gv.vim`            | remove from fugitive deps `git.lua:257`                                                                | `Snacks.picker.git_log` (`<leader>gl` exists) | PR 17d |
 | `git-messenger.vim` | remove the spec and its `<leader>gm` keymap                                                            | `gitsigns.blame_line({full=true})` (`<C-g>` blame already at `git.lua:199`); `<leader>gm` is re-pointed at it | PR 17e |
 | `git-blame.nvim`    | AFTER the remap (5.2): remove the spec `git.lua:1131-1140`; add `current_line_blame = true` to gitsigns opts (`git.lua:60`) | gitsigns + `custom_api`   | PR 23 |
 | `telescope.nvim`    | remove the standalone block `git.lua:1142-1155` and the octo dep `:1161`; octo already has `picker = "snacks"` (`:1170`); the `telescope = {…}` key in `chezmoi.lua` and `TelescopePrompt` in `autosave.lua` are inert and are removed in the same commit | snacks (decision B) | PR 24 |

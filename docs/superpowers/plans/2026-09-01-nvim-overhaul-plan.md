@@ -967,7 +967,7 @@ Lane: drops and git. Depends on: PR 2. Brief: `brief-nvim-drop-notify.md`. Close
 
 Lane: drops and git. Depends on: PR 7f (`git.lua`). Brief: `brief-nvim-drop-gv.md`. Closes 26.
 
-- [ ] **Step 1:** remove it from the fugitive deps at `git.lua:255` and the lock line: `chore(nvim):
+- [ ] **Step 1:** remove it from the fugitive deps at `git.lua:257` and the lock line: `chore(nvim):
   drop gv.vim`.
 - [ ] **Step 2:** Gates G1 to G6; G4 shows one plugin name gone; `<leader>gl` still opens the log.
 
