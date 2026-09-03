@@ -1,11 +1,11 @@
 ---
-name: tool-architecture-swift
-description: "The Swift bindings of this repository's tool-architecture standard. Use when building or restructuring a Swift package, framework or Xcode project: drawing module and target boundaries, choosing between a protocol, an enum and a concrete type, picking access levels, writing contract test suites and test doubles, or running the Swift quality gates. Read the language-neutral method alongside it."
+name: clean-code-swift
+description: "The Swift bindings of this repository's clean-code standard. Use when building or restructuring a Swift package, framework or Xcode project: drawing module and target boundaries, choosing between a protocol, an enum and a concrete type, picking access levels, writing contract test suites and test doubles, or running the Swift quality gates. Read the language-neutral method alongside it."
 ---
 
-# Tool architecture: Swift
+# Clean code: Swift
 
-**Read `~/.agents/skills/tool-architecture/SKILL.md` first.** That skill carries the method: the
+**Read `~/.agents/skills/clean-code/SKILL.md` first.** That skill carries the method: the
 ordered ladder, the five module roles and their dependency direction, SOLID, the test obligations,
 the delivery ladder, the sol review, and the completion report. This file states only how those are
 spelled and enforced in Swift, and it wins wherever the two disagree on a number or a mechanism.
@@ -285,25 +285,29 @@ Count lines per file, split by target:
 The `tr`/`-0` is load-bearing: Xcode project folders routinely contain spaces, and a plain pipe to
 `xargs` splits those paths and silently drops files.
 
-**The Rust numbers hold unchanged, and the case study is the evidence.** Measured across its 120
-Swift files:
+**Swift has its own two numbers (operator ruling 2026-09-03), and they are NOT the Rust ones:**
 
-| | files | total lines | median | p90 | max | over 300 | over 500 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| production | 59 | 2,058 | 23 | 62 | 164 | 0 | 0 |
-| tests | 61 | 4,574 | 46 | 153 | 590 | 1 | 1 |
+- **A production file must not exceed 200 lines. That is a hard cap, not a target.**
+- **A test file may run to 700 lines.**
 
-Well-factored Swift lands nowhere near the caps: the largest production file in a 493-star teaching
-repository is 164 lines, and the median is 23. So 200 implementation and 300 total remain targets that
-never bind on good code, and the 500 hard cap stays a genuine backstop.
+The Rust skill's 300 and 500 do not apply here. Do not carry them across.
 
-The one file over the cap is a **test** file (a 590-line UI integration suite), which is precisely the
-neutral rule about decomposing large acceptance suites by behavior. Swift does not get an exemption
-for that.
+The case study is the evidence that the production cap is a backstop rather than a squeeze. Measured
+across its 120 Swift files:
 
-**Awaiting the operator:** these numbers are inherited from the Rust standard and confirmed
-non-binding by the distribution above, not independently derived for Swift. If a real Swift tool of
-ours later crowds the cap, that is the moment to revisit, not now.
+| | files | total lines | median | p90 | max | over 200 |
+| --- | --- | --- | --- | --- | --- | --- |
+| production | 59 | 2,058 | 23 | 62 | 164 | 0 |
+| tests | 61 | 4,574 | 46 | 153 | 590 | n/a |
+
+Every production file in a 493-star teaching repository sits under the cap, with a median of 23 and a
+largest file of 164. Well-factored Swift does not come close, so a file approaching 200 is a
+responsibility problem long before it is a length problem.
+
+**The 590-line test file is compliant**, and if you remember an earlier draft calling it a violation,
+that draft was written against the Rust numbers. Under the 700-line test allowance it needs no
+exemption and no decomposition on size grounds alone. Split it if it covers several behaviors, which
+is the neutral rule about acceptance suites, not because of its length.
 
 ## Open for Swift
 

@@ -1,11 +1,11 @@
 ---
-name: tool-architecture-rust
-description: "The Rust bindings of this repository's tool-architecture standard. Use when building or restructuring a Rust tool this repository owns (pns, uu, the herdr plugins): converting a crate into a Cargo workspace, drawing crate boundaries, choosing between a trait, an enum and a concrete type, picking a persistence crate, or running the Rust quality gates. Read the language-neutral method alongside it."
+name: clean-code-rust
+description: "The Rust bindings of this repository's clean-code standard. Use when building or restructuring a Rust tool this repository owns (pns, uu, the herdr plugins): converting a crate into a Cargo workspace, drawing crate boundaries, choosing between a trait, an enum and a concrete type, picking a persistence crate, or running the Rust quality gates. Read the language-neutral method alongside it."
 ---
 
-# Tool architecture: Rust
+# Clean code: Rust
 
-**Read `~/.agents/skills/tool-architecture/SKILL.md` first.** That skill carries the method: the
+**Read `~/.agents/skills/clean-code/SKILL.md` first.** That skill carries the method: the
 ordered ladder, the five module roles and their dependency direction, SOLID, the test obligations,
 the delivery ladder, the sol review, and the completion report. This file states only how those are
 spelled and enforced in Rust, and it wins wherever the two disagree on a number or a mechanism.

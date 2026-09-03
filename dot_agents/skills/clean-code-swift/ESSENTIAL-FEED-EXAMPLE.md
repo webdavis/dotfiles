@@ -10,7 +10,7 @@ difference is noted rather than smoothed over.
 ## The specification, which matches the method exactly
 
 The README is the behavioral specification, written before the code, in the shape
-[`tool-architecture/SKILL.md`](../tool-architecture/SKILL.md) step 2 asks for.
+[`clean-code/SKILL.md`](../clean-code/SKILL.md) step 2 asks for.
 
 Narratives:
 
@@ -177,16 +177,17 @@ CI runs `xcodebuild clean build test` with `-enableThreadSanitizer YES`.
 
 ## Measured file sizes
 
-| | files | total lines | median | p90 | max | over 300 | over 500 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| production | 59 | 2,058 | 23 | 62 | 164 | 0 | 0 |
-| tests | 61 | 4,574 | 46 | 153 | 590 | 1 | 1 |
+| | files | total lines | median | p90 | max | over the 200 production cap |
+| --- | --- | --- | --- | --- | --- | --- |
+| production | 59 | 2,058 | 23 | 62 | 164 | 0 |
+| tests | 61 | 4,574 | 46 | 153 | 590 | n/a |
 
 Largest production files: `FeedService.swift` 164, `ListViewController.swift` 119, `ErrorView.swift`
 109, `FeedImageCellController.swift` 96, `FeedViewAdapter.swift` 90.
 
-The single file over the 500 cap is `EssentialAppTests/FeedUIIntegrationTests.swift` at 590 lines, a
-UI integration suite that the method would split by behavior.
+Every production file is under the 200-line cap. The largest file overall,
+`EssentialAppTests/FeedUIIntegrationTests.swift` at 590 lines, is a test and sits inside the 700-line
+test allowance, so it is compliant on size; split it only if it covers several behaviors.
 
 ## What it does not demonstrate
 

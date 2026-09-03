@@ -1,9 +1,9 @@
 ---
-name: tool-architecture
+name: clean-code
 description: "The language-neutral architecture standard for the custom tools this repository owns. Use when restructuring a tool into layered modules, deciding boundaries or where a seam goes, designing a versioned protocol between a tool and its callers, choosing between a database and the filesystem for durable state, planning the pull-request ladder for a large refactor, or reviewing work against SOLID, file-size and test-quality standards. Always pair it with the language skill for the tool at hand."
 ---
 
-# Tool architecture
+# Clean code
 
 The method for building and restructuring a custom tool this repository owns. It is deliberately
 language-neutral: the ladder, the boundaries, the test obligations and the delivery rules are the
@@ -12,8 +12,8 @@ same whatever the tool is written in.
 **Read a language skill alongside this one. Always.** This skill states what must be true; the
 language skill states how that is spelled and enforced in a particular toolchain:
 
-- **Rust**: `~/.agents/skills/tool-architecture-rust/SKILL.md`
-- **Swift**: `~/.agents/skills/tool-architecture-swift/SKILL.md`
+- **Rust**: `~/.agents/skills/clean-code-rust/SKILL.md`
+- **Swift**: `~/.agents/skills/clean-code-swift/SKILL.md`
 
 Those paths are the canonical store and resolve identically from Claude Code, Codex and hermes. Where
 this skill and a language skill disagree on a number or a mechanism, **the language skill wins**: it

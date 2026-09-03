@@ -62,9 +62,9 @@
     "to-spec": "on-demand",
     "to-tickets": "on-demand",
     "todoist-cli": "core",
-    "tool-architecture": "on-demand",
-    "tool-architecture-rust": "on-demand",
-    "tool-architecture-swift": "on-demand",
+    "clean-code": "on-demand",
+    "clean-code-rust": "on-demand",
+    "clean-code-swift": "on-demand",
     "triage": "on-demand",
     "video-transcript-downloader": "on-demand",
     "wait-what": "on-demand",
@@ -199,13 +199,13 @@
     "todoist-cli": [
       "default"
     ],
-    "tool-architecture": [
+    "clean-code": [
       "nicodemus"
     ],
-    "tool-architecture-rust": [
+    "clean-code-rust": [
       "nicodemus"
     ],
-    "tool-architecture-swift": [
+    "clean-code-swift": [
       "nicodemus"
     ],
     "triage": [
