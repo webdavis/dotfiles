@@ -28,14 +28,40 @@ use std::time::Instant;
 /// held past the line.
 const TEST_BUDGET_MS: u128 = 1_000;
 
-/// The FAILURE line, calibrated from `--report-time --ensure-time` evidence
-/// gathered for this slice (2026-09-01): under libtest's parallel scheduler,
-/// wall time is contention, not cost, and CI's runner has fewer, slower cores
-/// than this one. The worst legitimate parallel reading measured here was
-/// ~1.19 s; the slowest STRUCTURAL sandbox (the daemon lease test, excused
-/// with `allow_slow`) measured ~5.4 s alone. 5 s hard-fails a real
-/// regression while giving contention a margin neither reading is close to.
+/// The FAILURE line ON THIS MACHINE, calibrated from `--report-time
+/// --ensure-time` evidence gathered 2026-09-01: under libtest's parallel
+/// scheduler, wall time is contention, not cost. The worst legitimate
+/// parallel reading measured here was ~1.19 s; the slowest STRUCTURAL
+/// sandbox (the daemon lease test, excused with `allow_slow`) measured ~5.4 s
+/// alone. 5 s hard-fails a real regression while giving contention a margin
+/// neither reading is close to.
+///
+/// IT IS THE LOCAL LINE ONLY. The same paragraph used to say CI's runner has
+/// fewer and slower cores and then apply this number there anyway, which is
+/// what made the guard fail three unrelated pull requests in one day; see
+/// `CI_CEILING_FACTOR` for what CI gets instead.
 const TEST_CEILING_MS: u128 = 5_000;
+
+/// What the local line is multiplied by when the suite runs in CI.
+///
+/// THIS IS ONE MEASUREMENT, NOT A CALIBRATION, and it should be read that
+/// way. On 2026-09-02 a single test,
+/// `a_state_directory_that_cannot_be_used_leaves_the_whole_diagnostic_standing`,
+/// took ~1.3 s here and ~5.5 s on the GitHub runner: a ratio of about 4, from
+/// one test on one day. Applying that ratio to the ceiling gives CI roughly
+/// the headroom the local line was given (5 s against a ~1.19 s worst local
+/// reading), which is the most a single data point supports. A CI sandbox
+/// that ever passes 20 s is evidence this number was wrong rather than a
+/// reason to raise it again: re-measure the ratio first.
+///
+/// KNOWN COST, because 20 s sits ABOVE this harness's own 10 s deadlines
+/// (`poll_until`, and the capture stream's read timeout): a test that
+/// regresses into ONE hung poll spends ~10 s and now PASSES in CI, where it
+/// still fails here. CI keeps catching two stacked ones, a real hang, and
+/// anything structurally worse. That is the price of a gate that stopped
+/// failing unrelated pull requests, and the single-poll case is still caught
+/// by a local `just test-rust`.
+const CI_CEILING_FACTOR: u128 = 4;
 
 /// Whether a sandbox that lived `elapsed_ms` has earned the review warning.
 /// Pulled out of `Drop` so a twin can pin the boundary without spending real
@@ -44,11 +70,38 @@ fn over_budget(elapsed_ms: u128) -> bool {
     elapsed_ms > TEST_BUDGET_MS
 }
 
+/// The ceiling in force for a given `CI` value: the local line, or the local
+/// line times `CI_CEILING_FACTOR` on a runner.
+///
+/// TAKES THE VALUE RATHER THAN READING THE ENVIRONMENT, so the twins pin both
+/// sides with literals and neither of them has to be run twice under two
+/// environments to mean anything. `CI` set to the empty string is not a CI
+/// run: an exported-but-empty variable is what a shell leaves behind, while
+/// GitHub Actions exports `CI=true` and this repository's own tooling
+/// exports `CI=1`, so the signal is any non-empty value.
+fn ceiling_ms(ci: Option<&str>) -> u128 {
+    match ci {
+        Some(value) if !value.is_empty() => TEST_CEILING_MS * CI_CEILING_FACTOR,
+        _ => TEST_CEILING_MS,
+    }
+}
+
+/// The ceiling this process will actually apply, read from `CI` once at the
+/// point of use. The single place the environment is consulted, so `Drop` and
+/// the backdated twins cannot disagree about where the line is.
+fn live_ceiling_ms() -> u128 {
+    ceiling_ms(std::env::var("CI").ok().as_deref())
+}
+
 /// Whether a sandbox that lived `elapsed_ms` fails the build: past the
-/// ceiling, not excused, and not already unwinding (a panic mid-panic
-/// aborts the process instead of failing one test).
-fn over_ceiling(elapsed_ms: u128, excused: bool, panicking: bool) -> bool {
-    elapsed_ms > TEST_CEILING_MS && !excused && !panicking
+/// `ceiling` in force, not excused, and not already unwinding (a panic
+/// mid-panic aborts the process instead of failing one test).
+///
+/// THE COMPARISON IS STRICT. A sandbox landing exactly on the ceiling passes:
+/// the line is the longest life still allowed, and a reading that ties it to
+/// the millisecond is not evidence of a regression.
+fn over_ceiling(elapsed_ms: u128, ceiling: u128, excused: bool, panicking: bool) -> bool {
+    elapsed_ms > ceiling && !excused && !panicking
 }
 
 pub const ENGINE: &str = env!("CARGO_BIN_EXE_pns");
@@ -105,7 +158,7 @@ impl Sandbox {
         sandbox
     }
 
-    /// Excuse THIS sandbox from `TEST_CEILING_MS` because its cost is
+    /// Excuse THIS sandbox from the ceiling because its cost is
     /// structural rather than a regression (an epoch-second lease that
     /// cannot lapse faster, say). `&self`: tests hold their sandbox
     /// immutably, so the excuse is a `Cell`. Never silences the WARNING at
@@ -558,9 +611,15 @@ impl Drop for Sandbox {
                 self.root
             );
         }
-        if over_ceiling(elapsed, self.excused.get(), std::thread::panicking()) {
+        let ceiling = live_ceiling_ms();
+        if over_ceiling(
+            elapsed,
+            ceiling,
+            self.excused.get(),
+            std::thread::panicking(),
+        ) {
             panic!(
-                "test budget: sandbox {:?} took {elapsed} ms, over the {TEST_CEILING_MS} ms \
+                "test budget: sandbox {:?} took {elapsed} ms, over the {ceiling} ms \
                  ceiling (call allow_slow(\"reason\") if this is structural)",
                 self.root
             );
@@ -619,12 +678,16 @@ pub fn stderr(output: &Output) -> String {
 mod guard_tests {
     //! The guard's own twins. The pure predicates are pinned with literal
     //! inputs rather than the constants they check, so a mutated constant
-    //! cannot also move what a twin calls "past the line". The two end to
-    //! end tests backdate a real sandbox's construction instant instead of
+    //! cannot also move what a twin calls "past the line"; that is why the
+    //! resolved-ceiling twins say 5_000 and 20_000 outright. The end to end
+    //! twins backdate a real sandbox's construction instant instead of
     //! sleeping past it, so proving the wiring works costs no real wall
-    //! clock either. The two backdated twins each print one budget line to
-    //! stderr on every run, by construction (past the ceiling is past the
-    //! budget); the sandbox name in that line says "guard-twin".
+    //! clock either, and they backdate against `live_ceiling_ms` rather than
+    //! a literal, so they pin the same line `Drop` reads on whichever
+    //! machine is running them. Each of them prints one budget line to
+    //! stderr on every run, by construction (a backdate big enough to reach
+    //! the ceiling is past the budget); the sandbox name in that line says
+    //! "guard-twin".
     use super::*;
 
     #[test]
@@ -639,17 +702,79 @@ mod guard_tests {
 
     #[test]
     fn a_sandbox_past_the_ceiling_with_no_excuse_is_over_ceiling() {
-        assert!(over_ceiling(6_000, false, false));
+        assert!(over_ceiling(6_000, 5_000, false, false));
     }
 
     #[test]
     fn an_excused_sandbox_is_never_over_ceiling() {
-        assert!(!over_ceiling(6_000, true, false));
+        assert!(!over_ceiling(6_000, 5_000, true, false));
     }
 
     #[test]
     fn an_already_panicking_thread_is_never_double_panicked() {
-        assert!(!over_ceiling(6_000, false, true));
+        assert!(!over_ceiling(6_000, 5_000, false, true));
+    }
+
+    /// The line is the longest life still ALLOWED, so a reading that ties it
+    /// passes and the next millisecond does not. Checked from both sides,
+    /// because equality is the one case a `>` and a `>=` disagree on.
+    #[test]
+    fn a_sandbox_exactly_on_the_ceiling_is_not_over_it() {
+        assert!(!over_ceiling(5_000, 5_000, false, false));
+    }
+
+    #[test]
+    fn a_sandbox_one_ms_past_the_ceiling_is_over_it() {
+        assert!(over_ceiling(5_001, 5_000, false, false));
+    }
+
+    #[test]
+    fn no_ci_signal_resolves_the_local_ceiling() {
+        assert_eq!(ceiling_ms(None), 5_000);
+    }
+
+    /// An exported-but-empty `CI` is what a shell leaves behind, not a
+    /// signal, so it resolves the same line a developer's machine gets.
+    #[test]
+    fn an_empty_ci_variable_is_not_a_ci_run() {
+        assert_eq!(ceiling_ms(Some("")), 5_000);
+    }
+
+    #[test]
+    fn a_ci_run_resolves_a_ceiling_four_times_the_local_one() {
+        assert_eq!(ceiling_ms(Some("1")), 20_000);
+    }
+
+    /// GitHub Actions exports `CI=true` and this repository's own tooling
+    /// exports `CI=1`, so the signal is any non-empty value rather than one
+    /// spelling.
+    #[test]
+    fn any_non_empty_ci_value_is_a_ci_run() {
+        assert_eq!(ceiling_ms(Some("true")), 20_000);
+    }
+
+    /// The one twin that pins the ENVIRONMENT READ rather than the
+    /// arithmetic, so a `live_ceiling_ms` that stopped consulting `CI` is not
+    /// silently the old bug back. The expectation is spelled out in literals
+    /// instead of calling `ceiling_ms`, which would only prove the function
+    /// agrees with itself. IT ONLY DISCRIMINATES WHERE `CI` IS SET, which is
+    /// CI, which is the environment the guard was getting wrong.
+    #[test]
+    fn the_live_ceiling_follows_this_process_environment() {
+        let expected = match std::env::var("CI").ok().as_deref() {
+            Some(value) if !value.is_empty() => 20_000,
+            _ => 5_000,
+        };
+        assert_eq!(live_ceiling_ms(), expected);
+    }
+
+    /// THE READING THAT WAS FAILING CI: 5.5 s, measured on the runner for a
+    /// test that takes 1.3 s here. Past the local line, inside the CI one,
+    /// which is the whole behaviour this guard gained.
+    #[test]
+    fn a_sandbox_over_the_local_line_is_still_inside_the_ci_one() {
+        assert!(over_ceiling(5_500, ceiling_ms(None), false, false));
+        assert!(!over_ceiling(5_500, ceiling_ms(Some("1")), false, false));
     }
 
     /// Drop a real sandbox whose construction instant was pushed back by
@@ -673,9 +798,40 @@ mod guard_tests {
 
     #[test]
     fn a_real_sandbox_past_the_ceiling_fails_naming_the_test_budget() {
-        let message = drop_backdated("guard-twin-ceiling", TEST_CEILING_MS as u64 + 1, None)
+        let message = drop_backdated("guard-twin-ceiling", live_ceiling_ms() as u64 + 1, None)
             .expect("a sandbox over the ceiling must fail its own drop");
         assert!(message.starts_with("test budget:"), "{message}");
+        assert!(
+            message.contains(&format!("over the {} ms ceiling", live_ceiling_ms())),
+            "the message must name the line actually in force: {message}"
+        );
+    }
+
+    /// The OTHER side of the line, on the real `Drop` path: a sandbox inside
+    /// the ceiling in force must survive its own drop. It is the only twin
+    /// that fails a `Drop` reading the LOCAL constant while running in CI,
+    /// which is the defect this guard was carrying.
+    ///
+    /// THE MARGIN IS A SECOND, NOT A MILLISECOND. The drop path does real
+    /// work between the backdate and the reading (a `remove_dir_all`, plus
+    /// whatever the scheduler charges a thread in a loaded test binary), so a
+    /// one-millisecond margin is a wall-clock race: measured here, a 4,999 ms
+    /// backdate already reads 5,000 ms under load, and 3 ms of runner
+    /// slowness turns it red. That is the failure this whole guard was
+    /// changed to stop having, so the twin must not reintroduce it one level
+    /// down. The exact boundary is pinned by the pure twins instead, which
+    /// spend no wall clock to do it.
+    #[test]
+    fn a_real_sandbox_well_inside_the_ceiling_does_not_fail() {
+        assert!(
+            drop_backdated(
+                "guard-twin-inside-ceiling",
+                live_ceiling_ms() as u64 - 1_000,
+                None
+            )
+            .is_none(),
+            "a sandbox inside the ceiling must not fail its own drop"
+        );
     }
 
     #[test]
@@ -683,7 +839,7 @@ mod guard_tests {
         assert!(
             drop_backdated(
                 "guard-twin-ceiling-excused",
-                TEST_CEILING_MS as u64 + 1,
+                live_ceiling_ms() as u64 + 1,
                 Some("a structural reason, for this twin alone")
             )
             .is_none(),
