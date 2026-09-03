@@ -139,6 +139,7 @@ mod tests {
         let fixtures: &[(&str, &str)] = &[
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),
+            ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
             ("uv", "[lanes.uv]\n"),
         ];
         assert_eq!(LANE_TYPES.len(), fixtures.len());
