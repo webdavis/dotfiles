@@ -5,7 +5,7 @@
 > syntax for tracking.
 
 **Goal:** Move the live Neovim config into chezmoi unchanged, then land every fix, drop, add, custom
-plugin and the lazy-load pass as 67 small reviewed pull requests, ending at a verified clean editor.
+plugin and the lazy-load pass as 68 small reviewed pull requests, ending at a verified clean editor.
 
 **Architecture:** One task per pull request in the spec's section 11 order and lanes. The source is
 `dot_config/nvim/`; pure Lua under `lua/custom_api/` has headless tests in `tests/` run by
@@ -118,11 +118,12 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 | custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 15, then PR 14 last |
 | LSP and tools        | PR 5a, 5b, 17a, 27, 29a, 29c, 29d                           |
 | drops and git        | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 24a, 24b, 25            |
-| standalone           | PR 4a, 4b, 4c, 4d, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
+| standalone           | PR 4a, 4b, 4c, 4d, 6b, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
 | last                 | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31, then task 63     |
 
 PR 14 is last in its lane because it waits on PR 28b (the neotest spec it edges) and on the pns
-refactor that builds `--elapsed`; nothing else in the lane waits on work outside this program.
+refactor that builds `--elapsed`. PR 28a's Bash row waits on T1 and T2 of the bashunit program (spec
+11 lists its six PRs). Those two are the only edges in this plan that leave it.
 
 A lane is the suggested order; the Depends line is what holds a PR back, and it names every
 shared-file predecessor (spec 11 lists the files per edge). `lazy-lock.json` is left out: one key per
@@ -531,6 +532,28 @@ returns `({ hash, summary, body }, err)`. Operational failures are `nil, message
 - [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commits: `test(nvim): add the headless Lua runner and
   bats wiring`, `refactor(nvim): route custom_api errors through try and (value, err)`,
   `refactor(nvim): delete helpers.wrap`.
+
+### Task 10b: PR 6b, the Lua suite runs directly (spec 6.3)
+
+Lane: standalone. Depends on: PR 6 (it created the bats file this deletes). Brief:
+`brief-nvim-lua-suite-direct.md`. Closes nothing. Operator ruling 2026-09-03: one unit testing
+framework should not call another.
+
+**Files:** Delete `test/unit/nvim-custom-api.bats`. Modify `test/run-test-suite.sh` (a Lua camp),
+`test/validate-tests.sh` (the new shape), `dot_config/nvim/tests/run.lua` and its own tests.
+
+- [ ] **Step 1:** `test/run-test-suite.sh` gains a Lua camp that runs
+  `nvim --headless --clean -l dot_config/nvim/tests/run.lua`, its cases counted in the run summary
+  and held to the same `--warn-slow-ms` threshold as every other camp. `test/validate-tests.sh`
+  learns the shape so a stray Lua spec still fails the checker.
+- [ ] **Step 2:** the two runner self-checks the bats file carried move into the Lua runner's own
+  tests: a failing case exits non-zero, and a run that matched no spec files is refused rather than
+  reported green. Both shown red before they are made green.
+- [ ] **Step 3:** delete `test/unit/nvim-custom-api.bats`. `just test-unit` still reports every Lua
+  spec, with the count before and after pasted to show none went missing.
+- [ ] **Step 4:** Gates G1, G2, G6 (no editor behavior changes, so G3 to G5 are unchanged by
+  construction and the body says so). One commit: `test(nvim): run the Lua specs directly from the
+  suite runner`.
 
 ### Task 11: PR 7a, the pure-helper tests and bug #8 (spec 6.3, bug #8)
 
@@ -1179,7 +1202,7 @@ Lane: LSP and tools. Depends on: PR 17a (`lsp.lua`). Brief: `brief-nvim-gopls.md
 ### Task 46: PR 28a, neotest core and the eager adapters (spec 5.3, 8.3, 12.1)
 
 Lane: standalone. Depends on: PR 3, PR 12 (`which-key.lua`), and for the Bash row only, T1
-(`bashunit-toolchain`) and T2 (`neotest-bashunit`) of the bashunit migration program. Brief:
+(`bashunit-toolchain`) and T2 (`neotest-bashunit`) of the bashunit program (spec 11). Brief:
 `brief-nvim-neotest-core.md`.
 Closes 44 (part). Re-scoped 2026-09-03: both adapter pins the plan carried are dropped
 (`webdavis/neotest-swift` is an empty scaffold, one `lua/.gitkeep`; `rouge8/neotest-rust` was

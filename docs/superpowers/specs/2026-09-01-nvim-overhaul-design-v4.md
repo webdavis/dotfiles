@@ -780,7 +780,7 @@ verified against a scratch project in a real pane by the pull request that adds 
 | Rust     | `mrcjkb/rustaceanvim` (its own neotest adapter; its README says never to add neotest-rust)        | now      | the nearest test runs in a scratch cargo crate  |
 | Python   | `nvim-neotest/neotest-python`                                                                     | now      | pytest in a scratch virtual environment         |
 | Go       | `fredrikaverpil/neotest-golang`                                                                   | now      | `go test` in a scratch module                   |
-| Bash     | OUR OWN `neotest-bashunit` over bashunit (operator ruling 2026-09-03: the whole test corpus moves from bats to bashunit). Parses `--report-json` for per-test status, output, duration and failure message; error locations from the failing assertion's line; one bashunit process per file, `--filter` for a single test | now, after the bashunit program's T1 and T2 | a `.test.sh` file runs per test from `<leader>tt`, with output and a jump to the failing line |
+| Bash     | OUR OWN `neotest-bashunit` over bashunit (operator ruling 2026-09-03: the whole test corpus moves from bats to bashunit). Parses `--report-json`, reported to carry `file`, `name`, `status`, `duration_ms`, `retries` and `message` per test and NO line number, so mapping a failure to a line is the adapter's own problem (T2 verifies the field list against `src/reports/json.sh` at the pin before designing that mapping); one bashunit process per file, `--filter` for a single test; handles the two bugs the upstream adapter has | now, after the bashunit program's T1 and T2 | a `.test.sh` file runs per test from `<leader>tt`, with output and a jump to the failing line |
 | JS/TS    | `marilari88/neotest-vitest` and `nvim-neotest/neotest-jest`; `AkisArou/neotest-nodejs` for node:test | ft-lazy | a vitest and a jest scratch project             |
 | Lua      | `MisanthropicBit/neotest-busted`                                                                  | ft-lazy  | one busted spec                                 |
 | Java     | `rcasia/neotest-java` (live, 2026-08-31)                                                          | ft-lazy  | a JUnit 5 scratch project                       |
@@ -931,10 +931,10 @@ file that needs the full config loaded, so it runs WITHOUT `--clean` (3.7).
 Wiring:
 
 - `just test-nvim` runs the runner against the source tree.
-- `test/unit/nvim-custom-api.bats`: one `@test` per spec file, each spawning the runner with that
-  spec's name. Each test is well under the 200 ms warning threshold; the process boundary is the
-  behavior (a headless Neovim running our Lua), which is the case the bats ruling allows a spawn for.
-  `just test-unit` picks it up automatically.
+- `test/unit/nvim-custom-api.bats` at first (one `@test` per spec file, each spawning the runner),
+  then PR 6b deletes it: one testing framework calling another is a layer with no reader, so
+  `test/run-test-suite.sh` gains a Lua camp that runs `run.lua` directly instead, counted in the
+  summary and held to the same slow-test warning. `just test-unit` picks up either shape.
 - The bootstrap (3.9) runs the same runner with `--config "$HOME/.config/nvim"` and fails on a red
   test.
 
@@ -1474,7 +1474,8 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    run of 9.1, inside a herdr pane, is the acceptance check
    that the interactive editor starts without an error and with every `VeryLazy` plugin loaded; its
    number is recorded, not gated.
-4. `just test-unit` green, including `nvim-custom-api.bats`; `just lint-check` green (stylua and
+4. `just test-unit` green, including the Lua specs (through `nvim-custom-api.bats` until PR 6b, the
+   Lua camp after); `just lint-check` green (stylua and
    luacheck included from PR 1).
 5. The keymap and plugin dump diff (3.7) matches the PR's stated intent exactly: the import PR shows
    an empty diff, a drop PR shows only the dropped plugin's maps, a remap PR shows the same `lhs` set
@@ -1518,8 +1519,8 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
 ## 11. The pull request sequence
 
 One pull request per behavior, small (operator rule 2026-08-10): a PR changes one plugin, one bug, one
-option or one mechanism, so 67 PRs (v4.3 split 5, 7, 19, 30b and 30c; v4.4 split 28 and added 24a,
-24b, 29c and 29d; the letter and digit suffixes keep the old numbers readable). Each has the review
+option or one mechanism, so 68 PRs (v4.3 split 5, 7, 19, 30b and 30c; v4.4 split 28 and added 6b,
+24a, 24b, 29c and 29d; the letter and digit suffixes keep the old numbers readable). Each has the review
 pipeline the memory describes and its own keymap dump diff. The **Depends on** cell is complete: it
 names every PR whose merge the row needs for its behavior AND every earlier PR that edits a file the
 row edits (the shared-file rule below), so a
@@ -1545,6 +1546,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 7d | Bug #1: `github.account().username` at `git.lua:267` (`custom_api/github.lua`, `git.lua`)                | PR 7c                 | 1                                           |
 | PR 7e | Split `map` and `overseer_runner` out of `util.lua` into `keymap.lua` and `overseer.lua`, closure included (6.2 measures it as load-bearing, not redundant) (`custom_api/util.lua`, `custom_api/init.lua`, `init.lua`, `plugins/git.lua`, `tests/dump_state.lua`) | PR 7d | 57 |
 | PR 7f | Rename `copy_URL_to_clipboard` to `copy_url_to_clipboard` and its one caller (`custom_api/git.lua`, `plugins/git.lua:36`, after PR 7e) | PR 7e | 60 |
+| PR 6b | The Lua suite runs directly: delete `test/unit/nvim-custom-api.bats`, give `test/run-test-suite.sh` a Lua camp that runs `dot_config/nvim/tests/run.lua` under `nvim --headless --clean -l`, counted in the summary and subject to the slow-test warning; the bats file's two runner self-checks become the Lua runner's own tests; `test/validate-tests.sh` learns the shape | PR 6 | none (operator ruling: one testing framework does not call another) |
 | PR 8  | Delete `delegate.lua`; `<leader>d` regroup (`keymaps.lua`, `which-key.lua`)                             | PR 7f, PR 4c          | 6, 10, 61                                   |
 | PR 9  | MCP server evaluation ONLY: `nvim-mcp` installed by hand, the six criteria in table order, the row taken; one commit, the evaluation record; nothing installed by chezmoi, nothing registered, no CLAUDE.md edit | PR 2 | 62 (evaluation) |
 | PR 10a | By PR 9's row. `nvim-mcp` rows: the `run_onchange` install script, `lua/plugins/nvim-mcp.lua`, the registrations in `modify_private_dot_claude.json` and the Codex config template, the 7.5 rule in both CLAUDE.md files, and on the resolver row also the resolver with its bats test as the registered command. Crate rows: the custom crate's design spec only | PR 9, PR 4d (`dot_config/nvim/CLAUDE.md`), the PR that lands `private_dot_codex/private_config.toml.tmpl` on `main` (number recorded in PR 9's record) | 62 (ship), 63, 73 (MCP half), custom #4 (resolver) on the `nvim-mcp` rows |
@@ -1613,8 +1615,24 @@ Lanes after PR 2 and PR 3, which are strictly first and second; a lane is the su
 | custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 15, then 14 last (it waits on PR 28b and on the pns refactor) |
 | LSP and tools | PR 5a, 5b, 17a, 27, 29a, 29c, 29d                                      |
 | drops and git | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 24a, 24b, 25                       |
-| standalone    | PR 4a, 4b, 4c, 4d, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
+| standalone    | PR 4a, 4b, 4c, 4d, 6b, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
 | last          | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31                              |
+
+**The bashunit program (D8), which is not one of the 67.** PR 28a's Bash row depends on it, so its
+pull requests are listed here to make that cell resolve; they belong to their own program and their
+own lanes, and none of them is counted in the 67 above.
+
+| PR    | Behavior                                                                                  | Depends on |
+| ----- | ------------------------------------------------------------------------------------------- | ---------- |
+| T1    | `bashunit-toolchain`: bashunit 0.50.1 into `Brewfile.dev`, the machine YAML and the CI toolchain step (all three by hand); `test/validate-tests.sh` admits the non-executable `<name>.test.sh` shape and `test/run-test-suite.sh` runs it through `bashunit` with the shuffle seed and the slow-test warning preserved; the CLAUDE.md testing section; one real bashunit test that goes red when its subject breaks | none |
+| T2    | `neotest-bashunit`: the adapter at `dot_local/share/neotest-bashunit/`, a source tree that becomes its own repository the way `~/.local/share/pns` did, loaded by lazy.nvim with `dir =`; headless Lua tests for discovery and result parsing over fixture JSON; a real-pane run against T1's test. Design first: the per-test JSON fields verified from `src/reports/json.sh` at the pin, how a failure maps to a line, what `--filter` matches, what a file with no tests returns | T1 |
+| T3a   | Migrate the small files: the pns marker tests (deleted outright when the pns refactor moves that logic into Rust) and `homebrew-weekly-converge-absence.bats`, which migrates only if the brew bash script still exists when T3a runs and otherwise dies with it. `uu-launchagent-loader.bats` is DELETED, not migrated: it tests deployment glue, out of scope under the 2026-08-05 ruling. The nvim wrapper is NOT here either; PR 6b deletes it | T1 |
+| T3b   | Migrate the six osquery unit files                                                           | T3a |
+| T3c   | Migrate the three osquery integration files                                                  | T3b |
+| T3d   | Migrate the three osquery e2e files, then bats-core leaves `Brewfile.dev`, the machine YAML and CI | T3c |
+
+Each migration PR proves equivalence: the same assertions, the subject spot-killed to show the
+migrated test red, every test under one second.
 
 At most two lanes open at once (the memory's parallel-slices rule). Nothing in PR 3 to PR 29d changes
 `lazy.lua`'s `defaults` or adds a trigger, so PR 30a to 30d are the only PRs whose startup number is
@@ -1661,12 +1679,10 @@ re-gated since its last merge of `main` is not a verdict.
    split across PR 28a and PR 28b, and both of the adapter pins this question defaulted to are
    dropped (`webdavis/neotest-swift` is an empty scaffold, `rouge8/neotest-rust` is archived).
    ALSO RESOLVED, by operator ruling the same day: bashunit replaces bats for the WHOLE 209-test
-   corpus, and the neotest adapter for it is one we write. That is its own program, not part of this
-   one: a toolchain PR (install, pins, runner and validator support, one real bashunit test), the
-   `neotest-bashunit` adapter at `dot_local/share/neotest-bashunit/` with headless Lua tests over
-   fixture JSON, then the migrations one group per PR, osquery LAST so a Rust port arriving sooner
-   makes that work unnecessary (12.8). PR 28a's Bash row is the only thing in THIS program that
-   waits on it.
+   corpus, and the neotest adapter for it is one we write. That is its own program (the table in 11
+   lists its six PRs so every dependency cell resolves), and PR 28a's Bash row is the only thing in
+   THIS program that waits on it. By the operator's later addendum the twelve osquery bats files
+   migrate NOW rather than waiting on a Rust port: the port, when it comes, deletes them.
 2. **nvim-dap for xcodebuild.nvim.** RESOLVED 2026-09-02: yes, operator decision overruling the
    earlier default of no. `codelldb` stays declared in Mason's `ensure_installed` for c/cpp/rust only:
    the pinned plugin leaves its own `integrations.codelldb.enabled` at the upstream default of false
@@ -1764,7 +1780,7 @@ re-gated since its last merge of `main` is not a verdict.
 | 66   | headless Lua test wired to just and bootstrap | 6.3         | PR 6 (harness), PR 31 (bootstrap) |
 | 67   | pure-helper tests                             | 6.3         | PR 7a     |
 | 68   | runtimepath bug                               | 2, 4        | PR 29b    |
-| 69   | sequence                                      | 11          | PR 1 to PR 31, 67 rows |
+| 69   | sequence                                      | 11          | PR 1 to PR 31, 68 rows |
 | 70   | success criteria                              | 10          | PR 31     |
 | 71   | checkhealth, startuptime, bugs live, lint     | 10          | every PR; lint from PR 1, health floor PR 29a and 29b |
 | 72   | clean-home apply (full apply, not --exclude)  | 10.10       | PR 31     |
