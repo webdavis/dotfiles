@@ -31,7 +31,7 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 - `trash`, never `rm`, for anything including agent scratch. No removal mechanisms in the repo.
 - The operator runs every `chezmoi apply`. Agents never apply.
 - No new `<C-…>` or `<M-…>` chords; new keymaps carry `desc` in `Tool: action` form (8.2).
-- No nvim-dap. No conform or nvim-lint. Nothing touches the shell, herdr's config, pns or moshi.
+- No conform or nvim-lint. Nothing touches the shell, herdr's config, pns or moshi.
   Nothing in PR 3 to PR 29b edits `lazy.lua`'s `defaults` or adds a trigger; only PR 30a to 30d move
   the startup number.
 - Focus is never a signal (7.2): pane id, tab id and the pinned socket identify a Neovim, and the
