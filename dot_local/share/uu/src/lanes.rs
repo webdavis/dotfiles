@@ -15,6 +15,10 @@
 //! plugins until restart, so a failure costs the next restart rather than the
 //! current session.
 
+use std::time::Duration;
+
+pub mod brew;
+
 use crate::config::{CommandLane, Config, HerdrLane, LaneKind};
 use crate::record::{RunFacts, lane_event};
 
@@ -128,6 +132,22 @@ pub enum Verdict {
 /// recording.
 pub trait CommandRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String>;
+
+    /// `run`, under a bound of ITS OWN as well as the lane's.
+    ///
+    /// THE LANE DEADLINE IS THE WHOLE LANE'S, so a step that takes all of it
+    /// costs every step after it. A subject known to wedge rather than fail
+    /// (the App Store hangs indefinitely on a broken session) is bounded here
+    /// instead, so one wedged step costs itself and the rest of the lane
+    /// still runs. Whichever bound is smaller, the step's own or what is left
+    /// of the lane's, is the one that expires.
+    fn run_with_deadline(
+        &self,
+        program: &str,
+        args: &[&str],
+        most: Duration,
+    ) -> Result<String, String>;
+
     fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String>;
 }
 
@@ -270,6 +290,7 @@ pub fn run_lane(
     runner: &dyn CommandRunner,
 ) -> Option<LaneReport> {
     match &config.lanes.get(name)?.kind {
+        LaneKind::Brew(lane) => Some(brew::run_brew(name, lane, facts, runner)),
         // The herdr lane predates the run event and has no use for it.
         LaneKind::Herdr(lane) => Some(run_herdr(name, lane, runner)),
         LaneKind::Command(lane) => Some(run_command(name, lane, facts, runner)),
@@ -329,7 +350,7 @@ pub fn run_herdr(name: &str, lane: &HerdrLane, runner: &dyn CommandRunner) -> La
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::config::{Plugin, parse_config};
     use crate::record::Marker;
@@ -338,7 +359,7 @@ mod tests {
     /// A runner that answers from a script and records every call. The script
     /// is keyed on the whole argument vector, so a test says exactly which
     /// invocation fails without depending on call order.
-    struct ScriptedRunner {
+    pub(crate) struct ScriptedRunner {
         failing: Vec<Vec<String>>,
         deferring: Vec<Vec<String>>,
         /// A deferral whose REASON TEXT is the test's own choice, checked
@@ -351,10 +372,13 @@ mod tests {
         stdout: String,
         calls: RefCell<Vec<Vec<String>>>,
         inputs: RefCell<Vec<String>>,
+        /// Every bounded call, with the bound it was given: what a lane test
+        /// asserts a step's own deadline against without a real clock.
+        deadlines: RefCell<Vec<(Vec<String>, Duration)>>,
     }
 
     impl ScriptedRunner {
-        fn new(failing: &[&[&str]]) -> Self {
+        pub(crate) fn new(failing: &[&[&str]]) -> Self {
             ScriptedRunner {
                 failing: failing
                     .iter()
@@ -366,10 +390,11 @@ mod tests {
                 stdout: String::new(),
                 calls: RefCell::new(Vec::new()),
                 inputs: RefCell::new(Vec::new()),
+                deadlines: RefCell::new(Vec::new()),
             }
         }
 
-        fn answering(mut self, stdout: &str) -> Self {
+        pub(crate) fn answering(mut self, stdout: &str) -> Self {
             self.stdout = stdout.to_string();
             self
         }
@@ -401,8 +426,13 @@ mod tests {
             self
         }
 
-        fn calls(&self) -> Vec<Vec<String>> {
+        pub(crate) fn calls(&self) -> Vec<Vec<String>> {
             self.calls.borrow().clone()
+        }
+
+        /// Every call made under a bound, with that bound.
+        pub(crate) fn deadlines(&self) -> Vec<(Vec<String>, Duration)> {
+            self.deadlines.borrow().clone()
         }
 
         /// Every `input` a call to `run_with_input` was given, in call order:
@@ -413,6 +443,18 @@ mod tests {
     }
 
     impl CommandRunner for ScriptedRunner {
+        fn run_with_deadline(
+            &self,
+            program: &str,
+            args: &[&str],
+            most: Duration,
+        ) -> Result<String, String> {
+            let mut call = vec![program.to_string()];
+            call.extend(args.iter().map(|word| word.to_string()));
+            self.deadlines.borrow_mut().push((call, most));
+            self.run(program, args)
+        }
+
         fn run(&self, program: &str, args: &[&str]) -> Result<String, String> {
             let mut call = vec![program.to_string()];
             call.extend(args.iter().map(|word| word.to_string()));
@@ -526,6 +568,7 @@ mod tests {
         // runs. `command` needs a `run` to be valid at all, so the block is
         // spelled out per fixture rather than derived from the name alone.
         let fixtures: &[(&str, &str, &str)] = &[
+            ("brew", "[lanes.brew]\n", "brew"),
             ("command", "[lanes.command]\nrun = [\"x\"]\n", "command"),
             ("herdr", "[lanes.herdr]\n", "herdr"),
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n", "npm"),
@@ -813,6 +856,15 @@ mod tests {
                     }
                 }
                 Ok(String::new())
+            }
+
+            fn run_with_deadline(
+                &self,
+                program: &str,
+                args: &[&str],
+                _most: Duration,
+            ) -> Result<String, String> {
+                self.run(program, args)
             }
 
             fn run_with_input(

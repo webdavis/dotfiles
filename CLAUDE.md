@@ -445,24 +445,23 @@ target: the file stays in `$HOME` at its former path until it is removed by hand
 Every scheduled or supervised job on dresden is a chezmoi-tracked plist under `Library/LaunchAgents/`,
 bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 
-| LaunchAgent                                        | What it does                                                |
-| -------------------------------------------------- | ----------------------------------------------------------- |
-| `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                         |
-| `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge                  |
-| `com.webdavis.homebrew-weekly-upgrade`             | weekly unattended `brew upgrade`, reported to the log route |
-| `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)         |
-| `com.webdavis.report-plugin-updates`               | weekly record of what Claude Code auto-updated              |
-| `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events              |
-| `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject        |
-| `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                                     |
-| `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider                   |
-| `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                        |
-| `com.webdavis.osquery-results-alerter`             | turns osquery results into notifications                    |
-| `com.webdavis.osquery-alert-drainer`               | drains the queued alerts                                    |
-| `com.webdavis.osquery-digest`                      | periodic roll-up                                            |
-| `com.webdavis.osquery-firewall-gatekeeper-monitor` | watches firewall and Gatekeeper posture                     |
-| `com.webdavis.osquery-tailscale-monitor`           | watches tailscaled posture                                  |
-| `com.webdavis.osquery-uptime-watchdog`             | watches for a machine that stopped reporting                |
+| LaunchAgent                                        | What it does                                         |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                  |
+| `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge           |
+| `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)  |
+| `com.webdavis.report-plugin-updates`               | weekly record of what Claude Code auto-updated       |
+| `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events       |
+| `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
+| `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                              |
+| `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider            |
+| `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                 |
+| `com.webdavis.osquery-results-alerter`             | turns osquery results into notifications             |
+| `com.webdavis.osquery-alert-drainer`               | drains the queued alerts                             |
+| `com.webdavis.osquery-digest`                      | periodic roll-up                                     |
+| `com.webdavis.osquery-firewall-gatekeeper-monitor` | watches firewall and Gatekeeper posture              |
+| `com.webdavis.osquery-tailscale-monitor`           | watches tailscaled posture                           |
+| `com.webdavis.osquery-uptime-watchdog`             | watches for a machine that stopped reporting         |
 
 The root daemon's own side is CONVERGED, not written once. `~/.local/libexec/osquery/osquery-converge.sh`
 compares each of the six files we own in `/var/osquery` (plus the two directory modes) against the
@@ -473,8 +472,8 @@ one running before the stop and still up after a settle window. No drift means n
 restart and no output. Anything irregular (a symlink standing in for a target directory, the staging tree
 or the vendor plist) is refused rather than repaired, because `install -d` follows a link. Two callers:
 `.chezmoiscripts/run_after_50-setup-osquery.sh` on every apply (a PLAIN script, so `--exclude=templates`
-still runs it) and the weekly Homebrew job right after its upgrade pass, because the osquery cask upgrade
-is what wipes those files and it runs unattended; a converge tool that is not deployed FAILS that weekly
+still runs it) and uu's `brew` lane right after its upgrade pass, because the osquery cask upgrade is
+what wipes those files and it runs unattended; a converge tool that is not deployed FAILS that lane's
 step rather than passing quietly. The control catalog stays in
 `.chezmoidata/macos_posture_controls.yaml`. KNOWN LIMIT: `--exclude=templates` does not refresh the two
 templated desired-state files, so config CHANGES ship on a full apply; wipe repair needs only the staging

@@ -1,11 +1,12 @@
 # shellcheck shell=bash
-# log-entries.sh, the shared entry shape for the weekly UNATTENDED jobs. THREE
-# callers source it: homebrew-weekly-upgrade.sh beside this helpers/ directory,
-# and agent-skills/update-skills.sh and claude/report-plugin-updates.sh one
-# level down. (uu, the fourth weekly job, is a standalone Rust binary and shares
-# none of this.) Sourced, never executed, so it carries no shebang and no
-# executable bit, the same shape as macos-defaults/helpers/defaults-records.sh
-# in the sibling tree. Each caller sources it by relative path,
+# log-entries.sh, the shared entry shape for the weekly UNATTENDED jobs. TWO
+# callers source it, both one level down from this helpers/ directory:
+# agent-skills/update-skills.sh and claude/report-plugin-updates.sh. (uu, which
+# now carries the Homebrew weekly upgrade as its brew lane, is a standalone Rust
+# binary and shares none of this.) Sourced, never executed, so it carries no
+# shebang and no executable bit, the same shape as
+# macos-defaults/helpers/defaults-records.sh in the sibling tree. Each caller
+# sources it by relative path,
 #   source "$(dirname "${BASH_SOURCE[0]}")/helpers/log-entries.sh"      # or
 #   source "$(dirname "${BASH_SOURCE[0]}")/../helpers/log-entries.sh"
 # which resolves in BOTH the chezmoi source tree

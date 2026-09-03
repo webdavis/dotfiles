@@ -36,7 +36,7 @@ readonly CACHE_FILE_NAME='brew-shellenv.sh'
 readonly EXIT_USAGE=2
 
 # The generator is overridable (BREW_SHELLENV_CACHE_BREW) so the test harness can
-# inject a stub, the same seam shape ~/.local/libexec/unattended-upgrades/homebrew-weekly-upgrade.sh uses.
+# inject a stub, the same seam shape ~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh uses.
 # It defaults to an ABSOLUTE path because ~/.bashrc launches this before Homebrew
 # is necessarily on PATH, which is the very problem the cache exists to solve.
 brew_executable="${BREW_SHELLENV_CACHE_BREW:-${HOMEBREW_PREFIX:-$DEFAULT_HOMEBREW_PREFIX}/bin/brew}"

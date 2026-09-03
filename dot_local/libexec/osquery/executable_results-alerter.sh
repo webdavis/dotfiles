@@ -72,7 +72,7 @@ OSQUERY_RESULTS_LOCK_FILE="${OSQUERY_RESULTS_LOCK_FILE:-${STATE}.lock}"
 
 # _take_single_instance_lock: hold fd 9 open on the lock file and take a nonblocking
 # kernel lock on it (/usr/bin/lockf, the house pattern used by the drainer,
-# hue-pulse, homebrew-weekly-upgrade). Return 0 to proceed, nonzero to skip. The
+# hue-pulse, uu). Return 0 to proceed, nonzero to skip. The
 # kernel releases the lock on ANY exit (normal or crash), so there is no stale-lock
 # state to clean up. This is MUTUAL EXCLUSION: on a genuine setup error it fails
 # CLOSED (nonzero -> the caller skips), never runs unlocked - two overlapping runs

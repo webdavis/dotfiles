@@ -231,11 +231,12 @@ setup:
     --with mdformat-config==0.2.1
 
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
-# cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade
-# LaunchAgent runs; use it for the first upgrade or any ad-hoc one. Runs the
-# DEPLOYED helper (what launchd runs), not the repo source copy.
+# cleanup). The same lane the Sunday-noon com.webdavis.uu LaunchAgent runs; use
+# it for the first upgrade or any ad-hoc one. Runs the DEPLOYED binary (what
+# launchd runs), not the repo source copy. It takes uu's own run lock, so a run
+# that overlaps the scheduled one says so and exits rather than racing it.
 brew-upgrade:
-  ~/.local/libexec/unattended-upgrades/homebrew-weekly-upgrade.sh
+  ~/.local/libexec/uu/uu run brew
 
 # Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
 # `brew shellenv`, now, instead of waiting for the next interactive shell to
