@@ -13,7 +13,7 @@
          running this by hand on a Wednesday would post a weekly entry and a dead
          LaunchAgent would look alive, inverting the one signal that record
          carries. Mirrors the same marker in
-         com.webdavis.homebrew-weekly-upgrade.plist.tmpl. -->
+         com.webdavis.update-skills.plist.tmpl. -->
     <string>--scheduled</string>
   </array>
   <key>EnvironmentVariables</key>
@@ -25,7 +25,7 @@
   </dict>
   <key>RunAtLoad</key>
   <false/>
-  <!-- Monday 13:00, an hour after com.webdavis.homebrew-weekly-upgrade, so the
+  <!-- Monday 13:00, an hour after com.webdavis.update-skills, so the
        two weekly records do not land in the channel at the same minute and the
        reading is taken well into a working day, when a Claude Code session has
        had the chance to start and perform the auto-update this reports on.

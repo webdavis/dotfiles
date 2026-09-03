@@ -62,7 +62,7 @@
 # render-page.sh, whose jq program is bash SINGLE-QUOTED; an apostrophe in a
 # rendered string ends that quoting and breaks the renderer.
 
-# The upgrade record, written by ~/.local/libexec/unattended-upgrades/homebrew-weekly-upgrade.sh TWICE per
+# The upgrade record, written by uu's brew lane TWICE per
 # run whose package listing could be read: the run line alone before the first
 # brew step, then the whole thing again with the package rows once the run is
 # done. Both carry the same timestamp, so the two are one record at two levels of

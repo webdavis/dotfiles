@@ -28,7 +28,7 @@
 # Usage: report-plugin-updates.sh [--scheduled | --seed-baseline]
 #   --scheduled  marks this as the LaunchAgent's run. ONLY a scheduled run posts
 #                an entry, advances the success marker or moves the snapshot,
-#                mirroring homebrew-weekly-upgrade.sh and update-skills.sh.
+#                mirroring update-skills.sh.
 #                Without the marker an operator running this by hand on a
 #                Wednesday would post a weekly entry and a dead LaunchAgent
 #                would look alive, inverting the one signal the record carries.

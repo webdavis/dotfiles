@@ -56,7 +56,6 @@ grep -qx -- '--remote-only' "$scratch/posted" ||
 # buffer, and under pipefail the whole check reads as "no match": a guard
 # that cannot fail on exactly the biggest file.
 for job in \
-  "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh" \
   "dot_local/libexec/unattended-upgrades/claude/executable_report-plugin-updates.sh" \
   "dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"; do
   grep -q 'weekly_engine()' "$REPO_ROOT/$job" ||
@@ -112,7 +111,6 @@ resolver_err="$(unattended_engine 2>&1 >/dev/null)"
 # resolving a deleted file. The function is extracted from each job and RUN
 # with the shared rule undefined.
 for job in \
-  "dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh" \
   "dot_local/libexec/unattended-upgrades/claude/executable_report-plugin-updates.sh" \
   "dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"; do
   fallback="$(bash --noprofile --norc -c "
