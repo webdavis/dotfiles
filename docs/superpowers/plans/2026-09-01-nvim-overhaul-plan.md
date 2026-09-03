@@ -458,11 +458,20 @@ Lane: standalone. Depends on: PR 2. Brief: `brief-nvim-lift-exclusions.md`.
 
 Lane: LSP and tools. Depends on: PR 3 (`lsp.lua`). Brief: `brief-nvim-lsp-config.md`. Closes 13.
 
-**Files:** Modify `lua/plugins/lsp.lua:50-148` (per-server tables to `vim.lsp.config("<name>",
+**Files:** Modify `lua/plugins/lsp.lua:68-166` (per-server tables to `vim.lsp.config("<name>",
 {…})`).
 
-- [ ] **Step 1, red:** `nvim --headless -c 'lua assert(vim.tbl_contains(vim.lsp.config.clangd.cmd,
-  "--clang-tidy"))' +qa` under the harness fails today (the `servers` block is never read).
+- [ ] **Step 1, red:** under the harness, this exits 1 today (the `servers` block is never read):
+
+  ```bash
+  nvim --headless -c 'lua os.exit(pcall(function()
+    assert(vim.tbl_contains(vim.lsp.config.clangd.cmd, "--clang-tidy")) end) and 0 or 1)'
+  ```
+
+  Do NOT use the `-c 'lua assert(...)' +qa` shape: `+qa` exits 0 even when the assertion fails, so
+  that command is a gate that cannot go red (measured 2026-09-02, both on a false assertion and on
+  a nil `vim.lsp.config.<name>`). The `pcall` is what keeps a nil server fail-closed. Spec 6.3
+  carries the same warning, because the bootstrap reads this exit status.
 - [ ] **Step 2:** move every server table into `vim.lsp.config`; mason-lspconfig keeps
   `ensure_installed` and `automatic_enable`; the same assertion for `--header-insertion=iwyu`. Green:
   both pass; a `.c` file's `:LspInfo` shows clangd with both flags. Paste.
@@ -474,7 +483,7 @@ Lane: LSP and tools. Depends on: PR 3 (`lsp.lua`). Brief: `brief-nvim-lsp-config
 Lane: LSP and tools. Depends on: PR 5a (`lsp.lua`). Brief: `brief-nvim-mason-run-on-start.md`. Closes
 50 (prep).
 
-**Files:** Modify `lua/plugins/lsp.lua:212` (`run_on_start = false`).
+**Files:** Modify `lua/plugins/lsp.lua:230` (`run_on_start = false`).
 
 - [ ] **Step 1:** `run_on_start = false` (the bootstrap's `MasonToolsInstallSync` needs it, 3.9, so
   the sync run and the autostart run cannot race). Commit: `chore(nvim): stop mason-tool-installer
