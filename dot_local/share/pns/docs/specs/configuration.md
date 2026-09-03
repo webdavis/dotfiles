@@ -650,13 +650,14 @@ Then it is refused with the table, the key and the whole vocabulary named
   this repo ships. If it stops loading, the machine falls back to the CORE with a warning nobody is
   standing in front of: the phone and the banner keep working, and the durable paper trail, the lights
   and the home probe all stop."
-- Thresholds: the five judged tables are `plugins.hermes`, `plugins.hue`, `plugins.macos-banner`,
-  `plugins.mobile`, `plugins.router`. A table for a plugin nothing registered has NO roster row, so
+- Thresholds: the six judged tables are `plugins.hermes`, `plugins.hue`, `plugins.macos-banner`,
+  `plugins.mobile`, `plugins.presence`, `plugins.router`. A table for a plugin nothing registered has NO roster row, so
   `keys_of` returns `None` and `admits` passes everything
   (`src/config.rs:an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name`).
 - Required side effects: the positive control is its own test:
   `src/config.rs:every_key_a_shipped_plugin_table_serves_is_still_admitted` parses a config writing every
-  key of all five tables and asserts five plugins came back, so a sweep that refused the whole vocabulary
+  key of five of the six tables and asserts five plugins came back (`plugins.presence` is covered by the
+  roster walk below rather than here), so a sweep that refused the whole vocabulary
   would not pass silently.
 - Forbidden side effects: this layer never invents a schema for a plugin it does not know. "The registry
   refuses the NAME, which is the defect in that case" (`src/config.rs:TABLE_KEYS`).
@@ -693,8 +694,9 @@ Then the name is refused, the warning is loud, and the selection widens to the W
   plugin`. On the PULSE path the same config fails CLOSED: `tests/dispatch.rs:an_unknown_plugin_never_resurrects_a_disabled_pulse`proves a deliberate`enabled
   = false\` on hue is not turned back on by an unrelated typo, by binding a listener the pulse must never
   reach.
-- Thresholds: the roster is five registrations (`src/registry.rs:ROSTER`): `router` (a sensor), `mobile`,
-  `macos-banner`, `hermes`, `hue`. The CORE is two names (`src/registry.rs:CORE`).
+- Thresholds: the roster is six registrations (`src/registry.rs:ROSTER`): `router` (a sensor),
+  `presence` (a sensor), `mobile`, `macos-banner`, `hermes`, `hue`. The CORE is two names
+  (`src/registry.rs:CORE`).
 - Required side effects: the warning is printed by the composition root, once.
 - Forbidden side effects: no third answer. "SELECTING ONLY THE KNOWN NAMES out of a config with one typo
   in it is a third answer, narrower than either of these. It is not built"
