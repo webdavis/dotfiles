@@ -10,7 +10,8 @@ set -euo pipefail
 # BOTH CRATES ARE HASHED. uu links pns's hermes client as a library, so a change
 # to pns alone still changes the binary this installs; hashing uu's sources only
 # would leave the deployed uu carrying stale signing and transport code with
-# nothing to trigger a rebuild.
+# nothing to trigger a rebuild. pns is a workspace, so its member manifests are
+# hashed alongside its root one for the same reason.
 {{ $uu := joinPath .chezmoi.sourceDir "dot_local/share/uu" -}}
 {{ $pns := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
 {{ range (glob (joinPath $uu "**/*.rs")) }}
@@ -23,6 +24,9 @@ set -euo pipefail
 #   uu/Cargo.lock {{ include (joinPath $uu "Cargo.lock") | sha256sum }}
 #   pns/Cargo.toml {{ include (joinPath $pns "Cargo.toml") | sha256sum }}
 #   pns/Cargo.lock {{ include (joinPath $pns "Cargo.lock") | sha256sum }}
+{{- range (glob (joinPath $pns "crates/*/Cargo.toml")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
 #
 # Retry state, the mechanism the pns builder beside it uses: chezmoi records a
 # run_onchange script as done on ANY exit 0, so a skipped build (no toolchain)

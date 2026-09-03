@@ -1,7 +1,7 @@
-# Neovim Config Overhaul Design Spec: v4.3
+# Neovim Config Overhaul Design Spec: v4.4
 
-**Date:** 2026-09-01
-**Status:** v4.3, active design, the document the implementation plan is built from. Nothing here is
+**Date:** 2026-09-01, amended 2026-09-03
+**Status:** v4.4, active design, the document the implementation plan is built from. Nothing here is
 implemented. The operator's decisions A to H and the four approved custom plugins (recorded in
 `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`) are binding inputs, not open questions.
 v4.1 applied the two reviews of v4 (`spec-v4-review-fable-2026-09-01.md`, 11 findings, and
@@ -52,6 +52,39 @@ the same directory, one line per finding:
    timestamps, never every slash-prefixed token (3.7).
 1. The branch counts are refreshed with the compared commit ids recorded (2).
 
+v4.4 folds the decisions of 2026-09-03
+(`~/.claude/pipeline/decision-nvim-overhaul-amendments-2026-09-03.md`), one line per item:
+
+1. vim-slime is dropped: `custom_api/herdr.lua` gains `send_selection_or_paragraph()` over
+   `herdr-nvim`, so PR 11 adds no plugin and no pin, and `<leader>CP` goes (5.3, 7.4, 8.3, 11).
+1. `custom_api/herdr.lua` is the one shared herdr seam and states the interrupt policy once; PR 11,
+   PR 13 and PR 16 all go through it (7.4).
+1. Custom #3 shrinks to a line annotator: `compose_text()` feeds `herdr-nvim`'s `comments.add` and
+   `ui.decorate`, delivery is `herdr-nvim`'s own `<leader>As` and `<leader>AS`, and the queue, the
+   detached waiter, the recheck and the state machine are deleted (7.7, 8.3, 10.9).
+1. Custom #2 is `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline `awk`, with no
+   module and no fixture file (7.7, 6.3, 10.9).
+1. Custom #1 keeps the producer and loses the module: pns owns the tier through a new `--elapsed`
+   flag, and PR 14 is re-sequenced to run after the pns refactor lands (7.7, 11).
+1. neotest stays, with one adapter per language; `webdavis/neotest-swift` and `rouge8/neotest-rust`
+   are both dropped as pins, Bash gets an adapter we write over bashunit and Zig rides the shared
+   `neotest-vim-test`, and PR 28 splits into PR 28a and PR 28b (5.3, 12.1, 11).
+1. Two pull requests join the LSP lane, PR 29c (LSP polish) and PR 29d (pin refresh) (11).
+1. Two evaluation pull requests join the drops lane, PR 24a (`atlas.nvim` against octo) and PR 24b
+   (`review.nvim` against the `herdr-nvim` annotation flow) (5.6, 11).
+1. MCP instance selection is redesigned in five steps, injection both ways, a topology match, an
+   IDENTITY check rather than a liveness one, a picker instead of a refusal on more than one
+   candidate, and a refusal only on none, with sticky selection and a registry Neovim keeps correct
+   by construction; PR 9's third criterion is reframed around what the injection leaves over, and a
+   server that fails it may still be usable (7.3).
+
+1. `nvim-treesitter` was un-archived on 2026-07-19, so PR 29e brings it current on its own rather
+   than inside the 29d pin refresh, because the `main` line is an API surface (5.5, 11).
+
+One item in that document is NOT decided and stays an open question here: whether the osquery
+pipeline's Rust port is scheduled next (12.8). The bashunit scope, open when this slice began, was
+decided while it ran: the whole corpus moves off bats (12.1).
+
 ## 0. Status and provenance
 
 This version supersedes v1 (`2026-05-24-nvim-overhaul-design.md`), v2
@@ -71,8 +104,9 @@ What changed since v3, and why:
    `HERDR_BIN_PATH` (the six `HERDR_*` variables in this pane today; there is no `HERDR_SESSION`), pane
    navigation is `smart-splits.nvim` with a custom herdr backend (`lua/smart-splits/mux/herdr.lua`), and
    `nvim-tmux-navigation` is already gone from the live config. `delegate.lua` cannot work at all any
-   more (`vim.env.TMUX` is never set), so its retirement is a cleanup, not a choice. vim-slime, which
-   the research doc kept for raw-text sends, has no herdr target either; section 7 designs one.
+   more (`vim.env.TMUX` is never set), so its retirement is a cleanup, not a choice. The raw-text
+   send the research doc kept vim-slime for has no herdr path either; section 7.4 builds one on
+   `herdr-nvim` rather than adding the plugin.
 1. **Decision A resolves the v2 versus v3 conflict as both.** `claudecode.nvim` (selection push, provider
    `none`, pinned commit) AND a Neovim Model Context Protocol (MCP) server (live unsaved buffer, pull
    model) ship. v3 removed `claudecode.nvim`; that removal is reversed.
@@ -667,7 +701,7 @@ every citation below it in the file it touched.
 | 4   | high     | `default_branch` reads `opts.repo` from a string (`custom_api/git.lua:231`; caller `git.lua:997`) | the GitHub fallback moves into `github` (item 56); `git.default_branch()` takes no repo and returns `(name, err)` | PR 7c |
 | 4b  | high     | `string.format` with two `%s` and one arg (`custom_api/git.lua:247`)  | same move; `github.default_branch({owner, name})` supplies both                              | PR 7c |
 | 5   | medium   | `delegate.setup()` called twice                                       | moot: `delegate.lua` is deleted                                                              | PR 8  |
-| 6   | low      | duplicate, ungrouped `checktime` autocmd (`options.lua:116-118`)      | remove the `options.lua` copy; the auto-reload design (5.4) owns `checktime`                 | PR 20 |
+| 6   | low      | duplicate, ungrouped `checktime` autocmd (`options.lua:116-118` until PR 20 merged as #307 on 2026-09-03; the lines are gone from `main`) | remove the `options.lua` copy; the auto-reload design (5.4) owns `checktime`                 | PR 20 |
 | 8   | medium   | `extract_upstream` returns `i + 1`, dropping the first commit word (`custom_api/git.lua:101-112`) | return `i`; pinned by a unit test                                                | PR 7a |
 | 9   | medium   | literal `"\\<Esc>"` (`delegate.lua:100`)                              | moot: `delegate.lua` is deleted                                                              | PR 8  |
 | 10  | low      | `nvim_win_get_width(0)` at spec load (`harpoon.lua:6`)                | `opts = function() … end`                                                                    | PR 22a |
@@ -697,7 +731,7 @@ force-installs anything still named there). Each drop is one atomic commit with 
 
 | Plugin              | Edits (one commit)                                                                                     | Replacement                       | PR    |
 | ------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------- | ----- |
-| `cspell.nvim`       | remove the dep at `lsp.lua:247`                                                                        | none (author-deprecated)          | PR 17a |
+| `cspell.nvim`       | remove the dep at `lsp.lua:232`                                                                        | none (author-deprecated)          | PR 17a |
 | `gitmoji.nvim`      | dep `blink-cmp.lua:114`, provider `:261-263`, `sources.default` `:279`                                 | none                              | PR 17b |
 | `nvim-notify`       | remove the dep at `noice.lua:11`; noice falls back to `snacks.notifier` (already enabled)              | `snacks.notifier`                 | PR 17c |
 | `gv.vim`            | remove from fugitive deps `git.lua:257`                                                                | `Snacks.picker.git_log` (`<leader>gl` exists) | PR 17d |
@@ -728,19 +762,45 @@ buffer-local pass (3.7, check 5b) reads them as present; PR 23's body shows both
 | Plugin or tool                  | Spec and pin                                                                                        | Notes                                                                                           | PR    |
 | ------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----- |
 | `sourcekit-lsp`                 | `vim.lsp.config("sourcekit", { cmd = { "sourcekit-lsp" } })` and `vim.lsp.enable("sourcekit")`, darwin only | not a Mason package (verified: the registry has no `sourcekit-lsp`); the Xcode toolchain binary is used. Root markers per nvim-lspconfig: `buildServer.json`, `.bsp`, `*.xcodeproj`, `*.xcworkspace`, `compile_commands.json`, `Package.swift`, `.git` | PR 3 |
-| `xcode-build-server`, `xcbeautify`, `swiftformat`, `swiftlint` | already in `.chezmoidata/system_packages_autoinstall.yaml` (lines 171, 172, 189, 190) and installed; `xcp` (XcodeProjectCLI) is the one addition PR 3 makes to that file | no YAML edit and no Mason entry: none-ls already declares `formatting.swiftformat` and `formatting.swiftlint` (`lsp.lua:305-306`) against the PATH binaries; `xcode-build-server` generates `buildServer.json` for an `.xcodeproj` or `.xcworkspace` (not needed for a SwiftPM package); `xcodebuild.nvim` requires `xcbeautify` | PR 3 (nothing to add) |
+| `xcode-build-server`, `xcbeautify`, `swiftformat`, `swiftlint` | already in `.chezmoidata/system_packages_autoinstall.yaml` (lines 171, 172, 189, 190) and installed; `xcp` (XcodeProjectCLI) is the one addition PR 3 makes to that file | no YAML edit and no Mason entry: none-ls already declares `formatting.swiftformat` and `formatting.swiftlint` (`lsp.lua:272-273`) against the PATH binaries; `xcode-build-server` generates `buildServer.json` for an `.xcodeproj` or `.xcworkspace` (not needed for a SwiftPM package); `xcodebuild.nvim` requires `xcbeautify` | PR 3 (nothing to add) |
 | `wojciech-kulik/xcodebuild.nvim` | `commit = "633eb71"` (main HEAD today, `git ls-remote`); deps `MunifTanjim/nui.nvim` (present via noice), `folke/snacks.nvim` (picker), `stevearc/oil.nvim` (present), `mfussenegger/nvim-dap` and `rcarriga/nvim-dap-ui` (operator decision 2026-09-02); `ft = "swift"` plus `cmd`; `cond = vim.fn.has("mac") == 1` | supports Swift Packages (build and test) as well as Xcode projects, and has its own Test Explorer | PR 3 |
 | `gopls` and `go`                | `"gopls"` in mason-lspconfig `ensure_installed`; `go` Homebrew formula in the YAML                   | Mason installs `gopls` with `go install`, and the health check shows Go absent today, so the formula is part of decision D | PR 27 |
-| `nvim-neotest/neotest` + `nvim-neotest/nvim-nio` | `commit = "27bf921"` (neotest main HEAD today); `keys` under `<leader>t`; adapters per the open question in section 12 |                                                                          | PR 28 |
+| `nvim-neotest/neotest` + `nvim-neotest/nvim-nio` | `commit = "27bf921"` (neotest main HEAD today); `keys` under `<leader>t`; one adapter per language, per the table below | neotest is the only runner with a summary tree, per-test output, buffer diagnostics, debugger integration and watch mode (v5.20.0, 2026-07-24); vim-test, nvim-test, quicktest and overseer are strict subsets of it | PR 28a, PR 28b |
 | `okuuva/auto-save.nvim`         | already installed (`version = "^1.0.0"`, disabled by default with the `<leader>uv` toggle)         | item 42: the save condition gains the two `claudecode.nvim` exclusions its README documents (buffer name matching `(proposed)` or `(NEW FILE - proposed)`, buftype `acwrite`); formatting on autosave is suppressed: the `AutoSaveWritePre` user event sets `vim.b.autosave_write`, lsp-format's `BufWritePre` handler returns early when it is set, `AutoSaveWritePost` clears it. Explicit `:w` keeps formatting | PR 12 |
 | `coder/claudecode.nvim`         | `commit = "2390c6e"` (main HEAD today; the last tag v0.3.0 is from 2025-09); `opts = { terminal = { provider = "none" } }`; `dependencies = { "folke/snacks.nvim" }` (required per its README) | section 7.2                                                                | PR 12 |
 | Neovim MCP server               | per section 7.3                                                                                     |                                                                                                 | PR 9, PR 10a, PR 10b |
 | buffer auto-reload              | section 5.4, no plugin                                                                              |                                                                                                 | PR 20 |
-| `jpalardy/vim-slime`            | `commit = "305b4d8"` (main HEAD today), `g:slime_no_mappings = 1`, `g:slime_target = "herdr"`       | section 7.4 supplies the herdr target                                                           | PR 11 |
+| the raw-text send to the agent pane | no plugin: `custom_api/herdr.lua` (7.4). vim-slime is NOT added                                 | section 7.4 says why the three lines beat the plugin                                            | PR 11 |
 | the three custom plugins        | section 7.7                                                                                         |                                                                                                 | PR 14, 15, 16 |
 
 The pins above are the `git ls-remote <repo> HEAD` answers of 2026-09-01; the implementer re-reads
 them at PR time and records the SHA it pins in the PR body.
+
+**The neotest adapter set, decided 2026-09-03.** Both adapter pins the plan carried are DROPPED:
+`rouge8/neotest-rust` was archived on 2025-08-19, and `webdavis/neotest-swift` is an empty scaffold
+(one `lua/.gitkeep`, verified through the GitHub API). One adapter per language instead, each
+verified against a scratch project in a real pane by the pull request that adds it:
+
+| Language | Adapter                                                                                          | Load     | Verification the slice must show               |
+| -------- | ------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------ |
+| Rust     | `mrcjkb/rustaceanvim` (its own neotest adapter; its README says never to add neotest-rust)        | now      | the nearest test runs in a scratch cargo crate  |
+| Python   | `nvim-neotest/neotest-python`                                                                     | now      | pytest in a scratch virtual environment         |
+| Go       | `fredrikaverpil/neotest-golang`                                                                   | now      | `go test` in a scratch module                   |
+| Bash     | OUR OWN `neotest-bashunit` over bashunit (operator ruling 2026-09-03: the whole test corpus moves from bats to bashunit). Parses `--report-json`, reported to carry `file`, `name`, `status`, `duration_ms`, `retries` and `message` per test and NO line number, so mapping a failure to a line is the adapter's own problem (T2 verifies the field list against `src/reports/json.sh` at the pin before designing that mapping); one bashunit process per file, `--filter` for a single test; handles the two bugs the upstream adapter has | now, after the bashunit program's T1 and T2 | a `.test.sh` file runs per test from `<leader>tt`, with output and a jump to the failing line |
+| JS/TS    | `marilari88/neotest-vitest` and `nvim-neotest/neotest-jest`; `AkisArou/neotest-nodejs` for node:test | ft-lazy | a vitest and a jest scratch project             |
+| Lua      | `MisanthropicBit/neotest-busted`                                                                  | ft-lazy  | one busted spec                                 |
+| Java     | `rcasia/neotest-java` (live, 2026-08-31)                                                          | ft-lazy  | a JUnit 5 scratch project                       |
+| Elixir   | `jfpedroza/neotest-elixir` (2025-01, the only option)                                             | ft-lazy  | `mix test` in a scratch app                     |
+| Swift    | `mmllr/neotest-swift-testing` FROM CODEBERG (the GitHub repository is an archived redirect since 2026-04-28); Swift Testing only, XCTest stays on `xcodebuild.nvim` | ft-lazy | one Swift Testing target |
+| Zig      | `nvim-neotest/neotest-vim-test` over vim-test's `zigtest` runner (v3.3.1, updated 2026-05-07); `lawrence-laz/neotest-zig` is rejected, pinned to Zig 0.14 with issue #41 open ten months and no maintained fork | now, shared adapter | a scratch `zig build test` project runs per test |
+
+PR 28a takes every `now` row: the core, Rust, Python, Go, Bash, and the shared
+`nvim-neotest/neotest-vim-test` adapter configured for Zig. PR 28b takes the ft-lazy rows. The
+`<leader>t` keys and the which-key group row "test" land in PR 28a. The Bash row alone reaches
+outside this program: it needs the bashunit toolchain (T1) and the `neotest-bashunit` adapter (T2)
+of the bashunit migration program, which the operator ruled on 2026-09-03 and which moves the whole
+209-test corpus off bats. If those have not landed when PR 28a opens, the Bash row ships in a later
+PR of its own and PR 28a's body says so.
 
 ### 5.4 Buffer auto-reload for agent writes (item 40)
 
@@ -770,11 +830,43 @@ case where the rename changed the realpath.
   commit, PR 26c; the bufferline path at `ui.lua:69-70` is already v2-correct.
 - `nvim-hlslens`: `4254054` to `be2d7b2` (bug #15). PR 26b.
 - `none-ls`: no forced bump (item 34).
-- `nvim-treesitter`: already on `main` (item 36 struck). The plugin was archived 2026-04-03; the pin
-  keeps working but receives no fixes, and nvim 0.12's builtin treesitter is the long-term path. Flag
-  only. `nvim-treesitter-context` is still on `master`; during PR 29b confirm the context bar renders on
-  0.12.5 and `:checkhealth` stays clean, then leave it.
+- `nvim-treesitter`: UN-ARCHIVED 2026-07-19 with clason back, after the 2026-04-03 archival this spec
+  wrote "flag only" against, so the pin now receives fixes again and the operator wants it current.
+  That is PR 29e, its own pull request rather than a rider on the 29d pin refresh, because the `main`
+  line is an API surface and not just a version. Measured on the live config 2026-09-03: BOTH
+  `nvim-treesitter` (`treesitter.lua:153`, lock `7efc1b58`) and `nvim-treesitter-textobjects`
+  (`treesitter.lua:31`, lock `ecd03f58`) already declare `branch = "main"` and already call the
+  rewritten API (`require("nvim-treesitter")` at `treesitter.lua:156`, and
+  `nvim-treesitter-textobjects.select`, `.move` and `.repeatable_move`), so the modules-system
+  migration is behind this config, not ahead of it, and PR 29e is a deliberate bump plus a
+  re-verification rather than a rewrite. `nvim-treesitter-context` is still on `master` (lock
+  `64dd4cf3`) and `aerial` reads treesitter through its own path, so what each of them needs is
+  PR 29e's to decide, and `treesitter-context` on `master` is the ONE piece of real migration work
+  left in it; PR 29b keeps only its own check that the context bar renders on 0.12.5.
 - Everything else keeps its pin. `dial`, `markview` and `toggleterm` stay (item 35).
+- `lazy-lock.json`'s newest pin is 2025-12-30 against Neovim 0.12.5, and several plugins predate
+  0.12. The refresh is its own pull request with the full gate harness (PR 29d), never a side effect
+  of a functional PR, so a regression it causes is attributable to it.
+
+### 5.6 Two evaluations, nothing installed
+
+Two plugins are EVALUATED and adopted only on their outcome, each recorded the way the MCP evaluation
+of 7.3 is: a research document with an outcome table, and no install in the evaluating PR.
+
+- `emrearmagan/atlas.nvim` as the octo replacement (PR 24a): pull-request review from Neovim across
+  forges. Judged against what octo does today, on the same repositories.
+- `vuki656/review.nvim`, which comments on a diff and sends the comments to the agent (PR 24b):
+  judged against the `herdr-nvim` annotation flow, and adopted only if it adds something
+  `<leader>Ac`, `<leader>As` and `<leader>AS` do not already give.
+
+Not adopted, recorded so they are not proposed again: `sidekick.nvim` (dormant since 2026-04-22) and
+`delphinus/md-render.nvim`, REJECTED by the operator on 2026-09-03 ("I will stick with markview"), so
+it gets no evaluation task either. `OXY2DEV/markview.nvim` stays as the in-buffer renderer. The
+reason is not a missing terminal capability, which an earlier revision of this line claimed: Ghostty
+does support the graphics protocol md-render wants. It is that the markdown here is notes, specs and
+pull request bodies, where images are rare, and that md-render is one maintainer whose own caveats
+say scaled headings are Kitty-only and drop to plain on any repaint. `markdown-preview.nvim` and
+`markdown-plus.nvim` are unaffected; neither overlaps.
 
 ## 6. The `custom_api` redesign and its tests
 
@@ -838,9 +930,11 @@ dot_config/nvim/tests/
                        # default_branch with a fake runner, latest_commit (table, err)
   github_spec.lua      # account().username resolves with a fake runner; default_branch fallback
   try_spec.lua         # the label is reported verbatim, never "anonymous"; traceback present
-  task_events_spec.lua # 7.7 #1: tier and detail formatting
-  review_ledger_spec.lua # 7.7 #2: the findings-table parser
-  agent_context_spec.lua # 7.7 #3: the at-mention composer and the may_send state gate
+  herdr_spec.lua       # 7.4: may_send over all five states (PR 11), then agent_name and
+                       # plan_launch (PR 13)
+  ledger_awk_spec.lua  # 7.7 #2: the :ReviewLedger awk, fed a heredoc through vim.system
+  annotate_spec.lua    # 7.7 #3: the annotation composer
+                       # 7.7 #1 has no module and no spec file: pns owns the tier
 ```
 
 The runner takes the CONFIG ROOT as an argument, `--config <dir>`, defaulting to its own grandparent
@@ -860,10 +954,10 @@ file that needs the full config loaded, so it runs WITHOUT `--clean` (3.7).
 Wiring:
 
 - `just test-nvim` runs the runner against the source tree.
-- `test/unit/nvim-custom-api.bats`: one `@test` per spec file, each spawning the runner with that
-  spec's name. Each test is well under the 200 ms warning threshold; the process boundary is the
-  behavior (a headless Neovim running our Lua), which is the case the bats ruling allows a spawn for.
-  `just test-unit` picks it up automatically.
+- `test/unit/nvim-custom-api.bats` at first (one `@test` per spec file, each spawning the runner),
+  then PR 6b deletes it: one testing framework calling another is a layer with no reader, so
+  `test/run-test-suite.sh` gains a Lua camp that runs `run.lua` directly instead, counted in the
+  summary and held to the same slow-test warning. `just test-unit` picks up either shape.
 - The bootstrap (3.9) runs the same runner with `--config "$HOME/.config/nvim"` and fails on a red
   test.
 
@@ -929,8 +1023,9 @@ the plugin spec's header comment in PR 12:
 1. The "beta" label: accepted as the cost of decision A.
 1. Local-install PATH: `claude` is on PATH in every herdr pane through the bashrc; nothing to do.
 
-The launch helper is one keymap, `<leader>Cc`, implemented in Lua over `vim.system`. The agent lookup
-is not written by this program: `herdr-nvim` (installed, `lua/herdr-nvim/agents.lua`) already lists
+The launch helper is one keymap, `<leader>Cc`, and it lives in the shared herdr seam of 7.4, which is
+also where the agent lookup and the interrupt policy are stated once. The agent lookup is not written
+by this program: `herdr-nvim` (installed, `lua/herdr-nvim/agents.lua`) already lists
 the agents of `HERDR_WORKSPACE_ID` (`agents.list()`), narrows to the one that shares `HERDR_TAB_ID` or
 to a lone agent in the workspace (`agents.resolve()`), and shows a picker when that is ambiguous
 (`ui.pick_agent`). Focus is never consulted, here or in 7.3 or 7.7: herdr focus is UI-wide, one
@@ -945,7 +1040,9 @@ and the field cannot say which agent an editor pane means. The helper:
    NVIM_MCP_SOCKET=<vim.v.servername>`. The reply's new pane is `.result.pane` and its id is
    `.result.pane.pane_id` (`herdr --skill`: "pane split returns the new pane as .result.pane" and
    "read the new pane ID from .result.pane.pane_id"). The `--env` pins the socket: the MCP server the
-   CLI starts in that pane inherits it and the resolver (7.3) connects to it with no discovery. Then
+   CLI starts in that pane inherits it and the resolver (7.3) connects to it with no discovery. This
+   is one half of the symmetric injection 7.3 describes; the other half pins the socket in the
+   opposite direction, when an agent pane spawns the Neovim. Then
    `herdr agent start <name> --kind claude --pane <pane_id> -- --ide`, where `<name>` is `claude-` plus
    the pane id lowercased with `:` replaced by `-` (`wW:p3K` becomes `claude-ww-p3k`). Names must match
    `[a-z][a-z0-9_-]{0,31}` and be unique among LIVE agents, and a name is cleared when its agent exits
@@ -978,9 +1075,14 @@ Evaluation criteria, run in PR 9 against the live setup and recorded in the PR b
    started in one workspace's pane reaches that workspace's Neovim without a prompt. herdr anchors each
    workspace to a directory, so a cwd or git-root match is the expected mechanism; a worktree
    workspace (`~/.herdr/worktrees/<repo>/<branch>`) counts as its own root and must match itself.
-3. **Native choice within a workspace.** With two Neovim panes in one workspace, the server started
-   from an agent pane reaches the Neovim that pane means (the one in its tab, or the lone one) with
-   no wrapper. Focus is not an acceptable mechanism (7.2).
+3. **Native choice within a workspace, on what the injection leaves over.** With two UNPINNED Neovim
+   panes in one workspace, the server started from an agent pane reaches the Neovim that pane means
+   (the one in its tab, or the lone one) with no wrapper. Focus is not an acceptable mechanism (7.2).
+   The question this criterion answers is how much of the unpinned case is LEFT once the symmetric
+   injection below covers both spawn directions, not whether the heuristic is a good one. A criterion
+   3 failure that can only fire on two Neovim panes started by hand in one workspace, neither from
+   the other, is a smaller thing than the same failure was before the injection was symmetric, and
+   PR 9's record states how often that case actually arises before it takes the resolver row.
 4. **Explicit socket.** `--connect <socket path>` connects to exactly that instance, so a wrapper can
    choose; upstream documents explicit sockets in its `docs/usage.md`.
 5. **Current buffer.** A tool returns the current buffer's path and cursor, and reads and edits its
@@ -1023,33 +1125,63 @@ as-is row needs no pinning, and the resolver row is reachable only after criteri
 every row exactly one PR registers a server (10a or 10b), and it is the PR whose server the operator
 keeps.
 
-The resolver, `~/.local/libexec/nvim-mcp-connect.sh` (it is the command the MCP registration runs, so
-`libexec` per the placement rules), identifies Neovim by pane id and by the environment of the pane the
-agent runs in, never by focus. In order:
+**Instance selection, decided 2026-09-03 (this supersedes the symmetric-injection-plus-liveness
+sketch it replaces).** The resolver, `~/.local/libexec/nvim-mcp-connect.sh` (it is the command the
+MCP registration runs, so `libexec` per the placement rules), identifies Neovim by pane id and by the
+environment of the pane the agent runs in, never by focus. Five steps, in order:
 
-1. `NVIM_MCP_SOCKET` is set (the launch helper's `--env`, 7.2): exec the server with
-   `--connect "$NVIM_MCP_SOCKET"` and stop.
-1. Otherwise list `${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0`, the runtime root Neovim
-   documents (`:help serverstart()`, `vimfn.txt:8813`: "Example bash command to list all Nvim
-   servers: `ls ${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0`"); `$TMPDIR` alone is the
-   macOS case and misses every Linux socket. For each socket ask the instance for its own three ids
-   under a short deadline, and SKIP any socket that refuses or times out (a crashed instance leaves
-   its path behind):
+1. **Injection, both directions.** Whichever side creates the other writes the address down, so the
+   common case is created rather than inferred. A Neovim that spawns an agent pane passes its own
+   socket with `herdr pane split --env NVIM_MCP_SOCKET=<vim.v.servername>` (7.2; `--env` is verified
+   to exist on 0.8.2), and an agent pane that spawns a Neovim pane sets the variable the other way
+   and starts the editor on it (`nvim --listen "$NVIM_MCP_SOCKET"`). A variable that is set is used
+   as-is, subject to step 3, and discovery is only ever the leftover case of two panes neither of
+   which created the other. That is what criterion 3 is measured against.
+1. **Topology match.** The agent's pane is not the Neovim pane, but herdr knows both:
+   `herdr pane layout --pane <id>` gives that pane's tab and its siblings, and one sibling matches
+   the registry. Pass the pane id EXPLICITLY: `herdr pane current` answers the CALLER's pane, never
+   the session's focused one, so a resolver that asks it gets its own pane back and matches nothing.
+1. **Identity, not presence.** A socket that answers proves only that SOMETHING is there, and socket
+   paths are reused, so a stale registry entry can resolve to a DIFFERENT Neovim. After connecting,
+   ask the instance over the remote-procedure-call channel for its own pane id and pid and compare
+   both against the registry entry; only a match makes it a candidate, and a mismatch prunes the
+   entry on the spot. This is recurring bug class 14, identity is not presence, which has cost this
+   repository once already.
 
    ```bash
    nvim --server "$sock" --remote-expr \
-     'join([getenv("HERDR_WORKSPACE_ID"), getenv("HERDR_TAB_ID"), getenv("HERDR_PANE_ID")], " ")'
+     'join([getenv("HERDR_PANE_ID"), getpid()], " ")'
    ```
 
-   Keep the sockets whose workspace equals the caller's `$HERDR_WORKSPACE_ID`, which the agent's pane
-   exports like every pane.
-1. Narrow the way `herdr-nvim`'s `agents.resolve` does, mirrored from the editor's side: one candidate
-   in the caller's `$HERDR_TAB_ID` wins; else a lone candidate in the workspace wins; else REFUSE with
-   exit 1, the candidate pane ids on stderr, and the instruction to launch the agent from Neovim
-   (`<leader>Cc`) or export `NVIM_MCP_SOCKET`. Two unpinned Neovim panes in one workspace are
-   ambiguous, and a guess edits the wrong buffer.
+   The candidate list is then narrowed to the caller's `$HERDR_WORKSPACE_ID`, which the agent's pane
+   exports like every pane, and to the tab step 2 named.
+1. **Pick, do not stall.** More than one verified candidate is a PICKER, not a refusal, and the
+   picker is a TOOL RESULT rather than a user interface: the MCP server is something the agent
+   calls, so it returns a refusal whose payload ENUMERATES the candidates (pane id, cwd, current
+   file, pid) together with the exact argument that disambiguates them. The agent then asks its own
+   user or applies a rule its caller supplied. No terminal is required anywhere, which is what makes
+   this reachable from a resolver that owns no window. Never guess, because a guess edits the wrong
+   buffer, and never return a bare error string, because that ends the turn instead of continuing
+   it.
+1. **Refuse only when nothing is alive.** Zero verified candidates is a refusal with the reason
+   named and the instruction to launch the agent from Neovim (`<leader>Cc`) or to export
+   `NVIM_MCP_SOCKET`.
 
-At most 80 lines of bash, with a bats test on the selection function fed fixture strings.
+**Sticky selection.** An instance resolved by injection or by the picker is remembered for that agent
+and reused, with step 3's identity check re-run on EVERY use; a failed check drops the memo and
+re-resolves. The cost of choosing is paid once per session rather than once per call.
+
+**The registry is correct by construction.** Neovim registers `{ pane_id, socket, cwd, pid }` on
+start and DEREGISTERS on `VimLeavePre`, so steps 3 and 5 are a backstop rather than the mechanism.
+The discovery fallback, listing `${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0` (the runtime
+root Neovim documents, `:help serverstart()`, `vimfn.txt:8813`; `$TMPDIR` alone is the macOS case and
+misses every Linux socket), is what covers an instance that died without running its autocommand.
+
+The resolver is capped at 150 lines of bash with a bats test on the selection function fed fixture
+strings. The 80-line cap this section carried was written against the three-step order and does not
+survive the registry, the identity check, the picker and the memo; PR 10a states its measured line
+count in the body, and a resolver that cannot fit is the signal to take the crate row instead. The
+picker needs no terminal, because it is the structured tool result of step 4 rather than a window.
 
 The custom server, if built: a Rust crate under `~/.local/share/nvim-workspace-mcp` (proposed name,
 function-named, no handle; confirm before it is created), built by a `run_onchange_after_59`-style
@@ -1058,38 +1190,58 @@ script, exposing exactly five tools (`current_buffer`, `list_buffers`, `read_buf
 internally, reading the same three variables and the same `NVIM_MCP_SOCKET` pin.
 
 The budget: the PR 9 evaluation is one working day, extended once by the first row of the table and
-never otherwise; the resolver is at most 80 lines of bash plus its bats file; the custom crate gets
+never otherwise; the resolver is capped at 150 lines of bash plus its bats file; the custom crate gets
 its own design spec (PR 10a) before code and is capped at the five tools and about 600 lines of Rust
 (PR 10b). When the crate row is reached, the crate is still built inside this program, because no
 other candidate exists (the second one is Linux-only). Today's reading is that `linw1995/nvim-mcp`
 meets 1, 2, 4, 5 and 6 and the resolver closes 3, so the expected shipping PR is PR 10a on the
 resolver row; the crate is the last rung.
 
-### 7.4 vim-slime with a herdr target (item 39)
+### 7.4 The shared herdr seam: `custom_api/herdr.lua` (item 39)
 
-vim-slime dispatches `slime#targets#<name>#config` and `#send` through autoload (verified in its
-`autoload/slime.vim`), so a target file on the runtimepath is a first-class backend with no fork. The
-config adds `dot_config/nvim/autoload/slime/targets/herdr.vim`: `config` prompts for a pane id with the
-workspace's agent pane as the default (the `herdr-nvim` lookup of 7.2), `send` calls
-`herdr pane send-text <pane> <text>` (literal text, no Enter) and then `herdr pane send-keys <pane>
-<enter>`, and `ValidEnv` checks `$HERDR_ENV`. Neither the Enter key name nor multiline integrity is
-documented on 0.8.2: `herdr pane send-keys --help` names only `esc`, and `herdr --skill` shows `esc`
-and `ctrl+c`. PR 11 therefore records this check on a scratch pane in its body before binding
-anything (every flag is one the 0.8.2 help lists):
+One module answers "which pane" and "how to send", and every caller in this program goes through it:
+the launch helper (7.2, PR 13), the selection send (item 39, PR 11) and the annotator (7.7 #3,
+PR 16). It is a thin wrapper over the installed `herdr-nvim` plugin, never a second implementation of
+what that plugin already does.
 
-```bash
-p=$(herdr pane split --current --direction down --cwd "$PWD" --no-focus | jq -r .result.pane.pane_id)
-herdr pane send-text "$p" $'printf "%s|" a b\nprintf "%s|" c d\n'   # two lines in one send
-herdr pane send-keys "$p" enter                                    # the spelling under test
-sleep 1; herdr pane read "$p" --lines 6                            # expect a|b| then c|d|
-herdr pane close "$p"
-```
+- `agent_pane()` returns a pane id or nil through `herdr-nvim`'s own workspace-scoped lookup:
+  `agents.list()`, then `agents.resolve()` (the agent sharing `HERDR_TAB_ID`, else a lone agent in
+  the workspace), else `ui.pick_agent`. Focus is never consulted (7.2).
+- `send(text, { submit })` delegates to `herdr-nvim`'s
+  `dispatch.send(pane_id, text, opts, exec)` (read at the installed plugin: `submit` runs
+  `herdr agent prompt`, which presses Enter; otherwise `herdr pane send-text`, which does not).
+- `send_selection_or_paragraph()` takes the visual selection, or the paragraph under the cursor in
+  normal mode, and sends it with `submit = true`, which is the run-this-there behavior vim-slime was
+  carried for. `<leader>Cp` is its keymap (8.3). There is no target-picking keymap and no
+  `<leader>CP`: `agent_pane()` resolves the target and prompts only when it is genuinely ambiguous,
+  so a stored target would be a second answer to a question already answered.
+- `agent_name(pane_id)` and `plan_launch(pane_id, cwd, servername)` are the launch helper's two pure
+  functions (7.2), and they keep their unit tests.
 
-If `enter` is rejected, `return` and `cr` are tried in that order and the accepted spelling is what
-the target binds. If the two-line send arrives merged or truncated, `send` splits on newlines and
-sends one line per `send-text` call. This is the same precedent as the smart-splits herdr mux backend.
-It covers the three losses the research review named: free-text prompts, non-Claude agents, and
-unsaved scratch buffers, all as raw text to any pane.
+**The interrupt policy, stated once here and referenced from everywhere else.** `send` reads the
+agent's state with `herdr agent get <pane_id>` (`.result.agent.agent_status`, one of `idle`,
+`working`, `blocked`, `done`, `unknown`) and then:
+
+| State          | What `send` does                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| `idle`, `done` | send                                                                                                 |
+| `working`      | warn and send. It is `herdr-nvim`'s own choice (`init.lua:113-116`, one warning in one place) and both harnesses queue input that arrives mid-turn |
+| `blocked`      | REFUSE with a notice naming the state: text typed into a pane that is waiting on an approval ANSWERS that approval |
+| `unknown`      | treated as `working`: warn and send                                                                  |
+
+No queue, no detached waiter, no recheck, no state machine. A refusal is final and the operator
+presses the key again once the approval is answered, which costs one keystroke and cannot answer an
+approval by accident. `may_send` is the pure function that returns this table's verdict, and it is
+unit tested over all five states.
+
+**vim-slime is NOT added.** It exists to reach a REPL in another multiplexer's pane, and `send`
+above is the whole of what this config wanted from it. A plugin, an autoload target file under
+`autoload/slime/targets/`, a `g:slime_target` and a pin, all to reach `herdr pane send-text`, is more
+moving parts than the three lines that call it. The Enter key-name experiment v4.3 carried
+(`enter` versus `return` versus `cr`, and whether a two-line send arrives intact) goes with it:
+`dispatch.send` submits through `herdr agent prompt`, which presses Enter itself, so no key name is
+ever sent and nothing is split on newlines. This covers the three losses the research review named,
+free-text prompts, non-Claude agents and unsaved scratch buffers, as raw text to any agent pane.
 
 ### 7.5 The rule for open buffers, both harnesses (item 63)
 
@@ -1114,61 +1266,72 @@ portability becomes a goal.
 
 ### 7.7 Custom plugins #1 to #3, approved
 
-Each is a module under `lua/custom_api/`, function-named with no handle so it can be lifted into its
-own repository later, with a pure core under unit test (6.3) and a thin editor edge. The module names
-are proposals; the rename rule applies (confirm before creating).
+All three shrank on 2026-09-03, and only one is still a module. #1 is two flags and three call
+sites, #2 is one command over one awk program, and #3 is one composer feeding `herdr-nvim`'s own
+annotation store. Where a module survives it lives under `lua/custom_api/`, function-named with no
+handle so it can be lifted into its own repository later, with a pure core under unit test (6.3) and
+a thin editor edge; its name is a proposal and the rename rule applies (confirm before creating).
 
-**#1, the editor-side pns producer: `custom_api/task_events.lua` (PR 14).** Overseer, `xcodebuild.nvim`
-and neotest runs fire the same event the shell notifier fires. `report({ tool, task, state,
-seconds })` runs `vim.system` on `~/.local/libexec/pns/pns` with the producer flags `pns --help`
-lists today: `--agent nvim --state done|failed --project <cwd basename> --detail "<tool>: <task>
-(<duration>)" --pane "$HERDR_PANE_ID"`, plus `--long-running` at 300 s or more. The tiers mirror the
-shell notifier exactly: nothing under 30 s, the presence gate from 30 s, the lights from 300 s, so a
-build reaches the banner, Discord and the phone through the engine's own delivery plan and the editor
-never raises a banner of its own. Edges: an overseer component (`on_complete`) registered from the
-overseer spec, and the completion callbacks `xcodebuild.nvim` and neotest expose, whose exact names
-are verified at plan time from the pinned commits. Pure and tested: `tier(seconds)` and
-`detail(tool, task, seconds)`.
+**#1, the editor-side pns producer (PR 14).** Overseer, `xcodebuild.nvim` and neotest runs report to
+pns the way the shell notifier does. There is NO Lua module, because the tier is not the editor's to
+decide: pns gains `--elapsed <secs>` in its refactor, and from then on a producer states how long the
+work took and pns applies the one tier rule it already owns for the shell (nothing under 30 s, the
+presence gate from 30 s, the lights from 300 s). The editor edge is therefore three call sites, each
+one `vim.system` on `~/.local/libexec/pns/pns` with
+`--agent nvim --state done|failed --project <cwd basename> --detail "<tool>: <task>" --elapsed <secs>
+--pane "$HERDR_PANE_ID"`: an overseer `on_complete` component registered from the overseer spec, the
+`User` autocmd pair `xcodebuild.nvim` fires (`XcodebuildBuild{Started,Finished}` and
+`XcodebuildTests{Started,Finished}`, `lua/xcodebuild/broadcasting/events.lua`, verified at the pinned
+commit), and neotest's `client.listeners.results` edge. The bashrc notifier's caller-side 30 and 300
+rule collapses into the same flag in the same pns pull request, so one rule lives in one place
+instead of being restated by every producer. Nothing pure is left in the editor to unit test; the
+check is the live one in 10.9.
 
-**#2, the review-ledger quickfix: `custom_api/review_ledger.lua` (PR 15).** The pipeline's findings
-registers (`~/.claude/pipeline/slices/findings-*.md`) hold one table whose rows start with `| F<n>`
-and whose columns are `id, step, severity, summary, disposition, evidence` (verified against
-`findings-pns-loop-rule.md` today). `parse(lines, path)` returns quickfix items: `filename` and
-`lnum` from a `path:line` token in the summary when the row has one, else the ledger file and the
-row's own line number; `text` is `F<n> <severity> <disposition>: <summary>`; rows whose disposition is
-`FIXED` are skipped unless the command is banged. `:ReviewLedger[!] [file]` (default: the newest
-findings file) sets the quickfix list, so a fix round is `:cnext` through the findings. Pure and
-tested: `parse`.
+Two sequencing consequences. PR 14 lands AFTER the pns refactor, which is where `--elapsed` is built
+(the operator froze pns work pending that refactor on 2026-09-03), and after PR 28b, whose neotest
+spec it edges. PR 28a and PR 28b therefore ship WITHOUT any pns edge, and PR 14 adds all three.
 
-**#3, the agent-context sender: `custom_api/agent_context.lua` (PR 16).** `compose()` builds one
-string from the cursor: the `@<path relative to cwd>:<line>` at-mention, the first diagnostic on the
-line (`vim.diagnostic.get`), the enclosing function's name through `vim.treesitter` (walk up from the
+**#2, the review-ledger quickfix (PR 15).** The pipeline's findings registers
+(`~/.claude/pipeline/slices/findings-*.md`) hold one table whose rows start with `| F<n>` and whose
+columns are `id, step, severity, summary, disposition, evidence` (verified against
+`findings-pns-loop-rule.md`). `:ReviewLedger[!] [file]` is about ten lines in `keymaps.lua`:
+`setqflist` over `systemlist("awk ...")` with `errorformat = "%f:%l: %m"`, the awk program inline in
+the command. The awk emits one `<file>:<line>: F<n> <severity> <disposition>: <summary>` per row,
+taking `<file>:<line>` from a `path:line` token in the summary when the row carries one and
+otherwise from the ledger file and the row's own line number, and it skips rows whose disposition is
+`FIXED` unless the command was banged. The default file is the newest findings file. A fix round is
+then `:cnext` through the findings.
+
+There is no `custom_api` module and no fixture file, and that is the point: one parser, in the only
+place both sides can see it. `~/.claude/pipeline/findings-register.sh` is NOT tracked by this
+repository (verified: `git ls-files private_dot_claude` returns no pipeline entry), so Neovim cannot
+call a `quickfix` subcommand living there, and a second parser in Lua would be a second thing to keep
+in step with the table format. If the pipeline scripts are ever brought into this repository, the awk
+moves there and the command calls it. The check is one headless case that pipes a heredoc of three
+rows (one with a `path:line` token, one without, one `FIXED`) through the same awk with `vim.system`
+and asserts the output lines; `vim.system` is a core API and is available under the `--clean` runner
+(measured 2026-09-03).
+
+**#3, the line annotator (PR 16).** `<leader>Cx` annotates the current line with what the operator
+would otherwise retype. `compose_text(parts)` builds one string from the cursor position: the
+`@<path relative to cwd>:<line>` at-mention, the first diagnostic on the line
+(`vim.diagnostic.get`), the enclosing function's name through `vim.treesitter` (walk up from the
 cursor node to the first node whose type ends in `function_definition`, `function_declaration` or
 `method_definition`; empty when no parser is attached), and the line's blame SHA and summary through
-`git.blame_sha` (5.2) and `git.latest_commit`. `send(text)` resolves the agent the way 7.2 does
-(`herdr-nvim`'s `agents.list()` and `agents.resolve()`, the picker when ambiguous), then reads its
-state with `herdr agent get <pane_id>`: `.result.agent.agent_status` (verified live today), one of
-`idle`, `working`, `blocked`, `done`, `unknown` (the values `herdr agent wait --until` lists). On
-`idle` or `done` it runs `herdr pane send-text <pane> <text>`: no Enter, so the operator reads the
-composed context in the prompt and submits it. On any other state nothing is typed, because text into a
-`working` agent lands mid-turn and text into a `blocked` one answers its approval dialog. The text is
-held in a one-slot queue (a newer send replaces it, with a notice) and
-`vim.system({ "herdr", "agent", "wait", <pane>, "--until", "idle", "--until", "done", "--timeout",
-"600000" })` runs detached; its `on_exit` sends the held text on exit 0 and drops it with a notice
-otherwise. The gate is BEST-EFFORT, and the module header says so: `agent get` or `wait` and the
-`send-text` that follows are two herdr calls, and the agent can start a turn or block between them.
-Three rules narrow the window without pretending to close it. One waiter: a second `<leader>Cx` while
-a `wait` is running replaces the queued text and starts no second `wait`, so at most one `on_exit` can
-ever send. Recheck: immediately before every `send-text`, on the direct path and on the waiter's exit
-0 alike, the state is read again with `herdr agent get`, and the send happens only if `may_send` still
-holds. Drop, never retry: a failed recheck drops the text with a notice naming the state seen, and the
-operator presses the key again when the agent settles. A send that lands in a turn that began after
-the recheck is the accepted residual. `herdr agent prompt` is not used: it appends Enter, and this
-plugin's contract is that the operator submits. That is one step stricter than `herdr-nvim`'s own
-`dispatch.send`, which warns on `working` and sends anyway. It is a composer over the same transport the
-slime target uses, not a third transport; where `:ClaudeCodeSend` (7.2) carries a selection, this
-carries context about a position. Keymap `<leader>Cx` "send context" (8.3). Pure and tested:
-`compose_text(parts)` and `may_send(status)`.
+`git.blame_sha` (5.2) and `git.latest_commit`. That string goes to `herdr-nvim`'s own annotation
+store, `comments.add(bufnr, line, line, text)`, and the id it returns goes to `ui.decorate(id)`, so
+the annotation sits in the buffer exactly like one typed with `<leader>Ac`.
+
+Delivery is not this plugin's job. `herdr-nvim` already ships `<leader>As` (paste every pending comment
+into the agent's input) and `<leader>AS` (send them, auto-submitting), both resolving the agent with the
+lookup of 7.4. The prefix is the UPPERCASE `A`: the plugin's own default is `<leader>a` and this config
+overrides it (`herdr-nvim.lua:6`, 8.1), so every `herdr-nvim` key in this spec and its plan is
+`<leader>A<letter>`. So there is no send path here, and with it go the state gate, the one-slot queue,
+the detached `herdr agent wait`, the recheck and the state machine v4.3 carried: nothing is ever typed
+into an agent by this keymap, so there is nothing to race and nothing to be best-effort about. The
+composer is a text function over data the editor already holds. Pure and tested: `compose_text(parts)`,
+including that a nil part leaves no blank line. The module name (`custom_api/annotate.lua` proposed)
+follows the rename rule above.
 
 ## 8. Keymap and which-key design
 
@@ -1230,7 +1393,7 @@ becomes "do" (its two survivors are actions), and the new groups follow the nami
 | `<leader>A` group           | row added, "herdr" (PR 4c)                                                                         |
 | Swift                       | `<leader>x` group "xcode" (operator decision 2026-09-02 swapped this from `<leader>X`, see below): `xb` build, `xr` run, `xt` test (all), `xT` test (current), `xs` select scheme, `xd` select device, `xl` toggle logs, `xp` project manager; `cond` on darwin. Shipped wider than this proposal after the 66-command audit: 19 maps under `<leader>x` and 8 nvim-dap maps under `<leader>D`, listed in `lua/plugins/xcodebuild.lua` |
 | Tests                       | `<leader>t` group "test": `tt` nearest, `tf` file, `ta` all, `ts` summary, `to` output, `tS` stop |
-| Agent                       | `<leader>C` group "claude": `Cs` send selection (visual), `Ca` add current file, `Cy` accept diff, `Cn` deny diff, `Cc` launch or attach `claude --ide` (7.2), `Cx` send context (7.7 #3), `Cp` slime: pipe selection or paragraph to the target pane, `CP` slime: set target pane |
+| Agent                       | `<leader>C` group "claude": `Cs` send selection (visual), `Ca` add current file, `Cy` accept diff, `Cn` deny diff, `Cc` launch or attach `claude --ide` (7.2), `Cp` send selection or paragraph to the agent pane (7.4), `Cx` annotate line with diagnostic and blame (7.7 #3). No `CP`: `agent_pane()` resolves the target, so there is no target to set. Delivery of the annotations is `herdr-nvim`'s own `<leader>As` and `<leader>AS` |
 | Review ledger               | `:ReviewLedger` command only, no keymap; it is a quickfix producer and `<leader>X` (moved here from `<leader>x` by the same swap) already holds the quickfix maps |
 
 The implementer finalizes the letters under the rule; the table is the proposal the plan starts from.
@@ -1353,7 +1516,8 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    run of 9.1, inside a herdr pane, is the acceptance check
    that the interactive editor starts without an error and with every `VeryLazy` plugin loaded; its
    number is recorded, not gated.
-4. `just test-unit` green, including `nvim-custom-api.bats`; `just lint-check` green (stylua and
+4. `just test-unit` green, including the Lua specs (through `nvim-custom-api.bats` until PR 6b, the
+   Lua camp after); `just lint-check` green (stylua and
    luacheck included from PR 1).
 5. The keymap and plugin dump diff (3.7) matches the PR's stated intent exactly: the import PR shows
    an empty diff, a drop PR shows only the dropped plugin's maps, a remap PR shows the same `lhs` set
@@ -1368,22 +1532,27 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    `Vapor` dependency (the Vapor toolbox is not required), `swift build` once so the package graph
    resolves, then `sourcekit-lsp` attaches with `Package.swift` as root, hover on `Application`
    resolves, and `swift test` is run DIRECTLY from a shell in the package directory and exits 0.
-   neotest (PR 28) is not a dependency of this check and overseer is not used for it.
+   neotest (PR 28a) is not a dependency of this check and overseer is not used for it.
 8. Agent loop (item 73): open a buffer, make an unsaved edit, prompt Claude in the herdr pane, confirm
    it reads the in-memory text through the MCP tool and writes back without a prior `:w`, in the PR
    that registers the server (PR 10a on the `nvim-mcp` rows, PR 10b on the crate rows; PR 9 runs it
    only as criterion 5's hand check); then `:ClaudeCodeSend` on a visual selection lands as an
    at-mention in the same session (PR 12). The same loop is run once from Codex for the MCP half, in
    that same registering PR.
-9. Custom plugins (7.7): a 35 s overseer task produces one Discord card whose detail reads
-   `overseer: <task> (35s)`, and nothing under 30 s produces any card (PR 14). The banner is NOT part
-   of the assertion: the engine suppresses it when the operator is watching the pane the event names
-   at delivery time (`dot_local/share/pns/src/engine.rs`, the timing contract), and a manual check
-   watches that pane by construction. A banner run for the human record, if wanted, switches to
-   another workspace before the task ends and says so. `:ReviewLedger` on a real findings file fills
-   the quickfix list and `:cnext` lands on the ledger row (PR 15); `<leader>Cx` on a line with a
-   diagnostic, with the agent `idle`, puts the at-mention, the diagnostic and the blame line into the
-   agent pane's prompt unsent, and with the agent `working` sends nothing until it settles (PR 16).
+9. Custom plugins (7.7): a 35 s overseer task produces one Discord card whose detail names the tool
+   and the task, and nothing under 30 s produces any card (PR 14); the editor passes `--elapsed 35`
+   and pns picks the tier, so the check proves the flag reaches pns, not that the editor knows the
+   thresholds. The banner is NOT part of the assertion: the engine suppresses it when the operator is
+   watching the pane the event names at delivery time (`dot_local/share/pns/src/engine.rs`, the
+   timing contract), and a manual check watches that pane by construction. A banner run for the human
+   record, if wanted, switches to another workspace before the task ends and says so.
+   `:ReviewLedger` on a real findings file fills the quickfix list and `:cnext` lands on the ledger
+   row, and `:ReviewLedger!` additionally lists the `FIXED` rows (PR 15). `<leader>Cx` on a line with
+   a diagnostic adds one `herdr-nvim` annotation carrying the at-mention, the diagnostic, the
+   enclosing function and the blame line, decorated in the buffer, and `<leader>As` then pastes it
+   into the agent's input unsent (PR 16); nothing is typed into an agent by `<leader>Cx` itself.
+   `<leader>Cp` on a paragraph reaches the agent pane and, against a `blocked` agent, refuses with a
+   notice instead of answering the approval (PR 11, 7.4).
 10. A clean-`$HOME` full `chezmoi apply` (item 72; `--exclude=templates` is retired) reaches a working
     editor: the bootstrap exits 0, and items 1 to 4 pass in that home. Run once, at PR 31, in a
     throwaway user on dresden.
@@ -1392,10 +1561,11 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
 ## 11. The pull request sequence
 
 One pull request per behavior, small (operator rule 2026-08-10): a PR changes one plugin, one bug, one
-option or one mechanism, so 62 PRs (v4.3 split 5, 7, 19, 30b and 30c; the letter and digit suffixes
-keep the old numbers readable). Each has the review pipeline the memory describes and its own
-keymap dump diff. The **Depends on** cell is complete: it names every PR whose merge the row needs for
-its behavior AND every earlier PR that edits a file the row edits (the shared-file rule below), so a
+option or one mechanism, so 69 PRs (v4.3 split 5, 7, 19, 30b and 30c; v4.4 split 28 and added 6b,
+24a, 24b, 29c, 29d and 29e; the letter and digit suffixes keep the old numbers readable). Each has
+the review pipeline the memory describes and its own keymap dump diff. The **Depends on** cell is
+complete: it names every PR whose merge the row needs for its behavior AND every earlier PR that
+edits a file the row edits (the shared-file rule below), so a
 PR opens for review only when every PR in its cell is merged. `lazy-lock.json` is the one shared file
 left out of those cells: every lock edit adds, removes or moves ONE key, a textual conflict there is
 resolved by keeping both sides, and the re-gate rule below re-proves the result.
@@ -1418,17 +1588,18 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 7d | Bug #1: `github.account().username` at `git.lua:267` (`custom_api/github.lua`, `git.lua`)                | PR 7c                 | 1                                           |
 | PR 7e | Split `map` and `overseer_runner` out of `util.lua` into `keymap.lua` and `overseer.lua`, closure included (6.2 measures it as load-bearing, not redundant) (`custom_api/util.lua`, `custom_api/init.lua`, `init.lua`, `plugins/git.lua`, `tests/dump_state.lua`) | PR 7d | 57 |
 | PR 7f | Rename `copy_URL_to_clipboard` to `copy_url_to_clipboard` and its one caller (`custom_api/git.lua`, `plugins/git.lua:36`, after PR 7e) | PR 7e | 60 |
+| PR 6b | The Lua suite runs directly: delete `test/unit/nvim-custom-api.bats`, give `test/run-test-suite.sh` a Lua camp that runs `dot_config/nvim/tests/run.lua` under `nvim --headless --clean -l`, counted in the summary and subject to the slow-test warning; the bats file's two runner self-checks become the Lua runner's own tests; `test/validate-tests.sh` learns the shape | PR 6 | none (operator ruling: one testing framework does not call another) |
 | PR 8  | Delete `delegate.lua`; `<leader>d` regroup (`keymaps.lua`, `which-key.lua`)                             | PR 7f, PR 4c          | 6, 10, 61                                   |
 | PR 9  | MCP server evaluation ONLY: `nvim-mcp` installed by hand, the six criteria in table order, the row taken; one commit, the evaluation record; nothing installed by chezmoi, nothing registered, no CLAUDE.md edit | PR 2 | 62 (evaluation) |
 | PR 10a | By PR 9's row. `nvim-mcp` rows: the `run_onchange` install script, `lua/plugins/nvim-mcp.lua`, the registrations in `modify_private_dot_claude.json` and the Codex config template, the 7.5 rule in both CLAUDE.md files, and on the resolver row also the resolver with its bats test as the registered command. Crate rows: the custom crate's design spec only | PR 9, PR 4d (`dot_config/nvim/CLAUDE.md`), the PR that lands `private_dot_codex/private_config.toml.tmpl` on `main` (number recorded in PR 9's record) | 62 (ship), 63, 73 (MCP half), custom #4 (resolver) on the `nvim-mcp` rows |
 | PR 10b | The custom crate's build with its registrations and the 7.5 rule, only on a crate row of PR 9's table; skipped with a stated reason otherwise | PR 10a, PR 4d (`dot_config/nvim/CLAUDE.md`), the Codex-template PR | custom #4 (build), 63, 73 (MCP half) on the crate rows |
 | PR 12 | `claudecode.nvim` provider none, the `<leader>C` group row and keymaps, the item-78 header comment, auto-save compatibility (`which-key.lua`, `autosave.lua`, `lsp.lua` for lsp-format's early return) | PR 8, PR 29a (`lsp.lua`) | 31, 42, 73 (send half), 77, 78 |
-| PR 11 | vim-slime with the herdr target, the Enter and multiline check recorded, `<leader>Cp` and `CP` under the PR 12 group; creates `custom_api/herdr.lua` | PR 12 | 39 |
+| PR 11 | The shared herdr seam: creates `custom_api/herdr.lua` with `agent_pane`, `send`, the interrupt policy and `send_selection_or_paragraph`, plus `<leader>Cp` under the PR 12 group. No plugin, no pin, no `<leader>CP` | PR 12 | 39 |
 | PR 13 | The launch helper `<leader>Cc` over `herdr-nvim`'s lookup, `agent prompt`, `pane split --env`, `agent start`; extends `custom_api/herdr.lua` | PR 12, PR 11 (`custom_api/herdr.lua`) | 77 (launch) |
 | PR 23 | git-blame: rebuild the three keymaps on `custom_api` and gitsigns `on_attach`, then drop the plugin (`git.lua`, `custom_api/git.lua`, `custom_api/github.lua`) | PR 7f, PR 18 | 21, 28 |
-| PR 16 | Custom #3: the agent-context sender, `agent_context`, the best-effort state gate and one-slot queue, `<leader>Cx`; shares the `<leader>C` keymap file with PR 13 | PR 12, PR 13, PR 23 | custom #3 |
-| PR 14 | Custom #1: the editor-side pns producer, `task_events`, with its overseer and `xcodebuild.nvim` edges (`overseer.lua`, the xcodebuild spec); the neotest edge is PR 28's | PR 7f, PR 3, PR 19b | custom #1 |
-| PR 15 | Custom #2: the review-ledger quickfix, `review_ledger`                                                  | PR 7f                 | custom #2                                   |
+| PR 16 | Custom #3: the line annotator, `compose_text` into `herdr-nvim`'s `comments.add` and `ui.decorate`, `<leader>Cx`; no send path; shares the `<leader>C` keymap file with PR 13 | PR 12, PR 13, PR 23 | custom #3 |
+| PR 14 | Custom #1: the editor-side pns producer, no module: the overseer, `xcodebuild.nvim` and neotest edges each call `pns --elapsed <secs>` (`overseer.lua`, the xcodebuild spec, `neotest.lua`) | PR 7f, PR 3, PR 19b, PR 28b (`neotest.lua`), and the pns refactor that builds `--elapsed` | custom #1 |
+| PR 15 | Custom #2: `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline awk in `keymaps.lua`; no module, no fixture | PR 7f, PR 8 (`keymaps.lua`) | custom #2 |
 | PR 17a | Drop cspell (`lsp.lua`)                                                                                 | PR 5b                 | 23                                          |
 | PR 17b | Drop gitmoji (`blink-cmp.lua`)                                                                          | PR 2                  | 24                                          |
 | PR 17c | Drop nvim-notify (`noice.lua`)                                                                          | PR 2                  | 25                                          |
@@ -1442,26 +1613,32 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 22a | harpoon: bug #10, the width read at spec load                                                           | PR 2                  | 11                                          |
 | PR 22b | noice: bug #17, `inc_rename` (`noice.lua`)                                                              | PR 17c                | 18                                          |
 | PR 24 | Drop telescope (octo on snacks); the octo `<localleader>` groups checked by hand (`git.lua`, `chezmoi.lua`, `autosave.lua`) | PR 23, PR 12 | 29, 32 |
+| PR 24a | Evaluate `atlas.nvim` against octo (5.6): a research document with an outcome table and no install; the body states adopt or not, and an adopt outcome is its own later PR | PR 24 | none (5.6) |
+| PR 24b | Evaluate `review.nvim` against the `herdr-nvim` annotation flow (5.6): same shape, adopted only if it adds something `<leader>Ac`, `<leader>As` and `<leader>AS` lack | PR 16 | none (5.6) |
 | PR 25 | dial spec with boole's augends, then drop boole                                                          | PR 2                  | 30                                          |
 | PR 26a | Bump nvim-surround to ^4 (`textobjects.lua`)                                                            | PR 2                  | 33, 34 (none-ls no-op recorded here)        |
 | PR 26b | Bump hlslens +1 (bug #15)                                                                                | PR 2                  | 16                                          |
 | PR 26c | Bump catppuccin with the colorscheme rename (bug #16, `ui.lua`)                                         | PR 2                  | 17                                          |
 | PR 27 | gopls in Mason and `go` in the YAML (`lsp.lua`)                                                          | PR 17a                | 37                                          |
-| PR 28 | neotest with its adapters, `<leader>t`, and the neotest edge of the pns producer (`which-key.lua`)      | PR 3, PR 12, PR 14    | 44                                          |
+| PR 28a | neotest core plus every eager adapter (Rust, Python, Go, Bash over our own `neotest-bashunit`, and Zig through the shared `neotest-vim-test`), `<leader>t` and its which-key group row (`which-key.lua`); each adapter verified against a scratch project in a real pane. No pns edge | PR 3, PR 12, and for the Bash row only, the bashunit program's T1 and T2 | 44 (part) |
+| PR 28b | The ft-lazy adapters (JS/TS, Lua, Java, Elixir, Swift from Codeberg); each verified against a scratch project in a real pane. No pns edge | PR 28a | 44 (part) |
 | PR 29a | Health floor: none-ls executable gating (`lsp.lua`)                                                     | PR 27                 | 68 (none-ls half), 71 (health half)         |
 | PR 29b | Health floor: the treesitter runtimepath investigation and the treesitter-context check                | PR 2                  | 36 (note), 68, 71 (health half)             |
-| PR 30a | Startup: triggers for the LSP group (`lsp.lua`)                                                         | PR 29a, PR 12 (`lsp.lua`) | 48 (part)                               |
+| PR 29c | LSP polish: remove the double `BufWritePre` format (lsp-format's `on_attach` hook, reached from the `LspAttach` autocmd at `lsp.lua:354`, and the global `BufWritePre` at `lsp.lua:362`, both in the `AutoformatGroup` augroup opened at `lsp.lua:349`); diagnostics `severity_sort`, sign icons, `source = "if_many"`, `virtual_lines = { current_line = true }`; `vim.o.winborder` (and 0.12's `pumborder`) replacing noice's `lsp_doc_border` and blink's `rounded`; `vim.lsp.codelens.enable()` and inlay hints enabled at attach (both dead config today); delete `options.lua:17` (`vim.g.deprecation_warnings`, a LazyVim leftover); pin blink.cmp to `version = "1.*"` | PR 29a, PR 12 (`lsp.lua`), PR 22b (`noice.lua`), PR 17b (`blink-cmp.lua`), PR 20 (`options.lua`) | none (LSP polish) |
+| PR 29d | Pin refresh: `lazy-lock.json` alone, whose newest pin is 2025-12-30 against Neovim 0.12.5, under the full gate harness so a regression it causes is attributable to it. The two `main`-branch treesitter pins are held back and left to PR 29e, so the un-archived line is bumped deliberately and not swept along | PR 29c, PR 28b (the last PR that adds a pin) | none (pin refresh) |
+| PR 29e | nvim-treesitter current (5.5): confirm the branch the config pins, list every feature that reads the old modules system (highlight, indent, incremental selection, textobjects, `aerial`, `treesitter-context`), move to the supported line if it has moved again, pin it, and re-verify every treesitter-backed feature live on the six filetypes; the dump gate runs at ten runs a side | PR 29d (`lazy-lock.json` order), PR 29b (`treesitter-context`) | none (36 revisited) |
+| PR 30a | Startup: triggers for the LSP group (`lsp.lua`)                                                         | PR 29a, PR 12, PR 29c (`lsp.lua`) | 48 (part)                       |
 | PR 30b1 | Startup: triggers for fugitive and its deps (`git.lua`)                                                | PR 24                 | 48 (part)                                   |
 | PR 30b2 | Startup: triggers for octo (`git.lua`)                                                                 | PR 30b1               | 48 (part)                                   |
-| PR 30c1 | Startup: `keys` for treesj (`treesj.lua`)                                                              | PR 1 to 29b           | 48 (part)                                   |
-| PR 30c2 | Startup: `event` and the toggle key for auto-save (`autosave.lua`)                                     | PR 1 to 29b; PR 24 (`autosave.lua`) | 48 (part)                     |
-| PR 30c3 | Startup: `cmd` and `keys` for overseer (`overseer.lua`)                                                | PR 1 to 29b; PR 14 (`overseer.lua`) | 48 (part)                     |
-| PR 30c4 | Startup: `keys` for harpoon (`harpoon.lua`)                                                            | PR 1 to 29b; PR 22a (`harpoon.lua`) | 48 (part)                     |
-| PR 30c5 | Startup: `cmd` and `keys` for urlview (`urlview.lua`)                                                  | PR 1 to 29b           | 48 (part)                                   |
-| PR 30c6 | Startup: `cmd` and `keys` for sort (`sort.lua`)                                                        | PR 1 to 29b           | 48 (part)                                   |
-| PR 30c7 | Startup: `keys` for live-rename (`live-rename.lua`)                                                    | PR 1 to 29b           | 48 (part)                                   |
-| PR 30c8 | Startup: `cmd` and `keys` for aerial (`aerial.lua`)                                                    | PR 1 to 29b           | 48 (part)                                   |
-| PR 30c9 | Startup: `event = "VeryLazy"` for claudecode.nvim (`claudecode.lua`)                                   | PR 1 to 29b; PR 16 (`claudecode.lua`) | 48 (part)                   |
+| PR 30c1 | Startup: `keys` for treesj (`treesj.lua`)                                                              | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c2 | Startup: `event` and the toggle key for auto-save (`autosave.lua`)                                     | PR 1 to 29e; PR 24 (`autosave.lua`) | 48 (part)                     |
+| PR 30c3 | Startup: `cmd` and `keys` for overseer (`overseer.lua`)                                                | PR 1 to 29e; PR 14 (`overseer.lua`) | 48 (part)                     |
+| PR 30c4 | Startup: `keys` for harpoon (`harpoon.lua`)                                                            | PR 1 to 29e; PR 22a (`harpoon.lua`) | 48 (part)                     |
+| PR 30c5 | Startup: `cmd` and `keys` for urlview (`urlview.lua`)                                                  | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c6 | Startup: `cmd` and `keys` for sort (`sort.lua`)                                                        | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c7 | Startup: `keys` for live-rename (`live-rename.lua`)                                                    | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c8 | Startup: `cmd` and `keys` for aerial (`aerial.lua`)                                                    | PR 1 to 29e           | 48 (part)                                   |
+| PR 30c9 | Startup: `event = "VeryLazy"` for claudecode.nvim (`claudecode.lua`)                                   | PR 1 to 29e; PR 16 (`claudecode.lua`) | 48 (part)                   |
 | PR 30d | Startup: `defaults.lazy = true`, with `lazy = false` written only onto the untriggered must-load set of the section 9 table; the strict gate | PR 30a, 30b1, 30b2, 30c1 to 30c9 | 48 |
 | PR 31 | Bootstrap script, the clean-home apply, the final acceptance record                                      | PR 30d                | 50, 66 (bootstrap), 69, 70, 72              |
 
@@ -1469,7 +1646,7 @@ PR 30a to 30c9 move the number on their own: lazy.nvim marks a spec lazy wheneve
 `keys`, `ft` or `cmd`, even with `defaults.lazy = false` (`lazy/core/plugin.lua:235-241` in the
 installed pin: `plugin.lazy = plugin._.dep or defaults.lazy or plugin.event or plugin.keys or
 plugin.ft or plugin.cmd`), so each trigger PR is measured by the 9.1 gate and 30d only flips the
-default for the specs that have none. The `PR 1 to 29b` cell on the 30c rows is the lane rule made
+default for the specs that have none. The `PR 1 to 29e` cell on the 30c rows is the lane rule made
 explicit: no trigger lands before the functional work, so the trigger PRs are measured against a
 finished config; the second entry in that cell is the shared-file predecessor.
 
@@ -1478,31 +1655,60 @@ Lanes after PR 2 and PR 3, which are strictly first and second; a lane is the su
 
 | Lane          | Order                                                                  |
 | ------------- | ---------------------------------------------------------------------- |
-| custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 14, 15 |
-| LSP and tools | PR 5a, 5b, 17a, 27, 29a                                                |
-| drops and git | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 25                                 |
-| standalone    | PR 4a, 4b, 4c, 4d, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28, 29b       |
+| custom_api and agent | PR 6, 7a, 7b, 7c, 7d, 7e, 7f, 8, 9, 10a, 10b, 12, 11, 13, 23, 16, 15, then 14 last (it waits on PR 28b and on the pns refactor) |
+| LSP and tools | PR 5a, 5b, 17a, 27, 29a, 29c, 29d, 29e                                 |
+| drops and git | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 24a, 24b, 25                       |
+| standalone    | PR 4a, 4b, 4c, 4d, 6b, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
 | last          | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31                              |
 
-At most two lanes open at once (the memory's parallel-slices rule). Nothing in PR 3 to PR 29b changes
+**The bashunit program (D8), which is not one of the 69.** PR 28a's Bash row depends on it, so its
+pull requests are listed here to make that cell resolve; they belong to their own program and their
+own lanes, and none of them is counted in the 69 above. It is specified elsewhere, in
+`docs/superpowers/specs/2026-09-03-bashunit-migration-design.md` and the plan beside it, written
+investigation-first against bashunit 0.50.1; the rows below are the outline those two expand, not
+the design. Every bats test this spec still names is bats until T1 lands and bashunit after it.
+
+| PR    | Behavior                                                                                  | Depends on |
+| ----- | ------------------------------------------------------------------------------------------- | ---------- |
+| T1    | `bashunit-toolchain`: bashunit 0.50.1 into `Brewfile.dev`, the machine YAML and the CI toolchain step (all three by hand); `test/validate-tests.sh` admits the non-executable `<name>.test.sh` shape and `test/run-test-suite.sh` runs it through `bashunit` with the shuffle seed and the slow-test warning preserved; the CLAUDE.md testing section; one real bashunit test that goes red when its subject breaks | none |
+| T2    | `neotest-bashunit`: the adapter at `dot_local/share/neotest-bashunit/`, a source tree that becomes its own repository the way `~/.local/share/pns` did, loaded by lazy.nvim with `dir =`; headless Lua tests for discovery and result parsing over fixture JSON; a real-pane run against T1's test. Design first: the per-test JSON fields verified from `src/reports/json.sh` at the pin, how a failure maps to a line, what `--filter` matches, what a file with no tests returns | T1 |
+| T3a   | Migrate the small files: the pns marker tests (deleted outright when the pns refactor moves that logic into Rust) and `homebrew-weekly-converge-absence.bats`, which migrates only if the brew bash script still exists when T3a runs and otherwise dies with it. `uu-launchagent-loader.bats` is DELETED, not migrated: it tests deployment glue, out of scope under the 2026-08-05 ruling. The nvim wrapper is NOT here either; PR 6b deletes it | T1 |
+| T3b   | Migrate the six osquery unit files                                                           | T3a |
+| T3c   | Migrate the three osquery integration files                                                  | T3b |
+| T3d   | Migrate the three osquery e2e files, then bats-core leaves `Brewfile.dev`, the machine YAML and CI | T3c |
+
+Each migration PR proves equivalence: the same assertions, the subject spot-killed to show the
+migrated test red, every test under one second.
+
+At most two lanes open at once (the memory's parallel-slices rule). Nothing in PR 3 to PR 29d changes
 `lazy.lua`'s `defaults` or adds a trigger, so PR 30a to 30d are the only PRs whose startup number is
-expected to move by more than noise; every other PR is held to the 9.1 tolerance.
+expected to move by more than noise; every other PR is held to the 9.1 tolerance. PR 29d is the one
+that could move it without meaning to, which is why it is a pull request of its own.
 
 **Shared files and the merge-main-then-re-gate rule.** The lanes are not disjoint on disk. The files
 more than one PR edits, each with its PRs in merge order, which is the order the **Depends on** cells
 encode:
 
-- `lua/plugins/lsp.lua`: PR 3, 5a, 5b, 17a, 27, 29a, 12, 30a (PR 12 edits lsp-format's `BufWritePre`
-  handler for the auto-save flag, so it sits in this chain after PR 29a and before PR 30a).
-- `lua/plugins/which-key.lua`: PR 3, 4b, 4c, 8, 12, 28.
+- `lua/plugins/lsp.lua`: PR 3, 5a, 5b, 17a, 27, 29a, 12, 29c, 30a (PR 12 edits lsp-format's
+  `BufWritePre` handler for the auto-save flag, and PR 29c removes the duplicate format that handler
+  is half of, so 12 sits after 29a and 29c after 12).
+- `lua/plugins/which-key.lua`: PR 3, 4b, 4c, 8, 12, 28a.
 - `lua/plugins/git.lua`: PR 7c, 7d, 7e, 7f, 17d, 17e, 18, 23, 24, 30b1, 30b2.
 - `lua/custom_api/git.lua`: PR 6, 7a, 7b, 7c, 7f, 23.
 - `lua/custom_api/github.lua`: PR 6, 7b, 7c, 7d, 23.
 - `lua/custom_api/util.lua`: PR 6, 7e. `lua/custom_api/init.lua`: PR 6, 7e, 8.
 - `tests/git_spec.lua`: PR 6, 7a, 7b, 7c, 7f, 23. `tests/github_spec.lua`: PR 7b, 7c, 7d, 23.
-- `lua/custom_api/herdr.lua`: PR 11 (creates it), 13 (extends it), 16 (reads it).
+- `tests/run.lua`: PR 6 (creates it), 6b (the suite runner calls it directly and its two self-checks
+  move in). `test/unit/nvim-custom-api.bats`: PR 6 (creates it), 6b (deletes it).
+- `lua/custom_api/herdr.lua`: PR 11 (creates it, with the seam and the interrupt policy), 13
+  (extends it with the launch helper), 16 (reads it). `tests/herdr_spec.lua`: PR 11 (creates it for
+  `may_send`), 13 (adds `agent_name` and `plan_launch`).
+- `lua/config/keymaps.lua`: PR 4b (the `<leader>L` descriptions), 8 (drops the `delegate.setup()` at
+  `:6` and regroups `<leader>d`), 15 (adds `:ReviewLedger`).
 - `lua/plugins/claudecode.lua`, the `<leader>C` keymap file: PR 12, 11, 13, 16, 30c9.
-- `lua/plugins/noice.lua`: PR 17c, 22b. `lua/config/autocmds.lua`: PR 4b, 20.
+- `lua/plugins/noice.lua`: PR 17c, 22b, 29c. `lua/plugins/blink-cmp.lua`: PR 17b, 29c.
+- `lua/config/autocmds.lua`: PR 4b, 20. `lua/config/options.lua`: PR 20, 29c.
+- `lua/plugins/neotest.lua`: PR 28a (creates it), 28b (adds the ft-lazy adapters), 14 (the pns edge).
 - `lua/plugins/overseer.lua`: PR 19a, 19b, 14, 30c3. `lua/plugins/autosave.lua`: PR 12, 24, 30c2.
 - `lua/plugins/harpoon.lua`: PR 22a, 30c4. The xcodebuild spec: PR 3, 14. `lua/config/lazy.lua`:
   PR 4a, 30d.
@@ -1512,19 +1718,22 @@ encode:
 Two rules keep that from being a pipeline gap. First, two PRs that touch the same file are serialized:
 the later one waits for the earlier one to merge before it opens for review, and that edge is in its
 **Depends on** cell (which is why PR 20 depends on PR 4b, PR 22b on PR 17c, PR 24 on PR 23, PR 16 on
-PR 13, PR 13 on PR 11, PR 12 on PR 29a, and PR 10a on PR 4d). Second, every PR merges `main` into its
-branch immediately before each review round
+PR 13, PR 13 on PR 11, PR 12 on PR 29a, PR 15 on PR 8, and PR 10a on PR 4d). Second, every PR
+merges `main` into its branch immediately before each review round
 and re-runs its whole gate after the merge: the dump diff (3.7 check 5), the startup median against
 the 9.1 gate, `just test-unit` and `just lint-check`. A review verdict on a branch that has not been
 re-gated since its last merge of `main` is not a verdict.
 
 ## 12. Open questions, each with a proposed default
 
-1. **neotest adapters.** Which adapters ship in PR 28. Default: Swift through the operator's own
-   `webdavis/neotest-swift` (a SwiftPM adapter, pushed 2024-03-26) for Vapor packages, with
-   `xcodebuild.nvim`'s own Test Explorer for Xcode projects; Rust through a `cargo test` adapter; no
-   Python, Go or Lua adapters until a project needs one. Adapter repository names are verified at plan
-   time, not here.
+1. **neotest adapters.** RESOLVED 2026-09-03: the adapter set is the table in 5.3, one per language,
+   split across PR 28a and PR 28b, and both of the adapter pins this question defaulted to are
+   dropped (`webdavis/neotest-swift` is an empty scaffold, `rouge8/neotest-rust` is archived).
+   ALSO RESOLVED, by operator ruling the same day: bashunit replaces bats for the WHOLE 209-test
+   corpus, and the neotest adapter for it is one we write. That is its own program (the table in 11
+   lists its six PRs so every dependency cell resolves), and PR 28a's Bash row is the only thing in
+   THIS program that waits on it. By the operator's later addendum the twelve osquery bats files
+   migrate NOW rather than waiting on a Rust port: the port, when it comes, deletes them.
 2. **nvim-dap for xcodebuild.nvim.** RESOLVED 2026-09-02: yes, operator decision overruling the
    earlier default of no. `codelldb` stays declared in Mason's `ensure_installed` for c/cpp/rust only:
    the pinned plugin leaves its own `integrations.codelldb.enabled` at the upstream default of false
@@ -1534,7 +1743,8 @@ re-gated since its last merge of `main` is not a verdict.
    criteria 1 to 3 fail; the custom crate only on a criterion 4, 5 or 6 failure. The evaluation in
    PR 9 decides, by the 7.3 table, inside its one-day budget; PR 10a or PR 10b ships and registers.
 4. **The custom server's name**, if built. Default `nvim-workspace-mcp`; confirm before creating it
-   (rename rule). The same applies to the three module names in 7.7.
+   (rename rule). The same applies to the one module name 7.7 still proposes,
+   `custom_api/annotate.lua`; #1 and #2 no longer create a module at all.
 5. **Agent keymap prefix.** Default `<leader>C` "claude"; the implementer may pick another free letter
    under the section 8.2 rule, stating why.
 6. **`go` via Homebrew for Mason's gopls.** Default: yes, it is what decision D requires to work; the
@@ -1543,6 +1753,12 @@ re-gated since its last merge of `main` is not a verdict.
    stylua only if Homebrew's stylua disagrees with the clean Mason check), and PR 4d lifts them with the
    rewrap as its own commit. The alternative, a permanent exclusion, would leave the editor's own
    markdown the only unformatted markdown in the repo.
+8. **The osquery pipeline's Rust port.** OUTSIDE this program, and recorded here because it is what
+   eventually retires the bash tests 12.1's answer creates. 191 of the 209 bats tests are the osquery
+   pipeline and no port is scheduled anywhere. Proposed: record the port as the next Rust program
+   after this overhaul, ahead of SP4 and SP5. NEEDS OPERATOR. Nothing in this plan or in the bashunit
+   program waits on the answer: the operator's addendum of 2026-09-03 ruled that the twelve osquery
+   files migrate to bashunit now and that the port deletes them when it lands.
 
 ## 13. Appendix A: inventory item to section and pull request
 
@@ -1583,15 +1799,15 @@ re-gated since its last merge of `main` is not a verdict.
 | 33   | nvim-surround ^4                              | 5.5         | PR 26a    |
 | 34   | none-ls no forced bump                        | 1, 5.5      | PR 26a (recorded as no-op) |
 | 35   | keep dial, markview, toggleterm               | 5.5         | resolved  |
-| 36   | treesitter master to main                     | 5.5         | STRUCK; archival note and context check in PR 29b |
+| 36   | treesitter master to main                     | 5.5         | STRUCK as worded (the config is already on `main`); the un-archived line is brought current in PR 29e, context check in PR 29b |
 | 37   | gopls (D)                                     | 5.3         | PR 27     |
 | 38   | conform / nvim-lint                           | 1           | deferred (non-goal) |
-| 39   | vim-slime                                     | 7.4         | PR 11     |
+| 39   | raw-text send to the agent pane (no vim-slime) | 7.4        | PR 11     |
 | 40   | buffer auto-reload                            | 5.4         | PR 20     |
 | 41   | claude-tmux.nvim                              | 0           | moot: tmux is gone; not added |
 | 42   | auto-save formatting compat (F)               | 5.3         | PR 12     |
 | 43   | xcodebuild.nvim (F, early)                    | 5.3, 10.7   | PR 3      |
-| 44   | neotest (F)                                   | 5.3, 12.1   | PR 28     |
+| 44   | neotest (F)                                   | 5.3, 12.1   | PR 28a, PR 28b |
 | 45   | alpha flatten, archive, rm nested .git        | 3.3, 3.6    | PR 2 (trash by the operator, after the guards) |
 | 46   | beta lock tracked, checker off                | 3.5         | PR 2 (track), PR 4a (checker) |
 | 47   | gamma lazyvim.json and augroups               | 3.5         | PR 4b     |
@@ -1616,7 +1832,7 @@ re-gated since its last merge of `main` is not a verdict.
 | 66   | headless Lua test wired to just and bootstrap | 6.3         | PR 6 (harness), PR 31 (bootstrap) |
 | 67   | pure-helper tests                             | 6.3         | PR 7a     |
 | 68   | runtimepath bug                               | 2, 4        | PR 29b    |
-| 69   | sequence                                      | 11          | PR 1 to PR 31, 62 rows |
+| 69   | sequence                                      | 11          | PR 1 to PR 31, 69 rows |
 | 70   | success criteria                              | 10          | PR 31     |
 | 71   | checkhealth, startuptime, bugs live, lint     | 10          | every PR; lint from PR 1, health floor PR 29a and 29b |
 | 72   | clean-home apply (full apply, not --exclude)  | 10.10       | PR 31     |
@@ -1631,12 +1847,12 @@ re-gated since its last merge of `main` is not a verdict.
 | C    | git-blame: remap                              | 5.2         | PR 23     |
 | D    | gopls: add                                    | 5.3         | PR 27     |
 | E    | rename                                        | 6.2         | PR 7f     |
-| F    | neotest, auto-save, xcodebuild in scope       | 5.3         | PR 3, PR 12, PR 28 |
+| F    | neotest, auto-save, xcodebuild in scope       | 5.3         | PR 3, PR 12, PR 28a, PR 28b |
 | G    | own program                                   | 0           | this spec |
 | H    | import unchanged first                        | 3.7         | PR 2      |
-| custom #1 | editor-side pns producer                 | 7.7         | PR 14     |
-| custom #2 | review-ledger quickfix                   | 7.7         | PR 15     |
-| custom #3 | agent-context sender                     | 7.7         | PR 16     |
+| custom #1 | editor-side pns producer (no module; pns `--elapsed`) | 7.7 | PR 14, after the pns refactor |
+| custom #2 | review-ledger quickfix (`:ReviewLedger`, inline awk) | 7.7 | PR 15 |
+| custom #3 | line annotator into `herdr-nvim` comments | 7.7        | PR 16     |
 | custom #4 | Neovim MCP server, evaluate then build   | 7.3         | PR 9 (evaluate), PR 10a (resolver or crate spec), PR 10b (crate build) |
 
 Struck and staying struck: items 8, 14, 36 (as originally worded), 45's chezmoi.nvim autocmd
@@ -1647,3 +1863,5 @@ rationale, 48's "14 eager specs" premise, and 53.
 The operator's list of ideas that are NOT built, kept so nobody proposes them again: chezmoi
 redirection (`chezmoi.nvim` exists) and GitHub URL helpers (`Snacks.gitbrowse` and the existing
 `custom_api` cover them). Every proposed custom plugin is approved and appears in section 7.
+Two further plugins are not adopted on sight either, `sidekick.nvim` and `md-render`, and two are
+evaluated rather than assumed, `atlas.nvim` and `review.nvim`; all four are in 5.6.

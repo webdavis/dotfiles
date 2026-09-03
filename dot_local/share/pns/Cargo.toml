@@ -32,6 +32,35 @@
 # to keep. The probe edge is std plus the JSON the herdr CLI answers in, which
 # is the same rule: a format nobody should hand-parse.
 
+# THE WORKSPACE. `crates/` holds the architectural boundaries the refactor is
+# converging on, and this manifest is still the legacy package that owns every
+# behavior until each one moves. Both facts are deliberate for the duration:
+# the binary target must stay named `pns`, the builder must keep finding it at
+# this manifest path, and uu must keep resolving `path = "../pns"`, so the
+# package cannot move house on the way through.
+#
+# The dependency edges are declared in the member manifests and nowhere else,
+# which is what enforces them: a crate that omits another cannot name it, and
+# the compiler refuses the `use` rather than a review catching it. The allowed
+# edges are
+#
+#   pns-application -> pns-domain
+#   pns-adapters    -> pns-application, pns-domain, pns-protocol
+#   pns-cli         -> pns-adapters, pns-application, pns-domain, pns-protocol
+#
+# and pns-protocol depends on nothing, because an external contract crate that
+# imported the domain would let the wire format dictate the internal model.
+# No member may depend on this legacy package: the traffic runs the other way,
+# out of here and into the crates, one behavior at a time.
+[workspace]
+members = [
+  "crates/pns-adapters",
+  "crates/pns-application",
+  "crates/pns-cli",
+  "crates/pns-domain",
+  "crates/pns-protocol",
+]
+
 [package]
 name = "pns"
 version = "0.1.0"
