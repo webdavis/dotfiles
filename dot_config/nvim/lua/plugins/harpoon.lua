@@ -1,9 +1,12 @@
 return {
   "ThePrimeagen/harpoon",
   branch = "harpoon2",
-  -- A function, not a table: a table literal reads the width while lazy.nvim is
-  -- still reading the spec, so the menu is sized off whatever the window happened
-  -- to be at startup rather than at the moment harpoon loads.
+  -- A function, not a table: a table literal is evaluated once while lazy.nvim
+  -- reads the spec, and that one width is then frozen for the session. Harpoon
+  -- carries no lazy trigger, so at startup both spellings measure the same
+  -- window; the difference shows on `:Lazy reload`, which clears lazy's opts
+  -- cache and re-resolves (measured in a 40-column split: 76 from the frozen
+  -- table, 36 from the function).
   opts = function()
     return {
       menu = {
