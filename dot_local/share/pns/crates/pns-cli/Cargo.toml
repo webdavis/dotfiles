@@ -1,0 +1,21 @@
+# pns-cli: the composition root.
+#
+# Depends on every other member because composing them is its job: it decodes
+# argv, builds the concrete adapters, hands them to a use case, and translates
+# the outcome into stdout, stderr and an exit code.
+#
+# The `pns` BINARY TARGET is not here yet. It stays in the legacy package at
+# the workspace root until the composition step moves it, because the builder,
+# the LaunchAgent, the hooks, uu and moshi all invoke it by that one name and
+# it may not go missing between two pull requests.
+
+[package]
+name = "pns-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pns-adapters = { path = "../pns-adapters" }
+pns-application = { path = "../pns-application" }
+pns-domain = { path = "../pns-domain" }
+pns-protocol = { path = "../pns-protocol" }
