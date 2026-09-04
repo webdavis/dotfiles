@@ -115,6 +115,7 @@ return {
         "docker_compose_language_service",
         "dockerls",
         "eslint",
+        "gopls",
         "graphql",
         "html",
         "lua_ls",
