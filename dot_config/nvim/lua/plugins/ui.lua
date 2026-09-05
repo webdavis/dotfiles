@@ -74,8 +74,30 @@ return {
       -- nothing until `:Lazy restore`, so the window between an apply and that
       -- restore is real, and lazy reports the failure through `vim.notify`, which
       -- makes it silent at startup.
-      if not pcall(vim.cmd.colorscheme, "catppuccin-nvim") and not pcall(vim.cmd.colorscheme, "catppuccin") then
-        vim.notify("catppuccin: neither `catppuccin-nvim` nor `catppuccin` loaded", vim.log.levels.WARN)
+      --
+      -- Which name exists is settled BEFORE loading rather than by trying one and
+      -- falling back when it raises. A fallback fires on ANY error, so an error
+      -- raised once from a ColorScheme callback ran the whole loader a second
+      -- time, and a persistent one was reported as "neither loaded" with both
+      -- real errors thrown away. `getcompletion` answers off the `colors/` files
+      -- on the runtimepath, which is the question actually being asked.
+      local installed = vim.fn.getcompletion("catppuccin", "color")
+      local name
+      for _, candidate in ipairs({ "catppuccin-nvim", "catppuccin" }) do
+        if vim.tbl_contains(installed, candidate) then
+          name = candidate
+          break
+        end
+      end
+
+      if not name then
+        vim.notify("catppuccin: neither `catppuccin-nvim` nor `catppuccin` is installed", vim.log.levels.WARN)
+        return
+      end
+
+      local ok, err = pcall(vim.cmd.colorscheme, name)
+      if not ok then
+        vim.notify(("catppuccin: `%s` failed to load: %s"):format(name, err), vim.log.levels.WARN)
       end
     end,
   },
