@@ -1331,9 +1331,20 @@ overrides it (`herdr-nvim.lua:6`, 8.1), so every `herdr-nvim` key in this spec a
 `<leader>A<letter>`. So there is no send path here, and with it go the state gate, the one-slot queue,
 the detached `herdr agent wait`, the recheck and the state machine v4.3 carried: nothing is ever typed
 into an agent by this keymap, so there is nothing to race and nothing to be best-effort about. The
-composer is a text function over data the editor already holds. Pure and tested: `compose_text(parts)`,
-including that a nil part leaves no blank line. The module name (`custom_api/annotate.lua` proposed)
-follows the rename rule above.
+composer is a text function over data the editor already holds. Pure and tested:
+`compose_text(parts, separator)`, including that a nil part contributes no gap. The module name
+(`custom_api/annotate.lua` proposed) follows the rename rule above.
+
+**The stored text is ONE line, parts joined by ` | `** (space, pipe, space) in that same order. It was
+one part per line until 2026-09-05, when a review measured that herdr-nvim cannot list a multi-line
+comment: `ui.comment_list` builds one buffer line per comment out of the comment's own text
+(`ui.lua:89` and `ui.lua:147` at the installed commit `41c30f5`), so `nvim_buf_set_lines` raises
+`'replacement string' item contains newlines` and every annotation carrying two parts broke
+`<leader>Al` outright. We do not patch third-party plugins, so the separator moved instead of the
+plugin. `compose_text` keeps the newline as its default and takes the separator as an argument, so
+this reverts to one part per line by changing the one constant in `annotate.lua` once herdr-nvim can
+list a multi-line comment. The upstream report is drafted at
+`/tmp/herdr-nvim-multiline-issue.md`.
 
 ## 8. Keymap and which-key design
 

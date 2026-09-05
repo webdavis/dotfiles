@@ -44,30 +44,45 @@ local FUNCTION_NODE_SUFFIXES = {
 -- would order them by whatever the hash walk returned that run.
 local PART_ORDER = { "mention", "diagnostic", "func", "blame" }
 
+-- What goes between the parts of a STORED annotation. One line, not four,
+-- because herdr-nvim's comment listing builds one buffer line per comment out
+-- of the comment's own text (`ui.lua:89`, `ui.lua:147` at the installed
+-- commit 41c30f5) and `nvim_buf_set_lines` raises
+-- `'replacement string' item contains newlines` on anything multi-line. Every
+-- annotation carrying two parts therefore broke `<leader>Al` outright.
+--
+-- This is the ONE value to change back to "\n" once herdr-nvim can list a
+-- multi-line comment; the join itself already takes either. It is exported so
+-- the spec pins it: the shape of a stored annotation is an operator ruling,
+-- and changing it should be a deliberate edit to a red test rather than a
+-- quiet edit to a constant.
+M.PART_SEPARATOR = " | "
+
 -- ╭──────╮
 -- │  API │
 -- ╰──────╯
 
----Join the parts into one annotation, one part per line, in a fixed order.
+---Join the parts into one annotation, in a fixed order.
 ---
----A missing part contributes no line at all: an annotation whose diagnostic was
----absent must not carry the blank line where it would have been.
+---A missing part contributes nothing at all: an annotation whose diagnostic was
+---absent must not carry the gap where it would have been.
 ---@param parts { mention: string?, diagnostic: string?, func: string?, blame: string? }
+---@param separator string? what goes between the parts; a newline by default
 ---@return string
-function M.compose_text(parts)
+function M.compose_text(parts, separator)
   parts = parts or {}
 
-  local lines = {}
+  local kept = {}
   for _, key in ipairs(PART_ORDER) do
     local part = parts[key]
     -- An empty string is a missing part too: a diagnostic message that trimmed
     -- to nothing arrives as "" rather than nil.
     if part and part ~= "" then
-      lines[#lines + 1] = part
+      kept[#kept + 1] = part
     end
   end
 
-  return table.concat(lines, "\n")
+  return table.concat(kept, separator or "\n")
 end
 
 ---The innermost function-shaped node at or above `node`, or nil outside one.
@@ -238,7 +253,7 @@ function M.line()
     diagnostic = diagnostic_part(bufnr, line),
     func = function_part(bufnr, line, column),
     blame = blame_part(name, line),
-  })
+  }, M.PART_SEPARATOR)
 
   local id = require("herdr-nvim.comments").add(bufnr, line, line, text)
   require("herdr-nvim.ui").decorate(id)

@@ -75,6 +75,42 @@ return {
     assert(text == "first\nsecond\nthird\nfourth", "composed " .. vim.inspect(text))
   end,
 
+  ["joins with the separator it was given"] = function()
+    -- The stored text is single-line, because herdr-nvim's comment listing
+    -- cannot render a newline; the pure join still takes whichever separator
+    -- the caller wants, so it reverts by changing one argument.
+    local text = annotate.compose_text({
+      mention = "@init.lua:1",
+      diagnostic = "ERROR: undefined variable",
+      func = "function setup",
+      blame = "blame a1b2c3d",
+    }, " | ")
+    assert(
+      text == "@init.lua:1 | ERROR: undefined variable | function setup | blame a1b2c3d",
+      "composed " .. vim.inspect(text)
+    )
+  end,
+
+  ["stores its parts on one line, separated by a pipe"] = function()
+    -- The stored shape is an operator ruling (2026-09-05), not an
+    -- implementation detail: herdr-nvim's listing cannot render a newline, and
+    -- the parts still have to be told apart by whoever reads the annotation.
+    assert(annotate.PART_SEPARATOR == " | ", "separator is " .. vim.inspect(annotate.PART_SEPARATOR))
+    local text = annotate.compose_text({ mention = "@init.lua:1", blame = "blame a1b2c3d" }, annotate.PART_SEPARATOR)
+    assert(not text:find("\n", 1, true), "stored text holds a newline: " .. vim.inspect(text))
+    assert(text == "@init.lua:1 | blame a1b2c3d", "composed " .. vim.inspect(text))
+  end,
+
+  ["separates by newline when it was given no separator"] = function()
+    local text = annotate.compose_text({ mention = "@init.lua:1", blame = "blame a1b2c3d" })
+    assert(text == "@init.lua:1\nblame a1b2c3d", "composed " .. vim.inspect(text))
+  end,
+
+  ["never doubles the separator around a missing part"] = function()
+    local text = annotate.compose_text({ mention = "@init.lua:1", blame = "blame a1b2c3d" }, " | ")
+    assert(text == "@init.lua:1 | blame a1b2c3d", "composed " .. vim.inspect(text))
+  end,
+
   ["treats an empty part as no part"] = function()
     -- `git.latest_commit` returns a normalized summary, but a diagnostic
     -- message trimmed to nothing arrives as "" rather than nil.
