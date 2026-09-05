@@ -70,12 +70,18 @@ because it does not link it, and nothing links the app. No UIKit import appears 
     Shared API/  Shared API Infra/  Shared Presentation/
 
 This is the deliberate difference from the Rust five-crate layout, and it is a trade, not a free
-win. The three TARGET boundaries are enforced by the build. The folder boundaries inside
-`EssentialFeed` are not: `internal` confines a symbol to its module, and all of these folders are one
-module, so nothing stops a `Feed Feature/` file importing CoreData and calling into
-`Feed Cache/Infrastructure/` (measured on Swift 6.3.3, exit 0 clean and after `swift package clean`).
-The folders record the intent and reviewers hold it. What the case study demonstrates is that the
-trade works at this size, not that the compiler is keeping the line.
+win. The three TARGET boundaries are checkable, but not by a plain build: on Swift 6.3.3 a default
+`swift build` answers an undeclared cross-target import by build ORDER (a fresh `-j 1` build accepts
+it), so the check has to be asked for with
+`swift build --explicit-target-dependency-import-check error`, or by building one target against an
+empty scratch path.
+
+The folder boundaries inside `EssentialFeed` are not checkable at all: `internal` confines a symbol
+to its module, and all of these folders are one module, so nothing stops a `Feed Feature/` file
+importing CoreData and calling into `Feed Cache/Infrastructure/` (measured on Swift 6.3.3, exit 0
+clean and after `swift package clean`). The folders record the intent and reviewers hold it. What the
+case study demonstrates is that the trade works at this size, not that the compiler is keeping the
+line.
 
 ## The domain is ports and values
 
