@@ -52,6 +52,28 @@ return {
     )
   end,
 
+  -- A link and its target can sit in two different checkouts, and git and `gh`
+  -- both answer for the directory they RUN in, so the directory to run in is the
+  -- real file's. `github.commit_url` hands this the buffer's own name, which for
+  -- a symlinked file is the link, so resolving here is what keeps that call in
+  -- the repository the file actually belongs to.
+  ["file_dir answers with the directory of the file a symlink points at"] = function()
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root .. "/target-side", "p")
+    vim.fn.mkdir(root .. "/link-side", "p")
+    local target = root .. "/target-side/file.txt"
+    local link = root .. "/link-side/file.txt"
+    vim.fn.writefile({ "contents" }, target)
+    vim.uv.fs_symlink(target, link)
+
+    -- macOS rewrites `/var` to `/private/var`, so the directory asked for comes
+    -- off the resolver rather than off the string built above.
+    local want = vim.fn.fnamemodify(vim.uv.fs_realpath(target), ":h")
+    local got = util.file_dir(link)
+
+    assert(got == want, "answered " .. tostring(got) .. ", not " .. want)
+  end,
+
   ["run_shell_command runs a table command as argv, with no shell in between"] = function()
     -- The table form exists to keep interpolated values (branch names, remote
     -- URLs, repository names) out of a shell. Joining it back into shell text
