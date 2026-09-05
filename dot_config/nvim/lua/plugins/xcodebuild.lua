@@ -103,7 +103,25 @@ return {
       },
     },
     config = function(_, opts)
+      -- `platform/macos.lua:22` looks for `stdbuf` by that exact name to stream a macOS app's
+      -- logs without a debugger, which is how a Vapor server's output reaches the editor.
+      -- Homebrew's coreutils installs it as `gstdbuf` and keeps the GNU names in a separate
+      -- directory, so the check fails on a machine that has the tool. Put that directory on
+      -- Neovim's PATH rather than the whole machine's, which would shadow the BSD userland
+      -- every other tool here expects.
+      if vim.fn.executable("stdbuf") == 0 then
+        local gnubin = "/opt/homebrew/opt/coreutils/libexec/gnubin"
+        if vim.fn.isdirectory(gnubin) == 1 then
+          vim.env.PATH = gnubin .. ":" .. vim.env.PATH
+        end
+      end
+
       require("xcodebuild").setup(opts)
+      -- The read half of `restore_on_start`. Upstream hangs it on `VimEnter`, which has always
+      -- fired by the time an `ft = "swift"` spec loads, so the plugin's own autocmd never runs
+      -- and the saved report is never read back. Calling it here restores last run's logs,
+      -- marks, quickfix and diagnostics at the moment the first Swift file opens instead.
+      require("xcodebuild.project.appdata").load_last_report()
       -- The ordinary setup path never calls this; without it the debugger commands below do
       -- not exist at all, and checkhealth's debugger check has nothing to find.
       require("xcodebuild.integrations.dap").setup()
