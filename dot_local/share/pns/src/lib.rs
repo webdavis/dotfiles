@@ -42,7 +42,6 @@ pub mod recap;
 pub mod registry;
 pub mod routing;
 pub mod setup;
-pub mod surface;
 pub mod system;
 
 // WHAT HAS MOVED INTO `pns-domain`, re-exported so every caller keeps its old
@@ -50,3 +49,4 @@ pub mod system;
 pub use pns_domain::count::parse_count;
 pub use pns_domain::render;
 pub use pns_domain::safety;
+pub use pns_domain::surface;

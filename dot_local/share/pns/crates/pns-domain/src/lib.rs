@@ -23,3 +23,4 @@ pub mod count;
 pub mod lights;
 pub mod render;
 pub mod safety;
+pub mod surface;
