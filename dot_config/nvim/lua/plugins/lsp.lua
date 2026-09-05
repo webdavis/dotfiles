@@ -135,7 +135,33 @@ return {
   {
     "mason-org/mason.nvim",
     cmd = "Mason",
-    opts = {},
+    -- `init` runs at startup even though the plugin itself waits for `:Mason`, and putting
+    -- Mason's bin on PATH is the one part of `mason.setup()` that cannot wait for that. Mason
+    -- is the only source of `tree-sitter` on this machine, and nvim-treesitter builds parsers
+    -- from two places that run before any buffer trigger fires: the `LazyDone` core-parser
+    -- install in plugins/treesitter.lua, and a fileless `:TSUpdate`. While this group was
+    -- eager, mason-tool-installer pulled Mason in at startup and `setup()` did the prepend as
+    -- a side effect; with every spec here lazy that side effect is gone, and `tree-sitter
+    -- build` fails with ENOENT until something types `:Mason`.
+    init = function()
+      -- The same directory and the same order `mason.setup()` uses: it prepends
+      -- `install_root_dir .. "/bin"` under its default `PATH = "prepend"`, pinned in `opts`
+      -- below so the two cannot drift apart. The guard is for the environment already
+      -- carrying the directory, and for keeping this idempotent; it does not stop Mason's own
+      -- prepend, which is unconditional, so a later `:Mason` still adds a second copy. A
+      -- duplicate entry resolves to the same binary, and losing the first one does not.
+      local mason_bin = vim.fn.stdpath("data") .. "/mason/bin"
+      local path = vim.env.PATH
+      if not path then
+        vim.env.PATH = mason_bin
+      elseif not vim.list_contains(vim.split(path, ":", { plain = true }), mason_bin) then
+        vim.env.PATH = mason_bin .. ":" .. path
+      end
+    end,
+    opts = {
+      -- Mason's own default, named because the `init` above hard-codes the same prepend.
+      PATH = "prepend",
+    },
   },
   {
     "mason-org/mason-lspconfig.nvim",
