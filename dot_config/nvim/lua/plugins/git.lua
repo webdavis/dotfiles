@@ -78,6 +78,7 @@ return {
         signs_staged_enable = true,
         signcolumn = true,
         numhl = true,
+        current_line_blame = true,
         on_attach = function(bufnr)
           -- `bufnr` comes from `on_attach` and ensures the mapping only works in this buffer.
 
@@ -232,6 +233,82 @@ return {
             lhs = "<C-g>did",
             rhs = gitsigns.diffthis,
             desc = "Gitsigns: side-by-side",
+            buffer = bufnr,
+          })
+
+          -- Blame mappings: the `<C-g>B` group (spec 5.2). Buffer-local so they
+          -- exist only where gitsigns attached, which is what the old git-blame
+          -- TODO asked for.
+          -- ————————————————————————————————————————————————————————————————————
+          local function blame_sha_at_cursor()
+            return try(function()
+              return git.blame_sha({ file = vim.api.nvim_buf_get_name(bufnr), line = vim.fn.line(".") })
+            end, { label = "git.blame_sha" })
+          end
+
+          local function commit_url_at_cursor()
+            local sha = blame_sha_at_cursor()
+            if not sha then
+              return
+            end
+
+            return try(function()
+              return github.commit_url(sha)
+            end, { label = "github.commit_url" })
+          end
+
+          map({
+            mode = "n",
+            lhs = "<C-g>Bt",
+            rhs = gitsigns.toggle_current_line_blame,
+            desc = "Gitsigns: toggle current line blame",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>By",
+            rhs = function()
+              local sha = blame_sha_at_cursor()
+              if not sha then
+                return
+              end
+
+              util.copy_to_system_clipboard(sha)
+              vim.notify(("Copied commit SHA to clipboard: `%s`"):format(sha), log_info, { title = "Git Blame" })
+            end,
+            desc = "Git Blame: copy commit SHA",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>Bo",
+            rhs = function()
+              local url = commit_url_at_cursor()
+              if not url then
+                return
+              end
+
+              vim.ui.open(url)
+            end,
+            desc = "Git Blame: open commit URL",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>BO",
+            rhs = function()
+              local url = commit_url_at_cursor()
+              if not url then
+                return
+              end
+
+              util.copy_to_system_clipboard(url)
+              vim.notify(("Copied commit URL to clipboard: `%s`"):format(url), log_info, { title = "Git Blame" })
+            end,
+            desc = "Git Blame: copy commit URL",
             buffer = bufnr,
           })
 
