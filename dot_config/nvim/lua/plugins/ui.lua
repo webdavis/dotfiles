@@ -51,7 +51,6 @@ return {
         overseer = true,
         notify = true,
         snacks = { enabled = true, indent_scope_color = "lavender" },
-        telescope = { enabled = true },
         treesitter_context = true,
         which_key = true,
       },

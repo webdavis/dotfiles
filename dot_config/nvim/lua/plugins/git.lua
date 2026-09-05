@@ -1193,25 +1193,10 @@ return {
   },
   {
     {
-      "nvim-telescope/telescope.nvim",
-      config = function()
-        require("telescope").setup({
-          defaults = {
-            layout_config = {
-              preview_width = 0.5,
-              width = 0.9,
-              height = 0.9,
-            },
-          },
-        })
-      end,
-    },
-    {
       "pwntester/octo.nvim",
       dependencies = {
         "nvim-lua/plenary.nvim",
         "folke/snacks.nvim",
-        "nvim-telescope/telescope.nvim",
         "nvim-tree/nvim-web-devicons",
       },
       config = function()
