@@ -62,6 +62,7 @@ local location_rows = {
   "| F3 | 6v | LOW | the guard (lua/a.lua:4) never runs | ACCEPTED | rationale |",
   "| F4 | 6v | LOW | both src/first.lua:12,src/second.lua:34 moved | ACCEPTED | rationale |",
   "| F5 | 6v | LOW | hooks.rs:2757's cost was the stub's sleep | ACCEPTED | rationale |",
+  "| F6 | 6v | LOW | the call at a/b.c:4:5 is the one | ACCEPTED | rationale |",
 }
 
 local piped_rows = {
@@ -126,6 +127,12 @@ return {
   end,
 
   -- A real register carries this shape: the possessive follows the location.
+  -- A column number belongs to neither the filename nor the line.
+  ["drops a column number rather than keeping it in the filename"] = function()
+    local lines = awk_over(write_register(location_rows), 0)
+    assert(lines[6]:find("^a/b%.c:4: F6 LOW ACCEPTED: "), lines[6])
+  end,
+
   ["strips a possessive that trails a location"] = function()
     local lines = awk_over(write_register(location_rows), 0)
     assert(lines[5]:find("^hooks%.rs:2757: F5 LOW ACCEPTED: "), lines[5])

@@ -373,17 +373,21 @@ function cells(line, out,   i, c, n, cell, len, r, e) {
 # which is what drops enclosing brackets, a trailing possessive, and the second
 # half of a line RANGE, and the first qualifying token wins. Path-shaped means a
 # slash or an extension whose first character is a letter, which is what tells
-# `a/b.lua` from `v1.2.3`. Ceiling: a bare `host.com:8080` would still qualify.
-function locate(s,   parts, n, i, t, path) {
+# `a/b.lua` from `v1.2.3`. The location stops at the FIRST colon-and-digits, so
+# an editor column in `a/b.c:4:5` is dropped rather than joining the filename,
+# and a Windows drive colon is taken off first so it is not mistaken for one.
+# Ceiling: a bare `host.com:8080` would still qualify.
+function locate(s,   parts, n, i, t, path, drive) {
   n = split(s, parts, /[ \t,]+/)
   for (i = 1; i <= n; i++) {
     t = parts[i]
     if (t ~ /:\/\//) continue
     sub(/^[(\[{`<'"]+/, "", t)
-    if (!match(t, /^.+:[0-9]+/)) continue
-    t = substr(t, 1, RLENGTH)
-    path = t; sub(/:[0-9]+$/, "", path)
-    if (path ~ /\// || path ~ /\.[A-Za-z][A-Za-z0-9_]*$/) return t
+    drive = ""
+    if (t ~ /^[A-Za-z]:[\\\/]/) { drive = substr(t, 1, 2); t = substr(t, 3) }
+    if (!match(t, /:[0-9]+/)) continue
+    path = drive substr(t, 1, RSTART - 1)
+    if (path ~ /\// || path ~ /\.[A-Za-z][A-Za-z0-9_]*$/) return path ":" substr(t, RSTART + 1, RLENGTH - 1)
   }
   return ""
 }
