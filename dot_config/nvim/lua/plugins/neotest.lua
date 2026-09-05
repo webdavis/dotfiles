@@ -14,10 +14,9 @@ local javascript_filetypes = {
 --- The tree-sitter language a JavaScript-family file is parsed with, or nil when the routing has
 --- nothing to parse it as.
 ---
---- `.tsx` is read as `typescript`. The `tsx` grammar is not among the ones this config installs,
---- and the typescript one still parses the import block of a `.tsx` file; only the JSX below it
---- becomes an error node, which nothing here reads. `.coffee` has no grammar at all, so a
---- CoffeeScript test file can never be node:test's.
+--- `.tsx` needs the `tsx` grammar, not the `typescript` one. TypeScript has no JSX, so the first
+--- element turns the REST OF THE FILE into an error node, and an import written after it is gone.
+--- `.coffee` has no grammar at all, so a CoffeeScript test file can never be node:test's.
 local javascript_languages = {
   js = "javascript",
   jsx = "javascript",
@@ -26,7 +25,7 @@ local javascript_languages = {
   ts = "typescript",
   mts = "typescript",
   cts = "typescript",
-  tsx = "typescript",
+  tsx = "tsx",
 }
 
 --- The four shapes that make node:test a runtime dependency: a static import, a re-export, a
@@ -468,6 +467,7 @@ return {
       -- E5560; the error would be caught and read as "this file imports nothing".
       node_test_query("javascript")
       node_test_query("typescript")
+      node_test_query("tsx")
 
       local vitest = vim.tbl_extend("force", require("neotest-vitest"), {
         is_test_file = function(file_path)

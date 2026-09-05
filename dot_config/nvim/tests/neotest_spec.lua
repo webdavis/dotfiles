@@ -112,6 +112,10 @@ local type_export_file = write_fixture(
   'export type { TestContext } from "node:test";\nimport { test } from "vitest";\n'
 )
 
+-- JSX written before the import, which the TypeScript grammar cannot parse.
+local jsx_file =
+  write_fixture("vitest-root/tests/view.test.tsx", 'const view = <div />;\nimport test from "node:test";\n')
+
 -- A language with no grammar to parse it.
 local coffee_file = write_fixture("vitest-root/tests/legacy.test.coffee", 'test = require("node:test")\n')
 
@@ -383,6 +387,17 @@ cases["a type-only import or re-export is not a runtime dependency"] = function(
   local routed = route()
   assert(owner(routed, type_import_file) == "neotest-vitest", "a type-only import claimed the file for node:test")
   assert(owner(routed, type_export_file) == "neotest-vitest", "a type-only re-export claimed the file for node:test")
+end
+
+cases["JSX written before an import does not swallow it"] = function()
+  -- The TypeScript grammar has no JSX, so it absorbs everything after the first element into an
+  -- error node, import included, and the file goes to the runner its package declares.
+  local _, tsx = pcall(vim.treesitter.language.add, "tsx")
+  local routed = route()
+  assert(
+    owner(routed, jsx_file) == (tsx == true and "neotest-nodejs" or "neotest-vitest"),
+    "JSX before the import cost node:test the file"
+  )
 end
 
 cases["a file whose language has no grammar has no node:test owner"] = function()
