@@ -14,8 +14,8 @@ ______________________________________________________________________
 
 # DO NOT ADOPT
 
-Keep octo. Atlas is not worse than octo at anything measured here, and it is better at several things,
-but the single capability that would justify the swap has no user on this machine, and the plugin's own
+Keep octo. Atlas is not worse than octo at anything measured here, and it is better at a few things, but
+the single capability that would justify the swap has no user on this machine, and the plugin's own
 authors say it is not ready to be depended on.
 
 **Deciding rationale.** Atlas exists to review pull requests across GitHub, GitLab and Bitbucket, and to
@@ -31,6 +31,15 @@ overhaul already in flight; atlas refuses to check out a pull request branch unt
 `pulls.repo_config.paths` mapping exists, where octo checks out into the current repository with no
 configuration at all; and three of the nine `<leader>gh` keymaps this config binds today have no atlas
 equivalent (gists, standalone workflow runs, repository list).
+
+**One claimed atlas advantage was withdrawn on verification.** An earlier reading of this evaluation
+credited atlas with reviewing a pull request in a repository that is not checked out locally, and
+credited octo with needing that checkout. Octo does not need it: `:Octo <url>` parses the hostname, the
+`owner/name` pair and the number out of the address and loads through GitHub with the repository passed
+explicitly, never consulting local git (verified in the pinned source, 4.2). What remains on atlas's side
+of the ledger is a visible and editable query line that spans repositories by default, the local review
+notes below, a native diff viewer, and three non-GitHub providers with no account behind them. None of
+that moves the verdict, and the verdict rests on the three counts above.
 
 Atlas does add one thing worth naming, because a sibling task is about to ask the same question from the
 other side. Its local review notes attach an ISSUE, SUGGESTION, NOTE or PRAISE to a file and line without
@@ -96,14 +105,25 @@ ______________________________________________________________________
 
 ## 3. Outcome table
 
-| Capability                      | octo                                                                              | atlas                                                                                                          | Result                              |
-| ------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| List and filter pull requests   | `Octo pr list [repo] [k=v]`, bound at `<leader>ghp`; snacks picker                | `:Atlas pulls github` dashboard, GitHub search syntax on a visible query line, per-view configs                | **pass** both                       |
-| Read review comments            | `Octo pr edit <n>` conversation buffer, `Octo review start` thread panel          | `:Atlas review <url>` loads full threads with bodies, line ranges, resolution state and resolver               | **pass** both                       |
-| Post review comments            | `Octo review start`, `Octo comment add`, `Octo review submit`                     | `c` adds a pending comment, `C` submits it, `s`/`S` for suggestions, `<leader>n` for a local note              | **undecided, write not exercised**  |
-| Approve and request changes     | `Octo review submit` then the approve or request-changes key in the submit window | `ga` approve, `gr` request changes, `gs` start/submit; both gated on an open pull request                      | **undecided, write not exercised**  |
-| Check out a pull request branch | `Octo pr checkout`, no configuration, uses the current repository                 | `gc`, requires an explicit `pulls.repo_config.paths` mapping first                                             | **pass** both, atlas needs setup    |
-| Reach a non-GitHub forge        | not possible, zero GitLab or Bitbucket references in octo's source                | GitLab, Bitbucket and Jira are first-class providers with full dashboards; all three hard-require a credential | **undecided, no reachable account** |
+- **List and filter pull requests: pass, both.** octo: `Octo pr list [repo] [k=v]`, bound at
+  `<leader>ghp`, through the snacks picker. atlas: an `:Atlas pulls github` dashboard with GitHub search
+  syntax on a visible query line, and per-view configs.
+- **Read review comments: pass, both.** octo: an `Octo pr edit <n>` conversation buffer and the
+  `Octo review start` thread panel. atlas: `:Atlas review <url>` loads full threads with bodies, line
+  ranges, resolution state and resolver. Neither needs a local checkout (4.2).
+- **Post review comments: undecided, write not exercised.** octo: `Octo review start`,
+  `Octo comment add`, `Octo review submit`. atlas: `c` adds a pending comment, `C` submits it, `s` and
+  `S` for suggestions, `<leader>n` for a local note.
+- **Approve and request changes: undecided, write not exercised.** octo: `Octo review submit`, then the
+  approve or request-changes key in the submit window. atlas: `ga` approve, `gr` request changes, `gs`
+  start and submit, all gated on an open pull request.
+- **Check out a pull request branch: pass, both, atlas needs setup.** octo: `Octo pr checkout`, no
+  configuration, uses the current repository. atlas: `gc`, but only once an explicit
+  `pulls.repo_config.paths` mapping exists.
+- **Reach a non-GitHub forge: undecided, no reachable account found.** octo: not possible, zero GitLab or
+  Bitbucket references in its source. atlas: GitLab, Bitbucket and Jira are first-class providers with
+  full dashboards, and all three hard-require a credential. No usable account was found in the sources
+  4.6 lists, and absence beyond them is unverified.
 
 ______________________________________________________________________
 
@@ -167,9 +187,13 @@ author, `resolved_by`, the thread id and the `html_url`. Suggestion blocks survi
 diff viewer opened alongside with a file explorer, a commit list and an empty review panel, in buffers
 named `atlas-diff://2/files`, `atlas-diff://2/commits` and `atlas-diff://2/review`.
 
-Octo reads the same threads through its conversation buffer and its thread panel. The difference is not
-what is readable but where: octo needs the repository checked out locally, atlas fetches into its own
-cache and will review a pull request in a repository that is not on the machine.
+Octo reads the same threads through its conversation buffer and its thread panel, and **it does not need
+the repository checked out either.** Verified in the pinned source: `:Octo <url>` runs `utils.parse_url`,
+whose `URL_ISSUE_PATTERN` captures the hostname, the `owner/name` pair and the number, and the
+pull-request branch calls `utils.get_pull_request(number, repo)` with that repo passed explicitly.
+`uri.get_repo_id_from_args` consults `utils.get_remote_name()` only on the one-argument form; given two
+arguments it takes `args[2]` and never touches local git. So a full pull-request address opens against
+GitHub from anywhere, and this row is a genuine tie on reading.
 
 ### 4.3 Post review comments: undecided, write not exercised
 
@@ -295,11 +319,15 @@ public gitlab.com project. Bitbucket and Jira are the same shape, refusing with 
 credentials in config (providers.bitbucket.user / providers.bitbucket.token)" and "Missing Jira
 credentials in config".
 
-What was checked for a reachable account, and found empty: the environment for any `GITLAB_*`,
-`BITBUCKET_*` or `JIRA_*` variable, `~/.config` for a `glab`, Bitbucket or Jira directory, `PATH` for a
-`glab` binary, and `.chezmoidata/system_packages_autoinstall.yaml` for any GitLab or Bitbucket package.
-Every repository in `gh repo list webdavis` is on github.com. Creating an account or minting a token
-would be a write against the operator's identity, which is outside this evaluation.
+**No usable account was found in the sources listed below, and absence is not verified beyond them.**
+What was checked, and found empty: the environment for any `GITLAB_*`, `BITBUCKET_*` or `JIRA_*`
+variable; `~/.config` for a `glab`, Bitbucket or Jira directory; `PATH` for a `glab` binary; and
+`.chezmoidata/system_packages_autoinstall.yaml` for any GitLab or Bitbucket package. A fifth check, that
+every repository in `gh repo list webdavis` is on github.com, proves nothing about the question: `gh`
+enumerates GitHub and only GitHub, so it cannot report a GitLab or Bitbucket repository whether one
+exists or not. A credential, a Jira site or a non-GitHub repository held anywhere outside those four
+sources would not have been seen. Creating an account or minting a token would be a write against the
+operator's identity, which is outside this evaluation.
 
 So: atlas claims GitHub, GitLab, Bitbucket and Jira; the GitLab surface is demonstrably wired end to end
 up to the token check; and whether it actually works against a live GitLab or Bitbucket instance is
@@ -318,16 +346,21 @@ Those eight groups are the concrete cost surface. They are which-key metadata ov
 buffer-local keymaps, so they are deleted rather than ported, but each one names a capability that has to
 land somewhere in atlas or be given up:
 
-| Group                     | octo keys behind it                                                        | atlas equivalent                                                          |
-| ------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `<localleader>a` Assignee | `aa` add, `ad` remove                                                      | `edit_assignees` action on the pull request                               |
-| `<localleader>c` Comment  | `ca` add, `cr` reply, `cd` delete                                          | `a`/`i` add, `c` reply, `e` edit, `dd` delete                             |
-| `<localleader>i` Issue    | `ic` close, `io` reopen, `il` list                                         | `:Atlas issues github`, `create_issue`, `reopen`                          |
-| `<localleader>g` Navigate | `gi` go to a repository issue                                              | `:Atlas open <target>`                                                    |
-| `<localleader>l` Label    | `lc` create, `la` add, `ld` remove                                         | `labels` action, backed by `list_labels`/`update_labels`                  |
-| `<localleader>p` PR       | `po` checkout, `pm`/`psm`/`prm` merge, `pc` commits, `pf` files, `pd` diff | `gc` checkout, `merge` action, `gC` commits, the file explorer, AtlasDiff |
-| `<localleader>r` React    | eight reaction keys, `rt`/`rT` resolve and unresolve threads               | `gr` react with `reaction_options`, `x` toggle resolved                   |
-| `<localleader>v` Review   | `vs` start and submit, `vd` discard, `va`/`vd` reviewers                   | `gs`, `ga`, `gr`, `discard_review`, `edit_reviewers`                      |
+- **`<localleader>a` Assignee.** octo: `aa` add, `ad` remove. atlas: the `edit_assignees` action on the
+  pull request.
+- **`<localleader>c` Comment.** octo: `ca` add, `cr` reply, `cd` delete. atlas: `a` and `i` add, `c`
+  reply, `e` edit, `dd` delete.
+- **`<localleader>i` Issue.** octo: `ic` close, `io` reopen, `il` list. atlas: `:Atlas issues github`,
+  `create_issue`, `reopen`.
+- **`<localleader>g` Navigate.** octo: `gi` go to a repository issue. atlas: `:Atlas open <target>`.
+- **`<localleader>l` Label.** octo: `lc` create, `la` add, `ld` remove. atlas: the `labels` action,
+  backed by `list_labels` and `update_labels`.
+- **`<localleader>p` PR.** octo: `po` checkout, `pm`, `psm` and `prm` merge, `pc` commits, `pf` files,
+  `pd` diff. atlas: `gc` checkout, the `merge` action, `gC` commits, the file explorer and AtlasDiff.
+- **`<localleader>r` React.** octo: eight reaction keys, `rt` and `rT` resolve and unresolve threads.
+  atlas: `gr` react with `reaction_options`, `x` toggle resolved.
+- **`<localleader>v` Review.** octo: `vs` start and submit, `vd` discard, `va` and `vd` reviewers. atlas:
+  `gs`, `ga`, `gr`, `discard_review`, `edit_reviewers`.
 
 Every row has a home. The three that do not are outside those groups, in the `<leader>gh` keymaps:
 
