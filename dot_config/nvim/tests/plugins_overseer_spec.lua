@@ -14,10 +14,14 @@ local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config roo
 
 -- Capture the setup() options without loading overseer itself.
 local captured_hooks = {}
+local captured_maps = {}
+local captured_view_opts
 
 local function captured_setup_opts()
   local opts
   captured_hooks = {}
+  captured_maps = {}
+  captured_view_opts = nil
   local overseer_fake = {
     setup = function(o)
       opts = o
@@ -28,7 +32,9 @@ local function captured_setup_opts()
       table.insert(captured_hooks, { opts = hook_opts, hook = hook })
     end,
     preload_task_cache = function() end,
-    create_task_output_view = function() end,
+    create_task_output_view = function(_, view_opts)
+      captured_view_opts = view_opts
+    end,
     new_task = function()
       return { start = function() end }
     end,
@@ -45,7 +51,11 @@ local function captured_setup_opts()
 
   package.loaded["overseer"] = overseer_fake
   -- `map` is a global installed by init.lua, which this runner never loads.
-  _G.map = function() end
+  _G.map = function(spec)
+    for _, lhs in ipairs(type(spec.lhs) == "table" and spec.lhs or { spec.lhs }) do
+      captured_maps[lhs] = spec.rhs
+    end
+  end
   vim.api.nvim_create_user_command = function() end
   -- The spec never fires VimEnter, but the config registers a preload autocmd;
   -- stubbing it keeps this spec from leaving one behind in the runner's process.
@@ -212,6 +222,25 @@ return {
     hook(first, hook_util)
     hook(second, hook_util)
     assert(first.name ~= second.name, "both argument shapes share the name " .. first.name)
+  end,
+
+  ["the live output view follows the newest task, not a hovered one"] = function()
+    -- Overseer keeps the task the cursor was last over in the sidebar. Preferring
+    -- it meant that after hovering an older task and closing the sidebar, every
+    -- task started afterwards was ignored and the view stayed on the old one.
+    captured_setup_opts()
+    local rhs = assert(captured_maps["<leader>ov"], "<leader>ov is not mapped")
+    local real_cmd = vim.cmd
+    vim.cmd = function() end
+    local ok, err = pcall(rhs)
+    vim.cmd = real_cmd
+    assert(ok, err)
+    local view = assert(captured_view_opts, "the mapping never built an output view")
+
+    local old = { time_start = 100, name = "old" }
+    local new = { time_start = 200, name = "new" }
+    local chosen = view.select({}, { old, new }, old)
+    assert(chosen == new, "the view chose " .. tostring(chosen and chosen.name) .. " while hovering old")
   end,
 
   ["the quickfix keeps only lines that parse as a location"] = function()

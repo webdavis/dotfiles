@@ -603,10 +603,11 @@ return {
               return task.time_start ~= nil
             end,
           },
-          select = function(_, tasks, task_under_cursor)
-            if task_under_cursor then
-              return task_under_cursor
-            end
+          -- The newest task, always. Overseer keeps whichever task the cursor was
+          -- last over in the sidebar, and preferring that pinned the view to it:
+          -- hover an older task, close the sidebar, and every task started
+          -- afterwards was ignored while the view sat on the old one.
+          select = function(_, tasks)
             table.sort(tasks, function(a, b)
               return a.time_start > b.time_start
             end)
