@@ -229,7 +229,7 @@ pub fn plan(
 #[cfg(test)]
 mod tests {
     use super::{DeliveryPlan, SessionView, Surface, Visibility};
-    use super::{effective_visibility, plan, surface, visibility};
+    use super::{effective_visibility, is_fresh, plan, surface, visibility};
 
     // ------------------------------------------------------------------
     // Visibility: one session-level fact, computed from herdr's own view.
@@ -432,6 +432,23 @@ mod tests {
                 "case: {label}"
             );
         }
+    }
+
+    #[test]
+    fn an_age_of_exactly_the_window_is_already_stale_because_the_window_is_half_open() {
+        // THE BOUNDARY SECOND ITSELF, which no other case reaches: the matrix
+        // above runs ages of 2 to 600 against a window of 120 and never one
+        // AT 120, so `<` and `<=` agree on every row of it. They disagree
+        // here, and the half-open reading is the one the window is documented
+        // with: an age is fresh while it is strictly under.
+        assert!(is_fresh(Some(119), 120));
+        assert!(!is_fresh(Some(120), 120));
+
+        // And the arbitration reads the same boundary, so the two cannot come
+        // apart: a desk clock at exactly the window is out of the running,
+        // which with nothing else fresh is Away rather than Desk.
+        assert_eq!(surface(Some(119), None, None, 120, None), Surface::Desk);
+        assert_eq!(surface(Some(120), None, None, 120, None), Surface::Away);
     }
 
     #[test]
