@@ -21,11 +21,6 @@ pub mod lanes;
 pub mod schedule;
 pub mod schema;
 
-#[cfg(test)]
-mod probes;
-#[cfg(test)]
-mod shipped_template;
-
 use std::path::{Path, PathBuf};
 
 use schema::{admits, non_empty, table_of};
@@ -205,6 +200,11 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     }
     Ok(Alerts { binary })
 }
+
+#[cfg(test)]
+mod probes;
+#[cfg(test)]
+mod shipped_template;
 
 #[cfg(test)]
 mod tests {

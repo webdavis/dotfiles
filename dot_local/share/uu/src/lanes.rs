@@ -22,9 +22,6 @@ pub mod spawn;
 pub mod text;
 pub mod uv;
 
-#[cfg(test)]
-pub(crate) mod stubs;
-
 pub use report::LaneReport;
 pub use spawn::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict};
 pub use text::{STDERR_TAIL, failure_reason, tail};
@@ -61,6 +58,9 @@ pub fn run_lane(
     };
     Some(adapter.run(name, facts, runner))
 }
+
+#[cfg(test)]
+pub(crate) mod stubs;
 
 #[cfg(test)]
 mod tests {
