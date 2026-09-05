@@ -88,6 +88,12 @@ write_fixture("mono/packages/web/package.json", '{ "devDependencies": { "vitest"
 local behind_empty = write_fixture("mono/packages/web/fixtures/package.json", "{}")
 local behind_empty_file = write_fixture("mono/packages/web/fixtures/a.test.js", 'import { test } from "vitest";\n')
 
+-- A vitest repository holding a package that declares jest instead.
+local conflict = write_fixture("conflict/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
+write_fixture("conflict/tests/root.test.js", 'import { test } from "vitest";\n')
+write_fixture("conflict/packages/api/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
+write_fixture("conflict/packages/api/tests/api.test.js", 'test("api", function () {});\n')
+
 -- A git repository, declaring no runner, nested under a JavaScript package that declares one.
 -- `.git` is a FILE here, the form a worktree or submodule uses, not a directory.
 write_fixture("gitparent/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
@@ -438,6 +444,27 @@ cases["a directory run dispatches the only non-JavaScript adapter rather than as
   assert(
     python.ran and python.ran.adapter == "neotest-python:" .. directory_of(pystray),
     "expected python by name, got " .. tostring(python.ran and python.ran.adapter)
+  )
+end
+
+cases["a directory run refuses a root whose packages declare different runners"] = function()
+  -- One adapter id covers one tree, so dispatching the root's own runner either skips the nested
+  -- package or runs its tests under a runner ownership never gave them. From the nested package
+  -- itself the run is unambiguous and still goes ahead.
+  local routed = route()
+  local root_run = routed.press_run_all(directory_of(conflict))
+  assert(not root_run.ran, "the run dispatched one runner over packages declaring two")
+  assert(not root_run.prompted, "the run asked instead of naming the conflict")
+  assert(#root_run.notified == 1, "the operator was not told")
+  assert(
+    root_run.notified[1]:find("packages/api", 1, true),
+    "the message does not name the conflicting package: " .. tostring(root_run.notified[1])
+  )
+
+  local package_run = routed.press_run_all(directory_of(conflict) .. "/packages/api")
+  assert(
+    package_run.ran and package_run.ran.adapter:match("^neotest%-jest:"),
+    "running from the package root should still dispatch, got " .. vim.inspect(package_run.ran)
   )
 end
 

@@ -133,6 +133,28 @@ local function is_javascript_test_file(file_path)
   return false
 end
 
+--- The decoded package.json at `manifest`, or nil when there is none. The second value is true
+--- when the file is there and no JSON parser can read it, which is not the same answer as absent.
+---
+--- Plain `io`, because `is_test_file` runs inside neotest's async contexts and inside `vim.uv`
+--- callbacks, where a Vimscript call raises E5560. Opening the file doubles as the test for
+--- whether a manifest is there at all.
+---@param manifest string
+---@return table|nil, boolean
+local function read_manifest(manifest)
+  local handle = io.open(manifest, "r")
+  if not handle then
+    return nil, false
+  end
+  local contents = handle:read("*a")
+  handle:close()
+  local ok, decoded = pcall(vim.json.decode, contents)
+  if not ok or type(decoded) ~= "table" then
+    return nil, true
+  end
+  return decoded, false
+end
+
 --- The runner a decoded package.json names, through its dependency lists or its scripts.
 ---@param manifest table
 ---@return "vitest"|"jest"|"node"|nil
@@ -180,8 +202,6 @@ end
 --- unrelated ancestor happens to declare. `.git` is matched by name, so a worktree or submodule,
 --- where it is a FILE rather than a directory, bounds the walk the same way.
 ---
---- Plain `io` at each level, for the same async reason as the import read above, and it doubles as
---- the test for whether a manifest is there at all.
 ---@param path string a file or a directory
 ---@return "vitest"|"jest"|"node"|nil runner
 ---@return string|nil the path of a manifest that could not be parsed
@@ -193,14 +213,11 @@ local function declared_runner(path)
   local repository = vim.fs.root(path, ".git")
   for _, directory in ipairs(directories) do
     local manifest = directory .. "/package.json"
-    local handle = io.open(manifest, "r")
-    if handle then
-      local contents = handle:read("*a")
-      handle:close()
-      local ok, decoded = pcall(vim.json.decode, contents)
-      if not ok or type(decoded) ~= "table" then
-        return nil, manifest
-      end
+    local decoded, unparseable = read_manifest(manifest)
+    if unparseable then
+      return nil, manifest
+    end
+    if decoded then
       local runner = runner_named_by(decoded)
       if runner then
         return runner
@@ -211,6 +228,39 @@ local function declared_runner(path)
     end
   end
   return nil
+end
+
+--- The packages under `directory` that name a runner other than `runner`, relative to it.
+---
+--- Only asked when `directory` itself names one, so an ordinary monorepo whose root names nothing
+--- is not in conflict with the packages inside it.
+---
+--- Depth four reaches `packages/<name>/package.json` and one level below, which is where a
+--- monorepo puts them. A package buried deeper goes unseen and the run proceeds, which is the
+--- behaviour this replaces rather than a new way to be wrong.
+---@param directory string
+---@param runner string
+---@return string[]
+local function packages_declaring_other_runners(directory, runner)
+  local conflicting = {}
+  for name, kind in
+    vim.fs.dir(directory, {
+      depth = 4,
+      skip = function(dirname)
+        return dirname ~= "node_modules" and dirname ~= ".git"
+      end,
+    })
+  do
+    if kind == "file" and name ~= "package.json" and vim.fs.basename(name) == "package.json" then
+      local decoded = read_manifest(directory .. "/" .. name)
+      local declared = decoded and runner_named_by(decoded)
+      if declared and declared ~= runner then
+        conflicting[#conflicting + 1] = vim.fs.dirname(name)
+      end
+    end
+  end
+  table.sort(conflicting)
+  return conflicting
 end
 
 --- The adapter that owns `file_path`, or nil when none of the three does.
@@ -272,6 +322,23 @@ local function run_all_tests()
   if unparseable then
     vim.notify("neotest: could not parse " .. unparseable, vim.log.levels.ERROR)
     return
+  end
+
+  -- One adapter id covers one tree, so a root-level run over packages naming different runners
+  -- either skips the odd ones out or runs their tests under a runner ownership never gave them.
+  -- Neither is worth guessing at, so the operator is told where to run instead.
+  if runner then
+    local conflicting = packages_declaring_other_runners(directory, runner)
+    if #conflicting > 0 then
+      vim.notify(
+        ("neotest: this directory declares %s, but another runner is declared under %s. Run from a package root."):format(
+          runner,
+          table.concat(conflicting, ", ")
+        ),
+        vim.log.levels.WARN
+      )
+      return
+    end
   end
 
   -- Asked of each adapter rather than resolved here, so the id matches the one neotest builds
@@ -357,6 +424,12 @@ return {
       -- intermediate package, so constructing it would veto the answer before it was asked. jest
       -- and node:test both hand their `is_test_file` straight to the configured predicate, so they
       -- take the supported route.
+      --
+      -- Audited at this pin: the copy keeps `root`, `filter_dir`, `build_spec`, `results` and the
+      -- default command, config, environment and working-directory closures, and drops only the
+      -- callable metatable, which nothing here needs. WHEN THE PIN MOVES, re-audit for options
+      -- initialized inside `__call`, methods reachable only through the metatable, and mutable
+      -- table fields the copy would share rather than own.
       local vitest = vim.tbl_extend("force", require("neotest-vitest"), {
         is_test_file = function(file_path)
           return owner_of(file_path) == "neotest-vitest"
