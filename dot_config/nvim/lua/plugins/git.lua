@@ -513,7 +513,10 @@ return {
         bang = true,
         bar = true,
         nargs = "*",
-        range = true,
+        -- `-range=-1` as fugitive declares it. `range = true` is `-range`, which
+        -- clamps address zero to one, so `:0Gr file` inserted after the first
+        -- line where fugitive inserts before it.
+        range = -1,
         -- Fugitive's own completion function, called directly. Rewriting the
         -- line to `Gread` and asking `getcompletion` was a recursion: a line
         -- the anchored pattern missed, `:2Gr …` or `:silent Gr …`, still named
