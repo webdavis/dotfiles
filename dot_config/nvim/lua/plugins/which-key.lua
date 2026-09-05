@@ -30,6 +30,7 @@ return {
         { "<leader>a", group = "aerial" },
         { "<leader>A", group = "herdr" },
         { "<leader>c", group = "format／snapshot" },
+        { "<leader>C", group = "claude" },
         { "<leader>d", group = "do" },
         { "<leader>D", group = "debug" },
         { "<leader>Dp", group = "profiler" },
