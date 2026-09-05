@@ -237,10 +237,32 @@ return {
     assert(ok, err)
     local view = assert(captured_view_opts, "the mapping never built an output view")
 
-    local old = { time_start = 100, name = "old" }
-    local new = { time_start = 200, name = "new" }
+    local old = { time_start = 100, name = "old", metadata = { start_sequence = 1 } }
+    local new = { time_start = 200, name = "new", metadata = { start_sequence = 2 } }
     local chosen = view.select({}, { old, new }, old)
     assert(chosen == new, "the view chose " .. tostring(chosen and chosen.name) .. " while hovering old")
+  end,
+
+  ["the live output view separates two starts in the same second"] = function()
+    -- `time_start` is `os.time()`, one-second resolution, so A then B inside one
+    -- second compared equal and the earlier task stayed displayed. The start
+    -- sequence is what orders them.
+    captured_setup_opts()
+    local rhs = assert(captured_maps["<leader>ov"], "<leader>ov is not mapped")
+    local real_cmd = vim.cmd
+    vim.cmd = function() end
+    local ok, err = pcall(rhs)
+    vim.cmd = real_cmd
+    assert(ok, err)
+    local view = assert(captured_view_opts, "the mapping never built an output view")
+
+    local a = { time_start = 100, name = "a", metadata = { start_sequence = 1 } }
+    local b = { time_start = 100, name = "b", metadata = { start_sequence = 2 } }
+    assert(view.select({}, { a, b }) == b, "the newer of two same-second starts did not win")
+
+    -- And an OLDER task restarted last must win, which a creation order cannot do.
+    a.metadata.start_sequence = 3
+    assert(view.select({}, { a, b }) == a, "a restarted task did not become the newest")
   end,
 
   ["the quickfix keeps only lines that parse as a location"] = function()

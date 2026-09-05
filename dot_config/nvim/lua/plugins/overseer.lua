@@ -161,6 +161,9 @@ return {
           -- Paired with set_diagnostics above. Fires only when the errorformat
           -- matched something, so a clean run leaves no diagnostics behind.
           { "on_result_diagnostics", remove_on_restart = true },
+          -- Orders the live output view; see the component for why
+          -- time_start cannot.
+          "user.start_sequence",
           -- The live equivalent of the dead `open_on_start = true` this config
           -- used to pass. `on_start` has to be "always": its own default,
           -- "if_no_on_output_quickfix", means it would never fire here, because
@@ -195,6 +198,7 @@ return {
           { "on_complete_notify", system = "unfocused" },
           { "on_output_quickfix", items_only = true, set_diagnostics = true },
           { "on_result_diagnostics", remove_on_restart = true },
+          "user.start_sequence",
         },
         -- trouble.nvim is installed, so a task can route its diagnostics there
         -- instead of the quickfix. Opt in per task with the task editor.
@@ -214,6 +218,7 @@ return {
           -- than on every completion.
           { "on_result_notify", on_change = true, system = "unfocused" },
           { "timeout", timeout = 600 },
+          "user.start_sequence",
         },
         -- A flaky task worth another go on its own. Not in `default`, where
         -- restarting on every failure is a loop rather than a retry.
@@ -228,6 +233,7 @@ return {
           { "on_output_notify", output_on_complete = true, max_lines = 3 },
           { "on_output_quickfix", items_only = true, set_diagnostics = true },
           { "on_result_diagnostics", remove_on_restart = true },
+          "user.start_sequence",
         },
       },
       -- Empty on purpose. Our own templates already live under the default
@@ -616,8 +622,17 @@ return {
           -- hover an older task, close the sidebar, and every task started
           -- afterwards was ignored while the view sat on the old one.
           select = function(_, tasks)
+            -- By start sequence, not `time_start`: that is `os.time()`, so two
+            -- starts in one second compare equal and the earlier task stayed
+            -- displayed. time_start is only the tiebreak for a task carrying no
+            -- sequence, which means it was started with components of its own.
             table.sort(tasks, function(a, b)
-              return a.time_start > b.time_start
+              local sa = a.metadata and a.metadata.start_sequence or 0
+              local sb = b.metadata and b.metadata.start_sequence or 0
+              if sa ~= sb then
+                return sa > sb
+              end
+              return (a.time_start or 0) > (b.time_start or 0)
             end)
             return tasks[1]
           end,
