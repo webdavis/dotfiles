@@ -11,19 +11,12 @@ return {
         -- If true, don't clear the buffer when a task restarts
         preserve_output = false,
       },
-      open_on_start = true,
-      -- Template modules to load
-      templates = { "builtin", "user.run_script" },
-      -- When true, tries to detect a green color from your colorscheme to use for success highlight
-      auto_detect_success_color = true,
       -- Patch nvim-dap to support preLaunchTask and postDebugTask
       dap = true,
       -- Configure the task list
       task_list = {
         -- Default direction. Can be "left", "right", or "bottom"
         direction = "right",
-        -- Default detail level for tasks. Can be 1-3.
-        default_detail = 1,
         -- Width dimensions can be integers or a float between 0 and 1 (e.g. 0.4 for 40%)
         -- min_width and max_width can be a single value or a list of mixed integer/float types.
         -- max_width = {100, 0.2} means "the lesser of 100 columns or 20% of total"
@@ -99,60 +92,8 @@ return {
           winblend = 10,
         },
       },
-      task_launcher = {
-        -- Set keymap to false to remove default behavior
-        -- You can add custom keymaps here as well (anything vim.keymap.set accepts)
-        bindings = {
-          i = {
-            ["<C-s>"] = "Submit",
-            ["<C-c>"] = "Cancel",
-          },
-          n = {
-            ["<CR>"] = "Submit",
-            ["<C-s>"] = "Submit",
-            ["q"] = "Cancel",
-            ["?"] = "ShowHelp",
-          },
-        },
-      },
-      task_editor = {
-        -- Set keymap to false to remove default behavior
-        -- You can add custom keymaps here as well (anything vim.keymap.set accepts)
-        bindings = {
-          i = {
-            ["<CR>"] = "NextOrSubmit",
-            ["<C-s>"] = "Submit",
-            ["<Tab>"] = "Next",
-            ["<S-Tab>"] = "Prev",
-            ["<C-c>"] = "Cancel",
-          },
-          n = {
-            ["<CR>"] = "NextOrSubmit",
-            ["<C-s>"] = "Submit",
-            ["<Tab>"] = "Next",
-            ["<S-Tab>"] = "Prev",
-            ["q"] = "Cancel",
-            ["?"] = "ShowHelp",
-          },
-        },
-      },
-      -- Configure the floating window used for confirmation prompts
-      confirm = {
-        border = "rounded",
-        zindex = 40,
-        -- Dimensions can be integers or a float between 0 and 1 (e.g. 0.4 for 40%)
-        -- min_X and max_X can be a single value or a list of mixed integer/float types.
-        min_width = 20,
-        max_width = 0.5,
-        width = nil,
-        min_height = 6,
-        max_height = 0.9,
-        height = nil,
-        -- Set any window options here (e.g. winhighlight)
-        win_opts = {
-          winblend = 10,
-        },
-      },
+
+
       -- Configuration for task floating windows
       task_win = {
         -- How much space to leave around the floating window
@@ -162,11 +103,6 @@ return {
         win_opts = {
           winblend = 10,
         },
-      },
-      -- Configuration for mapping help floating windows
-      help_win = {
-        border = "rounded",
-        win_opts = {},
       },
       -- Aliases for bundles of components. Redefine the builtins, or create your own.
       component_aliases = {
@@ -189,22 +125,6 @@ return {
           { "unique", soft = true },
         },
       },
-      -- A list of components to preload on setup.
-      -- Only matters if you want them to show up in the task editor.
-      preload_components = {},
-      -- Controls when the parameter prompt is shown when running a template
-      --   always    Show when template has any params
-      --   missing   Show when template has any params not explicitly passed in
-      --   allow     Only show when a required param is missing
-      --   avoid     Only show when a required param with no default value is missing
-      --   never     Never show prompt (error if required param missing)
-      default_template_prompt = "allow",
-      -- For template providers, how long to wait (in ms) before timing out.
-      -- Set to 0 to disable timeouts.
-      template_timeout = 3000,
-      -- Cache template provider results if the provider takes longer than this to run.
-      -- Time is in ms. Set to 0 to disable caching.
-      template_cache_threshold = 100,
     })
 
     local overseer_title = { title = "Overseer" }
