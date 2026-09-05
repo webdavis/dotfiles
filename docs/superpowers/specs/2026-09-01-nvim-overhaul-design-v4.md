@@ -1219,10 +1219,21 @@ process running as the same user can rebind that path in between and the instanc
 the instance edited. That is recorded as a limit rather than closed, because same-user is INSIDE the
 trust boundary on this machine rather than across it: any process running as the operator can already
 read `~/.claude.json`, edit any file in any repository and run the agent itself, so an attacker able
-to rebind the socket has no need to. What the resolver does defend against is another ACCOUNT, and
-that is closed, because the registry must be a 0700 directory the caller owns and no other user can
-plant a record in it. The only real closure for the same-user case is a server that verifies pane and
-pid over the connection it then keeps, which no wrapper can do and which is the crate row.
+to rebind the socket has no need to. The only real closure for the same-user case is a server that
+verifies pane and pid over the connection it then keeps, which no wrapper can do and which is the
+crate row.
+
+What the resolver defends against is another ACCOUNT, and the guarantee is narrower than a 0700
+registry alone would suggest. `nvim --listen` accepts a TCP address or any path it is given, and
+Neovim trusts every remote-procedure-call peer it accepts, so an endpoint another account can reach
+is one that account can rebind once the owner dies and then answer the identity probe from, with a
+pane and pid of its choosing, through a record this repository genuinely wrote. A 0700 registry stops
+another account planting a RECORD; it says nothing about where that record points. So the guarantee
+is stated over the ENDPOINT as well: the resolver connects only to a unix socket inside a directory
+the caller owns at mode 0700, which is what Neovim's own default runtime root under
+`stdpath("run")` gives, and it refuses a recorded TCP endpoint or a socket in a looser directory by
+name rather than skipping it. Outside that shape there is no cross-account guarantee, and a
+deployment that moves sockets elsewhere loses it.
 
 The custom server, if built: a Rust crate under `~/.local/share/nvim-workspace-mcp` (proposed name,
 function-named, no handle; confirm before it is created), built by a `run_onchange_after_59`-style
