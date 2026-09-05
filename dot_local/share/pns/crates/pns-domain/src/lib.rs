@@ -24,6 +24,7 @@ pub mod lamps;
 pub mod lights;
 pub mod pulse;
 pub mod quiet;
+pub mod registry;
 pub mod render;
 pub mod safety;
 pub mod surface;
