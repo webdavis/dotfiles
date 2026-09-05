@@ -200,14 +200,21 @@ return {
         end,
       })
 
-      -- Scheme guessing, with the guard the plugin's own registration lacks: an Xcode project
-      -- must be configured. `settings.xcodeproj` is exactly that, and is nil for a Swift
-      -- package, which is what silences the per-keystroke errors in a Vapor package.
+      -- Scheme guessing, with the guard the plugin's own registration lacks. Two conditions,
+      -- and both are needed. `settings.xcodeproj` is nil for a Swift package, which is what
+      -- silences the per-keystroke errors in a Vapor package. But the wizard persists that key
+      -- as soon as the project is picked, so cancelling at the scheme picker leaves it set on
+      -- an incomplete configuration that survives a restart, and every Swift buffer then warns.
+      -- `validate_project` is the plugin's own completeness check; silent, it answers without
+      -- raising the notification this guard exists to avoid.
       vim.api.nvim_create_autocmd("BufEnter", {
         group = vim.api.nvim_create_augroup("xcodebuild_guess_scheme_when_xcodeproj", { clear = true }),
         pattern = "*.swift",
         callback = function()
-          if require("xcodebuild.project.config").settings.xcodeproj then
+          if not require("xcodebuild.project.config").settings.xcodeproj then
+            return
+          end
+          if require("xcodebuild.helpers").validate_project({ requiresXcodeproj = true, silent = true }) then
             require("xcodebuild.integrations.xcode-build-server").guess_scheme()
           end
         end,
