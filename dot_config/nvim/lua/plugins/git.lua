@@ -1550,6 +1550,25 @@ return {
         "folke/snacks.nvim",
         "nvim-tree/nvim-web-devicons",
       },
+      -- `Octo` is the only command octo defines, and `octo.setup()` in `config`
+      -- is what creates it. The `<leader>gh` mappings are created there too, so
+      -- like fugitive above they have to be named here or the first press does
+      -- nothing; `desc` mirrors each `map()` call so the which-key popup reads
+      -- the same before and after octo loads. The `<localleader>` groups are
+      -- registered by the `FileType octo` autocmd in `config`, which runs when
+      -- the command loads octo, before any octo buffer exists.
+      cmd = "Octo",
+      keys = {
+        { "<leader>ghg", desc = "Octo: list gists" },
+        { "<leader>ghi", desc = "Octo: list issues" },
+        { "<leader>ghI", desc = "Octo: create issue" },
+        { "<leader>ghm", desc = "Octo: merge pull request" },
+        { "<leader>ghn", desc = "Octo: notifications" },
+        { "<leader>ghp", desc = "Octo: list pull requests" },
+        { "<leader>ghP", desc = "Octo: create pull request" },
+        { "<leader>ghr", desc = "Octo: list repos" },
+        { "<leader>ghw", desc = "Octo: list workflow runs" },
+      },
       config = function()
         require("octo").setup({
           suppress_missing_scope = {
