@@ -82,6 +82,10 @@ return {
         virtual_lines = { current_line = true }, -- the full message under the cursor line
       })
 
+      -- Global switches: every client that supports the method gets them as it attaches.
+      vim.lsp.codelens.enable()
+      vim.lsp.inlay_hint.enable()
+
       -- sourcekit-lsp: the Xcode toolchain's own LSP for Swift, ObjC and C/C++ in a Swift
       -- project. Not a Mason package; the binary ships with Xcode/the Swift toolchain.
       if vim.fn.has("mac") == 1 then
