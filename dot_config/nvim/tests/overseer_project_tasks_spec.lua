@@ -61,6 +61,17 @@ return {
     assert(not cwd:match("%.overseer"), "cwd was resolved against .overseer rather than the project: " .. cwd)
   end,
 
+  ["an absolute cwd is left alone, not joined under the project"] = function()
+    local templates = generate({ tasks = { { name = "abs", cmd = "pwd", cwd = "/tmp" } } })
+    assert(templates[1].builder().cwd == "/tmp", "cwd was " .. tostring(templates[1].builder().cwd))
+  end,
+
+  ["a home-relative cwd is expanded, not joined under the project"] = function()
+    local templates = generate({ tasks = { { name = "home", cmd = "pwd", cwd = "~" } } })
+    local cwd = templates[1].builder().cwd
+    assert(cwd == vim.fs.normalize("~"), "cwd was " .. tostring(cwd))
+  end,
+
   ["an entry with no cmd is skipped, and the rest still load"] = function()
     local templates, warnings = generate({
       tasks = { { name = "good", cmd = { "true" } }, { name = "bad" } },

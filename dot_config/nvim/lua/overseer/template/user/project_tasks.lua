@@ -44,6 +44,18 @@ local function find_task_file(dir)
   end
 end
 
+---Resolve an entry's `cwd` against the directory that declared it.
+---@param root string
+---@param cwd string
+---@return string
+local function resolve_cwd(root, cwd)
+  local expanded = vim.fs.normalize(cwd)
+  if vim.startswith(expanded, "/") then
+    return expanded
+  end
+  return vim.fs.normalize(vim.fs.joinpath(root, cwd))
+end
+
 ---A task entry is a trust boundary: it comes out of a file in someone's
 ---repository. Anything malformed is skipped with a reason rather than raising,
 ---so one bad entry cannot take the whole task picker down with it.
@@ -126,9 +138,13 @@ return {
           builder = function()
             return {
               cmd = task.cmd,
-              -- A relative cwd is relative to the file that declared it, so the
-              -- same entry means the same directory wherever it is run from.
-              cwd = task.cwd and vim.fs.normalize(vim.fs.joinpath(root, task.cwd)) or root,
+              -- A RELATIVE cwd is relative to the file that declared it, so the
+              -- same entry means the same directory wherever it is run from. An
+              -- absolute one is left alone: joining it under the project turned
+              -- "/tmp" into "<project>/tmp", which either fails to start or runs
+              -- somewhere nobody asked for. `normalize` expands `~` first, so a
+              -- home-relative path counts as absolute here.
+              cwd = task.cwd and resolve_cwd(root, task.cwd) or root,
               env = task.env,
               components = task.components or { "default" },
             }
