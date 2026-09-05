@@ -72,6 +72,21 @@ return {
     assert(cwd == vim.fs.normalize("~"), "cwd was " .. tostring(cwd))
   end,
 
+  ["a non-list tags is skipped, and siblings still load"] = function()
+    -- `"tags": 42` used to raise inside ipairs. Overseer catches that at the
+    -- provider level, so the whole file was discarded rather than the one entry.
+    local templates, warnings = generate({
+      tasks = { { name = "good", cmd = { "true" } }, { name = "bad", cmd = { "true" }, tags = 42 } },
+    })
+    assert(vim.deep_equal(names(templates), { "good" }), "got " .. vim.inspect(names(templates)))
+    assert(warnings[1] and warnings[1]:match("tags"), "warning was " .. tostring(warnings[1]))
+  end,
+
+  ["a tags list holding a non-string is skipped"] = function()
+    local templates = generate({ tasks = { { name = "t", cmd = { "true" }, tags = { 42 } } } })
+    assert(#templates == 0, "a non-string tag was accepted")
+  end,
+
   ["an entry with no cmd is skipped, and the rest still load"] = function()
     local templates, warnings = generate({
       tasks = { { name = "good", cmd = { "true" } }, { name = "bad" } },

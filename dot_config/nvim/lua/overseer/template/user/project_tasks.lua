@@ -96,8 +96,14 @@ local function validate(entry, index)
   if entry.components ~= nil and type(entry.components) ~= "table" then
     return nil, where .. " has a non-list components"
   end
+  -- The container is checked before iterating it. `"tags": 42` raised inside
+  -- ipairs, and overseer catches that at the provider level, so one malformed
+  -- entry discarded every valid sibling in the file instead of being skipped.
+  if entry.tags ~= nil and not vim.islist(entry.tags) then
+    return nil, where .. " has a non-list tags"
+  end
   for _, tag in ipairs(entry.tags or {}) do
-    if not VALID_TAGS[tag] then
+    if type(tag) ~= "string" or not VALID_TAGS[tag] then
       return nil, ("%s has unknown tag %q"):format(where, tostring(tag))
     end
   end
