@@ -24,13 +24,16 @@ local rows = {
 -- way the command feeds it.
 local fixture_path
 
+local function write_register(lines)
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local path = dir .. "/findings-fixture.md"
+  vim.fn.writefile(lines, path)
+  return path
+end
+
 local function fixture()
-  if not fixture_path then
-    local dir = vim.fn.tempname()
-    vim.fn.mkdir(dir, "p")
-    fixture_path = dir .. "/findings-fixture.md"
-    vim.fn.writefile(rows, fixture_path)
-  end
+  fixture_path = fixture_path or write_register(rows)
   return fixture_path
 end
 
@@ -41,11 +44,22 @@ local function awk_program()
   return program
 end
 
-local function run(all)
-  local result = vim.system({ "awk", "-v", "all=" .. all, awk_program(), fixture() }):wait()
+local function awk_over(register, all)
+  local result = vim.system({ "awk", "-v", "all=" .. all, awk_program(), register }):wait()
   assert(result.code == 0, "awk exited " .. result.code .. ": " .. tostring(result.stderr))
   return vim.split(vim.trim(result.stdout), "\n")
 end
+
+local function run(all)
+  return awk_over(fixture(), all)
+end
+
+-- A markdown table cell may hold a pipe two ways: escaped, and inside a code
+-- span. Splitting on the raw character shifts every column after it.
+local piped_rows = {
+  "| F1 | 6v | HIGH | a code span holding `left\\|FIXED` inside it | ACCEPTED | rationale |",
+  "| F2 | 6v | LOW | an escaped pipe \\| sitting in prose | ACCEPTED | rationale |",
+}
 
 return {
   ["skips the closed rows and keeps the open ones in order"] = function()
@@ -77,6 +91,17 @@ return {
   -- sees it, exactly as `:edit` does. Expanding it a second time unescapes what
   -- that first pass already unescaped, so a register whose name carries a
   -- backslash is looked for under the wrong name and never read.
+  ["keeps a row whose code span holds a pipe and the word FIXED"] = function()
+    local lines = awk_over(write_register(piped_rows), 0)
+    assert(#lines == 2, "got " .. #lines .. " lines: " .. table.concat(lines, " / "))
+    assert(lines[1]:find("F1 HIGH ACCEPTED: a code span holding `left\\|FIXED` inside it", 1, true), lines[1])
+  end,
+
+  ["reads the disposition past an escaped pipe in the summary"] = function()
+    local lines = awk_over(write_register(piped_rows), 0)
+    assert(lines[2]:find("F2 LOW ACCEPTED: an escaped pipe \\| sitting in prose", 1, true), lines[2])
+  end,
+
   ["passes the command argument through without a second expansion"] = function()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")

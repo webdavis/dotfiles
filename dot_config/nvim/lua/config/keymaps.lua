@@ -325,9 +325,24 @@ map({
 -- the register grammar puts a commit sha on every one of them.
 local ledger_awk = [==[
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
-BEGIN { FS = "|" }
+# A cell may hold a pipe two ways, escaped and inside a code span, so the row is
+# walked rather than split on the raw character: either one would otherwise
+# shift every column after it and let a summary masquerade as a disposition.
+function cells(line, out,   i, c, n, cell, tick, len) {
+  split("", out); n = 0; cell = ""; tick = 0; len = length(line)
+  for (i = 1; i <= len; i++) {
+    c = substr(line, i, 1)
+    if (c == "\\" && i < len) { cell = cell c substr(line, i + 1, 1); i++; continue }
+    if (c == "`") tick = 1 - tick
+    else if (c == "|" && tick == 0) { out[++n] = cell; cell = ""; continue }
+    cell = cell c
+  }
+  out[++n] = cell
+  return n
+}
 /^[ \t]*\|[ \t]*F[0-9]+[ \t]*\|/ {
-  id = trim($2); severity = trim($4); summary = trim($5); disposition = trim($6)
+  cells($0, cell)
+  id = trim(cell[2]); severity = trim(cell[4]); summary = trim(cell[5]); disposition = trim(cell[6])
   if (disposition ~ /^FIXED/ && all != 1) next
   where = FILENAME ":" FNR
   if (match(summary, /[^ \t`]*[.\/][^ \t`]*:[0-9]+/)) where = substr(summary, RSTART, RLENGTH)
