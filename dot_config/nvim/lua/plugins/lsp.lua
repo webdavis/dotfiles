@@ -390,7 +390,15 @@ return {
       vim.api.nvim_create_autocmd("BufWritePre", {
         group = format_group,
         pattern = "*",
-        callback = safe_format,
+        callback = function()
+          -- auto-save.nvim raises this flag over its own write (plugins/autosave.lua).
+          -- Reformatting a buffer the operator did not ask to write moves their cursor
+          -- and their undo history on a timer; an explicit `:w` still formats.
+          if vim.b.autosave_write then
+            return
+          end
+          return safe_format()
+        end,
       })
 
       -- ╭──────────────╮
