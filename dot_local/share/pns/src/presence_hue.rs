@@ -48,9 +48,10 @@ pub fn poll<B: Bridge>(bridge: &B, watched: &[String], now: u64) -> Option<RawPr
 /// testable against bodies copied off the live bridge.
 ///
 /// A BODY THIS CANNOT READ IS NOT AN ANSWER (`None`, so nothing is published),
+/// and neither is a body carrying a WATCHED room whose report it cannot read,
 /// while a body it CAN read holding no watched edge is the poll-only reading,
 /// which says the bridge answered and no watched room has reported. Collapsing
-/// the two would let a garbled response claim the operator is nowhere.
+/// those would let a garbled response claim the operator is nowhere.
 pub fn reading(
     motion_json: &str,
     rooms_json: &str,
@@ -59,17 +60,50 @@ pub fn reading(
 ) -> Option<RawPresence> {
     let motion = data(motion_json)?;
     let rooms = data(rooms_json)?;
+    // THE NEWEST EDGE AMONG THE WATCHED ROOMS, which is the only room this can
+    // honestly name: an edge in a room nobody watches says nothing about where
+    // the operator is, and letting one win would answer with a room the config
+    // never listed.
+    //
+    // AND NO EDGE AT ALL WHEN ONE OF THEM IS UNREADABLE, which is why this is
+    // a loop rather than a `filter_map`: the room whose report would not parse
+    // may hold the newer edge, so the newest of the rest is a guess.
+    let mut newest: Option<Edge> = None;
+    for entry in &motion {
+        match edge_of(entry, &rooms, watched) {
+            EntryEdge::Malformed => return None,
+            EntryEdge::Found(edge) => {
+                if newest.as_ref().is_none_or(|held| held.epoch <= edge.epoch) {
+                    newest = Some(edge);
+                }
+            }
+            EntryEdge::Irrelevant => {}
+        }
+    }
     Some(RawPresence {
         poll_epoch: now,
-        // THE NEWEST EDGE AMONG THE WATCHED ROOMS, which is the only room this
-        // can honestly name: an edge in a room nobody watches says nothing
-        // about where the operator is, and letting one win would answer with a
-        // room the config never listed.
-        edge: motion
-            .iter()
-            .filter_map(|entry| edge_of(entry, &rooms, watched))
-            .max_by_key(|edge| edge.epoch),
+        edge: newest,
     })
+}
+
+/// What one `grouped_motion` entry says about the watched rooms.
+///
+/// THREE ANSWERS RATHER THAN AN `Option`, because the third one changes what
+/// gets published. An entry dropped for being unreadable used to leave the
+/// poll-only line, and `classify` reads that as a FRESH "nowhere": a bridge
+/// serving the same garbage every few seconds kept a false absence fresh for
+/// as long as it kept serving it. Refusing the poll instead lets the last good
+/// reading age out into `Stale`, which is the direction every other unknown in
+/// this feature takes.
+enum EntryEdge {
+    /// A watched room's edge.
+    Found(Edge),
+    /// A watched room carrying a report this cannot read. The whole poll goes.
+    Malformed,
+    /// Everything that is neither: the house roll-up, a room nobody watches, a
+    /// room the listing does not name, and a watched room whose sensors report
+    /// nothing at all.
+    Irrelevant,
 }
 
 /// The `.data[]` array of a CLIP response, or `None` for a body that has none.
@@ -83,13 +117,42 @@ fn data(clip_json: &str) -> Option<Vec<serde_json::Value>> {
     Some(body.get("data")?.as_array()?.clone())
 }
 
-/// One `grouped_motion` entry as an edge in a watched room, or `None` for
-/// every entry that is not one.
+/// One `grouped_motion` entry, as whichever of the three answers it is.
 fn edge_of(
     entry: &serde_json::Value,
     rooms: &[serde_json::Value],
     watched: &[String],
-) -> Option<Edge> {
+) -> EntryEdge {
+    let Some(room) = watched_room(entry, rooms, watched) else {
+        return EntryEdge::Irrelevant;
+    };
+    // ABSENT FOR A ROOM WHOSE SENSORS ARE OFF, which serves `motion: {}`: no
+    // report is no edge, never an edge at epoch zero, and never a refusal
+    // either. It is the documented shape of a switched-off sensor, so the poll
+    // it belongs to is a real answer with one room quiet in it.
+    let Some(report) = entry.pointer("/motion/motion_report") else {
+        return EntryEdge::Irrelevant;
+    };
+    // PAST THIS POINT A WATCHED ROOM SAID SOMETHING, so anything unreadable in
+    // it is `Malformed` rather than silence.
+    match report_edge(report, room) {
+        Some(edge) => EntryEdge::Found(edge),
+        None => EntryEdge::Malformed,
+    }
+}
+
+/// The name of the watched room this entry belongs to, or `None` when it
+/// belongs to none.
+///
+/// EVERY REFUSAL HERE IS IRRELEVANCE RATHER THAN MALFORMEDNESS, and it has to
+/// be: until the entry is joined to a name, nothing knows whether it is even a
+/// room the operator listed, and a bridge that serves the whole house would
+/// otherwise let a garbled entry in a room nobody watches refuse every poll.
+fn watched_room(
+    entry: &serde_json::Value,
+    rooms: &[serde_json::Value],
+    watched: &[String],
+) -> Option<String> {
     let owner = entry.get("owner")?;
     // THE HOUSE ROLL-UP IS NOT A ROOM. `bridge_home` reports every sensor in
     // the building, so its edge is the newest edge anywhere and it would win
@@ -98,12 +161,12 @@ fn edge_of(
         return None;
     }
     let room = room_name(rooms, owner.get("rid")?.as_str()?)?;
-    if !watched.contains(&room) {
-        return None;
-    }
-    // ABSENT FOR A ROOM WHOSE SENSORS ARE OFF, which serves `motion: {}`: no
-    // report is no edge, never an edge at epoch zero.
-    let report = entry.pointer("/motion/motion_report")?;
+    watched.contains(&room).then_some(room)
+}
+
+/// One `motion_report` as the edge it states, or `None` for a report this
+/// cannot read.
+fn report_edge(report: &serde_json::Value, room: String) -> Option<Edge> {
     Some(Edge {
         epoch: epoch_from_utc(report.get("changed")?.as_str()?)?,
         motion: report.get("motion")?.as_bool()?,
@@ -245,6 +308,70 @@ mod tests {
                 "{motion:.20} with {rooms:.20} answered anyway"
             );
         }
+    }
+
+    #[test]
+    fn a_report_a_watched_room_carries_but_this_cannot_read_is_no_poll_at_all() {
+        // A REPORT THIS CANNOT READ IS NOT AN ABSENCE. Dropping the entry
+        // published the poll-only line, which `classify` reads as a FRESH
+        // "nowhere", so a bridge serving the same garbage every few seconds
+        // kept a false absence fresh for as long as it kept serving it.
+        // Refusing the poll lets the last good reading age out into Stale.
+        let watched = vec!["3F - Studio".to_string()];
+        for motion in [
+            // A `changed` instant no shape here recognises.
+            r#"{"data":[{"owner":{"rid":"studio","rtype":"room"},
+                 "motion":{"motion_report":{"changed":"invalid","motion":true}}}]}"#,
+            // `changed` absent from a report that exists.
+            r#"{"data":[{"owner":{"rid":"studio","rtype":"room"},
+                 "motion":{"motion_report":{"motion":true}}}]}"#,
+            // `motion` absent, and `motion` that is not a boolean.
+            r#"{"data":[{"owner":{"rid":"studio","rtype":"room"},
+                 "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.413Z"}}}]}"#,
+            r#"{"data":[{"owner":{"rid":"studio","rtype":"room"},
+                 "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.413Z",
+                 "motion":"yes"}}}]}"#,
+        ] {
+            assert_eq!(
+                reading(motion, ROOMS, &watched, 1_788_456_100),
+                None,
+                "{motion:.70} published a reading anyway"
+            );
+        }
+    }
+
+    #[test]
+    fn one_unreadable_watched_report_refuses_the_poll_beside_a_readable_one() {
+        // THE OTHER HALF, and the reason a partial answer is not an answer:
+        // the room this cannot read may hold the newer edge, so naming the
+        // room it CAN read would be a guess dressed as a reading.
+        let motion = r#"{"data":[
+            {"owner":{"rid":"studio","rtype":"room"},
+             "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.413Z","motion":false}}},
+            {"owner":{"rid":"hallway","rtype":"room"},
+             "motion":{"motion_report":{"changed":"invalid","motion":true}}}
+        ]}"#;
+        let watched = vec!["3F - Studio".to_string(), "3F - Hallway".to_string()];
+        assert_eq!(reading(motion, ROOMS, &watched, 1_788_456_100), None);
+    }
+
+    #[test]
+    fn an_unreadable_report_in_a_room_nobody_watches_costs_the_poll_nothing() {
+        // ONLY A WATCHED ROOM CAN REFUSE A POLL. The bridge serves every room
+        // in the house, so a garbled report in one the config never listed
+        // would otherwise blind the sensor on rooms it does not even read.
+        let motion = r#"{"data":[
+            {"owner":{"rid":"studio","rtype":"room"},
+             "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.413Z","motion":false}}},
+            {"owner":{"rid":"door","rtype":"room"},
+             "motion":{"motion_report":{"changed":"invalid","motion":true}}}
+        ]}"#;
+        assert_eq!(
+            reading(motion, ROOMS, &watched(), 1_788_456_100)
+                .and_then(|raw| raw.edge)
+                .map(|edge| edge.room),
+            Some("3F - Studio".to_string())
+        );
     }
 
     #[test]
