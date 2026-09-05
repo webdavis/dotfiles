@@ -97,8 +97,24 @@ local function default_branch(opts)
   return result
 end
 
+-- `repo` answers `nil, message` when `gh` cannot; that failure is passed on
+-- as a result rather than read as a table, which raised on the index.
+local function commit_url(sha)
+  if not sha then
+    error("Missing required argument `sha`")
+  end
+
+  local repository, err = repo()
+  if not repository then
+    return nil, err
+  end
+
+  return ("https://github.com/%s/commit/%s"):format(repository.nameWithOwner, sha)
+end
+
 M.account = account
 M.repo = repo
 M.default_branch = default_branch
+M.commit_url = commit_url
 
 return M

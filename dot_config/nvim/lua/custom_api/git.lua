@@ -316,9 +316,52 @@ local function copy_url_to_clipboard(opts)
   return ("Copied *%s* %s URL to clipboard: `%s`"):format(remote, protocol:upper(), final_URL)
 end
 
+-- What git blame prints as the SHA of a line that is not committed yet.
+local UNCOMMITTED_SHA = ("0"):rep(40)
+
+-- The first porcelain line is `<sha> <orig-line> <final-line> <count>`. Only the
+-- SHA is read; `%s` after the token is what keeps a `fatal:` from matching as
+-- hex on its leading letters.
+local function parse_blame_porcelain(text)
+  local sha = (text or ""):match("^(%x+)%s")
+
+  if not sha then
+    return nil, "no blame line to read"
+  end
+
+  if sha == UNCOMMITTED_SHA then
+    return nil, "not committed yet"
+  end
+
+  return sha
+end
+
+local function blame_sha(opts)
+  opts = opts or {}
+  local file = opts.file
+  local line = opts.line
+
+  if not file then
+    error("Missing required argument `file`")
+  end
+  if not line then
+    error("Missing required argument `line`")
+  end
+
+  local range = ("%d,%d"):format(line, line)
+  local code, output = M.runner({ cmd = { "git", "blame", "-L", range, "--porcelain", "--", file } })
+
+  if code ~= 0 then
+    return nil, output
+  end
+
+  return parse_blame_porcelain(output)
+end
+
 -- The pure helpers are exported so the spec can call them directly (spec 6.3);
 -- they take strings and tables and reach nothing outside this file.
 M.convert_remote_protocol = convert_remote_protocol
+M.parse_blame_porcelain = parse_blame_porcelain
 M.normalize_branch = normalize_branch
 M.is_current_branch = is_current_branch
 M.extract_upstream = extract_upstream
@@ -332,5 +375,6 @@ M.default_branch = default_branch
 M.latest_commit = latest_commit
 M.copy_url_to_clipboard = copy_url_to_clipboard
 M.url = url
+M.blame_sha = blame_sha
 
 return M
