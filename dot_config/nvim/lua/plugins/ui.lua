@@ -59,7 +59,14 @@ return {
     config = function(_, opts)
       require("catppuccin").setup(opts)
 
-      vim.cmd.colorscheme("catppuccin-nvim")
+      -- Same theme under two names across a pin bump: the old pin only ships
+      -- `catppuccin`, so the new name fails there. Editing lazy-lock.json installs
+      -- nothing until `:Lazy restore`, so the window between an apply and that
+      -- restore is real, and lazy reports the failure through `vim.notify`, which
+      -- makes it silent at startup.
+      if not pcall(vim.cmd.colorscheme, "catppuccin-nvim") and not pcall(vim.cmd.colorscheme, "catppuccin") then
+        vim.notify("catppuccin: neither `catppuccin-nvim` nor `catppuccin` loaded", vim.log.levels.WARN)
+      end
     end,
   },
   {
