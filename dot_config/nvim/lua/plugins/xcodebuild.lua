@@ -150,24 +150,13 @@ return {
       },
     },
     config = function(_, opts)
-      -- `platform/macos.lua:22` looks for `stdbuf` by that exact name to stream a macOS app's
-      -- logs without a debugger, which is how a Vapor server's output reaches the editor.
-      -- Homebrew's coreutils installs it as `gstdbuf` and keeps the GNU names in a separate
-      -- directory, so the check fails on a machine that has the tool.
-      --
-      -- APPENDED, never prepended. `vim.env.PATH` is inherited by every subprocess Neovim
-      -- starts, git hooks and formatters included, so putting the GNU names first swaps the
-      -- userland under all of them: measured, BSD `date -j -f` and `stat -f %m` both exit 1
-      -- under a prepend and both work under an append. Appending still resolves `stdbuf`,
-      -- because no earlier entry provides one. Coreutils ships no `sed`, so nothing here
-      -- substitutes GNU sed either way.
-      if vim.fn.executable("stdbuf") == 0 then
-        local gnubin = "/opt/homebrew/opt/coreutils/libexec/gnubin"
-        if vim.fn.isdirectory(gnubin) == 1 then
-          vim.env.PATH = vim.env.PATH .. ":" .. gnubin
-        end
-      end
-
+      -- NO `stdbuf` ON PATH, deliberately. `platform/macos.lua:22` switches the launcher from
+      -- `open` to `stdbuf -o0 open` the moment `stdbuf` is findable, to stream a macOS app's
+      -- logs without a debugger. On this host that command aborts: Homebrew's `libstdbuf.so`
+      -- is arm64 and `/usr/bin/open` is arm64e, so the injection is refused and `jobstart`
+      -- returns 134. Exposing coreutils here therefore breaks launching the app at all, which
+      -- is worse than the missing logs. Upstream's plain `open` fallback stands, and macOS
+      -- app-log streaming stays off until a working implementation exists.
       require("xcodebuild").setup(opts)
       -- The read half of `restore_on_start`. Upstream hangs it on `VimEnter`, which has always
       -- fired by the time an `ft = "swift"` spec loads, so the plugin's own autocmd never runs
