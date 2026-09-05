@@ -91,8 +91,14 @@ return {
       { "<leader>xD", "<cmd>XcodebuildCleanDerivedData<cr>", desc = "Xcode: clean derived data" },
       -- Test
       { "<leader>xt", "<cmd>XcodebuildTest<cr>", desc = "Xcode: test all" },
+      -- The one visual-mode map in the group. `<cmd>` is load-bearing rather than stylistic
+      -- here: the provider reads the range with `getpos("v")`, which only answers while visual
+      -- mode is still active, and a `:` mapping leaves it before the command runs.
+      { "<leader>xt", "<cmd>XcodebuildTestSelected<cr>", mode = "v", desc = "Xcode: test selected" },
       { "<leader>xT", "<cmd>XcodebuildTestNearest<cr>", desc = "Xcode: test nearest" },
+      { "<leader>xC", "<cmd>XcodebuildTestClass<cr>", desc = "Xcode: test current class" },
       { "<leader>xf", "<cmd>XcodebuildTestFailing<cr>", desc = "Xcode: test failing" },
+      { "<leader>x.", "<cmd>XcodebuildTestRepeat<cr>", desc = "Xcode: repeat last test run" },
       { "<leader>xe", "<cmd>XcodebuildTestExplorerToggle<cr>", desc = "Xcode: toggle test explorer" },
       -- Code coverage. `code_coverage.enabled` is turned on in opts above, and the inline marks
       -- were the only part of it reachable: the report and the two jumps have no keys today and,
@@ -118,6 +124,9 @@ return {
       -- Project
       { "<leader>xs", "<cmd>XcodebuildSelectScheme<cr>", desc = "Xcode: select scheme" },
       { "<leader>xd", "<cmd>XcodebuildSelectDevice<cr>", desc = "Xcode: select device" },
+      -- The third project selector beside scheme and device, and routine on iOS, where a target
+      -- usually carries more than one test plan.
+      { "<leader>xP", "<cmd>XcodebuildSelectTestPlan<cr>", desc = "Xcode: select test plan" },
       { "<leader>xl", "<cmd>XcodebuildToggleLogs<cr>", desc = "Xcode: toggle logs" },
       { "<leader>xp", "<cmd>XcodebuildProjectManager<cr>", desc = "Xcode: project manager" },
       { "<leader>xo", "<cmd>XcodebuildOpenInXcode<cr>", desc = "Xcode: open in Xcode" },
