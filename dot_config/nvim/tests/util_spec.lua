@@ -52,6 +52,17 @@ return {
     )
   end,
 
+  ["run_shell_command runs a table command in the directory it was given"] = function()
+    -- Without this, every caller runs against Neovim's cwd, so a git helper
+    -- asked about a file in another repository silently answers about the one
+    -- Neovim happens to be sitting in.
+    local dir = vim.fn.tempname()
+    assert(vim.fn.mkdir(dir, "p") == 1, "mkdir " .. dir)
+    local code, output = util.run_shell_command({ cmd = { "pwd" }, cwd = dir })
+    assert(code == 0, "exit " .. tostring(code) .. ": " .. tostring(output))
+    assert(vim.fn.resolve(output) == vim.fn.resolve(dir), "ran in " .. tostring(output) .. ", not " .. dir)
+  end,
+
   -- A link and its target can sit in two different checkouts, and git and `gh`
   -- both answer for the directory they RUN in, so the directory to run in is the
   -- real file's. `github.commit_url` hands this the buffer's own name, which for

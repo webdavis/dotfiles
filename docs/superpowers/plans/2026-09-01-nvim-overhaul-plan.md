@@ -943,17 +943,25 @@ are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>As` and
 `lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
 blame"`).
 
-**Interfaces:** `annotate.compose_text(parts)` (pure) with
-`parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, one
-part per line, with no blank line where a part is nil. `annotate.line()` gathers the parts,
+**Interfaces:** `annotate.compose_text(parts, separator)` (pure) with
+`parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, the
+parts joined by `separator` (a newline by default) with no doubled separator where a part is nil.
+`annotate.line()` passes ` | ` (space, pipe, space), so the STORED text is one line: herdr-nvim's
+`ui.comment_list` renders one buffer line per comment out of the comment's own text (`ui.lua:89`,
+`ui.lua:147` at the installed commit `41c30f5`), and `nvim_buf_set_lines` raises
+`'replacement string' item contains newlines`, so every two-part annotation broke `<leader>Al`
+(measured 2026-09-05). This repository does not patch third-party plugins, so the separator moved
+rather than the plugin, and it reverts to a newline by changing one constant once herdr-nvim can list
+a multi-line comment. `annotate.line()` gathers the parts,
 `@<rel>:<line>` for the mention, the first `vim.diagnostic.get` on the line, the enclosing treesitter
 node whose type ends in `function_definition`, `function_declaration` or `method_definition`, and
 `git.blame_sha` plus `git.latest_commit`, then calls `herdr-nvim`'s
 `comments.add(bufnr, line, line, text)` and passes the returned id to `ui.decorate(id)` (both read at
 the installed plugin: `lua/herdr-nvim/comments.lua:6`, `lua/herdr-nvim/ui.lua:50`).
 
-- [ ] **Step 1, red:** `annotate_spec`: all four parts join one per line; mention only; a nil middle
-  part leaves no blank line; the order is mention, diagnostic, function, blame. FAIL. **Step 2:**
+- [ ] **Step 1, red:** `annotate_spec`: all four parts join with the separator; mention only; a nil
+  middle part doubles no separator; the default separator is a newline; the order is mention,
+  diagnostic, function, blame. FAIL. **Step 2:**
   implement; the module name confirmed with the operator first (rename rule). No fake herdr and no
   state fixture: nothing here reads an agent's state.
 - [ ] **Mutants:** join with spaces (red); drop the diagnostic part (red); emit an empty line for a

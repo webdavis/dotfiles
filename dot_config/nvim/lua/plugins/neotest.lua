@@ -23,7 +23,10 @@ return {
     require("neotest").setup({
       adapters = {
         require("neotest-python"),
-        require("neotest-golang"),
+        -- Called, not passed bare: neotest-golang's module IS the adapter table and
+        -- calling it is what populates `Adapter.options`. Without that, discovery in a
+        -- module with a child directory dies in `filter_dir` on a nil `options`.
+        require("neotest-golang")({}),
       },
     })
   end,

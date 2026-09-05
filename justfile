@@ -105,14 +105,14 @@ test-e2e: validate-tests
 # herdr plugins cover the pure decision functions in their src/main.rs (every
 # Command call sits behind an untested boundary by design) with inline
 # `#[cfg(test)] mod tests`. pns and uu are NOT pure-decision libraries: each
-# has four (pns) or one (uu) integration binaries under tests/ that spawn the
+# has four (pns) or six (uu) integration binaries under tests/ that spawn the
 # real compiled engine as a subprocess against a private sandboxed HOME,
 # alongside their own inline unit tests.
 #
 # THE RUST CAMP RUNS UNDER A ONE-SECOND TEST BUDGET, enforced by a Drop guard
-# on each integration binary's sandbox harness (pns: tests/support/mod.rs;
-# uu: tests/cli.rs's Home). A sandbox alive past one second at its own drop
-# WARNS on stderr, greppable as "test budget"; past five seconds it FAILS the
+# on each integration binary's sandbox harness (both crates keep it at
+# tests/support/mod.rs). A sandbox alive past one second at its own drop WARNS
+# on stderr, greppable as "test budget"; past five seconds it FAILS the
 # build, unless the test called `allow_slow("reason")` on it because the cost
 # is structural (an epoch-second lease, a whole-second deadline config key)
 # rather than a regression. This is a LOWER BOUND on the test's own sandbox
