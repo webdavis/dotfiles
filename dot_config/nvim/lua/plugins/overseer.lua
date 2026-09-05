@@ -53,7 +53,12 @@ return {
   -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
   -- same rhs when the plugin loads, so there is no second copy in `config`.
   keys = {
-    { "<leader>or", "<cmd>OverseerOpen!<bar>OverseerRun<cr>", desc = "Overseer: run (and open list)", silent = true },
+    {
+      "<leader>or",
+      "<cmd>OverseerOpen!<cr><cmd>OverseerRun<cr>",
+      desc = "Overseer: run (and open list)",
+      silent = true,
+    },
     { "<leader>oR", "<cmd>OverseerRun<cr>", desc = "Overseer: run", silent = true },
     { "<leader>ol", "<cmd>OverseerRestartLast<cr>", desc = "Overseer: run last task", silent = true },
     { "<leader>oo", "<cmd>OverseerOpen<cr>", desc = "Overseer: open (and focus)", silent = true },
