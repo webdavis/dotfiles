@@ -65,12 +65,12 @@ end
 -- answer "main" and a bypassed test would still pass. These cases therefore
 -- also assert WHICH commands the runner was handed, from `seen`.
 local function default_branch(replies)
-  local seen = {}
+  local commands = {}
   local real_runner = git.runner
   git.runner = function(opts)
     assert(type(opts.cmd) == "table", "runner was handed shell text: " .. tostring(opts.cmd))
     local command = table.concat(opts.cmd, " ")
-    table.insert(seen, command)
+    table.insert(commands, command)
     local reply = replies[command] or error("unexpected shell command: " .. command)
     return reply[1], reply[2]
   end
@@ -78,7 +78,7 @@ local function default_branch(replies)
   git.runner = real_runner
   assert(results[1], results[2])
   local name, err = unpack(results, 2, count)
-  return { seen = seen, name = name, err = err }
+  return { seen = commands, name = name, err = err }
 end
 
 local MAIN_REF = "git show-ref --verify --quiet refs/remotes/origin/main"
