@@ -213,23 +213,25 @@ local function function_part(bufnr, line, column)
 end
 
 local function blame_part(name, line)
-  -- Git runs in the BUFFER's directory, not Neovim's. A buffer opened from
-  -- another repository was otherwise blamed against whichever repository
-  -- Neovim was sitting in, or, from a directory that is no repository at all,
-  -- lost its blame part entirely.
-  local directory = vim.fn.fnamemodify(name, ":p:h")
-
   -- Both calls return `nil, message` on failure (a file outside a repository,
   -- a line not committed yet); the message is the keymap layer's to report,
   -- and here a line the annotator cannot blame is a part it does not write.
-  local sha = git.blame_sha({ file = name, line = line, cwd = directory })
+  local sha = git.blame_sha({ file = name, line = line })
   if not sha then
     return nil
   end
 
-  local repo_name = vim.fn.fnamemodify(directory, ":t")
+  -- `blame_sha` finds its own directory from the file. `latest_commit` has no
+  -- file to find one from, so the summary would otherwise come from whichever
+  -- repository Neovim is sitting in and be captioned onto this line's SHA.
+  local directory = util.file_dir(name)
 
-  return M.blame_line(sha, git.latest_commit({ repo_name = repo_name, cwd = directory }))
+  local commit = git.latest_commit({
+    repo_name = vim.fn.fnamemodify(directory or name, ":t"),
+    cwd = directory,
+  })
+
+  return M.blame_line(sha, commit)
 end
 
 ---Annotate the cursor's line in `herdr-nvim`'s annotation store.

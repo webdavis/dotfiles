@@ -33,6 +33,29 @@ function M.normalize(message)
   return (message ~= "" and message) or nil
 end
 
+---The directory holding `path`, for a command's `cwd`.
+---
+---Git and `gh` both answer for the repository of the directory they run in, not
+---for the repository of the path they are handed, so a command about a file has
+---to run beside that file. With nvim's own cwd outside the repository, `git
+---blame` on an absolute path inside it reports `fatal: not a git repository`
+---and `gh repo view` answers for whatever repository nvim was started in.
+---
+---Symlinks are resolved first, because git answers for the real file: a link
+---and its target can sit in two different checkouts.
+---
+---Answers nil for a buffer with no file of its own, which leaves nvim's cwd in
+---place: that is the only directory there is to run in.
+function M.file_dir(path)
+  if not path or path == "" then
+    return nil
+  end
+
+  local dir = vim.fn.fnamemodify(vim.uv.fs_realpath(path) or path, ":p:h")
+
+  return vim.fn.isdirectory(dir) == 1 and dir or nil
+end
+
 ---Run a command and return its exit code and trimmed output.
 ---
 ---`cmd` is a TABLE of argv words or a STRING. The table form runs the words
@@ -41,9 +64,9 @@ end
 ---deliberate escape hatch for a real shell pipeline, and the caller owns
 ---quoting whatever it interpolates.
 ---
----`cwd` names the directory to run in, and defaults to Neovim's own. It is
----accepted for the table form only: `vim.fn.system` takes no directory, so a
----string command carrying one would run somewhere other than where it said.
+---`stdin` is text to feed the command, for the argv form only: it is what lets
+---a caller blame a buffer it has not saved through `git blame --contents -`.
+---`cwd` is the directory to run it in, and defaults to nvim's own.
 function M.run_shell_command(opts)
   opts = opts or error("Missing `command` argument. Provide a table with a `command` field.")
   local cmd = opts.cmd
@@ -51,7 +74,7 @@ function M.run_shell_command(opts)
 
   local output, exit_code
   if type(cmd) == "table" then
-    local result = vim.system(cmd, { text = true, cwd = opts.cwd }):wait()
+    local result = vim.system(cmd, { text = true, stdin = opts.stdin, cwd = opts.cwd }):wait()
     exit_code = result.code
     -- stderr joins the value only on failure, so a tool that warns on stderr
     -- cannot glue its notice onto a URL the caller is about to use.
@@ -60,9 +83,6 @@ function M.run_shell_command(opts)
       output = output .. (result.stderr or "")
     end
   elseif type(cmd) == "string" then
-    if opts.cwd then
-      error("`cwd` is not supported for a string command: vim.fn.system runs in Neovim's own directory")
-    end
     output = vim.fn.system(cmd)
     exit_code = vim.v.shell_error
   else

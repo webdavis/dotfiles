@@ -199,10 +199,11 @@ local function current_branch()
   return with_branch_list_helper({ current = true })
 end
 
--- `cwd`, where every helper below accepts it, is the directory git runs in. It
--- defaults to Neovim's own, which is only the right repository when the caller
--- happens to be sitting in it. `repo_name` does NOT do this job: it labels this
--- function's error messages and selects nothing.
+-- `cwd` is the directory git runs in, and defaults to Neovim's own, which is
+-- only the right repository when the caller happens to be sitting in it.
+-- `blame_sha` derives its own from the file it blames; this function has no
+-- file to derive one from, so the caller states it. `repo_name` does NOT do
+-- this job: it labels this function's error messages and selects nothing.
 local function latest_commit(opts)
   opts = opts or {}
   local repo_name = opts.repo_name
@@ -321,9 +322,6 @@ local function copy_url_to_clipboard(opts)
   return ("Copied *%s* %s URL to clipboard: `%s`"):format(remote, protocol:upper(), final_URL)
 end
 
--- What git blame prints as the SHA of a line that is not committed yet.
-local UNCOMMITTED_SHA = ("0"):rep(40)
-
 -- The first porcelain line is `<sha> <orig-line> <final-line> <count>`. Only the
 -- SHA is read; `%s` after the token is what keeps a `fatal:` from matching as
 -- hex on its leading letters.
@@ -334,11 +332,53 @@ local function parse_blame_porcelain(text)
     return nil, "no blame line to read"
   end
 
-  if sha == UNCOMMITTED_SHA then
+  -- What git blame prints as the SHA of a line that is not committed yet is a
+  -- SHA of zeros: forty of them in a SHA-1 repository and sixty-four in a
+  -- SHA-256 one, so the digits are what identify it and never their count.
+  if sha:match("^0+$") then
     return nil, "not committed yet"
   end
 
   return sha
+end
+
+-- What each `fileformat` puts between lines when the buffer is written out.
+local LINE_SEPARATOR = { unix = "\n", dos = "\r\n", mac = "\r" }
+
+-- The text the editor is showing for `file`. Blaming the saved copy answers for
+-- a line the operator may have already replaced, so what the buffer holds is
+-- what goes to git; git reports a line that is only in the buffer as
+-- uncommitted, which is the true answer. The keymaps blame the current buffer,
+-- so a name that does not match it means there is nothing unsaved to send.
+--
+-- These have to be the bytes the file itself would hold, not the lines glued
+-- with LF and a newline stapled on: a `fileformat=dos` buffer rejoined with LF,
+-- or a file with no trailing newline given one, differs from its own committed
+-- blob, so every line of an UNCHANGED file blamed as uncommitted.
+local function buffer_contents(file)
+  if vim.api.nvim_buf_get_name(0) ~= file then
+    return nil
+  end
+
+  -- `binary` writes the buffer out with LF between the lines whatever
+  -- `fileformat` says, so it settles the separator before the format is read.
+  local separator = vim.bo.binary and "\n" or (LINE_SEPARATOR[vim.bo.fileformat] or "\n")
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+
+  -- A `fileformat=mac` buffer is split on carriage returns, and nvim shows an LF
+  -- byte sitting INSIDE one of those lines as a carriage return as well. Joining
+  -- with a carriage return would write the file's own LF back out as a line
+  -- break, so the two are told apart here: a carriage return still inside a line
+  -- is the LF it was read from.
+  if separator == "\r" then
+    lines = vim.tbl_map(function(line)
+      return (line:gsub("\r", "\n"))
+    end, lines)
+  end
+
+  local text = table.concat(lines, separator)
+
+  return vim.bo.endofline and text .. separator or text
 end
 
 local function blame_sha(opts)
@@ -354,10 +394,21 @@ local function blame_sha(opts)
   end
 
   local range = ("%d,%d"):format(line, line)
-  local code, output = M.runner({
-    cmd = { "git", "blame", "-L", range, "--porcelain", "--", file },
-    cwd = opts.cwd,
-  })
+  local contents = buffer_contents(file)
+
+  -- A symlink gives nvim the TARGET's text under the LINK's name, and the link's
+  -- own blob holds a path rather than that text, so blaming the link compared
+  -- the two and called every line uncommitted. The link's name is what the
+  -- buffer is called and stays the key for matching it; git gets the real file.
+  local blamed = vim.uv.fs_realpath(file) or file
+
+  local cmd = { "git", "blame", "-L", range, "--porcelain" }
+  if contents then
+    vim.list_extend(cmd, { "--contents", "-" })
+  end
+  vim.list_extend(cmd, { "--", blamed })
+
+  local code, output = M.runner({ cmd = cmd, stdin = contents, cwd = util.file_dir(blamed) })
 
   if code ~= 0 then
     return nil, output
