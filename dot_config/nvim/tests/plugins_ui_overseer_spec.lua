@@ -63,7 +63,39 @@ local function tasks(n, status)
   return list
 end
 
+---Every name a function closes over.
+---@param fn function
+---@return string[]
+local function upvalues(fn)
+  local names, index = {}, 1
+  while true do
+    local name = debug.getupvalue(fn, index)
+    if not name then
+      return names
+    end
+    table.insert(names, name)
+    index = index + 1
+  end
+end
+
 return {
+  ["the callbacks capture nothing"] = function()
+    -- witch-line's cache serializes a component's callbacks as bytecode WITHOUT
+    -- their upvalues, so anything captured comes back nil on a start that reads
+    -- a populated cache: observed as `ui.lua:123: attempt to call upvalue
+    -- 'counts' (a nil value)`. Reaching the module by name through `require`, a
+    -- global lookup, is what survives that roundtrip.
+    with_tasks({}, function(component)
+      for _, field in ipairs({ "hidden", "update" }) do
+        local captured = upvalues(component[field])
+        assert(
+          #captured == 0,
+          ("%s captures %s, which the cache will not restore"):format(field, table.concat(captured, ", "))
+        )
+      end
+    end)
+  end,
+
   ["the default components are kept, with the counter appended"] = function()
     with_tasks({}, function(_, components)
       assert(#components == #DEFAULTS + 1, "got " .. #components .. " components, expected " .. (#DEFAULTS + 1))

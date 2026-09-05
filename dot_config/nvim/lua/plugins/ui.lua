@@ -94,25 +94,13 @@ return {
       -- lualine and heirline only, so this is the same idea in witch-line's
       -- component shape: one count per status, hidden when there is nothing to
       -- report.
-      local statuses = { "RUNNING", "FAILURE", "SUCCESS", "CANCELED" }
-      local icons = { RUNNING = "󰑮", FAILURE = "󰅚", SUCCESS = "󰄴", CANCELED = "" }
-
-      ---@return table<string, integer>
-      local function counts()
-        -- `package.loaded` rather than require: overseer lazy-loads itself, and
-        -- asking for it here would drag it in on every statusline redraw.
-        if not package.loaded["overseer"] then
-          return {}
-        end
-        local by_status = {}
-        -- unique collapses repeat runs of one task; wrapped background jobs stay
-        -- out, which is the same set the task list shows.
-        for _, task in ipairs(require("overseer.task_list").list_tasks({ unique = true })) do
-          by_status[task.status] = (by_status[task.status] or 0) + 1
-        end
-        return by_status
-      end
-
+      --
+      -- Both callbacks reach `custom_api.overseer_status` by name and capture
+      -- NOTHING. witch-line's cache serializes them as bytecode without their
+      -- upvalues, so a callback closing over a local helper came back from a
+      -- populated cache as `attempt to call upvalue 'counts' (a nil value)`:
+      -- the counter worked on a cold start and broke on every start after one.
+      -- `require` is a global lookup, which survives that roundtrip.
       local overseer_component = {
         id = "overseer.tasks",
         padding = { left = 1, right = 1 },
@@ -120,17 +108,10 @@ return {
         -- this polls rather than waiting to be told.
         timing = 1000,
         hidden = function()
-          return vim.tbl_isempty(counts())
+          return require("custom_api.overseer_status").is_idle()
         end,
         update = function()
-          local by_status = counts()
-          local parts = {}
-          for _, status in ipairs(statuses) do
-            if by_status[status] then
-              table.insert(parts, ("%s %d"):format(icons[status], by_status[status]))
-            end
-          end
-          return table.concat(parts, " ")
+          return require("custom_api.overseer_status").render()
         end,
       }
 
