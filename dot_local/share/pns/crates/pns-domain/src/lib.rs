@@ -13,6 +13,13 @@
 //! UniFi call, channel discovery or command-line output appears here or in
 //! anything it depends on.
 //!
-//! Nothing has moved in yet. The policy arrives one behavior at a time from
-//! the legacy package at the workspace root, and each move is verified against
-//! the recorded test-name set in `docs/test-baseline.md`.
+//! The policy arrives one behavior at a time from the legacy package at the
+//! workspace root, and each move is verified against the recorded test-name
+//! set in `docs/test-baseline.md`. The root package re-exports what has landed
+//! here, so every existing caller keeps its old path until the composition
+//! step removes the re-exports.
+
+pub mod count;
+pub mod lights;
+pub mod render;
+pub mod safety;

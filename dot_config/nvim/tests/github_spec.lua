@@ -18,9 +18,14 @@ end
 --
 -- It cannot catch a call that skipped `github.runner` altogether, though: a
 -- real `gh` that fails reports the same `nil, message` shape the fake does, so
--- a bypassed failure case still goes green. `seen` records the commands the
--- runner was handed, and a case that reads it closes that hole.
+-- a bypassed failure case still goes green. `seen` records the whole `opts` of
+-- every call the runner was handed, so a case can read its argv and the
+-- directory it was told to run in, and a case that reads it closes that hole.
 local seen = {}
+
+local function command_at(index)
+  return seen[index] and table.concat(seen[index].cmd, " ")
+end
 
 local function with_shell(replies, fn)
   local real_runner = github.runner
@@ -28,12 +33,28 @@ local function with_shell(replies, fn)
   github.runner = function(opts)
     assert(type(opts.cmd) == "table", "runner was handed shell text: " .. tostring(opts.cmd))
     local command = table.concat(opts.cmd, " ")
-    table.insert(seen, command)
+    table.insert(seen, opts)
     local reply = replies[command] or error("unexpected shell command: " .. command)
     return reply[1], reply[2]
   end
   local count, results = collect(pcall(fn))
   github.runner = real_runner
+  assert(results[1], results[2])
+  return unpack(results, 2, count)
+end
+
+-- A throwaway scratch buffer, made current, so a case can ask what these calls
+-- do with a buffer that HAS a file of its own. `fn` is handed the buffer's own
+-- name, because nvim rewrites the name it is given (`/var` becomes
+-- `/private/var` on macOS).
+local function in_buffer(fn)
+  local previous = vim.api.nvim_get_current_buf()
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_name(bufnr, vim.fn.tempname())
+  vim.api.nvim_set_current_buf(bufnr)
+  local count, results = collect(pcall(fn, vim.api.nvim_buf_get_name(bufnr)))
+  vim.api.nvim_set_current_buf(previous)
+  vim.api.nvim_buf_delete(bufnr, { force = true })
   assert(results[1], results[2])
   return unpack(results, 2, count)
 end
@@ -69,6 +90,20 @@ return {
     assert(repo.nameWithOwner == OWNER .. "/" .. NAME, "nameWithOwner was " .. tostring(repo.nameWithOwner))
   end,
 
+  -- Most callers pair `repo` with `git.current_branch`, `git.initialized` and
+  -- `git.default_branch`, which all answer for nvim's cwd. A `repo` that
+  -- followed the buffer on its own therefore let `build_remote_repo_info`
+  -- compose `repo-B/tree/<branch-from-A>`, so asking is now the caller's job
+  -- and a bare call leaves nvim's cwd alone even with a file buffer current.
+  ["repo asked for no directory runs gh in nvim's own cwd"] = function()
+    local repo = in_buffer(function()
+      return with_shell({ [REPO_COMMAND] = { 0, OWNER .. "/" .. NAME } }, github.repo)
+    end)
+    assert(repo.nameWithOwner == OWNER .. "/" .. NAME, "nameWithOwner was " .. tostring(repo.nameWithOwner))
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1].cwd == nil, "ran in " .. tostring(seen[1].cwd) .. " rather than leaving cwd alone")
+  end,
+
   ["repo reports a failed gh call as an operational failure"] = function()
     local repo, err = with_shell({ [REPO_COMMAND] = { 1, "" } }, github.repo)
     assert(repo == nil, "returned a repo anyway")
@@ -94,7 +129,7 @@ return {
     assert(err == nil, "reported " .. tostring(err))
     assert(branch == TRUNK, "branch was " .. tostring(branch))
     assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
-    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
+    assert(command_at(1) == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(command_at(1)))
   end,
 
   -- The output is deliberately not empty. A `gh` that cannot see the repository
@@ -110,7 +145,7 @@ return {
     assert(type(err) == "string", "err was a " .. type(err))
     assert(err:find("gh auth login", 1, true), "the message does not say how to fix it: " .. err)
     assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
-    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
+    assert(command_at(1) == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(command_at(1)))
   end,
 
   ["default_branch treats an empty answer from a successful gh call as a failure"] = function()
@@ -120,7 +155,7 @@ return {
     assert(branch == nil, "returned a branch for an empty answer")
     assert(type(err) == "string", "err was a " .. type(err))
     assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
-    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
+    assert(command_at(1) == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(command_at(1)))
   end,
 
   -- `repo` hands back a table whose `owner` and `name` are nil when the answer
@@ -192,6 +227,22 @@ return {
   -- off that nil raised `attempt to index a nil value` on a machine where `gh`
   -- could not read its config, so the failure has to come back as a result the
   -- keymap layer can notify, not as a raise.
+  -- The blame path IS the one that has to follow the buffer: `<C-g>Bo` pairs
+  -- this with `git.blame_sha`, which runs beside the same file, so the
+  -- repository in the URL and the commit the SHA came from must be one repository.
+  ["commit_url runs gh beside the buffer's file"] = function()
+    local dir
+    local url = in_buffer(function(file)
+      dir = vim.fn.fnamemodify(file, ":h")
+      return with_shell({ [REPO_COMMAND] = { 0, OWNER .. "/" .. NAME } }, function()
+        return github.commit_url(SHA)
+      end)
+    end)
+    assert(url == ("https://github.com/%s/%s/commit/%s"):format(OWNER, NAME, SHA), "url was " .. tostring(url))
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1].cwd == dir, "ran in " .. tostring(seen[1].cwd) .. ", not " .. tostring(dir))
+  end,
+
   ["commit_url reports a gh that cannot answer instead of indexing nil"] = function()
     local url, err = with_shell({ [REPO_COMMAND] = { 1, "" } }, function()
       return github.commit_url(SHA)

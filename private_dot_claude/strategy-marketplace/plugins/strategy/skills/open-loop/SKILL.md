@@ -1,6 +1,9 @@
 ---
 name: open-loop
-description: Run a slice from a plan or spec through the full pipeline, where findings may leave as tasks that outlive the pull request. Use when starting plan-derived work, when a task says Strategy-A, or when the user says "/strategy:open-loop".
+description: >-
+  Run a slice from a plan or spec through the full pipeline, where findings may leave as tasks
+  that outlive the pull request. Use when starting plan-derived work, when a task says
+  Strategy-A, or when the user says "/strategy:open-loop".
 ---
 
 # Open-loop
@@ -33,6 +36,31 @@ deviation.
 ~/.claude/pipeline/slice-checklist.sh  new <slug> A [--security] [dir]
 ~/.claude/pipeline/findings-register.sh new <slug> A [dir]
 ```
+
+## The assumptions ledger, before any question is asked
+
+Step 1 reads the plan and the spec, and most of what it needs is already answerable from the tree. Write
+down what you concluded as a NUMBERED ledger and present it as ONE batch before asking anything:
+
+```markdown
+## Assumptions ledger
+
+Confirm all, or name the numbers to change. Anything you do not name I treat as confirmed.
+
+1. <assumption>, source: <path:line, spec section, plan line, or convention>
+```
+
+Every entry cites where it came from, measured the way step 2 measures the brief:
+`git show origin/main:<path> | grep -n`, never a working copy. An assumption with no source is a question
+wearing a statement's clothes, so ask it instead of listing it.
+
+A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the brief. A
+confirmed one enters the brief as a stated premise, which is what gives step 2 something to falsify. The
+ledger is presented ONCE, because dripping the same content out as individual questions is the waste it
+exists to prevent.
+
+Despite the name it is not one of the two verifier ledgers above, and no script reads it. This ledger
+and the argument log below are both adapted from chaseai-yt/claudex-loop, MIT.
 
 ## The steps
 
@@ -90,7 +118,12 @@ project's memory directory; read it if the two disagree. As of the 2026-09-01 ru
   entitlement-gated and falls back to Opus silently, with no error.
 - 3, 6: an implementer subagent (`model:"sonnet"`).
 - 4a, 7: sol at ultra, and the redirect matters:
-  `codex exec -m gpt-5.6-sol -c model_reasoning_effort="ultra" -c approval_policy=never -s read-only -C <repo> -o <out> "<prompt>" </dev/null`.
+
+  ```bash
+  codex exec -m gpt-6-astra -c model_reasoning_effort=ultra -c approval_policy=never \
+    -s read-only -C <repo> -o <out> "<prompt>" </dev/null
+  ```
+
   Without `</dev/null` it waits on stdin forever.
 
 The principle outlives any particular model. Whoever implements never reviews their own work. 4b must be
@@ -119,6 +152,37 @@ A reviewer that happens to see an out-of-scope defect NAMES it in a separate "ob
 section carrying no disposition. Those never enter the register, and the reconciliation counts only
 in-scope findings.
 
+## The argument log
+
+Each review round appends to `argument-<slug>.md`, beside the checklist and the register in the same
+directory. No script creates it and no gate reads it. The first append creates it, and it exists for the
+next round rather than for the verifier.
+
+```markdown
+## Round <n>, step <2|4a|4a-s|4b|7>
+
+Reviewer output: <path>. Dispositions and evidence: `findings-<slug>.md`.
+
+- F<n>: <the reasoning, in your own words: why it holds, why it does not, or why it can wait>
+```
+
+**Identifiers and reasoning only.** The verdict, the critique and the proof already exist in the
+reviewer's own output and in the register, so copying them here builds a second resolution record that
+can disagree with the first. The register's disposition vocabulary stays out too: its `ACCEPTED` means a
+finding left unfixed with a rationale, and a log line labelled the same way would read as the opposite.
+Point at both files and write the WHY neither has a column for.
+
+**Write at EVERY adjudication, terminal ones included.** Step 2's verdict is adjudicated when it returns,
+long before step 5, and the step 3 implementer is a fresh dispatch that needs the reasoning behind the
+brief it is handed. Step 5 writes the 4a, 4a-s, 4b and 4c rounds. Step 7 is terminal and writes its own
+round when it returns, because the log is what step 8 reads when it files the tasks.
+
+**Read the existing entries before EVERY agent brief and EVERY retry**, meaning before dispatching steps
+3, 4a, 4a-s, 4b, 6 and 7, and before a reviewer retry after a failed run. Every one of them is a FRESH
+dispatch that remembers nothing: sol runs read-only in a new session, Fable is reached by inheritance,
+and neither has seen the round before. A retry is the sharpest case, since the run it replaces argued
+something nobody else recorded. Skip the read and step 7 re-litigates round one.
+
 ## Filing step 8's tasks
 
 Every open finding becomes a task; nothing is demoted to a comment. Filing one also requires a
@@ -126,8 +190,32 @@ scheduling decision at the moment it is written: can it wait, or must it land no
 task. Fan-out, not throughput, is what stalls a plan, so a finding on shipped and working code is
 normally scheduled out.
 
-A finding on this UNMERGED PR is not a follow-up at all. It is fixed in this round and never reaches
-the queue.
+**A finding on this UNMERGED pull request may still take `TASK #<n>`, and that is what makes this
+loop open.** A line being in this diff does not by itself force the fix into this round. If it did,
+nothing could ever reach step 8: every in-scope finding anchors to a line this slice added or
+changed, and out-of-scope findings never enter the register at all, so the two rules together would
+leave the register with no row that can defer, and this strategy would be closed-loop wearing another
+name.
+
+**These BLOCK the merge and are fixed in this round, never deferred:**
+
+- The slice does not do what its brief says, or does it wrongly. A correctness defect in the
+  behaviour this slice shipped is what the round is for.
+- Any finding from step 4a-s, the security lens, at any severity.
+- A test-quality finding that leaves the slice's own evidence unsound: an assertion that cannot fail,
+  a mutant recorded as SURVIVED, a sweep with no unmutated control.
+- A regression against `origin/main`: anything that worked before this diff and does not after it.
+- A pre-existing defect this slice WIDENS, up to the widening. The remedy is the smallest change that
+  restores the pre-slice blast radius, and it lands here.
+
+**Every other in-scope finding MAY take `TASK #<n>`**, with its scheduling decision written into the
+task: a code-quality finding ranked below correctness, hardening that goes further than restoring the
+pre-slice blast radius, a naming or structure improvement, a broader test the slice's own evidence
+does not need. Defer one only when nobody reading `main` tomorrow is misled or harmed by it shipping
+today.
+
+Either way, adjudicate at step 5 first: reproduce the finding before accepting it. A deferred row
+still needs its number in the `--tasks` manifest, or the gate fails.
 
 ## What this strategy does NOT do
 
@@ -144,6 +232,6 @@ the queue.
   there. Nothing is deferred and nothing is planned for later. Pick it when the task was created by
   step 4a, 4b or 7.
 - [orchestrator-loop](../orchestrator-loop/SKILL.md): the orchestrator is inside the loop, writing the
-  failing tests and the seams itself instead of briefing an implementer, and its two reviews run
-  concurrently. It is closed-loop in the findings sense as well, so the three names do not sit on one
-  axis. Pick it when the behaviour can be stated as a test before it can be stated as a paragraph.
+  failing tests and the seams itself instead of briefing an implementer. It is closed-loop in the
+  findings sense as well, so the three names do not sit on one axis. Pick it when the behaviour can be
+  stated as a test before it can be stated as a paragraph.

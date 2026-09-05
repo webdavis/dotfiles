@@ -56,6 +56,13 @@ for _, path in ipairs(spec_files) do
   local spec = path:match("([^/]+)%.lua$")
   local cases = dofile(path)
 
+  -- A spec with no cases reports nothing and adds nothing to the failure count,
+  -- so gutting one would leave the run green and silent. Named, because the
+  -- aggregate run is where a gutted spec would otherwise disappear.
+  if type(cases) ~= "table" or next(cases) == nil then
+    error(spec .. " returned no cases")
+  end
+
   -- Sorted, so a run reports its cases in the same order every time.
   local names = {}
   for name in pairs(cases) do

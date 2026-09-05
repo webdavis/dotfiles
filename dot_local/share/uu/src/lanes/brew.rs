@@ -17,7 +17,7 @@ pub mod upgrade_record;
 use std::time::Duration;
 
 use crate::config::BrewLane;
-use crate::lanes::{CommandRunner, LaneReport};
+use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
 use crate::record::RunFacts;
 
 use changes::{Listing, parse_brew_versions, parse_mas_list, tuple_row, tuples};
@@ -37,106 +37,103 @@ const BREW_CAVEAT: &str = "Versions are what brew list --versions reports; a for
                            only as latest reports that literal string rather than a version.";
 const MAS_CAVEAT: &str = "Versions are what mas list reports, keyed by app name.";
 
-pub fn run_brew(
-    name: &str,
-    lane: &BrewLane,
-    facts: &RunFacts,
-    runner: &dyn CommandRunner,
-) -> LaneReport {
-    let mut report = LaneReport::new(name);
+impl LaneAdapter for BrewLane {
+    fn run(&self, name: &str, facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
+        let mut report = LaneReport::new(name);
 
-    let brew_before = read(
-        runner,
-        &lane.brew,
-        &["list", "--versions"],
-        parse_brew_versions,
-    );
-    let mas_before = read(runner, &lane.mas, &["list"], parse_mas_list);
-    // PUBLISHED BEFORE THE FIRST UPGRADE STEP, so the record covers the window
-    // it describes. Written only at the end, a watched file rewritten in the
-    // first seconds of a run is correlated against the PREVIOUS week.
-    let _ = upgrade_record::publish(lane, facts, brew_before.is_ok(), &[]);
+        let brew_before = read(
+            runner,
+            &self.brew,
+            &["list", "--versions"],
+            parse_brew_versions,
+        );
+        let mas_before = read(runner, &self.mas, &["list"], parse_mas_list);
+        // PUBLISHED BEFORE THE FIRST UPGRADE STEP, so the record covers the window
+        // it describes. Written only at the end, a watched file rewritten in the
+        // first seconds of a run is correlated against the PREVIOUS week.
+        let _ = upgrade_record::publish(self, facts, brew_before.is_ok(), &[]);
 
-    step(&mut report, runner, "brew update", &lane.brew, &["update"]);
-    step(
-        &mut report,
-        runner,
-        "brew outdated",
-        &lane.brew,
-        &["outdated"],
-    );
-    let mas = lane.mas.as_str();
-    bounded_step(
-        &mut report,
-        runner,
-        "mas outdated",
-        mas,
-        &["outdated"],
-        MAS_DEADLINE,
-    );
-    step(
-        &mut report,
-        runner,
-        "brew upgrade",
-        &lane.brew,
-        &["upgrade"],
-    );
-    refresh_tailscaled(&mut report, runner, lane);
-    converge_osquery(&mut report, runner, lane);
-    bounded_step(
-        &mut report,
-        runner,
-        "mas upgrade",
-        mas,
-        &["upgrade"],
-        MAS_DEADLINE,
-    );
-    mas_declarations(&mut report, runner, lane, MAS_DEADLINE);
-    step(
-        &mut report,
-        runner,
-        "brew cleanup",
-        &lane.brew,
-        &["cleanup"],
-    );
+        step(&mut report, runner, "brew update", &self.brew, &["update"]);
+        step(
+            &mut report,
+            runner,
+            "brew outdated",
+            &self.brew,
+            &["outdated"],
+        );
+        let mas = self.mas.as_str();
+        bounded_step(
+            &mut report,
+            runner,
+            "mas outdated",
+            mas,
+            &["outdated"],
+            MAS_DEADLINE,
+        );
+        step(
+            &mut report,
+            runner,
+            "brew upgrade",
+            &self.brew,
+            &["upgrade"],
+        );
+        refresh_tailscaled(&mut report, runner, self);
+        converge_osquery(&mut report, runner, self);
+        bounded_step(
+            &mut report,
+            runner,
+            "mas upgrade",
+            mas,
+            &["upgrade"],
+            MAS_DEADLINE,
+        );
+        mas_declarations(&mut report, runner, self, MAS_DEADLINE);
+        step(
+            &mut report,
+            runner,
+            "brew cleanup",
+            &self.brew,
+            &["cleanup"],
+        );
 
-    let brew_after = read(
-        runner,
-        &lane.brew,
-        &["list", "--versions"],
-        parse_brew_versions,
-    );
-    let mas_after = read(runner, &lane.mas, &["list"], parse_mas_list);
+        let brew_after = read(
+            runner,
+            &self.brew,
+            &["list", "--versions"],
+            parse_brew_versions,
+        );
+        let mas_after = read(runner, &self.mas, &["list"], parse_mas_list);
 
-    // BREW ONLY in the persisted record: App Store apps install into
-    // /Applications, which no known-good manifest covers and no file-integrity
-    // watch reads, so a mas transition could never explain one of those pages.
-    let rows = match (&brew_before, &brew_after) {
-        (Ok(before), Ok(after)) => tuples(before, after).iter().map(tuple_row).collect(),
-        _ => Vec::new(),
-    };
-    if let Some(why) = upgrade_record::publish(lane, facts, brew_after.is_ok(), &rows) {
-        report.noted(format!(
-            "upgrade record: NOT written, {why}; the file-integrity page will report no recorded \
-             upgrade for this run"
+        // BREW ONLY in the persisted record: App Store apps install into
+        // /Applications, which no known-good manifest covers and no file-integrity
+        // watch reads, so a mas transition could never explain one of those pages.
+        let rows = match (&brew_before, &brew_after) {
+            (Ok(before), Ok(after)) => tuples(before, after).iter().map(tuple_row).collect(),
+            _ => Vec::new(),
+        };
+        if let Some(why) = upgrade_record::publish(self, facts, brew_after.is_ok(), &rows) {
+            report.noted(format!(
+                "upgrade record: NOT written, {why}; the file-integrity page will report no recorded \
+                 upgrade for this run"
+            ));
+        }
+
+        report.noted(change_section(
+            &brew_before,
+            &brew_after,
+            "formulae and casks",
+            BREW_CAVEAT,
+            "brew list --versions",
         ));
+        report.noted(change_section(
+            &mas_before,
+            &mas_after,
+            "App Store apps",
+            MAS_CAVEAT,
+            "mas list",
+        ));
+        report
     }
-
-    report.noted(change_section(
-        &brew_before,
-        &brew_after,
-        "formulae and casks",
-        BREW_CAVEAT,
-        "brew list --versions",
-    ));
-    report.noted(change_section(
-        &mas_before,
-        &mas_after,
-        "App Store apps",
-        MAS_CAVEAT,
-        "mas list",
-    ));
-    report
 }
 
 /// One reading of what is installed. A reading that FAILED is not a failed
@@ -156,7 +153,7 @@ fn read(
 pub(crate) mod tests {
     use super::repairs::tests::lane;
     use super::*;
-    use crate::lanes::tests::ScriptedRunner;
+    use crate::lanes::stubs::ScriptedRunner;
     use crate::record::Marker;
 
     const STUB_MARKER: Marker = Marker::NeverRecorded;
@@ -180,7 +177,7 @@ pub(crate) mod tests {
         // two steps that take minutes: a cask upgrade wipes /var/osquery, and
         // every second between the wipe and the repair is a monitoring gap.
         let runner = ScriptedRunner::new(&[]);
-        let report = run_brew("brew", &lane(), &facts(), &runner);
+        let report = lane().run("brew", &facts(), &runner);
         assert_eq!(report.failures, 0, "{report:?}");
         assert_eq!(
             runner.calls(),
@@ -207,7 +204,7 @@ pub(crate) mod tests {
         // A wedged store used to cost one Monday job. Under uu it would hold
         // the lane's whole deadline and every step after it.
         let runner = ScriptedRunner::new(&[]);
-        run_brew("brew", &lane(), &facts(), &runner);
+        lane().run("brew", &facts(), &runner);
         let bounded: Vec<Vec<String>> = runner
             .deadlines()
             .into_iter()
@@ -239,7 +236,7 @@ pub(crate) mod tests {
         // The next attempt is a week away, so a run that aborts at its first
         // problem throws away every subject it had not reached.
         let runner = ScriptedRunner::new(&[&["/b/brew", "upgrade"]]);
-        let report = run_brew("brew", &lane(), &facts(), &runner);
+        let report = lane().run("brew", &facts(), &runner);
         assert_eq!(report.failures, 1);
         assert!(said(&report, "brew upgrade: exit 1"), "{report:?}");
         assert!(
@@ -258,7 +255,7 @@ pub(crate) mod tests {
         // parser, or labelled either section with the other's name, changes
         // both counts below.
         let runner = ScriptedRunner::new(&[]).answering("jq 1.7.1\n");
-        let report = run_brew("brew", &lane(), &facts(), &runner);
+        let report = lane().run("brew", &facts(), &runner);
         assert!(
             said(
                 &report,
@@ -275,7 +272,7 @@ pub(crate) mod tests {
     #[test]
     fn a_listing_that_could_not_be_read_says_so_instead_of_reading_as_a_quiet_week() {
         let runner = ScriptedRunner::new(&[&["/b/mas", "list"]]);
-        let report = run_brew("brew", &lane(), &facts(), &runner);
+        let report = lane().run("brew", &facts(), &runner);
         assert!(said(&report, "App Store apps: NOT COMPARED"), "{report:?}");
         assert!(said(&report, "mas list"), "{report:?}");
         // The reading is not a STEP: the upgrade is the work, and a failed
