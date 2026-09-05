@@ -5015,8 +5015,12 @@ const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
 pns lights quiet [<place> [<duration>|off]]";
 
 fn presence_mode(verb: &str) -> i32 {
-    match verb {
-        "poll" => presence_poll(),
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(3)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    match (verb, presence_launch(&arguments)) {
+        ("poll", Some(launch)) => presence_poll(launch),
         // UNKNOWN IS AN ERROR, never a silent fallthrough, exactly as the
         // lamps' verb is.
         _ => {
@@ -5026,7 +5030,36 @@ fn presence_mode(verb: &str) -> i32 {
     }
 }
 
-const PRESENCE_USAGE: &str = "pns: usage: pns presence poll";
+const PRESENCE_USAGE: &str = "pns: usage: pns presence poll [--daemon]";
+
+/// Who launched a poll, which is the whole difference between a refusal worth
+/// printing and one worth swallowing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Launch {
+    /// The daemon's own clock, every few seconds, with its stderr pointed at a
+    /// log file and nobody in front of it.
+    Daemon,
+    /// A person, at a terminal, waiting for the answer.
+    Operator,
+}
+
+/// The daemon's own spelling, passed by the registration in
+/// `ensure_presence_poll` and by nothing else.
+///
+/// A FLAG RATHER THAN AN ENVIRONMENT VARIABLE, because the argv is what the
+/// spool already records and what one parser already reads: an inherited
+/// variable would also mark every unrelated process a poll ever started, and
+/// the poll is the thing being described, not its ancestry.
+const PRESENCE_DAEMON_FLAG: &str = "--daemon";
+
+/// Who launched this poll, or `None` for an argument tail this does not serve.
+fn presence_launch(arguments: &[String]) -> Option<Launch> {
+    match arguments {
+        [] => Some(Launch::Operator),
+        [flag] if flag == PRESENCE_DAEMON_FLAG => Some(Launch::Daemon),
+        _ => None,
+    }
+}
 
 /// `pns presence poll`: one read of the bridge, published as the line the room
 /// sensor reads.
@@ -5036,7 +5069,7 @@ const PRESENCE_USAGE: &str = "pns: usage: pns presence poll";
 /// few seconds under the daemon, so a complaint would be a line a second in the
 /// daemon's log, and the reading it failed to refresh ages out to Unknown by
 /// itself. The doctor is what names a table it could not read.
-fn presence_poll() -> i32 {
+fn presence_poll(launch: Launch) -> i32 {
     let home = std::env::var("HOME").unwrap_or_default();
     let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
         return 0;
@@ -5069,7 +5102,7 @@ fn presence_poll() -> i32 {
         &presence,
         now,
     )
-    .reported();
+    .reported(launch);
     if let Some(complaint) = complaint {
         eprintln!("{complaint}");
     }
@@ -5175,16 +5208,16 @@ impl Polled {
     /// transient by construction, so it cannot flood anything, and a hand-typed
     /// poll that read no bridge and published nothing otherwise looks exactly
     /// like one that worked.
-    fn reported(self) -> (i32, Option<&'static str>) {
-        match self {
-            Polled::Published | Polled::Nothing => (0, None),
-            Polled::Busy => (
+    fn reported(self, launch: Launch) -> (i32, Option<&'static str>) {
+        match (self, launch) {
+            (Polled::Busy, Launch::Operator) => (
                 1,
                 Some(
                     "pns presence: another poll holds the bridge read; \
                      this one published nothing",
                 ),
             ),
+            _ => (0, None),
         }
     }
 }
@@ -7259,7 +7292,11 @@ fn ensure_presence_poll(state: &Path, presence: Option<&pns::config::Presence>, 
         until: due.max(now.saturating_add(PRESENCE_LEASE_SECS)),
         every: Some(presence.poll_secs),
         unless_marker: None,
-        args: vec!["presence".to_string(), "poll".to_string()],
+        args: vec![
+            "presence".to_string(),
+            "poll".to_string(),
+            PRESENCE_DAEMON_FLAG.to_string(),
+        ],
     };
     // The failure is DROPPED here for `schedule_lights_tick`'s reason: a
     // registration that did not land must never cost the daemon a line a
@@ -9265,15 +9302,16 @@ mod tests {
     use super::{
         Bounded, Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
         LIGHTS_HELD, LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK,
-        MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, Polled, STATE_FILE_MODE, ad_hoc_quiet, answered,
-        asks_the_bridge, blocked_lamp, child_bound, daemon_pass, drive_breaths, end_lease,
-        ensure_presence_poll, held_lamps, keep_aside, keep_aside_at, lights_report, list,
-        matches_glob, means_yes, muted_state, publish_config, publish_state_line, read_failure,
-        read_held, read_news, read_note, recap_bounds, record_news, remember_held,
-        renew_loop_lease, republish_after, reread_attempts_from, reread_interval_from,
-        resolve_path, router_backend, run_pulse_writes, run_tick_writes, say_lights_once,
-        sweep_blocked, sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers,
-        tick_bridge_deadline, update_blocked_marker, write_presence_reading,
+        Launch, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, PRESENCE_DAEMON_FLAG, Polled,
+        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, child_bound,
+        daemon_pass, drive_breaths, end_lease, ensure_presence_poll, held_lamps, keep_aside,
+        keep_aside_at, lights_report, list, matches_glob, means_yes, muted_state, presence_launch,
+        publish_config, publish_state_line, read_failure, read_held, read_news, read_note,
+        recap_bounds, record_news, remember_held, renew_loop_lease, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, router_backend, run_pulse_writes,
+        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
+        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
+        write_presence_reading,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9606,23 +9644,6 @@ mod tests {
     }
 
     #[test]
-    fn a_poll_that_stood_down_for_a_live_one_says_so_and_exits_non_zero() {
-        // THE ONE REFUSAL WITH A HUMAN BEHIND IT. A hand-typed poll that read
-        // no bridge, published nothing and exited 0 is indistinguishable from
-        // one that worked, and the operator's next move is to believe the
-        // reading on disk. Every other refusal stays silent and zero, because
-        // the daemon runs this every few seconds into its own log.
-        assert_eq!(Polled::Busy.reported().0, 1);
-        let complaint = Polled::Busy.reported().1.expect("the complaint");
-        assert!(
-            complaint.contains("another poll") && complaint.contains("published nothing"),
-            "the complaint does not say what happened: {complaint}"
-        );
-        assert_eq!(Polled::Published.reported(), (0, None));
-        assert_eq!(Polled::Nothing.reported(), (0, None));
-    }
-
-    #[test]
     fn a_poll_gives_its_lock_back_so_the_next_interval_can_take_it() {
         // THE GUARD IS WHAT MAKES THE LOCK A LOCK RATHER THAN A LATCH: a hold
         // left behind would stand every later poll down for a whole stale
@@ -9672,6 +9693,57 @@ mod tests {
     }
 
     #[test]
+    fn a_poll_the_daemon_launched_stands_down_quietly_and_a_typed_one_does_not() {
+        // `Busy` IS NOT ALWAYS TRANSIENT. A poll that was suspended, or
+        // orphaned by a daemon that was replaced, holds the lock for as long
+        // as it lives, and the daemon relaunches the poll every five seconds.
+        // A complaint on that path is a line every five seconds into a log
+        // nobody is reading, from a process launchd will neither restart nor
+        // alert about. The same stand-down typed by hand is the one case
+        // somebody is waiting on an answer for.
+        assert_eq!(Polled::Busy.reported(Launch::Daemon), (0, None));
+        assert_eq!(Polled::Busy.reported(Launch::Operator).0, 1);
+        let complaint = Polled::Busy
+            .reported(Launch::Operator)
+            .1
+            .expect("a typed poll that stood down was told nothing");
+        assert!(
+            complaint.contains("another poll") && complaint.contains("published nothing"),
+            "the complaint does not say what happened: {complaint}"
+        );
+        // AND NOTHING ELSE CHANGES WITH WHO LAUNCHED IT: publishing and the
+        // ordinary refusals are silent and zero either way.
+        for launch in [Launch::Daemon, Launch::Operator] {
+            assert_eq!(Polled::Published.reported(launch), (0, None));
+            assert_eq!(Polled::Nothing.reported(launch), (0, None));
+        }
+    }
+
+    #[test]
+    fn the_poll_argument_parser_tells_the_daemons_launch_from_a_typed_one() {
+        // THE FLAG IS THE DAEMON'S OWN SPELLING, and it is what the daemon
+        // registers, so the two are read by one parser rather than guessed at
+        // from the environment. An unknown word is a refusal, never a silent
+        // fallthrough into a poll the operator believes ran differently.
+        assert_eq!(presence_launch(&[]), Some(Launch::Operator));
+        assert_eq!(
+            presence_launch(&[PRESENCE_DAEMON_FLAG.to_string()]),
+            Some(Launch::Daemon)
+        );
+        for arguments in [
+            vec!["--dameon".to_string()],
+            vec!["--daemon=1".to_string()],
+            vec![String::new()],
+            vec![
+                PRESENCE_DAEMON_FLAG.to_string(),
+                PRESENCE_DAEMON_FLAG.to_string(),
+            ],
+        ] {
+            assert_eq!(presence_launch(&arguments), None, "{arguments:?} was read");
+        }
+    }
+
+    #[test]
     fn an_armed_sensor_registers_the_poll_at_its_own_interval() {
         let state = scratch("presence-register");
         let presence = pns::config::Presence {
@@ -9687,7 +9759,16 @@ mod tests {
             .expect("the registered job");
         let job = pns::daemon::parse(record.trim()).expect("a job record");
         assert_eq!(job.id, "presence");
-        assert_eq!(job.args, vec!["presence".to_string(), "poll".to_string()]);
+        // THE FLAG THE DAEMON ALONE PASSES, so the poll it launches knows
+        // nobody is reading its stderr.
+        assert_eq!(
+            job.args,
+            vec![
+                "presence".to_string(),
+                "poll".to_string(),
+                PRESENCE_DAEMON_FLAG.to_string()
+            ]
+        );
         assert_eq!(job.every, Some(7));
         // DUE NOW, so the reading arrives on the next tick rather than one
         // interval after the switch went on, and leased past it.
