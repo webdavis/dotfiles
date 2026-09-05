@@ -379,6 +379,12 @@ return {
         group = format_group,
         callback = function(args)
           local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
+          -- Formatting-capable clients only. lsp-format's queue runner returns WITHOUT
+          -- advancing when it reaches a client that cannot format, so a single such
+          -- client in the queue makes the whole save send zero formatting requests.
+          if not client:supports_method("textDocument/formatting", args.buf) then
+            return
+          end
           -- Registers the client for :Format. It also hangs lsp-format's own asynchronous
           -- BufWritePost formatter on the buffer, which would format a second time after the
           -- synchronous BufWritePre below has already run; drop that one.
