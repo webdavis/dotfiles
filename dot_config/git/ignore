@@ -13,3 +13,8 @@
 # Per-machine Claude Code overrides. A session writes this into whichever
 # repository it runs in, including repositories owned by other people.
 **/.claude/settings.local.json
+
+# xcodebuild.nvim's per-project state: the last build and test report, and saved
+# breakpoints. It writes these under the project root of whatever Swift project
+# is open, including repositories owned by other people.
+**/.nvim/
