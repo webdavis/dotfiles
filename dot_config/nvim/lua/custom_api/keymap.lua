@@ -67,9 +67,9 @@ end
 ----- Normal mode mapping, Vim command
 ---map({
 ---  mode = "n",
----  lhs = "<leader>ff",
----  rhs = "Telescope find_files",
----  desc = "Telescope: find files"
+---  lhs = "<leader>Ll",
+---  rhs = "Lazy",
+---  desc = "Lazy: open the plugin manager"
 ---})
 ---
 ----- Insert mode, multiple keys mapped to Lua function
