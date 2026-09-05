@@ -24,20 +24,24 @@ return {
     "AerialPrev",
     "AerialToggle",
   },
-  -- These eight are bound in `config`, so before this branch they existed from
-  -- startup even with no file open. `<leader>as`, `{` and `}` are not here: they
-  -- are bound by `on_attach`, so they have never existed before aerial attached
-  -- to a buffer, and the event above is what gets them back.
+  -- These eight carry their own mappings, so each key is declared once rather
+  -- than here and again in `config`. lazy.nvim installs the placeholder from
+  -- the entry at startup and the real mapping from the same entry on load.
+  -- `<leader>as`, `{` and `}` are not here: `on_attach` owns them, they have
+  -- never existed before aerial attached to a buffer, and the event above is
+  -- what gets them back.
+  -- stylua: ignore start
   keys = {
-    { "<leader>at", desc = "Aerial: toggle sidebar (don't focus)" },
-    { "<leader>aa", desc = "Aerial: toggle sidebar (don't focus)" },
-    { "<leader>aT", desc = "Aerial: toggle sidebar (and focus)" },
-    { "<leader>aA", desc = "Aerial: toggle sidebar (and focus)" },
-    { "<leader>ao", desc = "Aerial: open sidebar (don't focus)" },
-    { "<leader>aO", desc = "Aerial: open sidebar (and focus)" },
-    { "<leader>ac", desc = "Aerial: close sidebar" },
-    { "<leader>aC", desc = "Aerial: close all sidebars" },
+    { "<leader>at", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
+    { "<leader>aa", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
+    { "<leader>aT", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
+    { "<leader>aA", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
+    { "<leader>ao", "<cmd>AerialOpen!<cr>",     desc = "Aerial: open sidebar (don't focus)" },
+    { "<leader>aO", "<cmd>AerialOpen<cr>",      desc = "Aerial: open sidebar (and focus)" },
+    { "<leader>ac", "<cmd>AerialClose<cr>",     desc = "Aerial: close sidebar" },
+    { "<leader>aC", "<cmd>AerialCloseAll<cr>",  desc = "Aerial: close all sidebars" },
   },
+  -- stylua: ignore end
   dependencies = {
     "nvim-treesitter/nvim-treesitter",
     "nvim-tree/nvim-web-devicons",
@@ -69,13 +73,5 @@ return {
     }
 
     require("aerial").setup(opts)
-
-    -- stylua: ignore start
-    map({ mode = "n", lhs = { "<leader>at", "<leader>aa" }, rhs = "AerialToggle!", desc = "Aerial: toggle sidebar (don't focus)" })
-    map({ mode = "n", lhs = { "<leader>aT", "<leader>aA" }, rhs = "AerialToggle", desc = "Aerial: toggle sidebar (and focus)" })
-    map({ mode = "n", lhs = "<leader>ao", rhs = "AerialOpen!", desc = "Aerial: open sidebar (don't focus)" })
-    map({ mode = "n", lhs = "<leader>aO", rhs = "AerialOpen", desc = "Aerial: open sidebar (and focus)" })
-    map({ mode = "n", lhs = "<leader>ac", rhs = "AerialClose", desc = "Aerial: close sidebar" })
-    map({ mode = "n", lhs = "<leader>aC", rhs = "AerialCloseAll", desc = "Aerial: close all sidebars" })
   end,
 }
