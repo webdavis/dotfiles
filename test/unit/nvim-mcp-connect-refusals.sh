@@ -16,6 +16,7 @@
 #   r) a record naming a TCP endpoint  -> refused, exit 3, never connected to
 #   s) a socket outside a private tree -> refused, exit 3, never connected to
 #   u) a symlink alias to a public socket -> refused, exit 3, never connected to
+#   w) a symlinked socket PARENT hiding a public directory -> refused, exit 3
 #
 set -euo pipefail
 
@@ -188,4 +189,24 @@ grep -qF "$CASE/run/alias.sock" "$CASE/err" ||
 [[ ! -s $CASE/probed ]] || fail 'symlink-alias: it was connected to before being refused'
 [[ ! -f $CASE/exec ]] || fail 'symlink-alias: the server was run against it'
 
-printf 'PASS: %s (12 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- w) a symlinked parent whose own mode is private, target is not ---------
+# The two halves disagree again, one level up. `-O` on the parent follows the
+# link to its target, while BSD `stat` reports the LINK's own mode, so a link
+# chmod-ed to 0700 over a 0777 directory satisfies both while the socket really
+# reached sits somewhere any account can write. Nothing here is a symlink at
+# the final component, so the check for that one does not fire.
+setup_case parent-symlink
+write_layout w1:t1 w1:p1 w1:p2
+mkdir -p "$CASE/pub"
+chmod 777 "$CASE/pub"
+make_socket "$CASE/pub/n1.sock"
+ln -s "$CASE/pub" "$CASE/run/priv"
+chmod -h 700 "$CASE/run/priv"
+printf 'w1:p2 4242 %s /repo\n' "$CASE/run/priv/n1.sock" >"$CASE/registry/4242"
+printf '%s|w1:p2 4242\n' "$CASE/run/priv/n1.sock" >"$CASE/identity"
+run_case HERDR_PANE_ID=w1:p1
+[[ $RC -eq 3 ]] || fail "parent-symlink: expected exit 3, got $RC ($(cat "$CASE/err"))"
+[[ ! -s $CASE/probed ]] || fail 'parent-symlink: it was connected to before being refused'
+[[ ! -f $CASE/exec ]] || fail 'parent-symlink: the server was run against it'
+
+printf 'PASS: %s (13 cases)\n' "$(basename "${BASH_SOURCE[0]}")"

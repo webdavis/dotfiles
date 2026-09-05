@@ -52,7 +52,11 @@ make_socket() {
 # Under /tmp with a SHORT name, not the Darwin per-user temp directory: these
 # cases bind real unix sockets, and sun_path is 104 bytes, which
 # /var/folders/<...>/T/tmp.XXXXXXXXXX/<case>/... exhausts on its own.
-work="$(mktemp -d /tmp/nmc.XXXXXX)"
+# Canonical from the start: the resolver validates and then uses the RESOLVED
+# form of every path, and /tmp is a symlink to /private/tmp on macOS, so a
+# fixture rooted at the unresolved name would compare its own paths against
+# resolved ones and never match.
+work="$(realpath "$(mktemp -d /tmp/nmc.XXXXXX)")"
 trap 'rm -rf "$work"' EXIT
 
 # A pid that is certainly not running, so kill -0 on it fails: the dead half of

@@ -50,7 +50,7 @@ die() {
 # Both hard dependencies, checked FIRST, before herdr, the registry or any
 # socket: otherwise the missing tool surfaces as whatever fails next, which
 # reads as a herdr fault and sends the operator to debug the wrong thing.
-for required in nvim jq; do
+for required in nvim jq realpath; do
   command -v "$required" >/dev/null 2>&1 ||
     die 2 "$required is not on PATH, and the resolver needs it"
 done
@@ -72,6 +72,7 @@ tmp_root="${TMPDIR:-/tmp}"
 runtime_root="${XDG_RUNTIME_DIR:-${tmp_root%/}/nvim.${USER:-$(id -un)}}"
 # Seconds a single identity probe may take. A knob only so the test can bound
 # itself well inside its own one-second budget.
+caller_uid="$(id -u)"
 deadline="${NVIM_MCP_PROBE_DEADLINE:-2}"
 [[ $deadline =~ ^[0-9]+(\.[0-9]+)?$ ]] || die 2 'NVIM_MCP_PROBE_DEADLINE must be seconds'
 
@@ -85,40 +86,55 @@ probe_out="$(mktemp "${probe_dir%/}/nvim-mcp-connect.XXXXXX")"
 # as a crash rather than as the reason it printed.
 trap 'rm -f "$probe_out" 2>/dev/null || true' EXIT
 
-# dir_mode <path> -- the permission bits. BSD stat first, GNU second; neither
-# answering leaves this empty, which every caller reads as a refusal.
-dir_mode() {
-  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1" 2>/dev/null || true
+# node_meta <path> -- "<octal mode> <uid>" from LSTAT, so a symlink reports
+# ITSELF rather than what it points at. %Mp%Lp, not %Lp: the short form drops
+# the sticky bit, which would read /tmp as a directory other accounts can write
+# freely. BSD first, GNU second; neither answering leaves this empty, which
+# every caller reads as a refusal.
+node_meta() {
+  stat -f '%Mp%Lp %u' "$1" 2>/dev/null || stat -c '%a %u' "$1" 2>/dev/null || true
 }
 
-# socket_fault <path> -- why this endpoint is not a private unix socket, empty
-# when it is one. `nvim --listen` takes a TCP address or any path, and Neovim
-# trusts every RPC peer it accepts, so an endpoint another account can reach is
-# an endpoint another account can rebind after its owner dies and then answer
-# the identity probe with whatever it likes. Only a socket inside a directory
-# this user owns at 0700 is out of that reach.
-socket_fault() {
-  local dir mode
-  # SYMLINK FIRST, and it is a refusal rather than something to resolve: -S
-  # follows the link while the ownership and mode tests below read its LEXICAL
-  # parent, so an alias inside a directory this user owns would pass both while
-  # the socket actually reached is one any account can rebind.
-  [[ -L $1 ]] && {
-    printf 'is a symlink, and only the socket itself can be judged'
-    return 0
-  }
-  [[ -S $1 ]] || {
-    printf 'is not a unix socket'
-    return 0
-  }
-  dir="${1%/*}"
-  [[ -O $dir ]] || {
-    printf 'sits in %s, which this user does not own' "$dir"
-    return 0
-  }
-  mode="$(dir_mode "$dir")"
-  [[ $mode == 700 ]] ||
-    printf 'sits in %s, which is mode %s rather than 0700' "$dir" "${mode:-unreadable}"
+# dir_fault <canonical directory> -- why that directory is not private to this
+# user, all the way up, empty when it is.
+#
+# THE ARGUMENT MUST BE CANONICAL, from realpath, and the caller must go on to
+# use that same canonical path. Checking the name as written and then operating
+# on the name as written are two DIFFERENT paths as soon as any component is a
+# symlink, and that gap is the whole bug class this closes: a parent link whose
+# own mode was 0700 over a 0777 target satisfied both the ownership test, which
+# follows the link, and the mode test, which does not.
+#
+# The directory itself must be owned by this user at 0700. Every ancestor must
+# be owned by this user or by root, and must not be writable by other accounts
+# without the sticky bit that stops them removing what is not theirs, because
+# such a directory is one where they can swap the subtree between any two
+# operations here.
+#
+# `nvim --listen` takes a TCP address or any path, and Neovim trusts every RPC
+# peer it accepts, so an endpoint another account can reach is one they can
+# rebind after its owner dies and then answer the identity probe from.
+dir_fault() {
+  local dir="$1" parent mode uid why=""
+  while [[ -z $why ]]; do
+    read -r mode uid <<<"$(node_meta "$dir")"
+    if [[ -z ${mode:-} ]]; then
+      why="cannot be read at $dir"
+    elif [[ $uid != "$caller_uid" && ($dir == "$1" || $uid != 0) ]]; then
+      why="sits under $dir, which this user does not own"
+    elif [[ $dir == "$1" ]] && ((8#$mode != 448)); then
+      why="sits in $dir, which is mode $mode rather than 0700"
+    elif [[ $dir != "$1" ]] && (((8#$mode & 18) != 0 && (8#$mode & 512) == 0)); then
+      why="has an ancestor at $dir other accounts can write and that is not sticky"
+    elif [[ $dir == / ]]; then
+      break
+    else
+      parent="${dir%/*}"
+      [[ -n $parent ]] || parent=/
+      dir="$parent"
+    fi
+  done
+  printf '%s' "$why"
 }
 
 # identity <socket> -- "<pane id> <pid>" as the instance reports itself, empty
@@ -157,16 +173,15 @@ identity() {
   printf '%s' "$reply"
 }
 
-# Read AND pruned, so the state is checked before either. A symlink would aim a
-# delete elsewhere; anything looser than a 0700 directory this user owns lets
-# another account plant a record. Absent is fine, the fallback covers it.
-if [[ -L $registry ]]; then
-  die 2 "the registry $registry is a symlink; refusing to read or prune through it"
-elif [[ -e $registry ]]; then
-  [[ -d $registry ]] || die 2 "the registry $registry is not a directory"
-  [[ -O $registry ]] || die 2 "the registry $registry is not owned by this user"
-  mode="$(dir_mode "$registry")"
-  [[ $mode == 700 ]] || die 2 "the registry $registry is not mode 0700"
+# Read AND pruned, so its state is checked before either, and the CANONICAL
+# form is what gets kept: everything below reads and deletes through that, not
+# through the configured string. Absent is fine, the fallback covers it.
+registry_real="$(realpath "$registry" 2>/dev/null || true)"
+if [[ -n $registry_real ]]; then
+  [[ -d $registry_real ]] || die 2 "the registry $registry is not a directory"
+  fault="$(dir_fault "$registry_real")"
+  [[ -z $fault ]] || die 2 "the registry $registry $fault"
+  registry="$registry_real"
 fi
 
 [[ -n ${HERDR_PANE_ID:-} ]] ||
@@ -204,10 +219,17 @@ for record in "$registry"/*; do
     rm -f "$record"
     continue
   fi
-  # Every surviving endpoint is validated BEFORE the probe: past this point
-  # nothing unchecked reaches --remote-expr.
-  fault="$(socket_fault "$sock")"
+  # Resolved ONCE here, validated as the resolved form, and used as the resolved
+  # form from here on: probing or connecting to the recorded string after
+  # validating something else is the gap this closes. Every surviving endpoint
+  # is validated BEFORE the probe, so nothing unchecked reaches --remote-expr.
+  sock_real="$(realpath "$sock" 2>/dev/null || true)"
+  [[ -n $sock_real ]] ||
+    die 3 "the record for pane $pane names $sock, which cannot be resolved to a real path"
+  [[ -S $sock_real ]] || die 3 "the record for pane $pane names $sock, which is not a unix socket"
+  fault="$(dir_fault "${sock_real%/*}")"
   [[ -z $fault ]] || die 3 "the record for pane $pane names $sock, which $fault"
+  sock="$sock_real"
   if [[ "$(identity "$sock")" != "$pane $pid" ]]; then
     rm -f "$record"
     continue
@@ -226,8 +248,12 @@ if [[ -z $candidates ]]; then
     [[ $pid =~ ^[0-9]+$ ]] || continue
     kill -0 "$pid" 2>/dev/null || continue
     # Skipped rather than refused: the runtime root is a directory anything may
-    # drop a file into, so one odd entry must not block every resolution.
-    [[ -z "$(socket_fault "$sock")" ]] || continue
+    # drop a file into, so one odd entry must not block every resolution. Same
+    # rule as above: the resolved form is what is judged and what is used.
+    sock_real="$(realpath "$sock" 2>/dev/null || true)"
+    [[ -n $sock_real && -S $sock_real ]] || continue
+    [[ -z "$(dir_fault "${sock_real%/*}")" ]] || continue
+    sock="$sock_real"
     reported="$(identity "$sock")"
     pane="${reported% *}"
     [[ -n $reported && $reported == "$pane $pid" && $siblings == *" $pane "* ]] || continue
@@ -237,9 +263,13 @@ fi
 
 # Injection SELECTS, it does not bypass.
 if [[ -n ${NVIM_MCP_SOCKET:-} ]]; then
+  # Canonical on both sides, because the candidates are canonical: comparing a
+  # pin as typed against a resolved candidate never matches for any path with a
+  # symlink in it.
+  pin_real="$(realpath "$NVIM_MCP_SOCKET" 2>/dev/null || true)"
   pinned=""
   while read -r pane pid sock; do
-    [[ ${sock:-} == "$NVIM_MCP_SOCKET" ]] && pinned="$pane $pid $sock"$'\n'
+    [[ -n ${sock:-} && ${sock:-} == "$pin_real" ]] && pinned="$pane $pid $sock"$'\n'
   done <<<"$candidates"
   [[ -n $pinned ]] ||
     die 3 "NVIM_MCP_SOCKET names $NVIM_MCP_SOCKET, which is not a verified Neovim in tab $tab of pane $HERDR_PANE_ID; unset it, or pin a Neovim in this tab"
