@@ -66,6 +66,7 @@ files.
 
 ```bash
 just test-unit          # Unit suite only (the fast commit gate)
+just test-bashunit      # The `<name>.test.sh` files, run by bashunit (a test-unit dependency)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
 just test-rust          # cargo test for the two herdr plugins and the pns crate (+ fmt/clippy for pns)
@@ -74,11 +75,15 @@ just ship               # the three gates CI runs, in CI order, the explicit pre
 ```
 
 **Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
-slow one is deleted rather than tolerated. Bash unit tests are **bats**, one behavior per `@test`,
-through HOST bats-core; the Neovim config's Lua specs (`dot_config/nvim/tests/*_spec.lua`) run under
-`nvim --headless --clean -l` through `just test-nvim`, a dependency of `test-unit`; Rust is tested with
-`cargo test`. A large purge in 2026-08 left 160+ deleted files in git history as a cherry-pick pool:
-restore individual logic asserts from it, never wholesale.
+slow one is deleted rather than tolerated. Bash tests are migrating from bats to **bashunit** (operator
+ruling 2026-09-03): a bashunit file is `test/<suite>/<name>.test.sh`, non-executable, one behavior per
+`function test_*`, run by `just test-bashunit`, a dependency of `test-unit`. The files still on bats are
+one behavior per `@test` through HOST bats-core, run by each suite's own runner; both shapes are legal
+until the migration finishes, and no new bats file is added. The Neovim config's Lua specs
+(`dot_config/nvim/tests/*_spec.lua`) run under `nvim --headless --clean -l` through `just test-nvim`,
+also a dependency of `test-unit`; Rust is tested with `cargo test`. A large purge in 2026-08 left 160+
+deleted files in git history as a cherry-pick pool: restore individual logic asserts from it, never
+wholesale.
 
 **We test the behavior of tools we wrote, and nothing else** (operator ruling 2026-08-05). Not chezmoi,
 not Homebrew, not launchd, not any third-party behavior, and not deployment. In scope: pns, the osquery
@@ -91,12 +96,12 @@ source logic while leaving the declarations intact would turn the test red. If i
 testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a
 config that disagrees with itself is now caught by review, not by a gate.
 
-The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim` and then
-the one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled
-each run (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native
-shuffle; shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY
-performance summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings
-never fail the run.
+The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then
+`just test-bashunit`, then the one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`,
+so order is seed-shuffled each run (replay a failure with `TEST_SEED=<seed>`, printed every run, since
+Bats 1.11 has no native shuffle; shuffling degrades to sorted order on a host with neither `gshuf` nor
+`shuf`). A WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-suite
+candidate; warnings never fail the run.
 
 **CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines
 (`just lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
@@ -114,10 +119,18 @@ deliberately.
 `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
 `test/` root. Three trees are carved out: a suite's own `helpers/`, the shared cross-suite
 `test/helpers/`, and `test/fixtures/**`. The two helper trees admit non-executable `*.sh` only, so an
-executable file or a `.bats` there still fails. The checker also rejects any symlink below `test/`, a
-non-executable suite `*.sh`, and a nested file in a flat suite. Add a test by dropping a new executable
-`test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth `dirname "${BASH_SOURCE[0]}")/../..`); it is
-picked up automatically.
+executable file or a `.bats` there still fails, and neither they nor `test/fixtures/**` may hold a
+`<name>.test.sh`, because bashunit's directory scan would run one from outside a suite. The checker also
+rejects any symlink below `test/`, a non-executable suite `*.sh`, and a nested file in a flat suite. Add
+a test by dropping a new executable `test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth
+`dirname "${BASH_SOURCE[0]}")/../..`); it is picked up automatically.
+
+A bashunit file inverts that mode rule and must NOT be executable: bashunit sources its test files, while
+`run-test-suite.sh` discovers `*.sh` by `-perm -u+x`, so an executable `<name>.test.sh` would run twice,
+the second time as a bare script where `assert_equals` does not exist. Two spellings in the recipe are
+load-bearing on bashunit 0.50.1: the path is `./test`, because the bare word `test` is also bashunit's
+own subcommand name and selects the default path instead, and color is disabled with `NO_COLOR=1`,
+because `--no-color` is ignored in either position.
 
 ### Chezmoi operations
 
@@ -346,11 +359,11 @@ files and checks them with yq.
 
 The contributor toolchain is Homebrew plus uv, no dev shell (the flake was removed 2026-08-05).
 `just setup` installs it into a fresh checkout: `brew bundle --file=Brewfile.dev` for the binary tools
-(actionlint, age, bash, bats-core, chezmoi, coreutils, gitleaks, jq, just, luacheck, shellcheck, shfmt,
-stylua, taplo, treefmt, uv, yq, zizmor), then a uv install of mdformat and its six plugins. On dresden
-those formulae are also declared in `.chezmoidata/system_packages_autoinstall.yaml`, so the weekly bundle
-keeps them; `Brewfile.dev` is what a machine without that bundle needs. Nix remains installed on the
-machine for unrelated uses; this repo never invokes it.
+(actionlint, age, bash, bashunit, bats-core, chezmoi, coreutils, gitleaks, jq, just, luacheck,
+shellcheck, shfmt, stylua, taplo, treefmt, uv, yq, zizmor), then a uv install of mdformat and its six
+plugins. On dresden those formulae are also declared in `.chezmoidata/system_packages_autoinstall.yaml`,
+so the weekly bundle keeps them; `Brewfile.dev` is what a machine without that bundle needs. Nix remains
+installed on the machine for unrelated uses; this repo never invokes it.
 
 **mdformat is version pinned and the pins live in two places.** It rewrites markdown, so a version bump
 silently rewraps every file and fails the drift gate on work nobody did. The exact `==` versions are in
