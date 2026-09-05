@@ -402,6 +402,12 @@ return {
         -- Neovim deletes an autocmd whose callback returns true, so passing it bare
         -- makes the first successful save the last one that formats.
         callback = function()
+          -- auto-save.nvim raises this flag over its own write (plugins/autosave.lua).
+          -- Reformatting a buffer the operator did not ask to write moves their cursor
+          -- and their undo history on a timer; an explicit `:w` still formats.
+          if vim.b.autosave_write then
+            return
+          end
           safe_format()
         end,
       })
