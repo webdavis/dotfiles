@@ -1,6 +1,38 @@
 return {
   "stevearc/overseer.nvim",
   opts = {},
+  -- Every command overseer itself registers (overseer/init.lua `commands`) plus the
+  -- two this file's `config` creates, so a typed command loads the plugin that
+  -- defines it. A command left off this list simply does not exist until something
+  -- else loads overseer.
+  cmd = {
+    "OverseerClose",
+    "OverseerOpen",
+    "OverseerRestartLast",
+    "OverseerRun",
+    "OverseerShell",
+    "OverseerTaskAction",
+    "OverseerToggle",
+    "OverseerWatchRun",
+  },
+  -- The `desc` values repeat the ones `config` sets below, so which-key labels the
+  -- key the same before and after the plugin loads.
+  keys = {
+    { "<leader>or", desc = "Overseer: run (and open list)" },
+    { "<leader>oR", desc = "Overseer: run" },
+    { "<leader>ol", desc = "Overseer: run last task" },
+    { "<leader>oo", desc = "Overseer: open (and focus)" },
+    { "<leader>oO", desc = "Overseer: open (without focus)" },
+    { "<leader>oc", desc = "Overseer: close" },
+    { "<leader>ot", desc = "Overseer: toggle (and focus)" },
+    { "<leader>oT", desc = "Overseer: toggle (without focus)" },
+    { '<leader>o"', desc = "Overseer: open task in hsplit" },
+    { "<M-7>", desc = "Overseer: open task in hsplit" },
+    { "<leader>o%", desc = "Overseer: open task in vsplit" },
+    { "<M-8>", desc = "Overseer: open task in vsplit" },
+    { "<M-;>", desc = "Overseer: open task in floating window" },
+    { "<M-[>", desc = "Overseer: watch-run" },
+  },
   config = function()
     local overseer = require("overseer")
     overseer.setup({
