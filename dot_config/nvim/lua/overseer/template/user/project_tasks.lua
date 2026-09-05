@@ -143,6 +143,11 @@ return {
           tags = task.tags,
           builder = function()
             return {
+              -- Without this the task is named after its command, so two entries
+              -- differing only by environment were indistinguishable everywhere
+              -- except the picker: the task list, the notifications and a saved
+              -- bundle all lost the name the file gave them.
+              name = task.name,
               cmd = task.cmd,
               -- A RELATIVE cwd is relative to the file that declared it, so the
               -- same entry means the same directory wherever it is run from. An

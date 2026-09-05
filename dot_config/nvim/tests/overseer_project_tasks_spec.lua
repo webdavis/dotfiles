@@ -54,6 +54,29 @@ return {
     assert(vim.deep_equal(templates[1].builder().cmd, { "make" }), "cmd did not survive the builder")
   end,
 
+  ["the built task keeps the entry's name"] = function()
+    -- The builder dropped `name`, so two entries with the same command and
+    -- different environments both became a task called after the command. The
+    -- picker told them apart; the task list, notifications and saved bundles
+    -- did not.
+    local templates = generate({
+      tasks = {
+        { name = "Deploy staging", cmd = { "true" }, env = { TARGET = "stage" } },
+        { name = "Deploy production", cmd = { "true" }, env = { TARGET = "prod" } },
+      },
+    })
+    assert(#templates == 2, "got " .. #templates .. " templates")
+    local built = {}
+    for _, t in ipairs(templates) do
+      table.insert(built, t.builder().name)
+    end
+    table.sort(built)
+    assert(
+      vim.deep_equal(built, { "Deploy production", "Deploy staging" }),
+      "the built tasks are named " .. vim.inspect(built)
+    )
+  end,
+
   ["a relative cwd resolves against the file, not the caller"] = function()
     local templates = generate({ tasks = { { name = "sub", cmd = "pwd", cwd = "server" } } })
     local cwd = templates[1].builder().cwd
