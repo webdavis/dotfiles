@@ -252,9 +252,6 @@ return {
                 return { ":" }
               end,
             },
-            should_show_items = function()
-              return vim.o.filetype ~= "gitcommit"
-            end,
           },
         },
         default = {
