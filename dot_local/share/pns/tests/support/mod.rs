@@ -107,6 +107,11 @@ fn over_ceiling(elapsed_ms: u128, ceiling: u128, excused: bool, panicking: bool)
 pub const ENGINE: &str = env!("CARGO_BIN_EXE_pns");
 pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
 
+/// What every engine deadline the suite does not care about is set to: a
+/// minute, in milliseconds, which is longer than any sandbox this harness
+/// tolerates. See `Sandbox::bare`.
+const SUITE_DEADLINE_MS: &str = "60000";
+
 /// The config every sandbox starts with: the three stub channels switched on,
 /// and the mobile table naming the one backend compiled in. A test that needs
 /// something else writes over it with `write_config`.
@@ -243,6 +248,29 @@ impl Sandbox {
         // remembered, and every test that wants a stub still overrides it,
         // because this is set before the caller's own `env` calls.
         command.env("MOSHI_HOOK_BIN", self.root.join("no-moshi-hook-here"));
+        // AND THE APPROVAL PATH'S TWO WALL-CLOCK DEADLINES ARE STATED, for the
+        // same structural reason and with the same override rule.
+        //
+        // BOTH DEFAULT TO FIVE SECONDS in production (`submit_deadline`,
+        // `payload_deadline`). A test that leaves them alone is not asserting
+        // on the engine, it is asserting that a stub subprocess got scheduled
+        // inside five seconds of wall clock on whatever machine is running the
+        // suite. On a loaded one it does not, the engine correctly takes its
+        // give-up branch, and the test reads a WRONG ANSWER rather than a slow
+        // one: `answer_within` kills the submission and reports 0 where the
+        // operator's own 42 was expected, and the payload reader abandons a
+        // megabyte that was arriving fine. The second was reproduced under load
+        // on 2026-09-05; the first is the recorded "exit 0 where 42 was
+        // expected after a 5,019 ms sandbox" flake.
+        //
+        // A MINUTE IS A BOUND NOTHING HERE CAN REACH: it sits far past
+        // `TEST_CEILING_MS` in both resolved forms, so a wedged engine fails on
+        // the sandbox guard, which names the test, instead of on a deadline
+        // that fires in the middle of an honest run. Tests that are ABOUT
+        // expiry still inject their own, because this is set before the
+        // caller's own `env` calls, exactly as the moshi fence above is.
+        command.env("PNS_MOSHI_SUBMIT_DEADLINE_MS", SUITE_DEADLINE_MS);
+        command.env("PNS_PAYLOAD_DEADLINE_MS", SUITE_DEADLINE_MS);
         // PATH survives because the binary resolves herdr and terminal-notifier
         // through it, and a test that stubs either one prepends to this.
         if let Some(path) = std::env::var_os("PATH") {
