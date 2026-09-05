@@ -86,6 +86,26 @@ start_nvim() {
   fail "$case_name: Neovim never reached VimEnter ($(cat "$ERRLOG" 2>/dev/null))"
 }
 
+# start_nvim_at <state home> <socket> -- as start_nvim, but for a case that
+# needs the state home to be somewhere other than $work/<case>. The log and the
+# marker are named for that directory, so two calls cannot read each other's.
+start_nvim_at() {
+  REGISTRY="$1/nvim-mcp/registry"
+  ERRLOG="$work/err.at.${1##*/}"
+  local done_marker="$work/done.at.${1##*/}"
+  (
+    cd "$work" &&
+      exec env HERDR_PANE_ID=w1:p2 XDG_STATE_HOME="$1" NMC_DONE="$done_marker" \
+        nvim --clean --headless -u "$work/init.lua" --listen "$2" \
+        >/dev/null 2>"$ERRLOG"
+  ) &
+  pids+=("$!")
+  local waited=0
+  while [[ ! -e $done_marker && $waited -lt 100 ]]; do
+    sleep 0.02
+    waited=$((waited + 1))
+  done
+}
 records_in() { # <dir>
   find "$1" -type f 2>/dev/null | wc -l | tr -d ' ' || true
 }
@@ -126,6 +146,13 @@ start_nvim planted "$work/planted.sock" --cmd "$plant"
 # design; what must not appear is any complaint about the registry itself.
 grep -q 'not registering' "$ERRLOG" &&
   fail "planted: refused for an unrelated reason ($(cat "$ERRLOG"))"
+# POSITIVE CONTROL. Every assertion above is satisfied by a registering block
+# that never ran at all, so a second instance against the same registry, with
+# nothing planted for it, has to publish normally. Without this the case passes
+# whether or not the code under test exists.
+start_nvim_at "$work/planted" "$work/planted-control.sock"
+[[ "$(records_in "$REGISTRY")" == 1 ]] ||
+  fail "planted: the control instance did not register, so the case proves nothing ($(cat "$ERRLOG"))"
 
 # --- c) a --listen pathname carrying a newline is not recorded ---------------
 mkdir -p "$work/newline/nvim-mcp/registry"
@@ -170,23 +197,6 @@ mkdir -p "$work/shared" "$work/canon"
 chmod 777 "$work/shared"
 chmod 700 "$work/canon"
 ln -s "$work/canon" "$work/shared/state"
-start_nvim_at() { # <state home> <socket>
-  REGISTRY="$1/nvim-mcp/registry"
-  ERRLOG="$work/err.canonical"
-  local done_marker="$work/done.canonical"
-  (
-    cd "$work" &&
-      exec env HERDR_PANE_ID=w1:p2 XDG_STATE_HOME="$1" NMC_DONE="$done_marker" \
-        nvim --clean --headless -u "$work/init.lua" --listen "$2" \
-        >/dev/null 2>"$ERRLOG"
-  ) &
-  pids+=("$!")
-  local waited=0
-  while [[ ! -e $done_marker && $waited -lt 100 ]]; do
-    sleep 0.02
-    waited=$((waited + 1))
-  done
-}
 start_nvim_at "$work/shared/state" "$work/canon.sock"
 canonical_registry="$work/canon/nvim-mcp/registry"
 [[ "$(records_in "$canonical_registry")" == 1 ]] ||
