@@ -9,6 +9,10 @@
 # only runs when the registry yields NOTHING, that single record suppresses
 # discovery and is selected silently instead of raising the picker.
 #
+# Each launched pid must publish its OWN record, by exact filename and with a
+# readable body: a count of whatever files appear also accepts a temp file that
+# was written and never renamed, which the resolver ignores.
+#
 # FOUR fresh registries, not one. Which instance loses the create is a
 # scheduling outcome, so a single pair reproduced the loss only about one run in
 # three; four consecutive pairs over a warm cache made it reliable, and after
@@ -64,6 +68,7 @@ for attempt in 1 2 3 4; do
   # the reap kills a wrapper and leaves the editor running. stdout goes to
   # /dev/null for the same reason: an inherited pipe Neovim holds open outlives
   # this script and hangs whatever is reading it.
+  pair=()
   for socket in a b; do
     (
       cd "$work" &&
@@ -73,33 +78,30 @@ for attempt in 1 2 3 4; do
           >/dev/null 2>"$work/err.$attempt.$socket"
     ) &
     pids+=("$!")
+    pair+=("$!")
   done
 
-  # Poll rather than sleep a fixed slice: a healthy pair registers in about
-  # 60 ms. `|| true` because under pipefail a find over a directory that does
-  # not exist yet fails the whole assignment, and errexit would end the poll on
-  # its first pass, before either instance had a chance to create it. `if`
-  # rather than `&&` for the break, because a false test as the loop's last
-  # command is the loop's status and would end the run silently.
-  records=0
-  for _ in $(seq 1 40); do
-    records="$(find "$registry" -type f 2>/dev/null | wc -l | tr -d ' ' || true)"
-    if [[ $records -ge 2 ]]; then
-      break
-    fi
-    sleep 0.02
+  # Wait for each launched pid's OWN record file, by exact name, and read its
+  # body. Counting files instead accepts a `<pid>.tmp` that was written and
+  # never renamed, which the resolver would ignore: removing only the rename
+  # left this test green.
+  for launched in "${pair[@]}"; do
+    waited=0
+    while [[ ! -f "$registry/$launched" && $waited -lt 60 ]]; do
+      sleep 0.02
+      waited=$((waited + 1))
+    done
+    errors="$(cat "$work"/err."$attempt".* 2>/dev/null | tr '\n' ' ' || true)"
+    [[ -f "$registry/$launched" ]] ||
+      fail "attempt $attempt: no published record for pid $launched ($errors)"
+    read -r rec_pane rec_pid rec_sock _ <"$registry/$launched" || true
+    [[ ${rec_pane:-} == w1:p2 ]] ||
+      fail "attempt $attempt: the record for $launched names pane ${rec_pane:-none}"
+    [[ ${rec_pid:-} == "$launched" ]] ||
+      fail "attempt $attempt: the record for $launched carries pid ${rec_pid:-none}"
+    [[ -S ${rec_sock:-} ]] ||
+      fail "attempt $attempt: the record for $launched does not name a live socket"
   done
-
-  errors="$(cat "$work"/err."$attempt".* 2>/dev/null | tr '\n' ' ' || true)"
-  [[ $records -eq 2 ]] ||
-    fail "attempt $attempt: expected 2 records, found $records ($errors)"
-
-  # Two DISTINCT pids under one pane, which is what makes them two candidates.
-  recorded="$(find "$registry" -type f -exec basename {} \; | sort | tr '\n' ' ')"
-  [[ "$(printf '%s' "$recorded" | wc -w | tr -d ' ')" == 2 ]] ||
-    fail "attempt $attempt: expected two distinct pid records, got: $recorded"
-  grep -qh '^w1:p2 ' "$registry"/* ||
-    fail "attempt $attempt: a record does not name the pane it registered under"
 
   reap
 done
