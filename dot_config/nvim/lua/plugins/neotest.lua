@@ -11,6 +11,24 @@ local javascript_filetypes = {
   "typescriptreact",
 }
 
+--- Whether the head of `file_path` imports or requires `node:test`.
+---
+--- Plain `io` rather than `vim.fn.readfile`: `is_test_file` runs inside neotest's async contexts,
+--- where a Vimscript call raises E5560 and a `pcall` around it would read as "no import". Only the
+--- first 4 KiB is read, which covers an import block; an import below that reads as absent and the
+--- file falls to whichever runner the package declares.
+---@param file_path string
+---@return boolean
+local function imports_node_test(file_path)
+  local handle = io.open(file_path, "r")
+  if not handle then
+    return false
+  end
+  local head = handle:read(4096) or ""
+  handle:close()
+  return head:match("['\"]node:test['\"]") ~= nil
+end
+
 return {
   {
     "nvim-neotest/neotest",
@@ -33,21 +51,41 @@ return {
     },
     -- stylua: ignore end
     config = function()
-      -- vitest and jest both claim `*.test.js` in a project that declares both, and neotest
-      -- walks its adapter map with `pairs`, so leaving both eligible makes the adapter that runs
-      -- a file vary between runs. jest stands down wherever vitest claims: a repository carrying
-      -- both runners is a migration TO vitest, and its config is the one new test files are
-      -- written against. jest is asked through ITS OWN default predicate rather than a second,
-      -- weaker copy of its dependency detection here, because the pinned adapters also consult
-      -- the working directory and the git root and a local reimplementation disagrees with them.
+      -- Three adapters claim JavaScript and neotest walks its adapter map with `pairs`, so
+      -- exactly one of them has to answer yes for any given file. The rules, in order:
+      --
+      --   * a file that imports node:test is node:test's, whatever the project declares, because
+      --     node:test attaches to every package.json and no filename rule distinguishes its files
+      --     from vitest's or jest's;
+      --   * otherwise vitest wins over jest, because a repository carrying both runners is a
+      --     migration TO vitest and its config is the one new test files are written against.
+      --
+      -- Each adapter is asked through ITS OWN default predicate first. That answer carries the
+      -- adapter's real dependency detection, which reads the working directory and the git root as
+      -- well as the nearest manifest, and it is also what makes a nil path safe: all three defaults
+      -- answer false for one, so the helpers above never see nil.
       local vitest = require("neotest-vitest")
+      local vitest_claims = vitest.is_test_file
       local jest_claims = require("neotest-jest.jest-util").defaultIsTestFile
+      local node_claims = require("neotest-nodejs.node-util").defaultIsTestFile
+
+      -- vitest ASSIGNS a new closure over this predicate rather than rebinding an upvalue, so the
+      -- default captured above stays callable and composing against it does not recurse.
+      vitest({
+        is_test_file = function(file_path)
+          return vitest_claims(file_path) and not imports_node_test(file_path)
+        end,
+      })
       local jest = require("neotest-jest")({
         isTestFile = function(file_path)
-          -- No nil guard of its own: neotest types `file_path` as optional and both pinned
-          -- predicates answer false for nil rather than raising, so the composed one answers
-          -- too.
-          return jest_claims(file_path) and not vitest.is_test_file(file_path)
+          return jest_claims(file_path)
+            and not imports_node_test(file_path)
+            and not vitest.is_test_file(file_path)
+        end,
+      })
+      local node = require("neotest-nodejs")({
+        isTestFile = function(file_path)
+          return node_claims(file_path) and imports_node_test(file_path)
         end,
       })
 
@@ -64,6 +102,7 @@ return {
           require("neotest-golang")({}),
           vitest,
           jest,
+          node,
           require("neotest-busted"),
           require("neotest-swift-testing"),
         },
@@ -72,6 +111,7 @@ return {
   },
   { "marilari88/neotest-vitest", commit = "c3c69715da4b158069fd4262083e7219a5c14cfb", ft = javascript_filetypes },
   { "nvim-neotest/neotest-jest", commit = "0e7979d51301dfae5ef839d771bd28cf593fde3f", ft = javascript_filetypes },
+  { "AkisArou/neotest-nodejs", commit = "68e558dff61f7ac630f55ab63a092c1767965386", ft = javascript_filetypes },
   { "MisanthropicBit/neotest-busted", commit = "9efddcee53d255cef8937541808eccd464772f80", ft = "lua" },
   {
     -- Codeberg, not GitHub: the GitHub repository has been an archived redirect since 2026-04-28.
