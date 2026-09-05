@@ -86,13 +86,15 @@ probe_out="$(mktemp "${probe_dir%/}/nvim-mcp-connect.XXXXXX")"
 # as a crash rather than as the reason it printed.
 trap 'rm -f "$probe_out" 2>/dev/null || true' EXIT
 
-# node_meta <path> -- "<octal mode> <uid>" from LSTAT, so a symlink reports
-# ITSELF rather than what it points at. %Mp%Lp, not %Lp: the short form drops
-# the sticky bit, which would read /tmp as a directory other accounts can write
-# freely. BSD first, GNU second; neither answering leaves this empty, which
-# every caller reads as a refusal.
+# node_meta <path...> -- "<octal mode> <uid>" per path, one line each, from
+# LSTAT, so a symlink reports ITSELF rather than what it points at. %Mp%Lp, not
+# %Lp: the short form drops the sticky bit, which would read /tmp as a directory
+# other accounts can write freely. BSD first, GNU second; neither answering
+# leaves this empty, which every caller reads as a refusal. Takes the WHOLE
+# chain at once, because one stat over six paths is one process and six stats
+# are six.
 node_meta() {
-  stat -f '%Mp%Lp %u' "$1" 2>/dev/null || stat -c '%a %u' "$1" 2>/dev/null || true
+  stat -f '%Mp%Lp %u' "$@" 2>/dev/null || stat -c '%a %u' "$@" 2>/dev/null || true
 }
 
 # dir_fault <canonical directory> -- why that directory is not private to this
@@ -115,25 +117,29 @@ node_meta() {
 # peer it accepts, so an endpoint another account can reach is one they can
 # rebind after its owner dies and then answer the identity probe from.
 dir_fault() {
-  local dir="$1" parent mode uid why=""
-  while [[ -z $why ]]; do
-    read -r mode uid <<<"$(node_meta "$dir")"
-    if [[ -z ${mode:-} ]]; then
-      why="cannot be read at $dir"
-    elif [[ $uid != "$caller_uid" && ($dir == "$1" || $uid != 0) ]]; then
-      why="sits under $dir, which this user does not own"
-    elif [[ $dir == "$1" ]] && ((8#$mode != 448)); then
-      why="sits in $dir, which is mode $mode rather than 0700"
-    elif [[ $dir != "$1" ]] && (((8#$mode & 18) != 0 && (8#$mode & 512) == 0)); then
-      why="has an ancestor at $dir other accounts can write and that is not sticky"
-    elif [[ $dir == / ]]; then
-      break
-    else
-      parent="${dir%/*}"
-      [[ -n $parent ]] || parent=/
-      dir="$parent"
-    fi
+  local dir="$1" chain=() node="$1" why="" line mode uid seen=0
+  while :; do
+    chain+=("$node")
+    [[ $node != / ]] || break
+    node="${node%/*}"
+    [[ -n $node ]] || node=/
   done
+  while IFS= read -r line; do
+    read -r mode uid <<<"$line"
+    node="${chain[seen]}"
+    seen=$((seen + 1))
+    [[ -z $why ]] || continue
+    if [[ $uid != "$caller_uid" && ($seen == 1 || $uid != 0) ]]; then
+      why="sits under $node, which this user does not own"
+    elif [[ $seen == 1 ]] && ((8#$mode != 448)); then
+      why="sits in $node, which is mode $mode rather than 0700"
+    elif [[ $seen != 1 ]] && (((8#$mode & 18) != 0 && (8#$mode & 512) == 0)); then
+      why="has an ancestor at $node other accounts can write and that is not sticky"
+    fi
+  done < <(node_meta "${chain[@]}")
+  # A short reading means stat could not answer for some link in the chain, and
+  # an unanswered ancestor is not one this can vouch for.
+  [[ $seen == "${#chain[@]}" ]] || why="${why:-cannot be read all the way up from $dir}"
   printf '%s' "$why"
 }
 

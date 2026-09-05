@@ -195,8 +195,13 @@ write_layout() { # <tab> <pane...>
 }
 
 # run_case <env assignments...> -- runs the resolver in the current CASE, on
-# CASE_PATH. Sets RC; stdout is $CASE/out, stderr is $CASE/err. RC is read by
-# the sourcing test, not here.
+# CASE_PATH. The probe deadline defaults to production's two seconds: a tight
+# one starves the stub under host load, which drops a candidate and fails a
+# case that has nothing to do with timing. Only the case that WANTS the
+# deadline to expire shortens it, through CASE_DEADLINE.
+#
+# Sets RC; stdout is $CASE/out, stderr is $CASE/err. RC is read by the sourcing
+# test, not here.
 # shellcheck disable=SC2034
 run_case() {
   RC=0
@@ -208,7 +213,7 @@ run_case() {
     XDG_RUNTIME_DIR="$CASE/run" \
     TMPDIR="$CASE/tmp" \
     NMC_CASE="$CASE" \
-    NVIM_MCP_PROBE_DEADLINE=0.1 \
+    NVIM_MCP_PROBE_DEADLINE="${CASE_DEADLINE:-2}" \
     "$@" \
     bash "$SCRIPT" >"$CASE/out" 2>"$CASE/err" || RC=$?
 }

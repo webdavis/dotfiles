@@ -92,7 +92,9 @@ write_layout w1:t1 w1:p1 w1:p2
 record w1:p2 4242 "$CASE/run/n1.sock"
 printf '%s\n' "$CASE/run/n1.sock" >"$CASE/hang"
 start="$SECONDS"
-run_case HERDR_PANE_ID=w1:p1
+# The only case that shortens the deadline, because it is the one waiting for
+# the deadline to expire.
+CASE_DEADLINE=0.2 run_case HERDR_PANE_ID=w1:p1
 [[ $RC -eq 3 ]] || fail "probe-hangs: expected exit 3, got $RC ($(cat "$CASE/err"))"
 (($((SECONDS - start)) < 2)) || fail 'probe-hangs: the probe was not bounded'
 [[ ! -f $CASE/exec ]] || fail 'probe-hangs: it connected to a socket that never answered'
