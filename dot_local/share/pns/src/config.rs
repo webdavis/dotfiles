@@ -590,6 +590,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "plugins.presence",
         &[
+            "desk_room",
             "enabled",
             "exclude",
             "poll_secs",
@@ -1973,6 +1974,27 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
         Some(setting) => strings("presence", "exclude", "a list of room names", setting)?,
         None => Vec::new(),
     };
+    // REFUSED BY NAME RATHER THAN DROPPED, because a desk in a room no reading
+    // can ever name narrows the lamps to a room the poll never watches, and it
+    // would do it silently and for good.
+    let desk_room = match settings.get("desk_room") {
+        Some(setting) => {
+            let Some(named) = setting.as_str() else {
+                return Err(ConfigError::Invalid(format!(
+                    "`presence` key `desk_room` has type `{}`, not a room name",
+                    setting.type_str()
+                )));
+            };
+            if !rooms.iter().any(|room| room == named) {
+                return Err(ConfigError::Invalid(format!(
+                    "`presence` key `desk_room` is `{named}`, which is not in `rooms`; \
+                     the desk's room has to be one this config watches"
+                )));
+            }
+            Some(named.to_string())
+        }
+        None => None,
+    };
     let poll_secs = presence_count(settings, "poll_secs", DEFAULT_PRESENCE_POLL_SECS)?;
     if !(MIN_PRESENCE_POLL_SECS..=MAX_PRESENCE_POLL_SECS).contains(&poll_secs) {
         return Err(ConfigError::Invalid(format!(
@@ -1998,6 +2020,7 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
     Ok(Some(Presence {
         rooms,
         exclude,
+        desk_room,
         poll_secs,
         stale_after_secs,
     }))
@@ -2029,6 +2052,8 @@ pub struct Presence {
     pub rooms: Vec<String>,
     /// Rooms whose presence is discarded even when they are listed.
     pub exclude: Vec<String>,
+    /// The room the desk is in, when the operator named one.
+    pub desk_room: Option<String>,
     pub poll_secs: u64,
     pub stale_after_secs: u64,
 }
@@ -3748,9 +3773,38 @@ mod tests {
             Some(Presence {
                 rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
                 exclude: vec!["3F - MBedroom".to_string()],
+                desk_room: None,
                 poll_secs: 10,
                 stale_after_secs: 30,
             })
+        );
+    }
+
+    #[test]
+    fn an_armed_presence_table_reads_the_room_its_desk_is_in() {
+        let config = presence_config(
+            "type = \"hue\"\nrooms = [\"3F - Studio\", \"2F - Kitchen\"]\n\
+             desk_room = \"3F - Studio\"\n",
+        );
+        assert_eq!(
+            parse_presence(&config).unwrap().unwrap().desk_room,
+            Some("3F - Studio".to_string())
+        );
+    }
+
+    #[test]
+    fn a_desk_room_the_watch_list_does_not_name_is_refused_by_name() {
+        // A desk in a room no reading can ever name would narrow the lamps to
+        // a room the poll never watches, silently, forever.
+        let said = match parse_presence(&presence_config(
+            "type = \"hue\"\nrooms = [\"2F - Kitchen\"]\ndesk_room = \"3F - Studio\"\n",
+        )) {
+            Err(error) => error.detail().to_string(),
+            Ok(_) => panic!("a desk room outside `rooms` is refused"),
+        };
+        assert!(
+            said.contains("desk_room") && said.contains("3F - Studio") && said.contains("rooms"),
+            "the refusal names the key, the value and the list it is not in: {said}"
         );
     }
 
@@ -3911,6 +3965,7 @@ mod tests {
         ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
         ("plugins.macos-banner", "enabled", "true"),
         ("plugins.presence", "enabled", "true"),
+        ("plugins.presence", "desk_room", "\"3F - Studio\""),
         ("plugins.presence", "exclude", "[\"3F - MBedroom\"]"),
         ("plugins.presence", "poll_secs", "5"),
         ("plugins.presence", "rooms", "[\"3F - Studio\"]"),

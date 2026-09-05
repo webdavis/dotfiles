@@ -9256,6 +9256,7 @@ mod tests {
         pns::config::Presence {
             rooms: rooms.iter().map(|room| (*room).to_string()).collect(),
             exclude: exclude.iter().map(|room| (*room).to_string()).collect(),
+            desk_room: None,
             poll_secs: 5,
             stale_after_secs: 15,
         }
@@ -9390,6 +9391,7 @@ mod tests {
         let presence = pns::config::Presence {
             rooms: vec!["3F - Studio".to_string()],
             exclude: Vec::new(),
+            desk_room: None,
             poll_secs: 7,
             stale_after_secs: 21,
         };
@@ -9417,6 +9419,7 @@ mod tests {
         let presence = pns::config::Presence {
             rooms: vec!["3F - Studio".to_string()],
             exclude: Vec::new(),
+            desk_room: None,
             poll_secs: 5,
             stale_after_secs: 15,
         };
@@ -9438,6 +9441,7 @@ mod tests {
         let presence = pns::config::Presence {
             rooms: vec!["3F - Studio".to_string()],
             exclude: Vec::new(),
+            desk_room: None,
             poll_secs: 5,
             stale_after_secs: 15,
         };

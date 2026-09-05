@@ -198,6 +198,15 @@ pub const LAYOUT: &[Table] = &[
                 sample: Sample::Example("[]"),
             },
             Key {
+                name: "desk_room",
+                prose: "# The room the desk is in, spelled the way the bridge spells it and\n\
+                         # listed in rooms above. While the desk says you are at it, that is\n\
+                         # where you are and motion elsewhere gets no vote: a cat crossing the\n\
+                         # kitchen must not move the lamps off a keyboard being typed at.\n\
+                         # Unset, a desk in use narrows nothing.\n",
+                sample: Sample::Example("\"\""),
+            },
+            Key {
                 name: "poll_secs",
                 prose: "# How often the bridge is read, in seconds, bounded 2 to 60.\n",
                 sample: Sample::Default("5"),
