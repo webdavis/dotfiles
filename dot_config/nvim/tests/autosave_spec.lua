@@ -3,9 +3,10 @@
 -- by `<leader>Cy`/`<leader>Cn` and never by a write that fired on a timer, and
 -- an automatic write announces itself so lsp-format can stand down.
 --
--- `should_save` takes the buffer's name and buftype as arguments rather than
--- reading them off a buffer, so the exclusion rule needs no buffer, no plugin
--- and no claudecode session to test.
+-- `should_save` identifies a proposal by the marker claudecode sets on it, not
+-- by buftype: `acwrite` is a shared buftype that Octo and gitsigns also use for
+-- buffers whose writes are real work, so rejecting it would disable auto-save
+-- well outside claudecode.
 
 -- Required per case rather than once at the top of the file, so a missing
 -- module fails every case by name instead of aborting the run before the first.
@@ -57,23 +58,32 @@ end
 return {
   -- ── which buffers auto-save may write ──
 
-  ["a claudecode diff buffer is not auto-saved"] = function()
-    assert(autosave().should_save("lua/plugins/lsp.lua", "acwrite") == false)
+  -- claudecode marks every proposal buffer it opens, on both the native and the
+  -- unified diff paths (`diff.lua:710`, `diff_inline.lua:287` at the pin).
+  ["a claudecode proposal buffer is not auto-saved"] = function()
+    local buf = scratch()
+    vim.b[buf].claudecode_diff_tab_name = "lsp.lua (proposed)"
+    assert(autosave().should_save(buf) == false)
+  end,
+
+  -- Octo gives every issue, pull request and discussion buffer `acwrite`, and
+  -- writing one pushes the edit to GitHub; gitsigns uses it for the editable
+  -- index diff. Neither carries claudecode's marker, and both keep auto-save.
+  ["an acwrite buffer without the marker is auto-saved"] = function()
+    local buf = scratch()
+    vim.bo[buf].buftype = "acwrite"
+    vim.bo[buf].filetype = "octo"
+    assert(autosave().should_save(buf) == true)
   end,
 
   ["an ordinary file buffer is auto-saved"] = function()
-    assert(autosave().should_save("lua/plugins/lsp.lua", "") == true)
+    assert(autosave().should_save(scratch()) == true)
   end,
 
-  -- The rule is the buftype, never the name: at the pinned claudecode every
-  -- writable proposal buffer is `acwrite`, and a name rule would strand an
-  -- ordinary file that merely spells one of those words.
-  ["an ordinary file under a (proposed) directory is auto-saved"] = function()
-    assert(autosave().should_save("/work/(proposed)/file.lua", "") == true)
-  end,
-
-  ["an ordinary file named like a proposed buffer is auto-saved"] = function()
-    assert(autosave().should_save("notes (NEW FILE - proposed).md", "") == true)
+  ["an ordinary file whose name looks like a proposal is auto-saved"] = function()
+    local buf = scratch()
+    vim.api.nvim_buf_set_name(buf, "/work/(proposed)/notes (NEW FILE - proposed).md")
+    assert(autosave().should_save(buf) == true)
   end,
 
   -- ── the write flag lsp-format reads ──

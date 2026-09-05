@@ -8,17 +8,17 @@
 local M = {}
 
 --- Whether a buffer is safe for auto-save.nvim to write.
----@param _name string the buffer's name; deliberately not read, see below
----@param buftype string the buffer's `&buftype`
+---@param bufnr integer
 ---@return boolean
-function M.should_save(_name, buftype)
-  -- The buftype decides, never the name. At the pinned claudecode every
-  -- writable proposal buffer is `acwrite`; the one legacy `(New)` buffer is
-  -- `nofile`, which Neovim refuses to write at all, so no name rule is needed
-  -- to protect it. A name rule would only stand between auto-save and an
-  -- ordinary file that happens to live under a `(proposed)` directory. The name
-  -- stays in the signature so a spec can prove it is not consulted.
-  return buftype ~= "acwrite"
+function M.should_save(bufnr)
+  -- claudecode marks the buffers it opens for a proposed edit, on both the
+  -- native and the unified diff paths, and the marker is what identifies them.
+  -- The buftype cannot: `acwrite` is shared, and refusing it would also stop
+  -- auto-save on Octo's issue and pull-request buffers, whose writes push to
+  -- GitHub, and on gitsigns' editable index diff, whose writes stage a hunk.
+  -- The legacy `(New)` proposal carries no marker but is `nofile`, which Neovim
+  -- refuses to write anyway.
+  return vim.b[bufnr].claudecode_diff_tab_name == nil
 end
 
 --- Raise the flag lsp-format's `BufWritePre` reads, for one automatic write.
