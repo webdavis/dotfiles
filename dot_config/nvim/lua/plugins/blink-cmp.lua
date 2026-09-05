@@ -98,7 +98,7 @@ return {
   },
   {
     "saghen/blink.cmp",
-    version = "1.7.0",
+    version = "1.*",
     event = { "InsertEnter", "CmdlineEnter" },
     opts_extend = {
       "sources.completion.enabled_providers",
@@ -165,7 +165,6 @@ return {
           auto_show = true,
         },
         menu = {
-          border = "rounded",
           draw = {
             columns = { { "kind_icon" }, { "label", gap = 1 } },
             components = {
@@ -253,9 +252,6 @@ return {
                 return { ":" }
               end,
             },
-            should_show_items = function()
-              return vim.o.filetype ~= "gitcommit"
-            end,
           },
         },
         default = {

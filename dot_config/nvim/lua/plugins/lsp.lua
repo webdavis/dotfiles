@@ -66,15 +66,25 @@ return {
       })
     end,
     config = vim.schedule_wrap(function(_, _)
-      -- Enable virtual diagnostics.
-      -- stylua: ignore start
       vim.diagnostic.config({
-        virtual_text = true,      -- show inline errors/warnings
-        signs = true,             -- show symbols in the gutter
-        underline = true,         -- underline problematic code
-        update_in_insert = false, -- don't update while typing
+        severity_sort = true, -- most severe sign wins the gutter and sorts first in lists
+        signs = {
+          text = {
+            [vim.diagnostic.severity.ERROR] = "",
+            [vim.diagnostic.severity.WARN] = "",
+            [vim.diagnostic.severity.INFO] = "",
+            [vim.diagnostic.severity.HINT] = "",
+          },
+        },
+        underline = true,
+        update_in_insert = false,
+        virtual_text = { source = "if_many" }, -- name the source only when several report
+        virtual_lines = { current_line = true }, -- the full message under the cursor line
       })
-      -- stylua: ignore end
+
+      -- Global switches: every client that supports the method gets them as it attaches.
+      vim.lsp.codelens.enable()
+      vim.lsp.inlay_hint.enable()
 
       -- sourcekit-lsp: the Xcode toolchain's own LSP for Swift, ObjC and C/C++ in a Swift
       -- project. Not a Mason package; the binary ships with Xcode/the Swift toolchain.
@@ -258,7 +268,14 @@ return {
           formatting.mdformat.with({
             extra_args = { "--number", "--wrap", "105" },
           }),
-          formatting.nixfmt, -- Filetypes: .nix config files, specifically.
+          -- nixfmt, rubocop and eslint come from a project's toolchain, not Mason. A source whose
+          -- binary is missing is still reported by `:checkhealth` as an ERROR, so register each
+          -- only where its command exists.
+          formatting.nixfmt.with({ -- Filetypes: .nix config files, specifically.
+            condition = function()
+              return vim.fn.executable("nixfmt") == 1
+            end,
+          }),
           formatting.nix_flake_fmt.with({ -- Filetypes: flake.nix files, specifically.
             filetypes = { "nix" },
           }),
@@ -267,6 +284,9 @@ return {
           }),
           formatting.rubocop.with({ -- Filetypes: Ruby (supports linting & formatting).
             extra_args = { "--display-time", "--extra-details", "--autocorrect", "--fail-level autocorrect" },
+            condition = function()
+              return vim.fn.executable("rubocop") == 1
+            end,
           }),
           formatting.stylua,
           formatting.swiftformat,
@@ -284,7 +304,11 @@ return {
 
           -- The following require none-ls-extras.nvim:
           require("none-ls.formatting.ansiblelint"),
-          require("none-ls.diagnostics.eslint"),
+          require("none-ls.diagnostics.eslint").with({
+            condition = function()
+              return vim.fn.executable("eslint") == 1
+            end,
+          }),
         },
       })
     end,
@@ -355,7 +379,11 @@ return {
         group = format_group,
         callback = function(args)
           local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
+          -- Registers the client for :Format. It also hangs lsp-format's own asynchronous
+          -- BufWritePost formatter on the buffer, which would format a second time after the
+          -- synchronous BufWritePre below has already run; drop that one.
           lsp_format.on_attach(client, args.buf)
+          vim.api.nvim_clear_autocmds({ group = "Format", buffer = args.buf })
         end,
       })
 
