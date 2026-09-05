@@ -63,16 +63,32 @@ pub enum Claim {
 /// IT NEVER FOLLOWS A LINK (`O_NOFOLLOW`), keeping the property the exclusive
 /// create had for free: a symlink dropped at this name cannot move the lock,
 /// or the mode it is created with, to a file outside the state directory.
+///
+/// AND IT NEVER WAITS (`O_NONBLOCK`), which is the same rule one step further
+/// out. A write-only open of a FIFO nobody is reading BLOCKS, so a named pipe
+/// standing at this name would hang a hand-typed poll outright and burn every
+/// daemon poll's whole child bound while the reading it never refreshed aged
+/// out. The flag turns that open into `ENXIO`, and the file-type check below
+/// catches the same pipe with a reader on the other end, which opens fine and
+/// is still not a lock. A regular file is unaffected by the flag: it has no
+/// blocking open to skip.
+///
+/// A LOCK IS A REGULAR FILE OR IT IS NOTHING, and the type is read off the
+/// HANDLE rather than off the path, so nothing swapped in between the two
+/// answers a question about a different file.
 pub fn claim(lock: &Path) -> Claim {
     let Ok(file) = File::options()
         .create(true)
         .write(true)
         .mode(LOCK_MODE)
-        .custom_flags(libc::O_NOFOLLOW)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
         .open(lock)
     else {
         return Claim::Unavailable;
     };
+    if !file.metadata().is_ok_and(|found| found.is_file()) {
+        return Claim::Unavailable;
+    }
     match file.try_lock() {
         Ok(()) => Claim::Held(file),
         Err(std::fs::TryLockError::WouldBlock) => Claim::Busy,
@@ -219,6 +235,63 @@ mod tests {
         std::fs::write(&elsewhere, b"").expect("the target");
         std::os::unix::fs::symlink(&elsewhere, state.join(LOCK_FILE)).expect("the link");
         assert!(matches!(claim(&state.join(LOCK_FILE)), Claim::Unavailable));
+    }
+
+    #[test]
+    fn a_fifo_at_the_lock_name_is_refused_rather_than_waited_on() {
+        // A WRITE-ONLY OPEN OF A FIFO NOBODY IS READING BLOCKS FOREVER, which
+        // is a hang rather than a refusal: a hand-typed poll never returns,
+        // and every daemon poll burns its whole child bound while the reading
+        // it did not refresh ages out. Claiming a lock is not a place to wait
+        // for anything, so anything that is not a plain file is refused.
+        let lock = scratch("presence-lock-fifo").join(LOCK_FILE);
+        let path =
+            std::ffi::CString::new(lock.to_str().expect("a utf-8 path")).expect("no interior nul");
+        assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0, "the fifo");
+
+        // BOTH SIDES OF THE PIPE, because each is refused by a different
+        // half of the claim. With nobody reading, the open itself must not
+        // wait; with a reader on the other end the open SUCCEEDS, and what
+        // refuses it is the file type.
+        for reading in [false, true] {
+            // OPENED INSIDE THE LOOP, or both ends of the array would be
+            // evaluated before the first pass and the reader would be there
+            // for the case that is about nobody reading.
+            let reader = reading
+                .then(|| unsafe { libc::open(path.as_ptr(), libc::O_RDONLY | libc::O_NONBLOCK) });
+            assert!(reader.is_none_or(|fd| fd >= 0), "the read end");
+            // DETACHED, NEVER JOINED, so a claim that goes back to blocking
+            // fails this on its deadline instead of hanging the whole suite
+            // on a join.
+            let (answered, answer) = std::sync::mpsc::channel();
+            let claimed = lock.clone();
+            std::thread::spawn(move || {
+                let _ = answered.send(matches!(claim(&claimed), Claim::Unavailable));
+            });
+            assert_eq!(
+                answer.recv_timeout(std::time::Duration::from_secs(5)),
+                Ok(true),
+                "a fifo at the lock name was waited on, or taken for a lock, \
+                 with a reader: {reading}"
+            );
+            if let Some(fd) = reader {
+                unsafe { libc::close(fd) };
+            }
+        }
+    }
+
+    #[test]
+    fn a_device_at_the_lock_name_is_not_a_lock_either() {
+        // THE OTHER HALF OF "A LOCK IS A REGULAR FILE", and the case that
+        // needs the type check rather than the open: `/dev/null` opens
+        // happily and the kernel locks it happily, so the only thing that can
+        // refuse it is what it IS. A device cannot be planted in the state
+        // directory without root, which is why this reaches for one that is
+        // already there.
+        assert!(matches!(
+            claim(std::path::Path::new("/dev/null")),
+            Claim::Unavailable
+        ));
     }
 
     #[test]
