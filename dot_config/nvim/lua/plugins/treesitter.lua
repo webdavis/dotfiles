@@ -271,7 +271,10 @@ return {
       callback = function(event)
         local filetype = event.match
 
-        if ignore_filetypes[filetype] then
+        -- atlas.nvim names its own filetypes and ships no grammar, so every atlas window
+        -- otherwise queued a doomed install and polled for it for thirty seconds. The prefix
+        -- test is what catches the dotted ones (`atlas.notes`, `atlas.diff-files`).
+        if ignore_filetypes[filetype] or filetype == "atlas" or vim.startswith(filetype, "atlas.") then
           return
         end
 
