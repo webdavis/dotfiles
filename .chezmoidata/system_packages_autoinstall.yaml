@@ -279,6 +279,7 @@ packages:
           - "@colbymchenry/codegraph"
           - "@doist/todoist-cli"
           - "@elevenlabs/cli"
+          - "@fission-ai/openspec"
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
           - "@tobilu/qmd"
