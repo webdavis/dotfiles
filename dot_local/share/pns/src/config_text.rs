@@ -210,10 +210,12 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "desk_stale_after_secs",
                 prose: "# How long the desk keeps speaking for where you ARE after the last\n\
-                         # keystroke. Inside it a warm desk beats motion of the same age, so a\n\
-                         # cat crossing the kitchen cannot move the lamps off a keyboard being\n\
-                         # typed at; past it a keyboard nobody has touched says nothing about\n\
-                         # which room you are standing in, and fresher motion wins.\n",
+                         # keystroke, bounded 1 to 3600. Inside it a warm desk beats motion of\n\
+                         # the same age, so a cat crossing the kitchen cannot move the lamps off\n\
+                         # a keyboard being typed at; past it a keyboard nobody has touched says\n\
+                         # nothing about which room you are standing in, and fresher motion\n\
+                         # wins. The hour ceiling is what keeps a mistyped digit from parking\n\
+                         # the lamps in desk_room for good.\n",
                 sample: Sample::Default("120"),
             },
             Key {

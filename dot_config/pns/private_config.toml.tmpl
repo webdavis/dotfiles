@@ -93,10 +93,12 @@ exclude = []
 # quiet. Unset, a warm desk narrows nothing.
 desk_room = "3F - Studio"
 # How long the desk keeps speaking for where you ARE after the last
-# keystroke. Inside it a warm desk beats motion of the same age, so a
-# cat crossing the kitchen cannot move the lamps off a keyboard being
-# typed at; past it a keyboard nobody has touched says nothing about
-# which room you are standing in, and fresher motion wins.
+# keystroke, bounded 1 to 3600. Inside it a warm desk beats motion of
+# the same age, so a cat crossing the kitchen cannot move the lamps off
+# a keyboard being typed at; past it a keyboard nobody has touched says
+# nothing about which room you are standing in, and fresher motion
+# wins. The hour ceiling is what keeps a mistyped digit from parking
+# the lamps in desk_room for good.
 desk_stale_after_secs = 120
 # How often the bridge is read, in seconds, bounded 2 to 60.
 poll_secs = 5

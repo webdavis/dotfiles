@@ -2040,6 +2040,20 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
                 .to_string(),
         ));
     }
+    // AND A BOUND OF HOURS IS THE DESK PINNED ON. The key is a tuning knob for
+    // how long a keystroke keeps speaking for where a body is; stretched past
+    // an operational maximum it stops tuning anything and parks the lamps in
+    // `desk_room` for good, because no reading can ever be fresher than a desk
+    // that never goes stale. Unbounded, one mistyped digit, a pasted
+    // millisecond count or an `i64::MAX` did exactly that, silently and for
+    // years.
+    if desk_stale_after_secs > MAX_DESK_STALE_AFTER_SECS {
+        return Err(ConfigError::Invalid(format!(
+            "`presence` key `desk_stale_after_secs` is {desk_stale_after_secs}, over the \
+             {MAX_DESK_STALE_AFTER_SECS}-second maximum; a keyboard nobody has touched for \
+             longer than that says nothing about which room they are standing in"
+        )));
+    }
     let poll_secs = presence_count(settings, "poll_secs", DEFAULT_PRESENCE_POLL_SECS)?;
     if !(MIN_PRESENCE_POLL_SECS..=MAX_PRESENCE_POLL_SECS).contains(&poll_secs) {
         return Err(ConfigError::Invalid(format!(
@@ -2122,6 +2136,14 @@ const DEFAULT_PRESENCE_POLL_SECS: u64 = 5;
 /// motion elsewhere wins. It is a knob because the right number is a property
 /// of a house and a habit, not of this code.
 const DEFAULT_DESK_STALE_AFTER_SECS: u64 = 120;
+
+/// The longest that knob may be turned. AN HOUR IS ALREADY THIRTY TIMES THE
+/// SHIPPED VALUE, and the reading it bounds is "seconds since a keystroke": an
+/// hour-old keystroke is a machine somebody walked away from, so anything past
+/// this is not a house with slower habits, it is a typo. The bound exists
+/// because the failure it prevents is silent and permanent, where a refusal is
+/// one line the operator reads at the next apply.
+const MAX_DESK_STALE_AFTER_SECS: u64 = 3600;
 const MIN_PRESENCE_POLL_SECS: u64 = 2;
 const MAX_PRESENCE_POLL_SECS: u64 = 60;
 
@@ -3924,6 +3946,35 @@ mod tests {
             said.contains("desk_stale_after_secs") && said.contains('0'),
             "the refusal names the key and the value: {said}"
         );
+    }
+
+    #[test]
+    fn a_desk_bound_over_the_operational_maximum_is_refused_by_name() {
+        // UNBOUNDED, THE KEY STOPS BEING A KNOB. A desk that never goes stale
+        // wins every arbitration there is, so one mistyped digit parks the
+        // lamps in `desk_room` for years with no reading able to move them and
+        // nothing said about why.
+        for stated in ["3601", "9223372036854775807"] {
+            let said = match parse_presence(&presence_config(&format!(
+                "type = \"hue\"\ndesk_stale_after_secs = {stated}\n"
+            ))) {
+                Err(error) => error.detail().to_string(),
+                Ok(_) => panic!("`desk_stale_after_secs = {stated}` is over the maximum"),
+            };
+            assert!(
+                said.contains("desk_stale_after_secs") && said.contains("3600"),
+                "the refusal names the key and the bound: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_desk_bound_at_the_operational_maximum_is_accepted() {
+        // THE BOUND IS INCLUSIVE, or it is one short and nobody could tell
+        // from the outside.
+        let config = presence_config("type = \"hue\"\ndesk_stale_after_secs = 3600\n");
+        let presence = parse_presence(&config).unwrap().expect("the table is on");
+        assert_eq!(presence.desk_stale_after_secs, 3600);
     }
 
     #[test]
