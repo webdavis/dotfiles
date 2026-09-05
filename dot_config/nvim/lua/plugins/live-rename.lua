@@ -1,5 +1,9 @@
 return {
   "saecki/live-rename.nvim",
+  keys = {
+    { "<leader>rn", desc = "Live Rename: normal mode" },
+    { "<leader>rN", desc = "Live Rename: insert mode" },
+  },
   config = function()
     local live_rename = require("live-rename")
 
