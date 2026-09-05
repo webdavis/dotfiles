@@ -354,7 +354,9 @@ local function buffer_contents(file)
     return nil
   end
 
-  local separator = LINE_SEPARATOR[vim.bo.fileformat] or "\n"
+  -- `binary` writes the buffer out with LF between the lines whatever
+  -- `fileformat` says, so it settles the separator before the format is read.
+  local separator = vim.bo.binary and "\n" or (LINE_SEPARATOR[vim.bo.fileformat] or "\n")
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
 
   -- A `fileformat=mac` buffer is split on carriage returns, and nvim shows an LF

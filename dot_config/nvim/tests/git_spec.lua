@@ -75,16 +75,14 @@ local function in_committed_file(bytes, modifiers, fn)
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
 
+  -- The operator's global config carries a hooks path and commit signing, and a
+  -- fixture commit must run none of that. Reading no global or system config at
+  -- all is one move that covers every such setting.
+  local no_user_config = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_SYSTEM = "/dev/null" }
+
   local function git_command(...)
     local argv = { "git", ... }
-    -- The operator's global config carries a hooks path and commit signing, and
-    -- a fixture commit must run none of that. Reading no global or system
-    -- config at all is one move that covers every such setting.
-    local result = vim.system(argv, {
-      text = true,
-      cwd = dir,
-      env = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_SYSTEM = "/dev/null" },
-    }):wait()
+    local result = vim.system(argv, { text = true, cwd = dir, env = no_user_config }):wait()
     assert(result.code == 0, table.concat(argv, " ") .. ": " .. (result.stderr or ""))
   end
 
@@ -455,6 +453,24 @@ return {
       return git.blame_sha({ file = file, line = 1 })
     end)
     assert(sha, "row 1 of an unchanged file answered: " .. tostring(err))
+  end,
+
+  -- `binary` writes the buffer's bytes with LF between the lines whatever
+  -- `fileformat` says. A `++bin ++ff=dos` buffer handed carriage returns anyway
+  -- differed from its own committed blob, and every line of it read as
+  -- uncommitted.
+  ["blame_sha sends a binary buffer LF whatever its fileformat says"] = function()
+    local answers = in_committed_file("one\ntwo\n", "++bin ++ff=dos", function(file)
+      local rows = {}
+      for row = 1, 2 do
+        local sha, err = git.blame_sha({ file = file, line = row })
+        rows[row] = sha or ("no sha: " .. tostring(err))
+      end
+      return rows
+    end)
+    for row = 1, 2 do
+      assert(answers[row]:match("^%x+$"), "row " .. row .. " of an unchanged file answered: " .. answers[row])
+    end
   end,
 
   -- A symlink gives nvim the TARGET's text under the LINK's name. The link's own
