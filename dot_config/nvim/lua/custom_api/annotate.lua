@@ -109,6 +109,40 @@ function M.blame_line(sha, commit)
   return "blame " .. short
 end
 
+-- A buffer name that opens with a URI scheme belongs to a plugin, not to the
+-- filesystem. MEASURED: an Oil directory buffer and a Fugitive revision buffer
+-- both carry an EMPTY `buftype`, so the buftype test below does not reach
+-- them; their names are what gives them away. The scheme is anchored at the
+-- start, so a legal path holding `://` further along stays a path.
+local URI_NAME = "^%a[%w+.-]*://"
+
+---Whether this buffer can produce a mention an agent could act on.
+---
+---A named file that has never been written is fine: it is a real path with
+---real lines. The three refusals are a buffer with no name, which would be
+---mentioned as `@:1`; a buffer with any `buftype`, which is a scratch buffer,
+---a terminal, a quickfix list or a help window rather than a file; and a
+---buffer named by a URI, whose name is not a path an agent can open.
+---@param name string the buffer name, as `nvim_buf_get_name` returns it
+---@param buftype string the buffer's `buftype`
+---@return boolean annotatable
+---@return string? reason why not, when it is not
+function M.annotatable(name, buftype)
+  if name == "" then
+    return false, "this buffer has no file name"
+  end
+
+  if buftype ~= "" then
+    return false, ("this is a %s buffer, not a file"):format(buftype)
+  end
+
+  if name:match(URI_NAME) then
+    return false, ("this buffer is named by a URI, not a path: %s"):format(name)
+  end
+
+  return true
+end
+
 ---The diagnostic part: the severity and the message, on one line.
 ---
 ---A message that trims to nothing yields no part at all. Formatting it anyway
@@ -176,12 +210,20 @@ local function blame_part(file, line)
 end
 
 ---Annotate the cursor's line in `herdr-nvim`'s annotation store.
----@return integer id the new comment's id
+---@return integer? id the new comment's id, or nil when the buffer cannot be annotated
+---@return string? reason why not
 function M.line()
   local bufnr = vim.api.nvim_get_current_buf()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line, column = cursor[1], cursor[2]
-  local file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":.")
+  local name = vim.api.nvim_buf_get_name(bufnr)
+
+  local ok, reason = M.annotatable(name, vim.bo[bufnr].buftype)
+  if not ok then
+    return nil, reason
+  end
+
+  local file = vim.fn.fnamemodify(name, ":.")
 
   local text = M.compose_text({
     mention = ("@%s:%d"):format(file, line),

@@ -143,6 +143,56 @@ return {
     assert(found and found:type() == "function_declaration", "found " .. tostring(found and found:type()))
   end,
 
+  ["annotates a named file buffer"] = function()
+    assert(annotate.annotatable("lua/custom_api/annotate.lua", "") == true)
+  end,
+
+  ["annotates a named file that has never been written"] = function()
+    -- A new file the operator has typed into is a real path with real lines,
+    -- and the mention it produces is one an agent can open.
+    assert(annotate.annotatable("notes.md", "") == true)
+  end,
+
+  ["refuses a buffer with no file name"] = function()
+    -- The mention would be `@:1`, which names nothing.
+    local ok, reason = annotate.annotatable("", "")
+    assert(ok == false, "annotatable returned " .. tostring(ok))
+    assert(type(reason) == "string" and reason ~= "", "reason " .. vim.inspect(reason))
+  end,
+
+  ["refuses a buffer that is not a file"] = function()
+    -- Every non-empty `buftype` is something other than a file on disk: a
+    -- scratch buffer, a terminal, a quickfix list, a help window.
+    for _, buftype in ipairs({ "nofile", "nowrite", "acwrite", "terminal", "quickfix", "help", "prompt" }) do
+      local ok, reason = annotate.annotatable("/tmp/x.lua", buftype)
+      assert(ok == false, buftype .. " was accepted")
+      assert(type(reason) == "string" and reason ~= "", buftype .. " gave no reason")
+    end
+  end,
+
+  ["refuses a buffer whose name is a URI rather than a path"] = function()
+    -- Measured: an Oil directory buffer and a Fugitive revision buffer both
+    -- carry an EMPTY `buftype`, so the buftype rule above does not reach them.
+    -- Their names are what gives them away.
+    for _, name in ipairs({
+      "oil:///Users/stephen/src/",
+      "fugitive://./.git//5ef4e631b3f43a2ad5bbbdac634bdfad7a432706/nested.lua",
+      "term://~//12345:bash",
+      "octo://webdavis/dotfiles/pull/350",
+    }) do
+      local ok, reason = annotate.annotatable(name, "")
+      assert(ok == false, name .. " was accepted")
+      assert(type(reason) == "string" and reason ~= "", name .. " gave no reason")
+    end
+  end,
+
+  ["annotates a path that merely contains a colon"] = function()
+    -- The scheme is anchored at the start, so a legal filename holding `://`
+    -- further along is still a path.
+    assert(annotate.annotatable("/tmp/a:b/x.lua", "") == true)
+    assert(annotate.annotatable("notes/http://example.md", "") == true)
+  end,
+
   ["names the severity beside the diagnostic message"] = function()
     local line = annotate.diagnostic_line({ severity = vim.diagnostic.severity.WARN, message = "unused local" })
     assert(line == "WARN: unused local", "diagnostic line " .. vim.inspect(line))
