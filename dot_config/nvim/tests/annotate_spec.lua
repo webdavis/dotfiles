@@ -116,6 +116,24 @@ return {
     assert(found and found:type() == "function_definition", "found " .. tostring(found and found:type()))
   end,
 
+  ["covers the function node of every language this config edits"] = function()
+    -- Measured against the installed grammars, one sample file each: Rust
+    -- names its functions `function_item`, Go methods `method_declaration`,
+    -- and a named TypeScript function expression `function_expression`. None
+    -- of the three ends in a Lua or Python spelling.
+    for _, node_type in ipairs({
+      "function_definition",
+      "function_declaration",
+      "method_definition",
+      "function_item",
+      "method_declaration",
+      "function_expression",
+    }) do
+      local found = annotate.enclosing_function(chain({ "identifier", node_type }))
+      assert(found and found:type() == node_type, node_type .. " is not read as a function")
+    end
+  end,
+
   ["reads a suffix only at the end of the node type"] = function()
     -- `function_definition_call` CONTAINS a listed suffix without ending in
     -- one. A literal substring search would stop here and name the call site

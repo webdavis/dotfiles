@@ -13,10 +13,32 @@ local git = require("custom_api.git")
 local util = require("custom_api.util")
 
 -- Every grammar spells its function node differently, so the rule is a SUFFIX
--- match over the three spellings that cover the languages this config edits.
+-- match over the six spellings that cover the languages this config edits.
 -- A `find` on "function" would match `function_call` and `parameters` and walk
 -- no further, reporting the call around the cursor as its enclosing function.
-local FUNCTION_NODE_SUFFIXES = { "function_definition", "function_declaration", "method_definition" }
+-- The match is anchored at the END for the same reason: `function_definition_call`
+-- contains a listed spelling without being one.
+--
+-- Measured 2026-09-05 by walking a sample file per language under the installed
+-- grammars. `(name)` is what `function_part` reads; a node with no name field
+-- contributes no function part at all.
+--
+--   lua         function_declaration (name), function_definition (no name)
+--   python      function_definition (name)
+--   bash        function_definition (name)
+--   rust        function_item (name)
+--   go          function_declaration (name), method_declaration (name)
+--   swift       function_declaration (name)
+--   typescript  function_declaration, function_expression, method_definition (all name),
+--               arrow_function (no name, and no suffix here)
+local FUNCTION_NODE_SUFFIXES = {
+  "function_definition",
+  "function_declaration",
+  "method_definition",
+  "function_item",
+  "method_declaration",
+  "function_expression",
+}
 
 -- The order the parts appear in, stated once. `pairs` over the parts table
 -- would order them by whatever the hash walk returned that run.
