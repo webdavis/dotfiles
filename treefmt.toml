@@ -129,9 +129,17 @@ includes = [
 # behavior holding on a future treefmt version.
 [formatter.stylua]
 command = "stylua"
-includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+includes = [
+  "dot_config/nvim/*.lua",
+  "dot_config/nvim/**/*.lua",
+  "dot_local/share/neotest-bashunit/**/*.lua",
+]
 
 [formatter.luacheck]
 command = "luacheck"
 options = ["--config", "dot_config/nvim/dot_luacheckrc"]
-includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+includes = [
+  "dot_config/nvim/*.lua",
+  "dot_config/nvim/**/*.lua",
+  "dot_local/share/neotest-bashunit/**/*.lua",
+]
