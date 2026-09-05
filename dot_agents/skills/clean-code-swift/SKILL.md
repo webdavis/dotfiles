@@ -22,40 +22,50 @@ Toolchain here (measured): Apple Swift 6.3.3; `swift`, `swiftc`, `xcodebuild` an
 
 ## Where the boundary goes, and what enforces it
 
-**A module is the unit of enforcement**, whether it is a SwiftPM target or an Xcode framework
-target. A module cannot `import` something unreachable from what it declares, so the inward
-dependency the method forbids does not compile.
+**A module is the unit of enforcement, and it is the only unit of enforcement**, whether it is a
+SwiftPM target or an Xcode framework target. A target cannot `import` a module that nothing in its
+declared chain reaches. That is the entire compiler-checked guarantee. Everything else this skill
+calls a boundary is review, not a gate.
 
-Measured on Swift 6.3.3, with SwiftPM targets:
+Measured on Swift 6.3.3, reproduced 2026-09-04 with SwiftPM targets:
 
-- An undeclared cross-module import fails with `error: no such module '<Module>'`.
 - A cycle declared in the manifest is refused before compilation:
   `error: cyclic dependency declaration found: A -> B -> A`.
+- With targets `A` and `C` independent and a file in `A` importing `C`, a build against an EMPTY
+  scratch path fails with `error: no such module 'C'`. Eight fresh trees, eight failures, no flake.
 
-Both were measured on a CLEAN build, and that qualifier is the whole rule:
+**THE EMPTY SCRATCH PATH IS THE LOAD-BEARING PART, NOT THE BUILD.** Same tree, nothing fixed between
+the runs:
 
-**A GREEN INCREMENTAL BUILD IS NOT EVIDENCE OF ANYTHING. CLEAN FIRST, OR THE GATE IS THEATRE.**
-Measured 2026-09-03 and reproduced deterministically: add a file whose sole content is `import C` to
-a target that does not declare `C`, and `swift build` prints `Compiling A Bad.swift`, then
-`Build complete!`, and exits 0. Only `swift package clean` followed by the same `swift build` reports
-`error: no such module 'C'`. A module built under an earlier configuration stays visible on the
-incremental search path, so the single check this entire architecture rests on **reads green while
-the boundary is broken**. That is worse than having no check, because it is a check that lies.
+    swift build          # exit 1, error: no such module 'C'
+    swift build          # exit 0, Build complete!
+    swift package clean
+    swift build          # exit 1 again
 
-So:
+The failed build had already emitted `C`'s module into the scratch path, and every later build finds
+it there. So **a retry of a red build goes green while the boundary is still broken**: the single
+check this architecture rests on **reads green while it is broken**. That is worse than having no
+check, because it is a check that lies. `--target` alone does not save you either:
+`swift build --target A --scratch-path <empty dir>` fails correctly, while a bare
+`swift build --target A` against the already-populated path exits 0.
 
-- **Run `swift package clean` before any build you intend to treat as proof of the dependency
-  direction.** Reviewing a module boundary off an incremental build proves nothing.
-- **CI must build clean.** An incremental CI gate will pass the pull request that breaks the
-  architecture.
+So, spelled exactly:
+
+- **Build a protected target isolated, against an empty scratch path**, and treat nothing else as
+  proof of the dependency direction:
+  `swift build --target <Target> --scratch-path "$(mktemp -d)"`.
+- `swift package clean` before a whole-package build is the equivalent. Both work; the isolated form
+  is the one a sibling target cannot spoil.
+- **CI must do the same.** A CI job that reuses a build directory will pass the pull request that
+  breaks the architecture.
 - The same applies after editing `Package.swift`.
 
-**AND IT REACHES ONLY AS FAR AS THE DECLARED CHAIN. A TRANSITIVE MODULE IS IMPORTABLE UNDECLARED.**
-Measured 2026-09-03 on a fresh build directory, so this one is not the incremental hole: with target
-`A` declaring only `B`, and `B` declaring `C`, a file in `A` may `import C` and call `C`'s functions,
-and `swift build` exits 0. Cargo refuses the same shape outright (`error[E0433]`, measured), so this
-is NOT the guarantee Cargo gives. It is the weaker one: a module may reach anything its declared
-neighbours pull in.
+**AND IT REACHES ONLY AS FAR AS THE DECLARED CHAIN, WHICH THE ISOLATED BUILD DOES NOT FIX.**
+Measured 2026-09-04: with `A` declaring `D`, `D` declaring `C`, and a file in `A` importing `C` and
+calling its functions, BOTH a fresh `swift build` and
+`swift build --target A --scratch-path <empty dir>` exit 0. Cargo refuses the same shape outright
+(`error[E0433]`, measured), so this is NOT the guarantee Cargo gives. It is the weaker one: a module
+may reach anything its declared neighbours pull in, and no build flag recovers the difference.
 
 The architecture survives that, because the direction it protects runs the other way. The domain
 declares no module of ours, so nothing of ours is transitively reachable from it, and UI or
@@ -73,16 +83,26 @@ checking them for you.
 | `<Tool>UI`      | UIKit or SwiftUI, `<Tool>`         | views and view controllers                        |
 | `<Tool>App`     | both, plus UIKit                   | the composition root, and nothing else            |
 
-Inside `<Tool>`, the roles are **folders plus access control**, not targets: a `Feature/` folder for
-the domain types and the ports, an `API/` and a `Cache/` folder for adapters, a `Presentation/`
-folder for presenters. This works because Swift's `internal` default already scopes a symbol to its
-module, so a folder split costs nothing and a target split would buy little.
+Inside `<Tool>`, the roles are **folders**: a `Feature/` folder for the domain types and the ports,
+an `API/` and a `Cache/` folder for adapters, a `Presentation/` folder for presenters.
 
-**Draw a hard module boundary where the dependency direction must be enforced against a whole
-category of code** (the UI must not be reachable from the domain; the app must not be reachable from
-either). Draw a folder boundary inside a module for the rest. This is a deliberate adaptation of the
-Rust five-crate rule, and the reason it is safe is that the one direction that actually goes wrong,
-UI or infrastructure leaking inward, is exactly the one the module split still catches.
+**A FOLDER ENFORCES NOTHING. IT IS ORGANIZATION FOR A HUMAN READER.** Measured 2026-09-04:
+`Feature/Policy.swift` importing CoreData and calling an `internal` type declared in
+`Infrastructure/Adapter.swift` compiles to `Build complete!`, exit 0, both on a fresh build and again
+after `swift package clean`. `internal` scopes a symbol to its MODULE, and the two folders are the
+same module, so every symbol in it is already visible to every other file in it. Access control adds
+nothing across a folder line, because there is no line there to cross.
+
+**Draw a hard module boundary where the dependency direction must be enforced by a build** (the UI
+must not be reachable from the domain; the app must not be reachable from either), and give every
+protected target the isolated-scratch-path gate above. Inside a module, a folder records the intent
+and a REVIEWER is the only thing holding it: read the import lines and the call sites by hand, per
+pull request. If a direction inside a module matters more than review can carry, it is not a folder,
+it is a target.
+
+This is a deliberate adaptation of the Rust five-crate rule. It is safe only as far as the one
+direction that actually goes wrong, UI or infrastructure leaking inward, is the one the module split
+still catches; every direction inside a module is on review.
 
 ### What the domain excludes
 
@@ -145,9 +165,10 @@ default implementation over inheritance, and mark a class `final` unless subclas
 Narrowest to widest: `private`, `fileprivate`, `internal` (the default, so write nothing), `package`,
 `public`, `open`.
 
-`internal` is what makes the folder-based role split safe: a type is invisible outside its module
-unless you say otherwise. Make a type `public` only when it crosses a module boundary, which in
-practice means the domain models, the ports, and the presenters the UI module consumes.
+`internal` keeps a type inside its MODULE. It does not keep it inside its folder, so it is not what
+makes the folder-based role split safe (measured above); the module split plus review is. Make a
+type `public` only when it crosses a module boundary, which in practice means the domain models, the
+ports, and the presenters the UI module consumes.
 
 `package` (measured working across two targets on 6.3.3) is for cross-target collaboration inside one
 package that must not escape it. On a three-module layout it rarely comes up; reach for it when a
