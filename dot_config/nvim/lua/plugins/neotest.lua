@@ -120,6 +120,11 @@ end
 --- git root rather than the intermediate package. Walking is also what keeps a nested package that
 --- DOES name a runner ahead of an ancestor that names another.
 ---
+--- The walk stops at the repository, because a package.json above it belongs to someone else: a
+--- nested repository that declares no runner would otherwise run its tests under whatever an
+--- unrelated ancestor happens to declare. `.git` is matched by name, so a worktree or submodule,
+--- where it is a FILE rather than a directory, bounds the walk the same way.
+---
 --- Plain `io` at each level, for the same async reason as the import read above, and it doubles as
 --- the test for whether a manifest is there at all.
 ---@param path string a file or a directory
@@ -130,6 +135,7 @@ local function declared_runner(path)
   for parent in vim.fs.parents(path) do
     directories[#directories + 1] = parent
   end
+  local repository = vim.fs.root(path, ".git")
   for _, directory in ipairs(directories) do
     local manifest = directory .. "/package.json"
     local handle = io.open(manifest, "r")
@@ -144,6 +150,9 @@ local function declared_runner(path)
       if runner then
         return runner
       end
+    end
+    if directory == repository then
+      break
     end
   end
   return nil
@@ -211,10 +220,20 @@ local function run_all_tests()
   end
 
   -- Asked of each adapter rather than resolved here, so the id matches the one neotest builds
-  -- from the same call.
+  -- from the same call. A JavaScript adapter roots on the nearest package.json, which can sit
+  -- outside the repository entirely; those tests are not this repository's, so that root is
+  -- refused on the same boundary the manifest walk stops at.
+  local repository = vim.fs.root(directory, ".git")
+  local function inside_repository(root)
+    return not repository or root == repository or vim.startswith(root, repository .. "/")
+  end
+
   local javascript, other = {}, {}
   for _, adapter in ipairs(require("neotest.config").adapters) do
     local root = adapter.root(directory)
+    if root and javascript_adapters[adapter.name] and not inside_repository(root) then
+      root = nil
+    end
     if root then
       local entry = { name = adapter.name, id = ("%s:%s"):format(adapter.name, root) }
       table.insert(javascript_adapters[adapter.name] and javascript or other, entry)

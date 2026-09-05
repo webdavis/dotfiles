@@ -80,6 +80,12 @@ write_fixture("mono/packages/web/package.json", '{ "devDependencies": { "vitest"
 local behind_empty = write_fixture("mono/packages/web/fixtures/package.json", "{}")
 local behind_empty_file = write_fixture("mono/packages/web/fixtures/a.test.js", 'import { test } from "vitest";\n')
 
+-- A git repository, declaring no runner, nested under a JavaScript package that declares one.
+-- `.git` is a FILE here, the form a worktree or submodule uses, not a directory.
+write_fixture("gitparent/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
+local inner_git = write_fixture("gitparent/inner/.git", "gitdir: /nowhere\n")
+local inner_file = write_fixture("gitparent/inner/tests/inner.test.js", 'test("inner", function () {});\n')
+
 -- A Python project carrying a stray manifest that names no runner.
 local pystray = write_fixture("pystray/pyproject.toml", '[project]\nname = "pystray"\n')
 write_fixture("pystray/package.json", "{}")
@@ -251,6 +257,17 @@ cases["a nested jest package inside a vitest repository keeps its own files"] = 
   -- A nested package naming no runner declares nothing, so the ancestor's choice still stands.
   assert(routed.vitest(silent_nested_file), "an empty nested manifest took the file from vitest")
   assert(claim_count(routed, silent_nested_file) == 1, "expected exactly one adapter to claim the file")
+end
+
+cases["a nested git repository does not inherit a runner from outside it"] = function()
+  -- Walking to the filesystem root reaches a package.json belonging to some unrelated ancestor,
+  -- and a repository that declares no runner then runs its tests under one it never chose. The
+  -- same boundary rejects an adapter whose root sits outside the repository.
+  local routed = route()
+  assert(claim_count(routed, inner_file) == 0, "the nested repository inherited a runner from outside it")
+  local run = routed.press_run_all(directory_of(inner_git))
+  assert(not run.prompted, "the run offered adapters rooted outside the repository")
+  assert(run.ran == directory_of(inner_git), "expected a plain run, got " .. vim.inspect(run.ran))
 end
 
 cases["a runner an intermediate package declares is found through a nested empty manifest"] = function()
