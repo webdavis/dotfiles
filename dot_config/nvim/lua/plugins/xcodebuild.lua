@@ -121,10 +121,14 @@ return {
         -- rule cannot be redirected by the caller's environment. Nothing here installs any of
         -- that, and this branch has installed no sudo rule at all.
         pymobiledevice = { enabled = true },
-        -- On, `xcode-build-server config` runs with the scheme matching the current file's
-        -- target instead of the project's, so `buildServer.json` describes the target actually
-        -- being edited and sourcekit-lsp resolves imports correctly in a multi-scheme project.
-        xcode_build_server = { enabled = true, guess_scheme = true },
+        -- Scheme guessing makes `buildServer.json` describe the target actually being edited,
+        -- so sourcekit-lsp resolves imports correctly in a multi-scheme project. The plugin's
+        -- own switch is left OFF and the autocmd re-registered in `config` below, because
+        -- `guess_scheme()` gates on `xcodeproj OR workingDirectory` while the work it then
+        -- does needs an Xcode project. A configured Swift package sets only the second, so
+        -- every `BufEnter *.swift` in a Vapor package raised "This operation is not supported
+        -- for Swift Package" and "No targets found for the current file".
+        xcode_build_server = { enabled = true, guess_scheme = false },
         -- DELIBERATELY off, and the one feature not turned on. codelldb is the pre-Xcode-16
         -- debug adapter; from Xcode 16 the plugin uses `lldb-dap` out of the toolchain and
         -- says so in `integrations/dap.lua:594`. This machine is Xcode 26.6, so enabling it
@@ -177,6 +181,19 @@ return {
         pattern = "XcodebuildCwdChanged",
         callback = function()
           require("xcodebuild.integrations.dap").load_breakpoints()
+        end,
+      })
+
+      -- Scheme guessing, with the guard the plugin's own registration lacks: an Xcode project
+      -- must be configured. `settings.xcodeproj` is exactly that, and is nil for a Swift
+      -- package, which is what silences the per-keystroke errors in a Vapor package.
+      vim.api.nvim_create_autocmd("BufEnter", {
+        group = vim.api.nvim_create_augroup("xcodebuild_guess_scheme_when_xcodeproj", { clear = true }),
+        pattern = "*.swift",
+        callback = function()
+          if require("xcodebuild.project.config").settings.xcodeproj then
+            require("xcodebuild.integrations.xcode-build-server").guess_scheme()
+          end
         end,
       })
 
