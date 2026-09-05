@@ -75,6 +75,7 @@ packages:
         - atomicparsley
         - atuin
         - bash
+        - bashunit
         - bats-core
         - bash-completion@2
         - bash-preexec
