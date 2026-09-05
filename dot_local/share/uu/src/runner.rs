@@ -14,6 +14,7 @@ use unattended_upgrades::lanes::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict
 use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
 
 mod bounds;
+mod overrun;
 
 /// The event handed to a command lane's child cannot exceed this, or
 /// `run_with_input`'s pre-filled pipe would have to write more than fits
@@ -59,43 +60,9 @@ impl SystemRunner {
         self.budget.saturating_sub(self.started.elapsed())
     }
 
-    /// How this lane ran out of time, naming the RUN when the run's remaining
-    /// budget is what cut the lane short rather than its own setting.
-    fn out_of_time(&self) -> String {
-        if self.budget < self.declared {
-            format!(
-                "lane `{}` was stopped at {:?}, all that was left of the run's budget (its own \
-                 deadline_secs is {}s)",
-                self.lane,
-                self.budget,
-                self.declared.as_secs()
-            )
-        } else {
-            format!(
-                "lane `{}` exceeded its {:?} deadline",
-                self.lane, self.budget
-            )
-        }
-    }
-
-    /// What the record and the alert say when this lane ran out of time. The
-    /// stderr tail rides along the way it does on every other failure: the
-    /// child is gone by the time the record is composed, and what it printed
-    /// on the way to the deadline is the only clue to where it stopped.
-    ///
-    /// AN UNVERIFIED KILL IS NEVER REPORTED AS ONE. `Escaped` means something
-    /// outlived TERM and KILL and may still be running and still writing after
-    /// uu drops the run lock, which is a fact the operator has to be handed
-    /// rather than one dressed up as a clean stop.
+    /// This lane's overrun line, with the budget bookkeeping filled in.
     fn overrun(&self, ended: &Ended, stderr: &[u8]) -> String {
-        let how = match ended {
-            Ended::Escaped => format!(
-                "{}; something it left behind outlived TERM and KILL and may still be running",
-                self.out_of_time()
-            ),
-            _ => format!("{}, so its process group was killed", self.out_of_time()),
-        };
-        failure_reason(&how, &String::from_utf8_lossy(stderr))
+        overrun::overrun(&self.lane, self.budget, self.declared, ended, stderr)
     }
 
     /// The one place a lane subject is actually spawned, under what is left of
@@ -111,9 +78,11 @@ impl SystemRunner {
         match bounded_spawn(program, args, stdin, budget) {
             Spawned::Ran(finished) => Ok(finished),
             Spawned::NotRunnable(why) => Err(why),
-            Spawned::SpawnStuck => Err(format!(
-                "{}, and the spawn of {program} never returned, so there was no pid to signal",
-                self.out_of_time()
+            Spawned::SpawnStuck => Err(overrun::spawn_stuck(
+                &self.lane,
+                self.budget,
+                self.declared,
+                program,
             )),
         }
     }
