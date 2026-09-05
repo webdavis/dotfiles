@@ -13,6 +13,13 @@ return {
         ["cmp.entry.get_documentation"] = true,
       },
     },
+    views = {
+      hover = {
+        -- noice pins this view to "none" instead of leaving it to nui's 'winborder' default,
+        -- so point it at the option every other float follows.
+        border = { style = vim.o.winborder },
+      },
+    },
     routes = {
       {
         filter = {
@@ -30,7 +37,6 @@ return {
       bottom_search = false,
       long_message_to_split = true,
       inc_rename = false, -- the preset's plugin, inc-rename.nvim, is not installed
-      lsp_doc_border = true, -- add a border to hover docs and signature help
       command_palette = {
         views = {
           cmdline_popup = {
