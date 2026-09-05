@@ -203,3 +203,75 @@ vim.api.nvim_create_autocmd("User", {
     end
   end,
 })
+
+-- Tell the nvim-mcp resolver which Neovim lives in which herdr pane (spec 7.3).
+-- ~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh reads this registry to answer
+-- "which Neovim does this agent mean" by pane rather than by focus or by
+-- current directory, neither of which can tell two Neovim panes in one
+-- workspace apart.
+--
+-- One line per instance, "<pane id> <pid> <socket> <cwd>", cwd last because it
+-- is the only field that can hold spaces. Written only under herdr: without
+-- HERDR_PANE_ID there is no pane to register and the resolver has nothing to
+-- match against.
+--
+-- No locking. An append of one short line does not interleave in practice, and
+-- the deregister below rewrites the file, so a simultaneous exit could drop
+-- another instance's line. That is the case the resolver's identity check
+-- exists for: an entry that is stale, missing or reused is caught over RPC
+-- before anything is edited, and the runtime-root glob covers an instance whose
+-- line never got written.
+local nvim_mcp_pane = vim.env.HERDR_PANE_ID
+if nvim_mcp_pane and nvim_mcp_pane ~= "" then
+  local nvim_mcp_registry = (vim.env.XDG_STATE_HOME or (vim.env.HOME .. "/.local/state")) .. "/nvim-mcp/registry"
+
+  local function nvim_mcp_lines()
+    local file = io.open(nvim_mcp_registry, "r")
+    if not file then
+      return {}
+    end
+    local lines = {}
+    for line in file:lines() do
+      -- Drop every line this pane owns, so a crash that skipped VimLeavePre
+      -- cannot leave two entries for one pane behind.
+      if line ~= "" and not vim.startswith(line, nvim_mcp_pane .. " ") then
+        lines[#lines + 1] = line
+      end
+    end
+    file:close()
+    return lines
+  end
+
+  local function nvim_mcp_write(lines)
+    vim.fn.mkdir(vim.fs.dirname(nvim_mcp_registry), "p")
+    local file = io.open(nvim_mcp_registry, "w")
+    if not file then
+      return
+    end
+    for _, line in ipairs(lines) do
+      file:write(line, "\n")
+    end
+    file:close()
+  end
+
+  vim.api.nvim_create_autocmd("VimEnter", {
+    group = augroup("nvim_mcp_registry"),
+    callback = function()
+      -- v:servername is empty when Neovim was started with --listen "" or with
+      -- no socket at all; there is then nothing for the resolver to connect to.
+      if vim.v.servername == "" then
+        return
+      end
+      local lines = nvim_mcp_lines()
+      lines[#lines + 1] = table.concat({ nvim_mcp_pane, vim.fn.getpid(), vim.v.servername, vim.fn.getcwd() }, " ")
+      nvim_mcp_write(lines)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = augroup("nvim_mcp_registry_leave"),
+    callback = function()
+      nvim_mcp_write(nvim_mcp_lines())
+    end,
+  })
+end
