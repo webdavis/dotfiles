@@ -176,6 +176,18 @@ write_fixture("broken/tests/x.test.js", 'import { test } from "vitest";\n')
 local silent = write_fixture("silent/package.json", '{ "name": "silent", "version": "1.0.0" }')
 write_fixture("silent/tests/thing.test.js", 'test("thing", function () {});\n')
 
+-- Two JavaScript repositories declaring no runner, alike but for one bash test file. `.git` is
+-- what neotest-bashunit roots on, and it is at the top of both, so the file is the only thing
+-- telling them apart.
+local jsnobash = write_fixture("jsnobash/package.json", '{ "name": "jsnobash", "version": "1.0.0" }')
+write_fixture("jsnobash/.git", "gitdir: /nowhere\n")
+write_fixture("jsnobash/tests/thing.test.js", 'test("thing", function () {});\n')
+
+local jsbash = write_fixture("jsbash/package.json", '{ "name": "jsbash", "version": "1.0.0" }')
+write_fixture("jsbash/.git", "gitdir: /nowhere\n")
+write_fixture("jsbash/tests/thing.test.js", 'test("thing", function () {});\n')
+write_fixture("jsbash/tests/thing.test.sh", "function test_thing() {\n  assert_same 1 1\n}\n")
+
 local function directory_of(manifest)
   return vim.fn.fnamemodify(manifest, ":h")
 end
@@ -194,6 +206,23 @@ end
 --- neotest-busted roots on its own markers, one of which is a `.busted` file.
 local function busted_root(path)
   return vim.fs.root(path, ".busted")
+end
+
+--- neotest-bashunit takes a `.bashunitrc` at its word, and otherwise claims a repository only
+--- when a `*.test.sh` is actually reachable inside it. Mirrors the adapter's own rule, which
+--- exists because `.git` marks every repository there is: rooting on the marker alone attached
+--- the adapter to all of them, and a directory run then went to bash in a project holding none.
+--- `vim.fs.find` rather than the adapter's `vim.fs.dir` walk because these fixtures are small and
+--- carry nothing to prune; the answer is the same one.
+local function bashunit_root(path)
+  local root = vim.fs.root(path, { ".bashunitrc", ".git" })
+  if not root or vim.uv.fs_stat(root .. "/.bashunitrc") then
+    return root
+  end
+  local found = vim.fs.find(function(name)
+    return name:sub(-8) == ".test.sh"
+  end, { path = root, type = "file", limit = 1 })
+  return found[1] and root or nil
 end
 
 local function no_root()
@@ -247,9 +276,10 @@ local function route()
       end,
     }),
     -- Ours, and a plain table like its real module: no `__call`, so a stub with a metatable
-    -- would not be the shape `config` requires. Rooted nowhere, so it stays out of the
-    -- directory-run fixtures, which are about the JavaScript routing.
-    ["neotest-bashunit"] = { name = "neotest-bashunit", root = no_root },
+    -- would not be the shape `config` requires. Its root is the real rule rather than a stub
+    -- that never attaches: rooting nowhere hid the adapter from every directory-run fixture,
+    -- which is exactly where a bash adapter that over-claims does its damage.
+    ["neotest-bashunit"] = { name = "neotest-bashunit", root = bashunit_root },
     ["neotest-busted"] = { name = "neotest-busted", root = busted_root },
     ["neotest-swift-testing"] = { name = "neotest-swift-testing", root = no_root },
   }
@@ -694,6 +724,34 @@ cases["a directory run with no runner declared asks rather than picking one"] = 
 
   local declined = routed.press_run_all(directory_of(silent))
   assert(not declined.ran, "declining the prompt still ran something")
+end
+
+cases["a directory run reaches bash only where a bash test actually lives"] = function()
+  -- `.git` is at the top of every repository, so an adapter rooting on that marker alone is
+  -- rooted in all of them. neotest hands a directory run straight to the single non-JavaScript
+  -- adapter that attached, so a JavaScript project declaring no runner ran its "all tests"
+  -- through bashunit, over no bash tests, instead of asking which adapter was meant.
+  local routed = route()
+
+  local without = routed.press_run_all(directory_of(jsnobash), 2)
+  assert(without.prompted, "a JavaScript project with no bash test picked an adapter silently")
+  assert(
+    not vim.tbl_contains(without.prompted, "neotest-bashunit"),
+    "bash was offered in a project holding no bash test: " .. vim.inspect(without.prompted)
+  )
+  assert(
+    without.ran and not without.ran.adapter:find("neotest-bashunit", 1, true),
+    "a project holding no bash test still ran bash: " .. vim.inspect(without.ran)
+  )
+
+  -- The same layout plus one `.test.sh`, where bash is the one adapter rooted on a marker of its
+  -- own, so it runs without asking.
+  local with = routed.press_run_all(directory_of(jsbash))
+  assert(not with.prompted, "the run asked even though one adapter rooted on its own marker")
+  assert(
+    with.ran and with.ran.adapter == "neotest-bashunit:" .. directory_of(jsbash),
+    "the bash test's own repository did not run bash: " .. vim.inspect(with.ran)
+  )
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()
