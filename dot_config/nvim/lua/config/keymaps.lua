@@ -340,12 +340,32 @@ function cells(line, out,   i, c, n, cell, tick, len) {
   out[++n] = cell
   return n
 }
+# A location is a PATH-SHAPED token, not any word carrying a colon and digits:
+# a version (v1.2.3:45), a URL with a port, and a neighbour joined by a comma all
+# read as one otherwise. Each token is cut back to its leading `<path>:<line>`,
+# which is what drops enclosing brackets, a trailing possessive, and the second
+# half of a line RANGE, and the first qualifying token wins. Path-shaped means a
+# slash or an extension whose first character is a letter, which is what tells
+# `a/b.lua` from `v1.2.3`. Ceiling: a bare `host.com:8080` would still qualify.
+function locate(s,   parts, n, i, t, path) {
+  n = split(s, parts, /[ \t,]+/)
+  for (i = 1; i <= n; i++) {
+    t = parts[i]
+    if (t ~ /:\/\//) continue
+    sub(/^[(\[{`<'"]+/, "", t)
+    if (!match(t, /^.+:[0-9]+/)) continue
+    t = substr(t, 1, RLENGTH)
+    path = t; sub(/:[0-9]+$/, "", path)
+    if (path ~ /\// || path ~ /\.[A-Za-z][A-Za-z0-9_]*$/) return t
+  }
+  return ""
+}
 /^[ \t]*\|[ \t]*F[0-9]+[ \t]*\|/ {
   cells($0, cell)
   id = trim(cell[2]); severity = trim(cell[4]); summary = trim(cell[5]); disposition = trim(cell[6])
   if (disposition ~ /^FIXED/ && all != 1) next
-  where = FILENAME ":" FNR
-  if (match(summary, /[^ \t`]*[.\/][^ \t`]*:[0-9]+/)) where = substr(summary, RSTART, RLENGTH)
+  location = locate(summary)
+  where = (location == "") ? FILENAME ":" FNR : location
   printf "%s: %s %s %s: %s\n", where, id, severity, disposition, summary
 }
 ]==]

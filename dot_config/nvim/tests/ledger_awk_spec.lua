@@ -56,6 +56,14 @@ end
 
 -- A markdown table cell may hold a pipe two ways: escaped, and inside a code
 -- span. Splitting on the raw character shifts every column after it.
+local location_rows = {
+  "| F1 | 6v | LOW | a version bump to v1.2.3:45 landed | ACCEPTED | rationale |",
+  "| F2 | 6v | LOW | see https://x.y/z:80 for the report | ACCEPTED | rationale |",
+  "| F3 | 6v | LOW | the guard (lua/a.lua:4) never runs | ACCEPTED | rationale |",
+  "| F4 | 6v | LOW | both src/first.lua:12,src/second.lua:34 moved | ACCEPTED | rationale |",
+  "| F5 | 6v | LOW | hooks.rs:2757's cost was the stub's sleep | ACCEPTED | rationale |",
+}
+
 local piped_rows = {
   "| F1 | 6v | HIGH | a code span holding `left\\|FIXED` inside it | ACCEPTED | rationale |",
   "| F2 | 6v | LOW | an escaped pipe \\| sitting in prose | ACCEPTED | rationale |",
@@ -91,6 +99,35 @@ return {
   -- sees it, exactly as `:edit` does. Expanding it a second time unescapes what
   -- that first pass already unescaped, so a register whose name carries a
   -- backslash is looked for under the wrong name and never read.
+  -- A location is a path-shaped token, not any word carrying a colon and digits.
+  ["reads a version number as prose, not as a location"] = function()
+    local register = write_register(location_rows)
+    local lines = awk_over(register, 0)
+    assert(lines[1] == register .. ":1: F1 LOW ACCEPTED: a version bump to v1.2.3:45 landed", lines[1])
+  end,
+
+  ["reads a URL with a port as prose, not as a location"] = function()
+    local register = write_register(location_rows)
+    local lines = awk_over(register, 0)
+    assert(lines[2] == register .. ":2: F2 LOW ACCEPTED: see https://x.y/z:80 for the report", lines[2])
+  end,
+
+  ["strips the punctuation enclosing a location"] = function()
+    local lines = awk_over(write_register(location_rows), 0)
+    assert(lines[3]:find("^lua/a%.lua:4: F3 LOW ACCEPTED: "), lines[3])
+  end,
+
+  ["takes the first of two locations joined by a comma"] = function()
+    local lines = awk_over(write_register(location_rows), 0)
+    assert(lines[4]:find("^src/first%.lua:12: F4 LOW ACCEPTED: "), lines[4])
+  end,
+
+  -- A real register carries this shape: the possessive follows the location.
+  ["strips a possessive that trails a location"] = function()
+    local lines = awk_over(write_register(location_rows), 0)
+    assert(lines[5]:find("^hooks%.rs:2757: F5 LOW ACCEPTED: "), lines[5])
+  end,
+
   ["keeps a row whose code span holds a pipe and the word FIXED"] = function()
     local lines = awk_over(write_register(piped_rows), 0)
     assert(#lines == 2, "got " .. #lines .. " lines: " .. table.concat(lines, " / "))
