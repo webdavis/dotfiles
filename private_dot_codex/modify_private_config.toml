@@ -140,7 +140,10 @@
        nvim is the Neovim MCP server (spec 7.3, PR 10a) and its command is the
        RESOLVER rather than nvim-mcp itself: nvim-mcp chooses an instance by
        current directory or git root, which cannot tell two Neovim panes in one
-       herdr workspace apart. --- */ -}}
+       herdr workspace apart. Its WHOLE map is written, not just the command
+       key, because Codex forwards args and env to a stdio server: setting the
+       command alone left a live `env.NVIM_MCP_SOCKET` in place across an apply,
+       which is a pin this repository never declared. --- */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "composio" "url") "https://connect.composio.dev/mcp" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "composio" "http_headers" "x-consumer-api-key") (keepassxc "Composio :: API Key :: MCP").Password $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "command") "uvx" $merged -}}
@@ -152,7 +155,8 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "nvim" "command") (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home) $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "nvim")
+    (dict "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home)) $merged -}}
 
 {{- /* --- the declared project ROSTER, trusted, with every live entry this
        repo does not name PRESERVED.
