@@ -6,17 +6,19 @@
 # current directory or git root and so cannot tell two Neovim panes in one herdr
 # workspace apart (docs/research/2026-09-nvim-mcp-evaluation.md, criterion 3).
 #
-# The five steps are spec 7.3's and are not restated here. Three things this
-# file decides that the spec does not:
+# The five steps are spec 7.3's and are not restated here. What this file adds:
 #
 #   - The pane id is passed to `herdr pane layout` EXPLICITLY. `pane current`
 #     answers the CALLER's pane, so a resolver that asks it matches nothing.
-#   - NVIM_MCP_SOCKET SELECTS from the verified set rather than bypassing it.
-#     The spec would use an injected socket as-is, which lets a stale or hostile
-#     value reach any Neovim the caller can open. Both injection directions
-#     split the pane inside the caller's own tab, so nothing legitimate is lost.
-#   - Identity is a BOUNDED probe with a strict reply grammar, because a socket
-#     that accepts and never answers would otherwise hang the harness forever.
+#   - Identity is a BOUNDED probe whose WHOLE reply must match the grammar. A
+#     socket that accepts and never answers would hang the harness forever, and
+#     a reply merely trimmed to fit can be padded into a valid-looking one.
+#   - Only a unix socket inside a directory this user owns at 0700 is connected
+#     to. `nvim --listen` takes a TCP address or any path and Neovim trusts
+#     every RPC peer, so a reachable endpoint is a rebindable one.
+#
+# NVIM_MCP_SOCKET selecting from the verified set, and the exit-4 picker, are
+# both REQUIRED by 7.3 as amended on 2026-09-05. Neither is a deviation.
 #
 # Exit codes: 3 a refusal, 4 the picker, 2 an environmental fault (a missing
 # tool, unsafe registry state, a broken herdr answer). On success this process
@@ -32,8 +34,9 @@
 # the operator's whole authority, so that is inside the trust boundary, not
 # across it; closing it needs a server that verifies pane and pid over the
 # connection it keeps, which is the custom-crate row.
-# (b) The picker is an exit code and stderr, not the tool result spec 7.3 step 4
-# asks for, because a wrapper that execs the server cannot return one.
+# (b) The picker is an exit code and an enumeration on stderr rather than a tool
+# result, which amended 7.3 accepts on this row: a wrapper that execs the server
+# cannot return one, and the tool result lives on the crate row.
 set -euo pipefail
 
 # die <exit code> <message...>
