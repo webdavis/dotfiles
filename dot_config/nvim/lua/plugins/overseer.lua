@@ -42,10 +42,29 @@ return {
         -- alias must stay spelled out: OverseerRestartLast and the
         -- <M-7>/<M-8>/<M-;> openers all look up a FINISHED task, so tasks have
         -- to outlive the upstream five-minute dispose timeout.
+        --
+        -- The pns on_complete reporter (plan task 26) belongs in this list.
         default = {
           "on_exit_set_status",
           "on_complete_notify",
-          "on_output_quickfix",
+          {
+            "on_output_quickfix",
+            -- Without this every task replaces the quickfix with its entire
+            -- output as unnavigable text, clobbering whatever was there. Keep
+            -- only the lines that parse as a location.
+            items_only = true,
+            -- Neovim's default errorformat already parses luacheck and every
+            -- other `file:line:col: message` tool this repo runs. It does not
+            -- parse this repo's own Neovim test runner, which prints
+            -- `FAIL <spec>: <case>: <file>:<line>: <message>`: `%f` swallows the
+            -- whole prefix into the filename, so the entry jumps nowhere. One
+            -- leading pattern fixes that; the rest is the stock list.
+            errorformat = "FAIL %.%#: %f:%l: %m," .. vim.o.errorformat,
+            set_diagnostics = true,
+          },
+          -- Paired with set_diagnostics above. Fires only when the errorformat
+          -- matched something, so a clean run leaves no diagnostics behind.
+          { "on_result_diagnostics", remove_on_restart = true },
         },
       },
     })
