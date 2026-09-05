@@ -187,6 +187,19 @@ return {
     assert(defn.components[1][1] == "on_output_quickfix", "the copy lost the component name")
   end,
 
+  ["the just hook names a task the builder left unnamed"] = function()
+    -- The pinned `just` builder returns `cmd` and `cwd` and no `name`, so both
+    -- recipes became `nil (<cwd>)` and `unique` disposed whichever ran first.
+    local hook = hook_for_just()
+    local test = { cmd = { "just", "test" }, cwd = "/repo" }
+    local lint = { cmd = { "just", "lint-check" }, cwd = "/repo" }
+    hook(test, hook_util)
+    hook(lint, hook_util)
+    assert(not test.name:match("nil"), "the name is still nil-derived: " .. test.name)
+    assert(test.name ~= lint.name, "both recipes share the name " .. test.name)
+    assert(test.name:match("just test"), "the recipe is missing from " .. test.name)
+  end,
+
   ["the quickfix keeps only lines that parse as a location"] = function()
     assert(quickfix_component().items_only == true, "items_only is not set; every output line reaches the quickfix")
   end,

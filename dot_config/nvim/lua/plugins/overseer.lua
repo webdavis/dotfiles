@@ -289,8 +289,15 @@ return {
       -- offers the same recipes, so `just test` started in one stopped and
       -- disposed the run in another. Putting the directory in the name is what
       -- makes that comparison see two different tasks.
+      -- The pinned `just` builder returns `cmd` and `cwd` and NO name, so
+      -- interpolating `task_defn.name` gave every recipe the same `nil (<cwd>)`
+      -- and `unique` disposed whichever was already running. The command is what
+      -- distinguishes them when the builder names nothing.
       if task_defn.cwd then
-        task_defn.name = ("%s (%s)"):format(task_defn.name, vim.fn.fnamemodify(task_defn.cwd, ":~"))
+        local name = task_defn.name
+          or (type(task_defn.cmd) == "table" and table.concat(task_defn.cmd, " "))
+          or tostring(task_defn.cmd)
+        task_defn.name = ("%s (%s)"):format(name, vim.fn.fnamemodify(task_defn.cwd, ":~"))
       end
       util.add_component(task_defn, { "unique", replace = true })
     end)
