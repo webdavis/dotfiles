@@ -1,10 +1,13 @@
 return {
   "sQVe/sort.nvim",
   cmd = "Sort",
-  -- sort.nvim binds every one of these itself, inside its own setup, so a lazy
-  -- spec has to name them all: a key left out of this list stops firing until
-  -- something else happens to load the plugin. `go` and `gogo` come from the
-  -- default `mappings.operator`; the rest are the pair reassigned in `opts`.
+  -- These entries are triggers only, carrying no mapping of their own, unlike
+  -- the aerial and live-rename ones: sort.nvim binds all seven itself inside
+  -- its own setup, off the `mappings` table in `opts` below, so a mapping here
+  -- would be a second declaration of a key this config does not own. They still
+  -- have to be listed, because a key left out stops firing until something else
+  -- happens to load the plugin. `go` and `gogo` come from the default
+  -- `mappings.operator`; the rest are the pair reassigned in `opts`.
   keys = {
     { "go", mode = "n", desc = "Sort operator" },
     { "go", mode = "x", desc = "Sort selection" },
