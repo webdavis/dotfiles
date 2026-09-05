@@ -243,6 +243,7 @@ return {
           "swift",
           "terraform",
           "toml",
+          "tsx",
           "typescript",
           "typst",
           "vim",
