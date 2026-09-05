@@ -255,15 +255,37 @@ return {
       end,
     })
 
+    -- Filetypes that DO have a grammar and still must not be highlighted.
+    -- `checkhealth` is the whole list: it resolves to the `vimdoc` language, so
+    -- treesitter would otherwise highlight a health report as help text. Every
+    -- other filetype that used to sit here (lazy, mason, notify, noice, qf,
+    -- toggleterm) was only ever here because no grammar of that name exists,
+    -- which the general rule below now covers.
     local ignore_filetypes = {
       checkhealth = true,
-      lazy = true,
-      mason = true,
-      notify = true,
-      noice = true,
-      qf = true,
-      toggleterm = true,
     }
+
+    -- The languages nvim-treesitter can actually build, read once per session.
+    local installable_languages
+
+    -- nvim-treesitter refuses a language missing from its own parser table,
+    -- logging "skipping unsupported language" to stderr, and the poll below then
+    -- waits thirty seconds for a parser that is never coming. Plugins name their
+    -- own scratch buffers (snacks.nvim's `snacks_notif`, atlas.nvim's
+    -- `atlas.notes`), so asking is the only test that keeps working as plugins
+    -- come and go.
+    ---@param language string
+    ---@return boolean
+    local function is_installable(language)
+      if not installable_languages then
+        installable_languages = {}
+        -- Not free: this fires a `User TSUpdate` autocmd and sorts the parser table.
+        for _, available in ipairs(require("nvim-treesitter.config").get_available()) do
+          installable_languages[available] = true
+        end
+      end
+      return installable_languages[language] == true
+    end
 
     -- Auto-install parsers and enable highlighting on FileType.
     vim.api.nvim_create_autocmd("FileType", {
@@ -272,10 +294,7 @@ return {
       callback = function(event)
         local filetype = event.match
 
-        -- atlas.nvim names its own filetypes and ships no grammar, so every atlas window
-        -- otherwise queued a doomed install and polled for it for thirty seconds. The prefix
-        -- test is what catches the dotted ones (`atlas.notes`, `atlas.diff-files`).
-        if ignore_filetypes[filetype] or filetype == "atlas" or vim.startswith(filetype, "atlas.") then
+        if ignore_filetypes[filetype] then
           return
         end
 
@@ -283,6 +302,13 @@ return {
         local buffer = event.buf
 
         if not enable_treesitter(buffer, language) then
+          -- No parser, and none is coming: nothing to queue and nothing to poll.
+          -- Asked BELOW the highlighting attempt, so a filetype that already has
+          -- a parser is highlighted whatever nvim-treesitter says it can build.
+          if not is_installable(language) then
+            return
+          end
+
           -- Parser not available, queue buffer (set handles duplicates).
           waiting_buffers[language] = waiting_buffers[language] or {}
           waiting_buffers[language][buffer] = true
