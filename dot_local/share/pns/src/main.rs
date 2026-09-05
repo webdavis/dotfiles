@@ -3030,6 +3030,30 @@ fn run_event(
         mobile.watch_card,
     );
 
+    // THE LAMPS' OWN READINGS, TAKEN HERE AND NOT AT THE PULSE BELOW. The
+    // pulse is the last thing this path does: every channel has dispatched,
+    // the record is written and the catch-up has replayed, which is anywhere
+    // from a millisecond to a network deadline later. `SystemProbes` memoizes
+    // the CLOCK at the decision above but reads the presence line on first
+    // ask, so a snapshot built down there paired a line the daemon published
+    // DURING delivery with the older clock and classified it `Future`. A
+    // reading fresher than the decision then turned the one room the operator
+    // is standing in back into the whole house. Bound here, the reading, the
+    // clock it is aged against and the desk ages beside it are one moment.
+    //
+    // TAKEN FOR EVERY EVENT, not only the ones that reach a lamp: the gate
+    // below is two booleans read off this same decision, and moving the
+    // reading behind it would put the boundary back where it was. It costs one
+    // memoized file read on an armed machine and nothing at all on a machine
+    // with no `[plugins.presence]` table.
+    let presence_at_decision = presence_snapshot(
+        presence.as_ref(),
+        probes,
+        decision.inputs.desk_input_age,
+        decision.inputs.screen_locked,
+        home_presence(),
+    );
+
     let outcomes = if decision.legs.is_empty() {
         // A verdict that must be SAID, but only for the contradiction the
         // caller asked for: a silent exit is indistinguishable from delivery.
@@ -3206,20 +3230,13 @@ fn run_event(
     if decision.plan.pulse || blocked_lamp {
         // THE DECISION'S OWN READINGS, handed down rather than taken again:
         // this event's plan and the room its lamp narrows to have to describe
-        // one moment. `decision.inputs` holds what THIS probe set answered,
-        // aged against the one clock read it also carries.
+        // one moment. The snapshot was BUILT beside the decision, before any
+        // channel ran, for the reason stated there.
         fire_pulse_unless_quiet(
             hue_table.clone(),
             lights.as_deref(),
             behaviour,
-            presence_snapshot(
-                presence.as_ref(),
-                probes,
-                decision.inputs.desk_input_age,
-                decision.inputs.screen_locked,
-                home_presence(),
-            )
-            .as_ref(),
+            presence_at_decision.as_ref(),
         );
     }
     // AND THE OPERATOR'S RETURN PUTS OUT WHATEVER A GLOW IS STILL HOLDING.
@@ -11409,6 +11426,69 @@ mod tests {
         );
         assert_eq!(snapshot.now, probes.now_secs(), "and so is the clock");
         assert_eq!(snapshot.desk_idle_secs, Some(9));
+    }
+
+    #[test]
+    fn the_lamps_narrow_by_the_reading_the_decision_saw_and_never_a_later_poll() {
+        // THE PULSE IS THE LAST THING THE EVENT PATH DOES, so a snapshot built
+        // down there is built after every channel, the record and the replay.
+        // The clock is memoized at the decision and the presence line was not,
+        // so a poll the daemon published DURING delivery was read against that
+        // older clock and classified `Future`, which is no reading at all and
+        // hands the whole house back. MEASURED against the shipped ordering:
+        // `Unknown(Future)` where the decision had seen the study.
+        let state = scratch("presence-fixed-at-the-decision");
+        let line = state.join("presence");
+        let now = now_secs().expect("a clock");
+        std::fs::write(&line, format!("{now} {now} 1 3F - Studio\n")).expect("a reading");
+        let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
+        let settings = pns::config::Presence {
+            rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
+            exclude: Vec::new(),
+            desk_room: None,
+            desk_stale_after_secs: 120,
+            poll_secs: 5,
+            stale_after_secs: 15,
+        };
+        // The decision's own clock read, which every age below is judged
+        // against, and then the readings the lamps narrow by beside it.
+        let at_the_decision = probes.now_secs();
+        let taken = presence_snapshot(
+            Some(&settings),
+            &probes,
+            Some(0),
+            Some(false),
+            pns::home::HomePresence::Unknown,
+        )
+        .expect("an armed table takes a snapshot");
+        // The daemon publishes a poll while the channels are dispatching.
+        std::fs::write(&line, format!("{} {} 1 2F - Kitchen\n", now + 5, now + 5))
+            .expect("a later poll");
+        let studio = pns::presence::PresenceStatus::Room {
+            room: "3F - Studio".to_string(),
+            age_secs: 0,
+        };
+        assert_eq!(
+            (taken.status, taken.now),
+            (studio.clone(), at_the_decision),
+            "the snapshot is the decision's own moment, reading and clock together"
+        );
+        // AND THE PROBE SET CANNOT BE TALKED OUT OF IT AFTERWARDS, which is
+        // what makes the ordering above sufficient rather than merely earlier:
+        // the line was read once, at the decision, so nothing further down the
+        // path can pick the later poll up.
+        assert_eq!(
+            presence_snapshot(
+                Some(&settings),
+                &probes,
+                Some(0),
+                Some(false),
+                pns::home::HomePresence::Unknown,
+            )
+            .map(|later| later.status),
+            Some(studio),
+            "a read after the channels ran still answers the decision's line"
+        );
     }
 
     #[test]
