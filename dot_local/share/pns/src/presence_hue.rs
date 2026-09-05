@@ -73,12 +73,23 @@ pub fn reading(
     // `changed` carries milliseconds, so reducing to the state file's format
     // BEFORE the comparison made two edges inside one second compare equal and
     // handed the answer to the order the bridge listed its rooms in.
+    //
+    // AND ORDERED TOTALLY, so an exact tie is decided by the reading and never
+    // by the response. Two sensors reporting inside one millisecond is a
+    // coincidence rather than an impossibility, and the bridge's listing order
+    // is not stable, so a comparison that let the later ENTRY win answered a
+    // different room from one poll to the next with nothing having changed.
+    // The room name breaks the tie and the motion flag breaks that, which is
+    // arbitrary on purpose: what matters is that it is a fact about the two
+    // edges rather than about the order they arrived in.
     let mut newest: Option<((u64, u32), Edge)> = None;
     for entry in &motion {
         match edge_of(entry, &rooms, watched) {
             EntryEdge::Malformed => return None,
             EntryEdge::Found { at, edge } => {
-                if newest.as_ref().is_none_or(|(held, _)| *held <= at) {
+                if newest.as_ref().is_none_or(|(held_at, held)| {
+                    (*held_at, &held.room, held.motion) < (at, &edge.room, edge.motion)
+                }) {
                     newest = Some((at, edge));
                 }
             }

@@ -97,3 +97,41 @@ fn a_partial_report_the_bridge_never_disowned_still_refuses_the_poll() {
         None
     );
 }
+
+#[test]
+fn two_edges_at_the_very_same_instant_pick_the_same_room_in_either_order() {
+    // THE LISTING ORDER IS NOT STABLE, so a comparison that lets the later
+    // entry win a tie answers a different room from one poll to the next with
+    // nothing on the bridge having changed. The instants here are equal to the
+    // millisecond, which the bridge really can serve: `changed` is the
+    // instant the SENSOR reported, and two sensors reporting inside the same
+    // millisecond is a coincidence rather than an impossibility.
+    //
+    // THE ROOM NAME IS THE TIE-BREAKER, so the answer is a fact about the
+    // reading rather than about the response: `3F - Studio` sorts after
+    // `3F - Hallway`.
+    let studio = r#"{"owner":{"rid":"studio","rtype":"room"},
+         "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.413Z","motion":true}}}"#;
+    let hallway = r#"{"owner":{"rid":"hallway","rtype":"room"},
+         "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.413Z","motion":false}}}"#;
+    for (order, (first, second)) in [
+        ("studio first", (studio, hallway)),
+        ("hallway first", (hallway, studio)),
+    ] {
+        assert_eq!(
+            reading(
+                &format!("{{\"data\":[{first},{second}]}}"),
+                ROOMS,
+                &watched(),
+                1_788_456_100
+            )
+            .and_then(|raw| raw.edge),
+            Some(Edge {
+                epoch: 1_788_456_009,
+                motion: true,
+                room: "3F - Studio".to_string(),
+            }),
+            "listed {order}, the tie went to the listing rather than to the reading"
+        );
+    }
+}
