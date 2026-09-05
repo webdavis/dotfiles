@@ -23,12 +23,20 @@ return {
       },
       -- Upstream 058e83d turned auto-detection on by default; its vim.pack.get()
       -- call leaves an empty site/pack/core that :checkhealth lazy then flags.
+      -- Turning it back off means every integration this roster wants has to be
+      -- named here, and five were not: measured against auto-detection, 92
+      -- highlight groups were missing, all of them `BlinkCmp*`, `Dap*`,
+      -- `Octo*` and `NvimSurround*`. A table value counts as ON only when it
+      -- carries `enabled = true` (catppuccin's lib/mapper.lua), so `blink_cmp`
+      -- styled but never enabled was contributing nothing at all.
       auto_integrations = false,
       integrations = {
         aerial = true,
         alpha = true,
-        blink_cmp = { style = "bordered" },
+        blink_cmp = { enabled = true, style = "bordered" },
         cmp = true,
+        dap = true,
+        dap_ui = true,
         dashboard = true,
         flash = true,
         fzf = true,
@@ -48,6 +56,8 @@ return {
         neotest = true,
         neotree = true,
         noice = true,
+        nvim_surround = true,
+        octo = true,
         overseer = true,
         notify = true,
         snacks = { enabled = true, indent_scope_color = "lavender" },
