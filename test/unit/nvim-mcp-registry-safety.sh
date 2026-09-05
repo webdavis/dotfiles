@@ -7,6 +7,8 @@
 #      at is neither truncated nor published as a record
 #   c) a --listen pathname carrying a newline is not recorded at all, because a
 #      record is one line and the resolver would read only as far as the newline
+#   d) a --listen pathname carrying a space or a tab is refused for the same
+#      reason: the resolver reads a record as whitespace-separated fields
 #   e) every later operation goes through the CANONICAL registry path, so
 #      removing the alias it was reached by does not strand the record
 #   f) exit cleanup does not delete a file named for our pid when registration
@@ -133,8 +135,29 @@ start_nvim newline "$newline_sock"
 [[ -S $newline_sock ]] || fail 'newline: Neovim did not bind the pathname, so the case proves nothing'
 [[ "$(records_in "$REGISTRY")" == 0 ]] ||
   fail "newline: a record was written for a pathname that cannot be read back ($(cat "$REGISTRY"/* 2>/dev/null))"
-grep -q 'newline or NUL' "$ERRLOG" ||
+grep -q 'whitespace or NUL' "$ERRLOG" ||
   fail "newline: did not refuse for the reason under test ($(cat "$ERRLOG"))"
+
+# --- d) a space or a tab in the listen pathname is refused -------------------
+# Same failure as the newline and the same cause: a record is read as
+# whitespace-separated fields, so the resolver takes the pathname only as far
+# as the first space, probes a name nothing answers on, and deletes the record
+# of a healthy instance.
+for whitespace_kind in space tab; do
+  mkdir -p "$work/ws-$whitespace_kind/nvim-mcp/registry"
+  chmod 700 "$work/ws-$whitespace_kind/nvim-mcp/registry"
+  if [[ $whitespace_kind == space ]]; then
+    ws_sock="$work/a b.sock"
+  else
+    ws_sock="$work/a"$'\t'"b.sock"
+  fi
+  start_nvim "ws-$whitespace_kind" "$ws_sock"
+  [[ -S $ws_sock ]] || fail "ws-$whitespace_kind: Neovim did not bind it, so the case proves nothing"
+  [[ "$(records_in "$REGISTRY")" == 0 ]] ||
+    fail "ws-$whitespace_kind: a record was written for a pathname that cannot be read back"
+  grep -q 'whitespace or NUL' "$ERRLOG" ||
+    fail "ws-$whitespace_kind: did not refuse for the reason under test ($(cat "$ERRLOG"))"
+done
 
 # --- e) later operations go through the canonical registry path --------------
 # The configured registry is reached through an alias that sits in a directory
@@ -191,4 +214,4 @@ quit_nvim "$work/refused.sock"
 [[ "$(records_in "$work/decoy")" == "$decoy_count" ]] ||
   fail 'refused: exit deleted a file named for our pid even though nothing was registered'
 
-printf 'PASS: nvim-mcp-registry-safety.sh (5 cases)\n'
+printf 'PASS: nvim-mcp-registry-safety.sh (7 cases)\n'
