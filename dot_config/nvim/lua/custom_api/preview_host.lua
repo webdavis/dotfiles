@@ -15,7 +15,11 @@ function M.resolve(hostname, suffix_env)
   -- An exported-but-empty NVIM_MKDP_HOST arrives as "", which a bare truthiness
   -- test would accept and turn into a hostname with a trailing dot.
   if suffix_env and suffix_env ~= "" then
-    return hostname .. "." .. suffix_env
+    -- `hostname()` is not guaranteed to be short: it can arrive as `dresden.local`,
+    -- already qualified, or uppercase with a trailing root dot. Appending the suffix
+    -- to any of those builds a name that does not resolve, so keep the first label
+    -- only, lowercased.
+    return hostname:match("^[^.]*"):lower() .. "." .. suffix_env
   end
   return "127.0.0.1"
 end
