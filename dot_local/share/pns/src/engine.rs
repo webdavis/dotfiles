@@ -532,7 +532,8 @@ mod tests {
                 &parse_config(
                     "[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
                 )
-                .unwrap(),
+                .unwrap()
+                .plugin_switches(),
             )
             .unwrap()
     }

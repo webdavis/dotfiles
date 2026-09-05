@@ -244,6 +244,21 @@ pub enum Behaviour {
     Looping,
 }
 
+impl Config {
+    /// Which plugin names the file mentions, and whether each is switched on.
+    ///
+    /// THE ONLY THING SELECTION READS off a config, handed over as itself so
+    /// the registry states what it needs rather than taking the whole parsed
+    /// file. Every name is carried, enabled or not, because an unregistered
+    /// name is a typo either way and that refusal is what this feeds.
+    pub fn plugin_switches(&self) -> BTreeMap<String, bool> {
+        self.plugins
+            .iter()
+            .map(|(name, entry)| (name.clone(), entry.enabled))
+            .collect()
+    }
+}
+
 /// The five words, in the spelling a config uses, and the order the refusal
 /// lists them in.
 pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 5] = [
@@ -3786,7 +3801,9 @@ mod tests {
         assert!(config.plugins["nosuch"].enabled);
         assert!(config.plugins["nosuch"].settings.contains_key("whatever"));
         assert!(
-            crate::registry::roster().enabled(&config).is_err(),
+            crate::registry::roster()
+                .enabled(&config.plugin_switches())
+                .is_err(),
             "and the name itself is still refused, one layer on"
         );
     }
@@ -4586,7 +4603,7 @@ mod tests {
         // And every one of those names is a plugin that exists, which is the
         // refusal one layer on.
         crate::registry::roster()
-            .enabled(&config)
+            .enabled(&config.plugin_switches())
             .expect("the template names only registered plugins");
     }
 

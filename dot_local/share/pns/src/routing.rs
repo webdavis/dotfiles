@@ -172,7 +172,7 @@ mod tests {
     /// only its own unit tests.
     fn select(registry: &Registry, config_text: &str) -> Selection {
         registry
-            .enabled(&parse_config(config_text).unwrap())
+            .enabled(&parse_config(config_text).unwrap().plugin_switches())
             .unwrap()
     }
 

@@ -17,7 +17,7 @@
 //! typo'd plugin name that silently no-ops is a notification quietly turned
 //! off, the same failure the config layer refuses everywhere else.
 
-use crate::config::Config;
+use std::collections::BTreeMap;
 
 /// What a plugin declares about WHERE it delivers. The plan is computed from
 /// these three properties and nothing else, which is what keeps policy closed
@@ -182,21 +182,16 @@ impl Registry {
     /// order the config listed them in. A config naming an unregistered
     /// plugin is refused; a registered plugin the config omits or disables
     /// is simply not selected.
-    pub fn enabled(&self, config: &Config) -> Result<Selection, RegistryError> {
+    pub fn enabled(&self, switches: &BTreeMap<String, bool>) -> Result<Selection, RegistryError> {
         // The CONFIG's names are walked first, and the enabled flag is not
         // consulted: an unregistered name is a typo whether or not it is
         // switched on, and the next edit turns it into a silent no-op.
-        for name in config.plugins.keys() {
+        for name in switches.keys() {
             if !self.registrations.iter().any(|entry| entry.name == name) {
                 return Err(RegistryError::UnknownPlugin(name.clone()));
             }
         }
-        let switched_on = |name: &str| {
-            config
-                .plugins
-                .get(name)
-                .is_some_and(|selected| selected.enabled)
-        };
+        let switched_on = |name: &str| switches.get(name).copied().unwrap_or(false);
         // AND A BORROWED CREDENTIAL IS CHECKED, so a sensor that reads another
         // plugin's bridge and key is refused out loud rather than selected
         // into a reading it can never take.
@@ -373,7 +368,7 @@ pub fn select_plugins(
     use RegistryError;
 
     match loaded {
-        Ok(LoadOutcome::Loaded(config)) => match registry.enabled(&config) {
+        Ok(LoadOutcome::Loaded(config)) => match registry.enabled(&config.plugin_switches()) {
             Ok(selection) => (selection, None),
             Err(error) => {
                 let detail = match error {
@@ -471,7 +466,7 @@ mod tests {
 
         let typo = parse_config("[plugins.rotuer]\nenabled = true\n").unwrap();
         assert_eq!(
-            registry.enabled(&typo),
+            registry.enabled(&typo.plugin_switches()),
             Err(RegistryError::UnknownPlugin("rotuer".to_string()))
         );
     }
@@ -599,7 +594,7 @@ mod tests {
         // the refusal: the fix is in the OTHER table, so both are named.
         let config = parse_config("[plugins.presence]\nenabled = true\ntype = \"hue\"\n").unwrap();
         assert_eq!(
-            super::roster().enabled(&config),
+            super::roster().enabled(&config.plugin_switches()),
             Err(RegistryError::Unsatisfied {
                 plugin: "presence".to_string(),
                 needs: "hue".to_string(),
@@ -615,7 +610,7 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(
-            super::roster().enabled(&config),
+            super::roster().enabled(&config.plugin_switches()),
             Err(RegistryError::Unsatisfied { .. })
         ));
     }
@@ -628,7 +623,7 @@ mod tests {
         )
         .unwrap();
         let names: Vec<&str> = super::roster()
-            .enabled(&config)
+            .enabled(&config.plugin_switches())
             .expect("hue carries it")
             .iter()
             .map(|entry| entry.name)
@@ -644,7 +639,9 @@ mod tests {
             "[plugins.macos-banner]\nenabled = true\n[plugins.mobile]\nenabled = true\n",
         )
         .unwrap();
-        let enabled = three_plugin_registry().enabled(&config).unwrap();
+        let enabled = three_plugin_registry()
+            .enabled(&config.plugin_switches())
+            .unwrap();
         let names: Vec<&str> = enabled.iter().map(|r| r.name).collect();
         assert_eq!(names, vec!["mobile", "macos-banner"]);
     }
@@ -654,7 +651,9 @@ mod tests {
         let config =
             parse_config("[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = false\n")
                 .unwrap();
-        let enabled = three_plugin_registry().enabled(&config).unwrap();
+        let enabled = three_plugin_registry()
+            .enabled(&config.plugin_switches())
+            .unwrap();
         let names: Vec<&str> = enabled.iter().map(|r| r.name).collect();
         assert_eq!(names, vec!["mobile"]);
     }
@@ -666,7 +665,7 @@ mod tests {
         // refuses unknown keys.
         let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
         assert_eq!(
-            three_plugin_registry().enabled(&config),
+            three_plugin_registry().enabled(&config.plugin_switches()),
             Err(RegistryError::UnknownPlugin("mosih".to_string()))
         );
     }
@@ -678,7 +677,7 @@ mod tests {
         // the operator is looking at the file they just edited.
         let config = parse_config("[plugins.mosih]\nenabled = false\n").unwrap();
         assert_eq!(
-            three_plugin_registry().enabled(&config),
+            three_plugin_registry().enabled(&config.plugin_switches()),
             Err(RegistryError::UnknownPlugin("mosih".to_string()))
         );
     }
@@ -696,7 +695,7 @@ mod tests {
         let both =
             parse_config("[plugins.router]\nenabled = true\n[plugins.hermes]\nenabled = true\n")
                 .unwrap();
-        let selection = registry.enabled(&both).unwrap();
+        let selection = registry.enabled(&both.plugin_switches()).unwrap();
         let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
         assert_eq!(names, vec!["hermes", "router"]);
 
@@ -705,7 +704,7 @@ mod tests {
         let off =
             parse_config("[plugins.router]\nenabled = false\n[plugins.hermes]\nenabled = true\n")
                 .unwrap();
-        let selection = registry.enabled(&off).unwrap();
+        let selection = registry.enabled(&off.plugin_switches()).unwrap();
         let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
         assert_eq!(names, vec!["hermes"]);
     }
@@ -720,7 +719,9 @@ mod tests {
     #[test]
     fn an_empty_config_selects_nothing_which_is_a_verdict_not_an_error() {
         let config = parse_config("").unwrap();
-        let enabled = three_plugin_registry().enabled(&config).unwrap();
+        let enabled = three_plugin_registry()
+            .enabled(&config.plugin_switches())
+            .unwrap();
         assert!(enabled.is_empty());
     }
 
@@ -760,7 +761,7 @@ mod tests {
         // writing one that omits a core plugin turns that plugin off; nothing
         // is quietly always-on.
         let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
-        let selection = super::roster().enabled(&config).unwrap();
+        let selection = super::roster().enabled(&config.plugin_switches()).unwrap();
         assert_eq!(selection_names(&selection), vec!["hermes"]);
     }
 
@@ -844,7 +845,7 @@ mod tests {
         use crate::config::LoadOutcome;
         let old = parse_config("[plugins.moshi]\nenabled = true\n").unwrap();
         assert_eq!(
-            super::roster().enabled(&old),
+            super::roster().enabled(&old.plugin_switches()),
             Err(RegistryError::UnknownPlugin("moshi".to_string()))
         );
         let (_, warning) = super::select_plugins(&super::roster(), Ok(LoadOutcome::Loaded(old)));
@@ -856,7 +857,7 @@ mod tests {
         );
 
         let new = parse_config("[plugins.mobile]\nenabled = true\n").unwrap();
-        let selection = super::roster().enabled(&new).unwrap();
+        let selection = super::roster().enabled(&new.plugin_switches()).unwrap();
         assert_eq!(selection_names(&selection), vec!["mobile"]);
     }
 
