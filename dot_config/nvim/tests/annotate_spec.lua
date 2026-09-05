@@ -116,6 +116,15 @@ return {
     assert(found and found:type() == "function_definition", "found " .. tostring(found and found:type()))
   end,
 
+  ["reads a suffix only at the end of the node type"] = function()
+    -- `function_definition_call` CONTAINS a listed suffix without ending in
+    -- one. A literal substring search would stop here and name the call site
+    -- as the enclosing function.
+    local node = chain({ "identifier", "function_definition_call", "function_declaration" })
+    local found = annotate.enclosing_function(node)
+    assert(found and found:type() == "function_declaration", "found " .. tostring(found and found:type()))
+  end,
+
   ["names the blame commit when the line was last touched by HEAD"] = function()
     local line = annotate.blame_line("a1b2c3d4e5f6", { hash = "a1b2c3d", summary = "add the annotator" })
     assert(line == "blame a1b2c3d add the annotator", "blame line " .. vim.inspect(line))
