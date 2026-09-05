@@ -84,10 +84,11 @@ apply:
 # `just ship` run `just test`.
 
 # Unit suite only: the commit gate. test-nvim runs first (the Lua specs), then
-# the shell suite. --shuffle randomizes order to flush hidden ordering deps
-# (seed printed for replay); --warn-slow-ms flags slow tests in a warn-only
-# summary. The other suites run the same runner plain.
-test-unit: validate-tests test-nvim
+# test-bashunit (the *.test.sh files), then the shell suite. --shuffle
+# randomizes order to flush hidden ordering deps (seed printed for replay);
+# --warn-slow-ms flags slow tests in a warn-only summary. The other suites run
+# the same runner plain.
+test-unit: validate-tests test-nvim test-bashunit
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
@@ -180,12 +181,31 @@ test-rust:
 test-nvim:
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
 
+# Every `<name>.test.sh` below test/, run by bashunit (a brew formula, declared
+# in Brewfile.dev, the CI toolchain step and the machine YAML). bashunit's
+# directory mode recurses, so a new test file needs no registration anywhere;
+# the placement guard is what keeps that scan from reaching one outside a suite.
+# It SOURCES its test files rather than executing them, so they carry no
+# executable bit and run-test-suite.sh's `-perm -u+x` discovery cannot see them:
+# these two runners never run the same file twice. test-unit depends on this
+# recipe, which is what puts these tests in the commit gate and, through
+# test-unit, in `just test`.
+#
+# Two spellings that look optional and are not. `./test`, not `test`: `test` is
+# also bashunit's own subcommand name, so the bare word runs the default path
+# and reports "No tests found" while exiting 1. NO_COLOR, not --no-color: on
+# 0.50.1 the flag is ignored in either position (measured), while the
+# environment variable is honoured.
+test-bashunit:
+  NO_COLOR=1 bashunit ./test
+
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,
-# test/integration, test/e2e, test/test-system); suite *.sh must be executable;
-# no symlinks are allowed anywhere below test/ (a physical find skips them, so
-# they would evade every gate). A suite's helpers/ and test/fixtures/** are
-# exempt.
+# test/integration, test/e2e, test/test-system); suite *.sh must be executable,
+# except a bashunit `<name>.test.sh`, which must NOT be and which never belongs
+# in helpers/ or fixtures/; no symlinks are allowed anywhere below test/ (a
+# physical find skips them, so they would evade every gate). A suite's helpers/
+# and test/fixtures/** are otherwise exempt.
 validate-tests:
   ./test/validate-tests.sh
 
