@@ -200,10 +200,11 @@ pub const LAYOUT: &[Table] = &[
             Key {
                 name: "desk_room",
                 prose: "# The room the desk is in, spelled the way the bridge spells it, listed\n\
-                         # in rooms above and not in exclude. While the keyboard is the fresher\n\
-                         # of the two signals, this is the room the lamps narrow to; once motion\n\
-                         # somewhere else is newer, that room wins instead. Unset, a warm desk\n\
-                         # narrows nothing.\n",
+                         # in rooms above and not in exclude. While the keyboard still speaks\n\
+                         # for where you are, this is the room the lamps narrow to, and motion\n\
+                         # in it agrees. Newer motion in ANOTHER room is two live readings that\n\
+                         # cannot both be you, so nothing narrows at all until the keyboard goes\n\
+                         # quiet. Unset, a warm desk narrows nothing.\n",
                 sample: Sample::Example("\"\""),
             },
             Key {
