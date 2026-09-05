@@ -2,8 +2,8 @@
 #
 # nvim-mcp-connect.sh -- answer "which Neovim socket should this agent talk to",
 # then exec nvim-mcp against it. This is the command both harnesses register as
-# the Neovim MCP server, never nvim-mcp itself: nvim-mcp picks an instance by
-# current directory or git root, which cannot tell two Neovim panes in one herdr
+# the Neovim MCP server, never nvim-mcp itself, which picks an instance by
+# current directory or git root and so cannot tell two Neovim panes in one herdr
 # workspace apart (docs/research/2026-09-nvim-mcp-evaluation.md, criterion 3).
 #
 # The five steps of spec 7.3, in order:
@@ -18,17 +18,25 @@
 #      complaint (measured), so each candidate is asked over RPC for its own
 #      pane id and pid and both are compared. A mismatch prunes the entry.
 #   4. Two verified candidates is a PICKER, never a guess: a guess edits the
-#      wrong buffer. The enumeration goes to stderr, which is what the harness
-#      shows when the server fails to start.
+#      wrong buffer. The enumeration goes to stderr, where the harness shows it.
 #   5. Zero is a refusal naming its reason.
 #
-# Exit codes: 3 refusal, 4 picker, 2 a broken herdr answer. On success this
-# process is REPLACED by nvim-mcp, so there is no fourth outcome.
-#
-# There is no memo file. The harness starts this once per session and the exec
-# keeps that instance for the session's life, which is the sticky selection
-# spec 7.3 asks for, with nothing to invalidate.
+# Exit codes: 3 a refusal, 4 the picker, 2 an environmental fault (a missing
+# tool, a broken herdr answer). On success this process is REPLACED by
+# nvim-mcp, so there is no fourth outcome. There is no memo file: the harness
+# starts this once per session and the exec keeps that instance for the
+# session's life, which is the sticky selection spec 7.3 asks for.
 set -euo pipefail
+
+# Both hard dependencies, checked FIRST, before herdr, the registry or any
+# socket: otherwise the missing tool surfaces as whatever fails next, which
+# reads as a herdr fault and sends the operator to debug the wrong thing.
+for required in nvim jq; do
+  if ! command -v "$required" >/dev/null 2>&1; then
+    printf 'nvim-mcp-connect: %s is not on PATH, and the resolver needs it\n' "$required" >&2
+    exit 2
+  fi
+done
 
 # The registry Neovim writes on VimEnter and removes on VimLeavePre
 # (dot_config/nvim/lua/config/autocmds.lua): "<pane id> <pid> <socket> <cwd>",
