@@ -9,6 +9,8 @@
 #      record is one line and the resolver would read only as far as the newline
 #   e) every later operation goes through the CANONICAL registry path, so
 #      removing the alias it was reached by does not strand the record
+#   f) exit cleanup does not delete a file named for our pid when registration
+#      was refused
 #
 # Case c is not hypothetical: Neovim binds such a pathname and answers RPC on
 # it, so without this the resolver probes a truncated name, finds nothing, and
@@ -171,4 +173,22 @@ quit_nvim "$work/canon.sock"
 [[ "$(records_in "$canonical_registry")" == 0 ]] ||
   fail 'canonical: the record was left behind, so the delete went through the configured path'
 
-printf 'PASS: nvim-mcp-registry-safety.sh (4 cases)\n'
+# --- f) refused registration arms no cleanup ---------------------------------
+# The registry is an alias to a directory that already holds a file named for
+# this instance's pid. Registration is refused, and the exit must not then
+# delete somebody else's file just because it shares that name.
+mkdir -p "$work/decoy" "$work/refused/nvim-mcp"
+chmod 700 "$work/decoy"
+# The REGISTRY itself is the alias, so its own leaf is a symlink and
+# registration is refused outright.
+ln -s "$work/decoy" "$work/refused/nvim-mcp/registry"
+plant_decoy="lua vim.fn.writefile({ 'not ours' }, '$work/decoy/' .. vim.fn.getpid())"
+start_nvim refused "$work/refused.sock" --cmd "$plant_decoy"
+grep -q 'not registering' "$ERRLOG" ||
+  fail "refused: registration was not refused, so the case proves nothing ($(cat "$ERRLOG"))"
+decoy_count="$(records_in "$work/decoy")"
+quit_nvim "$work/refused.sock"
+[[ "$(records_in "$work/decoy")" == "$decoy_count" ]] ||
+  fail 'refused: exit deleted a file named for our pid even though nothing was registered'
+
+printf 'PASS: nvim-mcp-registry-safety.sh (5 cases)\n'
