@@ -75,6 +75,23 @@ return {
     assert(output == payload, "callee received " .. tostring(output) .. ", not the literal value")
   end,
 
+  -- The blame path's `--contents -` is the only caller that sends stdin, and its
+  -- own case replaces `git.runner`, so nothing there would notice this function
+  -- dropping the field on the floor. `cat` writes back exactly what it was
+  -- given, and the payload carries no surrounding whitespace, so the trim on the
+  -- way out cannot hide a difference: these are the bytes the command received.
+  -- A run that never got stdin reads EOF and prints nothing.
+  --
+  -- The payload is LF only on purpose. `text = true` rewrites CRLF to LF in what
+  -- comes BACK, so a CR here would fail the comparison for a reason that has
+  -- nothing to do with what the command was fed.
+  ["run_shell_command hands stdin to the command it runs"] = function()
+    local payload = "first line\nsecond line\nthird"
+    local code, output = util.run_shell_command({ cmd = { "cat" }, stdin = payload })
+    assert(code == 0, "exit code was " .. tostring(code))
+    assert(output == payload, "cat wrote back " .. string.format("%q", tostring(output)))
+  end,
+
   ["run_shell_command returns the exit code and the trimmed output, and nothing else"] = function()
     -- This is the caller the trim fix narrowed from three values to two: gsub's
     -- substitution count used to ride out of `trim` and become a third result.
