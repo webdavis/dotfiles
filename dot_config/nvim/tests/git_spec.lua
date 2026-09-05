@@ -384,6 +384,25 @@ return {
     assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
   end,
 
+  -- `blame_sha` derives its own directory from the file it blames (above), but
+  -- `latest_commit` has no file to derive one from, so the caller states it.
+  -- Without it the HEAD summary comes from whichever repository nvim is sitting
+  -- in, and gets captioned onto a blame SHA from a different one. `repo_name`
+  -- cannot do this job: it only labels this function's error messages.
+  ["latest_commit reads HEAD in the directory it was given"] = function()
+    local commit = with_shell({
+      ["git rev-parse --short HEAD"] = { 0, "581dae8" },
+      ["git log -1 --pretty=%B"] = { 0, "add the thing\n\nbody" },
+    }, function()
+      return git.latest_commit({ repo_name = "other-repo", cwd = "/tmp/other-repo" })
+    end)
+    assert(commit.hash == "581dae8", "hash was " .. tostring(commit.hash))
+    assert(#seen == 2, "asked the shell " .. #seen .. " times, not twice")
+    for _, call in ipairs(seen) do
+      assert(call.cwd == "/tmp/other-repo", table.concat(call.cmd, " ") .. " ran in " .. tostring(call.cwd))
+    end
+  end,
+
   -- Blaming the file on disk answers for a line the operator has already
   -- replaced: the old code returned the seed commit for a line that no longer
   -- exists. `--contents -` plus the buffer's own text is what makes git answer
