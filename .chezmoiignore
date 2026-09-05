@@ -65,6 +65,11 @@ tmp.*
 # Same, for the uu crate.
 .local/share/uu/target
 
+# neotest-bashunit's own headless specs and their runner: development artifacts
+# for people working ON the adapter, the same rule .config/nvim/tests/ follows.
+# `just test-neotest-bashunit` runs them from the source tree.
+.local/share/neotest-bashunit/tests
+
 # The committed input to `just pns-config-render`, never a deploy target:
 # the shipped template it generates is what chezmoi applies.
 .config/pns/config-values.toml
