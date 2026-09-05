@@ -49,4 +49,26 @@ return {
     assert(herdr.may_send("compacting") == "warn", herdr.may_send("compacting"))
     assert(herdr.may_send(nil) == "warn", tostring(herdr.may_send(nil)))
   end,
+
+  -- Spec 7.2: the derived name has to match `[a-z][a-z0-9_-]{0,31}`, and herdr's
+  -- pane ids are mixed case with a colon in them, so both transforms are load
+  -- bearing. Pane ids are never reused, so the name is free unless a
+  -- case-folded twin is live.
+  ["agent_name lowercases the pane id and replaces its colon"] = function()
+    assert(herdr.agent_name("wW:p3K") == "claude-ww-p3k", herdr.agent_name("wW:p3K"))
+  end,
+
+  ["plan_launch prompts the pane that was found"] = function()
+    local plan = herdr.plan_launch("wW:p3K", "/somewhere", "/tmp/nvim.sock")
+    assert(plan[1] == "prompt", plan[1])
+    assert(plan[2] == "wW:p3K", tostring(plan[2]))
+    assert(plan[3] == nil, tostring(plan[3]))
+  end,
+
+  ["plan_launch splits when no pane was found"] = function()
+    local plan = herdr.plan_launch(nil, "/somewhere", "/tmp/nvim.sock")
+    assert(plan[1] == "split", plan[1])
+    assert(plan[2] == "/somewhere", tostring(plan[2]))
+    assert(plan[3] == "/tmp/nvim.sock", tostring(plan[3]))
+  end,
 }

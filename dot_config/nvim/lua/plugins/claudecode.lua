@@ -60,6 +60,16 @@ return {
       mode = { "n", "x" },
       desc = "Claude: send selection or paragraph",
     },
+    -- The convenience for question 2 above: `none` auto-launches nothing, so
+    -- this prompts `/ide` at the Claude agent already in the workspace, or
+    -- splits a pane beside the editor and starts one there.
+    {
+      "<leader>Cc",
+      function()
+        require("custom_api.herdr").launch_or_attach()
+      end,
+      desc = "Claude: launch or attach --ide",
+    },
   },
   opts = {
     terminal = {
