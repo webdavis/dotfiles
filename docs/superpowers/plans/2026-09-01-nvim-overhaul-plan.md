@@ -1012,16 +1012,19 @@ keymap). Create `tests/ledger_awk_spec.lua`.
 columns are `id, step, severity, summary, disposition, evidence`, and emits one
 `<file>:<line>: F<n> <severity> <disposition>: <summary>` per row: `<file>:<line>` from a `path:line`
 token in the summary when the row carries one, else the ledger file and the row's own line number.
-`FIXED` rows are skipped unless the command was banged. Default file: the newest
+Closed rows are skipped unless the command was banged, matched as a PREFIX of `FIXED` so that
+`FIXED-NOTEST` is skipped too. Default file: the newest
 `~/.claude/pipeline/slices/findings-*.md`.
 
-- [ ] **Step 1, red:** `ledger_awk_spec` pipes a heredoc of three rows (one with a `path:line` token,
-  one without, one `FIXED`) through the same awk with `vim.system` and asserts the output lines, then
-  the same input with the bang flag asserting four lines. FAIL. (`vim.system` is a core API and is
-  available under the `--clean` runner, measured 2026-09-03.) **Step 2:** implement the command.
-- [ ] **Mutants:** never skip `FIXED` (red); ignore the `path:line` token (red).
+- [ ] **Step 1, red:** `ledger_awk_spec` pipes a heredoc of rows (one with a `path:line` token, one
+  without, one `FIXED`, one `FIXED-NOTEST`) through the same awk with `vim.system` and asserts the
+  output lines, then the same input with the bang flag asserting every row back. FAIL. (`vim.system`
+  is a core API and is available under the `--clean` runner, measured 2026-09-03.) **Step 2:**
+  implement the command.
+- [ ] **Mutants:** never skip a closed row (red); match the disposition for equality with `FIXED`
+  rather than as a prefix (red); ignore the `path:line` token (red).
 - [ ] **Step 3, live, pasted:** `:ReviewLedger` on a real findings file fills the quickfix list and
-  `:cnext` lands on the ledger row; `:ReviewLedger!` additionally lists the `FIXED` rows.
+  `:cnext` lands on the ledger row; `:ReviewLedger!` additionally lists the closed rows.
 - [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): load a findings ledger into the
   quickfix list`.
 

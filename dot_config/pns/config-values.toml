@@ -24,6 +24,12 @@ key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }
 rooms = ["3F - Studio", "2F - Kitchen"]
 quiet_hours = "22:00-07:00"
 
+[plugins.presence]
+type = "hue"
+rooms = ["3F - Studio", "2F - Kitchen", "3F - MBedroom"]
+exclude = []
+desk_room = "3F - Studio"
+
 [plugins.router]
 router_url = "https://192.168.1.1"
 device_hostname = "mister"
