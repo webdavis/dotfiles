@@ -13,6 +13,14 @@
 //! ordinary end of one: the daemon kills every child that outlives its bound,
 //! and a killed process runs no `Drop`.
 //!
+//! AN INHERITED DESCRIPTOR HOLDS IT TOO, which is the one property of a
+//! kernel lock that surprises: `fork` duplicates the open file description, so
+//! a child holds the same lock until its `exec` closes the descriptor
+//! (measured at one 5ms tick). Nothing is spawned between the claim and the
+//! publish, so a poll never opens that window; the TEST binary does, because
+//! other tests in it spawn subprocesses while this one holds a lock, which is
+//! why the test that relocks immediately allows for it.
+//!
 //! A KERNEL LOCK HAS NEITHER PROBLEM. The lock belongs to the open file
 //! description, so the last close releases it, INCLUDING the close the kernel
 //! does for a process it killed. There is no stale window to tune, no
@@ -113,9 +121,21 @@ mod tests {
     fn a_claim_given_back_can_be_taken_again() {
         // A LOCK RATHER THAN A LATCH: a hold left behind would stand every
         // later poll down, which is a sensor that answers once and goes quiet.
+        //
+        // RETRIED FOR A MOMENT, for the inherited descriptor this module's
+        // header names: another test in this binary spawning a subprocess
+        // while this one holds the lock leaves a child holding it too until
+        // its `exec`. A lock that is never given back still fails here, on
+        // the deadline.
         let lock = scratch("presence-lock-again").join(LOCK_FILE);
         drop(claim(&lock));
-        assert!(matches!(claim(&lock), Claim::Held(_)));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut taken = claim(&lock);
+        while matches!(taken, Claim::Busy) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            taken = claim(&lock);
+        }
+        assert!(matches!(taken, Claim::Held(_)));
     }
 
     #[test]
@@ -141,7 +161,18 @@ mod tests {
         assert!(child >= 0, "fork");
         if child == 0 {
             unsafe {
-                libc::close(ready[0]);
+                // EVERY INHERITED DESCRIPTOR CLOSED FIRST, the pipe this
+                // answers on excepted. `fork` duplicates the open file
+                // descriptions of every thread in this binary, so a lock
+                // another test was holding at this instant would be held by
+                // this child too, and this child lives until the kill below
+                // rather than for the moment an `exec` takes.
+                let top = libc::getdtablesize();
+                for descriptor in 3..top {
+                    if descriptor != ready[1] {
+                        libc::close(descriptor);
+                    }
+                }
                 libc::alarm(5);
                 let descriptor = libc::open(path.as_ptr(), libc::O_RDWR);
                 if descriptor < 0 || libc::flock(descriptor, libc::LOCK_EX | libc::LOCK_NB) != 0 {

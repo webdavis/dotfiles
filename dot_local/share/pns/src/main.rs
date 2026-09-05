@@ -9634,13 +9634,32 @@ mod tests {
             // the lock was never given back and `Nothing` says the publish
             // failed for a reason that has nothing to do with the lock, and a
             // bare boolean cannot tell the two apart from a failure line.
-            assert_eq!(
+            //
+            // AND RETRIED FOR A MOMENT, which is a fact about this BINARY
+            // rather than about the lock: other tests here spawn subprocesses,
+            // `fork` duplicates every open descriptor, and an inherited copy of
+            // this lock's descriptor holds the lock until the child's `exec`
+            // closes it. Measured at one 5ms tick, at about one run in ten. A
+            // poll opens no such window, spawning nothing at all while it
+            // holds the lock, and the retry is what an interval would be
+            // anyway. A lock that is never given back still fails this: the
+            // deadline runs out and the last outcome is the one asserted.
+            let poll = || {
                 write_presence_reading(
                     &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
                     &state,
                     &settings,
-                    now
-                ),
+                    now,
+                )
+            };
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            let mut outcome = poll();
+            while outcome == Polled::Busy && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(5));
+                outcome = poll();
+            }
+            assert_eq!(
+                outcome,
                 Polled::Published,
                 "the poll at {now} published nothing"
             );
