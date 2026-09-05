@@ -20,9 +20,13 @@ set -euo pipefail
 # here, none in .chezmoiignore and none in either harness registration, and
 # therefore nothing that has to be kept in agreement with another file.
 #
-# Pinned at 0b5ace3 by docs/research/2026-09-nvim-mcp-evaluation.md, which took
-# the resolver row of spec 7.3 against exactly this revision.
-#   revision: 0b5ace3
+# Pinned by docs/research/2026-09-nvim-mcp-evaluation.md, which took the
+# resolver row of spec 7.3 against exactly this commit. The FULL 40-hex sha,
+# never the seven-hex prefix cargo also accepts: a prefix is 28 bits, and a
+# force-pushed replacement that collides with it would become the source this
+# compiles and runs. --locked pins the dependencies only AFTER the source is
+# chosen, so it does not help here.
+#   revision: 0b5ace3b0369801c9bcb8eec68864427e6b1599c
 #
 # Retry state, the mechanism the pns and uu builders use: chezmoi records a
 # run_onchange script as done on ANY exit 0, so a skipped install (no toolchain)
@@ -35,7 +39,7 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-revision='0b5ace3'
+revision='0b5ace3b0369801c9bcb8eec68864427e6b1599c'
 repository='https://github.com/linw1995/nvim-mcp'
 install_dir="$HOME/.local/libexec/nvim-mcp"
 cargo_root="$HOME/.cache/nvim-mcp-build/cargo-root"
@@ -60,8 +64,13 @@ bump_retry_marker() {
 # source revision into `--version`, so ask the deployed binary and stay silent
 # when it already carries the pinned one. A version string that stops carrying
 # the sha only costs a redundant reinstall, never a wrong one.
+# The binary prints an ABBREVIATED sha: the evaluation recorded
+# `sha:"0b5ace3b...`, so match that observed prefix rather than the full pin the
+# build takes. A version string that stops carrying it only costs a redundant
+# reinstall, never a wrong one.
+installed_marker='0b5ace3b'
 if [[ -x "$install_dir/nvim-mcp" ]] &&
-  "$install_dir/nvim-mcp" --version 2>/dev/null | grep -qF "$revision"; then
+  "$install_dir/nvim-mcp" --version 2>/dev/null | grep -qF "$installed_marker"; then
   rm -f "$retry_marker"
   exit 0
 fi
