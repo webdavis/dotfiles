@@ -246,6 +246,10 @@ local function route()
         return { name = "neotest-golang", root = no_root, constructed = true }
       end,
     }),
+    -- Ours, and a plain table like its real module: no `__call`, so a stub with a metatable
+    -- would not be the shape `config` requires. Rooted nowhere, so it stays out of the
+    -- directory-run fixtures, which are about the JavaScript routing.
+    ["neotest-bashunit"] = { name = "neotest-bashunit", root = no_root },
     ["neotest-busted"] = { name = "neotest-busted", root = busted_root },
     ["neotest-swift-testing"] = { name = "neotest-swift-testing", root = no_root },
   }
