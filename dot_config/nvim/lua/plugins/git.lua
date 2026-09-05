@@ -529,6 +529,14 @@ return {
     -- undefined until it is typed, so fugitive's own declaration is what parses
     -- the first invocation.
     event = {
+      -- A command that does not exist yet also has no completion, so
+      -- `:Gtabedit HEAD:dot_config/nvim/<Tab>` offered nothing on a `CmdUndefined`
+      -- trigger alone. Loading when the command line opens gives every one of
+      -- them fugitive's own completion. The cost is that fugitive loads the
+      -- first time `:` is pressed rather than at first use of a command; it is
+      -- still off the startup path, and `CmdUndefined` stays below for calls
+      -- that never open a command line, such as `vim.cmd` from a mapping.
+      { event = "CmdlineEnter", pattern = ":" },
       {
         event = "CmdUndefined",
         pattern = {
