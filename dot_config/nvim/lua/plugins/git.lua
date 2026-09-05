@@ -1259,16 +1259,6 @@ return {
     },
   },
   {
-    -- TODO: git-blame: put this somewhere so that it's only available when attached to a git project. (E.g. on_attach)
-    "f-person/git-blame.nvim",
-    config = function()
-      map({ mode = "n", lhs = "<C-g>Bt", rhs = "GitBlameToggle", desc = "Git Blame: toggle" })
-      map({ mode = "n", lhs = "<C-g>By", rhs = "GitBlameCopySHA", desc = "Git Blame: copy commit SHA" })
-      map({ mode = "n", lhs = "<C-g>Bo", rhs = "GitBlameOpenCommitURL", desc = "Git Blame: open commit URL" })
-      map({ mode = "n", lhs = "<C-g>BO", rhs = "GitBlameCopyCommitURL", desc = "Git Blame: copy commit URL" })
-    end,
-  },
-  {
     {
       "pwntester/octo.nvim",
       dependencies = {
