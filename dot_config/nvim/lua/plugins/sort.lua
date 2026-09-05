@@ -1,5 +1,19 @@
 return {
   "sQVe/sort.nvim",
+  cmd = "Sort",
+  -- sort.nvim binds every one of these itself, inside its own setup, so a lazy
+  -- spec has to name them all: a key left out of this list stops firing until
+  -- something else happens to load the plugin. `go` and `gogo` come from the
+  -- default `mappings.operator`; the rest are the pair reassigned in `opts`.
+  keys = {
+    { "go", mode = "n", desc = "Sort operator" },
+    { "go", mode = "x", desc = "Sort selection" },
+    { "gogo", mode = "n", desc = "Sort current line" },
+    { "ir", mode = { "o", "x" }, desc = "Inner sortable region" },
+    { "ar", mode = { "o", "x" }, desc = "Around sortable region" },
+    { "],", mode = { "n", "x", "o" }, desc = "Next delimiter" },
+    { "[,", mode = { "n", "x", "o" }, desc = "Previous delimiter" },
+  },
   opts = {
     ignore_case = true,
     -- sort.nvim and nvim-treesitter-textobjects both bound `as`, `]s` and `[s`,
