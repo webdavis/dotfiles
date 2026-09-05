@@ -406,16 +406,16 @@ cases["a directory run dispatches the only non-JavaScript adapter rather than as
 end
 
 cases["a directory run stops on a package.json it cannot parse"] = function()
-    -- A manifest that cannot be read is not the same answer as a manifest naming no runner, and
-    -- collapsing the two put the operator in front of a chooser instead of in front of the
-    -- reason. The prompt would have offered a real choice built on a manifest nobody could read.
-    local routed = route()
-    local broken_run = routed.press_run_all(directory_of(broken))
-    assert(not broken_run.ran, "an unreadable manifest still dispatched a run")
-    assert(not broken_run.prompted, "an unreadable manifest fell through to the prompt")
-    assert(#broken_run.notified == 1, "the operator was not told")
-    assert(broken_run.notified[1]:find(broken, 1, true), "the message does not name the manifest")
-  end
+  -- A manifest that cannot be read is not the same answer as a manifest naming no runner, and
+  -- collapsing the two put the operator in front of a chooser instead of in front of the
+  -- reason. The prompt would have offered a real choice built on a manifest nobody could read.
+  local routed = route()
+  local broken_run = routed.press_run_all(directory_of(broken))
+  assert(not broken_run.ran, "an unreadable manifest still dispatched a run")
+  assert(not broken_run.prompted, "an unreadable manifest fell through to the prompt")
+  assert(#broken_run.notified == 1, "the operator was not told")
+  assert(broken_run.notified[1]:find(broken, 1, true), "the message does not name the manifest")
+end
 
 cases["a directory run with no runner declared asks rather than picking one"] = function()
   local routed = route()
@@ -430,6 +430,19 @@ cases["a directory run with no runner declared asks rather than picking one"] = 
 
   local declined = routed.press_run_all(directory_of(silent))
   assert(not declined.ran, "declining the prompt still ran something")
+end
+
+cases["when the cases are done, the fixture tree is deleted"] = function()
+  -- The runner exits through `os.exit`, which skips the cleanup Neovim does for its own temporary
+  -- directory, so every run of this spec left its whole fixture tree behind. Sorted case names are
+  -- what put this one last, so a case added later under a name that sorts after it fails here
+  -- rather than finding the fixtures already gone.
+  local last = "when the cases are done, the fixture tree is deleted"
+  for name in pairs(cases) do
+    assert(name <= last, "a case sorts after the cleanup and would find no fixtures: " .. name)
+  end
+  vim.fn.delete(fixture_root, "rf")
+  assert(vim.uv.fs_stat(fixture_root) == nil, "the fixture tree outlived the run: " .. fixture_root)
 end
 
 return cases
