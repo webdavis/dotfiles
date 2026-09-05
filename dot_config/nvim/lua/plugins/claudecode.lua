@@ -104,7 +104,24 @@ return {
   -- (`init.lua:619-621`), and would go silent. A headless session is the one
   -- kind with no UI attached, and `opts` is evaluated when the plugin loads
   -- (`VeryLazy`), after the UI has attached in an interactive session, so this
-  -- quiets exactly the sessions whose INFO was noise and nothing else.
+  -- quiets exactly the sessions whose INFO was noise and nothing else. The one
+  -- gap is a UI that attaches AFTER the plugin loaded (an `--embed` client that
+  -- ran commands before attaching): `init` closes it by raising the level back
+  -- to the plugin's default through the logger's own `setup` on the first
+  -- `UIEnter`, and only when the logger has already been loaded, so a normal
+  -- interactive start (UI first, plugin at `VeryLazy`) is untouched.
+  init = function()
+    vim.api.nvim_create_autocmd("UIEnter", {
+      once = true,
+      desc = "claudecode.nvim: restore INFO logging once a UI is attached",
+      callback = function()
+        local logger = package.loaded["claudecode.logger"]
+        if logger then
+          logger.setup({ log_level = "info" })
+        end
+      end,
+    })
+  end,
   opts = function()
     return {
       log_level = #vim.api.nvim_list_uis() == 0 and "warn" or "info",

@@ -21,7 +21,31 @@ local function level_with_uis(uis)
   return opts.log_level, opts
 end
 
+-- Runs the plugin file's `init` with a fake logger installed (or not) and fires
+-- `UIEnter`, returning the level the fake was handed, or nil when it was left alone.
+local function level_after_ui_attaches(logger_loaded)
+  local handed
+  local real = package.loaded["claudecode.logger"]
+  package.loaded["claudecode.logger"] = logger_loaded
+      and {
+        setup = function(conf)
+          handed = conf.log_level
+        end,
+      }
+    or nil
+  dofile(config_root .. "/lua/plugins/claudecode.lua").init()
+  vim.api.nvim_exec_autocmds("UIEnter", {})
+  package.loaded["claudecode.logger"] = real
+  return handed
+end
+
 return {
+  ["a UI attaching after the plugin loaded raises the level back to info"] = function()
+    assert(level_after_ui_attaches(true) == "info")
+  end,
+  ["a UI attaching before the plugin loaded touches no logger"] = function()
+    assert(level_after_ui_attaches(false) == nil)
+  end,
   ["a headless session (no UI attached) logs at warn"] = function()
     assert(level_with_uis({}) == "warn")
   end,
