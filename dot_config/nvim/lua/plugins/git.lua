@@ -514,9 +514,13 @@ return {
         bar = true,
         nargs = "*",
         range = true,
-        complete = function(_, line)
+        -- Fugitive's own completion function, called directly. Rewriting the
+        -- line to `Gread` and asking `getcompletion` was a recursion: a line
+        -- the anchored pattern missed, `:2Gr …` or `:silent Gr …`, still named
+        -- `Gr`, so completion re-entered this callback until nvim segfaulted.
+        complete = function(arglead, line, pos)
           require("lazy").load({ plugins = { "vim-fugitive" } })
-          return vim.fn.getcompletion((line:gsub("^(%s*)Gr(!?)", "%1Gread%2", 1)), "cmdline")
+          return vim.fn["fugitive#ReadComplete"](arglead, line, pos)
         end,
       })
     end,
