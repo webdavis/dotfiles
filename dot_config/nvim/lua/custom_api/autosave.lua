@@ -29,10 +29,26 @@ function M.mark_write(bufnr)
   -- auto-save.nvim drops the flag in its post event, but a `BufWritePre`
   -- handler that throws escapes the write and that event never runs. A flag
   -- left up would silently skip formatting on every later manual write of the
-  -- buffer, so the clear is scheduled here as well. The write is synchronous,
-  -- so this always runs after it, and on the normal path it is a no-op.
+  -- buffer, so the clear is scheduled here as well; on the normal path the post
+  -- event has already run by then and this is a no-op.
   vim.schedule(function()
-    M.clear_write(bufnr)
+    -- `vim.schedule` is not an after-write barrier. An earlier `BufWritePre`
+    -- handler that yields (a wait, a nested write) pumps the event loop mid
+    -- write, which runs this callback while the write is still going. Clearing
+    -- here would let the format handler further down the chain read no flag and
+    -- format the automatic write. `SafeState` is the real barrier: it fires once
+    -- Neovim is idle again, which is necessarily after the write.
+    if vim.fn.state("x") == "" then
+      M.clear_write(bufnr)
+      return
+    end
+
+    vim.api.nvim_create_autocmd("SafeState", {
+      once = true,
+      callback = function()
+        M.clear_write(bufnr)
+      end,
+    })
   end)
 end
 
