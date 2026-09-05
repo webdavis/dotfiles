@@ -1,6 +1,9 @@
 ---
 name: closed-loop
-description: Run a slice that exists because a review found something, where every finding feeds back into the same iteration and nothing is deferred. Use when a task was created by a review, when a task says Strategy-F, or when the user says "/strategy:closed-loop".
+description: >-
+  Run a slice that exists because a review found something, where every finding feeds back into
+  the same iteration and nothing is deferred. Use when a task was created by a review, when a task
+  says Strategy-F, or when the user says "/strategy:closed-loop".
 ---
 
 # Closed-loop
@@ -131,6 +134,6 @@ stale; `pipeline-model-allocation.md` in this project's memory directory is the 
   findings may leave the loop as tasks. If the work came from the plan rather than from a review, you
   are in the wrong skill.
 - [orchestrator-loop](../orchestrator-loop/SKILL.md): the orchestrator is inside the loop, writing the
-  failing tests and the seams itself instead of briefing an implementer, and its two reviews run
-  concurrently. It is closed-loop in the findings sense too, so the three names do not sit on one axis.
-  Pick it when the behaviour can be stated as a failing test before it can be stated as a paragraph.
+  failing tests and the seams itself instead of briefing an implementer. It is closed-loop in the
+  findings sense too, so the three names do not sit on one axis. Pick it when the behaviour can be
+  stated as a failing test before it can be stated as a paragraph.

@@ -22,40 +22,61 @@ Toolchain here (measured): Apple Swift 6.3.3; `swift`, `swiftc`, `xcodebuild` an
 
 ## Where the boundary goes, and what enforces it
 
-**A module is the unit of enforcement**, whether it is a SwiftPM target or an Xcode framework
-target. A module cannot `import` something unreachable from what it declares, so the inward
-dependency the method forbids does not compile.
+**A module is the unit of enforcement, and it is the only unit of enforcement**, whether it is a
+SwiftPM target or an Xcode framework target. But a plain `swift build` DOES NOT ENFORCE IT, and the
+gate has to be asked for explicitly. Everything else this skill calls a boundary is review, not a
+gate.
 
-Measured on Swift 6.3.3, with SwiftPM targets:
+Measured on Swift 6.3.3, reproduced 2026-09-04 with SwiftPM targets `A` and `C` declared independent
+and a file in `A` doing `import C`:
 
-- An undeclared cross-module import fails with `error: no such module '<Module>'`.
-- A cycle declared in the manifest is refused before compilation:
-  `error: cyclic dependency declaration found: A -> B -> A`.
+| command                                                       | undeclared import |
+| ------------------------------------------------------------- | ----------------- |
+| `swift build`, fresh tree, default parallelism                | REFUSED, 8 of 8   |
+| `swift build -j 1`, fresh tree                                | **accepted**, 6 of 6 |
+| `swift build`, second run of the same tree, nothing fixed     | **accepted**      |
+| `swift package clean && swift build`                          | REFUSED           |
+| `swift build --target A --scratch-path <empty dir>`           | REFUSED, `-j 1` too |
+| `swift build --explicit-target-dependency-import-check error` | REFUSED, any tree |
 
-Both were measured on a CLEAN build, and that qualifier is the whole rule:
+**THE DEFAULT BUILD'S ANSWER IS A SCHEDULING ARTIFACT, NOT A CHECK.** A target compiles against
+whatever modules are on its search path when IT is compiled. With no dependency edge between `A` and
+`C`, nothing orders `C` first, so the parallel scheduler usually emits `A` before `C` and `A` fails
+to find it. Serialize the build and the order flips:
 
-**A GREEN INCREMENTAL BUILD IS NOT EVIDENCE OF ANYTHING. CLEAN FIRST, OR THE GATE IS THEATRE.**
-Measured 2026-09-03 and reproduced deterministically: add a file whose sole content is `import C` to
-a target that does not declare `C`, and `swift build` prints `Compiling A Bad.swift`, then
-`Build complete!`, and exits 0. Only `swift package clean` followed by the same `swift build` reports
-`error: no such module 'C'`. A module built under an earlier configuration stays visible on the
-incremental search path, so the single check this entire architecture rests on **reads green while
-the boundary is broken**. That is worse than having no check, because it is a check that lies.
+    swift build -j 1     # exit 0, Build complete! -- the SAME undeclared import
+    swift build          # exit 1, error: no such module 'C'
 
-So:
+Six fresh trees under `-j 1`, six acceptances, under both manifest orderings. So the refusal a clean
+whole-package build gives you is luck, and it evaporates on a serial builder, a different scheduler,
+or simply a second run: once `C`'s module is in the scratch path, every later build finds it there
+and **a retry of a red build goes green with the boundary still broken**. A check that answers by
+build order is worse than no check, because it reads green while it lies.
 
-- **Run `swift package clean` before any build you intend to treat as proof of the dependency
-  direction.** Reviewing a module boundary off an incremental build proves nothing.
-- **CI must build clean.** An incremental CI gate will pass the pull request that breaks the
-  architecture.
-- The same applies after editing `Package.swift`.
+Two things ARE gates, and one of them is the one to use:
 
-**AND IT REACHES ONLY AS FAR AS THE DECLARED CHAIN. A TRANSITIVE MODULE IS IMPORTABLE UNDECLARED.**
-Measured 2026-09-03 on a fresh build directory, so this one is not the incremental hole: with target
-`A` declaring only `B`, and `B` declaring `C`, a file in `A` may `import C` and call `C`'s functions,
-and `swift build` exits 0. Cargo refuses the same shape outright (`error[E0433]`, measured), so this
-is NOT the guarantee Cargo gives. It is the weaker one: a module may reach anything its declared
-neighbours pull in.
+- **`--explicit-target-dependency-import-check error`.** Ask SwiftPM the question directly:
+
+      swift build --explicit-target-dependency-import-check error
+
+  It refuses regardless of build order or scratch state, populated tree included:
+  `error: Target A imports another target (C) in the package without declaring it a dependency.`,
+  exit 1. This is the one to put in CI, because it is the only form that does not depend on how the
+  build happened to be scheduled.
+- **An isolated target build against an empty scratch path**, which also held under `-j 1`:
+  `swift build --target <Target> --scratch-path "$(mktemp -d)"`. Useful for checking one protected
+  target in isolation; the explicit check covers the whole package in one command.
+
+A cycle declared in the manifest needs neither, and is refused before compilation:
+`error: cyclic dependency declaration found: A -> B -> A`.
+
+**NEITHER GATE REACHES PAST THE DECLARED CHAIN.** Measured 2026-09-04: with `A` declaring `D`, `D`
+declaring `C`, and a file in `A` importing `C` and calling its functions, `swift build`,
+`swift build --target A --scratch-path <empty dir>` and
+`swift build --explicit-target-dependency-import-check error` ALL exit 0. Cargo refuses the same
+shape outright (`error[E0433]`, measured), so this is NOT the guarantee Cargo gives. It is the weaker
+one: a module may reach anything its declared neighbours pull in, and no build flag recovers the
+difference. A transitive import is caught by reading the import lines, or not at all.
 
 The architecture survives that, because the direction it protects runs the other way. The domain
 declares no module of ours, so nothing of ours is transitively reachable from it, and UI or
@@ -73,16 +94,29 @@ checking them for you.
 | `<Tool>UI`      | UIKit or SwiftUI, `<Tool>`         | views and view controllers                        |
 | `<Tool>App`     | both, plus UIKit                   | the composition root, and nothing else            |
 
-Inside `<Tool>`, the roles are **folders plus access control**, not targets: a `Feature/` folder for
-the domain types and the ports, an `API/` and a `Cache/` folder for adapters, a `Presentation/`
-folder for presenters. This works because Swift's `internal` default already scopes a symbol to its
-module, so a folder split costs nothing and a target split would buy little.
+Inside `<Tool>`, the roles are **folders**: a `Feature/` folder for the domain types and the ports,
+an `API/` and a `Cache/` folder for adapters, a `Presentation/` folder for presenters.
 
-**Draw a hard module boundary where the dependency direction must be enforced against a whole
-category of code** (the UI must not be reachable from the domain; the app must not be reachable from
-either). Draw a folder boundary inside a module for the rest. This is a deliberate adaptation of the
-Rust five-crate rule, and the reason it is safe is that the one direction that actually goes wrong,
-UI or infrastructure leaking inward, is exactly the one the module split still catches.
+**A FOLDER ENFORCES NOTHING. IT IS ORGANIZATION FOR A HUMAN READER.** Measured 2026-09-04:
+`Feature/Policy.swift` importing CoreData and calling an `internal` type declared in
+`Infrastructure/Adapter.swift` compiles to `Build complete!`, exit 0, both on a fresh build and again
+after `swift package clean`. `internal` scopes a symbol to its MODULE, and the two folders are the
+same module, so every symbol in it is already visible to every other file in it. Access control adds
+nothing across a folder line, because there is no line there to cross.
+
+**Draw a hard module boundary where the dependency direction must be checked by
+`--explicit-target-dependency-import-check error`** (the UI must not be reachable from the domain;
+the app must not be reachable from either), and run that check, because a plain build does not.
+Inside a module, a folder records the intent and a REVIEWER is the only thing holding it: read the
+import lines and the call sites by hand, per pull request. If a direction inside a module matters
+more than review can carry, it is not a folder, it is a target.
+
+This is a deliberate adaptation of the Rust five-crate rule, and **it is narrower than it looks.**
+The module split catches ONE of the two directions that go wrong: UI leaking inward, because `<Tool>`
+and `<Tool>UI` are separate targets. It catches NOTHING of infrastructure leaking into the domain,
+because the table above puts both inside `<Tool>`, and both the fresh and the post-clean build accept
+that leak (measured above). Infrastructure-to-domain is REVIEW-ONLY here. If that direction has to be
+enforced rather than reviewed, the adapters need their own target.
 
 ### What the domain excludes
 
@@ -145,9 +179,10 @@ default implementation over inheritance, and mark a class `final` unless subclas
 Narrowest to widest: `private`, `fileprivate`, `internal` (the default, so write nothing), `package`,
 `public`, `open`.
 
-`internal` is what makes the folder-based role split safe: a type is invisible outside its module
-unless you say otherwise. Make a type `public` only when it crosses a module boundary, which in
-practice means the domain models, the ports, and the presenters the UI module consumes.
+`internal` keeps a type inside its MODULE. It does not keep it inside its folder, so it is not what
+makes the folder-based role split safe (measured above); the module split plus review is. Make a
+type `public` only when it crosses a module boundary, which in practice means the domain models, the
+ports, and the presenters the UI module consumes.
 
 `package` (measured working across two targets on 6.3.3) is for cross-target collaboration inside one
 package that must not escape it. On a three-module layout it rarely comes up; reach for it when a
@@ -267,7 +302,7 @@ target.
 
 ## Quality gates
 
-    swift build
+    swift build --explicit-target-dependency-import-check error
     swift test
     swiftformat --lint .
     swiftlint
