@@ -251,9 +251,10 @@ end
 --- Only asked when `directory` itself names one, so an ordinary monorepo whose root names nothing
 --- is not in conflict with the packages inside it.
 ---
---- Depth four reaches `packages/<name>/package.json` and one level below, which is where a
---- monorepo puts them. A package buried deeper goes unseen and the run proceeds, which is the
---- behaviour this replaces rather than a new way to be wrong.
+--- The walk has no depth ceiling, because a ceiling is a guess about someone else's layout and
+--- the packages past it are exactly the ones whose tests would silently run under the wrong
+--- runner. What bounds it instead is pruning: installed dependencies and hidden directories are
+--- where the manifest count runs away, and neither holds a package of this repository's own.
 ---@param directory string
 ---@param runner string
 ---@return string[]
@@ -261,7 +262,7 @@ local function packages_declaring_other_runners(directory, runner)
   local conflicting = {}
   for name, kind in
     vim.fs.dir(directory, {
-      depth = 4,
+      depth = math.huge,
       -- `vim.fs.dir` reports paths relative to `directory`, so the comparison is against the last
       -- component: whole-path equality lets `src/node_modules` through. Every hidden directory is
       -- pruned, not only `.git`, since a cache is not one of this repository's packages either.

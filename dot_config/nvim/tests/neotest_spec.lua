@@ -138,6 +138,11 @@ write_fixture("pruned/tests/root.test.js", 'import { test } from "vitest";\n')
 write_fixture("pruned/src/node_modules/dependency/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
 write_fixture("pruned/.cache/old/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
 
+-- A vitest repository whose conflicting package sits deeper than a monorepo usually puts one.
+local deep = write_fixture("deep/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
+write_fixture("deep/tests/root.test.js", 'import { test } from "vitest";\n')
+write_fixture("deep/packages/team/apps/api/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
+
 -- A git repository, declaring no runner, nested under a JavaScript package that declares one.
 -- `.git` is a FILE here, the form a worktree or submodule uses, not a directory.
 write_fixture("gitparent/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
@@ -557,6 +562,18 @@ cases["a directory run ignores manifests under dependencies and hidden directori
   assert(
     run.ran and run.ran.adapter == "neotest-vitest:" .. directory_of(pruned),
     "expected vitest by name, got " .. vim.inspect(run.ran)
+  )
+end
+
+cases["a directory run finds a conflicting package however deep it sits"] = function()
+  -- A fixed depth is a guess about someone else's layout, and the packages past it are exactly
+  -- the ones whose tests would silently run under the wrong runner.
+  local routed = route()
+  local run = routed.press_run_all(directory_of(deep))
+  assert(not run.ran, "a conflicting package below the old ceiling went unseen")
+  assert(
+    run.notified[1] and run.notified[1]:find("packages/team/apps/api", 1, true),
+    "the message does not name the deep package: " .. tostring(run.notified[1])
   )
 end
 
