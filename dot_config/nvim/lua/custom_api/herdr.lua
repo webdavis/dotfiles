@@ -143,10 +143,19 @@ local function agent_status(pane_id)
   return agent.agent_status or "unknown"
 end
 
--- `submit` runs `herdr agent prompt`, which presses Enter itself; without it the
--- text goes through `herdr pane send-text` and waits at the prompt. No key name
--- is ever sent either way, so nothing is split on newlines.
+-- Submitting is the only mode this seam offers, and it is required rather than
+-- defaulted so a caller cannot ask for the unsafe one by omission. `herdr agent
+-- prompt` presses Enter itself and REFUSES an agent that is already blocked;
+-- `herdr pane send-text` does neither, so a non-submitting send can lose the
+-- race between the status read below and the dispatch and type into an approval
+-- dialog. A second status check does not close that race, only a guarded
+-- non-submitting verb would, and herdr 0.8.2 has none. No key name is ever sent,
+-- so nothing is split on newlines.
 function M.send(text, opts)
+  if not (opts and opts.submit) then
+    error("custom_api.herdr.send: submit = true is required; herdr has no guarded non-submitting send")
+  end
+
   M.agent_pane(function(pane_id)
     if not pane_id then
       vim.notify("herdr: no claude agent in this workspace", vim.log.levels.WARN)

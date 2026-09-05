@@ -141,4 +141,19 @@ return {
     local lines = herdr.visual_lines()
     assert(table.concat(lines, "\n") == "bc1", vim.inspect(lines))
   end,
+
+  -- Finding 4. `herdr agent prompt` refuses an agent that is already blocked;
+  -- `herdr pane send-text` does not, so the non-submitting path could lose the
+  -- race between the status read and the dispatch and type into the approval
+  -- dialog. A second status check does not close it, so the path is gone.
+  ["a non-submitting send is refused by name"] = function()
+    for _, opts in ipairs({ { submit = false }, {} }) do
+      local ok, err = pcall(herdr.send, "some text", opts)
+      assert(not ok, "a non-submitting send was accepted")
+      assert(tostring(err):find("submit", 1, true), tostring(err))
+    end
+    local ok, err = pcall(herdr.send, "some text")
+    assert(not ok, "a send with no options at all was accepted")
+    assert(tostring(err):find("submit", 1, true), tostring(err))
+  end,
 }
