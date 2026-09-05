@@ -50,12 +50,16 @@ pub fn instant_from_utc(stamp: &str) -> Option<(u64, u32)> {
     let minute = digits(&stamp[14..16])?;
     let second = digits(&stamp[17..19])?;
     // Range-checked before the arithmetic, so a garbled field is refused
-    // rather than folded into a plausible-looking second.
+    // rather than folded into a plausible-looking second. The month is checked
+    // FIRST because the day's own bound is read out of it.
     if !((1..=12).contains(&month)
-        && (1..=31).contains(&day)
+        && (1..=days_in_month(year, month)).contains(&day)
         && hour < 24
         && minute < 60
-        && second < 61)
+        // BELOW SIXTY, because this arithmetic knows nothing of leap seconds:
+        // `60` was folded into the following minute, a second the bridge never
+        // named.
+        && second < 60)
     {
         return None;
     }
@@ -76,6 +80,24 @@ fn nanos_of(fraction: &str) -> u32 {
     (0..9).fold(0, |nanos, place| {
         nanos * 10 + u32::from(digits.get(place).map_or(0, |digit| digit - b'0'))
     })
+}
+
+/// How many days that month has, Gregorian, leap years included.
+///
+/// IT EXISTS BECAUSE THE ARITHMETIC BELOW NORMALISES RATHER THAN REFUSING:
+/// `days_from_civil` reads 2026-02-31 as March 3, an instant three days NEWER
+/// than the one the bridge named, and newer is exactly what the caller
+/// compares edges by. A date nobody can have is no edge at all.
+///
+/// The month is the caller's to bound, so `_` here is the thirty-one-day set
+/// and nothing else can reach it.
+fn days_in_month(year: i64, month: i64) -> i64 {
+    match month {
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
 }
 
 /// Days from 1970-01-01 to this civil date, by Howard Hinnant's
@@ -148,6 +170,52 @@ mod tests {
         assert_eq!(
             instant_from_utc("2026-09-03T17:20:09.4000000009Z"),
             Some((1_788_456_009, 400_000_000))
+        );
+    }
+
+    #[test]
+    fn a_day_the_month_does_not_have_is_refused_rather_than_rolled_forward() {
+        // THE ARITHMETIC BELOW NORMALISES, which is the danger: 2026-02-31
+        // came back as March 3, an instant three days NEWER than the one the
+        // bridge named, and newer is exactly what the caller compares edges
+        // by. So an impossible date could outrank a real one and name the
+        // wrong room.
+        for stamp in [
+            "2026-02-29T17:20:09Z",
+            "2026-02-31T17:20:09Z",
+            "2024-02-30T17:20:09Z",
+            "2100-02-29T17:20:09Z",
+            "2026-04-31T17:20:09Z",
+            "2026-06-31T17:20:09Z",
+            "2026-09-31T17:20:09Z",
+            "2026-11-31T17:20:09Z",
+            "2026-01-00T17:20:09Z",
+        ] {
+            assert_eq!(instant_from_utc(stamp), None, "{stamp:?} was accepted");
+        }
+        // AND THE DAYS THOSE MONTHS DO HAVE STILL READ, leap years included by
+        // both rules that make one: divisible by four, and the century that is
+        // divisible by four hundred.
+        for stamp in [
+            "2024-02-29T17:20:09Z",
+            "2000-02-29T17:20:09Z",
+            "2026-02-28T17:20:09Z",
+            "2026-04-30T17:20:09Z",
+            "2026-01-31T17:20:09Z",
+        ] {
+            assert!(instant_from_utc(stamp).is_some(), "{stamp:?} was refused");
+        }
+    }
+
+    #[test]
+    fn a_sixtieth_second_is_refused_because_leap_seconds_are_unsupported() {
+        // The module says leap seconds are not supported and the range check
+        // admitted `60` anyway, so a second the arithmetic below cannot mean
+        // was folded into the following minute.
+        assert_eq!(instant_from_utc("2026-09-03T17:20:60Z"), None);
+        assert_eq!(
+            instant_from_utc("2026-09-03T17:20:59Z"),
+            Some((1_788_456_059, 0))
         );
     }
 
