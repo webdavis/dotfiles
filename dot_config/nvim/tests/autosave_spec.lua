@@ -123,6 +123,50 @@ return {
     end) == true)
   end,
 
+  -- The two hazards together, which is the combination nothing else covers: the
+  -- flag is raised from inside an autocmd (so the scheduled clear sees an
+  -- executing autocommand and defers), an earlier handler yields (so that
+  -- deferral is actually taken), and a later one throws (so auto-save's post
+  -- event never arrives to clear it). `SafeState` is then the only thing left
+  -- that can drop the flag, and it has to.
+  --
+  -- The event is raised here rather than waited for: under `nvim -l` the editor
+  -- never returns to its main loop, so Neovim itself never emits `SafeState`.
+  -- What belongs to this config is the one-shot handler and what it does, and
+  -- that is what driving the event exercises.
+  ["a write that yields and then throws drops the flag once SafeState arrives"] = function()
+    local buf = file_buffer()
+    local group = vim.api.nvim_create_augroup("AutosaveSpecSafeState", { clear = true })
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      group = group,
+      pattern = "*",
+      callback = function()
+        vim.wait(1)
+      end,
+    })
+    vim.api.nvim_create_autocmd("BufWritePre", { group = group, pattern = "*", command = "throw 'spec'" })
+    vim.api.nvim_create_autocmd("User", {
+      group = group,
+      pattern = "AutosaveSpecMark",
+      callback = function()
+        autosave().mark_write(buf)
+      end,
+    })
+
+    vim.api.nvim_buf_call(buf, function()
+      vim.api.nvim_exec_autocmds("User", { pattern = "AutosaveSpecMark" })
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "changed" })
+      pcall(function()
+        vim.cmd("silent! write!")
+      end)
+    end)
+    vim.api.nvim_del_augroup_by_id(group)
+
+    assert(vim.b[buf].autosave_write == true, "the flag was dropped during the write, before the format handler")
+    vim.api.nvim_exec_autocmds("SafeState", {})
+    assert(vim.b[buf].autosave_write == nil, "the flag was never dropped, so formatting stays off for this buffer")
+  end,
+
   ["clearing the flag of a deleted buffer is not an error"] = function()
     local buf = scratch()
     autosave().mark_write(buf)
