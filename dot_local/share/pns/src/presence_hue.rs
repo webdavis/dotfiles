@@ -132,6 +132,25 @@ fn edge_of(
     let Some(room) = watched_room(entry, rooms, watched) else {
         return EntryEdge::Irrelevant;
     };
+    // THE BRIDGE DISOWNING ITS OWN REPORT, which is read BEFORE the report is
+    // parsed because it says the report is not evidence whatever shape it is
+    // in. `motion_valid: false` beside a complete report used to be a Found
+    // edge, and the newest edge wins, so a room the bridge vouched for nothing
+    // in could name where the operator is; beside a partial one it was
+    // Malformed, which refuses the whole poll and throws away every sibling
+    // room that DID report.
+    //
+    // IT IS THE SWITCHED-OFF ANSWER, not a refusal: this room said nothing and
+    // the others still count. EXPLICITLY FALSE and nothing else, so a
+    // `motion_valid` that is missing, or is not a boolean, leaves the report to
+    // be read exactly as before.
+    if entry
+        .pointer("/motion/motion_valid")
+        .and_then(serde_json::Value::as_bool)
+        == Some(false)
+    {
+        return EntryEdge::Irrelevant;
+    }
     // ABSENT FOR A ROOM WHOSE SENSORS ARE OFF, which serves `motion: {}`: no
     // report is no edge, never an edge at epoch zero, and never a refusal
     // either. It is the documented shape of a switched-off sensor, so the poll
@@ -202,3 +221,8 @@ fn room_name(rooms: &[serde_json::Value], rid: &str) -> Option<String> {
 /// standing 500-line bound with its prose alone.
 #[cfg(test)]
 mod tests;
+
+/// The selection's own tests beside them: which entries are evidence at all,
+/// and the order two that are get compared in.
+#[cfg(test)]
+mod selection_tests;
