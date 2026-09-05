@@ -227,9 +227,11 @@ vim.api.nvim_create_autocmd("User", {
 local nvim_mcp_pane = vim.env.HERDR_PANE_ID
 if nvim_mcp_pane and nvim_mcp_pane ~= "" then
   local nvim_mcp_dir = (vim.env.XDG_STATE_HOME or (vim.env.HOME .. "/.local/state")) .. "/nvim-mcp/registry"
-  local nvim_mcp_record = nvim_mcp_dir .. "/" .. vim.fn.getpid()
-  local nvim_mcp_temp = nvim_mcp_record .. ".tmp"
   local nvim_mcp_private = tonumber("700", 8)
+  -- The canonical record pathname, set only once one has actually been
+  -- published. The exit path below deletes through THIS, never through the
+  -- configured string.
+  local nvim_mcp_published = nil
 
   -- nvim_mcp_unsafe(dir) -- why <dir> is not a private directory this user
   -- controls all the way up, nil when it is one.
@@ -252,14 +254,11 @@ if nvim_mcp_pane and nvim_mcp_pane ~= "" then
     if info.mode % 512 ~= nvim_mcp_private then
       return dir .. " is not mode 0700"
     end
-    -- Ancestors are walked over the RESOLVED path, which by definition has no
-    -- symlink components left in it. Walking the given path instead would
-    -- reject every ordinary macOS temp directory, since /var and /tmp are both
-    -- symlinks into /private there.
-    local current = vim.uv.fs_realpath(dir)
-    if not current then
-      return dir .. " cannot be resolved"
-    end
+    -- The argument is already canonical, so its ancestors carry no symlink
+    -- components. Walking an unresolved path instead would reject every
+    -- ordinary macOS temp directory, since /var and /tmp are both symlinks
+    -- into /private there.
+    local current = dir
     while true do
       local parent = vim.fs.dirname(current)
       if parent == current then
@@ -312,21 +311,40 @@ if nvim_mcp_pane and nvim_mcp_pane ~= "" then
       -- the validation below is what decides whether to go on.
       pcall(vim.fn.mkdir, nvim_mcp_dir, "p", nvim_mcp_private)
 
+      -- Resolved ONCE, here, and every operation below goes through the
+      -- canonical result. Validating one pathname and then opening, renaming
+      -- and deleting through another leaves a window in which any symlink
+      -- along the configured path can be swapped for something else, and a
+      -- shared directory anywhere above it is enough for another account to do
+      -- exactly that. The leaf is checked before resolving, because an alias
+      -- standing where the registry belongs is not something to follow.
+      local leaf = vim.uv.fs_lstat(nvim_mcp_dir)
+      if not leaf or leaf.type ~= "directory" then
+        vim.notify("nvim-mcp: not registering, " .. nvim_mcp_dir .. " is not a directory", vim.log.levels.WARN)
+        return
+      end
+      local canonical = vim.uv.fs_realpath(nvim_mcp_dir)
+      if not canonical then
+        vim.notify("nvim-mcp: not registering, " .. nvim_mcp_dir .. " cannot be resolved", vim.log.levels.WARN)
+        return
+      end
       -- Validated on EVERY start, not only when the create failed: a registry
       -- left at 0777 by anything at all would otherwise be written into without
       -- a word, and it is a directory any account could then plant a record in.
-      local unsafe = nvim_mcp_unsafe(nvim_mcp_dir)
+      local unsafe = nvim_mcp_unsafe(canonical)
       if unsafe then
         vim.notify("nvim-mcp: not registering, " .. unsafe, vim.log.levels.WARN)
         return
       end
+      local record = canonical .. "/" .. vim.fn.getpid()
+      local temp = record .. ".tmp"
 
       -- O_EXCL through "wx", never io.open(..., "w"), which FOLLOWS whatever is
       -- at the name: a symlink planted at the temp path redirects the write
       -- into any file this user can write, truncating it and then publishing it
       -- as a record. "wx" fails on an existing name instead. A leftover .tmp
       -- from a crash blocks only that one pid, which changes on restart.
-      local fd = vim.uv.fs_open(nvim_mcp_temp, "wx", tonumber("600", 8))
+      local fd = vim.uv.fs_open(temp, "wx", tonumber("600", 8))
       if not fd then
         return
       end
@@ -335,14 +353,21 @@ if nvim_mcp_pane and nvim_mcp_pane ~= "" then
       vim.uv.fs_close(fd)
       -- Rename rather than write in place, so the resolver never reads a record
       -- that is only half written.
-      vim.uv.fs_rename(nvim_mcp_temp, nvim_mcp_record)
+      vim.uv.fs_rename(temp, record)
+      nvim_mcp_published = record
     end,
   })
 
   vim.api.nvim_create_autocmd("VimLeavePre", {
     group = augroup("nvim_mcp_registry_leave"),
     callback = function()
-      os.remove(nvim_mcp_record)
+      -- Only what THIS instance actually published, and only through the
+      -- canonical pathname it was published at. A refused registration has
+      -- nothing to clean up, and deleting a file that merely shares our pid in
+      -- a directory we declined to write to would be somebody else's data.
+      if nvim_mcp_published then
+        os.remove(nvim_mcp_published)
+      end
     end,
   })
 end

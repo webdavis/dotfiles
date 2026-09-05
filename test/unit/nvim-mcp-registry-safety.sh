@@ -7,6 +7,8 @@
 #      at is neither truncated nor published as a record
 #   c) a --listen pathname carrying a newline is not recorded at all, because a
 #      record is one line and the resolver would read only as far as the newline
+#   e) every later operation goes through the CANONICAL registry path, so
+#      removing the alias it was reached by does not strand the record
 #
 # Case c is not hypothetical: Neovim binds such a pathname and answers RPC on
 # it, so without this the resolver probes a truncated name, finds nothing, and
@@ -84,6 +86,17 @@ records_in() { # <dir>
   find "$1" -type f 2>/dev/null | wc -l | tr -d ' ' || true
 }
 
+# quit_nvim <socket> -- a CLEAN exit, so VimLeavePre runs. A signal from the
+# trap would not prove anything about the cleanup path.
+quit_nvim() {
+  nvim --server "$1" --remote-send '<Cmd>qa!<CR>' 2>/dev/null || true
+  local waited=0
+  while [[ -e $1 && $waited -lt 50 ]]; do
+    sleep 0.02
+    waited=$((waited + 1))
+  done
+}
+
 # --- a) an existing 0777 registry is refused ---------------------------------
 mkdir -p "$work/loose/nvim-mcp/registry"
 chmod 777 "$work/loose/nvim-mcp/registry"
@@ -121,4 +134,41 @@ start_nvim newline "$newline_sock"
 grep -q 'newline or NUL' "$ERRLOG" ||
   fail "newline: did not refuse for the reason under test ($(cat "$ERRLOG"))"
 
-printf 'PASS: nvim-mcp-registry-safety.sh (3 cases)\n'
+# --- e) later operations go through the canonical registry path --------------
+# The configured registry is reached through an alias that sits in a directory
+# other accounts can write. Validating one pathname and then opening, renaming
+# and deleting through another leaves a window in which that alias can be
+# swapped. Removing the alias after registration is the deterministic form of
+# the same question: a resolver that kept the canonical path still finds its
+# own record, and one that re-derives from the configured string does not.
+mkdir -p "$work/shared" "$work/canon"
+chmod 777 "$work/shared"
+chmod 700 "$work/canon"
+ln -s "$work/canon" "$work/shared/state"
+start_nvim_at() { # <state home> <socket>
+  REGISTRY="$1/nvim-mcp/registry"
+  ERRLOG="$work/err.canonical"
+  local done_marker="$work/done.canonical"
+  (
+    cd "$work" &&
+      exec env HERDR_PANE_ID=w1:p2 XDG_STATE_HOME="$1" NMC_DONE="$done_marker" \
+        nvim --clean --headless -u "$work/init.lua" --listen "$2" \
+        >/dev/null 2>"$ERRLOG"
+  ) &
+  pids+=("$!")
+  local waited=0
+  while [[ ! -e $done_marker && $waited -lt 100 ]]; do
+    sleep 0.02
+    waited=$((waited + 1))
+  done
+}
+start_nvim_at "$work/shared/state" "$work/canon.sock"
+canonical_registry="$work/canon/nvim-mcp/registry"
+[[ "$(records_in "$canonical_registry")" == 1 ]] ||
+  fail "canonical: expected one record under the resolved directory ($(cat "$ERRLOG"))"
+rm "$work/shared/state"
+quit_nvim "$work/canon.sock"
+[[ "$(records_in "$canonical_registry")" == 0 ]] ||
+  fail 'canonical: the record was left behind, so the delete went through the configured path'
+
+printf 'PASS: nvim-mcp-registry-safety.sh (4 cases)\n'
