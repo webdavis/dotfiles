@@ -13,9 +13,6 @@ vim.g.maplocalleader = "\\"
 -- for detecting the LSP root
 -- vim.g.root_lsp_ignore = { "copilot" }
 
--- Hide deprecation warnings
-vim.g.deprecation_warnings = false
-
 local opt = vim.opt
 
 local textwidth = 95
