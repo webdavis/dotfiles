@@ -126,11 +126,16 @@ local function diagnostic_part(bufnr, line)
   return ("%s: %s"):format(vim.diagnostic.severity[diagnostic.severity], util.trim(message))
 end
 
-local function function_part(bufnr, line)
+local function function_part(bufnr, line, column)
+  -- The CURSOR's column, not zero. Column zero of a nested declaration line
+  -- sits outside the function being declared, so it named the function around
+  -- it instead; column zero of an indented `def` or `func` line is leading
+  -- whitespace, which named no function at all.
+  --
   -- `get_node` returns nil rather than raising when no parser is attached
   -- (verified in the 0.12 runtime: `get_parser` reports a message, it does not
   -- error), so an unparsed buffer simply contributes no function part.
-  local node = M.enclosing_function(vim.treesitter.get_node({ bufnr = bufnr, pos = { line - 1, 0 } }))
+  local node = M.enclosing_function(vim.treesitter.get_node({ bufnr = bufnr, pos = { line - 1, column } }))
   if not node then
     return nil
   end
@@ -161,13 +166,14 @@ end
 ---@return integer id the new comment's id
 function M.line()
   local bufnr = vim.api.nvim_get_current_buf()
-  local line = vim.api.nvim_win_get_cursor(0)[1]
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line, column = cursor[1], cursor[2]
   local file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":.")
 
   local text = M.compose_text({
     mention = ("@%s:%d"):format(file, line),
     diagnostic = diagnostic_part(bufnr, line),
-    func = function_part(bufnr, line),
+    func = function_part(bufnr, line, column),
     blame = blame_part(file, line),
   })
 
