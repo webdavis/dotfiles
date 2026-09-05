@@ -194,13 +194,20 @@ routing tests and the registry tests that need no `LoadOutcome`, by name. Consum
 `registry/roster.rs` ~110, `registry/tests.rs` ~400. Statements: S016, S017 (the plan half), S119 to
 S124.
 
-**PR 5.4 the missed-notification policy.** Moves `KEPT`, `was_missed`, `should_replay`, `is_present`,
-`Entry` (the struct only), `summary`, `event_count`, `NEEDS_YOU`, `recap_card`, `waiting_line`
-(`src/missed_notifications.rs:25-135`, `260-494`) to `pns-domain/src/missed.rs`. The JSON codec `entry`
-and `entries` (169-230) stays in the root package until PR 11.2, because the domain crate takes no
-`serde_json`. Tests: the policy tests by name; the codec tests stay with the codec. Consumer: `main.rs`
-`record_missed`, `replay_missed`, `missed_line`. Sizes: `missed.rs` ~260 plus `missed/tests.rs` ~450.
-Statements: S106, S158 (predicate), S159, S161 (predicate), S243, S244.
+**PR 5.4 the missed-notification policy.** Moves `KEPT`, `Entry` (the struct only), `summary`,
+`event_count`, `NEEDS_YOU`, `needing_you`, `recap_card`, `waiting_line` and the three private helpers
+they compose through (`src/missed_notifications.rs:25-49`, `137-199`, `232-417`, `429-499`) to
+`pns-domain/src/missed.rs`. Two halves stay in the root package. The JSON codec `entry`, `entries` and
+`text` (169-230, 419-427) stays until PR 11.2, because the domain crate takes no `serde_json`. And
+`was_missed`, `should_replay` and `is_present` (79-83, 113-115, 133-135) stay until **PR 5.11**, because
+they answer over the engine's `Decision` and `Overrides`, which do not reach the domain crate before that
+step; moving them here would mean pulling 5.11's whole move forward and leaving that step empty. Tests:
+the ten card and doctor-line tests that build an `Entry` directly, by name; the four whose fixture
+round-trips a journal through `entries` stay with the codec, as do the predicate tests and the privacy
+test that spans both. Consumer: `main.rs` `record_missed`, `replay_missed`, `missed_line`. Sizes,
+measured: `missed.rs` 323 plus `missed/tests.rs` 306; the root module splits its remaining tests into
+`predicate_tests.rs` 269 and `codec_tests.rs` 315. Statements: S106, S158 (predicate), S159, S161
+(predicate), S243, S244; S159 stays UNPINNED here and is tested in PR 11.3, as the specification says.
 
 **PR 5.5 the nag policy.** Moves `Record` (the struct), `nudge`, `is_stale`, `fate`, `Dropped`,
 `FIRE_STALE_SECS`, `MAX_SESSION_ID_CHARS`, `marker_name`, `job_id`, `session_of` (`src/nag.rs:23-32`,
@@ -263,11 +270,16 @@ by name, split. Sizes: three production files of 120 to 260, tests of 200 to 420
 
 **PR 5.11 the decision.** Moves from `src/engine.rs`: `DEFAULT_DESK_IDLE_SECS`, `Overrides` (the struct
 and `silenced`, `reads_desk`, `reads_phone`), `Decision`, `GateInputs`, `SurfaceReading`, `decide` (lines
-29-99, 134-301) to `pns-domain/src/decision.rs`. Stays: `Overrides::from_env` (reads the environment, PR
-8.1), `operator_surface`, `surface_reading`, `operator_visibility` (they drive probe traits, PR 6.1).
-Tests: the `decide` tests by name into `decision/tests.rs`, split by the mute, the override and the
-readings seams. Sizes: `decision.rs` ~170; three test files of 350 to 450. `decide`'s signature does not
-change in `engine.rs`. Statements: S099 (the arbitration), S102, S103, S118.
+29-99, 134-301) to `pns-domain/src/decision.rs`. It ALSO carries the three predicates PR 5.4 had to leave
+behind, `was_missed`, `should_replay` and `is_present`, out of `src/missed_notifications.rs` and into
+`pns-domain/src/missed.rs` beside the rest of that policy, with their twelve tests: they read only the
+`Decision` and `Overrides` this step moves, so this is the first step at which they can go. Stays:
+`Overrides::from_env` (reads the environment, PR 8.1), `operator_surface`, `surface_reading`,
+`operator_visibility` (they drive probe traits, PR 6.1). Tests: the `decide` tests by name into
+`decision/tests.rs`, split by the mute, the override and the readings seams, plus the predicate tests
+into `missed/tests.rs`. Sizes: `decision.rs` ~170; three test files of 350 to 450. `decide`'s signature
+does not change in `engine.rs`. Statements: S099 (the arbitration), S102, S103, S118, and S106, S158
+(predicate), S159, S161 (predicate) arriving from PR 5.4; S159's own test stays assigned to PR 11.3.
 
 **PR 5.12 the presence policy.** Moves `src/presence.rs` (`idle_secs_from_ns`, `PresenceStatus`,
 `Unreadable`, `classify`, `unreadable_said`), the new `presence_policy.rs` (`Narrowing`, `narrow`) and
@@ -632,8 +644,12 @@ parsers `parse_recap`, `parse_focus`, `parse_daemon`, `parse_nag`, `nag_schedule
 and `Recap` (`32-120`) and `DEFAULT_MIN_EVENTS` through `MAX_SUBMIT_DEADLINE_SECS` (`437-523`), to
 `pns-adapters/src/config/{load,values,plugins,recap,nag}.rs`. Unpinned first: S285 (no read deadline;
 written as a FIFO-at-the-config-path test that must not park, and if it parks today the bound is added in
-its own PR before this one, never inside the move). Sizes: five files of 100 to 260 plus tests under 450
-each (the config tests split by table). Statements: S078, S116, S189, S236, S276, S280, S284, S285.
+its own PR before this one, never inside the move). It is also where the duplicated test fixture from
+PR 5.3 is reunited: about 25 lines of config-building setup are spelled twice today, in the domain's
+registry tests and in the root's registry and routing tests, and moving the parser alone does not merge
+them. This step consolidates the config-free policy cases in the domain and keeps the parsed-config
+integration checks with the adapters. Sizes: five files of 100 to 260 plus tests under 450 each (the
+config tests split by table). Statements: S078, S116, S189, S236, S276, S280, S284, S285.
 
 **PR 13.3 the lights tables.** Pure move of `Lights`, `Pulse`, `Breath`, `Blocked`, `Unread`,
 `BreatheThenFlare`, `Looping`, `Target`, `Behaviour`, `BEHAVIOUR_WORDS`, the locked defaults, `percent`,
