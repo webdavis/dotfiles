@@ -16,16 +16,55 @@ local log_error = vim.log.levels.ERROR
 local notify_fugitive_title = { title = "Fugitive" }
 local notify_github_title = { title = "GitHub" }
 
+-- `github.account` reports a `gh` that cannot answer as `nil, message`
+-- (spec 6.1), so reading a field straight off the call raises on the index.
+-- `try` is the one place that message becomes a notification.
+local function account_or_notify()
+  return try(function()
+    return github.account()
+  end, { label = "github.account" })
+end
+
+-- The same for `github.repo`, plus the field every caller here wants. `name` is
+-- nil when the answer carried no slash, and `git.latest_commit` raises on a
+-- missing `repo_name`, so that case is answered once rather than at every site.
+local function repo_name_or_notify()
+  local repository = try(function()
+    return github.repo()
+  end, { label = "github.repo" })
+  if not repository then
+    return
+  end
+
+  if not repository.name then
+    local message = ("No repository name in the answer `gh` gave: *%s*"):format(repository.nameWithOwner)
+    vim.notify(message, log_warning, notify_github_title)
+    return
+  end
+
+  return repository.name
+end
+
 local function copy_url_mapping_helper(lhs, remote, protocol)
   local mapping_table = {
     mode = "n",
     lhs = lhs,
     rhs = function()
       if git.initialized() then
+        local account = account_or_notify()
+        if not account then
+          return
+        end
+
+        local repo_name = repo_name_or_notify()
+        if not repo_name then
+          return
+        end
+
         local url = git.url({
           remote = remote,
-          account_name = github.account().username,
-          repo_name = github.repo().name,
+          account_name = account.username,
+          repo_name = repo_name,
         })
 
         if not url then
@@ -527,7 +566,7 @@ return {
         mode = "n",
         lhs = "<C-g>Cb",
         rhs = function()
-          local repo = github.repo().name
+          local repo = repo_name_or_notify()
           if not repo then
             return
           end
@@ -651,7 +690,12 @@ return {
           return
         end
 
-        local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+        local repo_name = repo_name_or_notify()
+        if not repo_name then
+          return
+        end
+
+        local commit = git.latest_commit({ repo_name = repo_name }) or {}
         local sections = build_sections(branch, commit.hash, commit.summary, commit.body)
         local message = sections_to_message(sections)
 
@@ -779,7 +823,12 @@ return {
         mode = "n",
         lhs = "<C-g>cp",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.summary then
             return
           end
@@ -795,7 +844,12 @@ return {
         mode = "n",
         lhs = "<C-g>cA",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.hash then
             return nil
           end
@@ -880,7 +934,12 @@ return {
         mode = "n",
         lhs = "<C-g>lw",
         rhs = function()
-          local author = github.account().fullname
+          local account = account_or_notify()
+          if not account then
+            return
+          end
+
+          local author = account.fullname
           if not author then
             return 1
           end
@@ -905,7 +964,12 @@ return {
         mode = "n",
         lhs = "<C-g>lW",
         rhs = function()
-          local author = github.account().fullname
+          local account = account_or_notify()
+          if not account then
+            return
+          end
+
+          local author = account.fullname
           if not author then
             return 1
           end
@@ -994,7 +1058,12 @@ return {
         mode = "n",
         lhs = "<C-g>dhw",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.hash then
             return
           end
@@ -1007,7 +1076,12 @@ return {
         mode = "n",
         lhs = "<C-g>dhm",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.hash then
             return
           end
