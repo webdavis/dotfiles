@@ -309,3 +309,130 @@ map({
   end,
   desc = "Yank inside nearest '' to clipboard",
 })
+
+-- ┏━━━━━━━━━━━━━━━━━━━━━━━┓
+-- ┃    Review Ledger      ┃
+-- ┗━━━━━━━━━━━━━━━━━━━━━━━┛
+
+-- One awk program, no Lua parser. The pipeline's findings registers are not
+-- tracked by this repository, so a reader written in Lua would be a second thing
+-- to keep in step with the table format. `f` is the ledger path used when a row
+-- carries no `path:line` token of its own, and it comes from awk's own
+-- `FILENAME` rather than a `-v` variable, because `-v` runs escape processing
+-- over the value and would turn a backslash in the path into a control
+-- character. `all` of 1 keeps the closed rows.
+-- The skip is a PREFIX match, because `FIXED-NOTEST` is a closed finding too:
+-- the register grammar puts a commit sha on every one of them.
+local ledger_awk = [==[
+function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+# How many backticks run on from position i.
+function run_len(s, i, len,   n) {
+  n = 0
+  while (i + n <= len && substr(s, i + n, 1) == "`") n++
+  return n
+}
+# Where the span opened at i by a run of n backticks closes, as the index of the
+# last backtick of the CLOSING run, or 0 when nothing closes it. A run of N
+# closes only on a run of N, which is what makes a doubled delimiter one span
+# rather than two toggles that cancel.
+function span_end(s, i, len, n,   j, r) {
+  j = i + n
+  while (j <= len) {
+    if (substr(s, j, 1) != "`") { j++; continue }
+    r = run_len(s, j, len)
+    if (r == n) return j + n - 1
+    j += r
+  }
+  return 0
+}
+# Split `s` on any character of `delims`, with a closed code span kept WHOLE: a
+# pipe inside one belongs to the cell rather than to the row structure, and a
+# space inside one belongs to the path rather than separating two candidates.
+# Splitting on the raw character instead let a summary masquerade as a
+# disposition, and cut a delimited path in half. An unmatched run is ordinary
+# text, and a backslash escapes only OUTSIDE a span, which is where markdown
+# puts escapes too.
+function tokenize(s, delims, out,   i, c, n, cell, len, r, e) {
+  split("", out); n = 0; cell = ""; len = length(s); i = 1
+  while (i <= len) {
+    c = substr(s, i, 1)
+    if (c == "`") {
+      r = run_len(s, i, len)
+      e = span_end(s, i, len, r)
+      if (e > 0) { cell = cell substr(s, i, e - i + 1); i = e + 1; continue }
+      cell = cell substr(s, i, r); i += r; continue
+    }
+    if (c == "\\" && i < len) { cell = cell c substr(s, i + 1, 1); i += 2; continue }
+    if (index(delims, c) > 0) { out[++n] = cell; cell = ""; i++; continue }
+    cell = cell c; i++
+  }
+  out[++n] = cell
+  return n
+}
+# A location is a PATH-SHAPED token, not any word carrying a colon and digits:
+# a version (v1.2.3:45), a URL with a port, and a neighbour joined by a comma all
+# read as one otherwise. Each token is cut back to its leading `<path>:<line>`,
+# which is what drops enclosing brackets, a trailing possessive, and the second
+# half of a line RANGE, and the first qualifying token wins. Path-shaped means a
+# slash or an extension whose first character is a letter, which is what tells
+# `a/b.lua` from `v1.2.3`. The location stops at the FIRST colon-and-digits, so
+# an editor column in `a/b.c:4:5` is dropped rather than joining the filename,
+# and a Windows drive colon is taken off first so it is not mistaken for one.
+# Ceiling: a bare `host.com:8080` would still qualify.
+function locate(s,   parts, n, i, t, path, drive) {
+  n = tokenize(s, " \t,", parts)
+  for (i = 1; i <= n; i++) {
+    t = parts[i]
+    if (t == "" || t ~ /:\/\//) continue
+    sub(/^[(\[{`<'"]+/, "", t)
+    drive = ""
+    if (t ~ /^[A-Za-z]:[\\\/]/) { drive = substr(t, 1, 2); t = substr(t, 3) }
+    if (!match(t, /:[0-9]+/)) continue
+    path = drive substr(t, 1, RSTART - 1)
+    if (path ~ /\// || path ~ /\.[A-Za-z][A-Za-z0-9_]*$/) return path ":" substr(t, RSTART + 1, RLENGTH - 1)
+  }
+  return ""
+}
+/^[ \t]*\|[ \t]*F[0-9]+[ \t]*\|/ {
+  tokenize($0, "|", cell)
+  id = trim(cell[2]); severity = trim(cell[4]); summary = trim(cell[5]); disposition = trim(cell[6])
+  if (disposition ~ /^FIXED/ && all != 1) next
+  location = locate(summary)
+  where = (location == "") ? FILENAME ":" FNR : location
+  printf "%s: %s %s %s: %s\n", where, id, severity, disposition, summary
+}
+]==]
+
+vim.api.nvim_create_user_command("ReviewLedger", function(opts)
+  -- Not `expand`: `complete = "file"` already expanded and unescaped this for
+  -- us, the way `:edit` does. A second pass unescapes what the first pass
+  -- produced, so a name carrying a backslash or a leading `%` is looked for
+  -- under a name that is not its own.
+  local register = opts.args
+  if register == "" then
+    -- `glob` expands the tilde itself, and `expand` must NOT run first: it
+    -- expands the WILDCARD too, so `glob` would be handed every match joined by
+    -- newlines and would match nothing (measured 2026-09-05).
+    local found = vim.fn.glob("~/.claude/pipeline/slices/findings-*.md", false, true)
+    table.sort(found, function(a, b)
+      return vim.fn.getftime(a) > vim.fn.getftime(b)
+    end)
+    register = found[1]
+  end
+  if not register or register == "" then
+    vim.notify("ReviewLedger: no findings register found", vim.log.levels.WARN)
+    return
+  end
+  local lines = vim.fn.systemlist(
+    ("awk -v all=%d %s %s"):format(opts.bang and 1 or 0, vim.fn.shellescape(ledger_awk), vim.fn.shellescape(register))
+  )
+  vim.fn.setqflist({}, " ", { title = "ReviewLedger " .. register, lines = lines, efm = "%f:%l: %m" })
+  vim.cmd("copen")
+end, {
+  nargs = "?",
+  bang = true,
+  complete = "file",
+  desc = "Load a findings register into the quickfix list (! keeps the closed rows)",
+})
+
+return { ledger_awk = ledger_awk }
