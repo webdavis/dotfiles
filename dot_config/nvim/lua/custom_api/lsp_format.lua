@@ -37,4 +37,33 @@ function M.admit(client, bufnr, lsp_format)
   return true
 end
 
+--- Removes a client from lsp-format's queue for a buffer once it can no longer
+--- format it. A server may unregister `textDocument/formatting` at any point, and
+--- the configured ESLint server does so whenever its configuration changes.
+---
+---@param client vim.lsp.Client the client to consider
+---@param bufnr integer the buffer it is attached to
+---@param lsp_format table the `lsp-format` module
+---@return boolean withdrawn true only when this call removed the client
+function M.withdraw(client, bufnr, lsp_format)
+  if client:supports_method("textDocument/formatting", bufnr) then
+    return false
+  end
+
+  local members = lsp_format.buffers[bufnr]
+  if not members then
+    return false
+  end
+
+  -- Backwards, so a removal cannot skip the element after it.
+  local withdrawn = false
+  for index = #members, 1, -1 do
+    if members[index] == client.id then
+      table.remove(members, index)
+      withdrawn = true
+    end
+  end
+  return withdrawn
+end
+
 return M

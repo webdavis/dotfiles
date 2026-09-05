@@ -404,6 +404,22 @@ return {
         return response
       end
 
+      -- The mirror image, and the reason membership is not decided once and kept: a
+      -- client left in the queue after it stops supporting formatting is selected by
+      -- the plugin, which then returns WITHOUT advancing to the sibling formatters
+      -- behind it, so the whole save sends nothing.
+      local unregister_capability = vim.lsp.handlers["client/unregisterCapability"]
+      vim.lsp.handlers["client/unregisterCapability"] = function(err, result, ctx, config)
+        local response = unregister_capability(err, result, ctx, config)
+        local client = vim.lsp.get_client_by_id(ctx.client_id)
+        if client then
+          for bufnr in pairs(client.attached_buffers) do
+            format_admission.withdraw(client, bufnr, lsp_format)
+          end
+        end
+        return response
+      end
+
       vim.api.nvim_create_autocmd("BufWritePre", {
         group = format_group,
         pattern = "*",

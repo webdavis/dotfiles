@@ -71,6 +71,44 @@ return {
     assert(queued(plugin, bufnr) == 1, "queued " .. queued(plugin, bufnr))
   end,
 
+  ["removes a client that lost formatting from the queue"] = function()
+    -- The plugin's queue runner returns WITHOUT advancing when it reaches a member
+    -- that cannot format, so a stale member silences every sibling formatter.
+    local plugin, bufnr = double(), vim.api.nvim_create_buf(false, true)
+    local supports = true
+    local eslint = client(function()
+      return supports
+    end)
+
+    lsp_format.admit(eslint, bufnr, plugin)
+    supports = false
+
+    assert(lsp_format.withdraw(eslint, bufnr, plugin) == true, "not withdrawn")
+    assert(queued(plugin, bufnr) == 0, "queued " .. queued(plugin, bufnr))
+  end,
+
+  ["leaves a client that still formats in the queue"] = function()
+    local plugin, bufnr = double(), vim.api.nvim_create_buf(false, true)
+    local gopls = client(function()
+      return true
+    end)
+
+    lsp_format.admit(gopls, bufnr, plugin)
+
+    assert(lsp_format.withdraw(gopls, bufnr, plugin) == false, "withdrew a client that can still format")
+    assert(queued(plugin, bufnr) == 1, "queued " .. queued(plugin, bufnr))
+  end,
+
+  ["withdrawing a client that was never admitted changes nothing"] = function()
+    local plugin, bufnr = double(), vim.api.nvim_create_buf(false, true)
+    local lua_ls = client(function()
+      return false
+    end)
+
+    assert(lsp_format.withdraw(lua_ls, bufnr, plugin) == false, "claimed to withdraw an absent client")
+    assert(queued(plugin, bufnr) == 0, "queued " .. queued(plugin, bufnr))
+  end,
+
   ["drops the plugin's own formatter autocmd from the buffer"] = function()
     -- It runs on BufWritePost, so it would format a second time after the
     -- synchronous BufWritePre save hook has already run.
