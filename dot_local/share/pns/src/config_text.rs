@@ -204,7 +204,8 @@ pub const LAYOUT: &[Table] = &[
                          # for where you are, this is the room the lamps narrow to, and motion\n\
                          # in it agrees. Newer motion in ANOTHER room is two live readings that\n\
                          # cannot both be you, so nothing narrows at all until the keyboard goes\n\
-                         # quiet. Unset, a warm desk narrows nothing.\n",
+                         # quiet. Unset, the keyboard names no room and motion answers alone,\n\
+                         # exactly as it does once the desk goes stale.\n",
                 sample: Sample::Example("\"\""),
             },
             Key {

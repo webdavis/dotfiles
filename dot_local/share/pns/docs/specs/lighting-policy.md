@@ -1242,26 +1242,43 @@ Given a resolved `Routing` and an armed `[plugins.presence]` table,
 When `src/main.rs:narrow_to_presence` runs it through `src/presence_policy.rs:narrow` on the event
 path's pulse (`src/main.rs:run_pulse_writes`) and on the tick (`src/main.rs:run_tick_writes`),
 
-Then the desk's idle clock and the bridge's motion edge compete by NEWEST SIGNAL WINS, which is
-`src/surface.rs:surface`'s own rule over two clocks of the same kind: both answer "how long since a
-human did something here", so the fresher one names the room. The tie goes to the desk, where a hand is
-what made the reading. A lamp belongs to a room by the bridge's own membership
-(`src/channels/hue.rs:Lamp.room`), which `resolve` already joined off the room listing.
+Then `src/presence_room.rs:chosen` weighs the desk's idle clock against the bridge's motion edge, and
+`src/presence_policy.rs:narrow` takes the room it answers to the lamp map. A WARM DESK IS A CLAIM ON THE
+OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_stale_after_secs` the keyboard
+says they are at the desk, while motion says A BODY moved in a room and never whose. So while the desk
+still speaks,
+
+- motion in the desk's own room AGREES with it, and that room is kept;
+- motion NO NEWER than the desk loses to it, the tie included, where a hand is what made the reading;
+- NEWER motion in ANOTHER room is AMBIGUOUS and narrows nothing. The bridge reports a room that is still
+  occupied as age zero rather than as the age of the edge that began it, so "newer" here is routinely
+  three seconds after a keystroke and means only that somebody is in that other room. Read as the
+  operator having walked out, it handed every lamp to whoever else was moving in the house.
+
+Past the bound, with the screen locked, or with no readable idle clock, the desk has no claim at all and
+motion answers alone. With no `desk_room` named, the desk can name no room, so usable motion answers
+alone as well and `NoDeskRoom` is recorded only when nothing else could answer either. A lamp belongs to
+a room by the bridge's own membership (`src/channels/hue.rs:Lamp.room`), which `resolve` already joined
+off the room listing.
 
 - Success: `Routing.lamps` holds only the lamps that room holds; `unresolved` and `refusals` are
   untouched, because a name the bridge could not answer is a typo whether or not the operator is
   standing in that room.
-- Failure sources: every one of them narrows NOTHING and says which: `Nowhere` (a fresh poll that found
-  motion in no watched room, and the room they are in may have no sensor), each
-  `src/presence.rs:Unreadable` variant, a router answering `home::HomePresence::NotHome`, a desk that
-  would have won with no `desk_room` named, and a room that holds no lamp this event would light.
+- Failure sources: every one of them narrows NOTHING and says which (`src/presence_room.rs:Full`):
+  `Nowhere` (a fresh poll that found motion in no watched room, and the room they are in may have no
+  sensor), each `src/presence.rs:Unreadable` variant, a router answering `home::HomePresence::NotHome`,
+  `Ambiguous` (a desk still inside its bound in one room and newer motion in another), a desk that would
+  have won with no `desk_room` named and no usable motion to answer instead, and a room that holds no
+  lamp this event would light.
 - Fail direction: PRESENCE ONLY EVER NARROWS. Not knowing costs the narrowing and nothing else, and a
   narrowing that would leave ZERO targets falls back to the whole routing rather than going silent
   (`src/presence_policy.rs:a_room_holding_no_routed_lamp_falls_back_to_the_whole_routing`).
 - Thresholds: the motion reading's freshness is `src/presence.rs:classify`'s, against
   `[plugins.presence] stale_after_secs`; the desk's is `[plugins.presence] desk_stale_after_secs`
-  (default 120, `src/config.rs:DEFAULT_DESK_STALE_AFTER_SECS`), past which a keyboard nobody has touched
-  speaks for nothing. No dwell rule and no hysteresis of its own.
+  (default 120, `src/config.rs:DEFAULT_DESK_STALE_AFTER_SECS`, bounded 1 to
+  `src/config.rs:MAX_DESK_STALE_AFTER_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
+  good), past which a keyboard nobody has touched speaks for nothing. No dwell rule and no hysteresis of
+  its own.
 - Required side effects: one JSON object per decision appended to the `presence-decisions` ring
   (`src/presence_journal.rs:entry`), carrying the reading, the desk clock, the router verdict and the
   room chosen or the reason none was. `pns doctor`'s presence leg reads the last one back
@@ -1272,7 +1289,10 @@ what made the reading. A lamp belongs to a room by the bridge's own membership
   keyboard nor the phone has been touched lately, which reads a phone in a pocket at home as an empty
   house. Also forbidden: taking any reading twice. One `SystemProbes` supplies the clock, the idle
   counter, the screen lock and the presence line, all memoized, so the reading and the decision cannot
-  straddle a boundary.
+  straddle a boundary. The presence line is taken EAGERLY, where the set is pointed at the file
+  (`src/system.rs:with_presence_path`), which is before that set can hold a clock: read after one, a
+  line the daemon republished in the meantime carried an epoch newer than the frozen clock and
+  classified as `Future`.
 - Timeout and cancellation: none; `narrow` is a total function of its arguments and touches no bridge.
   The router's own verdict is NOT dialled here (`src/main.rs:home_presence` answers `Unknown`), because
   two `home::ROUTER_DEADLINE` calls behind a lamp would outlive a tick's whole interval.

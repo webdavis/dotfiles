@@ -60,8 +60,11 @@ pub enum Full {
     /// The router says the phone is not on the home network, so the motion is
     /// somebody or something else.
     NotHome,
-    /// The desk is the freshest thing there is and no `desk_room` says which
-    /// room it is in.
+    /// The desk still speaks for where the operator is, no `desk_room` says
+    /// which room that is, AND NOTHING ELSE COULD ANSWER EITHER. With a
+    /// usable motion edge to fall back on, that edge answers instead and this
+    /// is never reached: an unnamed desk room costs the desk its vote, not
+    /// the narrowing.
     NoDeskRoom,
     /// A desk still inside its bound in one room, and newer motion in another.
     /// TWO LIVE READINGS THAT CANNOT BOTH BE THE OPERATOR, and nothing here
