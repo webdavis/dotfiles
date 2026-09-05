@@ -28,8 +28,11 @@ function M.admit(client, bufnr, lsp_format)
   end
 
   -- The plugin's own queue is the record of what is already admitted, so no
-  -- second table can drift from it. Its `on_attach` appends unconditionally,
-  -- and a client queued twice is formatted twice per save.
+  -- second table can drift from it. Its `on_attach` appends unconditionally, so
+  -- re-admitting a client would store its id a second time. That does not format
+  -- twice: the plugin enumerates the buffer's active clients once and keeps the
+  -- ones this list names. The duplicate is redundant state, kept out rather than
+  -- cleaned up later.
   if vim.tbl_contains(lsp_format.buffers[bufnr] or {}, client.id) then
     return false
   end
