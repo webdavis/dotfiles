@@ -56,6 +56,16 @@ function M.workspace_refusal(herdr_env, workspace_id)
   return nil
 end
 
+-- The Claude agents of ONE workspace. The workspace test is repeated here
+-- rather than left to `agents.list()`, whose own filter is a third-party
+-- plugin's implementation detail: scoping the send is this seam's promise, so
+-- this seam is where it is kept and where it is pinned.
+function M.claude_agents_here(agents, workspace_id)
+  return vim.tbl_filter(function(agent)
+    return agent.kind == "claude" and agent.workspace_id == workspace_id
+  end, agents)
+end
+
 -- The picker row. `agents.display` renders kind, status and cwd basename, which
 -- two Claude agents in two tabs of one repository share exactly; the pane id is
 -- the field that tells them apart before the text goes anywhere.
@@ -84,13 +94,7 @@ function M.agent_pane(on_pane)
     return
   end
 
-  -- The workspace test is repeated here rather than left to `agents.list()`:
-  -- scoping the send to THIS workspace is this seam's own promise, and a
-  -- third-party plugin's filter is not the place to keep it.
-  local here = vim.env.HERDR_WORKSPACE_ID
-  local claude = vim.tbl_filter(function(a)
-    return a.kind == "claude" and a.workspace_id == here
-  end, all)
+  local claude = M.claude_agents_here(all, vim.env.HERDR_WORKSPACE_ID)
 
   if #claude == 0 then
     return on_pane(nil)

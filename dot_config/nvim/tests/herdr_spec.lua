@@ -156,4 +156,24 @@ return {
     assert(not ok, "a send with no options at all was accepted")
     assert(tostring(err):find("submit", 1, true), tostring(err))
   end,
+
+  -- Finding 1, the second half. The gate makes `agents.list()` scope itself, so
+  -- this filter is a second lock on the same door; it is pinned so that a change
+  -- to either one cannot quietly leave the door open.
+  ["the filter keeps only this workspace's Claude agents"] = function()
+    local all = {
+      { kind = "claude", workspace_id = "wW", pane_id = "wW:p3K" },
+      { kind = "claude", workspace_id = "wX", pane_id = "wX:p1" },
+      { kind = "codex", workspace_id = "wW", pane_id = "wW:p8K" },
+    }
+    local here = herdr.claude_agents_here(all, "wW")
+    assert(#here == 1, vim.inspect(here))
+    assert(here[1].pane_id == "wW:p3K", vim.inspect(here))
+  end,
+
+  ["the filter keeps nothing when the workspace is unknown"] = function()
+    local all = { { kind = "claude", workspace_id = "wW", pane_id = "wW:p3K" } }
+    assert(#herdr.claude_agents_here(all, nil) == 0, "a nil workspace matched an agent")
+    assert(#herdr.claude_agents_here(all, "wX") == 0, "another workspace's agent matched")
+  end,
 }
