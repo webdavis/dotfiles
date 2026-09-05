@@ -12,6 +12,24 @@ return {
       save_on_toggle = false,
     },
   },
+  -- Nothing loads harpoon at startup any more: the only other mentions of it in
+  -- this config are catppuccin's highlight-integration flag (ui.lua) and an
+  -- auto-save filetype exclusion, neither of which requires the module. The
+  -- `desc` values repeat the ones `config` sets below, so which-key labels the
+  -- key the same before and after the plugin loads.
+  keys = {
+    { "<leader>ha", desc = "Harpoon: mark current file" },
+    { "<leader>hh", desc = "Harpoon: open file menu" },
+    { "<C-p>", desc = "Harpoon: jump to previous file" },
+    { "<leader>hp", desc = "Harpoon: jump to previous file" },
+    { "<C-n>", desc = "Harpoon: jump to next file" },
+    { "<leader>hn", desc = "Harpoon: jump to next file" },
+    { "<leader>1", desc = "Harpoon: jump to file 1" },
+    { "<leader>2", desc = "Harpoon: jump to file 2" },
+    { "<leader>3", desc = "Harpoon: jump to file 3" },
+    { "<leader>4", desc = "Harpoon: jump to file 4" },
+    { "<leader>5", desc = "Harpoon: jump to file 5" },
+  },
   config = function(_, opts)
     local harpoon = require("harpoon")
 
