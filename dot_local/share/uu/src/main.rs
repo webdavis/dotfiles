@@ -23,10 +23,11 @@ use unattended_upgrades::config::{
 use unattended_upgrades::deadline::lane_budget;
 use unattended_upgrades::lanes::{LaneReport, run_lane};
 use unattended_upgrades::record::{
-    AGENT, Marker, RunFacts, STALE_AFTER_RUNS, gap_line, marker_contents, next_streak,
-    parse_marker, record_body, record_detail, record_state,
+    AGENT, Marker, RunFacts, gap_line, marker_contents, parse_marker, record_body, record_detail,
+    record_state,
 };
 use unattended_upgrades::schedule::{DEFAULT_LABEL, render_plist};
+use unattended_upgrades::staleness::{STALE_AFTER_RUNS, next_streak};
 
 mod runner;
 mod watchdog;
