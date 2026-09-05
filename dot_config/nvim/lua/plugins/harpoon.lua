@@ -1,3 +1,41 @@
+local function act(fn)
+  return function()
+    fn(require("harpoon"))
+  end
+end
+
+local add = act(function(h)
+  h:list():add()
+end)
+local menu = act(function(h)
+  h.ui:toggle_quick_menu(h:list())
+end)
+local prev = act(function(h)
+  h:list():prev()
+end)
+local next_file = act(function(h)
+  h:list():next()
+end)
+
+local keys = {
+  { "<leader>ha", add, desc = "Harpoon: mark current file", silent = true },
+  { "<leader>hh", menu, desc = "Harpoon: open file menu", silent = true },
+  { "<C-p>", prev, desc = "Harpoon: jump to previous file", silent = true },
+  { "<leader>hp", prev, desc = "Harpoon: jump to previous file", silent = true },
+  { "<C-n>", next_file, desc = "Harpoon: jump to next file", silent = true },
+  { "<leader>hn", next_file, desc = "Harpoon: jump to next file", silent = true },
+}
+for i = 1, 5 do
+  keys[#keys + 1] = {
+    "<leader>" .. i,
+    act(function(h)
+      h:list():select(i)
+    end),
+    desc = "Harpoon: jump to file " .. i,
+    silent = true,
+  }
+end
+
 return {
   "ThePrimeagen/harpoon",
   branch = "harpoon2",
@@ -12,74 +50,13 @@ return {
       save_on_toggle = false,
     },
   },
-  -- Nothing loads harpoon at startup any more: the only other mentions of it in
-  -- this config are catppuccin's highlight-integration flag (ui.lua) and an
-  -- auto-save filetype exclusion, neither of which requires the module. The
-  -- `desc` values repeat the ones `config` sets below, so which-key labels the
-  -- key the same before and after the plugin loads.
-  keys = {
-    { "<leader>ha", desc = "Harpoon: mark current file" },
-    { "<leader>hh", desc = "Harpoon: open file menu" },
-    { "<C-p>", desc = "Harpoon: jump to previous file" },
-    { "<leader>hp", desc = "Harpoon: jump to previous file" },
-    { "<C-n>", desc = "Harpoon: jump to next file" },
-    { "<leader>hn", desc = "Harpoon: jump to next file" },
-    { "<leader>1", desc = "Harpoon: jump to file 1" },
-    { "<leader>2", desc = "Harpoon: jump to file 2" },
-    { "<leader>3", desc = "Harpoon: jump to file 3" },
-    { "<leader>4", desc = "Harpoon: jump to file 4" },
-    { "<leader>5", desc = "Harpoon: jump to file 5" },
-  },
+  -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
+  -- same rhs when the plugin loads, so there is no second copy in `config`.
+  -- Nothing else loads harpoon at startup: the only other mentions of it are
+  -- catppuccin's highlight-integration flag (ui.lua) and an auto-save filetype
+  -- exclusion, neither of which requires the module.
+  keys = keys,
   config = function(_, opts)
-    local harpoon = require("harpoon")
-
-    harpoon.setup(opts)
-
-    map({
-      mode = "n",
-      lhs = "<leader>ha",
-      rhs = function()
-        harpoon:list():add()
-      end,
-      desc = "Harpoon: mark current file",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>hh",
-      rhs = function()
-        harpoon.ui:toggle_quick_menu(harpoon:list())
-      end,
-      desc = "Harpoon: open file menu",
-    })
-
-    map({
-      mode = "n",
-      lhs = { "<C-p>", "<leader>hp" },
-      rhs = function()
-        harpoon:list():prev()
-      end,
-      desc = "Harpoon: jump to previous file",
-    })
-
-    map({
-      mode = "n",
-      lhs = { "<C-n>", "<leader>hn" },
-      rhs = function()
-        harpoon:list():next()
-      end,
-      desc = "Harpoon: jump to next file",
-    })
-
-    for i = 1, 5 do
-      map({
-        mode = "n",
-        lhs = "<leader>" .. i,
-        rhs = function()
-          harpoon:list():select(i)
-        end,
-        desc = "Harpoon: jump to file " .. i,
-      })
-    end
+    require("harpoon").setup(opts)
   end,
 }
