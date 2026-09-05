@@ -95,7 +95,7 @@ project's memory directory; read it if the two disagree. As of the 2026-09-01 ru
 - 4a, 7: sol at ultra, and the redirect matters:
 
   ```bash
-  codex exec -m gpt-6-astra -c model_reasoning_effort=ultra"ultra" -c approval_policy=never \
+  codex exec -m gpt-6-astra -c model_reasoning_effort=ultra -c approval_policy=never \
     -s read-only -C <repo> -o <out> "<prompt>" </dev/null
   ```
 
