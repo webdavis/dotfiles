@@ -47,6 +47,19 @@ return {
     { "<leader>Ca", "<cmd>ClaudeCodeAdd %<cr>", desc = "Claude: add current file" },
     { "<leader>Cy", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Claude: accept diff" },
     { "<leader>Cn", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Claude: deny diff" },
+    -- Not a claudecode.nvim command: the shared herdr seam (spec 7.4) sends raw
+    -- text to the agent's herdr pane, which is the path that reaches a free-text
+    -- prompt, a non-Claude agent and an unsaved scratch buffer. It lives on this
+    -- spec because `<leader>C` is the Claude group and a `keys` entry is what
+    -- keeps the whole group lazy.
+    {
+      "<leader>Cp",
+      function()
+        require("custom_api.herdr").send_selection_or_paragraph()
+      end,
+      mode = { "n", "x" },
+      desc = "Claude: send selection or paragraph",
+    },
   },
   opts = {
     terminal = {

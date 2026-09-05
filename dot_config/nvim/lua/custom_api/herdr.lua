@@ -96,7 +96,7 @@ local function agent_status(pane_id)
   if not ok or type(decoded) ~= "table" then
     return "unknown"
   end
-  local agent = ((decoded.result or {}).agent) or {}
+  local agent = (decoded.result or {}).agent or {}
   return agent.agent_status or "unknown"
 end
 
@@ -125,6 +125,69 @@ function M.send(text, opts)
       vim.notify("herdr: " .. err, vim.log.levels.ERROR)
     end
   end)
+end
+
+-- ╭──────────────╮
+-- │ What to send │
+-- ╰──────────────╯
+
+-- The paragraph under the cursor: the run of non-blank lines around it. A blank
+-- line is its own paragraph, which sends nothing and is caught by the caller.
+local function paragraph_range()
+  local buffer = vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)[1]
+  local last = vim.api.nvim_buf_line_count(buffer)
+
+  local function blank(line)
+    return vim.fn.getline(line):match("^%s*$") ~= nil
+  end
+
+  if blank(cursor) then
+    return nil
+  end
+
+  local first, final = cursor, cursor
+  while first > 1 and not blank(first - 1) do
+    first = first - 1
+  end
+  while final < last and not blank(final + 1) do
+    final = final + 1
+  end
+  return first, final
+end
+
+-- The visual selection, or the paragraph under the cursor in normal mode, sent
+-- with `submit = true`: the run-this-there behavior vim-slime was carried for.
+-- There is no target-picking keymap and no `<leader>CP` (spec 7.4):
+-- `agent_pane` resolves the target and prompts only when it is genuinely
+-- ambiguous, so a stored target would be a second answer to a settled question.
+function M.send_selection_or_paragraph()
+  local lines
+
+  if vim.fn.mode():match("^[vV\22]") then
+    -- `mode()` answers "v", "V" or CTRL-V, which is the exact spelling
+    -- `getregion` wants for its `type`; `visualmode()` would answer for the
+    -- PREVIOUS selection. Leaving visual mode is what materializes `'<` and
+    -- `'>`, so it happens after the mode is read and before the marks are.
+    local visual = vim.fn.mode()
+    vim.cmd([[execute "normal! \<esc>"]])
+    -- Not the line range: `getregion` reads charwise, linewise and blockwise
+    -- exactly, so half a line selected sends half a line.
+    lines = vim.fn.getregion(vim.fn.getpos("'<"), vim.fn.getpos("'>"), { type = visual })
+  else
+    local first, final = paragraph_range()
+    if first then
+      lines = vim.api.nvim_buf_get_lines(0, first - 1, final, false)
+    end
+  end
+
+  local text = table.concat(lines or {}, "\n")
+  if vim.trim(text) == "" then
+    vim.notify("herdr: nothing under the cursor to send", vim.log.levels.WARN)
+    return
+  end
+
+  M.send(text, { submit = true })
 end
 
 return M
