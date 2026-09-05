@@ -79,11 +79,12 @@ one: a module may reach anything its declared neighbours pull in, and no build f
 difference. A transitive import is caught by reading the import lines, or not at all.
 
 The architecture survives that, because the direction it protects runs the other way. The domain
-declares no module of ours, so nothing of ours is transitively reachable from it, and UI or
-infrastructure still cannot leak inward. What does not survive is reviewing a MIDDLE module off the
-build alone: `<Tool>UI` declares `<Tool>`, so it can import whatever `<Tool>` imports, a persistence
-framework included, and compile. Read that module's import lines by hand; the compiler is not
-checking them for you.
+declares no module of ours, so nothing of ours is transitively reachable from it, and the UI still
+cannot leak inward. Infrastructure is a different question: it shares `<Tool>` with the domain, so
+that direction never crosses a target boundary and stays REVIEW-ONLY. What does not survive is
+reviewing a MIDDLE module off the build alone: `<Tool>UI` declares `<Tool>`, so it can import
+whatever `<Tool>` imports, a persistence framework included, and compile. Read that module's import
+lines by hand; the compiler is not checking them for you.
 
 **The five roles do not need five modules, and in practice they should not be.** The case study
 (measured) draws exactly three hard boundaries:
