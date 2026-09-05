@@ -47,9 +47,8 @@ end
 
 local function copy_url_mapping_helper(lhs, remote, protocol)
   local mapping_table = {
-    mode = "n",
-    lhs = lhs,
-    rhs = function()
+    lhs,
+    function()
       if git.initialized() then
         local account = account_or_notify()
         if not account then
@@ -84,6 +83,7 @@ local function copy_url_mapping_helper(lhs, remote, protocol)
       end
     end,
     desc = "Git (remote): copy " .. protocol:upper() .. " URL (" .. remote .. ")",
+    silent = true,
   }
 
   return mapping_table
@@ -483,244 +483,98 @@ return {
       "stevearc/overseer.nvim",
       "folke/snacks.nvim",
     },
-    config = function()
-      -- Init／Create:
-      map({
-        mode = "n",
-        lhs = "<C-g>i",
-        rhs = function()
-          local is_initialized = git.initialized({ quiet = true })
-
-          -- `github.username()` never existed on either side, so this errored
-          -- every time the mapping was pressed (item 1). The username is one
-          -- field of the account, and `try` is what turns a `gh` that is not
-          -- logged in into a notification instead of a raised error.
-          local account = try(function()
-            return github.account()
-          end, { label = "github.account" })
-          if not account then
-            return
-          end
-          local user = account.username
-
-          local directory = util.get_cwd_basename()
-
-          local github_project_prompt = "What's the name of your GitHub project (default: " .. directory .. ")? "
-          vim.ui.input({ prompt = github_project_prompt }, function(project_name_input)
-            local project = util.trim(project_name_input)
-            if project == "" then
-              project = directory
-            end
-
-            local confirmation_prompt = "Create project '" .. project .. "' on GitHub? [y]es／[n]o／[q]uit: "
-            vim.ui.input({ prompt = confirmation_prompt }, function(answer)
-              local confirm_creation = util.trim(answer):lower()
-              local yes_values = { y = true, ye = true, yes = true, yep = true, ok = true }
-
-              if not yes_values[confirm_creation] then
-                vim.notify("Project creation aborted for project **" .. project .. "**", log_info, notify_github_title)
-                return
-              end
-
-              local gh_exit, _ = util.run_shell_command({ cmd = { "gh", "repo", "view", project } })
-
-              if gh_exit == 0 then
-                local message = {
-                  "Git: project creation cancelled. GitHub project **" .. project .. "** already exists.",
-                  "Run `gh repo clone " .. user .. "/" .. project .. "` to download it",
-                }
-                vim.notify(table.concat(message, "\n\n"), log_info, notify_github_title)
-                return
-              end
-
-              local cmds = {}
-              if not is_initialized then
-                table.insert(cmds, "git init")
-              end
-              -- overseer_runner joins its commands into one shell line, so the
-              -- name typed at the prompt is quoted for that shell here.
-              table.insert(cmds, "gh repo create --public " .. vim.fn.shellescape(project))
-
-              overseer.overseer_runner({ cmds = cmds })
-            end)
-          end)
+    -- `:Git` and the four log commands take a plain line range and no `-bar`,
+    -- which is exactly what a lazy.nvim placeholder is, so a placeholder parses
+    -- them the way fugitive would. Keeping them here is what gives the command
+    -- line its completion before fugitive loads.
+    cmd = { "G", "GcLog", "Gclog", "Git", "GlLog", "Gllog" },
+    -- `Gr` gets a loader of its own because neither trigger suits it. A
+    -- placeholder is never `-bar`, so a first-use `:Gr file | cmd` swallows the
+    -- chained command; and `CmdUndefined` never fires for it, because an
+    -- undefined name that uniquely prefixes a defined one abbreviates to it and
+    -- `:Gr` would reach grug-far's `GrugFar`. This declares what fugitive
+    -- declares and forwards to `Gread`, which is the same command: fugitive
+    -- defines `Gr` only as an alias for it, and only when the name is still
+    -- free. Forwarding rather than deleting and re-dispatching is what keeps it
+    -- correct when something else loaded fugitive first, since fugitive's own
+    -- `exists(':Gr')` guard then never defines `Gr` at all.
+    init = function()
+      vim.api.nvim_create_user_command("Gr", function(event)
+        require("lazy").load({ plugins = { "vim-fugitive" } })
+        vim.cmd({
+          cmd = "Gread",
+          args = event.fargs,
+          bang = event.bang or nil,
+          mods = event.smods,
+          count = event.count >= 0 and event.range == 0 and event.count or nil,
+          range = event.range == 1 and { event.line1 } or event.range == 2 and { event.line1, event.line2 } or nil,
+        })
+      end, {
+        bang = true,
+        bar = true,
+        nargs = "*",
+        -- `-range=-1` as fugitive declares it. `range = true` is `-range`, which
+        -- clamps address zero to one, so `:0Gr file` inserted after the first
+        -- line where fugitive inserts before it.
+        range = -1,
+        -- Fugitive's own completion function, called directly. Rewriting the
+        -- line to `Gread` and asking `getcompletion` was a recursion: a line
+        -- the anchored pattern missed, `:2Gr …` or `:silent Gr …`, still named
+        -- `Gr`, so completion re-entered this callback until nvim segfaulted.
+        complete = function(arglead, line, pos)
+          require("lazy").load({ plugins = { "vim-fugitive" } })
+          return vim.fn["fugitive#ReadComplete"](arglead, line, pos)
         end,
-        desc = "Git (Overseer): initialize & create GitHub repo",
       })
-
-      -- Status:
-      map({ mode = "n", lhs = "<C-g>ss", rhs = "Git", desc = "Fugitive: status" })
-      map({ mode = "n", lhs = "<C-g>sn", rhs = "Git status -sb", desc = "Fugitive: status (as notification)" })
-
-      -- Staging:
-      map({ mode = "n", lhs = "<C-g>a", rhs = "Gwrite", desc = "Fugitive: add file" })
-
-      -- Stage current file → Amend last commit (no edit) → Force push:
-      map({
-        mode = "n",
-        lhs = "<C-g>!",
-        rhs = "Gwrite|Git commit --amend --no-edit|Git push --force",
-        desc = "Fugitive: stage → amend (no edit) → force push",
-      })
-
-      -- Stash push:
-      map({
-        mode = "n",
-        lhs = "<C-g>Sd",
-        rhs = "Git stash --include-untracked",
-        desc = "Push: tracked + untracked (default)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>Se",
-        rhs = "Git stash --all",
-        desc = "Push: all (tracked + untracked + ignored)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>Sw",
-        rhs = "Git stash --keep-index",
-        desc = "Push: working (keep staged changes)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>SW",
-        rhs = "Git stash --keep-index --include-untracked",
-        desc = "Push: working + untracked (keep staged changes)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>Ss",
-        rhs = "Git stash --staged",
-        desc = "Push: staged",
-      })
-
-      -- Stash pop:
-      map({ mode = "n", lhs = "<C-g>Sp", rhs = "Git stash pop", desc = "Pop: most recent (default)" })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>SP",
-        rhs = function()
-          local index = util.trim(vim.fn.input("Stash index to pop: "))
-          -- A stash index is a number, so it is checked as one before it is
-          -- spliced into an ex command line. Anything else typed here would be
-          -- read as Vim syntax rather than as an index.
-          if index:match("^%d+$") then
-            vim.cmd("Git stash pop " .. index)
-          elseif index ~= "" then
-            vim.notify("Not a stash index: *" .. index .. "*", log_warning, notify_fugitive_title)
-          end
-        end,
-        desc = "Pop: by index <#>",
-      })
-
-      -- Stash apply:
-      map({ mode = "n", lhs = "<C-g>Sa", rhs = "Git stash apply", desc = "Apply: most recent (default)" })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>SA",
-        rhs = function()
-          local index = util.trim(vim.fn.input("Stash index to pop: "))
-          -- A stash index is a number, so it is checked as one before it is
-          -- spliced into an ex command line. Anything else typed here would be
-          -- read as Vim syntax rather than as an index.
-          if index:match("^%d+$") then
-            vim.cmd("Git stash apply " .. index)
-          elseif index ~= "" then
-            vim.notify("Not a stash index: *" .. index .. "*", log_warning, notify_fugitive_title)
-          end
-        end,
-        desc = "Apply: by index <#>",
-      })
-
-      -- Remote:
-      map(copy_url_mapping_helper("<C-g>rh", "origin", "https"))
-      map(copy_url_mapping_helper("<C-g>rH", "upstream", "https"))
-      map(copy_url_mapping_helper("<C-g>rs", "origin", "ssh"))
-      map(copy_url_mapping_helper("<C-g>rS", "upstream", "ssh"))
-
-      -- stylua: ignore start
-      -- Checkout:
-      map({
-        mode = "n",
-        lhs = "<C-g>Cb",
-        rhs = function()
-          local repo = repo_name_or_notify()
-          if not repo then
-            return
-          end
-
-          local branch = git.current_branch()
-
-          local prompt
-          if branch.name and branch.hash then
-            prompt = ("%s: checkout new branch from '%s' (commit: %s): "):format(
-              repo,
-              branch.name,
-              branch.hash
-            )
-          elseif branch.name then
-            prompt = ("%s: checkout new branch from '%s': "):format(
-              repo,
-              branch.name
-            )
-          else
-            prompt = ("%s: checkout new branch (no commit detected): "):format(repo)
-          end
-
-          vim.ui.input({ prompt = prompt }, function(new_branch)
-            if not new_branch or new_branch:match("^%s*$") then
-              local cancel_message = string.format(
-                "Branch creation and checkout cancelled - *no branch name provided*"
-                .. "\n\n---------------------------------------"
-                .. "\n**Repository:** %s"
-                .. "\n**Active Branch:** `%s`",
-                repo,
-                branch.name
-              )
-              vim.notify(cancel_message, log_warning, { title = "Git", timeout = 10000 })
-              return
-            end
-            new_branch = util.trim(new_branch)
-
-            -- Fugitive's own argv entry point. Splicing the name into a `:Git`
-            -- command line instead lets it be re-read as Vim syntax: a newline
-            -- runs a second ex command, `%` expands to the current file, and a
-            -- leading dash becomes another git flag. FugitiveExecute passes the
-            -- word through untouched, and DidChange refreshes the summary the
-            -- `:Git` form would have refreshed.
-            local result = vim.fn.FugitiveExecute({ "checkout", "-b", new_branch })
-            vim.fn.FugitiveDidChange()
-
-            if result.exit_status ~= 0 then
-              vim.notify(
-                "Checkout failed for branch *" .. new_branch .. "*\n\n" .. table.concat(result.stderr or {}, "\n"),
-                log_warning,
-                notify_fugitive_title
-              )
-            end
-          end)
-
-        end,
-        desc = "Git (checkout): create new <branch>",
-      })
-
-      map({ mode = "n", lhs = "<C-g>C-", rhs = "Git checkout -", desc = "Fugitive (checkout): previous branch" })
-      map({ mode = "n", lhs = "<C-g>Cm", rhs = "Git checkout main", desc = "Fugitive (checkout): main" })
-      -- stylua: ignore end
-
-      -- Branch:
-      map({ mode = "n", lhs = "<C-g>bb", rhs = "Git branch", desc = "Fugitive: local" })
-      map({ mode = "n", lhs = "<C-g>bV", rhs = "Git branch -vv", desc = "Fugitive: local (verbose)" })
-      map({ mode = "n", lhs = "<C-g>bR", rhs = "Git branch -rv", desc = "Fugitive: remotes (verbose)" })
-      map({ mode = "n", lhs = "<C-g>bA", rhs = "Git branch --all -vv", desc = "Fugitive: local + remote (verbose)" })
-
+    end,
+    -- Every other fugitive command is `-bar`, or addresses tabs or windows
+    -- rather than lines. A placeholder is created with `range = true` and no
+    -- `bar`, so on FIRST use it parses those wrongly: `:2Gtabedit HEAD:file`
+    -- checks the 2 against the buffer's line count and dies with E16 without
+    -- loading fugitive at all, and `:Gedit file | let x = 1` swallows the bar
+    -- into the argument. Loading from `CmdUndefined` leaves the command
+    -- undefined until it is typed, so fugitive's own declaration is what parses
+    -- the first invocation.
+    event = {
+      -- A command that does not exist yet also has no completion, so
+      -- `:Gtabedit HEAD:dot_config/nvim/<Tab>` offered nothing on a `CmdUndefined`
+      -- trigger alone. Loading when the command line opens gives every one of
+      -- them fugitive's own completion. The cost is that fugitive loads the
+      -- first time `:` is pressed rather than at first use of a command; it is
+      -- still off the startup path, and `CmdUndefined` stays below for calls
+      -- that never open a command line, such as `vim.cmd` from a mapping.
+      { event = "CmdlineEnter", pattern = ":" },
+      {
+        event = "CmdUndefined",
+        pattern = {
+          "GBrowse",
+          "GDelete",
+          "GMove",
+          "GRemove",
+          "GRename",
+          "GUnlink",
+          "Gcd",
+          "Gdiffsplit",
+          "Gdrop",
+          "Ge",
+          "Gedit",
+          "Ggrep",
+          "Ghdiffsplit",
+          "Glcd",
+          "Glgrep",
+          "Gpedit",
+          "Gread",
+          "Gsplit",
+          "Gtabedit",
+          "Gvdiffsplit",
+          "Gvsplit",
+          "Gw",
+          "Gwq",
+          "Gwrite",
+        },
+      },
+    },
+    keys = function()
       local function format_section(label, text, metatext)
         if text and text:match("%S") then
           if metatext and metatext:match("%S") then
@@ -786,13 +640,6 @@ return {
 
         vim.notify(message, vim.log.levels.INFO, { title = "Active Git Branch & Latest Commit", timeout = 0 })
       end
-
-      map({
-        mode = "n",
-        lhs = "<C-g>bc",
-        rhs = show_current_git_branch,
-        desc = "Notify: current + copy hash to clipboard (verbose)",
-      })
 
       -- Helper functions for formatting:
       local function bold(text)
@@ -889,123 +736,6 @@ return {
         vim.notify(text, log_info, { title = "All Git Branches", timeout = 0 })
       end
 
-      map({
-        mode = "n",
-        lhs = "<C-g>bv",
-        rhs = show_all_local_branches_with_info,
-        desc = "Notify: local + info",
-      })
-
-      -- stylua: ignore start
-      -- Commit:
-      map({ mode = "n", lhs = "<C-g>cc", rhs = "Git commit --verbose", desc = "Fugitive: entire index (all staged changes)" })
-      map({ mode = "n", lhs = "<C-g>cf", rhs = "Git commit %", desc = "Fugitive: current file only" })
-      map({ mode = "n", lhs = "<C-g>ca", rhs = "Git commit --amend --verbose", desc = "Fugitive: amend latest (edit message)" })
-      map({ mode = "n", lhs = "<C-g>cn", rhs = "Git commit --amend --no-edit", desc = "Fugitive: amend latest (don't edit message)" })
-      -- stylua: ignore end
-
-      map({
-        mode = "n",
-        lhs = "<C-g>cp",
-        rhs = function()
-          local repo_name = repo_name_or_notify()
-          if not repo_name then
-            return
-          end
-
-          local commit = git.latest_commit({ repo_name = repo_name }) or {}
-          if not commit.summary then
-            return
-          end
-
-          vim.fn.setreg('"', commit.summary .. "\n\n" .. (commit.body or ""))
-          vim.cmd("normal! ]p")
-        end,
-        desc = "Fugitive: paste latest message into buffer",
-      })
-
-      -- An interactive command to amend the author/email of the latest commit:
-      map({
-        mode = "n",
-        lhs = "<C-g>cA",
-        rhs = function()
-          local repo_name = repo_name_or_notify()
-          if not repo_name then
-            return
-          end
-
-          local commit = git.latest_commit({ repo_name = repo_name }) or {}
-          if not commit.hash then
-            return nil
-          end
-
-          local function message_helper(subject)
-            return "No " .. subject .. " entered - author update cancelled for commit `" .. commit.hash .. "`"
-          end
-
-          vim.ui.input({ prompt = "Author for latest commit (" .. commit.hash .. "): " }, function(author)
-            if not author or author:match("^%s*$") then
-              vim.notify(message_helper("author"), log_warning, notify_fugitive_title)
-              return
-            end
-            author = util.trim(author)
-
-            vim.ui.input({ prompt = "Email for " .. author .. ": " }, function(email)
-              if not email or email:match("^%s*$") then
-                vim.notify(message_helper("email"), log_warning, notify_fugitive_title)
-                return
-              end
-
-              email = util.trim(email)
-              -- One argv word, so the double quotes that used to wrap it are
-              -- gone with the shell they were quoting for. An author typed with
-              -- a `"` in it used to close them early and turn the rest of the
-              -- name into further `git commit` flags.
-              local result = vim.fn.FugitiveExecute({
-                "commit",
-                "-C",
-                "HEAD",
-                "--amend",
-                "--author=" .. author .. " <" .. email .. ">",
-              })
-              vim.fn.FugitiveDidChange()
-
-              if result.exit_status ~= 0 then
-                vim.notify(
-                  "Amend failed\n\n" .. table.concat(result.stderr or {}, "\n"),
-                  log_warning,
-                  notify_fugitive_title
-                )
-              end
-            end)
-          end)
-        end,
-        desc = "Fugitive: amend latest (author only)",
-      })
-
-      -- Log:
-      -- stylua: ignore start
-      map({ mode = "n", lhs = "<C-g>lo", rhs = "Git log --oneline", desc = "Fugitive: oneline" })
-      map({ mode = "n", lhs = "<C-g>lO", rhs = "Git log --oneline -- %", desc = "Fugitive: oneline (current file)" })
-      map({ mode = "n", lhs = "<C-g>lc", rhs = "Git log --oneline -- %", desc = "Fugitive: oneline (current file) (alt)" })
-
-      map({ mode = "n", lhs = "<C-g>ll", rhs = "Git log", desc = "Fugitive: default" })
-      map({ mode = "n", lhs = "<C-g>lL", rhs = "Git log -- %", desc = "Fugitive: default (current file)" })
-      map({ mode = "n", lhs = "<C-g>lso", rhs = "Git log --oneline --no-merges origin/main..HEAD", desc = "Fugitive: oneline" })
-      map({ mode = "n", lhs = "<C-g>lsl", rhs = "Git log --no-merges origin/main..HEAD", desc = "Fugitive: default" })
-      -- stylua: ignore end
-
-      map({
-        mode = "n",
-        lhs = "<C-g>lr",
-        rhs = function()
-          overseer.overseer_runner({
-            cmds = "git log --pretty=format:'%<(7)%C(yellow)%h%C(reset) %<(15,trunc)%C(cyan)%ar%C(reset) %<(16,trunc)%C(green)%an%C(reset) %<(80,trunc)%s'",
-          })
-        end,
-        desc = "Overseer: pretty (relative time)",
-      })
-
       local function last_monday()
         local now = os.time()
         local day_of_week = tonumber(os.date("%w", now)) -- 0 = Sunday, 1 = Monday ...
@@ -1014,264 +744,6 @@ return {
         local monday = now - days_since_monday * 24 * 60 * 60
         return os.date("%Y-%m-%d", monday)
       end
-
-      map({
-        mode = "n",
-        lhs = "<C-g>lw",
-        rhs = function()
-          local account = account_or_notify()
-          if not account then
-            return
-          end
-
-          local author = account.fullname
-          if not author then
-            return 1
-          end
-
-          local monday = last_monday()
-          local args = {
-            "Git",
-            "log",
-            ("--since='%s'"):format(monday),
-            ("--author='%s'"):format(author),
-            "--date=format-local:'%a, %Y-%m-%d %H:%M'",
-            "--pretty=format:'%<(8)%C(yellow)%h%C(reset)  %>>(20)%C(magenta)%ad%C(reset)  %s'",
-          }
-          local git_cmd = table.concat(args, " ")
-
-          vim.cmd(git_cmd)
-        end,
-        desc = "Fugitive: my contributions this-week (no color)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>lW",
-        rhs = function()
-          local account = account_or_notify()
-          if not account then
-            return
-          end
-
-          local author = account.fullname
-          if not author then
-            return 1
-          end
-
-          local monday = last_monday()
-          local args = {
-            "git",
-            "log",
-            ("--since='%s'"):format(monday),
-            ("--author='%s'"):format(author),
-            "--date=format-local:'%a, %Y-%m-%d %H:%M'",
-            "--pretty=format:'%<(8)%C(yellow)%h%C(reset)  %>>(20)%C(magenta)%ad%C(reset)  %<(80,trunc)%s'",
-          }
-          local git_cmd = table.concat(args, " ")
-
-          overseer.overseer_runner({ cmds = git_cmd })
-        end,
-        desc = "Overseer: my contributions this-week (color)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>lsr",
-        rhs = function()
-          overseer.overseer_runner({
-            cmds = "git log --no-merges --pretty=format:'%<(7)%C(yellow)%h%C(reset) %<(15,trunc)%C(cyan)%ar%C(reset) %<(16,trunc)%C(green)%an%C(reset) %<(80,trunc)%s' origin/main..HEAD",
-          })
-        end,
-        desc = "Overseer: pretty (relative time)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>lp",
-        rhs = function()
-          local branch = git.current_branch().name
-          local default_commits = 20
-          vim.ui.input(
-            { prompt = ("(Branch: %s) Number of commits [default %d, q to quit]: "):format(branch, default_commits) },
-            function(input)
-              local sanitized = util.sanitize_input(input or "")
-
-              if sanitized:lower() == "q" then
-                vim.notify(("Cancelled Git log for branch `%s`"):format(branch), log_info, notify_fugitive_title)
-                return
-              end
-
-              if sanitized == "" then
-                sanitized = tostring(default_commits)
-              end
-
-              local number_commits = tonumber(sanitized)
-              if not number_commits or number_commits <= 0 then
-                vim.notify(("Invalid number entered: `%s`"):format(sanitized), log_error, notify_fugitive_title)
-                return
-              end
-
-              vim.notify(
-                ("Showing the **%s** most recent commits on branch `%s`"):format(sanitized, branch),
-                log_info,
-                notify_fugitive_title
-              )
-              vim.cmd(("Git log --pretty=oneline -n %d --graph --abbrev-commit"):format(number_commits))
-            end
-          )
-        end,
-        desc = "Fugitive: pretty (enter number of commits)",
-      })
-
-      -- Diff (HEAD / latest commit):
-      map({
-        mode = "n",
-        lhs = "<C-g>dhf",
-        rhs = "vertical Git diff -p --stat --function-context",
-        desc = "Fugitive: with function context (vertical)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>dhF",
-        rhs = "Git diff -p --stat --function-context",
-        desc = "Fugitive: with function context (horizontal)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>dhw",
-        rhs = function()
-          local repo_name = repo_name_or_notify()
-          if not repo_name then
-            return
-          end
-
-          local commit = git.latest_commit({ repo_name = repo_name }) or {}
-          if not commit.hash then
-            return
-          end
-          overseer.overseer_runner({ cmds = "git diff --color-words" })
-        end,
-        desc = "Overseer: emphasize changed words",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>dhm",
-        rhs = function()
-          local repo_name = repo_name_or_notify()
-          if not repo_name then
-            return
-          end
-
-          local commit = git.latest_commit({ repo_name = repo_name }) or {}
-          if not commit.hash then
-            return
-          end
-          overseer.overseer_runner({ cmds = "git diff --color-moved" })
-        end,
-        desc = "Overseer: emphasize moved lines",
-      })
-
-      -- Diff (index / staging):
-      map({
-        mode = "n",
-        lhs = "<C-g>dic",
-        rhs = "Git diff --cached -U0",
-        desc = "Git: no context",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>diC",
-        rhs = "Git diff --cached -U0 -- %",
-        desc = "Git: no context (current file)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>dif",
-        rhs = "vertical Git diff -p --stat --cached --function-context",
-        desc = "Fugitive: function context (vertical)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>diF",
-        rhs = "Git diff -p --stat --cached --function-context",
-        desc = "Fugitive: function context (horizontal)",
-      })
-
-      -- Fetch/Pull:
-      map({ mode = "n", lhs = "<C-g>Ff", rhs = "Git fetch", desc = "Fugitive: fetch" })
-      map({ mode = "n", lhs = "<C-g>Fp", rhs = "Git pull", desc = "Fugitive: pull" })
-      map({ mode = "n", lhs = "<C-g>Fr", rhs = "Git pull --rebase", desc = "Fugitive: pull --rebase" })
-
-      -- stylua: ignore start
-      -- Push:
-      map({ mode = "n", lhs = "<C-g>pp", rhs = "Git push", desc = "Fugitive: push" })
-      map({ mode = "n", lhs = "<C-g>pf", rhs = "Git push --force-with-lease", desc = "Fugitive: push --force-with-lease" })
-      -- stylua: ignore end
-
-      -- An interactive `git push -u origin <current_branch>` implementation:
-      --   ∙ Prompts the user for confirmation before pushing the current branch to GitHub.
-      --   ∙ Useful for safely publishing new branches without accidentally pushing unintended
-      --     changes.
-      map({
-        mode = "n",
-        lhs = "<C-g>pu",
-        rhs = function()
-          local branch = git.current_branch().name
-          if not branch then
-            return
-          end
-
-          vim.ui.input({ prompt = "Push " .. branch .. " to origin? [y]es／[n]o／[q]uit: " }, function(input)
-            local confirm_push = util.sanitize_input(input)
-            local yes_values = { y = true, ye = true, yes = true, yep = true, ok = true }
-
-            if not yes_values[confirm_push] then
-              vim.notify("Push cancelled for branch *" .. branch .. "*", log_info, notify_fugitive_title)
-              return
-            end
-
-            -- HEAD is the branch this already resolved, so nothing has to be
-            -- spliced in. The single quotes it replaces were not a defence: a
-            -- branch name may legally contain one, and closing them early made
-            -- the remainder into further `git push` flags.
-            vim.cmd("Git push -u origin HEAD")
-          end)
-        end,
-        desc = "Fugitive: push -u origin <branch>",
-      })
-
-      -- Whatchanged:
-      map({
-        mode = "n",
-        lhs = "<C-g>ww",
-        rhs = "Git whatchanged --i-still-use-this",
-        desc = "Fugitive: whatchanged (workspace)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>wb",
-        rhs = "Git whatchanged --i-still-use-this -- %",
-        desc = "Fugitive: whatchanged (buffer)",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<C-g>wc",
-        rhs = ":Git whatchanged --i-still-use-this --since=",
-        desc = "Fugitive: whatchanged --since=<date>",
-      })
-
-      -- Browse:
-      map({ mode = "n", lhs = "<C-g>of", rhs = "GBrowse", desc = "Fugitive: browse (file)" })
-      map({ mode = "n", lhs = "<C-g>ol", rhs = ".GBrowse", desc = "Fugitive: browse (line in file)" })
 
       local function get_default_browser()
         -- Detect default browser on macOS
@@ -1359,9 +831,8 @@ return {
         end
 
         local mapping_table = {
-          mode = "n",
-          lhs = "<C-g>o" .. key,
-          rhs = function()
+          "<C-g>o" .. key,
+          function()
             local remote_repo_info = build_remote_repo_info(url_suffix, use_current_branch)
             if not remote_repo_info then
               return
@@ -1391,21 +862,646 @@ return {
             util.run_shell_command({ cmd = { "open", remote_repo_info.url } })
           end,
           desc = ("Open GitHub: %s"):format(mapping_desc),
+          silent = true,
         }
 
         return mapping_table
       end
 
-      map(open_github_page_mapping({ key = "o" }))
-      map(open_github_page_mapping({ key = "b", branch = true }))
-      map(open_github_page_mapping({ key = "i", url_suffix = "issues" }))
-      map(open_github_page_mapping({ key = "p", url_suffix = "pulls", page_desc = "Pull Requests" }))
-      map(open_github_page_mapping({ key = "a", url_suffix = "actions" }))
-      map(open_github_page_mapping({ key = "P", url_suffix = "projects" }))
-      map(open_github_page_mapping({ key = "w", url_suffix = "wiki" }))
-      map(open_github_page_mapping({ key = "S", url_suffix = "security" }))
-      map(open_github_page_mapping({ key = "I", url_suffix = "pulse", page_desc = "Insights" }))
-      map(open_github_page_mapping({ key = "s", url_suffix = "settings" }))
+      return {
+        -- Init／Create:
+        {
+          "<C-g>i",
+          function()
+            local is_initialized = git.initialized({ quiet = true })
+
+            -- `github.username()` never existed on either side, so this errored
+            -- every time the mapping was pressed (item 1). The username is one
+            -- field of the account, and `try` is what turns a `gh` that is not
+            -- logged in into a notification instead of a raised error.
+            local account = try(function()
+              return github.account()
+            end, { label = "github.account" })
+            if not account then
+              return
+            end
+            local user = account.username
+
+            local directory = util.get_cwd_basename()
+
+            local github_project_prompt = "What's the name of your GitHub project (default: " .. directory .. ")? "
+            vim.ui.input({ prompt = github_project_prompt }, function(project_name_input)
+              local project = util.trim(project_name_input)
+              if project == "" then
+                project = directory
+              end
+
+              local confirmation_prompt = "Create project '" .. project .. "' on GitHub? [y]es／[n]o／[q]uit: "
+              vim.ui.input({ prompt = confirmation_prompt }, function(answer)
+                local confirm_creation = util.trim(answer):lower()
+                local yes_values = { y = true, ye = true, yes = true, yep = true, ok = true }
+
+                if not yes_values[confirm_creation] then
+                  vim.notify(
+                    "Project creation aborted for project **" .. project .. "**",
+                    log_info,
+                    notify_github_title
+                  )
+                  return
+                end
+
+                local gh_exit, _ = util.run_shell_command({ cmd = { "gh", "repo", "view", project } })
+
+                if gh_exit == 0 then
+                  local message = {
+                    "Git: project creation cancelled. GitHub project **" .. project .. "** already exists.",
+                    "Run `gh repo clone " .. user .. "/" .. project .. "` to download it",
+                  }
+                  vim.notify(table.concat(message, "\n\n"), log_info, notify_github_title)
+                  return
+                end
+
+                local cmds = {}
+                if not is_initialized then
+                  table.insert(cmds, "git init")
+                end
+                -- overseer_runner joins its commands into one shell line, so the
+                -- name typed at the prompt is quoted for that shell here.
+                table.insert(cmds, "gh repo create --public " .. vim.fn.shellescape(project))
+
+                overseer.overseer_runner({ cmds = cmds })
+              end)
+            end)
+          end,
+          desc = "Git (Overseer): initialize & create GitHub repo",
+          silent = true,
+        },
+
+        -- Status:
+        { "<C-g>ss", "<cmd>Git<cr>", desc = "Fugitive: status", silent = true },
+        { "<C-g>sn", "<cmd>Git status -sb<cr>", desc = "Fugitive: status (as notification)", silent = true },
+
+        -- Staging:
+        { "<C-g>a", "<cmd>Gwrite<cr>", desc = "Fugitive: add file", silent = true },
+
+        -- Stage current file → Amend last commit (no edit) → Force push:
+        {
+          "<C-g>!",
+          "<cmd>Gwrite|Git commit --amend --no-edit|Git push --force<cr>",
+          desc = "Fugitive: stage → amend (no edit) → force push",
+          silent = true,
+        },
+
+        -- Stash push:
+        {
+          "<C-g>Sd",
+          "<cmd>Git stash --include-untracked<cr>",
+          desc = "Push: tracked + untracked (default)",
+          silent = true,
+        },
+
+        {
+          "<C-g>Se",
+          "<cmd>Git stash --all<cr>",
+          desc = "Push: all (tracked + untracked + ignored)",
+          silent = true,
+        },
+
+        {
+          "<C-g>Sw",
+          "<cmd>Git stash --keep-index<cr>",
+          desc = "Push: working (keep staged changes)",
+          silent = true,
+        },
+
+        {
+          "<C-g>SW",
+          "<cmd>Git stash --keep-index --include-untracked<cr>",
+          desc = "Push: working + untracked (keep staged changes)",
+          silent = true,
+        },
+
+        {
+          "<C-g>Ss",
+          "<cmd>Git stash --staged<cr>",
+          desc = "Push: staged",
+          silent = true,
+        },
+
+        -- Stash pop:
+        { "<C-g>Sp", "<cmd>Git stash pop<cr>", desc = "Pop: most recent (default)", silent = true },
+
+        {
+          "<C-g>SP",
+          function()
+            local index = util.trim(vim.fn.input("Stash index to pop: "))
+            -- A stash index is a number, so it is checked as one before it is
+            -- spliced into an ex command line. Anything else typed here would be
+            -- read as Vim syntax rather than as an index.
+            if index:match("^%d+$") then
+              vim.cmd("Git stash pop " .. index)
+            elseif index ~= "" then
+              vim.notify("Not a stash index: *" .. index .. "*", log_warning, notify_fugitive_title)
+            end
+          end,
+          desc = "Pop: by index <#>",
+          silent = true,
+        },
+
+        -- Stash apply:
+        { "<C-g>Sa", "<cmd>Git stash apply<cr>", desc = "Apply: most recent (default)", silent = true },
+
+        {
+          "<C-g>SA",
+          function()
+            local index = util.trim(vim.fn.input("Stash index to pop: "))
+            -- A stash index is a number, so it is checked as one before it is
+            -- spliced into an ex command line. Anything else typed here would be
+            -- read as Vim syntax rather than as an index.
+            if index:match("^%d+$") then
+              vim.cmd("Git stash apply " .. index)
+            elseif index ~= "" then
+              vim.notify("Not a stash index: *" .. index .. "*", log_warning, notify_fugitive_title)
+            end
+          end,
+          desc = "Apply: by index <#>",
+          silent = true,
+        },
+
+        -- Remote:
+        copy_url_mapping_helper("<C-g>rh", "origin", "https"),
+        copy_url_mapping_helper("<C-g>rH", "upstream", "https"),
+        copy_url_mapping_helper("<C-g>rs", "origin", "ssh"),
+        copy_url_mapping_helper("<C-g>rS", "upstream", "ssh"),
+
+        -- stylua: ignore start
+        -- Checkout:
+        {
+          "<C-g>Cb",
+          function()
+            local repo = repo_name_or_notify()
+            if not repo then
+              return
+            end
+
+            local branch = git.current_branch()
+
+            local prompt
+            if branch.name and branch.hash then
+              prompt = ("%s: checkout new branch from '%s' (commit: %s): "):format(
+                repo,
+                branch.name,
+                branch.hash
+              )
+            elseif branch.name then
+              prompt = ("%s: checkout new branch from '%s': "):format(
+                repo,
+                branch.name
+              )
+            else
+              prompt = ("%s: checkout new branch (no commit detected): "):format(repo)
+            end
+
+            vim.ui.input({ prompt = prompt }, function(new_branch)
+              if not new_branch or new_branch:match("^%s*$") then
+                local cancel_message = string.format(
+                  "Branch creation and checkout cancelled - *no branch name provided*"
+                  .. "\n\n---------------------------------------"
+                  .. "\n**Repository:** %s"
+                  .. "\n**Active Branch:** `%s`",
+                  repo,
+                  branch.name
+                )
+                vim.notify(cancel_message, log_warning, { title = "Git", timeout = 10000 })
+                return
+              end
+              new_branch = util.trim(new_branch)
+
+              -- Fugitive's own argv entry point. Splicing the name into a `:Git`
+              -- command line instead lets it be re-read as Vim syntax: a newline
+              -- runs a second ex command, `%` expands to the current file, and a
+              -- leading dash becomes another git flag. FugitiveExecute passes the
+              -- word through untouched, and DidChange refreshes the summary the
+              -- `:Git` form would have refreshed.
+              local result = vim.fn.FugitiveExecute({ "checkout", "-b", new_branch })
+              vim.fn.FugitiveDidChange()
+
+              if result.exit_status ~= 0 then
+                vim.notify(
+                  "Checkout failed for branch *" .. new_branch .. "*\n\n" .. table.concat(result.stderr or {}, "\n"),
+                  log_warning,
+                  notify_fugitive_title
+                )
+              end
+            end)
+
+          end,
+          desc = "Git (checkout): create new <branch>",
+          silent = true,
+        },
+
+        { "<C-g>C-", "<cmd>Git checkout -<cr>", desc = "Fugitive (checkout): previous branch", silent = true },
+        { "<C-g>Cm", "<cmd>Git checkout main<cr>", desc = "Fugitive (checkout): main", silent = true },
+        -- stylua: ignore end
+
+        -- Branch:
+        { "<C-g>bb", "<cmd>Git branch<cr>", desc = "Fugitive: local", silent = true },
+        { "<C-g>bV", "<cmd>Git branch -vv<cr>", desc = "Fugitive: local (verbose)", silent = true },
+        { "<C-g>bR", "<cmd>Git branch -rv<cr>", desc = "Fugitive: remotes (verbose)", silent = true },
+        { "<C-g>bA", "<cmd>Git branch --all -vv<cr>", desc = "Fugitive: local + remote (verbose)", silent = true },
+
+        {
+          "<C-g>bc",
+          show_current_git_branch,
+          desc = "Notify: current + copy hash to clipboard (verbose)",
+          silent = true,
+        },
+
+        {
+          "<C-g>bv",
+          show_all_local_branches_with_info,
+          desc = "Notify: local + info",
+          silent = true,
+        },
+
+        -- stylua: ignore start
+        -- Commit:
+        { "<C-g>cc", "<cmd>Git commit --verbose<cr>", desc = "Fugitive: entire index (all staged changes)", silent = true },
+        { "<C-g>cf", "<cmd>Git commit %<cr>", desc = "Fugitive: current file only", silent = true },
+        { "<C-g>ca", "<cmd>Git commit --amend --verbose<cr>", desc = "Fugitive: amend latest (edit message)", silent = true },
+        { "<C-g>cn", "<cmd>Git commit --amend --no-edit<cr>", desc = "Fugitive: amend latest (don't edit message)", silent = true },
+        -- stylua: ignore end
+
+        {
+          "<C-g>cp",
+          function()
+            local repo_name = repo_name_or_notify()
+            if not repo_name then
+              return
+            end
+
+            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            if not commit.summary then
+              return
+            end
+
+            vim.fn.setreg('"', commit.summary .. "\n\n" .. (commit.body or ""))
+            vim.cmd("normal! ]p")
+          end,
+          desc = "Fugitive: paste latest message into buffer",
+          silent = true,
+        },
+
+        -- An interactive command to amend the author/email of the latest commit:
+        {
+          "<C-g>cA",
+          function()
+            local repo_name = repo_name_or_notify()
+            if not repo_name then
+              return
+            end
+
+            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            if not commit.hash then
+              return nil
+            end
+
+            local function message_helper(subject)
+              return "No " .. subject .. " entered - author update cancelled for commit `" .. commit.hash .. "`"
+            end
+
+            vim.ui.input({ prompt = "Author for latest commit (" .. commit.hash .. "): " }, function(author)
+              if not author or author:match("^%s*$") then
+                vim.notify(message_helper("author"), log_warning, notify_fugitive_title)
+                return
+              end
+              author = util.trim(author)
+
+              vim.ui.input({ prompt = "Email for " .. author .. ": " }, function(email)
+                if not email or email:match("^%s*$") then
+                  vim.notify(message_helper("email"), log_warning, notify_fugitive_title)
+                  return
+                end
+
+                email = util.trim(email)
+                -- One argv word, so the double quotes that used to wrap it are
+                -- gone with the shell they were quoting for. An author typed with
+                -- a `"` in it used to close them early and turn the rest of the
+                -- name into further `git commit` flags.
+                local result = vim.fn.FugitiveExecute({
+                  "commit",
+                  "-C",
+                  "HEAD",
+                  "--amend",
+                  "--author=" .. author .. " <" .. email .. ">",
+                })
+                vim.fn.FugitiveDidChange()
+
+                if result.exit_status ~= 0 then
+                  vim.notify(
+                    "Amend failed\n\n" .. table.concat(result.stderr or {}, "\n"),
+                    log_warning,
+                    notify_fugitive_title
+                  )
+                end
+              end)
+            end)
+          end,
+          desc = "Fugitive: amend latest (author only)",
+          silent = true,
+        },
+
+        -- Log:
+        -- stylua: ignore start
+        { "<C-g>lo", "<cmd>Git log --oneline<cr>", desc = "Fugitive: oneline", silent = true },
+        { "<C-g>lO", "<cmd>Git log --oneline -- %<cr>", desc = "Fugitive: oneline (current file)", silent = true },
+        { "<C-g>lc", "<cmd>Git log --oneline -- %<cr>", desc = "Fugitive: oneline (current file) (alt)", silent = true },
+
+        { "<C-g>ll", "<cmd>Git log<cr>", desc = "Fugitive: default", silent = true },
+        { "<C-g>lL", "<cmd>Git log -- %<cr>", desc = "Fugitive: default (current file)", silent = true },
+        { "<C-g>lso", "<cmd>Git log --oneline --no-merges origin/main..HEAD<cr>", desc = "Fugitive: oneline", silent = true },
+        { "<C-g>lsl", "<cmd>Git log --no-merges origin/main..HEAD<cr>", desc = "Fugitive: default", silent = true },
+        -- stylua: ignore end
+
+        {
+          "<C-g>lr",
+          function()
+            overseer.overseer_runner({
+              cmds = "git log --pretty=format:'%<(7)%C(yellow)%h%C(reset) %<(15,trunc)%C(cyan)%ar%C(reset) %<(16,trunc)%C(green)%an%C(reset) %<(80,trunc)%s'",
+            })
+          end,
+          desc = "Overseer: pretty (relative time)",
+          silent = true,
+        },
+
+        {
+          "<C-g>lw",
+          function()
+            local account = account_or_notify()
+            if not account then
+              return
+            end
+
+            local author = account.fullname
+            if not author then
+              return 1
+            end
+
+            local monday = last_monday()
+            local args = {
+              "Git",
+              "log",
+              ("--since='%s'"):format(monday),
+              ("--author='%s'"):format(author),
+              "--date=format-local:'%a, %Y-%m-%d %H:%M'",
+              "--pretty=format:'%<(8)%C(yellow)%h%C(reset)  %>>(20)%C(magenta)%ad%C(reset)  %s'",
+            }
+            local git_cmd = table.concat(args, " ")
+
+            vim.cmd(git_cmd)
+          end,
+          desc = "Fugitive: my contributions this-week (no color)",
+          silent = true,
+        },
+
+        {
+          "<C-g>lW",
+          function()
+            local account = account_or_notify()
+            if not account then
+              return
+            end
+
+            local author = account.fullname
+            if not author then
+              return 1
+            end
+
+            local monday = last_monday()
+            local args = {
+              "git",
+              "log",
+              ("--since='%s'"):format(monday),
+              ("--author='%s'"):format(author),
+              "--date=format-local:'%a, %Y-%m-%d %H:%M'",
+              "--pretty=format:'%<(8)%C(yellow)%h%C(reset)  %>>(20)%C(magenta)%ad%C(reset)  %<(80,trunc)%s'",
+            }
+            local git_cmd = table.concat(args, " ")
+
+            overseer.overseer_runner({ cmds = git_cmd })
+          end,
+          desc = "Overseer: my contributions this-week (color)",
+          silent = true,
+        },
+
+        {
+          "<C-g>lsr",
+          function()
+            overseer.overseer_runner({
+              cmds = "git log --no-merges --pretty=format:'%<(7)%C(yellow)%h%C(reset) %<(15,trunc)%C(cyan)%ar%C(reset) %<(16,trunc)%C(green)%an%C(reset) %<(80,trunc)%s' origin/main..HEAD",
+            })
+          end,
+          desc = "Overseer: pretty (relative time)",
+          silent = true,
+        },
+
+        {
+          "<C-g>lp",
+          function()
+            local branch = git.current_branch().name
+            local default_commits = 20
+            vim.ui.input(
+              { prompt = ("(Branch: %s) Number of commits [default %d, q to quit]: "):format(branch, default_commits) },
+              function(input)
+                local sanitized = util.sanitize_input(input or "")
+
+                if sanitized:lower() == "q" then
+                  vim.notify(("Cancelled Git log for branch `%s`"):format(branch), log_info, notify_fugitive_title)
+                  return
+                end
+
+                if sanitized == "" then
+                  sanitized = tostring(default_commits)
+                end
+
+                local number_commits = tonumber(sanitized)
+                if not number_commits or number_commits <= 0 then
+                  vim.notify(("Invalid number entered: `%s`"):format(sanitized), log_error, notify_fugitive_title)
+                  return
+                end
+
+                vim.notify(
+                  ("Showing the **%s** most recent commits on branch `%s`"):format(sanitized, branch),
+                  log_info,
+                  notify_fugitive_title
+                )
+                vim.cmd(("Git log --pretty=oneline -n %d --graph --abbrev-commit"):format(number_commits))
+              end
+            )
+          end,
+          desc = "Fugitive: pretty (enter number of commits)",
+          silent = true,
+        },
+
+        -- Diff (HEAD / latest commit):
+        {
+          "<C-g>dhf",
+          "<cmd>vertical Git diff -p --stat --function-context<cr>",
+          desc = "Fugitive: with function context (vertical)",
+          silent = true,
+        },
+
+        {
+          "<C-g>dhF",
+          "<cmd>Git diff -p --stat --function-context<cr>",
+          desc = "Fugitive: with function context (horizontal)",
+          silent = true,
+        },
+
+        {
+          "<C-g>dhw",
+          function()
+            local repo_name = repo_name_or_notify()
+            if not repo_name then
+              return
+            end
+
+            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            if not commit.hash then
+              return
+            end
+            overseer.overseer_runner({ cmds = "git diff --color-words" })
+          end,
+          desc = "Overseer: emphasize changed words",
+          silent = true,
+        },
+
+        {
+          "<C-g>dhm",
+          function()
+            local repo_name = repo_name_or_notify()
+            if not repo_name then
+              return
+            end
+
+            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            if not commit.hash then
+              return
+            end
+            overseer.overseer_runner({ cmds = "git diff --color-moved" })
+          end,
+          desc = "Overseer: emphasize moved lines",
+          silent = true,
+        },
+
+        -- Diff (index / staging):
+        {
+          "<C-g>dic",
+          "<cmd>Git diff --cached -U0<cr>",
+          desc = "Git: no context",
+          silent = true,
+        },
+
+        {
+          "<C-g>diC",
+          "<cmd>Git diff --cached -U0 -- %<cr>",
+          desc = "Git: no context (current file)",
+          silent = true,
+        },
+
+        {
+          "<C-g>dif",
+          "<cmd>vertical Git diff -p --stat --cached --function-context<cr>",
+          desc = "Fugitive: function context (vertical)",
+          silent = true,
+        },
+
+        {
+          "<C-g>diF",
+          "<cmd>Git diff -p --stat --cached --function-context<cr>",
+          desc = "Fugitive: function context (horizontal)",
+          silent = true,
+        },
+
+        -- Fetch/Pull:
+        { "<C-g>Ff", "<cmd>Git fetch<cr>", desc = "Fugitive: fetch", silent = true },
+        { "<C-g>Fp", "<cmd>Git pull<cr>", desc = "Fugitive: pull", silent = true },
+        { "<C-g>Fr", "<cmd>Git pull --rebase<cr>", desc = "Fugitive: pull --rebase", silent = true },
+
+        -- stylua: ignore start
+        -- Push:
+        { "<C-g>pp", "<cmd>Git push<cr>", desc = "Fugitive: push", silent = true },
+        { "<C-g>pf", "<cmd>Git push --force-with-lease<cr>", desc = "Fugitive: push --force-with-lease", silent = true },
+        -- stylua: ignore end
+
+        -- An interactive `git push -u origin <current_branch>` implementation:
+        --   ∙ Prompts the user for confirmation before pushing the current branch to GitHub.
+        --   ∙ Useful for safely publishing new branches without accidentally pushing unintended
+        --     changes.
+        {
+          "<C-g>pu",
+          function()
+            local branch = git.current_branch().name
+            if not branch then
+              return
+            end
+
+            vim.ui.input({ prompt = "Push " .. branch .. " to origin? [y]es／[n]o／[q]uit: " }, function(input)
+              local confirm_push = util.sanitize_input(input)
+              local yes_values = { y = true, ye = true, yes = true, yep = true, ok = true }
+
+              if not yes_values[confirm_push] then
+                vim.notify("Push cancelled for branch *" .. branch .. "*", log_info, notify_fugitive_title)
+                return
+              end
+
+              -- HEAD is the branch this already resolved, so nothing has to be
+              -- spliced in. The single quotes it replaces were not a defence: a
+              -- branch name may legally contain one, and closing them early made
+              -- the remainder into further `git push` flags.
+              vim.cmd("Git push -u origin HEAD")
+            end)
+          end,
+          desc = "Fugitive: push -u origin <branch>",
+          silent = true,
+        },
+
+        -- Whatchanged:
+        {
+          "<C-g>ww",
+          "<cmd>Git whatchanged --i-still-use-this<cr>",
+          desc = "Fugitive: whatchanged (workspace)",
+          silent = true,
+        },
+
+        {
+          "<C-g>wb",
+          "<cmd>Git whatchanged --i-still-use-this -- %<cr>",
+          desc = "Fugitive: whatchanged (buffer)",
+          silent = true,
+        },
+
+        {
+          "<C-g>wc",
+          ":Git whatchanged --i-still-use-this --since=",
+          desc = "Fugitive: whatchanged --since=<date>",
+        },
+
+        -- Browse:
+        { "<C-g>of", "<cmd>GBrowse<cr>", desc = "Fugitive: browse (file)", silent = true },
+        { "<C-g>ol", "<cmd>.GBrowse<cr>", desc = "Fugitive: browse (line in file)", silent = true },
+
+        open_github_page_mapping({ key = "o" }),
+        open_github_page_mapping({ key = "b", branch = true }),
+        open_github_page_mapping({ key = "i", url_suffix = "issues" }),
+        open_github_page_mapping({ key = "p", url_suffix = "pulls", page_desc = "Pull Requests" }),
+        open_github_page_mapping({ key = "a", url_suffix = "actions" }),
+        open_github_page_mapping({ key = "P", url_suffix = "projects" }),
+        open_github_page_mapping({ key = "w", url_suffix = "wiki" }),
+        open_github_page_mapping({ key = "S", url_suffix = "security" }),
+        open_github_page_mapping({ key = "I", url_suffix = "pulse", page_desc = "Insights" }),
+        open_github_page_mapping({ key = "s", url_suffix = "settings" }),
+      }
     end,
   },
   {
@@ -1424,6 +1520,24 @@ return {
         "nvim-lua/plenary.nvim",
         "folke/snacks.nvim",
         "nvim-tree/nvim-web-devicons",
+      },
+      -- `Octo` is the only command octo defines, and `octo.setup()` in `config`
+      -- is what creates it, so it has to be named up front. The rows below are
+      -- the `<leader>gh` mappings themselves: lazy.nvim installs the placeholder
+      -- at startup and sets the real mapping from the same row once octo loads.
+      -- The `<localleader>` groups stay in `config`, registered by its
+      -- `FileType octo` autocmd, which is not a keymap the spec can carry.
+      cmd = "Octo",
+      keys = {
+        { "<leader>ghg", "<cmd>Octo gist list<cr>", desc = "Octo: list gists", silent = true },
+        { "<leader>ghi", "<cmd>Octo issue list<cr>", desc = "Octo: list issues", silent = true },
+        { "<leader>ghI", "<cmd>Octo issue create<cr>", desc = "Octo: create issue", silent = true },
+        { "<leader>ghm", "<cmd>Octo pr merge<cr>", desc = "Octo: merge pull request", silent = true },
+        { "<leader>ghn", "<cmd>Octo notification<cr>", desc = "Octo: notifications", silent = true },
+        { "<leader>ghp", "<cmd>Octo pr list<cr>", desc = "Octo: list pull requests", silent = true },
+        { "<leader>ghP", "<cmd>Octo pr create<cr>", desc = "Octo: create pull request", silent = true },
+        { "<leader>ghr", "<cmd>Octo repo list<cr>", desc = "Octo: list repos", silent = true },
+        { "<leader>ghw", "<cmd>Octo run list<cr>", desc = "Octo: list workflow runs", silent = true },
       },
       config = function()
         require("octo").setup({
@@ -1444,16 +1558,6 @@ return {
             },
           },
         })
-
-        map({ mode = "n", lhs = "<leader>ghg", rhs = "Octo gist list", desc = "Octo: list gists" })
-        map({ mode = "n", lhs = "<leader>ghi", rhs = "Octo issue list", desc = "Octo: list issues" })
-        map({ mode = "n", lhs = "<leader>ghI", rhs = "Octo issue create", desc = "Octo: create issue" })
-        map({ mode = "n", lhs = "<leader>ghm", rhs = "Octo pr merge", desc = "Octo: merge pull request" })
-        map({ mode = "n", lhs = "<leader>ghn", rhs = "Octo notification", desc = "Octo: notifications" })
-        map({ mode = "n", lhs = "<leader>ghp", rhs = "Octo pr list", desc = "Octo: list pull requests" })
-        map({ mode = "n", lhs = "<leader>ghP", rhs = "Octo pr create", desc = "Octo: create pull request" })
-        map({ mode = "n", lhs = "<leader>ghr", rhs = "Octo repo list", desc = "Octo: list repos" })
-        map({ mode = "n", lhs = "<leader>ghw", rhs = "Octo run list", desc = "Octo: list workflow runs" })
 
         local opts = {
           prefix = "<localleader>",

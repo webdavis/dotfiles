@@ -2004,6 +2004,11 @@ const ACTIVITY_READ_MAX: u64 = 1024 * 1024;
 /// bounded state that prunes itself.
 const DECISIONS: &str = "decisions";
 
+/// The lamp-narrowing ring: one line per narrowing decision, `KEPT` deep,
+/// beside `decisions`. Its own file rather than a field on the decision ring,
+/// because the tick writes it too and the tick decides no event at all.
+const PRESENCE_DECISIONS: &str = "presence-decisions";
+
 /// The missed-notification journal: one JSON object per line, oldest first,
 /// `missed_notifications::KEPT` deep, beside `decisions` and `quiet-until`.
 /// Bounded state that prunes itself, not a log stream and not rotate-logs'
@@ -2416,20 +2421,134 @@ fn system_probes() -> SystemProbes<SystemCommandRunner> {
 /// already printed, and inventing a room out of settings nobody could parse
 /// is the fail-open this whole reading is shaped to avoid.
 fn presence_status(settings: Option<&pns::config::Presence>) -> pns::presence::PresenceStatus {
-    let Some(settings) = settings else {
-        return pns::presence::PresenceStatus::Unknown(pns::presence::Unreadable::NoReading);
-    };
+    match settings {
+        Some(settings) => presence_reading(settings).0,
+        None => pns::presence::PresenceStatus::Unknown(pns::presence::Unreadable::NoReading),
+    }
+}
+
+/// The reading and the clock it was aged against, off ONE probe set.
+///
+/// THE CLOCK COMES BACK OUT with the verdict rather than being re-read by
+/// whoever wants to stamp a line with it: a second read is a second moment.
+fn presence_reading(
+    settings: &pns::config::Presence,
+) -> (pns::presence::PresenceStatus, Option<u64>) {
     let probes = system_probes();
-    pns::presence::classify(
-        probes
-            .presence_line()
-            .as_deref()
-            .and_then(pns::presence_file::parse_presence_line),
-        probes.now_secs(),
-        settings.stale_after_secs,
-        &settings.rooms,
-        &settings.exclude,
+    let now = probes.now_secs();
+    (
+        pns::presence::classify(
+            probes
+                .presence_line()
+                .as_deref()
+                .and_then(pns::presence_file::parse_presence_line),
+            now,
+            settings.stale_after_secs,
+            &settings.rooms,
+            &settings.exclude,
+        ),
+        now,
     )
+}
+
+/// What the room sensor and the machine's own clocks say, or `None` for a
+/// machine that never armed the table.
+///
+/// `None` REACHES NO NEW CODE AT ALL: no narrowing, no record, and a lamp map
+/// that behaves exactly as it did before this feature existed.
+///
+/// EVERY READING COMES OFF THE CALLER'S OWN PROBE SET, which is what makes
+/// this one moment rather than several. `SystemProbes` memoizes the clock, the
+/// idle counter, the screen lock and the presence line, so a caller that hands
+/// its own set in cannot have the reading aged against one clock and the
+/// decision made against another. Building a fresh set here is exactly the
+/// boundary that let a reading fresh at 14 seconds be stale at 16.
+fn presence_snapshot<R: pns::system::CommandRunner>(
+    settings: Option<&pns::config::Presence>,
+    probes: &SystemProbes<R>,
+    desk_idle_secs: Option<u64>,
+    screen_locked: Option<bool>,
+    home: pns::home::HomePresence,
+) -> Option<pns::presence_policy::Snapshot> {
+    let settings = settings?;
+    let now = probes.now_secs();
+    Some(pns::presence_policy::Snapshot {
+        status: pns::presence::classify(
+            probes
+                .presence_line()
+                .as_deref()
+                .and_then(pns::presence_file::parse_presence_line),
+            now,
+            settings.stale_after_secs,
+            &settings.rooms,
+            &settings.exclude,
+        ),
+        desk_idle_secs,
+        screen_locked,
+        home,
+        desk_room: settings.desk_room.clone(),
+        desk_stale_after_secs: settings.desk_stale_after_secs,
+        now,
+    })
+}
+
+/// What the router says about the phone, for the narrowing's away gate.
+///
+/// `Unknown` TODAY, AND THE GATE IS WHERE IT BELONGS RATHER THAN LIVE. Reading
+/// it means two `UniFiRouter` calls at five seconds apiece
+/// (`home::ROUTER_DEADLINE`), and both callers of the narrowing are behind a
+/// lamp: the event path's pulse already spends a bridge deadline after every
+/// channel has fired, and the tick's whole budget is one refresh interval it
+/// also has to fit three bridge calls and a breath into. `Unknown` is the
+/// fail-open direction the policy already states, so the cost of not asking is
+/// exactly one gate: motion in a watched room still carries the lamps.
+///
+/// SO THE GATE IS DORMANT, and the residue is stated rather than left to be
+/// re-derived: while this answers `Unknown`, an operator out of the house with
+/// somebody else moving in a watched room narrows the lamps to that room.
+/// Presence only ever narrows which lamp signals, and the operator is not in
+/// the house to see any lamp, so that wrong narrow costs them nothing a full
+/// write would have delivered; the signal that reaches them when they are away
+/// is the phone, which no lamp decision touches. `presence_room::chosen` holds
+/// the same reasoning at the gate itself.
+///
+/// ponytail: a stale-bounded reading published by a daemon poll, in
+/// `presence poll`'s own shape, is what makes this live; it is filed as B102.
+fn home_presence() -> pns::home::HomePresence {
+    pns::home::HomePresence::Unknown
+}
+
+/// The routing narrowed to the room the operator is in, with the decision
+/// appended to its ring.
+///
+/// THE RECORD IS FAIL-QUIET, in `record_decision`'s exact style and for its
+/// exact reason: both callers run where a printed line about the state
+/// directory would be a line in every hook's output or in a tick that runs
+/// three times a minute forever.
+fn narrow_to_presence(
+    state: &Path,
+    routing: pns::channels::hue::Routing,
+    presence: Option<&pns::presence_policy::Snapshot>,
+) -> pns::channels::hue::Routing {
+    let Some(snapshot) = presence else {
+        return routing;
+    };
+    let (narrowed, decision) = pns::presence_policy::narrow(routing, snapshot);
+    let _ = append_ring_line(
+        &state.join(PRESENCE_DECISIONS),
+        &pns::presence_journal::entry(&pns::presence_journal::recorded(snapshot, &decision)),
+        pns::decision_log::KEPT,
+        RING_READ_MAX,
+    );
+    narrowed
+}
+
+/// The last narrowing this machine decided. `None` is a ring with nothing in
+/// it, which is presence off or never yet consulted.
+fn last_narrowing(state: &Path) -> Option<pns::presence_journal::Entry> {
+    let contents =
+        pns::system::readable_state_file(&state.join(PRESENCE_DECISIONS), RING_READ_MAX).ok()?;
+    pns::presence_journal::last(&contents)
 }
 
 /// Start moshi on the stream. `None` is "not installed", which is the
@@ -2801,6 +2920,39 @@ fn run_event(
     payload: &HookPayload,
     attempt: Attempt,
 ) {
+    run_event_pulsing(
+        event,
+        probes,
+        payload,
+        attempt,
+        &|table, lights, behaviour, presence| {
+            fire_pulse_unless_quiet(table, lights, behaviour, presence);
+        },
+    );
+}
+
+/// Where this event's pulse ends up. THE REAL PULSE IN PRODUCTION and a
+/// recorder in the one test that is about the ORDERING of this path rather
+/// than about a lamp.
+///
+/// A SEAM AND NOT AN ABSTRACTION. There is exactly one implementation besides
+/// the real pulse, it exists because the readings the pulse is handed are
+/// taken hundreds of lines above it, and no other reading on this path is
+/// injectable. A probe set is already the seam for everything else.
+type PulseSink<'a> = &'a dyn Fn(
+    Option<toml::Table>,
+    Option<&pns::config::Lights>,
+    pns::config::Behaviour,
+    Option<&pns::presence_policy::Snapshot>,
+);
+
+fn run_event_pulsing(
+    event: &pns::args::EventArgs,
+    probes: &SystemProbes<SystemCommandRunner>,
+    payload: &HookPayload,
+    attempt: Attempt,
+    pulse: PulseSink<'_>,
+) {
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     // Read off the config before selection consumes it: the pulse needs hue's
@@ -2816,7 +2968,7 @@ fn run_event(
     // that one: its token, its toggle and its refusal are three answers to ONE
     // question, and reading them separately is what let the refusal be dropped
     // on the way to a leg that then delivered anyway.
-    let (hue_table, lights, mobile, hermes_key, recap, focus_silence) = match &loaded {
+    let (hue_table, lights, mobile, hermes_key, recap, focus_silence, presence) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
             config.lights.clone(),
@@ -2824,6 +2976,11 @@ fn run_event(
             plugin_settings(config, "hermes").and_then(hermes_secret),
             config.recap.clone(),
             config.focus_silence.clone(),
+            // A TABLE NOBODY COULD PARSE IS NO READING, never a room: the
+            // refusal was already printed, and inventing a room out of
+            // settings nobody could read is the fail-open the whole reading is
+            // shaped to avoid.
+            pns::config::parse_presence(config).ok().flatten(),
         ),
         // A config that is absent or could not be read falls back to the
         // DEFAULTS of all five, and deliberately disagrees with the plugin
@@ -2853,6 +3010,7 @@ fn run_event(
             None,
             pns::config::Recap::default(),
             Vec::new(),
+            None,
         ),
     };
     let (selection, warning) = select_plugins(&roster(), loaded);
@@ -2903,6 +3061,28 @@ fn run_event(
         now_secs,
         event.long_running,
         mobile.watch_card,
+    );
+
+    // THE LAMPS' OWN READINGS, TAKEN HERE AND NOT AT THE PULSE BELOW. The
+    // pulse is the last thing this path does: every channel has dispatched,
+    // the record is written and the catch-up has replayed, which is anywhere
+    // from a millisecond to a network deadline later. The desk ages this
+    // carries come off THIS decision, so a snapshot built down there describes
+    // a moment the plan beside it never saw. The reading itself was taken
+    // before this probe set held a clock at all (`with_presence_path`), so
+    // what is assembled here is one moment rather than three.
+    //
+    // TAKEN FOR EVERY EVENT, not only the ones that reach a lamp: the gate
+    // below is two booleans read off this same decision, and moving the
+    // reading behind it would put the boundary back where it was. It costs one
+    // memoized file read on an armed machine and nothing at all on a machine
+    // with no `[plugins.presence]` table.
+    let presence_at_decision = presence_snapshot(
+        presence.as_ref(),
+        probes,
+        decision.inputs.desk_input_age,
+        decision.inputs.screen_locked,
+        home_presence(),
     );
 
     let outcomes = if decision.legs.is_empty() {
@@ -3079,7 +3259,16 @@ fn run_event(
     let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
     let blocked_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
     if decision.plan.pulse || blocked_lamp {
-        fire_pulse_unless_quiet(hue_table.clone(), lights.as_deref(), behaviour);
+        // THE DECISION'S OWN READINGS, handed down rather than taken again:
+        // this event's plan and the room its lamp narrows to have to describe
+        // one moment. The snapshot was BUILT beside the decision, before any
+        // channel ran, for the reason stated there.
+        pulse(
+            hue_table.clone(),
+            lights.as_deref(),
+            behaviour,
+            presence_at_decision.as_ref(),
+        );
     }
     // AND THE OPERATOR'S RETURN PUTS OUT WHATEVER A GLOW IS STILL HOLDING.
     // The steady write is the one body on this path that does not expire, so
@@ -3511,6 +3700,7 @@ fn fire_pulse_unless_quiet(
     hue_table: Option<toml::Table>,
     lights: Option<&pns::config::Lights>,
     behaviour: pns::config::Behaviour,
+    presence: Option<&pns::presence_policy::Snapshot>,
 ) {
     // No table is nothing to quiet: an operator who never enabled the lights
     // gets the same silence `fire_pulse` would have given them.
@@ -3560,6 +3750,7 @@ fn fire_pulse_unless_quiet(
             muted: &muted,
         },
         held_lamps(&state).as_deref(),
+        presence,
     ));
     // SAY-ONCE, NOT ONCE PER EVENT. A state file something else corrupted stays
     // corrupt until a human fixes it, and this path fires many times a session,
@@ -3615,6 +3806,7 @@ fn fire_lights(
     behaviour: pns::config::Behaviour,
     reading: &pns::channels::hue::Reading<'_>,
     held: Option<&[String]>,
+    presence: Option<&pns::presence_policy::Snapshot>,
 ) -> Vec<String> {
     let Some(hue) = hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) else {
         return Vec::new();
@@ -3624,7 +3816,15 @@ fn fire_lights(
         key: hue.key,
         deadline: BRIDGE_DEADLINE,
     };
-    run_pulse_writes(&bridge, lights, behaviour, reading, held)
+    run_pulse_writes(
+        &bridge,
+        &state_dir(),
+        lights,
+        behaviour,
+        reading,
+        held,
+        presence,
+    )
 }
 
 /// The event path's routed writes: one pulse body per lamp the behaviour is
@@ -3641,10 +3841,12 @@ fn fire_lights(
 /// that was breathing about a question.
 fn run_pulse_writes<B: pns::channels::hue::Bridge>(
     bridge: &B,
+    state: &Path,
     lights: &pns::config::Lights,
     behaviour: pns::config::Behaviour,
     reading: &pns::channels::hue::Reading<'_>,
     held: Option<&[String]>,
+    presence: Option<&pns::presence_policy::Snapshot>,
 ) -> Vec<String> {
     // A BRIDGE THAT ANSWERED NOTHING RESOLVES NOTHING, and says nothing here.
     // The doctor is where an unreachable bridge is reported; a warning on every
@@ -3652,24 +3854,42 @@ fn run_pulse_writes<B: pns::channels::hue::Bridge>(
     let Some(routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
         return Vec::new();
     };
+    // THE COMPLAINTS COME OFF THE WHOLE RESOLUTION, before the narrowing: a
+    // lamp name the bridge could not answer is a typo in the config whether or
+    // not the operator is standing in that room.
+    let mut routing = routing;
     let complaints = routing_complaints(&routing);
-    for routed in &routing.lamps {
+    // WHAT THIS EVENT WOULD ACTUALLY WRITE, decided ONCE and used twice: as
+    // the set presence narrows over, and as the write itself. It answers the
+    // whole per-lamp question, the mute, the routing, the held record and the
+    // dim window together, because "eligible" has to mean "would light" or the
+    // narrowing's own fallback is judging the wrong set.
+    let write_for = |routed: &pns::channels::hue::Routed| -> Option<(String, String)> {
         let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
         let lamp_is_held = held.is_none_or(|held| held.contains(&path));
         if pns::channels::hue::muted_now(&routed.lamp, reading.muted)
             || !pns::lights::pulse_fires(&routed.shows, behaviour, lamp_is_held)
         {
-            continue;
+            return None;
         }
         let showing =
             pns::channels::hue::dim_showing(routed.dim.as_ref(), behaviour, reading.minutes_now);
-        if let Some((color, pulse, brightness)) =
-            pns::channels::hue::pulse_render(behaviour, lights, showing)
-        {
-            bridge.put(
-                &path,
-                &pns::channels::hue::pulse_body(&pulse, color, brightness),
-            );
+        let (color, pulse, brightness) =
+            pns::channels::hue::pulse_render(behaviour, lights, showing)?;
+        Some((
+            path,
+            pns::channels::hue::pulse_body(&pulse, color, brightness),
+        ))
+    };
+    // NARROWED OVER THE ELIGIBLE SET AND NOT THE WHOLE ONE. A room holding a
+    // lamp that carries some OTHER behaviour is a room this event lights
+    // nothing in, so narrowing to it and filtering afterwards produced exactly
+    // the silence the fallback exists to prevent.
+    routing.lamps.retain(|routed| write_for(routed).is_some());
+    let routing = narrow_to_presence(state, routing, presence);
+    for routed in &routing.lamps {
+        if let Some((path, body)) = write_for(routed) {
+            bridge.put(&path, &body);
         }
     }
     complaints
@@ -4288,9 +4508,10 @@ fn doctor_mode() -> i32 {
             pns::doctor::CheckKind::Pulse => pulse_outcome(hue_table.clone()),
             // A READING, NEVER A SEND: nothing is dispatched to a sensor, and
             // what an operator cannot see any other way is what it says now.
-            pns::doctor::CheckKind::Presence => {
-                pns::doctor::Outcome::Presence(presence_status(presence_settings.as_ref()))
-            }
+            pns::doctor::CheckKind::Presence => pns::doctor::Outcome::Presence(
+                presence_status(presence_settings.as_ref()),
+                last_narrowing(&state_dir()),
+            ),
             // BY NAME, never by position. The legs above are these checks in
             // this order and `dispatch_legs` answers one outcome per leg, so
             // the two agree today; a positional pairing that ever stopped
@@ -5761,7 +5982,12 @@ fn lights_tick() -> i32 {
     // clock this machine cannot read, is a tick that can arm nothing; the
     // bridge above is still named, so the one thing it can still do is put out
     // what the last tick was holding and forget it.
-    let (Some(lights), Some(now)) = (config.lights.as_deref(), now_secs()) else {
+    // ONE PROBE SET FOR THE WHOLE TICK, and its clock is the tick's `now`.
+    // Every reading the narrowing takes below comes off this set's memoized
+    // cells, so the reading, the age it is judged by and the moment the
+    // decision is stamped with cannot straddle a boundary.
+    let probes = system_probes();
+    let (Some(lights), Some(now)) = (config.lights.as_deref(), probes.now_secs()) else {
         clear_held_lamps(Some(&settings));
         return 0;
     };
@@ -5833,6 +6059,17 @@ fn lights_tick() -> i32 {
             },
             held_before_entries.as_deref(),
             now.saturating_mul(1000),
+            // THE TICK TAKES ITS OWN READINGS, because it decides no event and
+            // so inherits nobody's, and it takes them off the ONE probe set
+            // this tick built, whose clock read is the `now` above.
+            presence_snapshot(
+                pns::config::parse_presence(&config).ok().flatten().as_ref(),
+                &probes,
+                pns::probes::IdleProbe::idle_secs(&probes),
+                pns::probes::ScreenLockProbe::screen_locked(&probes),
+                home_presence(),
+            )
+            .as_ref(),
             || u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
             std::thread::sleep,
         ));
@@ -5931,6 +6168,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     reading: &pns::channels::hue::Reading<'_>,
     held_before: Option<&[pns::lights::HeldEntry]>,
     now_ms: u64,
+    presence: Option<&pns::presence_policy::Snapshot>,
     mut elapsed_ms: impl FnMut() -> u64,
     sleep: impl FnMut(Duration),
 ) -> Vec<String> {
@@ -5953,25 +6191,38 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     if !active.is_empty() {
         // The doctor is where an unreachable bridge is REPORTED; this process
         // runs unattended and has no reader for that sentence.
-        let Some(routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
+        let Some(mut routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
             return complaints;
         };
+        // OFF THE WHOLE RESOLUTION, before the narrowing, for
+        // `run_pulse_writes`'s reason: a name the bridge could not answer is a
+        // typo whether or not the operator is standing in that room.
         complaints.extend(routing_complaints(&routing));
-        for routed in &routing.lamps {
+        // WHAT THIS TICK WOULD ACTUALLY ARM, in `run_pulse_writes`'s shape and
+        // for its reason: presence has to narrow over the lamps this house
+        // state reaches, or a room whose only lamp carries some other state
+        // reads as narrowable and then breathes on nothing.
+        let breath_for = |routed: &pns::channels::hue::Routed| -> Option<(
+            pns::lights::Held,
+            pns::channels::hue::Showing,
+        )> {
             if pns::channels::hue::muted_now(&routed.lamp, reading.muted) {
-                continue;
+                return None;
             }
-            let Some(held) = pns::lights::shown(active, &routed.shows) else {
-                continue;
-            };
+            let held = pns::lights::shown(active, &routed.shows)?;
             let showing = pns::channels::hue::dim_showing(
                 routed.dim.as_ref(),
                 held.behaviour(),
                 reading.minutes_now,
             );
-            if showing == pns::channels::hue::Showing::Dark {
+            (showing != pns::channels::hue::Showing::Dark).then_some((held, showing))
+        };
+        routing.lamps.retain(|routed| breath_for(routed).is_some());
+        let routing = narrow_to_presence(state, routing, presence);
+        for routed in &routing.lamps {
+            let Some((held, showing)) = breath_for(routed) else {
                 continue;
-            }
+            };
             let (color, cycle) = pns::channels::hue::held_render(held, lights, showing);
             let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
             // A LAMP NOT NAMED IN LAST TICK'S RECORD, OR NAMED THERE WITH NO
@@ -9300,18 +9551,19 @@ fn focus_now(home: &str, silence: &[String]) -> std::io::Result<FocusReading> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bounded, Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
-        LIGHTS_HELD, LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK,
-        Launch, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, PRESENCE_DAEMON_FLAG, Polled,
-        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, child_bound,
-        daemon_pass, drive_breaths, end_lease, ensure_presence_poll, held_lamps, keep_aside,
-        keep_aside_at, lights_report, list, matches_glob, means_yes, muted_state, presence_launch,
-        publish_config, publish_state_line, read_failure, read_held, read_news, read_note,
-        recap_bounds, record_news, remember_held, renew_loop_lease, republish_after,
-        reread_attempts_from, reread_interval_from, resolve_path, router_backend, run_pulse_writes,
+        Attempt, Bounded, Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS,
+        DEFAULT_REREAD_INTERVAL, HookPayload, LIGHTS_HELD, LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID,
+        LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK, Launch, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        PRESENCE_DAEMON_FLAG, Polled, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
+        blocked_lamp, child_bound, daemon_pass, drive_breaths, end_lease, ensure_presence_poll,
+        held_lamps, keep_aside, keep_aside_at, last_narrowing, lights_report, list, matches_glob,
+        means_yes, muted_state, now_secs, presence_launch, presence_snapshot, publish_config,
+        publish_state_line, read_failure, read_held, read_news, read_note, recap_bounds,
+        record_news, remember_held, renew_loop_lease, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, router_backend, run_event_pulsing, run_pulse_writes,
         run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
-        sweep_markers, sweep_shell_markers, tick_bridge_deadline, update_blocked_marker,
-        write_presence_reading,
+        sweep_markers, sweep_shell_markers, system_probes, tick_bridge_deadline,
+        update_blocked_marker, write_presence_reading,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9380,6 +9632,8 @@ mod tests {
         pns::config::Presence {
             rooms: rooms.iter().map(|room| (*room).to_string()).collect(),
             exclude: exclude.iter().map(|room| (*room).to_string()).collect(),
+            desk_room: None,
+            desk_stale_after_secs: 120,
             poll_secs: 5,
             stale_after_secs: 15,
         }
@@ -9749,6 +10003,8 @@ mod tests {
         let presence = pns::config::Presence {
             rooms: vec!["3F - Studio".to_string()],
             exclude: Vec::new(),
+            desk_room: None,
+            desk_stale_after_secs: 120,
             poll_secs: 7,
             stale_after_secs: 21,
         };
@@ -9785,6 +10041,8 @@ mod tests {
         let presence = pns::config::Presence {
             rooms: vec!["3F - Studio".to_string()],
             exclude: Vec::new(),
+            desk_room: None,
+            desk_stale_after_secs: 120,
             poll_secs: 5,
             stale_after_secs: 15,
         };
@@ -9806,6 +10064,8 @@ mod tests {
         let presence = pns::config::Presence {
             rooms: vec!["3F - Studio".to_string()],
             exclude: Vec::new(),
+            desk_room: None,
+            desk_stale_after_secs: 120,
             poll_secs: 5,
             stale_after_secs: 15,
         };
@@ -10165,6 +10425,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10211,6 +10472,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10255,6 +10517,7 @@ mod tests {
                 }),
             }]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10288,6 +10551,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10327,6 +10591,7 @@ mod tests {
             &noon(&quieted("3F - Studio")),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10361,6 +10626,7 @@ mod tests {
             &noon(&pns::channels::hue::Muting::Everything),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10391,6 +10657,7 @@ mod tests {
             &noon(&nothing_muted()),
             None,
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10529,6 +10796,7 @@ mod tests {
             // event path has emptied since.
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10564,6 +10832,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10591,6 +10860,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             long_past_any_holder_ms,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10626,6 +10896,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[pns::lights::HeldEntry::bare(LAMP_PATH)]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -10845,6 +11116,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             || clock.elapsed_ms(),
             |waited| clock.slept(waited),
         );
@@ -10894,6 +11166,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             || clock.elapsed_ms(),
             |waited| clock.slept(waited),
         );
@@ -10926,6 +11199,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&held_after_tick_one),
             12_400,
+            None,
             || clock.elapsed_ms(),
             |waited| {
                 sleeps.borrow_mut().push(waited);
@@ -10981,6 +11255,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             || clock.elapsed_ms(),
             |waited| clock.slept(waited),
         );
@@ -11001,6 +11276,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&held_after_the_loop),
             12_400,
+            None,
             || clock.elapsed_ms(),
             |waited| {
                 sleeps.borrow_mut().push(waited);
@@ -11036,6 +11312,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             || clock.elapsed_ms(),
             |waited| {
                 seen_mid_breath
@@ -11075,6 +11352,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             || clock.elapsed_ms(),
             |waited| {
                 let _ = std::fs::remove_file(state.join(LIGHTS_HELD));
@@ -11206,6 +11484,7 @@ mod tests {
             &noon(&nothing_muted()),
             Some(&[]),
             0,
+            None,
             no_time_passes(),
             |_| {},
         );
@@ -11275,10 +11554,12 @@ mod tests {
         let free = scripted(true);
         run_pulse_writes(
             &free,
+            &scratch("pulse-writes-free"),
             &lights,
             pns::config::Behaviour::Done,
             &noon(&nothing_muted()),
             Some(&[]),
+            None,
         );
         let puts = free.puts.borrow();
         assert_eq!(puts.len(), 1, "{puts:?}");
@@ -11296,10 +11577,12 @@ mod tests {
         let muted = scripted(true);
         run_pulse_writes(
             &muted,
+            &scratch("pulse-writes-muted"),
             &lights,
             pns::config::Behaviour::Done,
             &noon(&quieted("3F - Studio")),
             Some(&[]),
+            None,
         );
         assert!(
             muted.puts.borrow().is_empty(),
@@ -11312,10 +11595,12 @@ mod tests {
         let dark = scripted(true);
         run_pulse_writes(
             &dark,
+            &scratch("pulse-writes-dark"),
             &lights,
             pns::config::Behaviour::Done,
             &noon(&pns::channels::hue::Muting::Everything),
             Some(&[]),
+            None,
         );
         assert!(
             dark.puts.borrow().is_empty(),
@@ -11327,10 +11612,12 @@ mod tests {
         let held = scripted(true);
         run_pulse_writes(
             &held,
+            &scratch("pulse-writes-held"),
             &lights,
             pns::config::Behaviour::Done,
             &noon(&nothing_muted()),
             Some(&[LAMP_PATH.to_string()]),
+            None,
         );
         assert!(
             held.puts.borrow().is_empty(),
@@ -11350,10 +11637,12 @@ mod tests {
         let phased = scripted(true);
         run_pulse_writes(
             &phased,
+            &state,
             &lights,
             pns::config::Behaviour::Done,
             &noon(&nothing_muted()),
             held_lamps(&state).as_deref(),
+            None,
         );
         assert!(
             phased.puts.borrow().is_empty(),
@@ -11366,15 +11655,477 @@ mod tests {
         let unreadable = scripted(true);
         run_pulse_writes(
             &unreadable,
+            &scratch("pulse-writes-unreadable"),
             &lights,
             pns::config::Behaviour::Done,
             &noon(&nothing_muted()),
+            None,
             None,
         );
         assert!(
             unreadable.puts.borrow().is_empty(),
             "a held record nobody could read let the pulse fire anyway: {:?}",
             unreadable.puts.borrow()
+        );
+    }
+
+    /// A bridge holding two rooms with one lamp each, which is the smallest
+    /// listing a narrowing can be observed against: with one room, keeping the
+    /// room and keeping everything are the same answer.
+    struct TwoRoomBridge {
+        puts: RefCell<Vec<(String, String)>>,
+    }
+
+    impl pns::channels::hue::Bridge for TwoRoomBridge {
+        fn get(&self, path: &str) -> Option<String> {
+            Some(
+                match path {
+                    "light" => {
+                        r#"{"data":[
+                      {"id":"l1","type":"light","owner":{"rid":"dev-1","rtype":"device"},
+                       "metadata":{"name":"3F - Studio - HCL1"}},
+                      {"id":"l2","type":"light","owner":{"rid":"dev-2","rtype":"device"},
+                       "metadata":{"name":"2F - Kitchen - HCD6"}}
+                    ]}"#
+                    }
+                    "zone" => r#"{"data":[]}"#,
+                    _ => {
+                        r#"{"data":[
+                      {"id":"r1","type":"room","metadata":{"name":"3F - Studio"},
+                       "children":[{"rid":"dev-1","rtype":"device"}],
+                       "services":[{"rid":"g1","rtype":"grouped_light"}]},
+                      {"id":"r2","type":"room","metadata":{"name":"2F - Kitchen"},
+                       "children":[{"rid":"dev-2","rtype":"device"}],
+                       "services":[{"rid":"g2","rtype":"grouped_light"}]}
+                    ]}"#
+                    }
+                }
+                .to_string(),
+            )
+        }
+        fn put(&self, path: &str, body: &str) {
+            self.puts
+                .borrow_mut()
+                .push((path.to_string(), body.to_string()));
+        }
+    }
+
+    #[test]
+    fn a_held_lamp_breathes_only_in_the_room_the_reading_names() {
+        // THE TICK'S OWN HALF OF THE WIRING. It is the path the SUSTAINED lamp
+        // takes, so a narrowing wired into the pulse alone would leave a
+        // blocked breath lit in every room while the operator sits in one.
+        let lights = *pns::config::parse_config(
+            "[lights]\nrefresh_secs = 10\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nshows = [\"blocked\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let bridge = TwoRoomBridge {
+            puts: RefCell::new(Vec::new()),
+        };
+        let state = scratch("tick-narrowed-by-presence");
+        run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            Some(&at_the_desk(pns::presence::PresenceStatus::Nowhere {
+                poll_age_secs: 1,
+            })),
+            no_time_passes(),
+            |_| {},
+        );
+        let armed: Vec<String> = bridge
+            .puts
+            .borrow()
+            .iter()
+            .map(|(path, _)| path.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        assert_eq!(
+            armed,
+            vec!["light/l1".to_string()],
+            "only the lamp in the desk's own room is armed"
+        );
+        assert_eq!(
+            last_narrowing(&state).and_then(|entry| entry.room),
+            Some("3F - Studio".to_string()),
+            "and the decision is where the doctor reads it back"
+        );
+    }
+
+    /// A snapshot with the desk warm and no room reading of its own, so the
+    /// desk's own room is what the narrowing picks.
+    fn at_the_desk(status: pns::presence::PresenceStatus) -> pns::presence_policy::Snapshot {
+        pns::presence_policy::Snapshot {
+            status,
+            desk_idle_secs: Some(0),
+            screen_locked: Some(false),
+            home: pns::home::HomePresence::Unknown,
+            desk_room: Some("3F - Studio".to_string()),
+            desk_stale_after_secs: 120,
+            now: Some(1_700_000_000),
+        }
+    }
+
+    /// A snapshot with the desk cold and fresh motion in the kitchen.
+    fn in_the_kitchen() -> pns::presence_policy::Snapshot {
+        pns::presence_policy::Snapshot {
+            desk_idle_secs: None,
+            ..at_the_desk(pns::presence::PresenceStatus::Room {
+                room: "2F - Kitchen".to_string(),
+                age_secs: 0,
+            })
+        }
+    }
+
+    #[test]
+    fn the_snapshot_is_taken_off_the_callers_own_probe_set_and_never_a_fresh_one() {
+        // ONE MOMENT, STRUCTURALLY. `SystemProbes` memoizes its clock and its
+        // presence line, so a snapshot built off the caller's set cannot have
+        // the reading aged against one clock and the decision made against
+        // another. Built off a set of its own it can, and did: a reading fresh
+        // at fourteen seconds when the surface was chosen was stale at sixteen
+        // when presence was read, turning one room into the whole house.
+        let state = scratch("snapshot-one-probe-set");
+        let line = state.join("presence");
+        let now = now_secs().expect("a clock");
+        std::fs::write(&line, format!("{now} {now} 1 3F - Studio\n")).expect("a reading");
+        let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
+        let settings = pns::config::Presence {
+            rooms: vec!["3F - Studio".to_string()],
+            exclude: Vec::new(),
+            desk_room: None,
+            desk_stale_after_secs: 120,
+            poll_secs: 5,
+            stale_after_secs: 15,
+        };
+        let snapshot = presence_snapshot(
+            Some(&settings),
+            &probes,
+            Some(9),
+            Some(false),
+            pns::home::HomePresence::Unknown,
+        )
+        .expect("an armed table takes a snapshot");
+        assert_eq!(
+            snapshot.status,
+            pns::presence::PresenceStatus::Room {
+                room: "3F - Studio".to_string(),
+                age_secs: 0,
+            },
+            "the line THIS probe set was pointed at is the one that was read"
+        );
+        assert_eq!(snapshot.now, probes.now_secs(), "and so is the clock");
+        assert_eq!(snapshot.desk_idle_secs, Some(9));
+    }
+
+    #[test]
+    fn the_lamps_narrow_by_the_reading_the_decision_saw_and_never_a_later_poll() {
+        // THE PULSE IS THE LAST THING THE EVENT PATH DOES, so a snapshot built
+        // down there is built after every channel, the record and the replay.
+        // The clock is memoized at the decision and the presence line was not,
+        // so a poll the daemon published DURING delivery was read against that
+        // older clock and classified `Future`, which is no reading at all and
+        // hands the whole house back. MEASURED against the shipped ordering:
+        // `Unknown(Future)` where the decision had seen the study.
+        let state = scratch("presence-fixed-at-the-decision");
+        let line = state.join("presence");
+        let now = now_secs().expect("a clock");
+        std::fs::write(&line, format!("{now} {now} 1 3F - Studio\n")).expect("a reading");
+        let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
+        let settings = pns::config::Presence {
+            rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
+            exclude: Vec::new(),
+            desk_room: None,
+            desk_stale_after_secs: 120,
+            poll_secs: 5,
+            stale_after_secs: 15,
+        };
+        // The decision's own clock read, which every age below is judged
+        // against, and then the readings the lamps narrow by beside it.
+        let at_the_decision = probes.now_secs();
+        let taken = presence_snapshot(
+            Some(&settings),
+            &probes,
+            Some(0),
+            Some(false),
+            pns::home::HomePresence::Unknown,
+        )
+        .expect("an armed table takes a snapshot");
+        // The daemon publishes a poll while the channels are dispatching.
+        std::fs::write(&line, format!("{} {} 1 2F - Kitchen\n", now + 5, now + 5))
+            .expect("a later poll");
+        let studio = pns::presence::PresenceStatus::Room {
+            room: "3F - Studio".to_string(),
+            age_secs: 0,
+        };
+        assert_eq!(
+            (taken.status, taken.now),
+            (studio.clone(), at_the_decision),
+            "the snapshot is the decision's own moment, reading and clock together"
+        );
+        // AND THE PROBE SET CANNOT BE TALKED OUT OF IT AFTERWARDS, which is
+        // what makes the ordering above sufficient rather than merely earlier:
+        // the line was read once, at the decision, so nothing further down the
+        // path can pick the later poll up.
+        assert_eq!(
+            presence_snapshot(
+                Some(&settings),
+                &probes,
+                Some(0),
+                Some(false),
+                pns::home::HomePresence::Unknown,
+            )
+            .map(|later| later.status),
+            Some(studio),
+            "a read after the channels ran still answers the decision's line"
+        );
+    }
+
+    /// Restores an environment variable when the test that set it ends, so a
+    /// panicking assertion cannot leave a scratch `HOME` behind for the rest
+    /// of the binary.
+    struct Restored(&'static str, Option<String>);
+
+    impl Drop for Restored {
+        fn drop(&mut self) {
+            match &self.1 {
+                Some(had) => unsafe { std::env::set_var(self.0, had) },
+                None => unsafe { std::env::remove_var(self.0) },
+            }
+        }
+    }
+
+    fn set_env(name: &'static str, value: &std::path::Path) -> Restored {
+        let had = std::env::var(name).ok();
+        unsafe { std::env::set_var(name, value) };
+        Restored(name, had)
+    }
+
+    #[test]
+    fn the_pulse_is_handed_the_reading_taken_before_the_channels_ran() {
+        // THE SNAPSHOT CONTRACT, end to end, which is the one thing a test
+        // built out of hand calls to `presence_snapshot` cannot pin: it takes
+        // the reading at whatever moment the test chooses rather than the one
+        // the event path chooses. Here the event path chooses, and a channel
+        // republishes the reading WHILE the legs dispatch.
+        //
+        // WHAT MAKES IT RED is restoring the LAZY read in
+        // `system::with_presence_path` and moving construction down to the
+        // pulse: Kitchen received where the decision saw the study. Moving
+        // construction ALONE leaves this green, and correctly so, because the
+        // eager read already fixed the line before any leg ran. This pins the
+        // contract, not the statement order that currently delivers it.
+        let home = scratch("pulse-sink-ordering");
+        let line = home.join("presence");
+        let now = now_secs().expect("a clock");
+        std::fs::write(&line, format!("{now} {now} 1 3F - Studio\n")).expect("a reading");
+        std::fs::create_dir_all(home.join(".config/pns")).expect("a config directory");
+        std::fs::write(
+            home.join(".config/pns/config.toml"),
+            "[lights]\n\
+             [plugins.macos-banner]\n\
+             enabled = true\n\
+             [plugins.mobile]\n\
+             enabled = true\n\
+             type = \"moshi\"\n\
+             [plugins.presence]\n\
+             enabled = true\n\
+             type = \"hue\"\n\
+             rooms = [\"3F - Studio\", \"2F - Kitchen\"]\n\
+             desk_room = \"3F - Studio\"\n",
+        )
+        .expect("a config");
+        // The daemon's poll, standing in as the one thing that runs between
+        // the decision and the pulse: a channel handed this event to deliver.
+        let channels = home.join("channels");
+        std::fs::create_dir_all(&channels).expect("a channels directory");
+        // BOTH LOCAL CHANNELS CARRY IT, because which one this event plans is
+        // a fact about the machine the suite runs on: the banner is the leg at
+        // an unlocked desk and the card is the leg anywhere else, and exactly
+        // one of them fires.
+        for channel in ["macos-banner", "mobile"] {
+            let republish = channels.join(format!("{channel}.sh"));
+            std::fs::write(
+                &republish,
+                format!(
+                    "#!/bin/sh\nprintf '%s' '{now} {now} 1 2F - Kitchen' > '{}'\n",
+                    line.display()
+                ),
+            )
+            .expect("a channel");
+            std::fs::set_permissions(&republish, std::fs::Permissions::from_mode(0o755))
+                .expect("an executable channel");
+        }
+        let _home_var = set_env("HOME", &home);
+        let _state_var = set_env("PNS_STATE_DIR", &home.join("state"));
+        let _channels_var = set_env("PNS_CHANNELS_DIR", &channels);
+        let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
+        let handed: RefCell<Option<pns::presence_policy::Snapshot>> = RefCell::new(None);
+        run_event_pulsing(
+            &pns::args::EventArgs {
+                agent: "claude".to_string(),
+                state: "done".to_string(),
+                project: "pns".to_string(),
+                long_running: true,
+                ..Default::default()
+            },
+            &probes,
+            &HookPayload::default(),
+            Attempt::First,
+            &|_, _, _, snapshot| *handed.borrow_mut() = snapshot.cloned(),
+        );
+        assert_eq!(
+            std::fs::read_to_string(&line).expect("the channel ran"),
+            format!("{now} {now} 1 2F - Kitchen"),
+            "the channel republished the reading while the legs dispatched"
+        );
+        assert_eq!(
+            handed.borrow().as_ref().map(|snapshot| &snapshot.status),
+            Some(&pns::presence::PresenceStatus::Room {
+                room: "3F - Studio".to_string(),
+                age_secs: 0,
+            }),
+            "the pulse is handed the reading the decision saw, never the later one"
+        );
+    }
+
+    #[test]
+    fn a_pulse_narrows_over_the_lamps_this_behaviour_would_reach_and_not_the_rest() {
+        // NARROWING TO A ROOM THAT CARRIES THE BEHAVIOUR IS NOT THE SAME
+        // QUESTION as narrowing to a room that holds a lamp. The kitchen holds
+        // one, routed for `blocked` alone; narrowed first and filtered second,
+        // a `done` event kept that lamp, then dropped it at the per-lamp gate
+        // and wrote nothing at all, which is the silence the fallback exists
+        // to prevent.
+        let lights = *pns::config::parse_config(
+            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nshows = [\"blocked\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let bridge = TwoRoomBridge {
+            puts: RefCell::new(Vec::new()),
+        };
+        let state = scratch("pulse-narrow-over-eligible");
+        run_pulse_writes(
+            &bridge,
+            &state,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&nothing_muted()),
+            Some(&[]),
+            Some(&in_the_kitchen()),
+        );
+        assert_eq!(
+            bridge
+                .puts
+                .borrow()
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>(),
+            vec!["light/l1".to_string()],
+            "the kitchen carries nothing for this event, so the whole routing stands"
+        );
+        assert_eq!(
+            last_narrowing(&state).and_then(|entry| entry.room),
+            None,
+            "and the record says the routing was left whole"
+        );
+    }
+
+    #[test]
+    fn a_tick_narrows_over_the_lamps_this_state_would_reach_and_not_the_rest() {
+        // The tick's half of the same rule, through `shown` rather than
+        // `pulse_fires`: a kitchen lamp carrying only `unread` is not a lamp a
+        // blocked wait can breathe on.
+        let lights = *pns::config::parse_config(
+            "[lights]\nrefresh_secs = 10\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nshows = [\"unread\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let bridge = TwoRoomBridge {
+            puts: RefCell::new(Vec::new()),
+        };
+        let state = scratch("tick-narrow-over-eligible");
+        run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            Some(&in_the_kitchen()),
+            no_time_passes(),
+            |_| {},
+        );
+        assert_eq!(
+            bridge
+                .puts
+                .borrow()
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec!["light/l1".to_string()],
+            "the kitchen carries nothing for this state, so the whole routing stands"
+        );
+    }
+
+    #[test]
+    fn a_pulse_reaches_only_the_room_the_reading_names_and_records_the_decision() {
+        // THE WIRING, not the rule. `narrow` is pure and total, so every one of
+        // its unit tests stays green with this call site gutted: what is pinned
+        // here is that the pulse path narrows AT ALL, and that the decision is
+        // written where `pns doctor` reads it back.
+        let lights = *pns::config::parse_config(
+            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nshows = [\"done\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let bridge = TwoRoomBridge {
+            puts: RefCell::new(Vec::new()),
+        };
+        let state = scratch("pulse-narrowed-by-presence");
+        run_pulse_writes(
+            &bridge,
+            &state,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&nothing_muted()),
+            Some(&[]),
+            Some(&in_the_kitchen()),
+        );
+        assert_eq!(
+            bridge
+                .puts
+                .borrow()
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>(),
+            vec!["light/l2".to_string()],
+            "only the lamp in the room the reading named is flashed"
+        );
+        assert_eq!(
+            last_narrowing(&state).and_then(|entry| entry.room),
+            Some("2F - Kitchen".to_string()),
+            "and the decision is where the doctor reads it back"
         );
     }
 
@@ -11396,10 +12147,12 @@ mod tests {
         assert_eq!(
             run_pulse_writes(
                 &scripted(true),
+                &scratch("pulse-writes-complaints"),
                 &lights,
                 pns::config::Behaviour::Done,
                 &noon(&nothing_muted()),
                 Some(&[]),
+                None,
             ),
             vec!["pns lights: `3F - Nowhere` (lamp) is not on the bridge".to_string()],
         );

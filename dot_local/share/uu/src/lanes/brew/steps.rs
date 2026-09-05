@@ -51,7 +51,7 @@ pub fn bounded_step(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lanes::tests::ScriptedRunner;
+    use crate::lanes::stubs::ScriptedRunner;
 
     fn report() -> LaneReport {
         LaneReport::new("brew")

@@ -75,6 +75,7 @@ packages:
         - atomicparsley
         - atuin
         - bash
+        - bashunit
         - bats-core
         - bash-completion@2
         - bash-preexec
@@ -278,10 +279,13 @@ packages:
           - "@colbymchenry/codegraph"
           - "@doist/todoist-cli"
           - "@elevenlabs/cli"
+          - "@fission-ai/openspec"
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
           - "@tobilu/qmd"
+          - acpx
           - agentmail-cli
+          - backpass
           - clawhub
           - happy
           - hyperframes

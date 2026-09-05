@@ -37,6 +37,31 @@ deviation.
 ~/.claude/pipeline/findings-register.sh new <slug> A [dir]
 ```
 
+## The assumptions ledger, before any question is asked
+
+Step 1 reads the plan and the spec, and most of what it needs is already answerable from the tree. Write
+down what you concluded as a NUMBERED ledger and present it as ONE batch before asking anything:
+
+```markdown
+## Assumptions ledger
+
+Confirm all, or name the numbers to change. Anything you do not name I treat as confirmed.
+
+1. <assumption>, source: <path:line, spec section, plan line, or convention>
+```
+
+Every entry cites where it came from, measured the way step 2 measures the brief:
+`git show origin/main:<path> | grep -n`, never a working copy. An assumption with no source is a question
+wearing a statement's clothes, so ask it instead of listing it.
+
+A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the brief. A
+confirmed one enters the brief as a stated premise, which is what gives step 2 something to falsify. The
+ledger is presented ONCE, because dripping the same content out as individual questions is the waste it
+exists to prevent.
+
+Despite the name it is not one of the two verifier ledgers above, and no script reads it. This ledger
+and the argument log below are both adapted from chaseai-yt/claudex-loop, MIT.
+
 ## The steps
 
 | #    | step                                                                    | leaves         |
@@ -95,7 +120,7 @@ project's memory directory; read it if the two disagree. As of the 2026-09-01 ru
 - 4a, 7: sol at ultra, and the redirect matters:
 
   ```bash
-  codex exec -m gpt-5.6-sol -c model_reasoning_effort="ultra" -c approval_policy=never \
+  codex exec -m gpt-6-astra -c model_reasoning_effort=ultra -c approval_policy=never \
     -s read-only -C <repo> -o <out> "<prompt>" </dev/null
   ```
 
@@ -126,6 +151,37 @@ to the widening, and the remedy is the smallest change that restores the pre-sli
 A reviewer that happens to see an out-of-scope defect NAMES it in a separate "observed, out of scope"
 section carrying no disposition. Those never enter the register, and the reconciliation counts only
 in-scope findings.
+
+## The argument log
+
+Each review round appends to `argument-<slug>.md`, beside the checklist and the register in the same
+directory. No script creates it and no gate reads it. The first append creates it, and it exists for the
+next round rather than for the verifier.
+
+```markdown
+## Round <n>, step <2|4a|4a-s|4b|7>
+
+Reviewer output: <path>. Dispositions and evidence: `findings-<slug>.md`.
+
+- F<n>: <the reasoning, in your own words: why it holds, why it does not, or why it can wait>
+```
+
+**Identifiers and reasoning only.** The verdict, the critique and the proof already exist in the
+reviewer's own output and in the register, so copying them here builds a second resolution record that
+can disagree with the first. The register's disposition vocabulary stays out too: its `ACCEPTED` means a
+finding left unfixed with a rationale, and a log line labelled the same way would read as the opposite.
+Point at both files and write the WHY neither has a column for.
+
+**Write at EVERY adjudication, terminal ones included.** Step 2's verdict is adjudicated when it returns,
+long before step 5, and the step 3 implementer is a fresh dispatch that needs the reasoning behind the
+brief it is handed. Step 5 writes the 4a, 4a-s, 4b and 4c rounds. Step 7 is terminal and writes its own
+round when it returns, because the log is what step 8 reads when it files the tasks.
+
+**Read the existing entries before EVERY agent brief and EVERY retry**, meaning before dispatching steps
+3, 4a, 4a-s, 4b, 6 and 7, and before a reviewer retry after a failed run. Every one of them is a FRESH
+dispatch that remembers nothing: sol runs read-only in a new session, Fable is reached by inheritance,
+and neither has seen the round before. A retry is the sharpest case, since the run it replaces argued
+something nobody else recorded. Skip the read and step 7 re-litigates round one.
 
 ## Filing step 8's tasks
 

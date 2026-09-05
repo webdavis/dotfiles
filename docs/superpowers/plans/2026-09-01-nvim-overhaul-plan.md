@@ -943,17 +943,25 @@ are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>As` and
 `lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
 blame"`).
 
-**Interfaces:** `annotate.compose_text(parts)` (pure) with
-`parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, one
-part per line, with no blank line where a part is nil. `annotate.line()` gathers the parts,
+**Interfaces:** `annotate.compose_text(parts, separator)` (pure) with
+`parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, the
+parts joined by `separator` (a newline by default) with no doubled separator where a part is nil.
+`annotate.line()` passes ` | ` (space, pipe, space), so the STORED text is one line: herdr-nvim's
+`ui.comment_list` renders one buffer line per comment out of the comment's own text (`ui.lua:89`,
+`ui.lua:147` at the installed commit `41c30f5`), and `nvim_buf_set_lines` raises
+`'replacement string' item contains newlines`, so every two-part annotation broke `<leader>Al`
+(measured 2026-09-05). This repository does not patch third-party plugins, so the separator moved
+rather than the plugin, and it reverts to a newline by changing one constant once herdr-nvim can list
+a multi-line comment. `annotate.line()` gathers the parts,
 `@<rel>:<line>` for the mention, the first `vim.diagnostic.get` on the line, the enclosing treesitter
 node whose type ends in `function_definition`, `function_declaration` or `method_definition`, and
 `git.blame_sha` plus `git.latest_commit`, then calls `herdr-nvim`'s
 `comments.add(bufnr, line, line, text)` and passes the returned id to `ui.decorate(id)` (both read at
 the installed plugin: `lua/herdr-nvim/comments.lua:6`, `lua/herdr-nvim/ui.lua:50`).
 
-- [ ] **Step 1, red:** `annotate_spec`: all four parts join one per line; mention only; a nil middle
-  part leaves no blank line; the order is mention, diagnostic, function, blame. FAIL. **Step 2:**
+- [ ] **Step 1, red:** `annotate_spec`: all four parts join with the separator; mention only; a nil
+  middle part doubles no separator; the default separator is a newline; the order is mention,
+  diagnostic, function, blame. FAIL. **Step 2:**
   implement; the module name confirmed with the operator first (rename rule). No fake herdr and no
   state fixture: nothing here reads an agent's state.
 - [ ] **Mutants:** join with spaces (red); drop the diagnostic part (red); emit an empty line for a
@@ -1012,16 +1020,19 @@ keymap). Create `tests/ledger_awk_spec.lua`.
 columns are `id, step, severity, summary, disposition, evidence`, and emits one
 `<file>:<line>: F<n> <severity> <disposition>: <summary>` per row: `<file>:<line>` from a `path:line`
 token in the summary when the row carries one, else the ledger file and the row's own line number.
-`FIXED` rows are skipped unless the command was banged. Default file: the newest
+Closed rows are skipped unless the command was banged, matched as a PREFIX of `FIXED` so that
+`FIXED-NOTEST` is skipped too. Default file: the newest
 `~/.claude/pipeline/slices/findings-*.md`.
 
-- [ ] **Step 1, red:** `ledger_awk_spec` pipes a heredoc of three rows (one with a `path:line` token,
-  one without, one `FIXED`) through the same awk with `vim.system` and asserts the output lines, then
-  the same input with the bang flag asserting four lines. FAIL. (`vim.system` is a core API and is
-  available under the `--clean` runner, measured 2026-09-03.) **Step 2:** implement the command.
-- [ ] **Mutants:** never skip `FIXED` (red); ignore the `path:line` token (red).
+- [ ] **Step 1, red:** `ledger_awk_spec` pipes a heredoc of rows (one with a `path:line` token, one
+  without, one `FIXED`, one `FIXED-NOTEST`) through the same awk with `vim.system` and asserts the
+  output lines, then the same input with the bang flag asserting every row back. FAIL. (`vim.system`
+  is a core API and is available under the `--clean` runner, measured 2026-09-03.) **Step 2:**
+  implement the command.
+- [ ] **Mutants:** never skip a closed row (red); match the disposition for equality with `FIXED`
+  rather than as a prefix (red); ignore the `path:line` token (red).
 - [ ] **Step 3, live, pasted:** `:ReviewLedger` on a real findings file fills the quickfix list and
-  `:cnext` lands on the ledger row; `:ReviewLedger!` additionally lists the `FIXED` rows.
+  `:cnext` lands on the ledger row; `:ReviewLedger!` additionally lists the closed rows.
 - [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): load a findings ledger into the
   quickfix list`.
 
