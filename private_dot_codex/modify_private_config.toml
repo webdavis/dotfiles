@@ -72,8 +72,8 @@
 {{- $home := .chezmoi.homeDir -}}
 
 {{- /* --- stable: model, reasoning and personality --- */ -}}
-{{- $merged = setValueAtPath "model" "gpt-5.6-sol" $merged -}}
-{{- $merged = setValueAtPath "model_reasoning_effort" "max" $merged -}}
+{{- $merged = setValueAtPath "model" "gpt-6-astra" $merged -}}
+{{- $merged = setValueAtPath "model_reasoning_effort" "ultra" $merged -}}
 {{- $merged = setValueAtPath "personality" "pragmatic" $merged -}}
 {{- $merged = setValueAtPath "service_tier" "default" $merged -}}
 
