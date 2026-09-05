@@ -19,41 +19,15 @@ use std::io::{Read, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-/// One leased job: the whole of what the daemon knows how to do.
-///
-/// ONE PRIMITIVE, not two. The nag ("say something at T unless an answer
-/// arrived") and the animation upkeep ("keep re-arming a short effect while a
-/// loop is alive") reduce to the same record, so the daemon has one concept and
-/// neither rider adds a second.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Job {
-    /// A stable name. It is the spool FILENAME, so re-registering the same id
-    /// replaces the job by rename rather than stacking a second one.
-    pub id: String,
-    /// The earliest second this may run.
-    pub due: u64,
-    /// The LEASE: past this second the job is dropped, never run.
-    pub until: u64,
-    /// Seconds between repeats. Absent is a one-shot.
-    pub every: Option<u64>,
-    /// A marker name that cancels the job if it exists when the job would
-    /// fire. The name is resolved inside the state directory by the caller, so
-    /// this field is never a path.
-    pub unless_marker: Option<String>,
-    /// The argv THIS binary is re-executed with. Never another program.
-    pub args: Vec<String>,
-}
-
-/// One job as one line: TAB-separated `key=value`, `args` a JSON array.
-///
-/// TABS RATHER THAN SPACES, which is what lets the argv keep its own spaces.
-/// A detail string is free text, and JSON escaping turns a literal tab inside
-/// it into `\t`, so no field value can carry the separator. The ids and marker
-/// names that reach here are validated against a set with no control character
-/// in it, so neither can either.
-///
-/// AN ABSENT FIELD IS NOT RENDERED, rather than rendered as a sentinel. A
-/// sentinel would need a value no real marker could be named, and every
+// The job POLICY moved to `pns-domain`: what a job is, what the loop decides
+// about one, what a heartbeat says, and the bounds. The codec, the spool's
+// transactions and `validate_shape` stay here, the last because its record cap
+// is a fact about the rendered line.
+pub use pns_domain::jobs::{
+    ARGS_BYTES_MAX, ARGS_MAX, DUE_WINDOW_SECS, EVERY_MAX_SECS, HEARTBEAT_STALE_SECS, Heartbeat,
+    ID_MAX, Job, MIN_EVERY_SECS, RECORD_MAX, Reason, Verdict, decide, name_is_safe,
+    parse_heartbeat, rearm, render_heartbeat,
+};
 /// candidate for one is a legal marker name.
 pub fn render(job: &Job) -> String {
     let mut fields = vec![
@@ -76,11 +50,6 @@ pub fn render(job: &Job) -> String {
     ));
     fields.join("\t")
 }
-
-/// The most a record may be. Generous against the caps validation applies to
-/// the fields inside it (`ID_MAX`, `ARGS_BYTES_MAX`), so a record that trips
-/// this one is not a job with a long detail: it is a file somebody else wrote.
-pub const RECORD_MAX: usize = 8192;
 
 /// One line back into a job, or the reason it is not one.
 ///
@@ -139,25 +108,6 @@ pub fn parse(line: &str) -> Result<Job, String> {
 
 // The id bound moved to `pns-domain`, because the nag derives its own name
 // cap from it and a member crate never reaches back into this package.
-pub use pns_domain::jobs::ID_MAX;
-
-/// True when a name may be a filename inside the state directory.
-///
-/// ITS OWN RULE rather than either of `safety`'s two, and the difference is
-/// the point in both directions. `session_id_is_safe` refuses the colon, which
-/// a job id needs (`nag:sess-123`); `pane_is_safe` admits `..` and a leading
-/// dot, which a filename must not have. Sharing either would couple this rule
-/// to a change made for a different reason.
-fn name_is_safe(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= ID_MAX
-        && !name.starts_with('.')
-        && !name.contains("..")
-        && name.chars().all(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | ':' | '-')
-        })
-}
-
 /// The rules a job must satisfy WHEREVER it came from: the registration that
 /// wrote it and the loop that read it back.
 ///
@@ -238,161 +188,6 @@ pub fn validate_registration(job: &Job, now: u64) -> Result<(), String> {
     Ok(())
 }
 
-/// What the loop does with one job on one tick.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Verdict {
-    /// Not yet. Left exactly where it was found.
-    Wait,
-    /// Run it.
-    Fire,
-    /// Never run it, and say which rule said so.
-    Drop(Reason),
-}
-
-/// Why a job was dropped. TWO REASONS, NOT ONE STRING, because they send a
-/// reader to two different places: a lease that ran out is a machine that was
-/// down or a client that stopped refreshing, and a marker is the thing the job
-/// was waiting to be told.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Reason {
-    LeaseExpired,
-    MarkerPresent,
-}
-
-impl Reason {
-    /// The half-sentence the log line carries.
-    pub fn said(self) -> &'static str {
-        match self {
-            Reason::LeaseExpired => "its lease had expired",
-            Reason::MarkerPresent => "its marker was already there",
-        }
-    }
-}
-
-/// Whether one job fires now, waits, or is dropped.
-///
-/// A TOTAL FUNCTION OF FOUR VALUES: the job, the second, whether the marker
-/// exists, and whether a child THIS job already fired is still running. It
-/// opens no file and reads no clock, which is what lets the window be swept a
-/// second at a time in a unit test.
-///
-/// BOTH EDGES CLOSED. `due <= now <= until` fires, so a job whose lease is
-/// exactly its due second still runs; one second past `until` never does.
-///
-/// THE LEASE IS CHECKED FIRST, then the marker, then whether a child is still
-/// running, and the due second last: an expired job is dropped as expired
-/// even when its marker also arrived, and a job whose answer came in is
-/// dropped without ever being described as waiting.
-///
-/// A RUNNING CHILD ANSWERS `Wait`, NEVER `Drop`, so the occurrence stays due
-/// and fires the tick after that child is gone rather than being lost. THE
-/// SEAMLESS BREATH IS WHY THIS EXISTS: its last fade is issued to still be
-/// running when the child exits, so the schedule alone can no longer promise
-/// the previous child is gone before a second one starts. `rearm`'s
-/// `now + every` still governs how soon the next occurrence is due, so a job
-/// held here by a slow child does not burst once that child finally exits.
-pub fn decide(job: &Job, now: u64, marker_exists: bool, running: bool) -> Verdict {
-    if now > job.until {
-        return Verdict::Drop(Reason::LeaseExpired);
-    }
-    if marker_exists {
-        return Verdict::Drop(Reason::MarkerPresent);
-    }
-    if running {
-        return Verdict::Wait;
-    }
-    if now < job.due {
-        return Verdict::Wait;
-    }
-    Verdict::Fire
-}
-
-/// What a fired job leaves behind: the same job due again, or nothing.
-///
-/// `now + every`, NEVER `due + every`. A loop that reaches a job late (a busy
-/// tick, a woken laptop) and re-armed from the OLD due would compute a next
-/// due that is still in the past, fire again immediately, and keep firing
-/// until it caught up: a burst of cards for a schedule that meant one.
-///
-/// `until` IS CARRIED OVER UNCHANGED, which is the property the lease exists
-/// for. A repeat that renewed its own lease would run until the machine
-/// stopped, with nobody refreshing it and nothing to notice that the client
-/// which asked for it is gone.
-///
-/// AND THE LEASE IS WHAT ENDS THE REPEAT: a next occurrence past `until` can
-/// never fire, so the job leaves NOTHING behind rather than a record whose own
-/// due sits outside its own lease. That record would be a job the loop refuses
-/// as malformed on its next pass, which is a true statement about a file this
-/// code wrote and a confusing one to find in a log.
-pub fn rearm(job: &Job, now: u64) -> Option<Job> {
-    let due = now.saturating_add(job.every?);
-    (due <= job.until).then(|| Job { due, ..job.clone() })
-}
-
-/// What the daemon says about itself each tick: which process it is, and when
-/// it last looked.
-///
-/// AN AGE RATHER THAN A PID PROBE is what the doctor grades. A pid can be
-/// reused, so `kill(pid, 0)` answers "some process exists" and not "this
-/// daemon is alive"; the age of a file the daemon rewrites every second
-/// answers the question that was actually asked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Heartbeat {
-    pub pid: u32,
-    pub at: u64,
-}
-
-/// The heartbeat file's one line: the pid, a space, the epoch.
-pub fn render_heartbeat(beat: &Heartbeat) -> String {
-    format!("{} {}", beat.pid, beat.at)
-}
-
-/// That line read back, or None for anything this will not vouch for.
-///
-/// NO HEARTBEAT IS ITS OWN ANSWER, never a beat at epoch zero: a file some
-/// other hand rewrote is not a beat, and reading one as zero would report a
-/// running daemon as long dead or a dead one as running, depending on which
-/// half was garbled. Pid zero is refused for the same reason `pid_is_gone`
-/// refuses a non-positive one: it is not a process this tool started.
-pub fn parse_heartbeat(line: &str) -> Option<Heartbeat> {
-    let (pid, at) = line.trim().split_once(' ')?;
-    let pid = u32::try_from(crate::parse_count(pid)?).ok()?;
-    (pid > 0).then_some(Heartbeat {
-        pid,
-        at: crate::parse_count(at)?,
-    })
-}
-
-/// How old a beat may be and still mean the daemon is running.
-///
-/// TEN TICKS, which is generous against a loop whose whole body is one
-/// `read_dir` of a small directory. It is a small MULTIPLE of the tick rather
-/// than the tick itself, so a machine under load that missed a beat is not
-/// reported dead.
-pub const HEARTBEAT_STALE_SECS: u64 = 10 * DEFAULT_TICK_SECS;
-
-/// The tick, in whole seconds, for the one reader that grades against it.
-const DEFAULT_TICK_SECS: u64 = 1;
-
-/// The shortest repeat, which is the tick: a job cannot come round faster than
-/// the loop looks.
-const MIN_EVERY_SECS: u64 = 1;
-
-/// The longest repeat. A day, which is far past the two riders' minutes and
-/// short enough that a mistyped value is refused rather than scheduled.
-pub const EVERY_MAX_SECS: u64 = 86_400;
-
-/// How many argv words one job may carry. `pns`'s own event flags number under
-/// a dozen; anything past this is not an event.
-pub const ARGS_MAX: usize = 32;
-
-/// How long the whole argv may be. The detail text is the only long field, and
-/// the render already caps a card's preview far below this.
-pub const ARGS_BYTES_MAX: usize = 4096;
-
-/// How far from now a `due` may sit, in either direction. Thirty days.
-pub const DUE_WINDOW_SECS: u64 = 30 * 24 * 60 * 60;
-
 /// One slot, filled once. A second value for the same key is refused by name.
 fn fill<T>(slot: &mut Option<T>, key: &str, value: T) -> Result<(), String> {
     if slot.is_some() {
@@ -421,26 +216,7 @@ fn count(key: &str, value: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
 
-    #[test]
-    fn a_slower_tick_than_the_bound_reads_a_healthy_daemon_as_not_running() {
-        // S206, pinned. The bound is ten of the DEFAULT tick and is fixed at
-        // compile time, while `PNS_DAEMON_TICK_MS` is read at run time and
-        // admits far more. On any tick longer than the bound the previous beat
-        // is ALREADY STALE when the next one is written, so the grader reads a
-        // daemon that is running perfectly as not running.
-        let beating = |age: u64| age <= HEARTBEAT_STALE_SECS;
-        assert!(beating(HEARTBEAT_STALE_SECS));
-        // One tick of a daemon told to look every thirty seconds.
-        assert!(
-            !beating(30),
-            "a 30s tick outruns a {HEARTBEAT_STALE_SECS}s bound"
-        );
-        // The bound does not follow it, which is the whole statement.
-        assert_eq!(HEARTBEAT_STALE_SECS, 10);
-    }
-    use super::{
-        HEARTBEAT_STALE_SECS, Job, Reason, Verdict, decide, parse, rearm, render, validate_shape,
-    };
+    use super::{Job, parse, render, validate_shape};
 
     fn full() -> Job {
         Job {
@@ -666,124 +442,6 @@ mod tests {
             );
         }
         assert_eq!(super::validate_registration(&full(), now), Ok(()));
-    }
-
-    /// BOTH EDGES ARE CLOSED, and both are asserted, because a one-sided
-    /// bound is the bug class this window is most likely to acquire.
-    #[test]
-    fn a_job_fires_only_inside_its_window_and_both_edges_are_closed() {
-        let job = full();
-        for (case, now, expected) in [
-            ("a second before due", job.due - 1, Verdict::Wait),
-            ("exactly at due", job.due, Verdict::Fire),
-            ("inside the window", job.due + 1, Verdict::Fire),
-            ("exactly at until", job.until, Verdict::Fire),
-            (
-                "a second past until",
-                job.until + 1,
-                Verdict::Drop(Reason::LeaseExpired),
-            ),
-        ] {
-            assert_eq!(decide(&job, now, false, false), expected, "case: {case}");
-        }
-    }
-
-    /// THE LATE-STORM RULE. A laptop that slept through a job wakes to a lease
-    /// that expired while it was down, and the job is dropped rather than run
-    /// late, because "the machine was asleep" and "the nudge is now pointless"
-    /// are the same condition.
-    #[test]
-    fn a_job_whose_lease_expired_while_the_machine_slept_is_dropped_never_run_late() {
-        let now = 1_700_003_600;
-        let job = Job {
-            due: now - 3_600,
-            until: now - 3_540,
-            ..full()
-        };
-        assert_eq!(
-            decide(&job, now, false, false),
-            Verdict::Drop(Reason::LeaseExpired)
-        );
-    }
-
-    /// The nag primitive: an answer that arrived cancels the nudge before
-    /// anything runs.
-    #[test]
-    fn a_present_marker_cancels_the_job_before_anything_runs() {
-        let job = full();
-        // Squarely inside the window, so nothing but the marker can be what
-        // dropped it.
-        assert_eq!(
-            decide(&job, job.due + 1, true, false),
-            Verdict::Drop(Reason::MarkerPresent)
-        );
-        assert_eq!(decide(&job, job.due + 1, false, false), Verdict::Fire);
-    }
-
-    /// THE SEAMLESS BREATH'S OWN GUARD. A schedule that ends with its last
-    /// fade still in flight can no longer promise the previous child is gone
-    /// by the time the next occurrence is due, so a live child answers `Wait`
-    /// rather than `Fire`, exactly like a due second that has not arrived yet.
-    #[test]
-    fn a_running_child_holds_the_next_occurrence_to_a_wait_rather_than_a_fire() {
-        let job = full();
-        assert_eq!(
-            decide(&job, job.due, false, true),
-            Verdict::Wait,
-            "due, with no marker, but its own child is still running"
-        );
-        assert_eq!(
-            decide(&job, job.due, false, false),
-            Verdict::Fire,
-            "the control: the same job, the same second, with nothing running"
-        );
-    }
-
-    /// A REPEAT CANNOT EXTEND ITS OWN LEASE, which is the assertion that
-    /// matters here: a job that renewed `until` as well as `due` would run
-    /// forever with nobody refreshing it, and the lamp it drives would lie in
-    /// exactly the direction the lease exists to prevent.
-    #[test]
-    fn a_repeating_job_re_arms_at_now_plus_every_and_a_one_shot_does_not_re_arm() {
-        let job = full();
-        let now = job.due;
-        let next = rearm(&job, now).expect("a repeating job re-arms");
-        assert_eq!(next.due, now + 30);
-        assert_eq!(next.until, job.until, "the lease is UNCHANGED");
-        assert_eq!(next.id, job.id);
-        assert_eq!(next.args, job.args);
-
-        assert_eq!(
-            rearm(
-                &Job {
-                    every: None,
-                    ..full()
-                },
-                now
-            ),
-            None,
-            "a one-shot leaves nothing behind"
-        );
-
-        // FROM NOW, NEVER FROM `due`. A job the loop reaches late (a busy
-        // tick, a woken laptop) whose next due were `due + every` would still
-        // be in the past, so the daemon would fire it again immediately and
-        // keep firing until it caught up: one burst instead of one repeat.
-        let late = now + 100;
-        let caught_up = rearm(&job, late).expect("a repeating job re-arms");
-        assert_eq!(caught_up.due, late + 30);
-        assert_ne!(caught_up.due, job.due + 30);
-
-        // AND THE LEASE IS WHAT ENDS A REPEAT. A next occurrence past `until`
-        // can never fire, so the job leaves nothing behind rather than a
-        // record whose own due sits outside its lease.
-        let last = job.until - 1;
-        assert_eq!(rearm(&job, last), None);
-        assert_eq!(
-            rearm(&job, job.until - 30).map(|next| next.due),
-            Some(job.until),
-            "a next occurrence landing exactly on the lease still re-arms"
-        );
     }
 
     #[test]
