@@ -25,11 +25,16 @@ local function with_tasks(tasks, fn)
   end
 
   package.loaded["witch-line.constant.default"] = DEFAULTS
+  local list_opts
   package.loaded["overseer.task_list"] = {
-    list_tasks = function()
+    list_tasks = function(opts)
+      list_opts = opts
       return tasks
     end,
   }
+  _G.__list_opts = function()
+    return list_opts
+  end
   -- The component reads `package.loaded` rather than requiring overseer, so this
   -- is what decides whether it considers itself live at all.
   package.loaded["overseer"] = {}
@@ -79,6 +84,19 @@ local function upvalues(fn)
 end
 
 return {
+  ["it counts every task, not one per name"] = function()
+    -- `list_tasks({ unique = true })` returns the OLDER completed task sharing a
+    -- name, so running one shell command twice, succeeding then failing, showed
+    -- only the success. Both tasks are visible in the list; both must be counted.
+    with_tasks({ { status = "SUCCESS" }, { status = "FAILURE" } }, function(component)
+      local text = component.update()
+      assert(text:match("\u{f0134}"), "the success is missing from " .. text)
+      assert(text:match("\u{f015a}"), "the failure is missing from " .. text)
+      local opts = _G.__list_opts()
+      assert(not (opts and opts.unique), "list_tasks was asked for unique tasks, which hides the newer one")
+    end)
+  end,
+
   ["the callbacks capture nothing"] = function()
     -- witch-line's cache serializes a component's callbacks as bytecode WITHOUT
     -- their upvalues, so anything captured comes back nil on a start that reads

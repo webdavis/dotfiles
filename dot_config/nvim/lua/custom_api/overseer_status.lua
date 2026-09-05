@@ -27,9 +27,11 @@ function M.counts()
     return {}
   end
   local by_status = {}
-  -- `unique` collapses repeat runs of one task, and wrapped background jobs stay
-  -- out, so this counts what the task list shows.
-  for _, task in ipairs(require("overseer.task_list").list_tasks({ unique = true })) do
+  -- Not `unique`: at this pin it returns the OLDER completed task sharing a name,
+  -- so running one command twice, succeeding then failing, reported only the
+  -- success while both tasks sat in the list. Wrapped background jobs stay out
+  -- either way, so this counts exactly what the task list shows.
+  for _, task in ipairs(require("overseer.task_list").list_tasks({})) do
     by_status[task.status] = (by_status[task.status] or 0) + 1
   end
   return by_status
