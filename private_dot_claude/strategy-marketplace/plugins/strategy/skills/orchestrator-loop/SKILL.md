@@ -1,6 +1,10 @@
 ---
 name: orchestrator-loop
-description: Run a slice where the orchestrator is inside the loop, writing the failing tests and the seams itself instead of briefing an implementer, with two concurrent reviews and no deferred findings. Use when the behaviour can be stated as a test, when a task says Strategy-B, or when the user says "/strategy:orchestrator-loop".
+description: >-
+  Run a slice where the orchestrator is inside the loop, writing the failing tests and the seams
+  itself instead of briefing an implementer, with no deferred findings. Use when the behaviour can
+  be stated as a test, when a task says Strategy-B, or when the user says
+  "/strategy:orchestrator-loop".
 ---
 
 # Orchestrator-loop
@@ -9,8 +13,11 @@ description: Run a slice where the orchestrator is inside the loop, writing the 
 implementer; here it writes the FAILING TESTS and the trait seams ITSELF, and those tests are the
 specification. There is no prose brief and no brief review, because a concrete failing test says what a
 paragraph of instructions only gestures at. The tests are the spec, the red state and the design in one
-artifact. The second difference is that its two reviews run CONCURRENTLY rather than one after the
-other.
+artifact.
+
+**That is the only distinction.** Concurrency is not a second one: open-loop mandates parallel 4a and
+4b reviews too, and closed-loop inherits them. Who writes the tests is what separates this skill from
+its siblings.
 
 **It is also closed-loop in the findings sense**: every finding is fixed in this iteration and none
 becomes a task. The three names do not sit on one axis. Two of them
