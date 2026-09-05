@@ -400,6 +400,35 @@ cases["JSX written before an import does not swallow it"] = function()
   )
 end
 
+cases["one parse serves all three adapters, and a changed file is parsed again"] = function()
+  -- Each of the three asks the same question about the same file, and neotest's filtering pass
+  -- runs without yielding, so parsing once per adapter is three times the stall for one answer.
+  -- The file's own bytes are what the answer depends on, so its size and modification time are
+  -- what make a cached answer still true.
+  local routed = route()
+  local parses = 0
+  local original = vim.treesitter.get_string_parser
+  vim.treesitter.get_string_parser = function(...)
+    parses = parses + 1
+    return original(...)
+  end
+
+  local path = write_fixture("cached/tests/a.test.js", 'import { test } from "node:test";\n')
+  local answers = { routed.vitest(path), routed.jest(path), routed.node(path) }
+  local after_first = parses
+
+  write_fixture("cached/tests/a.test.js", 'import { test } from "vitest";\n// a longer file now\n')
+  local changed = routed.node(path)
+  local after_change = parses
+  vim.treesitter.get_string_parser = original
+
+  assert(after_first == 1, "expected one parse for three adapters, got " .. after_first)
+  assert(answers[3] == javascript_grammar, "the node:test answer changed under the cache")
+  assert(not answers[1] and not answers[2], "an adapter claimed a file it does not own")
+  assert(after_change == 2, "a rewritten file was not parsed again, parses: " .. after_change)
+  assert(not changed, "the cache outlived the file contents it answered for")
+end
+
 cases["a file whose language has no grammar has no node:test owner"] = function()
   -- Nothing parses CoffeeScript here, so the import cannot be seen and is not guessed at. The
   -- package's declared runner takes the file instead.

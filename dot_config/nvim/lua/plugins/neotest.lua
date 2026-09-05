@@ -73,6 +73,17 @@ local function is_type_only(declaration)
   return false
 end
 
+--- Answers already parsed, keyed by path, size and modification time.
+---
+--- All three adapters ask the same question about the same file, and neotest's filtering pass runs
+--- without yielding, so parsing once per adapter is three times the stall for one answer. The
+--- answer depends on the file's bytes alone, so a size and a modification time that still match
+--- are what make a remembered one still true.
+---
+--- Nothing evicts: an entry per file version outlives only the session, and the manifest walk is
+--- deliberately NOT cached, so editing a package.json still takes effect on the next question.
+local parsed_imports = {}
+
 --- Whether `file_path` imports or requires `node:test`.
 ---
 --- Plain `io` rather than `vim.fn.readfile`: `is_test_file` runs inside neotest's async contexts,
@@ -85,6 +96,16 @@ local function imports_node_test(file_path)
   if not query then
     return false
   end
+  local stat = vim.uv.fs_stat(file_path)
+  if not stat then
+    return false
+  end
+  local key = ("%s\0%d\0%d\0%d"):format(file_path, stat.size, stat.mtime.sec, stat.mtime.nsec)
+  local remembered = parsed_imports[key]
+  if remembered ~= nil then
+    return remembered
+  end
+
   local handle = io.open(file_path, "r")
   if not handle then
     return false
@@ -96,6 +117,7 @@ local function imports_node_test(file_path)
   if not parsed then
     return false
   end
+  parsed_imports[key] = false
   for _, match in query:iter_matches(parser:parse()[1]:root(), source) do
     local specifier, declaration
     for id, nodes in pairs(match) do
@@ -111,6 +133,7 @@ local function imports_node_test(file_path)
       and vim.treesitter.get_node_text(specifier, source) == "node:test"
       and not is_type_only(declaration)
     then
+      parsed_imports[key] = true
       return true
     end
   end
