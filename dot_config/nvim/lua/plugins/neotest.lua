@@ -29,6 +29,62 @@ local function imports_node_test(file_path)
   return head:match("['\"]node:test['\"]") ~= nil
 end
 
+--- The test runner the package.json NEAREST `path` declares, read from its dependency lists and
+--- its scripts, or nil when it names none.
+---
+--- Deliberately the nearest manifest alone, unlike the adapters' own detection, which also reads
+--- the working directory and the git root. That difference is the whole point of this: it is what
+--- lets a nested package that declares jest keep its own files inside a vitest repository instead
+--- of losing them to an ancestor's choice.
+---@param path string a file or a directory
+---@return "vitest"|"jest"|"node"|nil
+local function nearest_declared_runner(path)
+  local root = vim.fs.root(path, "package.json")
+  if not root then
+    return nil
+  end
+  -- Plain `io`, for the same async reason as above.
+  local handle = io.open(root .. "/package.json", "r")
+  if not handle then
+    return nil
+  end
+  local contents = handle:read("*a")
+  handle:close()
+  local ok, manifest = pcall(vim.json.decode, contents)
+  if not ok or type(manifest) ~= "table" then
+    return nil
+  end
+
+  local declared = {}
+  for _, field in ipairs({ "dependencies", "devDependencies" }) do
+    if type(manifest[field]) == "table" then
+      for name in pairs(manifest[field]) do
+        declared[#declared + 1] = name
+      end
+    end
+  end
+  if type(manifest.scripts) == "table" then
+    for _, command in pairs(manifest.scripts) do
+      declared[#declared + 1] = tostring(command)
+    end
+  end
+
+  -- Substring matches, because a runner is named by more than its own package: `@vitest/ui` and
+  -- `vitest run` both name vitest, `ts-jest` and `jest --ci` both name jest. "vitest" never
+  -- appears inside a jest name, so asking for it first is what settles a package declaring both.
+  local names = table.concat(declared, " ")
+  if names:find("vitest", 1, true) then
+    return "vitest"
+  end
+  if names:find("jest", 1, true) then
+    return "jest"
+  end
+  if names:find("node:test", 1, true) or names:find("node --test", 1, true) then
+    return "node"
+  end
+  return nil
+end
+
 return {
   {
     "nvim-neotest/neotest",
@@ -57,8 +113,14 @@ return {
       --   * a file that imports node:test is node:test's, whatever the project declares, because
       --     node:test attaches to every package.json and no filename rule distinguishes its files
       --     from vitest's or jest's;
+      --   * a package that declares jest and not vitest keeps its own files, so a nested jest
+      --     package inside a vitest repository is not swallowed by the ancestor;
       --   * otherwise vitest wins over jest, because a repository carrying both runners is a
       --     migration TO vitest and its config is the one new test files are written against.
+      --
+      -- Only vitest consults the nearest manifest. jest already stands down wherever vitest
+      -- claims, so narrowing vitest hands the nested package back to jest on its own, and the
+      -- precedence lives in one place rather than two that can disagree.
       --
       -- Each adapter is asked through ITS OWN default predicate first. That answer carries the
       -- adapter's real dependency detection, which reads the working directory and the git root as
@@ -73,7 +135,9 @@ return {
       -- default captured above stays callable and composing against it does not recurse.
       vitest({
         is_test_file = function(file_path)
-          return vitest_claims(file_path) and not imports_node_test(file_path)
+          return vitest_claims(file_path)
+            and not imports_node_test(file_path)
+            and nearest_declared_runner(file_path) ~= "jest"
         end,
       })
       local jest = require("neotest-jest")({

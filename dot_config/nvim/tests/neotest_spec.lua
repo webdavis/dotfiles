@@ -4,8 +4,9 @@
 --
 -- The adapter modules and `neotest.setup` are stubbed, so this runs headless with no plugin
 -- installed and no test runner process. What is NOT stubbed is the routing's own reading of the
--- tree: the node:test rule looks inside the file, so the fixture below is a real file under
--- `vim.fn.tempname()`, a directory Neovim removes when it exits.
+-- tree: the node:test rule looks inside the file and the precedence rule reads the nearest
+-- package.json, so the fixture below is a real package layout under `vim.fn.tempname()`, a
+-- directory Neovim removes when it exits.
 --
 -- The stubs follow each pinned adapter's own shape. jest REBINDS the upvalue its
 -- `adapter.is_test_file` reads rather than replacing the function, so `adapter.is_test_file` is
@@ -28,6 +29,20 @@ end
 
 local node_file = write_fixture("tests/node.test.js", 'import { test } from "node:test";\n')
 local plain_file = write_fixture("tests/plain.test.js", 'import { test } from "vitest";\n')
+
+-- One package declaring both runners.
+write_fixture("dual/package.json", '{ "devDependencies": { "vitest": "3.2.7", "jest": "29.7.0" } }')
+local dual_file = write_fixture("dual/tests/math.test.js", 'import { test } from "vitest";\n')
+
+-- A vitest repository holding a nested package that declares jest and nothing else.
+write_fixture("vitest-root/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
+local vitest_root_file = write_fixture("vitest-root/tests/root.test.js", 'import { test } from "vitest";\n')
+write_fixture("vitest-root/packages/jest-only/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
+local nested_file =
+  write_fixture("vitest-root/packages/jest-only/tests/nested.test.js", 'test("nested", function () {});\n')
+write_fixture("vitest-root/packages/silent/package.json", "{}")
+local silent_nested_file =
+  write_fixture("vitest-root/packages/silent/tests/quiet.test.js", 'import { test } from "vitest";\n')
 
 --- Run the plugin spec's `config` against stubbed adapters and return each JavaScript adapter's
 --- configured `is_test_file`, plus the adapter list neotest was handed.
@@ -133,11 +148,28 @@ local function claim_count(routed, path)
 end
 
 return {
-  ["a project declaring both runners yields exactly one adapter"] = function()
+  ["one package declaring both runners gives its files to vitest"] = function()
     local routed = route(all_claim())
-    assert(claim_count(routed, plain_file) == 1, "expected exactly one adapter to claim the file")
-    assert(routed.vitest(plain_file), "the documented precedence gives vitest the file")
-    assert(not routed.jest(plain_file), "jest did not stand down for vitest")
+    assert(claim_count(routed, dual_file) == 1, "expected exactly one adapter to claim the file")
+    assert(routed.vitest(dual_file), "the documented precedence gives vitest the file")
+    assert(not routed.jest(dual_file), "jest did not stand down for vitest")
+  end,
+
+  ["a nested jest package inside a vitest repository keeps its own files"] = function()
+    -- vitest's own detection reads the working directory and the git root as well as the nearest
+    -- manifest, so it answers yes for a file whose nearest package declares jest alone. Running
+    -- that file through vitest is wrong: the package that names a runner is the one that meant
+    -- it. Precedence only settles a package that declares both.
+    local routed = route(all_claim())
+    assert(routed.jest(nested_file), "the nested jest package lost its own file")
+    assert(not routed.vitest(nested_file), "vitest crossed a package boundary")
+    assert(claim_count(routed, nested_file) == 1, "expected exactly one adapter to claim the file")
+    assert(routed.vitest(vitest_root_file), "vitest gave up a file in the package that declares it")
+    assert(claim_count(routed, vitest_root_file) == 1, "expected exactly one adapter to claim the file")
+    -- A nested package that names no runner declares nothing, so it overrides nothing: the file
+    -- stays with whichever adapter's own detection reaches the ancestor.
+    assert(routed.vitest(silent_nested_file), "an empty nested manifest took the file from vitest")
+    assert(claim_count(routed, silent_nested_file) == 1, "expected exactly one adapter to claim the file")
   end,
 
   ["a file importing node:test is node:test's, whatever the project declares"] = function()
