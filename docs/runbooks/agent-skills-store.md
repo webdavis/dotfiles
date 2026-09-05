@@ -196,6 +196,30 @@ default-profile entry: `conventional-commits` in nicodemus, the rest in concerne
 installs (nicodemus `sql-toolkit`, default `summarize-pro`) are unowned live state to hand-remove, never
 automated.
 
+### Harness-specific lane, outside the store (`babysit`)
+
+One skill is delivered to hermes as a real chezmoi-managed directory,
+`private_dot_hermes/private_skills/babysit/`, with no store copy and no lock row. It is the entry point
+to babysitter's orchestration CLI, and the three harness plugins each ship their own copy of it differing
+only in the harness name it hardcodes (`--harness hermes` against `codex` against `claude-code`).
+
+A store copy would therefore be wrong by construction. Codex scans the store natively with no per-skill
+opt-out, so a hermes-flavoured `babysit` there would put a second skill of that name in front of Codex
+telling it to run `--harness hermes`, which is the collision the catalog-first rule below forbids. Claude
+Code and Codex get their correct copies from the babysitter plugin instead; only hermes, which cannot
+load that plugin at all, needs a file.
+
+`treefmt.toml` excludes `private_dot_hermes/private_skills/**` from mdformat, for the same reason
+`dot_agents/**` is excluded: the copy is byte-identical to upstream and mdformat would mangle its YAML
+frontmatter.
+
+It carries no `forks` drift-watch entry, and that is deliberate rather than an omission. The file is a
+stub whose whole body tells the agent to run `babysitter instructions:babysit-skill --harness hermes` and
+follow what comes back, so the instructions that matter are fetched at run time from the CLI pinned in
+`.chezmoidata/system_packages_autoinstall.yaml`. Re-compare it against `a5c-ai/babysitter-hermes`
+`skills/babysit/SKILL.md` when that pin is bumped, which is the only moment its content can meaningfully
+have moved.
+
 ### Name collisions
 
 Collisions resolve catalog-first (operator ruling): the `humanizer` and `hyperframes` store copies serve
