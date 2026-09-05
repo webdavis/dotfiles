@@ -13,15 +13,20 @@
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
 -- Capture the setup() options without loading overseer itself.
+local captured_hooks = {}
+
 local function captured_setup_opts()
   local opts
+  captured_hooks = {}
   local overseer_fake = {
     setup = function(o)
       opts = o
     end,
     run_task = function() end,
     run_action = function() end,
-    add_template_hook = function() end,
+    add_template_hook = function(hook_opts, hook)
+      table.insert(captured_hooks, { opts = hook_opts, hook = hook })
+    end,
     preload_task_cache = function() end,
     create_task_output_view = function() end,
     new_task = function()
@@ -70,10 +75,40 @@ local function quickfix_component()
   error("the default alias has no on_output_quickfix entry")
 end
 
+---The hook the config registers for EVERY template (the one with no filter).
+---@return fun(task_defn: table, util: table)
+local function hook_for_all_templates()
+  captured_setup_opts()
+  for _, entry in ipairs(captured_hooks) do
+    if entry.opts == nil then
+      return entry.hook
+    end
+  end
+  error("no template hook is registered for every template")
+end
+
+-- The namespace overseer hands a hook. Only the pieces the hooks here touch.
+local hook_util = {
+  add_component = function(task_defn, comp)
+    task_defn.components = task_defn.components or {}
+    table.insert(task_defn.components, comp)
+  end,
+  has_component = function(task_defn, name)
+    for _, comp in ipairs(task_defn.components or {}) do
+      if comp == name or (type(comp) == "table" and comp[1] == name) then
+        return true
+      end
+    end
+    return false
+  end,
+}
+
 -- One line through the shipped errorformat. Returns the resolved filename (or
 -- nil when the entry is not a valid location), the line number, and the message.
 local function parse(line)
-  local item = vim.fn.getqflist({ lines = { line }, efm = quickfix_component().errorformat }).items[1]
+  local defn = {}
+  hook_for_all_templates()(defn, hook_util)
+  local item = vim.fn.getqflist({ lines = { line }, efm = defn.default_component_params.errorformat }).items[1]
   if item.valid ~= 1 then
     return nil
   end
@@ -81,6 +116,36 @@ local function parse(line)
 end
 
 return {
+  ["the alias leaves a template's own errorformat alone"] = function()
+    -- `on_output_quickfix.errorformat` has `default_from_task`, which only fills
+    -- in when the component does NOT set it. Setting it in the alias overrode
+    -- every template that ships one, Cargo's among them, so a compiler error
+    -- landed on the nonexistent `--> src/lib.rs` buffer.
+    assert(
+      quickfix_component().errorformat == nil,
+      "the alias pins an errorformat, so a template's own is ignored: " .. tostring(quickfix_component().errorformat)
+    )
+  end,
+
+  ["a template without its own errorformat gets the generic one"] = function()
+    local defn = { components = {} }
+    hook_for_all_templates()(defn, hook_util)
+    assert(defn.default_component_params, "the hook set no default_component_params")
+    assert(
+      defn.default_component_params.errorformat:match("^FAIL "),
+      "the generic format was not applied: " .. tostring(defn.default_component_params.errorformat)
+    )
+  end,
+
+  ["a template that ships an errorformat keeps it"] = function()
+    local defn = { default_component_params = { errorformat = "%f|%l| %m" } }
+    hook_for_all_templates()(defn, hook_util)
+    assert(
+      defn.default_component_params.errorformat == "%f|%l| %m",
+      "the template's own errorformat was replaced with " .. tostring(defn.default_component_params.errorformat)
+    )
+  end,
+
   ["the quickfix keeps only lines that parse as a location"] = function()
     assert(quickfix_component().items_only == true, "items_only is not set; every output line reaches the quickfix")
   end,

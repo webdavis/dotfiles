@@ -155,7 +155,6 @@ return {
             -- output as unnavigable text, clobbering whatever was there. Keep
             -- only the lines that parse as a location.
             items_only = true,
-            errorformat = quickfix_errorformat,
             set_diagnostics = true,
             open_on_match = true,
           },
@@ -194,7 +193,7 @@ return {
         default_neotest = {
           "on_exit_set_status",
           { "on_complete_notify", system = "unfocused" },
-          { "on_output_quickfix", items_only = true, errorformat = quickfix_errorformat, set_diagnostics = true },
+          { "on_output_quickfix", items_only = true, set_diagnostics = true },
           { "on_result_diagnostics", remove_on_restart = true },
         },
         -- trouble.nvim is installed, so a task can route its diagnostics there
@@ -208,7 +207,7 @@ return {
         watched = {
           "on_exit_set_status",
           { "on_complete_notify", on_change = true, system = "unfocused" },
-          { "on_output_quickfix", items_only = true, errorformat = quickfix_errorformat, set_diagnostics = true },
+          { "on_output_quickfix", items_only = true, set_diagnostics = true },
           { "on_result_diagnostics", remove_on_restart = true },
           -- The component written for exactly this: a long-running task that
           -- produces new results periodically, notifying on the verdict rather
@@ -227,7 +226,7 @@ return {
         live_notify = {
           "on_exit_set_status",
           { "on_output_notify", output_on_complete = true, max_lines = 3 },
-          { "on_output_quickfix", items_only = true, errorformat = quickfix_errorformat, set_diagnostics = true },
+          { "on_output_quickfix", items_only = true, set_diagnostics = true },
           { "on_result_diagnostics", remove_on_restart = true },
         },
       },
@@ -255,6 +254,21 @@ return {
     })
 
     local overseer_title = { title = "Overseer" }
+
+    -- The generic errorformat is a task DEFAULT, not a component parameter.
+    -- `on_output_quickfix.errorformat` carries `default_from_task`, which fills
+    -- in only when the component does not set it, so pinning it in the alias
+    -- overrode every template that ships one of its own: a Cargo error resolved
+    -- to the nonexistent `--> src/lib.rs` buffer instead of to `src/lib.rs:2:3`.
+    -- Setting it here leaves a template's own format in place and supplies ours
+    -- to the templates with none.
+    overseer.add_template_hook(nil, function(task_defn)
+      local defaults = task_defn.default_component_params or {}
+      if defaults.errorformat == nil then
+        defaults.errorformat = quickfix_errorformat
+        task_defn.default_component_params = defaults
+      end
+    end)
 
     -- Re-running a gate should replace the last run of it, not stack a second
     -- copy beside it. `unique` does that, and a template hook is how a component
