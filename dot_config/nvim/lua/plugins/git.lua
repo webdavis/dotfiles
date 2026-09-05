@@ -89,6 +89,92 @@ local function copy_url_mapping_helper(lhs, remote, protocol)
   return mapping_table
 end
 
+-- ╭──────────────────────────╮
+-- │   Fugitive lazy trigger  │
+-- ╰──────────────────────────╯
+-- Every fugitive mapping is created inside the spec's `config`, which lazy.nvim
+-- only runs once the plugin loads, so the trigger has to name each `<C-g>` key
+-- up front or the first press of one does nothing at all. `desc` mirrors the
+-- matching `map()` call below so the which-key popup reads the same before and
+-- after fugitive loads. Sorted by `lhs`; the four other `<C-g>` keys belong to
+-- the snacks and gitlinker specs and are not fugitive's to trigger.
+local fugitive_keys = {
+  { "<C-g>!", desc = "Fugitive: stage → amend (no edit) → force push" },
+  { "<C-g>C-", desc = "Fugitive (checkout): previous branch" },
+  { "<C-g>Cb", desc = "Git (checkout): create new <branch>" },
+  { "<C-g>Cm", desc = "Fugitive (checkout): main" },
+  { "<C-g>Ff", desc = "Fugitive: fetch" },
+  { "<C-g>Fp", desc = "Fugitive: pull" },
+  { "<C-g>Fr", desc = "Fugitive: pull --rebase" },
+  { "<C-g>SA", desc = "Apply: by index <#>" },
+  { "<C-g>SP", desc = "Pop: by index <#>" },
+  { "<C-g>SW", desc = "Push: working + untracked (keep staged changes)" },
+  { "<C-g>Sa", desc = "Apply: most recent (default)" },
+  { "<C-g>Sd", desc = "Push: tracked + untracked (default)" },
+  { "<C-g>Se", desc = "Push: all (tracked + untracked + ignored)" },
+  { "<C-g>Sp", desc = "Pop: most recent (default)" },
+  { "<C-g>Ss", desc = "Push: staged" },
+  { "<C-g>Sw", desc = "Push: working (keep staged changes)" },
+  { "<C-g>a", desc = "Fugitive: add file" },
+  { "<C-g>bA", desc = "Fugitive: local + remote (verbose)" },
+  { "<C-g>bR", desc = "Fugitive: remotes (verbose)" },
+  { "<C-g>bV", desc = "Fugitive: local (verbose)" },
+  { "<C-g>bb", desc = "Fugitive: local" },
+  { "<C-g>bc", desc = "Notify: current + copy hash to clipboard (verbose)" },
+  { "<C-g>bv", desc = "Notify: local + info" },
+  { "<C-g>cA", desc = "Fugitive: amend latest (author only)" },
+  { "<C-g>ca", desc = "Fugitive: amend latest (edit message)" },
+  { "<C-g>cc", desc = "Fugitive: entire index (all staged changes)" },
+  { "<C-g>cf", desc = "Fugitive: current file only" },
+  { "<C-g>cn", desc = "Fugitive: amend latest (don't edit message)" },
+  { "<C-g>cp", desc = "Fugitive: paste latest message into buffer" },
+  { "<C-g>dhF", desc = "Fugitive: with function context (horizontal)" },
+  { "<C-g>dhf", desc = "Fugitive: with function context (vertical)" },
+  { "<C-g>dhm", desc = "Overseer: emphasize moved lines" },
+  { "<C-g>dhw", desc = "Overseer: emphasize changed words" },
+  { "<C-g>diC", desc = "Git: no context (current file)" },
+  { "<C-g>diF", desc = "Fugitive: function context (horizontal)" },
+  { "<C-g>dic", desc = "Git: no context" },
+  { "<C-g>dif", desc = "Fugitive: function context (vertical)" },
+  { "<C-g>i", desc = "Git (Overseer): initialize & create GitHub repo" },
+  { "<C-g>lL", desc = "Fugitive: default (current file)" },
+  { "<C-g>lO", desc = "Fugitive: oneline (current file)" },
+  { "<C-g>lW", desc = "Overseer: my contributions this-week (color)" },
+  { "<C-g>lc", desc = "Fugitive: oneline (current file) (alt)" },
+  { "<C-g>ll", desc = "Fugitive: default" },
+  { "<C-g>lo", desc = "Fugitive: oneline" },
+  { "<C-g>lp", desc = "Fugitive: pretty (enter number of commits)" },
+  { "<C-g>lr", desc = "Overseer: pretty (relative time)" },
+  { "<C-g>lsl", desc = "Fugitive: default" },
+  { "<C-g>lso", desc = "Fugitive: oneline" },
+  { "<C-g>lsr", desc = "Overseer: pretty (relative time)" },
+  { "<C-g>lw", desc = "Fugitive: my contributions this-week (no color)" },
+  { "<C-g>oI", desc = "Open GitHub: Insights" },
+  { "<C-g>oP", desc = "Open GitHub: Projects" },
+  { "<C-g>oS", desc = "Open GitHub: Security" },
+  { "<C-g>oa", desc = "Open GitHub: Actions" },
+  { "<C-g>ob", desc = "Open GitHub: Current Branch (Homepage)" },
+  { "<C-g>of", desc = "Fugitive: browse (file)" },
+  { "<C-g>oi", desc = "Open GitHub: Issues" },
+  { "<C-g>ol", desc = "Fugitive: browse (line in file)" },
+  { "<C-g>oo", desc = "Open GitHub: Homepage" },
+  { "<C-g>op", desc = "Open GitHub: Pull Requests" },
+  { "<C-g>os", desc = "Open GitHub: Settings" },
+  { "<C-g>ow", desc = "Open GitHub: Wiki" },
+  { "<C-g>pf", desc = "Fugitive: push --force-with-lease" },
+  { "<C-g>pp", desc = "Fugitive: push" },
+  { "<C-g>pu", desc = "Fugitive: push -u origin <branch>" },
+  { "<C-g>rH", desc = "Git (remote): copy HTTPS URL (upstream)" },
+  { "<C-g>rS", desc = "Git (remote): copy SSH URL (upstream)" },
+  { "<C-g>rh", desc = "Git (remote): copy HTTPS URL (origin)" },
+  { "<C-g>rs", desc = "Git (remote): copy SSH URL (origin)" },
+  { "<C-g>sn", desc = "Fugitive: status (as notification)" },
+  { "<C-g>ss", desc = "Fugitive: status" },
+  { "<C-g>wb", desc = "Fugitive: whatchanged (buffer)" },
+  { "<C-g>wc", desc = "Fugitive: whatchanged --since=<date>" },
+  { "<C-g>ww", desc = "Fugitive: whatchanged (workspace)" },
+}
+
 -- ╭─────────────╮
 -- │   Plugins   │
 -- ╰─────────────╯
@@ -483,6 +569,45 @@ return {
       "stevearc/overseer.nvim",
       "folke/snacks.nvim",
     },
+    -- Every global command `plugin/fugitive.vim` defines, so a lazy fugitive
+    -- still answers the ones typed by hand as well as the ones the mappings
+    -- below run (`Git`, `Gwrite`, `GBrowse`). The legacy spellings (`Gstatus`,
+    -- `Gcommit`, `Gbrowse` and the rest) are omitted: without
+    -- `g:fugitive_legacy_commands` they are error stubs, not commands.
+    cmd = {
+      "G",
+      "GBrowse",
+      "GDelete",
+      "GMove",
+      "GRemove",
+      "GRename",
+      "GUnlink",
+      "Gcd",
+      "Gclog",
+      "GcLog",
+      "Gdiffsplit",
+      "Gdrop",
+      "Ge",
+      "Gedit",
+      "Ggrep",
+      "Ghdiffsplit",
+      "Git",
+      "Glcd",
+      "Glgrep",
+      "Gllog",
+      "GlLog",
+      "Gpedit",
+      "Gr",
+      "Gread",
+      "Gsplit",
+      "Gtabedit",
+      "Gvdiffsplit",
+      "Gvsplit",
+      "Gw",
+      "Gwq",
+      "Gwrite",
+    },
+    keys = fugitive_keys,
     config = function()
       -- Init／Create:
       map({
