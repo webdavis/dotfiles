@@ -383,10 +383,15 @@ return {
       -- `gitsigns-blame://<gitdir>//<rev>:<path relative to the repo root>`, so
       -- the window already showing THIS file's blame is the one whose trailing
       -- path the current buffer ends with.
+      --
+      -- EVERY window, not just this tab's. A buffer name is global, so a blame
+      -- open in another tab collides just the same, and searching one tab missed
+      -- it and left the split plus the E95 behind. `nvim_set_current_win` switches
+      -- tabs, so focusing it from here works.
       local function blame_window_for_current_buffer()
         local file = vim.api.nvim_buf_get_name(0)
 
-        for _, window in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        for _, window in ipairs(vim.api.nvim_list_wins()) do
           local buffer = vim.api.nvim_win_get_buf(window)
           if vim.bo[buffer].filetype == "gitsigns-blame" then
             local relative_path = vim.api.nvim_buf_get_name(buffer):match(":([^:]+)$")
