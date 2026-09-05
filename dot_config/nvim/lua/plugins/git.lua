@@ -380,24 +380,40 @@ return {
       -- a second press while this file's blame is still open leaves the new split
       -- behind and then fails on `nvim_buf_set_name` with E95, taking the window
       -- count from two to three. The blame buffer is named
-      -- `gitsigns-blame://<gitdir>//<rev>:<path relative to the repo root>`, so
-      -- the window already showing THIS file's blame is the one whose trailing
-      -- path the current buffer ends with.
+      -- `gitsigns-blame://<gitdir>//<rev>:<path relative to the repo root>`, and
+      -- BOTH ends of that identify the file: the gitdir, because two repositories
+      -- holding the same relative path produce two different buffers, and the
+      -- whole relative path behind its `:`, because a bare tail match reads a
+      -- blame of `b/x.lua` as one of `a/b/x.lua`. Gitsigns publishes both halves
+      -- on the source buffer as `b:gitsigns_status_dict`.
+      --
+      -- The revision between them is deliberately NOT matched: a blame the reader
+      -- already walked with `R` sits at another revision and is still the window
+      -- to focus rather than to duplicate.
       --
       -- EVERY window, not just this tab's. A buffer name is global, so a blame
       -- open in another tab collides just the same, and searching one tab missed
       -- it and left the split plus the E95 behind. `nvim_set_current_win` switches
       -- tabs, so focusing it from here works.
       local function blame_window_for_current_buffer()
+        local status = vim.b.gitsigns_status_dict
+        if not (status and status.gitdir and status.root) then
+          return
+        end
+
+        local root = status.root .. "/"
         local file = vim.api.nvim_buf_get_name(0)
+        if not vim.startswith(file, root) then
+          return
+        end
+
+        local prefix = ("gitsigns-blame://%s//"):format(status.gitdir)
+        local suffix = ":" .. file:sub(#root + 1)
 
         for _, window in ipairs(vim.api.nvim_list_wins()) do
-          local buffer = vim.api.nvim_win_get_buf(window)
-          if vim.bo[buffer].filetype == "gitsigns-blame" then
-            local relative_path = vim.api.nvim_buf_get_name(buffer):match(":([^:]+)$")
-            if relative_path and vim.endswith(file, relative_path) then
-              return window
-            end
+          local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(window))
+          if vim.startswith(name, prefix) and vim.endswith(name, suffix) then
+            return window
           end
         end
       end
