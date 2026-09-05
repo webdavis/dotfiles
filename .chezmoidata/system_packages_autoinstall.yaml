@@ -267,6 +267,7 @@ packages:
     uv:
       - graphifyy
       - nano-pdf
+      - pymobiledevice3
       - sherlock-project
       - whisply[mlx,app]
     # fnm-managed node plus the npm CLI tools that run on it. One node version
