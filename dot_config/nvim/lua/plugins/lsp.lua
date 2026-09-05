@@ -258,7 +258,14 @@ return {
           formatting.mdformat.with({
             extra_args = { "--number", "--wrap", "105" },
           }),
-          formatting.nixfmt, -- Filetypes: .nix config files, specifically.
+          -- nixfmt, rubocop and eslint come from a project's toolchain, not Mason. A source whose
+          -- binary is missing is still reported by `:checkhealth` as an ERROR, so register each
+          -- only where its command exists.
+          formatting.nixfmt.with({ -- Filetypes: .nix config files, specifically.
+            condition = function()
+              return vim.fn.executable("nixfmt") == 1
+            end,
+          }),
           formatting.nix_flake_fmt.with({ -- Filetypes: flake.nix files, specifically.
             filetypes = { "nix" },
           }),
@@ -267,6 +274,9 @@ return {
           }),
           formatting.rubocop.with({ -- Filetypes: Ruby (supports linting & formatting).
             extra_args = { "--display-time", "--extra-details", "--autocorrect", "--fail-level autocorrect" },
+            condition = function()
+              return vim.fn.executable("rubocop") == 1
+            end,
           }),
           formatting.stylua,
           formatting.swiftformat,
@@ -284,7 +294,11 @@ return {
 
           -- The following require none-ls-extras.nvim:
           require("none-ls.formatting.ansiblelint"),
-          require("none-ls.diagnostics.eslint"),
+          require("none-ls.diagnostics.eslint").with({
+            condition = function()
+              return vim.fn.executable("eslint") == 1
+            end,
+          }),
         },
       })
     end,
