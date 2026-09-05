@@ -185,7 +185,17 @@ return {
             return
           end
           restored_breakpoints_file = path
-          require("xcodebuild.integrations.dap").load_breakpoints()
+          -- Per buffer, and only where nothing is set. The loader ADDS, so handing it a buffer
+          -- that already carries live breakpoints restores the saved copy beside them: switch
+          -- A to B and back and the stale line 5 reappears next to the live line 6 the edit
+          -- moved it to. Skipping buffers already in `get()` keeps live positions and still
+          -- restores every buffer the new project has not populated yet.
+          local existing = require("dap.breakpoints").get()
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if not existing[buf] then
+              require("xcodebuild.integrations.dap").load_breakpoints(buf)
+            end
+          end
         end,
       })
 
