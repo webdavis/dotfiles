@@ -3,6 +3,18 @@
 
 local git = require("custom_api.git")
 
+-- git hands its own environment to every hook it runs, and this spec runs under
+-- the pre-commit hook: GIT_DIR, GIT_INDEX_FILE and their siblings would point
+-- every fixture command AND every blame at THIS repository instead of the
+-- throwaway one, so a fixture commit would land here. They go before any
+-- fixture exists, for the whole process, because the blame under test runs
+-- through the module's own runner and carries no environment of its own.
+for name in pairs(vim.fn.environ()) do
+  if name:match("^GIT_") then
+    vim.env[name] = nil
+  end
+end
+
 -- git.lua reaches the shell through `git.runner` (spec 6.2), so a spec answers
 -- for the shell by replacing that one field. Argv is the only form allowed
 -- through the seam, so the fakes refuse shell text outright. `replies` maps the
@@ -46,6 +58,55 @@ local function in_buffer(lines, fn, name)
   vim.api.nvim_buf_set_name(bufnr, name or vim.fn.tempname())
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   vim.api.nvim_set_current_buf(bufnr)
+  local count, results = collect(pcall(fn, vim.api.nvim_buf_get_name(bufnr)))
+  vim.api.nvim_set_current_buf(previous)
+  vim.api.nvim_buf_delete(bufnr, { force = true })
+  assert(results[1], results[2])
+  return unpack(results, 2, count)
+end
+
+-- A REAL repository holding one committed file of exact bytes, opened with the
+-- given `:edit` modifiers, and the real runner behind `git.runner`. What blame
+-- answers about an UNCHANGED line is the question these cases ask: whether the
+-- bytes sent are the bytes the file holds cannot be settled by asserting the
+-- stdin a fake was handed, because that only asserts what this spec BELIEVES
+-- the file holds. Git calling the line committed is the file itself agreeing.
+local function in_committed_file(bytes, modifiers, fn)
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+
+  local function git_command(...)
+    local argv = { "git", ... }
+    -- The operator's global config carries a hooks path and commit signing, and
+    -- a fixture commit must run none of that. Reading no global or system
+    -- config at all is one move that covers every such setting.
+    local result = vim.system(argv, {
+      text = true,
+      cwd = dir,
+      env = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_SYSTEM = "/dev/null" },
+    }):wait()
+    assert(result.code == 0, table.concat(argv, " ") .. ": " .. (result.stderr or ""))
+  end
+
+  git_command("init", "-q")
+  -- The blame under test runs through the module's own runner, which passes no
+  -- environment, so it DOES read the global config. `core.autocrlf` there would
+  -- strip the carriage returns and hide what a CRLF case sends, and only the
+  -- repository's own setting outranks it.
+  git_command("config", "core.autocrlf", "false")
+  git_command("config", "user.name", "Spec Fixture")
+  git_command("config", "user.email", "spec@example.invalid")
+
+  local path = dir .. "/fixture.txt"
+  local handle = assert(io.open(path, "wb"))
+  handle:write(bytes)
+  handle:close()
+  git_command("add", "fixture.txt")
+  git_command("commit", "-q", "-m", "fixture")
+
+  local previous = vim.api.nvim_get_current_buf()
+  vim.cmd(("edit %s %s"):format(modifiers, vim.fn.fnameescape(path)))
+  local bufnr = vim.api.nvim_get_current_buf()
   local count, results = collect(pcall(fn, vim.api.nvim_buf_get_name(bufnr)))
   vim.api.nvim_set_current_buf(previous)
   vim.api.nvim_buf_delete(bufnr, { force = true })
@@ -382,6 +443,18 @@ return {
     end)
     assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
     assert(seen[1].stdin == "nonl one\nnonl two", "stdin was " .. string.format("%q", tostring(seen[1].stdin)))
+  end,
+
+  -- nvim exposes an LF byte sitting INSIDE a `fileformat=mac` line as a carriage
+  -- return, the same byte it splits those lines on. Joining them back with a
+  -- carriage return of its own therefore turns the file's own LF into a line
+  -- break, git sees one line where the file has two, and the unchanged first
+  -- line reported itself uncommitted.
+  ["blame_sha restores the line breaks a mac buffer hides inside its lines"] = function()
+    local sha, err = in_committed_file("one\ninside\rtwo\r", "++ff=mac", function(file)
+      return git.blame_sha({ file = file, line = 1 })
+    end)
+    assert(sha, "row 1 of an unchanged file answered: " .. tostring(err))
   end,
 
   -- A symlink gives nvim the TARGET's text under the LINK's name. The link's own

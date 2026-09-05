@@ -355,7 +355,20 @@ local function buffer_contents(file)
   end
 
   local separator = LINE_SEPARATOR[vim.bo.fileformat] or "\n"
-  local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), separator)
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+
+  -- A `fileformat=mac` buffer is split on carriage returns, and nvim shows an LF
+  -- byte sitting INSIDE one of those lines as a carriage return as well. Joining
+  -- with a carriage return would write the file's own LF back out as a line
+  -- break, so the two are told apart here: a carriage return still inside a line
+  -- is the LF it was read from.
+  if separator == "\r" then
+    lines = vim.tbl_map(function(line)
+      return (line:gsub("\r", "\n"))
+    end, lines)
+  end
+
+  local text = table.concat(lines, separator)
 
   return vim.bo.endofline and text .. separator or text
 end
