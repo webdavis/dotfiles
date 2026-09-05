@@ -771,7 +771,7 @@ mod tests {
     fn census(config_text: &str) -> (Registry, Selection, Selection) {
         let registry = roster();
         let selected = registry
-            .enabled(&parse_config(config_text).unwrap())
+            .enabled(&parse_config(config_text).unwrap().plugin_switches())
             .unwrap();
         let registered = registry.all();
         (registry, registered, selected)
