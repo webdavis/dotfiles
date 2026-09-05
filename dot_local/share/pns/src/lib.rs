@@ -30,6 +30,8 @@ pub mod nag;
 pub mod presence;
 pub mod presence_file;
 pub mod presence_hue;
+pub mod presence_instant;
+pub mod presence_lock;
 pub mod probes;
 pub mod pulse;
 pub mod quiet;
