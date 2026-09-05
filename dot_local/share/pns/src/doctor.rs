@@ -82,8 +82,10 @@ pub enum Outcome {
     Failed(String),
     /// The lights, and how many rooms were signalled.
     Signalled(usize),
-    /// What the room sensor reads right now, in every state it can be in.
-    Presence(crate::presence::PresenceStatus),
+    /// What the room sensor reads right now, in every state it can be in, and
+    /// the phrase the narrowing ring last recorded (`None` for a ring with
+    /// nothing in it).
+    Presence(crate::presence::PresenceStatus, Option<String>),
     /// Nothing was checked, and why.
     Skipped(&'static str),
 }
@@ -153,7 +155,9 @@ pub fn line(check: &Check, outcome: &Outcome) -> String {
         Outcome::Signalled(1) => format!("{plugin}: signalled 1 room ({WATCH_FOR_IT})"),
         Outcome::Signalled(rooms) => format!("{plugin}: signalled {rooms} rooms ({WATCH_FOR_IT})"),
         Outcome::Skipped(reason) => format!("{plugin}: skipped, {reason}"),
-        Outcome::Presence(status) => presence_said(plugin, status),
+        Outcome::Presence(status, last_narrowing) => {
+            presence_said(plugin, status, last_narrowing.as_deref())
+        }
     }
 }
 
@@ -162,31 +166,36 @@ pub fn line(check: &Check, outcome: &Outcome) -> String {
 /// UNKNOWN NAMES WHICH KIND OF UNKNOWN, because the five are five different
 /// things to go and fix: nothing published yet, a daemon or a bridge that
 /// stopped, a clock, a wrong epoch, and a room the config does not watch.
-fn presence_said(plugin: &str, status: &crate::presence::PresenceStatus) -> String {
-    use crate::presence::{PresenceStatus, Unreadable};
-    match status {
+fn presence_said(
+    plugin: &str,
+    status: &crate::presence::PresenceStatus,
+    last_narrowing: Option<&str>,
+) -> String {
+    use crate::presence::PresenceStatus;
+    let reading = match status {
         PresenceStatus::Room { room, age_secs } => {
-            format!("{plugin}: {} ({age_secs}s ago)", shown_room(room))
+            format!("{} ({age_secs}s ago)", shown_room(room))
         }
         // THE BRIDGE ANSWERED AND ANSWERED "NOT THERE", which is a different
         // fact from not knowing and is worth its own word.
         PresenceStatus::Nowhere { poll_age_secs } => {
-            format!("{plugin}: nowhere (poll {poll_age_secs}s ago)")
+            format!("nowhere (poll {poll_age_secs}s ago)")
         }
         PresenceStatus::Unknown(reason) => {
-            let said = match reason {
-                Unreadable::NoReading => "no reading".to_string(),
-                Unreadable::NoClock => "the clock could not be read".to_string(),
-                Unreadable::Stale { poll_age_secs } => {
-                    format!("stale, poll {poll_age_secs}s old")
-                }
-                Unreadable::Future => "future epoch".to_string(),
-                Unreadable::NotWatched => {
-                    "the reported room is not one this config watches".to_string()
-                }
-            };
-            format!("{plugin}: unknown ({said})")
+            format!("unknown ({})", crate::presence::unreadable_said(reason))
         }
+    };
+    // WHAT THE LAMPS DID WITH IT, which the reading alone does not say: the
+    // desk overrules a room, a room holding no lamp falls back, and an
+    // operator staring at a lamp in the wrong room needs to see which. It is
+    // read back out of a state file, so it crosses the same filter the room
+    // name above does.
+    match last_narrowing {
+        Some(narrowing) => format!(
+            "{plugin}: {reading}; last narrowed {}",
+            printable(narrowing)
+        ),
+        None => format!("{plugin}: {reading}"),
     }
 }
 
@@ -623,7 +632,7 @@ fn verdict(outcome: &Outcome) -> Verdict {
         // checks that had nothing to send rather than moving the exit code
         // in either direction: a bridge that stopped answering costs the
         // lights their narrowing, and no notification at all.
-        Outcome::Presence(_) => Verdict::Skipped,
+        Outcome::Presence(..) => Verdict::Skipped,
     }
 }
 
@@ -776,13 +785,42 @@ mod tests {
     /// `line` for a presence reading, which is the only outcome that check
     /// takes.
     fn presence_line_for(status: PresenceStatus) -> String {
+        presence_line_with(status, None)
+    }
+
+    /// The same line, with whatever the narrowing ring last recorded.
+    fn presence_line_with(status: PresenceStatus, last_narrowing: Option<&str>) -> String {
         line(
             &Check {
                 plugin: "presence",
                 kind: CheckKind::Presence,
             },
-            &Outcome::Presence(status),
+            &Outcome::Presence(status, last_narrowing.map(str::to_string)),
         )
+    }
+
+    #[test]
+    fn the_room_sensor_line_names_what_the_last_decision_narrowed_the_lamps_to() {
+        // The reading alone does not say what the lamps DID with it: the desk
+        // overrules a room, an empty room falls back, and an operator staring
+        // at a lamp in the wrong room needs to see which of those happened.
+        assert_eq!(
+            presence_line_with(
+                PresenceStatus::Room {
+                    room: "2F - Kitchen".to_string(),
+                    age_secs: 4,
+                },
+                Some(r#"nothing (at the desk, and no desk_room says which room that is)"#),
+            ),
+            "presence: 2F - Kitchen (4s ago); last narrowed nothing (at the desk, \
+             and no desk_room says which room that is)"
+        );
+        // AND A RING WITH NOTHING IN IT SAYS NOTHING, rather than claiming a
+        // narrowing never decided: presence off, or on and never yet consulted.
+        assert_eq!(
+            presence_line_for(PresenceStatus::Nowhere { poll_age_secs: 3 }),
+            "presence: nowhere (poll 3s ago)"
+        );
     }
 
     #[test]
@@ -880,10 +918,13 @@ mod tests {
     fn a_reading_is_never_counted_as_a_send_however_good_it_is() {
         // Nothing was delivered through a sensor and nothing failed to be, so
         // a green reading must not be what makes `pns doctor` exit 0.
-        let outcomes = vec![Outcome::Presence(PresenceStatus::Room {
-            room: "3F - Studio".to_string(),
-            age_secs: 1,
-        })];
+        let outcomes = vec![Outcome::Presence(
+            PresenceStatus::Room {
+                room: "3F - Studio".to_string(),
+                age_secs: 1,
+            },
+            None,
+        )];
         assert_eq!(
             summary(&outcomes),
             "pns doctor: 0 sent, 0 failed, 1 skipped"
