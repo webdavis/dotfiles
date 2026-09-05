@@ -47,67 +47,145 @@ local function imports_node_test(file_path)
   return false
 end
 
---- The test runner the package.json NEAREST `path` declares, read from its dependency lists and
---- its scripts, or nil when it names none.
+--- The one filename rule the three JavaScript adapters are asked through.
 ---
---- Deliberately the nearest manifest alone, unlike the adapters' own detection, which also reads
---- the working directory and the git root. That difference is the whole point of this: it is what
---- lets a nested package that declares jest keep its own files inside a vitest repository instead
---- of losing them to an ancestor's choice.
----@param path string a file or a directory
----@return "vitest"|"jest"|"node"|nil
-local function nearest_declared_runner(path)
-  local root = vim.fs.root(path, "package.json")
-  if not root then
-    return nil
+--- Their pinned matchers disagree. vitest claims `.e2e.` and node:test and jest claim
+--- `.e2e-spec.`, `.unit.`, `.regression.` and `.integration.` instead, and none of the three
+--- claims `.mjs` or `.cjs`. Deciding ownership with one adapter's rule and standing down with
+--- another's is what leaves a file with no claimant, so the union is asked once, here.
+local javascript_test_patterns = {}
+for _, kind in ipairs({ "spec", "e2e", "e2e%-spec", "test", "unit", "regression", "integration" }) do
+  for _, extension in ipairs({ "js", "jsx", "mjs", "cjs", "coffee", "ts", "tsx", "mts", "cts" }) do
+    javascript_test_patterns[#javascript_test_patterns + 1] = "%." .. kind .. "%." .. extension .. "$"
   end
-  -- Plain `io`, for the same async reason as above.
-  local handle = io.open(root .. "/package.json", "r")
-  if not handle then
-    return nil
-  end
-  local contents = handle:read("*a")
-  handle:close()
-  local ok, manifest = pcall(vim.json.decode, contents)
-  if not ok or type(manifest) ~= "table" then
-    return nil
-  end
+end
 
-  local declared = {}
+---@param file_path string?
+---@return boolean
+local function is_javascript_test_file(file_path)
+  if not file_path then
+    return false
+  end
+  -- Every pinned matcher opens with this one, whatever the extension.
+  if file_path:match("__tests__") then
+    return true
+  end
+  for _, pattern in ipairs(javascript_test_patterns) do
+    if file_path:match(pattern) then
+      return true
+    end
+  end
+  return false
+end
+
+--- The runner a decoded package.json names, through its dependency lists or its scripts.
+---@param manifest table
+---@return "vitest"|"jest"|"node"|nil
+local function runner_named_by(manifest)
+  local names = {}
   for _, field in ipairs({ "dependencies", "devDependencies" }) do
     if type(manifest[field]) == "table" then
       for name in pairs(manifest[field]) do
-        declared[#declared + 1] = name
+        names[#names + 1] = name
       end
     end
   end
   if type(manifest.scripts) == "table" then
     for _, command in pairs(manifest.scripts) do
-      declared[#declared + 1] = tostring(command)
+      names[#names + 1] = tostring(command)
     end
   end
 
   -- Substring matches, because a runner is named by more than its own package: `@vitest/ui` and
   -- `vitest run` both name vitest, `ts-jest` and `jest --ci` both name jest. "vitest" never
   -- appears inside a jest name, so asking for it first is what settles a package declaring both.
-  local names = table.concat(declared, " ")
-  if names:find("vitest", 1, true) then
+  local declared = table.concat(names, " ")
+  if declared:find("vitest", 1, true) then
     return "vitest"
   end
-  if names:find("jest", 1, true) then
+  if declared:find("jest", 1, true) then
     return "jest"
   end
-  if names:find("node:test", 1, true) or names:find("node --test", 1, true) then
+  if declared:find("node:test", 1, true) or declared:find("node --test", 1, true) then
     return "node"
   end
   return nil
 end
 
---- The adapter each declared JavaScript runner belongs to.
+--- The runner named by the nearest package.json that names one, walking outward from `path`.
+---
+--- Outward rather than the nearest manifest alone, because a package that names nothing declares
+--- nothing: stopping at an empty `fixtures/package.json` loses the vitest its parent declares, and
+--- the adapters' own detection does not recover it, since that reads the working directory and the
+--- git root rather than the intermediate package. Walking is also what keeps a nested package that
+--- DOES name a runner ahead of an ancestor that names another.
+---
+--- Plain `io` at each level, for the same async reason as the import read above, and it doubles as
+--- the test for whether a manifest is there at all.
+---@param path string a file or a directory
+---@return "vitest"|"jest"|"node"|nil runner
+---@return string|nil the path of a manifest that could not be parsed
+local function declared_runner(path)
+  local directories = { path }
+  for parent in vim.fs.parents(path) do
+    directories[#directories + 1] = parent
+  end
+  for _, directory in ipairs(directories) do
+    local manifest = directory .. "/package.json"
+    local handle = io.open(manifest, "r")
+    if handle then
+      local contents = handle:read("*a")
+      handle:close()
+      local ok, decoded = pcall(vim.json.decode, contents)
+      if not ok or type(decoded) ~= "table" then
+        return nil, manifest
+      end
+      local runner = runner_named_by(decoded)
+      if runner then
+        return runner
+      end
+    end
+  end
+  return nil
+end
+
+--- The adapter that owns `file_path`, or nil when none of the three does.
+---
+--- ONE answer, which all three predicates are derived from. Ownership and standing down were
+--- separate rules before, and any disagreement between them left a file either fought over or,
+--- more often, claimed by nobody. The rules, in order:
+---
+---   * a file that imports node:test is node:test's, whatever the project declares, because
+---     node:test attaches to every package.json and no filename rule tells its files from
+---     vitest's or jest's;
+---   * otherwise the nearest package that names a runner names the owner, so a nested jest
+---     package inside a vitest repository keeps its own files;
+---   * a package naming both is a migration TO vitest, and its config is the one new test files
+---     are written against, so vitest takes it.
+---@param file_path string?
+---@return "neotest-nodejs"|"neotest-vitest"|"neotest-jest"|nil
+local function owner_of(file_path)
+  if not is_javascript_test_file(file_path) then
+    return nil
+  end
+  if imports_node_test(file_path) then
+    return "neotest-nodejs"
+  end
+  local runner = declared_runner(file_path)
+  if runner == "vitest" then
+    return "neotest-vitest"
+  end
+  if runner == "jest" then
+    return "neotest-jest"
+  end
+  return nil
+end
+
+--- The JavaScript adapters, each under the runner a package.json declares for it.
 local javascript_adapters = {
-  vitest = "neotest-vitest",
-  jest = "neotest-jest",
-  node = "neotest-nodejs",
+  ["neotest-vitest"] = "vitest",
+  ["neotest-jest"] = "jest",
+  ["neotest-nodejs"] = "node",
 }
 
 --- Run everything under the working directory through ONE named adapter.
@@ -115,38 +193,39 @@ local javascript_adapters = {
 --- neotest takes a directory without asking any adapter's `is_test_file`, then walks its adapter
 --- map with `pairs`, so leaving the choice to it makes a package with two attached adapters run a
 --- different one between presses. An adapter id is `<name>:<root>` and `run.run` takes one
---- verbatim, so naming it is what settles the run. The nearest package.json names it; with
---- nothing declared and more than one adapter attached the choice is the operator's, because a
---- wrong silent pick reads as a runner that lost its tests.
+--- verbatim, so naming it is what settles the run. The nearest declaring package.json names it;
+--- with nothing declared and more than one adapter attached the choice is the operator's, because
+--- a wrong silent pick reads as a runner that lost its tests.
 local function run_all_tests()
   local neotest = require("neotest")
   local directory = vim.fn.getcwd()
 
+  local runner = declared_runner(directory)
+
   -- Asked of each adapter rather than resolved here, so the id matches the one neotest builds
   -- from the same call.
-  local attached = {}
+  local javascript, other = {}, {}
   for _, adapter in ipairs(require("neotest.config").adapters) do
     local root = adapter.root(directory)
     if root then
-      attached[#attached + 1] = { name = adapter.name, id = ("%s:%s"):format(adapter.name, root) }
+      local entry = { name = adapter.name, id = ("%s:%s"):format(adapter.name, root) }
+      table.insert(javascript_adapters[adapter.name] and javascript or other, entry)
     end
   end
-  if #attached == 0 then
-    return neotest.run.run(directory)
-  end
 
-  local declared = nearest_declared_runner(directory)
-  local wanted = declared and javascript_adapters[declared]
-  for _, entry in ipairs(attached) do
-    if entry.name == wanted then
+  for _, entry in ipairs(javascript) do
+    if javascript_adapters[entry.name] == runner then
       return neotest.run.run({ directory, adapter = entry.id })
     end
   end
-  if #attached == 1 then
-    return neotest.run.run({ directory, adapter = attached[1].id })
+  if #javascript == 1 then
+    return neotest.run.run({ directory, adapter = javascript[1].id })
+  end
+  if #javascript == 0 then
+    return neotest.run.run(directory)
   end
 
-  vim.ui.select(attached, {
+  vim.ui.select(javascript, {
     prompt = "Neotest: run all tests with",
     format_item = function(entry)
       return entry.name
@@ -180,47 +259,28 @@ return {
     },
     -- stylua: ignore end
     config = function()
-      -- Three adapters claim JavaScript and neotest walks its adapter map with `pairs`, so
-      -- exactly one of them has to answer yes for any given file. The rules, in order:
+      -- Ownership is one answer, `owner_of`, and each adapter is asked for its own name. Nothing
+      -- else decides: a file cannot be a test file for the adapter standing down and not for the
+      -- one that would take it, which is how files ended up with no claimant at all.
       --
-      --   * a file that imports node:test is node:test's, whatever the project declares, because
-      --     node:test attaches to every package.json and no filename rule distinguishes its files
-      --     from vitest's or jest's;
-      --   * a package that declares jest and not vitest keeps its own files, so a nested jest
-      --     package inside a vitest repository is not swallowed by the ancestor;
-      --   * otherwise vitest wins over jest, because a repository carrying both runners is a
-      --     migration TO vitest and its config is the one new test files are written against.
-      --
-      -- Only vitest consults the nearest manifest. jest already stands down wherever vitest
-      -- claims, so narrowing vitest hands the nested package back to jest on its own, and the
-      -- precedence lives in one place rather than two that can disagree.
-      --
-      -- Each adapter is asked through ITS OWN default predicate first. That answer carries the
-      -- adapter's real dependency detection, which reads the working directory and the git root as
-      -- well as the nearest manifest, and it is also what makes a nil path safe: all three defaults
-      -- answer false for one, so the helpers above never see nil.
-      local vitest = require("neotest-vitest")
-      local vitest_claims = vitest.is_test_file
-      local jest_claims = require("neotest-jest.jest-util").defaultIsTestFile
-      local node_claims = require("neotest-nodejs.node-util").defaultIsTestFile
-
-      -- vitest ASSIGNS a new closure over this predicate rather than rebinding an upvalue, so the
-      -- default captured above stays callable and composing against it does not recurse.
-      vitest({
+      -- vitest is copied rather than constructed. Its `__call` puts its own dependency gate AHEAD
+      -- of the predicate the caller supplies, and that gate cannot see a runner declared by an
+      -- intermediate package, so constructing it would veto the answer before it was asked. jest
+      -- and node:test both hand their `is_test_file` straight to the configured predicate, so they
+      -- take the supported route.
+      local vitest = vim.tbl_extend("force", require("neotest-vitest"), {
         is_test_file = function(file_path)
-          return vitest_claims(file_path)
-            and not imports_node_test(file_path)
-            and nearest_declared_runner(file_path) ~= "jest"
+          return owner_of(file_path) == "neotest-vitest"
         end,
       })
       local jest = require("neotest-jest")({
         isTestFile = function(file_path)
-          return jest_claims(file_path) and not imports_node_test(file_path) and not vitest.is_test_file(file_path)
+          return owner_of(file_path) == "neotest-jest"
         end,
       })
       local node = require("neotest-nodejs")({
         isTestFile = function(file_path)
-          return node_claims(file_path) and imports_node_test(file_path)
+          return owner_of(file_path) == "neotest-nodejs"
         end,
       })
 
