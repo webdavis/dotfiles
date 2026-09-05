@@ -71,4 +71,23 @@ return {
     assert(plan[2] == "/somewhere", tostring(plan[2]))
     assert(plan[3] == "/tmp/nvim.sock", tostring(plan[3]))
   end,
+
+  -- Finding 1. `agents.list()` is workspace scoped only when HERDR_WORKSPACE_ID
+  -- is set: with the variable unset it answers with every workspace's agents
+  -- (measured, `wW` and `wX` both came back), so a lone Claude anywhere on the
+  -- machine would be resolved silently and sent the buffer.
+  ["the lookup is refused when herdr did not start this editor"] = function()
+    assert(herdr.workspace_refusal(nil, "wW"), "no herdr env at all was allowed")
+    assert(herdr.workspace_refusal("0", "wW"), "HERDR_ENV=0 was allowed")
+  end,
+
+  ["the lookup is refused without a workspace to scope it to"] = function()
+    assert(herdr.workspace_refusal("1", nil), "an unset HERDR_WORKSPACE_ID was allowed")
+    assert(herdr.workspace_refusal("1", ""), "an empty HERDR_WORKSPACE_ID was allowed")
+  end,
+
+  ["the lookup runs inside a herdr pane"] = function()
+    local refusal = herdr.workspace_refusal("1", "wW")
+    assert(refusal == nil, tostring(refusal))
+  end,
 }

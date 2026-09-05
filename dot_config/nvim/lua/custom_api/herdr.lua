@@ -40,12 +40,36 @@ end
 -- │ Which pane │
 -- ╰────────────╯
 
+-- Why the editor must prove it is inside herdr before anything is looked up:
+-- `herdr agent list` is machine-wide and `agents.list()` narrows it to
+-- HERDR_WORKSPACE_ID only when that variable is SET. Started outside a herdr
+-- pane it therefore answers with every workspace's agents (measured: `wW` and
+-- `wX` both came back), and a lone Claude anywhere on the machine would be
+-- resolved silently and sent this buffer. Returns the reason to refuse, or nil.
+function M.workspace_refusal(herdr_env, workspace_id)
+  if herdr_env ~= "1" then
+    return "not running inside herdr, so an agent lookup would cross every workspace"
+  end
+  if not workspace_id or workspace_id == "" then
+    return "herdr set no HERDR_WORKSPACE_ID for this pane, so a lookup cannot be scoped"
+  end
+  return nil
+end
+
 -- `on_pane` rather than a return value: `ui.pick_agent` goes through
 -- `vim.ui.select`, which snacks.nvim replaces with an asynchronous picker, so
 -- the ambiguous case cannot answer in the caller's stack frame. It is called
--- with the pane id, or with nil when this workspace runs no Claude agent; a
--- cancelled picker calls it not at all.
+-- with the pane id, or with nil when this workspace runs no Claude agent. A
+-- refusal and a cancelled picker call it NOT AT ALL, which is what keeps
+-- `launch_or_attach` from splitting a pane on the strength of a lookup that
+-- never happened.
 function M.agent_pane(on_pane)
+  local refusal = M.workspace_refusal(vim.env.HERDR_ENV, vim.env.HERDR_WORKSPACE_ID)
+  if refusal then
+    vim.notify("herdr: " .. refusal, vim.log.levels.WARN)
+    return
+  end
+
   local agents = require("herdr-nvim.agents")
   local all, err = agents.list()
   if not all then
@@ -53,8 +77,12 @@ function M.agent_pane(on_pane)
     return
   end
 
+  -- The workspace test is repeated here rather than left to `agents.list()`:
+  -- scoping the send to THIS workspace is this seam's own promise, and a
+  -- third-party plugin's filter is not the place to keep it.
+  local here = vim.env.HERDR_WORKSPACE_ID
   local claude = vim.tbl_filter(function(a)
-    return a.kind == "claude"
+    return a.kind == "claude" and a.workspace_id == here
   end, all)
 
   if #claude == 0 then
