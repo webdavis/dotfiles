@@ -210,68 +210,51 @@ vim.api.nvim_create_autocmd("User", {
 -- current directory, neither of which can tell two Neovim panes in one
 -- workspace apart.
 --
--- One line per instance, "<pane id> <pid> <socket> <cwd>", cwd last because it
--- is the only field that can hold spaces. Written only under herdr: without
--- HERDR_PANE_ID there is no pane to register and the resolver has nothing to
--- match against.
+-- ONE FILE PER INSTANCE, named for its pid, holding
+-- "<pane id> <pid> <socket> <cwd>" (cwd last, the only field that can hold
+-- spaces). A single shared file loses an update when two instances start at
+-- once, and keys a nested Neovim over its parent because both inherit the same
+-- pane id; per-pid files make the nested pair two candidates the resolver's
+-- picker names instead of one that silently wins.
 --
--- No locking. An append of one short line does not interleave in practice, and
--- the deregister below rewrites the file, so a simultaneous exit could drop
--- another instance's line. That is the case the resolver's identity check
--- exists for: an entry that is stale, missing or reused is caught over RPC
--- before anything is edited, and the runtime-root glob covers an instance whose
--- line never got written.
+-- Written to a temp name and renamed, which is atomic within the directory, so
+-- the resolver never reads a half-written record. Each instance removes only
+-- its own file, so no exit can delete another's. A record left by a crash is
+-- pruned by the resolver's identity check.
+--
+-- Written only under herdr: without HERDR_PANE_ID there is no pane to register
+-- and the resolver has nothing to match against.
 local nvim_mcp_pane = vim.env.HERDR_PANE_ID
 if nvim_mcp_pane and nvim_mcp_pane ~= "" then
-  local nvim_mcp_registry = (vim.env.XDG_STATE_HOME or (vim.env.HOME .. "/.local/state")) .. "/nvim-mcp/registry"
-
-  local function nvim_mcp_lines()
-    local file = io.open(nvim_mcp_registry, "r")
-    if not file then
-      return {}
-    end
-    local lines = {}
-    for line in file:lines() do
-      -- Drop every line this pane owns, so a crash that skipped VimLeavePre
-      -- cannot leave two entries for one pane behind.
-      if line ~= "" and not vim.startswith(line, nvim_mcp_pane .. " ") then
-        lines[#lines + 1] = line
-      end
-    end
-    file:close()
-    return lines
-  end
-
-  local function nvim_mcp_write(lines)
-    vim.fn.mkdir(vim.fs.dirname(nvim_mcp_registry), "p")
-    local file = io.open(nvim_mcp_registry, "w")
-    if not file then
-      return
-    end
-    for _, line in ipairs(lines) do
-      file:write(line, "\n")
-    end
-    file:close()
-  end
+  local nvim_mcp_dir = (vim.env.XDG_STATE_HOME or (vim.env.HOME .. "/.local/state")) .. "/nvim-mcp/registry"
+  local nvim_mcp_record = nvim_mcp_dir .. "/" .. vim.fn.getpid()
 
   vim.api.nvim_create_autocmd("VimEnter", {
     group = augroup("nvim_mcp_registry"),
     callback = function()
-      -- v:servername is empty when Neovim was started with --listen "" or with
-      -- no socket at all; there is then nothing for the resolver to connect to.
+      -- Empty when Neovim was started with no socket at all; there is then
+      -- nothing for the resolver to connect to.
       if vim.v.servername == "" then
         return
       end
-      local lines = nvim_mcp_lines()
-      lines[#lines + 1] = table.concat({ nvim_mcp_pane, vim.fn.getpid(), vim.v.servername, vim.fn.getcwd() }, " ")
-      nvim_mcp_write(lines)
+      -- 0700, because the resolver refuses to read or prune a registry any
+      -- other account could have planted a record in.
+      vim.fn.mkdir(nvim_mcp_dir, "p", tonumber("700", 8))
+      local temp = nvim_mcp_record .. ".tmp"
+      local file = io.open(temp, "w")
+      if not file then
+        return
+      end
+      file:write(table.concat({ nvim_mcp_pane, vim.fn.getpid(), vim.v.servername, vim.fn.getcwd() }, " "), "\n")
+      file:close()
+      os.rename(temp, nvim_mcp_record)
     end,
   })
 
   vim.api.nvim_create_autocmd("VimLeavePre", {
     group = augroup("nvim_mcp_registry_leave"),
     callback = function()
-      nvim_mcp_write(nvim_mcp_lines())
+      os.remove(nvim_mcp_record)
     end,
   })
 end
