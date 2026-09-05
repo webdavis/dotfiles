@@ -173,6 +173,18 @@ return {
   },
   {
     "WhoIsSethDaniel/mason-tool-installer.nvim",
+    -- Its `init.lua` requires `mason-registry`, `mason.version` and
+    -- `mason-lspconfig` the moment it loads, so an untriggered spec here drags
+    -- the whole Mason side of the group into startup and makes their triggers
+    -- inert. `run_on_start` is false, so the commands are what it exists for.
+    cmd = {
+      "MasonToolsClean",
+      "MasonToolsInstall",
+      "MasonToolsInstallSync",
+      "MasonToolsUpdate",
+      "MasonToolsUpdateSync",
+    },
+    event = { "BufReadPre", "BufNewFile" },
     opts = {
       ensure_installed = {
 
