@@ -11,35 +11,6 @@ local javascript_filetypes = {
   "typescriptreact",
 }
 
---- Whether the package.json nearest `file_path` declares `name` as a dependency.
----@param file_path string
----@param name string
----@return boolean
-local function declares_dependency(file_path, name)
-  local root = vim.fs.root(file_path, "package.json")
-  if not root then
-    return false
-  end
-  -- Plain `io` rather than `vim.fn.readfile`: neotest calls `is_test_file` from its own async
-  -- contexts, where a Vimscript call raises E5560 and would silently answer "no dependency".
-  local handle = io.open(root .. "/package.json", "r")
-  if not handle then
-    return false
-  end
-  local contents = handle:read("*a")
-  handle:close()
-  local ok, package_json = pcall(vim.json.decode, contents)
-  if not ok or type(package_json) ~= "table" then
-    return false
-  end
-  for _, field in ipairs({ "dependencies", "devDependencies" }) do
-    if type(package_json[field]) == "table" and package_json[field][name] ~= nil then
-      return true
-    end
-  end
-  return false
-end
-
 return {
   {
     "nvim-neotest/neotest",
@@ -62,24 +33,37 @@ return {
     },
     -- stylua: ignore end
     config = function()
+      -- vitest and jest both claim `*.test.js` in a project that declares both, and neotest
+      -- walks its adapter map with `pairs`, so leaving both eligible makes the adapter that runs
+      -- a file vary between runs. jest stands down wherever vitest claims: a repository carrying
+      -- both runners is a migration TO vitest, and its config is the one new test files are
+      -- written against. jest is asked through ITS OWN default predicate rather than a second,
+      -- weaker copy of its dependency detection here, because the pinned adapters also consult
+      -- the working directory and the git root and a local reimplementation disagrees with them.
+      local vitest = require("neotest-vitest")
+      local jest_claims = require("neotest-jest.jest-util").defaultIsTestFile
+      local jest = require("neotest-jest")({
+        isTestFile = function(file_path)
+          -- No nil guard of its own: neotest does ask with nil, and jest's own default answers
+          -- false for it, which short-circuits before vitest is reached. vitest's predicate
+          -- raises on nil, so the order of these two terms is what keeps this safe.
+          return jest_claims(file_path) and not vitest.is_test_file(file_path)
+        end,
+      })
+
+      -- Construction audit at these pins. Only neotest-golang REQUIRES the call: its
+      -- `M.Adapter.options` is assigned inside `__call` alone (init.lua:241) and read by
+      -- `filter_dir` (init.lua:49), so the bare module raises on any Go module with a
+      -- subdirectory. The rest carry their options without it: neotest-python IS a constructed
+      -- adapter at load (init.lua:70), vitest and jest assign their defaults at load and let
+      -- `__call` override only what the caller supplies, busted's config module starts at its
+      -- own defaults (config.lua:17), and the Swift adapter's `__call` only sets a log level.
       require("neotest").setup({
         adapters = {
           require("neotest-python"),
-          require("neotest-golang"),
-          -- vitest and jest each claim a file only when that runner is a project dependency,
-          -- while neotest-nodejs claims every `*.test.js` it sees. Left at its default the three
-          -- race for the same file and the adapter that wins a run varies between runs (measured:
-          -- 1 run in 4 ran the vitest project under node:test). node:test is the fallback, so it
-          -- stands down wherever one of the other two owns the project.
-          require("neotest-vitest"),
-          require("neotest-jest"),
-          require("neotest-nodejs")({
-            isTestFile = function(file_path)
-              return require("neotest-nodejs.node-util").defaultIsTestFile(file_path)
-                and not declares_dependency(file_path, "vitest")
-                and not declares_dependency(file_path, "jest")
-            end,
-          }),
+          require("neotest-golang")({}),
+          vitest,
+          jest,
           require("neotest-busted"),
           require("neotest-swift-testing"),
         },
@@ -88,7 +72,6 @@ return {
   },
   { "marilari88/neotest-vitest", commit = "c3c69715da4b158069fd4262083e7219a5c14cfb", ft = javascript_filetypes },
   { "nvim-neotest/neotest-jest", commit = "0e7979d51301dfae5ef839d771bd28cf593fde3f", ft = javascript_filetypes },
-  { "AkisArou/neotest-nodejs", commit = "68e558dff61f7ac630f55ab63a092c1767965386", ft = javascript_filetypes },
   { "MisanthropicBit/neotest-busted", commit = "9efddcee53d255cef8937541808eccd464772f80", ft = "lua" },
   {
     -- Codeberg, not GitHub: the GitHub repository has been an archived redirect since 2026-04-28.

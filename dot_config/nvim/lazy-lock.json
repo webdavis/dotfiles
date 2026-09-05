@@ -42,7 +42,6 @@
   "neotest-busted": { "branch": "master", "commit": "9efddcee53d255cef8937541808eccd464772f80" },
   "neotest-golang": { "branch": "main", "commit": "65b2be63c3de00e6f15c05388ebdc8d603dbd727" },
   "neotest-jest": { "branch": "main", "commit": "0e7979d51301dfae5ef839d771bd28cf593fde3f" },
-  "neotest-nodejs": { "branch": "main", "commit": "68e558dff61f7ac630f55ab63a092c1767965386" },
   "neotest-python": { "branch": "master", "commit": "1b56ca4ba51c6014f986d6548ee629bdc95589d1" },
   "neotest-swift-testing": { "branch": "main", "commit": "5b2d7efea43cb0d66d97de65b9ebc7b1db4659fd" },
   "neotest-vitest": { "branch": "main", "commit": "c3c69715da4b158069fd4262083e7219a5c14cfb" },
