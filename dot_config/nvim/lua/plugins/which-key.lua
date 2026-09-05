@@ -35,7 +35,7 @@ return {
         { "<leader>Dp", group = "profiler" },
         { "<leader>e", group = "file exploration" },
         { "<leader>f", group = "find" },
-        { "<leader>g", group = "git search" },
+        { "<leader>g", group = "git" },
         { "<leader>gh", group = "GitHub" },
         { "<leader>ghf", group = "find (pickers)" },
         { "<leader>h", group = "harpoon" },
