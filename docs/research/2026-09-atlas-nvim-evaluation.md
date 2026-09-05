@@ -20,17 +20,18 @@ authors say it is not ready to be depended on.
 
 **Deciding rationale.** Atlas exists to review pull requests across GitHub, GitLab and Bitbucket, and to
 manage issues across GitHub, GitLab and Jira. Everything octo cannot do sits in the columns of that
-matrix that are not GitHub. Nothing on dresden reaches those columns. There is no GitLab token, no
-Bitbucket credential, no Jira site, and no `glab` binary anywhere on the machine or in
-`.chezmoidata/system_packages_autoinstall.yaml`; every repository under `gh repo list webdavis` is on
-github.com. The differentiator is real, and it is worth nothing here today. What is left after removing
-it is a straight swap of one GitHub client for another, and on that comparison the incumbent wins on
-three counts: atlas's README opens with "Still in early development, will have breaking changes!" against
-a tag history that starts at 0.6.6 and reaches 0.7.3, so adopting means tracking a moving target with an
-overhaul already in flight; atlas refuses to check out a pull request branch until an explicit
-`pulls.repo_config.paths` mapping exists, where octo checks out into the current repository with no
-configuration at all; and three of the nine `<leader>gh` keymaps this config binds today have no atlas
-equivalent (gists, standalone workflow runs, repository list).
+matrix that are not GitHub. **Nothing found on dresden reaches those columns**, and "found" is the
+load-bearing word: no GitLab token, Bitbucket credential, Jira site or `glab` binary turned up in the
+four sources 4.6 lists, and nothing outside those four was searched. `gh repo list webdavis` enumerates
+GitHub only, so it is not evidence either way here. The differentiator is real, and on the evidence
+available it is worth nothing here today. What is left after removing it is a straight swap of one GitHub
+client for another, and on that comparison the incumbent wins on three counts: atlas's README opens with
+"Still in early development, will have breaking changes!" against a tag history that starts at 0.6.6 and
+reaches 0.7.3, so adopting means tracking a moving target with an overhaul already in flight; atlas
+refuses to check out a pull request branch until an explicit `pulls.repo_config.paths` mapping exists,
+where octo checks out into the current repository with no configuration at all; and three of the nine
+`<leader>gh` keymaps this config binds today have no atlas equivalent (gists, standalone workflow runs,
+repository list).
 
 **One claimed atlas advantage was withdrawn on verification.** An earlier reading of this evaluation
 credited atlas with reviewing a pull request in a repository that is not checked out locally, and
@@ -38,8 +39,8 @@ credited octo with needing that checkout. Octo does not need it: `:Octo <url>` p
 `owner/name` pair and the number out of the address and loads through GitHub with the repository passed
 explicitly, never consulting local git (verified in the pinned source, 4.2). What remains on atlas's side
 of the ledger is a visible and editable query line that spans repositories by default, the local review
-notes below, a native diff viewer, and three non-GitHub providers with no account behind them. None of
-that moves the verdict, and the verdict rests on the three counts above.
+notes below, a native diff viewer, and three non-GitHub providers with no usable account found in the
+listed sources. None of that moves the verdict, and the verdict rests on the three counts above.
 
 Atlas does add one thing worth naming, because a sibling task is about to ask the same question from the
 other side. Its local review notes attach an ISSUE, SUGGESTION, NOTE or PRAISE to a file and line without
