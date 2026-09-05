@@ -1,13 +1,6 @@
 return {
   "xvzc/chezmoi.nvim",
   cmd = { "ChezmoiEdit" },
-  -- keys = {
-  --   {
-  --     "<leader>sz",
-  --     pick_chezmoi,
-  --     desc = "Chezmoi",
-  --   },
-  -- },
   opts = {
     edit = {
       watch = false,
@@ -17,9 +10,6 @@ return {
       on_open = true,
       on_apply = true,
       on_watch = false,
-    },
-    telescope = {
-      select = { "<CR>" },
     },
   },
   init = function()

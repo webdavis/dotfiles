@@ -54,11 +54,6 @@ return {
         -- helper script this machine does not grant. Set explicitly so the config states the
         -- decision instead of relying on device_proxy's own is_installed() fallback.
         pymobiledevice = { enabled = false },
-        -- The plugin resolves its picker in order (telescope, snacks, fzf-lua) and telescope IS
-        -- in this config: it is an octo dependency (git.lua). Left on, every Xcode scheme, device
-        -- and action picker would be the one telescope window in a snacks config. Octo opts out
-        -- of it the same way, with `picker = "snacks"`.
-        telescope_nvim = { enabled = false },
       },
     },
     config = function(_, opts)

@@ -111,7 +111,6 @@ return {
       "bydlw98/blink-cmp-env",
       "Kaiser-Yang/blink-cmp-git",
       "moyiz/blink-emoji.nvim",
-      "Dynge/gitmoji.nvim",
       "joelazar/blink-calc",
       {
         "saghen/blink.compat",
@@ -258,13 +257,6 @@ return {
               return vim.o.filetype ~= "gitcommit"
             end,
           },
-          gitmoji = {
-            name = "gitmoji",
-            module = "gitmoji.blink",
-            opts = {
-              filetypes = { "gitcommit", "jj" },
-            },
-          },
         },
         default = {
           "lazydev",
@@ -276,7 +268,6 @@ return {
           "path",
           "ripgrep",
           "emoji",
-          "gitmoji",
           "calc",
         },
       },

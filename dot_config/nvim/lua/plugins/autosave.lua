@@ -4,7 +4,6 @@ local excluded_filetypes = {
   "gitcommit",
   "NvimTree",
   "Outline",
-  "TelescopePrompt",
   "alpha",
   "dashboard",
   "lazygit",

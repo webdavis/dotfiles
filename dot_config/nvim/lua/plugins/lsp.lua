@@ -230,7 +230,6 @@ return {
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvimtools/none-ls-extras.nvim",
-      "davidmh/cspell.nvim",
     },
     config = function()
       local null_ls = require("null-ls")
