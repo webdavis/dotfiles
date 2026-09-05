@@ -1,37 +1,37 @@
 return {
   "axieax/urlview.nvim",
-  -- `UrlView` is the only command urlview registers (urlview/command.lua). The
-  -- `desc` values repeat the ones `config` sets below, so which-key labels the key
-  -- the same before and after the plugin loads.
+  -- `UrlView` is the only command urlview registers (urlview/command.lua).
   cmd = "UrlView",
+  -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
+  -- same rhs when the plugin loads, so there is no second copy in `config`.
   keys = {
-    { "<leader>UU", desc = "UrlView: open selected URL in the browser" },
-    { "<leader>Uo", desc = "UrlView: open selected URL in the browser" },
-    { "<leader>Ul", desc = "UrlView: open an installed plugin's page" },
-    -- urlview sets `[u` and `]u` itself (urlview/jump.lua), and vim-unimpaired
-    -- claims the same pair only when `maparg` finds them free (its `s:Map`
-    -- guard). Eager urlview got there first; a lazy one would hand both keys to
-    -- unimpaired's URL encode and decode. Declaring them here puts lazy's
-    -- placeholder in `maparg` before unimpaired's VeryLazy load, so the guard
-    -- still skips and a press still reaches urlview's own jump.
+    {
+      "<leader>UU",
+      "<cmd>UrlView buffer action=system<cr>",
+      desc = "UrlView: open selected URL in the browser",
+      silent = true,
+    },
+    {
+      "<leader>Uo",
+      "<cmd>UrlView buffer action=system<cr>",
+      desc = "UrlView: open selected URL in the browser",
+      silent = true,
+    },
+    {
+      "<leader>Ul",
+      "<cmd>UrlView lazy action=system<cr>",
+      desc = "UrlView: open an installed plugin's page",
+      silent = true,
+    },
+    -- Trigger-only, no rhs: urlview binds `[u` and `]u` itself inside `setup`
+    -- (urlview/jump.lua), and vim-unimpaired claims the same pair only when
+    -- `maparg` reports them free. A lazy placeholder holds them until the press
+    -- that loads urlview, so unimpaired's guard still skips and the press lands
+    -- on urlview's own jump rather than on URL encode and decode.
     { "[u", desc = "Previous URL" },
     { "]u", desc = "Next URL" },
   },
   config = function()
     require("urlview").setup({})
-
-    map({
-      mode = "n",
-      lhs = { "<leader>UU", "<leader>Uo" },
-      rhs = "UrlView buffer action=system",
-      desc = "UrlView: open selected URL in the browser",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>Ul",
-      rhs = "UrlView lazy action=system",
-      desc = "UrlView: open an installed plugin's page",
-    })
   end,
 }
