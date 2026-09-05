@@ -18,6 +18,7 @@
 #   n) an oversized reply     -> never reaches the server
 #   o) a multi-line reply     -> never reaches the server
 #   p) a correct identity then padding then garbage -> never reaches the server
+#   q) a successful resolution leaves no probe file behind
 #
 # herdr, nvim and the nvim-mcp binary are all fake executables in a per-case
 # PATH, so no herdr server and no Neovim is ever contacted.
@@ -64,7 +65,7 @@ done
 setup_case() {
   CASE="$work/$1"
   CASE_PATH="$CASE/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-  mkdir -p "$CASE/bin" "$CASE/run" "$CASE/registry"
+  mkdir -p "$CASE/bin" "$CASE/run" "$CASE/registry" "$CASE/tmp"
   chmod 700 "$CASE/registry"
   : >"$CASE/identity"
   : >"$CASE/hang"
@@ -157,6 +158,7 @@ run_case() {
     NVIM_MCP_REGISTRY="$CASE/registry" \
     NVIM_MCP_BIN="$CASE/bin/nvim-mcp" \
     XDG_RUNTIME_DIR="$CASE/run" \
+    TMPDIR="$CASE/tmp" \
     NVIM_MCP_PROBE_DEADLINE=0.1 \
     "$@" \
     bash "$SCRIPT" >"$CASE/out" 2>"$CASE/err" || RC=$?
@@ -382,4 +384,19 @@ run_case HERDR_PANE_ID=w1:p1
 [[ $RC -eq 3 ]] || fail "padded-reply: expected exit 3, got $RC ($(cat "$CASE/err"))"
 [[ ! -f $CASE/exec ]] || fail 'padded-reply: a padded reply was read as a clean identity'
 
-printf 'PASS: nvim-mcp-connect.sh (16 cases)\n'
+# --- q) a successful resolution leaves no probe file behind -----------------
+# exec REPLACES this process, so the EXIT trap never runs and the probe file has
+# to be removed by hand first.
+setup_case probe-file-cleanup
+write_layout w1:t1 w1:p1 w1:p2
+record w1:p2 4242 "$CASE/run/n1.sock"
+printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock" >"$CASE/identity"
+# TMPDIR is the case's own directory, so the probe file is the only thing that
+# can be in it.
+run_case HERDR_PANE_ID=w1:p1
+[[ $RC -eq 0 ]] || fail "probe-file-cleanup: expected exit 0, got $RC ($(cat "$CASE/err"))"
+left="$(find "$CASE/tmp" -type f | wc -l | tr -d ' ')"
+[[ $left -eq 0 ]] ||
+  fail "probe-file-cleanup: the probe file survived the exec ($left left in the case TMPDIR)"
+
+printf 'PASS: nvim-mcp-connect.sh (17 cases)\n'

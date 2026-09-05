@@ -66,7 +66,11 @@ runtime_root="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp/}nvim.${USER:-$(id -un)}}"
 deadline="${NVIM_MCP_PROBE_DEADLINE:-2}"
 [[ $deadline =~ ^[0-9]+(\.[0-9]+)?$ ]] || die 2 'NVIM_MCP_PROBE_DEADLINE must be seconds'
 
-probe_out="$(mktemp)"
+# An EXPLICIT template, because a bare `mktemp` on macOS ignores TMPDIR and uses
+# the per-user Darwin temp directory instead, which puts the probe file
+# somewhere neither this script nor its test chose.
+probe_dir="${TMPDIR:-/tmp}"
+probe_out="$(mktemp "${probe_dir%/}/nvim-mcp-connect.XXXXXX")"
 # `|| true` so a failing cleanup cannot overwrite the exit status: bash reports
 # the trap's own status, and a refusal that surfaces as 127 reads to the harness
 # as a crash rather than as the reason it printed.
@@ -183,6 +187,8 @@ case "$count" in
     ;;
   1)
     read -r pane pid sock <<<"$candidates"
+    # exec REPLACES this process, so the EXIT trap never runs. Clean up first.
+    rm -f "$probe_out" 2>/dev/null || true
     exec "$server" --connect "$sock"
     ;;
 esac
