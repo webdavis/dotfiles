@@ -156,11 +156,25 @@ return {
           -- Paired with set_diagnostics above. Fires only when the errorformat
           -- matched something, so a clean run leaves no diagnostics behind.
           { "on_result_diagnostics", remove_on_restart = true },
+          -- The live equivalent of the dead `open_on_start = true` this config
+          -- used to pass. `on_start` has to be "always": its own default,
+          -- "if_no_on_output_quickfix", means it would never fire here, because
+          -- every task in this alias carries on_output_quickfix. Docked rather
+          -- "horizontal" rather than the component's own "dock" default:
+          -- docking binds the window to the task list, and with the list closed,
+          -- which is the normal state here, starting a task never returned. A
+          -- split opens in 1.2 s, measured, and `focus = false` keeps the cursor
+          -- in the buffer being worked in.
+          { "open_output", on_start = "always", direction = "horizontal", focus = false },
         },
         -- Tasks read out of a .vscode/tasks.json.
         default_vscode = {
           "default",
           "on_result_diagnostics",
+          -- A VS Code task's diagnostics come from its problem matcher rather
+          -- than this config's errorformat, so on_output_quickfix in `default`
+          -- never sees them. This is the route that does.
+          { "on_result_diagnostics_quickfix", open = true },
         },
         -- Tasks the vim.system and jobstart wrappers create. These are other
         -- plugins' background jobs, not the operator's, so they clean up after
@@ -190,7 +204,25 @@ return {
           { "on_complete_notify", on_change = true, system = "unfocused" },
           { "on_output_quickfix", items_only = true, errorformat = quickfix_errorformat, set_diagnostics = true },
           { "on_result_diagnostics", remove_on_restart = true },
+          -- The component written for exactly this: a long-running task that
+          -- produces new results periodically, notifying on the verdict rather
+          -- than on every completion.
+          { "on_result_notify", on_change = true, system = "unfocused" },
           { "timeout", timeout = 600 },
+        },
+        -- A flaky task worth another go on its own. Not in `default`, where
+        -- restarting on every failure is a loop rather than a retry.
+        retry = {
+          "default",
+          { "on_complete_restart", statuses = { "FAILURE" }, delay = 2000 },
+        },
+        -- nvim-notify is installed, so a long task can show a live output
+        -- summary in the notification instead of only its final status.
+        live_notify = {
+          "on_exit_set_status",
+          { "on_output_notify", output_on_complete = true, max_lines = 3 },
+          { "on_output_quickfix", items_only = true, errorformat = quickfix_errorformat, set_diagnostics = true },
+          { "on_result_diagnostics", remove_on_restart = true },
         },
       },
       -- Empty on purpose. Our own templates already live under the default
@@ -516,6 +548,24 @@ return {
         })
       end,
       desc = "Overseer: open a live view of the newest task's output",
+    })
+
+    -- The other half of the preload above. A provider's cache_key invalidates on
+    -- its own file, so this is for the cases that miss: a recipe added to a
+    -- justfile further up the tree, or a template edited in this config.
+    map({
+      mode = "n",
+      lhs = "<leader>oC",
+      rhs = function()
+        local dir = vim.uv.cwd()
+        overseer.clear_task_cache({ dir = dir })
+        overseer.preload_task_cache({ dir = dir }, function()
+          vim.notify("Task templates refreshed", vim.log.levels.INFO, overseer_title)
+        end)
+      end,
+      remap = false,
+      silent = true,
+      desc = "Overseer: refresh the task templates",
     })
 
     -- The three bundle commands take an optional name and complete over the
