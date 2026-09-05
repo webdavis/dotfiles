@@ -9,7 +9,7 @@
 -- the default case cannot reach by accident, and so both closed dispositions
 -- (`FIXED` and `FIXED-NOTEST`) are represented.
 
-local rows = table.concat({
+local rows = {
   "| id | step | severity | summary | disposition | evidence |",
   "|----|------|----------|---------|-------------|----------|",
   "| F1 | 6v | HIGH | the guard at `lua/config/keymaps.lua:42` never runs | ACCEPTED | rationale |",
@@ -17,8 +17,22 @@ local rows = table.concat({
   "| F3 | 6v | LOW | closed, and it carries `lua/config/options.lua:7` | FIXED | abc1234 |",
   "| F4 | 6v | LOW | closed with no path token | FIXED | def5678 |",
   "| F5 | 6v | LOW | closed, and untestable | FIXED-NOTEST | 9abcdef, no testable surface |",
-  "",
-}, "\n")
+}
+
+-- A real file, not stdin: the fallback location comes from awk's own `FILENAME`
+-- now, so the expectations stay path-shaped and the cases feed the program the
+-- way the command feeds it.
+local fixture_path
+
+local function fixture()
+  if not fixture_path then
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    fixture_path = dir .. "/findings-fixture.md"
+    vim.fn.writefile(rows, fixture_path)
+  end
+  return fixture_path
+end
 
 local function awk_program()
   _G.map = _G.map or function() end
@@ -28,16 +42,7 @@ local function awk_program()
 end
 
 local function run(all)
-  local result = vim
-    .system({
-      "awk",
-      "-v",
-      "f=ledger.md",
-      "-v",
-      "all=" .. all,
-      awk_program(),
-    }, { stdin = rows })
-    :wait()
+  local result = vim.system({ "awk", "-v", "all=" .. all, awk_program(), fixture() }):wait()
   assert(result.code == 0, "awk exited " .. result.code .. ": " .. tostring(result.stderr))
   return vim.split(vim.trim(result.stdout), "\n")
 end
@@ -57,7 +62,7 @@ return {
 
   ["falls back to the ledger file and the row's own line number"] = function()
     local lines = run(0)
-    local expected = "ledger.md:4: F2 MEDIUM ACCEPTED: no path token anywhere in this summary"
+    local expected = fixture() .. ":4: F2 MEDIUM ACCEPTED: no path token anywhere in this summary"
     assert(lines[2] == expected, "got " .. tostring(lines[2]))
   end,
 
@@ -65,7 +70,7 @@ return {
     local lines = run(1)
     assert(#lines == 5, "got " .. #lines .. " lines: " .. table.concat(lines, " / "))
     assert(lines[3]:find("^lua/config/options%.lua:7: F3 LOW FIXED: "), "got " .. tostring(lines[3]))
-    assert(lines[4]:find("^ledger%.md:6: F4 LOW FIXED: "), "got " .. tostring(lines[4]))
+    assert(lines[4] == fixture() .. ":6: F4 LOW FIXED: closed with no path token", "got " .. tostring(lines[4]))
   end,
 
   -- `complete = "file"` means Neovim expands the argument BEFORE the callback
@@ -85,10 +90,28 @@ return {
     assert(#info.items == 1, "entries: " .. #info.items)
   end,
 
+  -- awk's `-v` runs escape processing over the value, so a register path holding
+  -- a literal backslash-n arrived at the program as a real newline and split the
+  -- record it was supposed to prefix.
+  ["keeps a backslash in the register path out of awk's escape processing"] = function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local register = dir .. "/led\\ngm.md"
+    vim.fn.writefile({ "| F1 | 6v | HIGH | a summary with no path token | ACCEPTED | rationale |" }, register)
+    awk_program()
+    vim.cmd("ReviewLedger " .. vim.fn.fnameescape(register))
+    local items = vim.fn.getqflist({ items = 1 }).items
+    vim.cmd("cclose")
+    assert(#items == 1, "entries: " .. #items)
+    -- macOS resolves the temp root through a symlink, so compare resolved paths.
+    local listed = vim.fn.bufname(items[1].bufnr)
+    assert(listed == vim.fn.resolve(register), "filename: " .. listed)
+  end,
+
   ["reads FIXED-NOTEST as closed as well, so the skip is a prefix match"] = function()
     local open = table.concat(run(0), "\n")
     assert(not open:find("F5", 1, true), "F5 listed unbanged: " .. open)
     local all = run(1)
-    assert(all[5] == "ledger.md:7: F5 LOW FIXED-NOTEST: closed, and untestable", "got " .. tostring(all[5]))
+    assert(all[5] == fixture() .. ":7: F5 LOW FIXED-NOTEST: closed, and untestable", "got " .. tostring(all[5]))
   end,
 }

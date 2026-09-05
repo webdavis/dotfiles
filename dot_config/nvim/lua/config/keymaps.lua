@@ -317,7 +317,10 @@ map({
 -- One awk program, no Lua parser. The pipeline's findings registers are not
 -- tracked by this repository, so a reader written in Lua would be a second thing
 -- to keep in step with the table format. `f` is the ledger path used when a row
--- carries no `path:line` token of its own; `all` of 1 keeps the closed rows.
+-- carries no `path:line` token of its own, and it comes from awk's own
+-- `FILENAME` rather than a `-v` variable, because `-v` runs escape processing
+-- over the value and would turn a backslash in the path into a control
+-- character. `all` of 1 keeps the closed rows.
 -- The skip is a PREFIX match, because `FIXED-NOTEST` is a closed finding too:
 -- the register grammar puts a commit sha on every one of them.
 local ledger_awk = [==[
@@ -326,7 +329,7 @@ BEGIN { FS = "|" }
 /^[ \t]*\|[ \t]*F[0-9]+[ \t]*\|/ {
   id = trim($2); severity = trim($4); summary = trim($5); disposition = trim($6)
   if (disposition ~ /^FIXED/ && all != 1) next
-  where = f ":" FNR
+  where = FILENAME ":" FNR
   if (match(summary, /[^ \t`]*[.\/][^ \t`]*:[0-9]+/)) where = substr(summary, RSTART, RLENGTH)
   printf "%s: %s %s %s: %s\n", where, id, severity, disposition, summary
 }
@@ -353,12 +356,7 @@ vim.api.nvim_create_user_command("ReviewLedger", function(opts)
     return
   end
   local lines = vim.fn.systemlist(
-    ("awk -v f=%s -v all=%d %s %s"):format(
-      vim.fn.shellescape(register),
-      opts.bang and 1 or 0,
-      vim.fn.shellescape(ledger_awk),
-      vim.fn.shellescape(register)
-    )
+    ("awk -v all=%d %s %s"):format(opts.bang and 1 or 0, vim.fn.shellescape(ledger_awk), vim.fn.shellescape(register))
   )
   vim.fn.setqflist({}, " ", { title = "ReviewLedger " .. register, lines = lines, efm = "%f:%l: %m" })
   vim.cmd("copen")
