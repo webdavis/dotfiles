@@ -261,17 +261,24 @@ description = "workflows: launch a declared workflow"
 # prefix+t and prefix+alt+t are the plugin README's own keys and both are free
 # here: herdr's default rename_tab is prefix+shift+t, this config moved it to
 # prefix+comma, and the alt tier holds only n, p, h, j, k, l and 1..9.
-# Renaming is on demand through these two chords. The plugin's detached worker,
-# which renames automatically off herdr events, is started separately and is
-# stopped on this machine.
+# Renaming is on demand through this chord. The plugin's detached worker, which
+# renames automatically off herdr events, is started separately and is stopped
+# on this machine.
 [[keys.command]]
 key = "prefix+t"
 type = "plugin_action"
 command = "tab-smart-rename.rename-now"
 description = "smart rename: the current tab"
 
-[[keys.command]]
-key = "prefix+alt+t"
-type = "plugin_action"
-command = "tab-smart-rename.rename-all"
-description = "smart rename: every tab"
+# rename-all is DELIBERATELY UNBOUND while no provider key is set. It walks tabs
+# sequentially and awaits each evaluation without recovering from a failure, so
+# the first ambiguous tab throws "AI key missing" and the walk stops there:
+# every later tab goes unvisited, including ones the deterministic rules would
+# have named on their own. That makes it worse than useless keyless, where
+# prefix+t on one tab always works. Wiring a key is then two edits, this block
+# and the one in plugins/config/tab-smart-rename/provider.env.
+# [[keys.command]]
+# key = "prefix+alt+t"
+# type = "plugin_action"
+# command = "tab-smart-rename.rename-all"
+# description = "smart rename: every tab"
