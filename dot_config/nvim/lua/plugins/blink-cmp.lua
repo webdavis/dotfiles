@@ -165,7 +165,6 @@ return {
           auto_show = true,
         },
         menu = {
-          border = "rounded",
           draw = {
             columns = { { "kind_icon" }, { "label", gap = 1 } },
             components = {
