@@ -47,7 +47,10 @@ make_socket() {
     'IO::Socket::UNIX->new(Local => $ARGV[0], Listen => 1) or die $!' "$1"
 }
 
-work="$(mktemp -d)"
+# Under /tmp with a SHORT name, not the Darwin per-user temp directory: these
+# cases bind real unix sockets, and sun_path is 104 bytes, which
+# /var/folders/<...>/T/tmp.XXXXXXXXXX/<case>/... exhausts on its own.
+work="$(mktemp -d /tmp/nmc.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 
 # A pid that is certainly not running, so kill -0 on it fails: the dead half of

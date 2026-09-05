@@ -63,9 +63,13 @@ done
 # of becoming the second candidate a picker names.
 registry="${NVIM_MCP_REGISTRY:-${XDG_STATE_HOME:-$HOME/.local/state}/nvim-mcp/registry}"
 server="${NVIM_MCP_BIN:-$HOME/.local/libexec/nvim-mcp/nvim-mcp}"
-# The root :help serverstart() documents. $TMPDIR alone is the macOS case and
-# misses every Linux socket; $TMPDIR already ends in a slash there.
-runtime_root="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp/}nvim.${USER:-$(id -un)}}"
+# The root :help serverstart() documents. XDG_RUNTIME_DIR is the Linux case and
+# $TMPDIR/nvim.<user> the macOS one; neither alone covers both. The separator is
+# NORMALIZED rather than assumed: macOS sets TMPDIR with a trailing slash and
+# most other systems do not, so concatenating the two directly searches
+# "<dir>nvim.<user>" wherever it does not, and finds nothing.
+tmp_root="${TMPDIR:-/tmp}"
+runtime_root="${XDG_RUNTIME_DIR:-${tmp_root%/}/nvim.${USER:-$(id -un)}}"
 # Seconds a single identity probe may take. A knob only so the test can bound
 # itself well inside its own one-second budget.
 deadline="${NVIM_MCP_PROBE_DEADLINE:-2}"

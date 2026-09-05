@@ -12,13 +12,15 @@
 #   g) two instances sharing ONE pane id -> both survive and both are enumerated
 #   h) a dead-pid socket in the glob -> filtered by kill -0 BEFORE any RPC
 #   q) a successful resolution leaves no probe file behind
+#   t) the runtime root is found whether or not TMPDIR ends in a slash
 #
 # Cases a and b are one behavior, the injected pin SELECTING from the verified
 # set, so they stay together here rather than splitting across the two files.
 #
 set -euo pipefail
 
-# shellcheck source=test/unit/helpers/nvim-mcp-connect.sh
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=helpers/nvim-mcp-connect.sh
 source "$(dirname "${BASH_SOURCE[0]}")/helpers/nvim-mcp-connect.sh"
 
 # --- a) an injected socket that IS a verified in-tab candidate ---------------
@@ -116,6 +118,7 @@ setup_case dead-socket
 write_layout w1:t1 w1:p1 w1:p4
 mkdir -p "$CASE/run/aaa" "$CASE/run/bbb"
 chmod 700 "$CASE/run/aaa" "$CASE/run/bbb"
+# shellcheck disable=SC2154  # dead_pid is set by the sourced helper
 dead_sock="$CASE/run/aaa/nvim.$dead_pid.0"
 live_sock="$CASE/run/bbb/nvim.$$.0"
 # BOTH are real sockets in a private directory, which is what the graveyard
@@ -149,4 +152,29 @@ left="$(find "$CASE/tmp" -type f | wc -l | tr -d ' ')"
 [[ $left -eq 0 ]] ||
   fail "probe-file-cleanup: the probe file survived the exec ($left left in the case TMPDIR)"
 
-printf 'PASS: %s (8 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- t) the runtime root, with and without a trailing slash on TMPDIR -------
+# Neovim puts its default socket under $TMPDIR/nvim.<user>/. macOS sets TMPDIR
+# with a trailing slash and most other systems do not, so a resolver that
+# concatenates the two directly searches "<dir>nvim.<user>" on one of them and
+# finds nothing.
+for tmpdir_form in slash bare; do
+  setup_case "root-$tmpdir_form"
+  write_layout w1:t1 w1:p1 w1:p4
+  root="$CASE/tr"
+  socket_dir="$root/nvim.$(id -un)/1"
+  mkdir -p "$socket_dir"
+  chmod 700 "$root/nvim.$(id -un)" "$socket_dir"
+  live_sock="$socket_dir/nvim.$$.0"
+  make_socket "$live_sock"
+  printf '%s|w1:p4 %s\n' "$live_sock" "$$" >"$CASE/identity"
+  if [[ $tmpdir_form == slash ]]; then
+    run_case HERDR_PANE_ID=w1:p1 XDG_RUNTIME_DIR= TMPDIR="$root/"
+  else
+    run_case HERDR_PANE_ID=w1:p1 XDG_RUNTIME_DIR= TMPDIR="$root"
+  fi
+  [[ $RC -eq 0 ]] || fail "root-$tmpdir_form: expected exit 0, got $RC ($(cat "$CASE/err"))"
+  grep -qF -- "--connect $live_sock" "$CASE/exec" ||
+    fail "root-$tmpdir_form: the instance under the runtime root was not found"
+done
+
+printf 'PASS: %s (9 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
