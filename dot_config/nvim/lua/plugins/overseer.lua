@@ -346,6 +346,14 @@ return {
     -- what the plugin's own resession extension uses. These three commands are
     -- that same pair with a file behind it, so the capability is back without
     -- taking on a session manager to get it.
+    --
+    -- Loading APPENDS; it does not replace the task list. Loading the same
+    -- bundle three times leaves three copies of each task. An ordinary load
+    -- starts them, so any task carrying a persisted `unique` component replaces
+    -- its previous instance as it starts and the list settles; a bang load
+    -- starts nothing, so its duplicates simply sit there pending. Clearing
+    -- first is the "dispose all finished" action, deliberately a separate
+    -- keystroke rather than something a load does on the operator's behalf.
     local bundle_dir = vim.fs.joinpath(vim.fn.stdpath("state"), "overseer", "bundles")
 
     local function bundle_path(name)
