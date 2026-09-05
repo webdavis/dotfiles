@@ -153,13 +153,18 @@ return {
       -- `platform/macos.lua:22` looks for `stdbuf` by that exact name to stream a macOS app's
       -- logs without a debugger, which is how a Vapor server's output reaches the editor.
       -- Homebrew's coreutils installs it as `gstdbuf` and keeps the GNU names in a separate
-      -- directory, so the check fails on a machine that has the tool. Put that directory on
-      -- Neovim's PATH rather than the whole machine's, which would shadow the BSD userland
-      -- every other tool here expects.
+      -- directory, so the check fails on a machine that has the tool.
+      --
+      -- APPENDED, never prepended. `vim.env.PATH` is inherited by every subprocess Neovim
+      -- starts, git hooks and formatters included, so putting the GNU names first swaps the
+      -- userland under all of them: measured, BSD `date -j -f` and `stat -f %m` both exit 1
+      -- under a prepend and both work under an append. Appending still resolves `stdbuf`,
+      -- because no earlier entry provides one. Coreutils ships no `sed`, so nothing here
+      -- substitutes GNU sed either way.
       if vim.fn.executable("stdbuf") == 0 then
         local gnubin = "/opt/homebrew/opt/coreutils/libexec/gnubin"
         if vim.fn.isdirectory(gnubin) == 1 then
-          vim.env.PATH = gnubin .. ":" .. vim.env.PATH
+          vim.env.PATH = vim.env.PATH .. ":" .. gnubin
         end
       end
 
