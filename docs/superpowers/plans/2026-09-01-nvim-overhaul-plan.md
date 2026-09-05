@@ -1381,6 +1381,23 @@ Lane: standalone. Depends on: PR 2. Brief: `brief-nvim-treesitter-health.md`. Cl
 - [ ] **Step 2:** TUI `:checkhealth snacks`: the two `vim.ui.*` lines re-checked; fixed if they
   persist, own commit. Gates G1 to G6; every remaining ERROR line is a 10.2 exception, in the body.
 
+### BATCHING RULING, operator 2026-09-03: tasks 49 to 60 ship as THREE pull requests
+
+The twelve startup-trigger tasks below each make one plugin load when first used rather than at
+startup. They are near-identical, and twelve separate pull requests means twelve full pipeline runs
+for the same outcome.
+
+**They ship as three groups of four, in the numbered order below.** The plan's per-plugin steps,
+gates and mutants still apply to every plugin individually; only the pull request boundary moves.
+
+Why three rather than one: if a plugin breaks when made lazy, the failure has to be attributable. A
+group of four keeps the keymap dump and the startup comparison small enough to name the culprit
+without bisecting, which is what the original one-per-PR split was protecting. One pull request of
+twelve would lose that; three loses very little of it.
+
+Each group's pull request body must list its four plugins and give the per-plugin evidence
+separately, so a reader can still see which plugin each measurement belongs to.
+
 ### Task 49: PR 30a, startup triggers for the LSP group (spec 9)
 
 Lane: last. Depends on: PR 29a, PR 12, PR 29c (`lsp.lua`). Brief: `brief-nvim-triggers-lsp.md`.
