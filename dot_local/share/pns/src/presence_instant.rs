@@ -1,4 +1,5 @@
-//! One CLIP instant (`2026-09-03T17:20:09.413Z`) as the second it names.
+//! One CLIP instant (`2026-09-03T17:20:09.413Z`) as the second it names and
+//! the fraction inside it.
 //!
 //! ITS OWN MODULE, and the seam is the same one `presence_file` cuts against
 //! `presence`: this is a TIMESTAMP GRAMMAR and nothing else, where
@@ -12,13 +13,20 @@
 //! second. The other direction (`system::utc_timestamp`) asks libc because it
 //! is handed an epoch and a zone question; this one is handed the answer.
 
-/// A CLIP instant as the second it names.
+/// A CLIP instant as the second it names AND the nanoseconds inside it.
+///
+/// TWO NUMBERS BECAUSE ONE SECOND HOLDS TWO EDGES. The bridge's `changed`
+/// carries milliseconds and the state file carries whole seconds, so the
+/// COMPARISON that picks the newest edge needs precision the FORMAT throws
+/// away. Reducing before comparing made two edges 800ms apart compare equal
+/// and left the tie to be broken by the order the bridge listed its rooms in.
+/// The caller reduces the edge it chose, and not the ones it was choosing
+/// between.
 ///
 /// STRICT ABOUT THE SHAPE, in `parse_count`'s spirit: a field this does not
 /// recognise is `None`, so the room contributes no edge at all rather than an
-/// edge at a second nobody meant. Milliseconds are DROPPED rather than
-/// rounded, because the reading they feed is aged in whole seconds.
-pub fn epoch_from_utc(stamp: &str) -> Option<u64> {
+/// edge at a second nobody meant.
+pub fn instant_from_utc(stamp: &str) -> Option<(u64, u32)> {
     if stamp.len() < 20 || !stamp.is_ascii() {
         return None;
     }
@@ -54,7 +62,20 @@ pub fn epoch_from_utc(stamp: &str) -> Option<u64> {
     let seconds = days_from_civil(year, month, day) * 86_400 + hour * 3600 + minute * 60 + second;
     // A PRE-EPOCH INSTANT IS REFUSED rather than wrapped: every reading this
     // feeds is aged against a Unix second.
-    u64::try_from(seconds).ok()
+    Some((u64::try_from(seconds).ok()?, nanos_of(fraction)))
+}
+
+/// The fraction after the seconds field as whole nanoseconds.
+///
+/// TRUNCATED AT NINE DIGITS AND PADDED BELOW THEM, so `.4`, `.400` and
+/// `.400000000` are one instant and a bridge that grew a tenth digit is read
+/// rather than refused. The caller has already checked the text is a `.`
+/// followed by digits, or empty.
+fn nanos_of(fraction: &str) -> u32 {
+    let digits = fraction.as_bytes().get(1..).unwrap_or_default();
+    (0..9).fold(0, |nanos, place| {
+        nanos * 10 + u32::from(digits.get(place).map_or(0, |digit| digit - b'0'))
+    })
 }
 
 /// Days from 1970-01-01 to this civil date, by Howard Hinnant's
@@ -84,19 +105,50 @@ fn digits(text: &str) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::epoch_from_utc;
+    use super::instant_from_utc;
 
     #[test]
-    fn an_instant_becomes_the_second_it_names_and_its_milliseconds_are_dropped() {
-        assert_eq!(epoch_from_utc("2026-09-03T17:20:09Z"), Some(1_788_456_009));
+    fn an_instant_becomes_the_second_it_names_and_the_fraction_inside_it() {
         assert_eq!(
-            epoch_from_utc("2026-09-03T17:20:09.413Z"),
-            Some(1_788_456_009)
+            instant_from_utc("2026-09-03T17:20:09Z"),
+            Some((1_788_456_009, 0))
         );
-        assert_eq!(epoch_from_utc("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(
+            instant_from_utc("2026-09-03T17:20:09.413Z"),
+            Some((1_788_456_009, 413_000_000))
+        );
+        assert_eq!(instant_from_utc("1970-01-01T00:00:00Z"), Some((0, 0)));
         // A leap day and the day the shifted-era arithmetic starts its year.
-        assert_eq!(epoch_from_utc("2024-02-29T12:34:56Z"), Some(1_709_210_096));
-        assert_eq!(epoch_from_utc("2000-03-01T00:00:00Z"), Some(951_868_800));
+        assert_eq!(
+            instant_from_utc("2024-02-29T12:34:56Z"),
+            Some((1_709_210_096, 0))
+        );
+        assert_eq!(
+            instant_from_utc("2000-03-01T00:00:00Z"),
+            Some((951_868_800, 0))
+        );
+    }
+
+    #[test]
+    fn a_fraction_is_padded_below_nine_digits_and_truncated_above_them() {
+        // ONE INSTANT, THREE SPELLINGS, so a bridge that trims its trailing
+        // zeroes does not compare as an earlier edge than one that does not.
+        for stamp in [
+            "2026-09-03T17:20:09.4Z",
+            "2026-09-03T17:20:09.400Z",
+            "2026-09-03T17:20:09.400000000Z",
+        ] {
+            assert_eq!(
+                instant_from_utc(stamp),
+                Some((1_788_456_009, 400_000_000)),
+                "{stamp:?} is the same instant as the others"
+            );
+        }
+        // Past a nanosecond the extra digits are dropped rather than refused.
+        assert_eq!(
+            instant_from_utc("2026-09-03T17:20:09.4000000009Z"),
+            Some((1_788_456_009, 400_000_000))
+        );
     }
 
     #[test]
@@ -116,7 +168,7 @@ mod tests {
             "2026-09-03T17:20:09.Z",
             "2026-09-03T17:20:09.413",
         ] {
-            assert_eq!(epoch_from_utc(stamp), None, "{stamp:?} was accepted");
+            assert_eq!(instant_from_utc(stamp), None, "{stamp:?} was accepted");
         }
     }
 }

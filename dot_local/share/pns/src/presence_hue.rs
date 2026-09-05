@@ -26,7 +26,7 @@
 
 use crate::channels::hue::Bridge;
 use crate::presence_file::{Edge, RawPresence};
-use crate::presence_instant::epoch_from_utc;
+use crate::presence_instant::instant_from_utc;
 
 /// One poll: both listings, and the reading they make.
 ///
@@ -68,13 +68,18 @@ pub fn reading(
     // AND NO EDGE AT ALL WHEN ONE OF THEM IS UNREADABLE, which is why this is
     // a loop rather than a `filter_map`: the room whose report would not parse
     // may hold the newer edge, so the newest of the rest is a guess.
-    let mut newest: Option<Edge> = None;
+    //
+    // COMPARED AT FULL PRECISION AND PUBLISHED IN WHOLE SECONDS. The bridge's
+    // `changed` carries milliseconds, so reducing to the state file's format
+    // BEFORE the comparison made two edges inside one second compare equal and
+    // handed the answer to the order the bridge listed its rooms in.
+    let mut newest: Option<((u64, u32), Edge)> = None;
     for entry in &motion {
         match edge_of(entry, &rooms, watched) {
             EntryEdge::Malformed => return None,
-            EntryEdge::Found(edge) => {
-                if newest.as_ref().is_none_or(|held| held.epoch <= edge.epoch) {
-                    newest = Some(edge);
+            EntryEdge::Found { at, edge } => {
+                if newest.as_ref().is_none_or(|(held, _)| *held <= at) {
+                    newest = Some((at, edge));
                 }
             }
             EntryEdge::Irrelevant => {}
@@ -82,7 +87,7 @@ pub fn reading(
     }
     Some(RawPresence {
         poll_epoch: now,
-        edge: newest,
+        edge: newest.map(|(_, edge)| edge),
     })
 }
 
@@ -96,8 +101,9 @@ pub fn reading(
 /// reading age out into `Stale`, which is the direction every other unknown in
 /// this feature takes.
 enum EntryEdge {
-    /// A watched room's edge.
-    Found(Edge),
+    /// A watched room's edge, with the full-precision instant it happened at
+    /// beside the whole-second one the state file carries.
+    Found { at: (u64, u32), edge: Edge },
     /// A watched room carrying a report this cannot read. The whole poll goes.
     Malformed,
     /// Everything that is neither: the house roll-up, a room nobody watches, a
@@ -136,7 +142,7 @@ fn edge_of(
     // PAST THIS POINT A WATCHED ROOM SAID SOMETHING, so anything unreadable in
     // it is `Malformed` rather than silence.
     match report_edge(report, room) {
-        Some(edge) => EntryEdge::Found(edge),
+        Some(found) => found,
         None => EntryEdge::Malformed,
     }
 }
@@ -166,11 +172,17 @@ fn watched_room(
 
 /// One `motion_report` as the edge it states, or `None` for a report this
 /// cannot read.
-fn report_edge(report: &serde_json::Value, room: String) -> Option<Edge> {
-    Some(Edge {
-        epoch: epoch_from_utc(report.get("changed")?.as_str()?)?,
-        motion: report.get("motion")?.as_bool()?,
-        room,
+fn report_edge(report: &serde_json::Value, room: String) -> Option<EntryEdge> {
+    let at = instant_from_utc(report.get("changed")?.as_str()?)?;
+    Some(EntryEdge::Found {
+        at,
+        edge: Edge {
+            // THE FRACTION IS DROPPED HERE AND ONLY HERE, because the state
+            // file carries whole seconds. `at` keeps it for the comparison.
+            epoch: at.0,
+            motion: report.get("motion")?.as_bool()?,
+            room,
+        },
     })
 }
 
@@ -306,6 +318,45 @@ mod tests {
                 reading(motion, rooms, &watched(), 1_788_456_100),
                 None,
                 "{motion:.20} with {rooms:.20} answered anyway"
+            );
+        }
+    }
+
+    #[test]
+    fn a_fraction_of_a_second_still_decides_which_watched_edge_is_newest() {
+        // TWO EDGES INSIDE ONE SECOND, which is a shape the bridge really
+        // serves: its `changed` carries milliseconds. Reducing both to the
+        // same integer second before comparing them made 800ms apart compare
+        // EQUAL, and the tie went to whichever room the bridge happened to
+        // list last, so the answer turned on listing order rather than on
+        // which room moved last. Driven in both orders for exactly that
+        // reason.
+        //
+        // THE PUBLISHED EPOCH IS STILL WHOLE SECONDS: the fraction decides the
+        // pick and the state file's format is unchanged.
+        let newer = r#"{"owner":{"rid":"studio","rtype":"room"},
+             "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.900Z","motion":true}}}"#;
+        let older = r#"{"owner":{"rid":"hallway","rtype":"room"},
+             "motion":{"motion_report":{"changed":"2026-09-03T17:20:09.100Z","motion":false}}}"#;
+        let watched = vec!["3F - Studio".to_string(), "3F - Hallway".to_string()];
+        for (order, (first, second)) in [
+            ("newest first", (newer, older)),
+            ("newest last", (older, newer)),
+        ] {
+            assert_eq!(
+                reading(
+                    &format!("{{\"data\":[{first},{second}]}}"),
+                    ROOMS,
+                    &watched,
+                    1_788_456_100
+                )
+                .and_then(|raw| raw.edge),
+                Some(Edge {
+                    epoch: 1_788_456_009,
+                    motion: true,
+                    room: "3F - Studio".to_string(),
+                }),
+                "listed {order}, the older edge was chosen"
             );
         }
     }
