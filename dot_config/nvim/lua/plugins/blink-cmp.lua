@@ -98,7 +98,7 @@ return {
   },
   {
     "saghen/blink.cmp",
-    version = "1.7.0",
+    version = "1.*",
     event = { "InsertEnter", "CmdlineEnter" },
     opts_extend = {
       "sources.completion.enabled_providers",
