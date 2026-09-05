@@ -70,6 +70,28 @@ charter ranked below correctness. Read that skill for those; only the difference
 the same area. Before writing the brief, check each of its claims against current `main`. One task
 asserted three things main had already fixed. Correct the task in place rather than building against it.
 
+## The assumptions ledger, before any question is asked
+
+Re-measuring that task's claims against `main` produces exactly the material a question phase would
+otherwise grind out one at a time. Write it down instead. Before the brief, and before asking anything,
+present a NUMBERED ledger as ONE batch:
+
+```markdown
+## Assumptions ledger
+
+Confirm all, or name the numbers to change. Anything you do not name I treat as confirmed.
+
+1. <assumption>, source: <path:line, the task's own claim, or the PR that already fixed it>
+```
+
+Each claim you re-measured belongs here carrying its verdict: the task said X, `main` now does Y. That is
+where a stale task gets corrected in the open, rather than silently inside the brief's prose.
+
+A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the brief.
+The ledger is presented ONCE, because dripping it out as individual questions is the waste it exists to
+prevent. Despite the name it is not one of the two verifier ledgers, and no script reads it. Adapted from
+chaseai-yt/claudex-loop, MIT.
+
 ## Step 6v, and why it exists
 
 Dropping step 7 means the fix would otherwise land with NOTHING checking it. 6v closes that: it confirms

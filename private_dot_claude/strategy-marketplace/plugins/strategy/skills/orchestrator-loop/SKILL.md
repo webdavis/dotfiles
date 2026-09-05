@@ -64,8 +64,31 @@ one opens `F` ledgers and deviates the step it does not have:
 - Everything else the `F` ledgers require still applies, **including step 6v**. Dropping step 7 without
   6v would leave the fix with nothing checking it at all.
 
+## The assumptions ledger, before the first test is written
+
+Here the tests ARE the spec, so a wrong assumption does not become a wrong paragraph. It becomes a wrong
+test that then passes. Confirm before writing red. Present a NUMBERED ledger as ONE batch:
+
+```markdown
+## Assumptions ledger
+
+Confirm all, or name the numbers to change. Anything you do not name I treat as confirmed.
+
+1. <assumption>, source: <path:line, the original implementation, or a convention>
+```
+
+This is not the prose brief this strategy does without. It states what you already resolved from the
+tree so that no question is spent on it. The brief this skill rejects is a paragraph of instructions
+telling an implementer what to build.
+
+A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the tests you
+are about to write. The ledger is presented ONCE, because dripping it out as individual questions is the
+waste it exists to prevent. Despite the name it is not one of the two verifier ledgers, and no script
+reads it. Adapted from chaseai-yt/claudex-loop, MIT.
+
 ## Per slice, in order
 
+1. **The orchestrator confirms the assumptions ledger**, in one batch, before any test exists.
 1. **The orchestrator writes the failing tests and the trait seams**, inline. Red first, always.
 1. **An implementer makes them green**, plus a differential check against the original implementation
    wherever one exists.

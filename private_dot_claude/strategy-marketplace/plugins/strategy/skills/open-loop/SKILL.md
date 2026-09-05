@@ -37,6 +37,31 @@ deviation.
 ~/.claude/pipeline/findings-register.sh new <slug> A [dir]
 ```
 
+## The assumptions ledger, before any question is asked
+
+Step 1 reads the plan and the spec, and most of what it needs is already answerable from the tree. Write
+down what you concluded as a NUMBERED ledger and present it as ONE batch before asking anything:
+
+```markdown
+## Assumptions ledger
+
+Confirm all, or name the numbers to change. Anything you do not name I treat as confirmed.
+
+1. <assumption>, source: <path:line, spec section, plan line, or convention>
+```
+
+Every entry cites where it came from, measured the way step 2 measures the brief:
+`git show origin/main:<path> | grep -n`, never a working copy. An assumption with no source is a question
+wearing a statement's clothes, so ask it instead of listing it.
+
+A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the brief. A
+confirmed one enters the brief as a stated premise, which is what gives step 2 something to falsify. The
+ledger is presented ONCE, because dripping the same content out as individual questions is the waste it
+exists to prevent.
+
+Despite the name it is not one of the two verifier ledgers above, and no script reads it. Adapted from
+chaseai-yt/claudex-loop, MIT.
+
 ## The steps
 
 | #    | step                                                                    | leaves         |
