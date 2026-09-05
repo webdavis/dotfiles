@@ -487,13 +487,39 @@ return {
     -- which is exactly what a lazy.nvim placeholder is, so a placeholder parses
     -- them the way fugitive would. Keeping them here is what gives the command
     -- line its completion before fugitive loads.
-    -- `Gr` is here for a different reason: it is `-bar`, but leaving it out of
-    -- `cmd` leaves the name undefined, and an undefined name that is a unique
-    -- prefix of a defined one abbreviates to it, so `:Gr` reaches grug-far's
-    -- `GrugFar` and no `CmdUndefined` ever fires. A placeholder is an exact
-    -- match and wins, at the cost of the bar on a first-use `:Gr file | cmd`.
-    -- It is the only fugitive command any other spec's name abbreviates to.
-    cmd = { "G", "GcLog", "Gclog", "Git", "GlLog", "Gllog", "Gr" },
+    cmd = { "G", "GcLog", "Gclog", "Git", "GlLog", "Gllog" },
+    -- `Gr` gets a loader of its own because neither trigger suits it. A
+    -- placeholder is never `-bar`, so a first-use `:Gr file | cmd` swallows the
+    -- chained command; and `CmdUndefined` never fires for it, because an
+    -- undefined name that uniquely prefixes a defined one abbreviates to it and
+    -- `:Gr` would reach grug-far's `GrugFar`. This declares what fugitive
+    -- declares and forwards to `Gread`, which is the same command: fugitive
+    -- defines `Gr` only as an alias for it, and only when the name is still
+    -- free. Forwarding rather than deleting and re-dispatching is what keeps it
+    -- correct when something else loaded fugitive first, since fugitive's own
+    -- `exists(':Gr')` guard then never defines `Gr` at all.
+    init = function()
+      vim.api.nvim_create_user_command("Gr", function(event)
+        require("lazy").load({ plugins = { "vim-fugitive" } })
+        vim.cmd({
+          cmd = "Gread",
+          args = event.fargs,
+          bang = event.bang or nil,
+          mods = event.smods,
+          count = event.count >= 0 and event.range == 0 and event.count or nil,
+          range = event.range == 1 and { event.line1 } or event.range == 2 and { event.line1, event.line2 } or nil,
+        })
+      end, {
+        bang = true,
+        bar = true,
+        nargs = "*",
+        range = true,
+        complete = function(_, line)
+          require("lazy").load({ plugins = { "vim-fugitive" } })
+          return vim.fn.getcompletion((line:gsub("^(%s*)Gr(!?)", "%1Gread%2", 1)), "cmdline")
+        end,
+      })
+    end,
     -- Every other fugitive command is `-bar`, or addresses tabs or windows
     -- rather than lines. A placeholder is created with `range = true` and no
     -- `bar`, so on FIRST use it parses those wrongly: `:2Gtabedit HEAD:file`
