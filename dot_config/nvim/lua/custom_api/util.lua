@@ -40,6 +40,9 @@ end
 ---interpolated branch name, remote, repository or path. The string form is the
 ---deliberate escape hatch for a real shell pipeline, and the caller owns
 ---quoting whatever it interpolates.
+---
+---`stdin` is text to feed the command, for the argv form only: it is what lets
+---a caller blame a buffer it has not saved through `git blame --contents -`.
 function M.run_shell_command(opts)
   opts = opts or error("Missing `command` argument. Provide a table with a `command` field.")
   local cmd = opts.cmd
@@ -47,7 +50,7 @@ function M.run_shell_command(opts)
 
   local output, exit_code
   if type(cmd) == "table" then
-    local result = vim.system(cmd, { text = true }):wait()
+    local result = vim.system(cmd, { text = true, stdin = opts.stdin }):wait()
     exit_code = result.code
     -- stderr joins the value only on failure, so a tool that warns on stderr
     -- cannot glue its notice onto a URL the caller is about to use.

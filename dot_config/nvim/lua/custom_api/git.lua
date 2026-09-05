@@ -336,6 +336,19 @@ local function parse_blame_porcelain(text)
   return sha
 end
 
+-- The text the editor is showing for `file`. Blaming the saved copy answers for
+-- a line the operator may have already replaced, so what the buffer holds is
+-- what goes to git; git reports a line that is only in the buffer as
+-- uncommitted, which is the true answer. The keymaps blame the current buffer,
+-- so a name that does not match it means there is nothing unsaved to send.
+local function buffer_contents(file)
+  if vim.api.nvim_buf_get_name(0) ~= file then
+    return nil
+  end
+
+  return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n") .. "\n"
+end
+
 local function blame_sha(opts)
   opts = opts or {}
   local file = opts.file
@@ -349,7 +362,15 @@ local function blame_sha(opts)
   end
 
   local range = ("%d,%d"):format(line, line)
-  local code, output = M.runner({ cmd = { "git", "blame", "-L", range, "--porcelain", "--", file } })
+  local contents = buffer_contents(file)
+
+  local cmd = { "git", "blame", "-L", range, "--porcelain" }
+  if contents then
+    vim.list_extend(cmd, { "--contents", "-" })
+  end
+  vim.list_extend(cmd, { "--", file })
+
+  local code, output = M.runner({ cmd = cmd, stdin = contents })
 
   if code ~= 0 then
     return nil, output

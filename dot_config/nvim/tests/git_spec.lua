@@ -14,16 +14,41 @@ local function collect(...)
   return select("#", ...), { ... }
 end
 
+-- Every call's whole `opts` table, so a case can read the stdin the runner was
+-- handed and not only its argv.
+local seen = {}
+
 local function with_shell(replies, fn)
   local real_runner = git.runner
+  seen = {}
   git.runner = function(opts)
     assert(type(opts.cmd) == "table", "runner was handed shell text: " .. tostring(opts.cmd))
+    table.insert(seen, opts)
     local command = table.concat(opts.cmd, " ")
     local reply = replies[command] or error("unexpected shell command: " .. command)
     return reply[1], reply[2]
   end
   local count, results = collect(pcall(fn))
   git.runner = real_runner
+  assert(results[1], results[2])
+  return unpack(results, 2, count)
+end
+
+-- `blame_sha` reads the text out of the CURRENT buffer, so a case that wants an
+-- unsaved buffer has to make one current. A throwaway scratch buffer keeps the
+-- name and the lines out of every other spec in the same nvim. `fn` is handed
+-- the buffer's OWN name, because that is what the keymap passes as `file` and
+-- because nvim rewrites the name it is given (`/var` becomes `/private/var` on
+-- macOS), so the name asked for and the name stored are not the same string.
+local function in_buffer(lines, fn)
+  local previous = vim.api.nvim_get_current_buf()
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_name(bufnr, vim.fn.tempname())
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+  vim.api.nvim_set_current_buf(bufnr)
+  local count, results = collect(pcall(fn, vim.api.nvim_buf_get_name(bufnr)))
+  vim.api.nvim_set_current_buf(previous)
+  vim.api.nvim_buf_delete(bufnr, { force = true })
   assert(results[1], results[2])
   return unpack(results, 2, count)
 end
@@ -286,6 +311,27 @@ return {
     end)
     assert(err == nil, "reported " .. tostring(err))
     assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
+  end,
+
+  -- Blaming the file on disk answers for a line the operator has already
+  -- replaced: the old code returned the seed commit for a line that no longer
+  -- exists. `--contents -` plus the buffer's own text is what makes git answer
+  -- for what is on screen, and an unsaved line comes back as uncommitted.
+  ["blame_sha blames the buffer's text rather than the saved file"] = function()
+    local sha, err = in_buffer({ "unsaved one", "line two" }, function(file)
+      return with_shell({
+        [("git blame -L 1,1 --porcelain --contents - -- %s"):format(file)] = {
+          0,
+          "0000000000000000000000000000000000000000 1 1 1\nauthor Not Committed Yet",
+        },
+      }, function()
+        return git.blame_sha({ file = file, line = 1 })
+      end)
+    end)
+    assert(sha == nil, "returned a sha for an unsaved line: " .. tostring(sha))
+    assert(type(err) == "string" and err:lower():find("not committed", 1, true), "err was " .. tostring(err))
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1].stdin == "unsaved one\nline two\n", "stdin was " .. tostring(seen[1].stdin))
   end,
 
   ["blame_sha reports a failed git call as an operational failure"] = function()
