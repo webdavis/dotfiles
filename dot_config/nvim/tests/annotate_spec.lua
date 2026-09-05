@@ -290,6 +290,22 @@ return {
     assert(annotate.annotatable("notes/http://example.md", "") == true)
   end,
 
+  ["stores no newline, whatever the source spelled across lines"] = function()
+    -- Lua lets a declaration wrap, so the `name` field can span lines and the
+    -- function part carried the break into the stored text. herdr-nvim builds
+    -- one buffer line per comment, so one newline anywhere in the annotation
+    -- takes the whole comment list down.
+    local text = annotated({
+      "local foo = {}",
+      "function foo",
+      "  .bar()",
+      "  return 1",
+      "end",
+    }, { 4, 2 })
+    assert(not text:find("\n", 1, true), "stored a newline: " .. vim.inspect(text))
+    assert(text:find("function foo .bar", 1, true), "annotated with " .. vim.inspect(text))
+  end,
+
   ["reads the function at the cursor's column, not at the start of its line"] = function()
     -- Column zero of a nested declaration line sits outside the function being
     -- declared, so this reported the function AROUND it.

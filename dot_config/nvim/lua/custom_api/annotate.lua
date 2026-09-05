@@ -158,6 +158,14 @@ function M.annotatable(name, buftype)
   return true
 end
 
+-- Every part is one line: the stored annotation is joined by ` | ` because
+-- herdr-nvim renders one buffer line per comment, and a newline anywhere in it
+-- takes the whole comment list down. Both a language server message and a
+-- treesitter node's text can arrive spanning lines, so both go through here.
+local function one_line(text)
+  return util.trim((text:gsub("%s+", " ")))
+end
+
 ---The diagnostic part: the severity and the message, on one line.
 ---
 ---A message that trims to nothing yields no part at all. Formatting it anyway
@@ -170,9 +178,7 @@ function M.diagnostic_line(diagnostic)
     return nil
   end
 
-  -- A language server is free to send a multi-line message, and every part is
-  -- one line by contract, so the message collapses before it is composed.
-  local message = util.trim((diagnostic.message:gsub("%s+", " ")))
+  local message = one_line(diagnostic.message)
   if message == "" then
     return nil
   end
@@ -209,7 +215,8 @@ local function function_part(bufnr, line, column)
     return nil
   end
 
-  return "function " .. vim.treesitter.get_node_text(name, bufnr)
+  -- A declaration is free to wrap, so the `name` field can span lines.
+  return "function " .. one_line(vim.treesitter.get_node_text(name, bufnr))
 end
 
 local function blame_part(name, line)
