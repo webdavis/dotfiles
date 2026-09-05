@@ -1191,9 +1191,16 @@ id and by the environment of the pane the agent runs in, never by focus. Five st
    named and the instruction to launch the agent from Neovim (`<leader>Cc`) or to export
    `NVIM_MCP_SOCKET`.
 
-**Sticky selection.** An instance resolved by injection or by the picker is remembered for that agent
-and reused, with step 3's identity check re-run on EVERY use; a failed check drops the memo and
-re-resolves. The cost of choosing is paid once per session rather than once per call.
+**Sticky selection, amended 2026-09-05 for the resolver row.** The promise this section carried was
+that a resolved instance is remembered and step 3's identity check re-runs on EVERY use, a failed
+check dropping the memo and re-resolving. That is the CRATE row's behavior and part of what the crate
+row buys. On the resolver row the pin lasts exactly as long as the server process: `nvim-mcp` connects
+once at startup and keeps that client, and the resolver has already been replaced by `exec` before the
+first tool call, so it gets no say afterwards. There is no per-call recheck and no re-resolution, and
+a Neovim that exits leaves later tool calls talking to a stale client until the server restarts, which
+for both harnesses means a new session. Accepted rather than worked around, because a wrapper cannot
+reach inside a server it has become: automatic recovery is server lifecycle work and lives on the
+crate row. The cost of choosing is still paid once per session rather than once per call.
 
 **The registry is correct by construction.** Neovim registers `{ pane_id, socket, cwd, pid }` on
 start and DEREGISTERS on `VimLeavePre`, so steps 3 and 5 are a backstop rather than the mechanism.

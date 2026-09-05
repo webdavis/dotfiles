@@ -20,9 +20,11 @@
 #
 # Exit codes: 3 a refusal, 4 the picker, 2 an environmental fault (a missing
 # tool, unsafe registry state, a broken herdr answer). On success this process
-# is REPLACED by nvim-mcp, so there is no fourth outcome. No memo file: the
-# harness starts this once per session and the exec holds that instance for the
-# session, which is the sticky selection spec 7.3 asks for.
+# is REPLACED by nvim-mcp, so there is no fourth outcome. No memo file and no
+# per-call recheck: nvim-mcp connects once at startup and keeps that client, so
+# the pin lasts the server process and a Neovim that exits leaves a stale client
+# until the harness starts a new session. Spec 7.3's sticky selection is amended
+# to say so; automatic recovery is server lifecycle work, on the crate row.
 #
 # TWO STATED LIMITS, left open for the operator rather than worked around.
 # (a) The probe and the connection are separate processes, so a same-UID process
