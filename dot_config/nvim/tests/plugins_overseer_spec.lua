@@ -87,6 +87,18 @@ local function hook_for_all_templates()
   error("no template hook is registered for every template")
 end
 
+---The hook the config registers for the `just` provider.
+---@return fun(task_defn: table, util: table)
+local function hook_for_just()
+  captured_setup_opts()
+  for _, entry in ipairs(captured_hooks) do
+    if entry.opts and entry.opts.module == "^just$" then
+      return entry.hook
+    end
+  end
+  error("no template hook is registered for the just provider")
+end
+
 -- The namespace overseer hands a hook. Only the pieces the hooks here touch.
 local hook_util = {
   add_component = function(task_defn, comp)
@@ -144,6 +156,21 @@ return {
       defn.default_component_params.errorformat == "%f|%l| %m",
       "the template's own errorformat was replaced with " .. tostring(defn.default_component_params.errorformat)
     )
+  end,
+
+  ["the just hook scopes uniqueness to the working directory"] = function()
+    -- `unique` compares task NAMES only, so `just test` started in a second
+    -- worktree stopped and disposed the first worktree's running task. The name
+    -- has to carry the directory for the comparison to tell them apart.
+    local hook = hook_for_just()
+    local first = { name = "just test", cwd = "/repo/a" }
+    local second = { name = "just test", cwd = "/repo/b" }
+    hook(first, hook_util)
+    hook(second, hook_util)
+    assert(first.name ~= second.name, "both worktrees still produce the name " .. first.name)
+    assert(first.name:match("just test"), "the recipe name was lost: " .. first.name)
+    assert(first.name:match("/repo/a"), "the directory is not in the name: " .. first.name)
+    assert(hook_util.has_component(first, "unique"), "unique was not attached")
   end,
 
   ["the quickfix keeps only lines that parse as a location"] = function()

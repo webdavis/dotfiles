@@ -277,6 +277,13 @@ return {
     -- and VS Code tasks are left alone, since two of those side by side is often
     -- the point.
     overseer.add_template_hook({ module = "^just$" }, function(task_defn, util)
+      -- `unique` compares task NAMES, and every worktree of this repository
+      -- offers the same recipes, so `just test` started in one stopped and
+      -- disposed the run in another. Putting the directory in the name is what
+      -- makes that comparison see two different tasks.
+      if task_defn.cwd then
+        task_defn.name = ("%s (%s)"):format(task_defn.name, vim.fn.fnamemodify(task_defn.cwd, ":~"))
+      end
       util.add_component(task_defn, { "unique", replace = true })
     end)
 
