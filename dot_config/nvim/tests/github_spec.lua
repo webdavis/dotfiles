@@ -56,6 +56,9 @@ local DEFAULT_BRANCH_COMMAND = ("gh api repos/%s/%s --jq .default_branch"):forma
 -- halves are there because the runner appends stderr to a failed command's output.
 local GH_NOT_FOUND = '{"message":"Not Found","status":"404"}gh: Not Found (HTTP 404)'
 
+-- A commit that is not in this repository either; the URL is asserted whole.
+local SHA = "581dae8e37117196fb31ce1658a1c55ec3128b19"
+
 return {
   ["repo reads the owner and the name out of one gh call"] = function()
     local repo, err = with_shell({ [REPO_COMMAND] = { 0, OWNER .. "/" .. NAME } }, github.repo)
@@ -174,6 +177,27 @@ return {
       ["gh api user --jq .name"] = { 1, "" },
     }, github.account)
     assert(person == nil, "returned a person anyway")
+    assert(err:find("gh auth login", 1, true), "the message does not say how to fix it: " .. err)
+  end,
+
+  ["commit_url builds the commit's GitHub URL from the repository gh reports"] = function()
+    local url, err = with_shell({ [REPO_COMMAND] = { 0, OWNER .. "/" .. NAME } }, function()
+      return github.commit_url(SHA)
+    end)
+    assert(err == nil, "reported " .. tostring(err))
+    assert(url == ("https://github.com/%s/%s/commit/%s"):format(OWNER, NAME, SHA), "url was " .. tostring(url))
+  end,
+
+  -- `repo` reports a `gh` that cannot answer as `nil, message`. Reading a field
+  -- off that nil raised `attempt to index a nil value` on a machine where `gh`
+  -- could not read its config, so the failure has to come back as a result the
+  -- keymap layer can notify, not as a raise.
+  ["commit_url reports a gh that cannot answer instead of indexing nil"] = function()
+    local url, err = with_shell({ [REPO_COMMAND] = { 1, "" } }, function()
+      return github.commit_url(SHA)
+    end)
+    assert(url == nil, "returned a url anyway: " .. tostring(url))
+    assert(type(err) == "string", "err was a " .. type(err))
     assert(err:find("gh auth login", 1, true), "the message does not say how to fix it: " .. err)
   end,
 }
