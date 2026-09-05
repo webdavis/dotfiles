@@ -32,6 +32,7 @@ pub mod presence_file;
 pub mod presence_hue;
 pub mod presence_journal;
 pub mod presence_policy;
+pub mod presence_room;
 pub mod probes;
 pub mod pulse;
 pub mod quiet;

@@ -88,6 +88,9 @@ pub fn reason_said(full: &Full) -> String {
     match full {
         Full::NotHome => "the phone is not on the home network".to_string(),
         Full::NoDeskRoom => "at the desk, and no desk_room says which room that is".to_string(),
+        Full::Ambiguous { desk, motion } => {
+            format!("the desk in {desk:?} and newer motion in {motion:?} disagree")
+        }
         Full::Nowhere => "motion in no watched room".to_string(),
         Full::Unknown(reason) => format!("unknown: {}", crate::presence::unreadable_said(reason)),
         Full::NoLampIn(room) => format!("no lamp in {room:?}"),
@@ -211,6 +214,13 @@ mod tests {
             (
                 Full::NoDeskRoom,
                 "at the desk, and no desk_room says which room that is",
+            ),
+            (
+                Full::Ambiguous {
+                    desk: "3F - Studio".to_string(),
+                    motion: "2F - Kitchen".to_string(),
+                },
+                r#"the desk in "3F - Studio" and newer motion in "2F - Kitchen" disagree"#,
             ),
             (Full::Nowhere, "motion in no watched room"),
             (
