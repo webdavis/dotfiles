@@ -197,7 +197,21 @@ return {
     hook(lint, hook_util)
     assert(not test.name:match("nil"), "the name is still nil-derived: " .. test.name)
     assert(test.name ~= lint.name, "both recipes share the name " .. test.name)
-    assert(test.name:match("just test"), "the recipe is missing from " .. test.name)
+    -- The command is json-encoded, so the recipe reads as its argv words rather
+    -- than a shell line. Both still name the recipe they run.
+    assert(test.name:match("just") and test.name:match("test"), "the recipe is missing from " .. test.name)
+  end,
+
+  ["the just hook keeps argument boundaries in the name"] = function()
+    -- Joining argv with spaces threw the boundaries away, so a two-parameter
+    -- recipe called with {"a b", "c"} and with {"a", "b c"} produced one name
+    -- and `unique` disposed whichever was running.
+    local hook = hook_for_just()
+    local first = { cmd = { "just", "r", "a b", "c" }, cwd = "/repo" }
+    local second = { cmd = { "just", "r", "a", "b c" }, cwd = "/repo" }
+    hook(first, hook_util)
+    hook(second, hook_util)
+    assert(first.name ~= second.name, "both argument shapes share the name " .. first.name)
   end,
 
   ["the quickfix keeps only lines that parse as a location"] = function()

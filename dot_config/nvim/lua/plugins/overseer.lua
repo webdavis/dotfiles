@@ -294,8 +294,11 @@ return {
       -- and `unique` disposed whichever was already running. The command is what
       -- distinguishes them when the builder names nothing.
       if task_defn.cwd then
+        -- json over a space join: joining argv threw the argument boundaries
+        -- away, so a two-parameter recipe called with {"a b", "c"} and with
+        -- {"a", "b c"} produced one name and `unique` disposed the running one.
         local name = task_defn.name
-          or (type(task_defn.cmd) == "table" and table.concat(task_defn.cmd, " "))
+          or (type(task_defn.cmd) == "table" and vim.json.encode(task_defn.cmd))
           or tostring(task_defn.cmd)
         task_defn.name = ("%s (%s)"):format(name, vim.fn.fnamemodify(task_defn.cwd, ":~"))
       end
