@@ -188,7 +188,34 @@ return {
         end,
         desc = "Xcode: debug nearest test",
       },
+      -- Pairs with `<leader>xf`: re-run what failed, this time under the debugger. The other
+      -- four test-debugging functions (all, target, class, selected) stay on the module, since
+      -- a failing run is what sends anyone to a debugger.
+      {
+        "<leader>xF",
+        function()
+          require("xcodebuild.integrations.dap").debug_failing_tests()
+        end,
+        desc = "Xcode: debug failing tests",
+      },
+      -- Previews. Live now that the snacks image snack is on (snacks.lua). Rendering also
+      -- needs the `xcodebuild-nvim-preview` Swift package in the project being previewed,
+      -- which is a per-project dependency no editor config can supply.
+      { "<leader>xi", "<cmd>XcodebuildPreviewGenerateAndShow<cr>", desc = "Xcode: generate and show preview" },
+      { "<leader>xI", "<cmd>XcodebuildPreviewToggle<cr>", desc = "Xcode: toggle preview" },
+      -- Snapshot tests. The plugin ships its own `getsnapshots` binary to build the diffs, so
+      -- the only prerequisite is swift-snapshot-testing in the project.
+      { "<leader>xS", "<cmd>XcodebuildFailingSnapshots<cr>", desc = "Xcode: failing snapshot tests" },
+      -- Assets and macros. The assets manager needs `fd`, which is installed.
+      { "<leader>xA", "<cmd>XcodebuildAssetsManager<cr>", desc = "Xcode: assets manager" },
+      { "<leader>xM", "<cmd>XcodebuildApproveMacros<cr>", desc = "Xcode: approve Swift macros" },
+      -- Attach and detach, live now that pymobiledevice3 is installed: this is how the
+      -- debugger reaches an app already running, on a simulator or a device.
+      { "<leader>xh", "<cmd>XcodebuildAttachDebugger<cr>", desc = "Xcode: attach debugger" },
+      { "<leader>xH", "<cmd>XcodebuildDetachDebugger<cr>", desc = "Xcode: detach debugger" },
       -- Project
+      { "<leader>xw", "<cmd>XcodebuildSetup<cr>", desc = "Xcode: setup wizard" },
+      { "<leader>x?", "<cmd>XcodebuildShowConfig<cr>", desc = "Xcode: show current configuration" },
       { "<leader>xs", "<cmd>XcodebuildSelectScheme<cr>", desc = "Xcode: select scheme" },
       { "<leader>xd", "<cmd>XcodebuildSelectDevice<cr>", desc = "Xcode: select device" },
       -- The third project selector beside scheme and device, and routine on iOS, where a target
