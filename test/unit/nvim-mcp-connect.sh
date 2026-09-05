@@ -17,6 +17,7 @@
 #   m) a probe that never answers  -> bounded, and not a candidate
 #   n) an oversized reply     -> never reaches the server
 #   o) a multi-line reply     -> never reaches the server
+#   p) a correct identity then padding then garbage -> never reaches the server
 #
 # herdr, nvim and the nvim-mcp binary are all fake executables in a per-case
 # PATH, so no herdr server and no Neovim is ever contacted.
@@ -98,6 +99,10 @@ if grep -qxF "\$sock" "$CASE/hang"; then
 fi
 answer="\$(awk -F'|' -v s="\$sock" '\$1 == s { print \$2; exit }' "$CASE/identity")"
 [[ -n \$answer ]] || exit 1
+if [[ \$answer == @* ]]; then
+  cat "\${answer#@}"
+  exit 0
+fi
 printf '%b' "\$answer"
 STUB
 
@@ -359,4 +364,22 @@ run_case HERDR_PANE_ID=w1:p1
 [[ $RC -eq 3 ]] || fail "multiline-reply: expected exit 3, got $RC ($(cat "$CASE/err"))"
 [[ ! -f $CASE/exec ]] || fail 'multiline-reply: it connected on a two-line reply'
 
-printf 'PASS: nvim-mcp-connect.sh (15 cases)\n'
+# --- p) a valid identity followed by padding and garbage --------------------
+# The byte cap used to TRUNCATE what had already been captured, so a reply that
+# opened with the right identity, then newlines, then anything at all, lost its
+# suffix to `head` and its newlines to the command substitution and was read as
+# a clean identity.
+setup_case padded-reply
+write_layout w1:t1 w1:p1 w1:p2
+record w1:p2 4242 "$CASE/run/n1.sock"
+{
+  printf 'w1:p2 4242'
+  head -c 4096 /dev/zero | tr '\0' '\n'
+  head -c 1048576 /dev/zero | tr '\0' 'G'
+} >"$CASE/padded.bin"
+printf '%s|@%s\n' "$CASE/run/n1.sock" "$CASE/padded.bin" >"$CASE/identity"
+run_case HERDR_PANE_ID=w1:p1
+[[ $RC -eq 3 ]] || fail "padded-reply: expected exit 3, got $RC ($(cat "$CASE/err"))"
+[[ ! -f $CASE/exec ]] || fail 'padded-reply: a padded reply was read as a clean identity'
+
+printf 'PASS: nvim-mcp-connect.sh (16 cases)\n'

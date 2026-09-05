@@ -73,12 +73,12 @@ probe_out="$(mktemp)"
 trap 'rm -f "$probe_out" 2>/dev/null || true' EXIT
 
 # identity <socket> -- "<pane id> <pid>" as the instance reports itself, empty
-# if it does not. Deadline-bounded (stock macOS ships no timeout(1)), capped at
-# 128 bytes, and only a strict "<pane> <decimal pid>" reply is accepted, so an
-# oversized or multi-line answer cannot exhaust memory or smuggle whitespace
-# into the candidate framing.
+# if it does not. Deadline-bounded (stock macOS ships no timeout(1)), and the
+# reply is rejected WHOLE rather than trimmed to fit: a cap that truncates turns
+# malformed output into a valid identity, which a 1 MiB answer opening with the
+# right pane and pid and padded with newlines demonstrated.
 identity() {
-  local job watchdog reply
+  local job watchdog reply size
   : >"$probe_out"
   nvim --server "$1" --remote-expr \
     'join([getenv("HERDR_PANE_ID"), getpid()], " ")' >"$probe_out" 2>/dev/null &
@@ -91,7 +91,19 @@ identity() {
   watchdog=$!
   wait "$job" 2>/dev/null || true
   kill -TERM "$watchdog" 2>/dev/null || true
-  reply="$(head -c 128 "$probe_out")"
+  # Size FIRST, from the file, so an over-long reply is refused rather than cut
+  # down to something well-formed.
+  size="$(wc -c <"$probe_out" | tr -d '[:space:]')"
+  [[ $size =~ ^[0-9]+$ ]] && ((size <= 128)) || return 0
+  # The `x` sentinel preserves trailing newlines, which command substitution
+  # strips; stripping them is what let padding hide a garbage suffix. A real
+  # reply carries none (measured: `--remote-expr` emits no trailing newline), so
+  # the grammar sees the COMPLETE reply and any newline at all fails it.
+  reply="$(
+    cat "$probe_out"
+    printf x
+  )"
+  reply="${reply%x}"
   [[ $reply =~ ^[A-Za-z0-9:_-]+\ [0-9]+$ ]] || return 0
   printf '%s' "$reply"
 }
