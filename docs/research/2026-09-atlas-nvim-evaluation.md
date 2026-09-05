@@ -10,6 +10,30 @@ was not touched, and no `chezmoi apply` was run.
 
 ______________________________________________________________________
 
+## 0. Adopted side by side with octo, 2026-09-05
+
+Installed beside octo by operator ruling, not in place of it. The DO NOT ADOPT verdict below is left
+exactly as written, because it answers the question this document actually asked, which was whether to
+REPLACE octo. That is not the question the operator settled. Octo keeps `<leader>gh` and all nine of its
+keymaps, its spec in `dot_config/nvim/lua/plugins/git.lua` is untouched, and section 5's cost accounting
+never comes due: nothing is being given up, so the three capabilities with no atlas equivalent (gists,
+standalone workflow runs, the repository list) stay reachable through octo.
+
+Atlas is declared on its own in `dot_config/nvim/lua/plugins/atlas.lua`, pinned to the same 0.7.3 commit
+measured here, lazy behind `:Atlas`, `:AtlasDiff` and a `<leader>gt` prefix. The two questions section 5
+left open for an adopt pull request were answered in that file. The diff viewer is native AtlasDiff, for
+the reason section 5 gives. The `pulls.repo_config.paths` mapping is one wildcard line,
+`["webdavis/*"] = "~/workspaces/Ivy/webdavis/*"`; section 4.5 guessed the worktrunk tree at
+`~/.herdr/worktrees/<repo>/<branch>` would be the mapping target, and that turned out to be wrong. That
+directory is a plain container rather than a git repository, and each directory inside it already has a
+branch checked out, so neither level is somewhere atlas can put a pull request branch.
+
+Everything in sections 1 through 6 is the record of the evaluation and is not amended by this section.
+
+Pull request: TODO.
+
+______________________________________________________________________
+
 ## 1. Verdict
 
 # DO NOT ADOPT
