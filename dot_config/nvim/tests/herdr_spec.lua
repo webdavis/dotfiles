@@ -101,4 +101,44 @@ return {
     assert(first:find("wW:p3K", 1, true), first)
     assert(second:find("wW:p8K", 1, true), second)
   end,
+
+  -- Finding 3. Native Neovim behavior, so the case runs against a real buffer in
+  -- real blockwise Visual mode rather than a stub. `<C-v>j$` from `b` over
+  -- `abc123456` / `xyz` yanks `bc123456` / `yz`; reading the marks after leaving
+  -- Visual mode loses the to-end-of-line intent and truncated it to `bc1` / `yz`.
+  ["a blockwise selection to the end of the line is not truncated"] = function()
+    local buffer = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buffer)
+    vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "abc123456", "xyz" })
+    vim.api.nvim_win_set_cursor(0, { 1, 1 })
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-v>j$", true, false, true), "x", false)
+    assert(vim.fn.mode() == "\22", "not in blockwise Visual mode: " .. vim.fn.mode())
+    local lines = herdr.visual_lines()
+    assert(#lines == 2, vim.inspect(lines))
+    assert(lines[1] == "bc123456", vim.inspect(lines))
+    assert(lines[2] == "yz", vim.inspect(lines))
+  end,
+
+  ["an ordinary blockwise selection keeps its width"] = function()
+    local buffer = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buffer)
+    vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "abc123456", "xyz789" })
+    vim.api.nvim_win_set_cursor(0, { 1, 1 })
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-v>jl", true, false, true), "x", false)
+    local lines = herdr.visual_lines()
+    assert(lines[1] == "bc", vim.inspect(lines))
+    assert(lines[2] == "yz", vim.inspect(lines))
+  end,
+
+  ["a charwise selection sends exactly what is highlighted"] = function()
+    local buffer = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buffer)
+    vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "abc123456" })
+    vim.api.nvim_win_set_cursor(0, { 1, 1 })
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("vll", true, false, true), "x", false)
+    -- One call only: `visual_lines` leaves Visual mode, so a second call would
+    -- read normal mode and throw E475 rather than report the first one's answer.
+    local lines = herdr.visual_lines()
+    assert(table.concat(lines, "\n") == "bc1", vim.inspect(lines))
+  end,
 }

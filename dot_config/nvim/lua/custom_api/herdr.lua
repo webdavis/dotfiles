@@ -204,19 +204,30 @@ end
 -- There is no target-picking keymap and no `<leader>CP` (spec 7.4):
 -- `agent_pane` resolves the target and prompts only when it is genuinely
 -- ambiguous, so a stored target would be a second answer to a settled question.
+-- The lines of the CURRENT Visual selection. Called while the mode is still
+-- visual, because both of the things it has to read are gone once it is not:
+-- `mode()` answers "v", "V" or CTRL-V, the exact spelling `getregion` wants for
+-- its `type` (`visualmode()` would answer for the PREVIOUS selection), and
+-- `curswant` at `v:maxcol` is the only record that a blockwise selection was
+-- taken to the END of each line. Without that second read, `<C-v>j$` from `b`
+-- over `abc123456` / `xyz` returned `bc1` / `yz` where Neovim yanks `bc123456` /
+-- `yz`. Leaving Visual mode is what materializes `'<` and `'>`, so it happens
+-- after both reads and before the marks are used.
+function M.visual_lines()
+  local visual = vim.fn.mode()
+  local to_end_of_line = vim.fn.getcurpos()[5] == vim.v.maxcol
+  vim.cmd([[execute "normal! \<esc>"]])
+  local kind = (visual == "\22" and to_end_of_line) and ("\22" .. vim.v.maxcol) or visual
+  -- Not the line range: `getregion` reads charwise, linewise and blockwise
+  -- exactly, so half a line selected sends half a line.
+  return vim.fn.getregion(vim.fn.getpos("'<"), vim.fn.getpos("'>"), { type = kind })
+end
+
 function M.send_selection_or_paragraph()
   local lines
 
   if vim.fn.mode():match("^[vV\22]") then
-    -- `mode()` answers "v", "V" or CTRL-V, which is the exact spelling
-    -- `getregion` wants for its `type`; `visualmode()` would answer for the
-    -- PREVIOUS selection. Leaving visual mode is what materializes `'<` and
-    -- `'>`, so it happens after the mode is read and before the marks are.
-    local visual = vim.fn.mode()
-    vim.cmd([[execute "normal! \<esc>"]])
-    -- Not the line range: `getregion` reads charwise, linewise and blockwise
-    -- exactly, so half a line selected sends half a line.
-    lines = vim.fn.getregion(vim.fn.getpos("'<"), vim.fn.getpos("'>"), { type = visual })
+    lines = M.visual_lines()
   else
     local first, final = paragraph_range()
     if first then
