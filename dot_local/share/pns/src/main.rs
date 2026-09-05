@@ -5054,7 +5054,7 @@ fn presence_poll() -> i32 {
     let Some(hue) = hue_settings(&settings, None) else {
         return 0;
     };
-    write_presence_reading(
+    let (code, complaint) = write_presence_reading(
         &UreqBridge {
             base: format!("https://{}/clip/v2/resource", hue.bridge),
             key: hue.key,
@@ -5068,8 +5068,12 @@ fn presence_poll() -> i32 {
         &state_dir(),
         &presence,
         now,
-    );
-    0
+    )
+    .reported();
+    if let Some(complaint) = complaint {
+        eprintln!("{complaint}");
+    }
+    code
 }
 
 /// The poll's whole effect: read the bridge, publish the reading. `true` when
@@ -5095,22 +5099,27 @@ fn presence_poll() -> i32 {
 /// reading: a poller stalled between its two reads publishes an older room
 /// over a newer one and `classify` accepts it as current. Standing down costs
 /// one interval of a reading somebody else is already taking.
+///
+/// THE LOCK IS THE KERNEL'S, not a name on disk, so the poll a killed poller
+/// was inside is claimable the moment it dies: see `presence_lock`.
 fn write_presence_reading<B: pns::channels::hue::Bridge>(
     bridge: &B,
     state: &Path,
     presence: &pns::config::Presence,
     now: u64,
-) -> bool {
+) -> Polled {
     // THE DIRECTORY IS MADE BEFORE THE LOCK, because the lock now runs ahead
     // of `publish_state_line`, which used to be the thing that made it: a
     // first poll on a machine with no state directory yet would otherwise fail
     // to take a lock nobody holds and never publish at all.
     let _ = std::fs::create_dir_all(state);
-    let lock = state.join(PRESENCE_POLL_LOCK);
-    if !claim_lock(&lock, now, PRESENCE_LOCK_STALE_SECS) {
-        return false;
-    }
-    let _lock = HeldLock(lock);
+    // HELD BY THE HANDLE AND NOT BY THE NAME, which is what makes a killed
+    // poller cost nothing: the kernel closes its file and the lock is gone.
+    let _lock = match pns::presence_lock::claim(&state.join(pns::presence_lock::LOCK_FILE)) {
+        pns::presence_lock::Claim::Held(file) => file,
+        pns::presence_lock::Claim::Busy => return Polled::Busy,
+        pns::presence_lock::Claim::Unavailable => return Polled::Nothing,
+    };
     // THE EXCLUSION IS APPLIED BEFORE THE NEWEST EDGE IS CHOSEN, not left to
     // the reader. `classify` refuses an excluded room outright, so publishing
     // one would throw away the newest edge in a room that DOES count and
@@ -5124,18 +5133,60 @@ fn write_presence_reading<B: pns::channels::hue::Bridge>(
         .cloned()
         .collect();
     let Some(reading) = pns::presence_hue::poll(bridge, &watched, now) else {
-        return false;
+        return Polled::Nothing;
     };
     // A READING THIS FORMAT CANNOT CARRY PUBLISHES NOTHING, the same direction
     // a silent bridge takes. `render` used to substitute the poll-only line
     // for one, which says "the bridge answered and no watched room reported"
     // on evidence that said a watched room had.
     let Some(line) = pns::presence_file::render(&reading) else {
-        return false;
+        return Polled::Nothing;
     };
     // FAIL-QUIET, in `remember_staleness`'s style: an unwritable state
     // directory costs the reading, which ages out on its own.
-    publish_state_line(&state.join(pns::presence_file::STATE_FILE), &line).is_ok()
+    if publish_state_line(&state.join(pns::presence_file::STATE_FILE), &line).is_ok() {
+        Polled::Published
+    } else {
+        Polled::Nothing
+    }
+}
+
+/// What one poll did, and what the operator who typed it is told.
+#[derive(Debug, PartialEq, Eq)]
+enum Polled {
+    /// A reading reached the state file.
+    Published,
+    /// Nothing was published and nothing this can name is wrong: a bridge that
+    /// did not answer, a reading the format cannot carry, a state directory it
+    /// cannot write. Every one of them ages the last reading out to Unknown,
+    /// which is what they all mean.
+    Nothing,
+    /// Another poller is inside the bridge read.
+    Busy,
+}
+
+impl Polled {
+    /// The exit status, and the one line the operator is owed.
+    ///
+    /// SILENT AND ZERO FOR EVERY REFUSAL BUT ONE, because the daemon runs this
+    /// every few seconds with its stderr pointed at the log: a complaint on the
+    /// ordinary refusals would be a line a second, and the doctor is what names
+    /// a sensor that has stopped reading. Contention is the exception. It is
+    /// transient by construction, so it cannot flood anything, and a hand-typed
+    /// poll that read no bridge and published nothing otherwise looks exactly
+    /// like one that worked.
+    fn reported(self) -> (i32, Option<&'static str>) {
+        match self {
+            Polled::Published | Polled::Nothing => (0, None),
+            Polled::Busy => (
+                1,
+                Some(
+                    "pns presence: another poll holds the bridge read; \
+                     this one published nothing",
+                ),
+            ),
+        }
+    }
 }
 
 /// `pns loop begin|end`: take the loop lamp by hand, and give it back.
@@ -6579,21 +6630,6 @@ const LIGHTS_HELD: &str = "lights-held";
 /// on one; `run_tick_writes` re-reads the record instead and stands down when
 /// it moved, which is the guard that case has always had.
 const LIGHTS_TICK_LOCK: &str = "lights-tick.lock";
-
-/// The name beside the presence state file that arbitrates between two pollers.
-const PRESENCE_POLL_LOCK: &str = "presence-poll.lock";
-
-/// How long a presence poll's lock is believed before it is read as leavings.
-///
-/// TWICE THE POLL'S OWN CHILD BOUND, which is `CHILD_TICKS` seconds at the
-/// production clock and the point the daemon kills a poll it spawned. A window
-/// SHORTER than that would let a later poller steal the lock from one still
-/// reading the bridge, which is the exact race the lock exists to stop; the
-/// margin over it covers the two `BRIDGE_DEADLINE` reads inside that bound and
-/// the reap tick after it. What the length costs when a holder really was
-/// killed is a handful of intervals of an unrefreshed reading, and that ages
-/// out to Unknown, which is the safe direction.
-const PRESENCE_LOCK_STALE_SECS: u64 = 2 * CHILD_TICKS as u64;
 
 /// How long a lights tick's lock is believed before it is read as an orphan.
 ///
@@ -9229,7 +9265,7 @@ mod tests {
     use super::{
         Bounded, Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS, DEFAULT_REREAD_INTERVAL,
         LIGHTS_HELD, LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID, LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK,
-        MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, STATE_FILE_MODE, ad_hoc_quiet, answered,
+        MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL, Polled, STATE_FILE_MODE, ad_hoc_quiet, answered,
         asks_the_bridge, blocked_lamp, child_bound, daemon_pass, drive_breaths, end_lease,
         ensure_presence_poll, held_lamps, keep_aside, keep_aside_at, lights_report, list,
         matches_glob, means_yes, muted_state, publish_config, publish_state_line, read_failure,
@@ -9290,6 +9326,17 @@ mod tests {
         }
     }
 
+    /// The poll's outcome as the one bit most of these tests assert on. The
+    /// contention answer is named directly where it is the subject.
+    fn poll_published<B: pns::channels::hue::Bridge>(
+        bridge: &B,
+        state: &std::path::Path,
+        presence: &pns::config::Presence,
+        now: u64,
+    ) -> bool {
+        write_presence_reading(bridge, state, presence, now) == Polled::Published
+    }
+
     /// The sensor's settings, watching one room and excluding none.
     fn watching(rooms: &[&str], exclude: &[&str]) -> pns::config::Presence {
         pns::config::Presence {
@@ -9309,7 +9356,7 @@ mod tests {
         let state = scratch("presence-poll");
         let bridge = PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]);
 
-        assert!(write_presence_reading(
+        assert!(poll_published(
             &bridge,
             &state,
             &watching(&["3F - Studio"], &[]),
@@ -9354,7 +9401,7 @@ mod tests {
             vec![("grouped_motion", MOTION_BODY)],
             vec![("room", ROOM_BODY)],
         ] {
-            assert!(!write_presence_reading(
+            assert!(!poll_published(
                 &PollBridge(served),
                 &state,
                 &watching(&["3F - Studio"], &[]),
@@ -9381,7 +9428,7 @@ mod tests {
         // verbatim, so this is the room the operator would have configured.
         let rooms = r#"{"data":[{"id":"studio","metadata":{"name":"3F\tStudio"}}]}"#;
 
-        assert!(!write_presence_reading(
+        assert!(!poll_published(
             &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", rooms)]),
             &state,
             &watching(&["3F\tStudio"], &[]),
@@ -9422,12 +9469,7 @@ mod tests {
             ("room", TWO_ROOM_ROOMS),
         ]);
 
-        assert!(write_presence_reading(
-            &bridge,
-            &state,
-            &settings,
-            1_788_456_400
-        ));
+        assert!(poll_published(&bridge, &state, &settings, 1_788_456_400));
 
         let published = std::fs::read_to_string(state.join(pns::presence_file::STATE_FILE))
             .expect("the state file");
@@ -9499,7 +9541,7 @@ mod tests {
                 release: held,
                 served: vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)],
             };
-            let published = write_presence_reading(
+            let published = poll_published(
                 &bridge,
                 &running,
                 &watching(&["3F - Studio"], &[]),
@@ -9511,14 +9553,19 @@ mod tests {
             .recv_timeout(Duration::from_secs(5))
             .expect("the first poller reaches the bridge");
 
-        assert!(
-            !write_presence_reading(
+        // NAMED AS CONTENTION rather than as "published nothing": a poll that
+        // stood down for a live holder is the one refusal a hand-typed poll is
+        // told about, so a regression that turned it into an ordinary silent
+        // refusal would pass a weaker assertion.
+        assert_eq!(
+            write_presence_reading(
                 &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
                 &state,
                 &watching(&["3F - Studio"], &[]),
                 1_788_456_200
             ),
-            "a second poller published while the first was mid-poll"
+            Polled::Busy,
+            "a second poller was let into a poll the first was holding"
         );
 
         let _ = release.send(());
@@ -9536,6 +9583,46 @@ mod tests {
     }
 
     #[test]
+    fn the_lock_a_killed_poller_left_behind_does_not_stand_the_next_poll_down() {
+        // A POLLER KILLED MID-POLL RUNS NO `Drop`, and the daemon kills every
+        // child that outlives its bound, so the file it leaves behind is the
+        // ORDINARY end of a wedged poll rather than a rarity. Nothing is
+        // inside the poll once that process is gone, so the next interval has
+        // to publish: a lock believed until its own mtime ages out instead
+        // blinds the sensor for a whole stale window, and the reading it never
+        // refreshed goes Unknown.
+        let state = scratch("presence-killed-holder");
+        std::fs::write(state.join(pns::presence_lock::LOCK_FILE), b"").expect("the leavings");
+
+        assert!(
+            poll_published(
+                &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
+                &state,
+                &watching(&["3F - Studio"], &[]),
+                1_788_456_100
+            ),
+            "the lock a killed poller left behind stood the next poll down"
+        );
+    }
+
+    #[test]
+    fn a_poll_that_stood_down_for_a_live_one_says_so_and_exits_non_zero() {
+        // THE ONE REFUSAL WITH A HUMAN BEHIND IT. A hand-typed poll that read
+        // no bridge, published nothing and exited 0 is indistinguishable from
+        // one that worked, and the operator's next move is to believe the
+        // reading on disk. Every other refusal stays silent and zero, because
+        // the daemon runs this every few seconds into its own log.
+        assert_eq!(Polled::Busy.reported().0, 1);
+        let complaint = Polled::Busy.reported().1.expect("the complaint");
+        assert!(
+            complaint.contains("another poll") && complaint.contains("published nothing"),
+            "the complaint does not say what happened: {complaint}"
+        );
+        assert_eq!(Polled::Published.reported(), (0, None));
+        assert_eq!(Polled::Nothing.reported(), (0, None));
+    }
+
+    #[test]
     fn a_poll_gives_its_lock_back_so_the_next_interval_can_take_it() {
         // THE GUARD IS WHAT MAKES THE LOCK A LOCK RATHER THAN A LATCH: a hold
         // left behind would stand every later poll down for a whole stale
@@ -9544,7 +9631,7 @@ mod tests {
         let settings = watching(&["3F - Studio"], &[]);
         for now in [1_788_456_100, 1_788_456_105] {
             assert!(
-                write_presence_reading(
+                poll_published(
                     &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
                     &state,
                     &settings,
