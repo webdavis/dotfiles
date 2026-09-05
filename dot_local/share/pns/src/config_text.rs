@@ -199,12 +199,21 @@ pub const LAYOUT: &[Table] = &[
             },
             Key {
                 name: "desk_room",
-                prose: "# The room the desk is in, spelled the way the bridge spells it and\n\
-                         # listed in rooms above. While the desk says you are at it, that is\n\
-                         # where you are and motion elsewhere gets no vote: a cat crossing the\n\
-                         # kitchen must not move the lamps off a keyboard being typed at.\n\
-                         # Unset, a desk in use narrows nothing.\n",
+                prose: "# The room the desk is in, spelled the way the bridge spells it, listed\n\
+                         # in rooms above and not in exclude. While the keyboard is the fresher\n\
+                         # of the two signals, this is the room the lamps narrow to; once motion\n\
+                         # somewhere else is newer, that room wins instead. Unset, a warm desk\n\
+                         # narrows nothing.\n",
                 sample: Sample::Example("\"\""),
+            },
+            Key {
+                name: "desk_stale_after_secs",
+                prose: "# How long the desk keeps speaking for where you ARE after the last\n\
+                         # keystroke. Inside it a warm desk beats motion of the same age, so a\n\
+                         # cat crossing the kitchen cannot move the lamps off a keyboard being\n\
+                         # typed at; past it a keyboard nobody has touched says nothing about\n\
+                         # which room you are standing in, and fresher motion wins.\n",
+                sample: Sample::Default("120"),
             },
             Key {
                 name: "poll_secs",

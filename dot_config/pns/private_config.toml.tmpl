@@ -85,12 +85,18 @@ rooms = ["3F - Studio", "2F - Kitchen", "3F - MBedroom"]
 # Rooms whose presence is discarded even when they are listed above: a
 # room you pass through, or one you never want lit.
 exclude = []
-# The room the desk is in, spelled the way the bridge spells it and
-# listed in rooms above. While the desk says you are at it, that is
-# where you are and motion elsewhere gets no vote: a cat crossing the
-# kitchen must not move the lamps off a keyboard being typed at.
-# Unset, a desk in use narrows nothing.
+# The room the desk is in, spelled the way the bridge spells it, listed
+# in rooms above and not in exclude. While the keyboard is the fresher
+# of the two signals, this is the room the lamps narrow to; once motion
+# somewhere else is newer, that room wins instead. Unset, a warm desk
+# narrows nothing.
 desk_room = "3F - Studio"
+# How long the desk keeps speaking for where you ARE after the last
+# keystroke. Inside it a warm desk beats motion of the same age, so a
+# cat crossing the kitchen cannot move the lamps off a keyboard being
+# typed at; past it a keyboard nobody has touched says nothing about
+# which room you are standing in, and fresher motion wins.
+desk_stale_after_secs = 120
 # How often the bridge is read, in seconds, bounded 2 to 60.
 poll_secs = 5
 # How old that read may be before there is no reading at all. A BRIDGE

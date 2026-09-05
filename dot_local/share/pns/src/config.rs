@@ -591,6 +591,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "plugins.presence",
         &[
             "desk_room",
+            "desk_stale_after_secs",
             "enabled",
             "exclude",
             "poll_secs",
@@ -1974,6 +1975,18 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
         Some(setting) => strings("presence", "exclude", "a list of room names", setting)?,
         None => Vec::new(),
     };
+    // AN EMPTY NAME MATCHES NO BRIDGE ROOM, so it can only ever be a typo. It
+    // is refused rather than dropped because in `rooms` it also opens a hole:
+    // an empty `desk_room` would pass the membership check below and narrow
+    // the lamps to a room that does not exist.
+    for (key, names) in [("rooms", &rooms), ("exclude", &exclude)] {
+        if names.iter().any(|name| name.is_empty()) {
+            return Err(ConfigError::Invalid(format!(
+                "`presence` key `{key}` has an empty room name in it; no bridge room \
+                 answers to an empty name"
+            )));
+        }
+    }
     // REFUSED BY NAME RATHER THAN DROPPED, because a desk in a room no reading
     // can ever name narrows the lamps to a room the poll never watches, and it
     // would do it silently and for good.
@@ -1985,16 +1998,48 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
                     setting.type_str()
                 )));
             };
+            if named.is_empty() {
+                return Err(ConfigError::Invalid(
+                    "`presence` key `desk_room` is empty; no bridge room answers to an \
+                     empty name"
+                        .to_string(),
+                ));
+            }
             if !rooms.iter().any(|room| room == named) {
                 return Err(ConfigError::Invalid(format!(
                     "`presence` key `desk_room` is `{named}`, which is not in `rooms`; \
                      the desk's room has to be one this config watches"
                 )));
             }
+            // THE TWO KEYS WOULD CONTRADICT EACH OTHER. `exclude` says never
+            // light that room and `desk_room` says light it whenever the desk
+            // is warm; loaded, the desk branch wins and the exclusion is
+            // silently a lie.
+            if exclude.iter().any(|room| room == named) {
+                return Err(ConfigError::Invalid(format!(
+                    "`presence` key `desk_room` is `{named}`, which `exclude` also names; \
+                     a room the config never wants lit cannot be the one the desk lights"
+                )));
+            }
             Some(named.to_string())
         }
         None => None,
     };
+    // ZERO IS THE DESK OVERRIDE OFF BY ACCIDENT: no desk reading can ever be
+    // fresher than a bound of no seconds at all, so the desk would never speak
+    // for where the operator is and the key would look set.
+    let desk_stale_after_secs = presence_count(
+        settings,
+        "desk_stale_after_secs",
+        DEFAULT_DESK_STALE_AFTER_SECS,
+    )?;
+    if desk_stale_after_secs == 0 {
+        return Err(ConfigError::Invalid(
+            "`presence` key `desk_stale_after_secs` is 0, which is the desk override \
+             switched off by accident: no desk reading is fresher than no seconds at all"
+                .to_string(),
+        ));
+    }
     let poll_secs = presence_count(settings, "poll_secs", DEFAULT_PRESENCE_POLL_SECS)?;
     if !(MIN_PRESENCE_POLL_SECS..=MAX_PRESENCE_POLL_SECS).contains(&poll_secs) {
         return Err(ConfigError::Invalid(format!(
@@ -2021,6 +2066,7 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
         rooms,
         exclude,
         desk_room,
+        desk_stale_after_secs,
         poll_secs,
         stale_after_secs,
     }))
@@ -2054,6 +2100,8 @@ pub struct Presence {
     pub exclude: Vec<String>,
     /// The room the desk is in, when the operator named one.
     pub desk_room: Option<String>,
+    /// How long a desk reading still speaks for where the operator IS.
+    pub desk_stale_after_secs: u64,
     pub poll_secs: u64,
     pub stale_after_secs: u64,
 }
@@ -2065,6 +2113,15 @@ const PRESENCE_TYPE: &str = "hue";
 /// FLOOR IS A COURTESY TO THE BRIDGE and the ceiling is the point at which a
 /// reading is older than the turn it would narrow.
 const DEFAULT_PRESENCE_POLL_SECS: u64 = 5;
+
+/// How long a desk reading still speaks for WHERE THE OPERATOR IS, as opposed
+/// to where their attention is. THE SAME 120 SECONDS `engine`'s
+/// `DEFAULT_DESK_IDLE_SECS` already trusts a desk reading inside, so the
+/// shipped behaviour of the two clocks agrees; past it a keyboard nobody has
+/// touched says nothing about which room somebody is standing in, and fresh
+/// motion elsewhere wins. It is a knob because the right number is a property
+/// of a house and a habit, not of this code.
+const DEFAULT_DESK_STALE_AFTER_SECS: u64 = 120;
 const MIN_PRESENCE_POLL_SECS: u64 = 2;
 const MAX_PRESENCE_POLL_SECS: u64 = 60;
 
@@ -3774,6 +3831,7 @@ mod tests {
                 rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
                 exclude: vec!["3F - MBedroom".to_string()],
                 desk_room: None,
+                desk_stale_after_secs: 120,
                 poll_secs: 10,
                 stale_after_secs: 30,
             })
@@ -3809,10 +3867,77 @@ mod tests {
     }
 
     #[test]
+    fn a_desk_room_the_operator_also_excluded_is_refused_by_name() {
+        // The two keys contradict each other: `exclude` says never light that
+        // room and `desk_room` says light it whenever the desk is warm. Loaded,
+        // the desk branch wins and the exclusion is silently a lie.
+        let said = match parse_presence(&presence_config(
+            "type = \"hue\"\nrooms = [\"3F - Studio\"]\nexclude = [\"3F - Studio\"]\n\
+             desk_room = \"3F - Studio\"\n",
+        )) {
+            Err(error) => error.detail().to_string(),
+            Ok(_) => panic!("a desk room the config also excludes is refused"),
+        };
+        assert!(
+            said.contains("desk_room") && said.contains("exclude") && said.contains("3F - Studio"),
+            "the refusal names both keys and the value: {said}"
+        );
+    }
+
+    #[test]
+    fn an_empty_room_name_is_refused_wherever_it_is_written() {
+        // An empty entry matches no bridge room, and in `rooms` it also lets an
+        // empty `desk_room` past the membership check into the narrowing.
+        for (key, body) in [
+            ("rooms", "type = \"hue\"\nrooms = [\"\"]\n"),
+            (
+                "exclude",
+                "type = \"hue\"\nrooms = [\"3F - Studio\"]\nexclude = [\"\"]\n",
+            ),
+            (
+                "desk_room",
+                "type = \"hue\"\nrooms = [\"3F - Studio\"]\ndesk_room = \"\"\n",
+            ),
+        ] {
+            let said = match parse_presence(&presence_config(body)) {
+                Err(error) => error.detail().to_string(),
+                Ok(_) => panic!("an empty `{key}` entry is refused"),
+            };
+            assert!(
+                said.contains(key) && said.contains("empty"),
+                "the refusal names `{key}` and says it is empty: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_desk_that_speaks_for_no_time_at_all_is_refused_by_name() {
+        // Zero is the desk override switched off by accident: no desk reading
+        // could ever be fresher than a bound of zero seconds.
+        let said = match parse_presence(&presence_config(
+            "type = \"hue\"\ndesk_stale_after_secs = 0\n",
+        )) {
+            Err(error) => error.detail().to_string(),
+            Ok(_) => panic!("a zero desk bound is refused"),
+        };
+        assert!(
+            said.contains("desk_stale_after_secs") && said.contains('0'),
+            "the refusal names the key and the value: {said}"
+        );
+    }
+
+    #[test]
     fn a_presence_table_stating_no_intervals_takes_the_shipped_ones() {
         let config = presence_config("type = \"hue\"\n");
         let presence = parse_presence(&config).unwrap().expect("the table is on");
-        assert_eq!((presence.poll_secs, presence.stale_after_secs), (5, 15));
+        assert_eq!(
+            (
+                presence.poll_secs,
+                presence.stale_after_secs,
+                presence.desk_stale_after_secs
+            ),
+            (5, 15, 120)
+        );
     }
 
     #[test]
@@ -3966,6 +4091,7 @@ mod tests {
         ("plugins.macos-banner", "enabled", "true"),
         ("plugins.presence", "enabled", "true"),
         ("plugins.presence", "desk_room", "\"3F - Studio\""),
+        ("plugins.presence", "desk_stale_after_secs", "120"),
         ("plugins.presence", "exclude", "[\"3F - MBedroom\"]"),
         ("plugins.presence", "poll_secs", "5"),
         ("plugins.presence", "rooms", "[\"3F - Studio\"]"),

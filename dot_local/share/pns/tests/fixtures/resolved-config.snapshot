@@ -59,6 +59,9 @@ Config {
                 "desk_room": String(
                     "3F - Studio",
                 ),
+                "desk_stale_after_secs": Integer(
+                    120,
+                ),
                 "exclude": Array(
                     [],
                 ),

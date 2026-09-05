@@ -83,9 +83,12 @@ pub enum Outcome {
     /// The lights, and how many rooms were signalled.
     Signalled(usize),
     /// What the room sensor reads right now, in every state it can be in, and
-    /// the phrase the narrowing ring last recorded (`None` for a ring with
+    /// the decision the narrowing ring last recorded (`None` for a ring with
     /// nothing in it).
-    Presence(crate::presence::PresenceStatus, Option<String>),
+    Presence(
+        crate::presence::PresenceStatus,
+        Option<crate::presence_journal::Entry>,
+    ),
     /// Nothing was checked, and why.
     Skipped(&'static str),
 }
@@ -156,7 +159,7 @@ pub fn line(check: &Check, outcome: &Outcome) -> String {
         Outcome::Signalled(rooms) => format!("{plugin}: signalled {rooms} rooms ({WATCH_FOR_IT})"),
         Outcome::Skipped(reason) => format!("{plugin}: skipped, {reason}"),
         Outcome::Presence(status, last_narrowing) => {
-            presence_said(plugin, status, last_narrowing.as_deref())
+            presence_said(plugin, status, last_narrowing.as_ref())
         }
     }
 }
@@ -169,7 +172,7 @@ pub fn line(check: &Check, outcome: &Outcome) -> String {
 fn presence_said(
     plugin: &str,
     status: &crate::presence::PresenceStatus,
-    last_narrowing: Option<&str>,
+    last_narrowing: Option<&crate::presence_journal::Entry>,
 ) -> String {
     use crate::presence::PresenceStatus;
     let reading = match status {
@@ -193,7 +196,10 @@ fn presence_said(
     match last_narrowing {
         Some(narrowing) => format!(
             "{plugin}: {reading}; last narrowed {}",
-            printable(narrowing)
+            match &narrowing.room {
+                Some(room) => format!("to {}", shown_room(room)),
+                None => format!("nothing ({})", printable(&narrowing.reason)),
+            }
         ),
         None => format!("{plugin}: {reading}"),
     }
@@ -789,13 +795,16 @@ mod tests {
     }
 
     /// The same line, with whatever the narrowing ring last recorded.
-    fn presence_line_with(status: PresenceStatus, last_narrowing: Option<&str>) -> String {
+    fn presence_line_with(
+        status: PresenceStatus,
+        last_narrowing: Option<crate::presence_journal::Entry>,
+    ) -> String {
         line(
             &Check {
                 plugin: "presence",
                 kind: CheckKind::Presence,
             },
-            &Outcome::Presence(status, last_narrowing.map(str::to_string)),
+            &Outcome::Presence(status, last_narrowing),
         )
     }
 
@@ -810,10 +819,26 @@ mod tests {
                     room: "2F - Kitchen".to_string(),
                     age_secs: 4,
                 },
-                Some(r#"nothing (at the desk, and no desk_room says which room that is)"#),
+                Some(crate::presence_journal::Entry {
+                    room: Some("3F - Studio".to_string()),
+                    ..Default::default()
+                }),
             ),
-            "presence: 2F - Kitchen (4s ago); last narrowed nothing (at the desk, \
-             and no desk_room says which room that is)"
+            "presence: 2F - Kitchen (4s ago); last narrowed to 3F - Studio"
+        );
+        // A ROUTING LEFT WHOLE NAMES ITS REASON, and is told from a room
+        // STRUCTURALLY rather than by the shape of a phrase.
+        assert_eq!(
+            presence_line_with(
+                PresenceStatus::Nowhere { poll_age_secs: 3 },
+                Some(crate::presence_journal::Entry {
+                    room: None,
+                    reason: "motion in no watched room".to_string(),
+                    ..Default::default()
+                }),
+            ),
+            "presence: nowhere (poll 3s ago); last narrowed nothing \
+             (motion in no watched room)"
         );
         // AND A RING WITH NOTHING IN IT SAYS NOTHING, rather than claiming a
         // narrowing never decided: presence off, or on and never yet consulted.
@@ -821,6 +846,21 @@ mod tests {
             presence_line_for(PresenceStatus::Nowhere { poll_age_secs: 3 }),
             "presence: nowhere (poll 3s ago)"
         );
+    }
+
+    #[test]
+    fn a_room_name_the_bridge_chose_is_filtered_on_its_way_out_of_the_ring_too() {
+        // It reached the ring as JSON, so a newline survives the round trip
+        // intact; the terminal is where it would forge a second `pns doctor:`
+        // line, and that is this filter's job.
+        let said = presence_line_with(
+            PresenceStatus::Nowhere { poll_age_secs: 3 },
+            Some(crate::presence_journal::Entry {
+                room: Some("3F - Studio\npns doctor: forged".to_string()),
+                ..Default::default()
+            }),
+        );
+        assert!(!said.contains('\n'), "{said}");
     }
 
     #[test]

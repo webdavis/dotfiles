@@ -1235,44 +1235,53 @@ Then NOTHING is armed and the complaint is returned.
   file. The residue is stated: a lamp held under a name this run could not read stays lit until the
   repaired record names it again or the operator's next return clears it.
 
-### 33. A fresh room reading narrows the routing to the room the operator is in
+### 33. The lamps narrow to the room the operator is physically in
 
 Given a resolved `Routing` and an armed `[plugins.presence]` table,
 
 When `src/main.rs:narrow_to_presence` runs it through `src/presence_policy.rs:narrow` on the event
 path's pulse (`src/main.rs:run_pulse_writes`) and on the tick (`src/main.rs:run_tick_writes`),
 
-Then the surface decides first and motion only votes on `Mobile`: a `Desk` surface narrows to
-`[plugins.presence] desk_room`, an `Away` surface narrows nothing, and a `Mobile` surface takes a fresh
-`PresenceStatus::Room`. A lamp belongs to a room by the bridge's own membership
+Then the desk's idle clock and the bridge's motion edge compete by NEWEST SIGNAL WINS, which is
+`src/surface.rs:surface`'s own rule over two clocks of the same kind: both answer "how long since a
+human did something here", so the fresher one names the room. The tie goes to the desk, where a hand is
+what made the reading. A lamp belongs to a room by the bridge's own membership
 (`src/channels/hue.rs:Lamp.room`), which `resolve` already joined off the room listing.
 
 - Success: `Routing.lamps` holds only the lamps that room holds; `unresolved` and `refusals` are
   untouched, because a name the bridge could not answer is a typo whether or not the operator is
   standing in that room.
-- Failure sources: every one of them narrows NOTHING and says which:
-  `Nowhere` (a fresh poll that found motion in no watched room, and the room they are in may have no
-  sensor), each `src/presence.rs:Unreadable` variant, an `Away` surface, a `Desk` surface with no
-  `desk_room` named, and a room that holds no routed lamp.
+- Failure sources: every one of them narrows NOTHING and says which: `Nowhere` (a fresh poll that found
+  motion in no watched room, and the room they are in may have no sensor), each
+  `src/presence.rs:Unreadable` variant, a router answering `home::HomePresence::NotHome`, a desk that
+  would have won with no `desk_room` named, and a room that holds no lamp this event would light.
 - Fail direction: PRESENCE ONLY EVER NARROWS. Not knowing costs the narrowing and nothing else, and a
   narrowing that would leave ZERO targets falls back to the whole routing rather than going silent
   (`src/presence_policy.rs:a_room_holding_no_routed_lamp_falls_back_to_the_whole_routing`).
-- Thresholds: freshness is `src/presence.rs:classify`'s, against `[plugins.presence] stale_after_secs`;
-  this step adds no dwell rule and no hysteresis of its own.
-- Required side effects: one line per decision appended to the `presence-decisions` ring
-  (`src/presence_policy.rs:journal_line`), carrying the reading, the surface and the room chosen or
-  `nothing (<reason>)`. `pns doctor`'s presence leg reads the last one back.
-- Forbidden side effects: taking a second surface reading. The event path hands down
-  `decision.inputs.surface` and the tick takes exactly one of its own, because a narrowing and the
-  reading it narrows by have to describe one moment.
+- Thresholds: the motion reading's freshness is `src/presence.rs:classify`'s, against
+  `[plugins.presence] stale_after_secs`; the desk's is `[plugins.presence] desk_stale_after_secs`
+  (default 120, `src/config.rs:DEFAULT_DESK_STALE_AFTER_SECS`), past which a keyboard nobody has touched
+  speaks for nothing. No dwell rule and no hysteresis of its own.
+- Required side effects: one JSON object per decision appended to the `presence-decisions` ring
+  (`src/presence_journal.rs:entry`), carrying the reading, the desk clock, the router verdict and the
+  room chosen or the reason none was. `pns doctor`'s presence leg reads the last one back
+  (`src/main.rs:last_narrowing`).
+- Forbidden side effects: reading `src/surface.rs:Surface`. It answers where the operator's EYES are and
+  is what picks a notifier; read as location it is `Desk` for two minutes after the last keystroke,
+  which ignores fresh motion in the kitchen for that whole window, and `Away` whenever neither the
+  keyboard nor the phone has been touched lately, which reads a phone in a pocket at home as an empty
+  house. Also forbidden: taking any reading twice. One `SystemProbes` supplies the clock, the idle
+  counter, the screen lock and the presence line, all memoized, so the reading and the decision cannot
+  straddle a boundary.
 - Timeout and cancellation: none; `narrow` is a total function of its arguments and touches no bridge.
-- Idempotency and duplicates: pure, so the same three facts always give the same routing.
-- Privacy: the room is the bridge's own text, quoted with `{:?}` on the way into the ring so a name
-  carrying a newline cannot forge a second entry, and filtered again by `src/doctor.rs:printable` on the
-  way out.
+  The router's own verdict is NOT dialled here (`src/main.rs:home_presence` answers `Unknown`), because
+  two `home::ROUTER_DEADLINE` calls behind a lamp would outlive a tick's whole interval.
+- Idempotency and duplicates: pure, so the same snapshot always gives the same routing.
+- Privacy: the room is the bridge's own text, escaped by `serde_json` on the way into the ring so a name
+  carrying a newline cannot forge a second entry, and filtered by `src/doctor.rs:shown_room` on the way
+  out. The router verdict is recorded as one word, never with the matched key's value.
 - Process ownership and cleanup: the ring prunes itself to `decision_log::KEPT`; the write is fail-quiet,
-  in `src/main.rs:record_decision`'s style, because both callers run where a line about the state
-  directory would be noise forever.
+  in `src/main.rs:record_decision`'s style.
 - Compatibility contract: a machine with no `[plugins.presence]` table passes `None` and reaches none of
   this, so its lamp map behaves exactly as it did before the feature existed.
 
