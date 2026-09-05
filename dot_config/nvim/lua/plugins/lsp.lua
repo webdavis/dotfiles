@@ -320,6 +320,7 @@ return {
     },
     config = function()
       local lsp_format = require("lsp-format")
+      local format_admission = require("custom_api.lsp_format")
 
       lsp_format.setup({
         lua = {
@@ -379,19 +380,26 @@ return {
         group = format_group,
         callback = function(args)
           local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
-          -- Formatting-capable clients only. lsp-format's queue runner returns WITHOUT
-          -- advancing when it reaches a client that cannot format, so a single such
-          -- client in the queue makes the whole save send zero formatting requests.
-          if not client:supports_method("textDocument/formatting", args.buf) then
-            return
-          end
-          -- Registers the client for :Format. It also hangs lsp-format's own asynchronous
-          -- BufWritePost formatter on the buffer, which would format a second time after the
-          -- synchronous BufWritePre below has already run; drop that one.
-          lsp_format.on_attach(client, args.buf)
-          vim.api.nvim_clear_autocmds({ group = "Format", buffer = args.buf })
+          format_admission.admit(client, args.buf, lsp_format)
         end,
       })
+
+      -- A server that resolves its project settings before registering
+      -- `textDocument/formatting` has already attached by the time the capability
+      -- arrives, so LspAttach alone never sees it (the configured ESLint server does
+      -- exactly this). Neovim's own handler is what records the registration, so it
+      -- runs first and the admission rule is applied again afterwards.
+      local register_capability = vim.lsp.handlers["client/registerCapability"]
+      vim.lsp.handlers["client/registerCapability"] = function(err, result, ctx, config)
+        local response = register_capability(err, result, ctx, config)
+        local client = vim.lsp.get_client_by_id(ctx.client_id)
+        if client then
+          for bufnr in pairs(client.attached_buffers) do
+            format_admission.admit(client, bufnr, lsp_format)
+          end
+        end
+        return response
+      end
 
       vim.api.nvim_create_autocmd("BufWritePre", {
         group = format_group,
