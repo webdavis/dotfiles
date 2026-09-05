@@ -3,12 +3,37 @@
 -- init.lua owns those, so every rule below is testable by `tests/run.lua` under
 -- a bare `nvim --headless --clean -l`, with no plugin installed.
 --
--- Verified against bashunit 0.50.1, which is the version the repository pins in
--- Brewfile.dev, the CI toolchain step and the machine package set.
+-- Every rule and fixture here was measured against ONE bashunit release, named
+-- by `M.verified_version` below and checked by this project's own gate. See
+-- that field for why the check exists rather than a version pin.
 
 local M = {}
 
 M.suffix = ".test.sh"
+
+---The bashunit release every rule in this file was measured against.
+---
+---Homebrew has no declarative version pin, so all three declarations in this
+---repository (Brewfile.dev, the CI toolchain step, the machine package set)
+---install whatever is current, and `brew info bashunit` reports the formula as
+---unpinned and auto-bumped. A release that changes an output shape would leave
+---this adapter's frozen fixtures green while it silently misreported real runs,
+---so the gate refuses to certify fixtures captured from a different release and
+---names both versions. That is the same trade the repository takes on stylua
+---and for the same reason: a visible failure on an untouched file beats a
+---silent behavior change.
+---
+---Moving this means re-measuring, not just editing: every fixture in
+---tests/parse_spec.lua is transcribed from a run of this exact version.
+M.verified_version = "0.50.1"
+
+---The release number out of `bashunit --version`, which prints it wrapped in
+---ANSI escapes even under NO_COLOR.
+---@param version_output string|nil
+---@return string|nil
+function M.version_of(version_output)
+  return version_output and version_output:match("(%d+%.%d+%.%d+)") or nil
+end
 
 ---A bashunit test file, by the repository's naming rule.
 ---@param path string

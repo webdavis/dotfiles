@@ -60,6 +60,36 @@ local function lines_of(text)
 end
 
 return {
+  ["the installed bashunit is the release these fixtures were captured from"] = function()
+    -- Homebrew cannot pin declaratively, so this gate is the pin: a bashunit
+    -- release that changes an output shape must fail here rather than leave the
+    -- frozen fixtures below green while real runs are misreported.
+    -- pcall: vim.fn.system throws on a missing executable rather than setting
+    -- shell_error, and the raw E475 does not say where bashunit comes from.
+    local ran, output = pcall(vim.fn.system, { "bashunit", "--version" })
+    assert(
+      ran and vim.v.shell_error == 0,
+      "bashunit did not run; it is declared in Brewfile.dev, the CI toolchain step and the machine package set"
+    )
+    local installed = parse.version_of(output)
+    assert(
+      installed == parse.verified_version,
+      ("bashunit %s is installed, but every rule and fixture in this project was measured against %s. Re-measure them against %s and move parse.verified_version, or install %s."):format(
+        tostring(installed),
+        parse.verified_version,
+        tostring(installed),
+        parse.verified_version
+      )
+    )
+  end,
+
+  ["version_of reads the release out of bashunit's own banner"] = function()
+    assert(parse.version_of("\27[1m\27[32mbashunit\27[0m - 0.50.1\n") == "0.50.1")
+    assert(parse.version_of("bashunit - 1.0.10") == "1.0.10")
+    assert(parse.version_of("command not found") == nil)
+    assert(parse.version_of(nil) == nil)
+  end,
+
   ["is_test_file takes the .test.sh suffix and nothing near it"] = function()
     assert(parse.is_test_file("/w/osquery.test.sh"))
     assert(not parse.is_test_file("/w/osquery.sh"))
