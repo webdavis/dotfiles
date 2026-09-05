@@ -88,11 +88,15 @@ return {
         map({ mode = { "x", "o" }, lhs = "il", rhs = function() select.select_textobject("@loop.inner", "textobjects") end, desc = "inner loop" })
 
         -- No function textobject on `am`/`im` and no conditional one on `ak`/`ik`.
-        -- nvim-various-textobjs loads on VeryLazy, after this eager spec, and its
-        -- default keymaps claim all four for `chainMember` and `key`, so the
-        -- declarations that used to sit here never took effect at runtime. The
-        -- `[m`／`]m` and `[k`／`]k` motions below still navigate by function and by
-        -- conditional; `af`/`if` are free if the textobjects are ever wanted back.
+        -- nvim-various-textobjs owns all four, for `chainMember` and `key`. The
+        -- declarations that used to sit here were overwritten by it for the whole
+        -- session, but NOT from the first keystroke: this spec is eager and that
+        -- one was `VeryLazy`, so a key pressed in the first tens of milliseconds
+        -- still got the treesitter object. Deleting them alone therefore left a
+        -- window with no mapping at all, which is why `plugins/textobjects.lua`
+        -- now loads nvim-various-textobjs eagerly too. The `[m`／`]m` and `[k`／`]k`
+        -- motions below still navigate by function and by conditional; `af`/`if`
+        -- are free if the textobjects are ever wanted back.
 
         -- You can also use captures from other query groups like `locals.scm`.
         map({ mode = { "x", "o" }, lhs = "as", rhs = function() select.select_textobject("@local.scope", "locals") end, desc = "local scope" })
