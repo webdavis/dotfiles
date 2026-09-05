@@ -80,6 +80,10 @@ write_fixture("mono/packages/web/package.json", '{ "devDependencies": { "vitest"
 local behind_empty = write_fixture("mono/packages/web/fixtures/package.json", "{}")
 local behind_empty_file = write_fixture("mono/packages/web/fixtures/a.test.js", 'import { test } from "vitest";\n')
 
+-- A manifest no JSON parser can read.
+local broken = write_fixture("broken/package.json", '{ "devDependencies": { "vitest": }')
+write_fixture("broken/tests/x.test.js", 'import { test } from "vitest";\n')
+
 -- A package that names no runner at all.
 local silent = write_fixture("silent/package.json", '{ "name": "silent", "version": "1.0.0" }')
 write_fixture("silent/tests/thing.test.js", 'test("thing", function () {});\n')
@@ -344,6 +348,18 @@ cases["a directory run names the adapter the nearest package declares"] = functi
     "expected vitest by name, got " .. tostring(intermediate.ran and intermediate.ran.adapter)
   )
 end
+
+cases["a directory run stops on a package.json it cannot parse"] = function()
+    -- A manifest that cannot be read is not the same answer as a manifest naming no runner, and
+    -- collapsing the two put the operator in front of a chooser instead of in front of the
+    -- reason. The prompt would have offered a real choice built on a manifest nobody could read.
+    local routed = route()
+    local broken_run = routed.press_run_all(directory_of(broken))
+    assert(not broken_run.ran, "an unreadable manifest still dispatched a run")
+    assert(not broken_run.prompted, "an unreadable manifest fell through to the prompt")
+    assert(#broken_run.notified == 1, "the operator was not told")
+    assert(broken_run.notified[1]:find(broken, 1, true), "the message does not name the manifest")
+  end
 
 cases["a directory run with no runner declared asks rather than picking one"] = function()
   local routed = route()

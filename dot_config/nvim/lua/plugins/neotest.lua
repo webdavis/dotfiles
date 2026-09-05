@@ -200,7 +200,15 @@ local function run_all_tests()
   local neotest = require("neotest")
   local directory = vim.fn.getcwd()
 
-  local runner = declared_runner(directory)
+  -- A manifest nobody can parse is not the same answer as a manifest naming no runner. Saying so
+  -- and stopping beats a chooser built on a file that could not be read. `owner_of` treats the
+  -- same result as "no runner" without a word, because it is asked once per file during discovery
+  -- and would say it hundreds of times.
+  local runner, unparseable = declared_runner(directory)
+  if unparseable then
+    vim.notify("neotest: could not parse " .. unparseable, vim.log.levels.ERROR)
+    return
+  end
 
   -- Asked of each adapter rather than resolved here, so the id matches the one neotest builds
   -- from the same call.
