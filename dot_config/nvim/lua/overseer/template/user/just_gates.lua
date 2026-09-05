@@ -37,11 +37,15 @@ local function justfile_with_gates(dir)
   end
 end
 
+-- No `cache_key`. Overseer caches provider results globally by that key, and the
+-- built-in `just` provider returns the same justfile path, so the two collided:
+-- once discovery ran past `template_cache_threshold_ms` the cache served just's
+-- 35 recipes for both providers, listing every recipe twice and losing this
+-- pipeline entirely. Measured with the threshold at 1 ms: cold 36 templates with
+-- the pipeline, warm 70 with 35 duplicated names and no pipeline. This provider
+-- only reads one file, so there is nothing worth caching anyway.
 ---@type overseer.TemplateFileProvider
 return {
-  cache_key = function(opts)
-    return justfile_with_gates(opts.dir)
-  end,
   generator = function(opts)
     local justfile = justfile_with_gates(opts.dir)
     if not justfile then
