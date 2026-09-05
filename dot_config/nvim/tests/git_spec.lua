@@ -40,10 +40,10 @@ end
 -- the buffer's OWN name, because that is what the keymap passes as `file` and
 -- because nvim rewrites the name it is given (`/var` becomes `/private/var` on
 -- macOS), so the name asked for and the name stored are not the same string.
-local function in_buffer(lines, fn)
+local function in_buffer(lines, fn, name)
   local previous = vim.api.nvim_get_current_buf()
   local bufnr = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_name(bufnr, vim.fn.tempname())
+  vim.api.nvim_buf_set_name(bufnr, name or vim.fn.tempname())
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   vim.api.nvim_set_current_buf(bufnr)
   local count, results = collect(pcall(fn, vim.api.nvim_buf_get_name(bufnr)))
@@ -382,6 +382,38 @@ return {
     end)
     assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
     assert(seen[1].stdin == "nonl one\nnonl two", "stdin was " .. string.format("%q", tostring(seen[1].stdin)))
+  end,
+
+  -- A symlink gives nvim the TARGET's text under the LINK's name. The link's own
+  -- blob holds a path, not that text, so blaming the link compared the two and
+  -- called every line uncommitted. `AGENTS.md -> CLAUDE.md` in this repository
+  -- is exactly that file.
+  ["blame_sha blames the file a symlink points at, not the link"] = function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local target = dir .. "/target.txt"
+    local link = dir .. "/link.txt"
+    vim.fn.writefile({ "line one" }, target)
+    vim.uv.fs_symlink(target, link)
+    -- macOS rewrites `/var` to `/private/var`, so the path git is expected to
+    -- get comes from the resolver rather than from the string built above.
+    local resolved = vim.uv.fs_realpath(target)
+
+    local sha = in_buffer({ "line one" }, function(file)
+      assert(file ~= resolved, "the buffer is not named after the link: " .. file)
+      return with_shell({
+        [("git blame -L 1,1 --porcelain --contents - -- %s"):format(resolved)] = {
+          0,
+          "581dae8e37117196fb31ce1658a1c55ec3128b19 1 1 1\nauthor Sentinel Person",
+        },
+      }, function()
+        return git.blame_sha({ file = file, line = 1 })
+      end)
+    end, link)
+
+    assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
+    local dir_of_target = vim.fn.fnamemodify(resolved, ":h")
+    assert(seen[1].cwd == dir_of_target, "ran in " .. tostring(seen[1].cwd) .. ", not " .. dir_of_target)
   end,
 
   -- Git answers for the repository of the directory it RUNS in, not the one the

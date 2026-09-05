@@ -375,13 +375,19 @@ local function blame_sha(opts)
   local range = ("%d,%d"):format(line, line)
   local contents = buffer_contents(file)
 
+  -- A symlink gives nvim the TARGET's text under the LINK's name, and the link's
+  -- own blob holds a path rather than that text, so blaming the link compared
+  -- the two and called every line uncommitted. The link's name is what the
+  -- buffer is called and stays the key for matching it; git gets the real file.
+  local blamed = vim.uv.fs_realpath(file) or file
+
   local cmd = { "git", "blame", "-L", range, "--porcelain" }
   if contents then
     vim.list_extend(cmd, { "--contents", "-" })
   end
-  vim.list_extend(cmd, { "--", file })
+  vim.list_extend(cmd, { "--", blamed })
 
-  local code, output = M.runner({ cmd = cmd, stdin = contents, cwd = util.file_dir(file) })
+  local code, output = M.runner({ cmd = cmd, stdin = contents, cwd = util.file_dir(blamed) })
 
   if code ~= 0 then
     return nil, output
