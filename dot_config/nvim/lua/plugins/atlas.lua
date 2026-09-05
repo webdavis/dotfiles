@@ -55,20 +55,13 @@ return {
         -- dependency and no breakage path at once.
         open_cmd = "AtlasDiff",
       },
-      repo_config = {
-        -- Atlas will not check a pull request branch out (`gc`) without this mapping, and reads it for
-        -- diffs against a repository other than the current one. The workspace half of a key is literal
-        -- and the `*` count has to match on both sides of the arrow. One line covers every clone under
-        -- ~/workspaces/Ivy/webdavis. A repository kept somewhere else gets its own exact key,
-        -- ["webdavis/name"] = "/path/to/that/clone", which beats the wildcard.
-        --
-        -- The worktrees under ~/.herdr/worktrees/dotfiles are deliberately not mapped. That directory
-        -- is a plain container rather than a git repository, and each directory inside it already has
-        -- a branch checked out, so neither is somewhere atlas can put a pull request branch.
-        paths = {
-          ["webdavis/*"] = "~/workspaces/Ivy/webdavis/*",
-        },
-      },
+      -- `pulls.repo_config.paths` is deliberately absent, which leaves atlas read, review and comment
+      -- only: with no mapping, checkout (`gc`) refuses with its own message and changes nothing.
+      -- This is a protection policy rather than a technical limit. Atlas checks out into a worktree
+      -- perfectly well, and a worktree with a branch already on it can still switch branches. The
+      -- reason to withhold the mapping is that dashboard `gc` switches the mapped checkout's branch
+      -- the instant it is pressed, with no confirmation, one key away from the read-only `gd`.
+      -- Branches here are checked out with worktrunk (`wt`), which is where that decision belongs.
     },
   },
 }

@@ -22,11 +22,13 @@ standalone workflow runs, the repository list) stay reachable through octo.
 Atlas is declared on its own in `dot_config/nvim/lua/plugins/atlas.lua`, pinned to the same 0.7.3 commit
 measured here, lazy behind `:Atlas`, `:AtlasDiff` and a `<leader>gt` prefix. The two questions section 5
 left open for an adopt pull request were answered in that file. The diff viewer is native AtlasDiff, for
-the reason section 5 gives. The `pulls.repo_config.paths` mapping is one wildcard line,
-`["webdavis/*"] = "~/workspaces/Ivy/webdavis/*"`; section 4.5 guessed the worktrunk tree at
-`~/.herdr/worktrees/<repo>/<branch>` would be the mapping target, and that turned out to be wrong. That
-directory is a plain container rather than a git repository, and each directory inside it already has a
-branch checked out, so neither level is somewhere atlas can put a pull request branch.
+the reason section 5 gives. The `pulls.repo_config.paths` mapping is omitted, which section 4.5 records
+as the thing that keeps atlas from checking a branch out, and that is the point: with no mapping atlas
+refuses checkout with its own message and stays read, review and comment only. Withholding it is a
+protection policy rather than a technical limit. Atlas checks out into a worktree perfectly well, and a
+worktree that already has a branch on it can still switch branches. The reason to withhold it is that
+dashboard `gc` switches the mapped checkout's branch the instant it is pressed, with no confirmation, one
+key away from the read-only `gd`. Branches here are checked out with worktrunk (`wt`).
 
 Everything in sections 1 through 6 is the record of the evaluation and is not amended by this section.
 
