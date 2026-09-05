@@ -29,6 +29,15 @@ return {
     assert(output:find("FAIL failing_spec: deliberately fails", 1, true), output)
   end,
 
+  ["a spec that returned no cases is refused, by name"] = function()
+    -- A gutted spec reports nothing and leaves the failure count at zero, so
+    -- without this the run exits 0 and reads as a pass.
+    local copy = scratch_runner("return {}")
+    local code, output = run(copy, "failing_spec")
+    assert(code ~= 0, "exit code " .. code .. ": " .. output)
+    assert(output:find("failing_spec returned no cases", 1, true), output)
+  end,
+
   ["a run that matched no spec files is refused"] = function()
     local code, output = run(scratch_runner())
     assert(code ~= 0, "exit code " .. code .. ": " .. output)
