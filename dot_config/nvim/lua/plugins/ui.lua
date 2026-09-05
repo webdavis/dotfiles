@@ -118,7 +118,39 @@ return {
       "nvim-tree/nvim-web-devicons",
     },
     lazy = false,
-    opts = {},
+    -- A function, not a table: the default component list is a witch-line module,
+    -- so it can only be required once the plugin is on the runtimepath.
+    opts = function()
+      -- Overseer task counts, appended to witch-line's own default components
+      -- rather than replacing them. Overseer's third-party doc ships recipes for
+      -- lualine and heirline only, so this is the same idea in witch-line's
+      -- component shape: one count per status, hidden when there is nothing to
+      -- report.
+      --
+      -- Both callbacks reach `custom_api.overseer_status` by name and capture
+      -- NOTHING. witch-line's cache serializes them as bytecode without their
+      -- upvalues, so a callback closing over a local helper came back from a
+      -- populated cache as `attempt to call upvalue 'counts' (a nil value)`:
+      -- the counter worked on a cold start and broke on every start after one.
+      -- `require` is a global lookup, which survives that roundtrip.
+      local overseer_component = {
+        id = "overseer.tasks",
+        padding = { left = 1, right = 1 },
+        -- Task status changes on its own schedule, with no event to hook, so
+        -- this polls rather than waiting to be told.
+        timing = 1000,
+        hidden = function()
+          return require("custom_api.overseer_status").is_idle()
+        end,
+        update = function()
+          return require("custom_api.overseer_status").render()
+        end,
+      }
+
+      local components = vim.deepcopy(require("witch-line.constant.default"))
+      table.insert(components, overseer_component)
+      return { statusline = { global = components } }
+    end,
   },
   {
     "Bekaboo/deadcolumn.nvim",

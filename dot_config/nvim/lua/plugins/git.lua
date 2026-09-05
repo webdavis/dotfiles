@@ -925,7 +925,7 @@ return {
                 if not is_initialized then
                   table.insert(cmds, "git init")
                 end
-                -- overseer_runner joins its commands into one shell line, so the
+                -- Each command overseer_runner is given is run by a shell, so the
                 -- name typed at the prompt is quoted for that shell here.
                 table.insert(cmds, "gh repo create --public " .. vim.fn.shellescape(project))
 
