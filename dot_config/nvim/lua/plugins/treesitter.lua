@@ -84,14 +84,15 @@ return {
         map({ mode = { "x", "o" }, lhs = "ac", rhs = function() select.select_textobject("@class.outer", "textobjects") end, desc = "outer class" })
         map({ mode = { "x", "o" }, lhs = "ic", rhs = function() select.select_textobject("@class.inner", "textobjects") end, desc = "inner class" })
 
-        map({ mode = { "x", "o" }, lhs = "am", rhs = function() select.select_textobject("@function.outer", "textobjects") end, desc = "outer function" })
-        map({ mode = { "x", "o" }, lhs = "im", rhs = function() select.select_textobject("@function.inner", "textobjects") end, desc = "inner function" })
-
         map({ mode = { "x", "o" }, lhs = "al", rhs = function() select.select_textobject("@loop.outer", "textobjects") end, desc = "outer loop" })
         map({ mode = { "x", "o" }, lhs = "il", rhs = function() select.select_textobject("@loop.inner", "textobjects") end, desc = "inner loop" })
 
-        map({ mode = { "x", "o" }, lhs = "ak", rhs = function() select.select_textobject("@conditional.outer", "textobjects") end, desc = "outer conditional" })
-        map({ mode = { "x", "o" }, lhs = "ik", rhs = function() select.select_textobject("@conditional.inner", "textobjects") end, desc = "inner conditional" })
+        -- No function textobject on `am`/`im` and no conditional one on `ak`/`ik`.
+        -- nvim-various-textobjs loads on VeryLazy, after this eager spec, and its
+        -- default keymaps claim all four for `chainMember` and `key`, so the
+        -- declarations that used to sit here never took effect at runtime. The
+        -- `[m`／`]m` and `[k`／`]k` motions below still navigate by function and by
+        -- conditional; `af`/`if` are free if the textobjects are ever wanted back.
 
         -- You can also use captures from other query groups like `locals.scm`.
         map({ mode = { "x", "o" }, lhs = "as", rhs = function() select.select_textobject("@local.scope", "locals") end, desc = "local scope" })
