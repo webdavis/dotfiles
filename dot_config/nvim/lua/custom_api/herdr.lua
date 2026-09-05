@@ -1,10 +1,10 @@
 -- The shared herdr seam (spec 7.4). One module answers "which pane" and "how to
 -- send", and every caller in this config goes through it. It is a thin wrapper
 -- over the installed `herdr-nvim` plugin, never a second implementation of what
--- that plugin already does: `herdr-nvim` owns the workspace-scoped agent lookup
--- (`agents.list`, `agents.resolve`, `ui.pick_agent`) and the two dispatch verbs
--- (`dispatch.send`), and this module adds only the Claude filter, the interrupt
--- policy and the launch plan.
+-- that plugin already does: `herdr-nvim` owns the agent lookup (`agents.list`,
+-- `agents.resolve`, `agents.display`) and the dispatch verb (`dispatch.send`),
+-- and this module adds only the workspace gate, the Claude filter, the picker
+-- row, the interrupt policy and the launch plan.
 --
 -- Every `require("herdr-nvim.…")` sits INSIDE the function that needs it. The
 -- headless spec runner starts `--clean` with only this config's `lua/` on
@@ -56,7 +56,14 @@ function M.workspace_refusal(herdr_env, workspace_id)
   return nil
 end
 
--- `on_pane` rather than a return value: `ui.pick_agent` goes through
+-- The picker row. `agents.display` renders kind, status and cwd basename, which
+-- two Claude agents in two tabs of one repository share exactly; the pane id is
+-- the field that tells them apart before the text goes anywhere.
+function M.picker_label(display, pane_id)
+  return display .. " [" .. pane_id .. "]"
+end
+
+-- `on_pane` rather than a return value: the picker goes through
 -- `vim.ui.select`, which snacks.nvim replaces with an asynchronous picker, so
 -- the ambiguous case cannot answer in the caller's stack frame. It is called
 -- with the pane id, or with nil when this workspace runs no Claude agent. A
@@ -98,8 +105,16 @@ function M.agent_pane(on_pane)
     return on_pane(one.pane_id)
   end
 
-  require("herdr-nvim.ui").pick_agent(claude, function(agent)
-    on_pane(agent.pane_id)
+  -- Not `ui.pick_agent`: its rows are `agents.display` alone, which collides.
+  vim.ui.select(claude, {
+    prompt = "Send to Claude agent",
+    format_item = function(agent)
+      return M.picker_label(agents.display(agent), agent.pane_id)
+    end,
+  }, function(agent)
+    if agent then
+      on_pane(agent.pane_id)
+    end
   end)
 end
 

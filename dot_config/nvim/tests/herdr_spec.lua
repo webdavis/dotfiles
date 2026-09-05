@@ -90,4 +90,15 @@ return {
     local refusal = herdr.workspace_refusal("1", "wW")
     assert(refusal == nil, tostring(refusal))
   end,
+
+  -- Finding 2. `agents.display` renders kind, status and cwd basename, which two
+  -- Claude agents in two tabs of one repository share exactly.
+  ["the picker row names the pane, so two identical agents differ"] = function()
+    local display = "claude · idle · dotfiles"
+    local first = herdr.picker_label(display, "wW:p3K")
+    local second = herdr.picker_label(display, "wW:p8K")
+    assert(first ~= second, first .. " == " .. second)
+    assert(first:find("wW:p3K", 1, true), first)
+    assert(second:find("wW:p8K", 1, true), second)
+  end,
 }
