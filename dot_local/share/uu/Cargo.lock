@@ -205,11 +205,16 @@ version = "0.1.0"
 dependencies = [
  "hmac",
  "libc",
+ "pns-domain",
  "serde_json",
  "sha2",
  "toml",
  "ureq",
 ]
+
+[[package]]
+name = "pns-domain"
+version = "0.1.0"
 
 [[package]]
 name = "proc-macro2"

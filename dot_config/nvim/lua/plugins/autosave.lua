@@ -25,7 +25,8 @@ local function save_condition(buf)
   then
     return false
   end
-  return true
+  -- claudecode.nvim's proposed-edit buffers, which a timed write would accept.
+  return require("custom_api.autosave").should_save(buf)
 end
 
 return {
@@ -51,6 +52,28 @@ return {
   config = function(_, opts)
     local autosave = require("auto-save")
     autosave.setup(opts)
+
+    -- An automatic write must not reformat the buffer under the operator's
+    -- cursor, so it announces itself and lsp-format's BufWritePre handler
+    -- (plugins/lsp.lua) stands down while the flag is set. An explicit `:w`
+    -- never sets it and keeps formatting.
+    local write_flag_group = vim.api.nvim_create_augroup("AutoSaveWriteFlag", { clear = true })
+
+    vim.api.nvim_create_autocmd("User", {
+      group = write_flag_group,
+      pattern = "AutoSaveWritePre",
+      callback = function(args)
+        require("custom_api.autosave").mark_write(args.data.saved_buffer)
+      end,
+    })
+
+    vim.api.nvim_create_autocmd("User", {
+      group = write_flag_group,
+      pattern = "AutoSaveWritePost",
+      callback = function(args)
+        require("custom_api.autosave").clear_write(args.data.saved_buffer)
+      end,
+    })
 
     require("snacks")
       .toggle({

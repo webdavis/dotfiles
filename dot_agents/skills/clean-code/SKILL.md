@@ -208,7 +208,7 @@ the pipeline's own steps. Its scope is fixed: SOLID adherence, abstraction quali
 test quality, and test environment quality. Correctness follows where it derives from those; style
 nits do not.
 
-    codex exec --model gpt-5.6-sol -c model_reasoning_effort=max --sandbox read-only "$(cat <prompt>)" </dev/null
+    codex exec --model gpt-6-astra -c model_reasoning_effort=ultra --sandbox read-only "$(cat <prompt>)" </dev/null
 
 The stdin redirect is load-bearing: without it the call hangs forever. The prompt carries the step's
 diff, what the step is deliberately not doing, the target architecture, and the evidence the step

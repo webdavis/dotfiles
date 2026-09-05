@@ -310,6 +310,15 @@ The global ruleset for Claude Code and Codex is one shared partial,
 file, below the shared block. Edit the partial, never a harness copy: the test that byte-compared the two
 rendered copies went with the slow-suite purge on 2026-08-05, so nothing catches a divergence now.
 
+`backpass` (npm, on the fnm lane, with `acpx` as its runtime dependency) reads agent session transcripts
+and proposes evidence-backed edits to that ruleset. Its own user-scope default would optimize
+`~/.claude/CLAUDE.md`, a rendered chezmoi target, so every accepted edit would be erased by the next
+apply. `dot_config/backpass/config.json` (target `~/.config/backpass/config.json`) therefore overrides
+`user.memoryFiles` to the SOURCE partial in this checkout: one file, both harnesses, and the edit
+survives. Analysis never writes; `backpass apply --scope user` is the only writer and gates every edit
+interactively. Its skill extractions still default to `~/.agents/skills`, which is the managed store, so
+an accepted extraction lands an undeclared real directory there that only Codex's native scan picks up.
+
 ### Git hooks
 
 Four hooks live in the user-wide dir (`core.hooksPath = ~/.config/git/hooks`, set in
