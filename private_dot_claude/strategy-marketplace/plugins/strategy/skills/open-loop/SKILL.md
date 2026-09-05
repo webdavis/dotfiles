@@ -1,6 +1,9 @@
 ---
 name: open-loop
-description: Run a slice from a plan or spec through the full pipeline, where findings may leave as tasks that outlive the pull request. Use when starting plan-derived work, when a task says Strategy-A, or when the user says "/strategy:open-loop".
+description: >-
+  Run a slice from a plan or spec through the full pipeline, where findings may leave as tasks
+  that outlive the pull request. Use when starting plan-derived work, when a task says
+  Strategy-A, or when the user says "/strategy:open-loop".
 ---
 
 # Open-loop
@@ -90,7 +93,12 @@ project's memory directory; read it if the two disagree. As of the 2026-09-01 ru
   entitlement-gated and falls back to Opus silently, with no error.
 - 3, 6: an implementer subagent (`model:"sonnet"`).
 - 4a, 7: sol at ultra, and the redirect matters:
-  `codex exec -m gpt-5.6-sol -c model_reasoning_effort="ultra" -c approval_policy=never -s read-only -C <repo> -o <out> "<prompt>" </dev/null`.
+
+  ```bash
+  codex exec -m gpt-5.6-sol -c model_reasoning_effort="ultra" -c approval_policy=never \
+    -s read-only -C <repo> -o <out> "<prompt>" </dev/null
+  ```
+
   Without `</dev/null` it waits on stdin forever.
 
 The principle outlives any particular model. Whoever implements never reviews their own work. 4b must be
@@ -126,8 +134,32 @@ scheduling decision at the moment it is written: can it wait, or must it land no
 task. Fan-out, not throughput, is what stalls a plan, so a finding on shipped and working code is
 normally scheduled out.
 
-A finding on this UNMERGED PR is not a follow-up at all. It is fixed in this round and never reaches
-the queue.
+**A finding on this UNMERGED pull request may still take `TASK #<n>`, and that is what makes this
+loop open.** A line being in this diff does not by itself force the fix into this round. If it did,
+nothing could ever reach step 8: every in-scope finding anchors to a line this slice added or
+changed, and out-of-scope findings never enter the register at all, so the two rules together would
+leave the register with no row that can defer, and this strategy would be closed-loop wearing another
+name.
+
+**These BLOCK the merge and are fixed in this round, never deferred:**
+
+- The slice does not do what its brief says, or does it wrongly. A correctness defect in the
+  behaviour this slice shipped is what the round is for.
+- Any finding from step 4a-s, the security lens, at any severity.
+- A test-quality finding that leaves the slice's own evidence unsound: an assertion that cannot fail,
+  a mutant recorded as SURVIVED, a sweep with no unmutated control.
+- A regression against `origin/main`: anything that worked before this diff and does not after it.
+- A pre-existing defect this slice WIDENS, up to the widening. The remedy is the smallest change that
+  restores the pre-slice blast radius, and it lands here.
+
+**Every other in-scope finding MAY take `TASK #<n>`**, with its scheduling decision written into the
+task: a code-quality finding ranked below correctness, hardening that goes further than restoring the
+pre-slice blast radius, a naming or structure improvement, a broader test the slice's own evidence
+does not need. Defer one only when nobody reading `main` tomorrow is misled or harmed by it shipping
+today.
+
+Either way, adjudicate at step 5 first: reproduce the finding before accepting it. A deferred row
+still needs its number in the `--tasks` manifest, or the gate fails.
 
 ## What this strategy does NOT do
 
@@ -144,6 +176,6 @@ the queue.
   there. Nothing is deferred and nothing is planned for later. Pick it when the task was created by
   step 4a, 4b or 7.
 - [orchestrator-loop](../orchestrator-loop/SKILL.md): the orchestrator is inside the loop, writing the
-  failing tests and the seams itself instead of briefing an implementer, and its two reviews run
-  concurrently. It is closed-loop in the findings sense as well, so the three names do not sit on one
-  axis. Pick it when the behaviour can be stated as a test before it can be stated as a paragraph.
+  failing tests and the seams itself instead of briefing an implementer. It is closed-loop in the
+  findings sense as well, so the three names do not sit on one axis. Pick it when the behaviour can be
+  stated as a test before it can be stated as a paragraph.
