@@ -14,6 +14,7 @@
 #   q) a successful resolution leaves no probe file behind
 #   t) the runtime root is found whether or not TMPDIR ends in a slash
 #   v) a record naming an ABSENT path is pruned without ever being probed
+#   x) a pin written through a symlink still selects its candidate
 #
 # Cases a and b are one behavior, the injected pin SELECTING from the verified
 # set, so they stay together here rather than splitting across the two files.
@@ -202,4 +203,18 @@ run_case HERDR_PANE_ID=w1:p1
 [[ ! -e $CASE/registry/4242 ]] || fail 'absent-record: the dead record was not pruned'
 [[ ! -f $CASE/exec ]] || fail 'absent-record: the server was run against an absent path'
 
-printf 'PASS: %s (10 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- x) a pin naming the same socket by a different path --------------------
+# Candidates are canonical, so a pin has to be canonicalized before it is
+# compared or it never matches anything the operator did not type in resolved
+# form. The record and the pin here name one socket by two paths.
+setup_case pin-alias
+write_layout w1:t1 w1:p1 w1:p2
+record w1:p2 4242 "$CASE/run/n1.sock"
+ln -s "$CASE/run" "$CASE/alias"
+printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock" >"$CASE/identity"
+run_case HERDR_PANE_ID=w1:p1 NVIM_MCP_SOCKET="$CASE/alias/n1.sock"
+[[ $RC -eq 0 ]] || fail "pin-alias: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qF -- "--connect $CASE/run/n1.sock" "$CASE/exec" ||
+  fail "pin-alias: the pin did not select its candidate ($(cat "$CASE/exec" 2>/dev/null))"
+
+printf 'PASS: %s (11 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
