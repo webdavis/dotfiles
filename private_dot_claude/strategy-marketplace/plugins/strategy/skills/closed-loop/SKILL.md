@@ -122,17 +122,20 @@ Two more things carry the weight step 7 used to, and neither is optional here:
 ## The argument log
 
 Each review round appends to `argument-<slug>.md`, beside the two `F` ledgers in the same directory, in
-the form [open-loop](../open-loop/SKILL.md) sets out: the verdict as quoted, the critique as returned,
-then one line per finding saying what changed or why it does not hold. There is no TASK line here,
-because there are no tasks.
+the form [open-loop](../open-loop/SKILL.md) sets out: the finding identifiers and the reasoning only,
+pointing at the reviewer's output and the register for the verdict, the disposition and the proof.
 
-**Step 5 writes the round. Step 6's fix brief and 6v's charter read it back before they are written.** 6v
-needs it most. It is terminal and nothing reviews it, so it is the last chance to catch an accepted
-finding that was never actually closed, or a rejection that stopped being true once the fix landed. The
-register shows 6v the disposition without the argument that produced it.
+**Write at EVERY adjudication, terminal ones included.** Step 2's verdict is adjudicated when it returns,
+so the fresh step 3 implementer gets the reasoning behind its brief rather than the brief alone. Step 5
+writes the 4a, 4a-s, 4b and 4c rounds. 6v writes its own round when it returns, which is the only record
+of a terminal result, since nothing runs after it to write one.
 
-No script creates the file and no gate reads it. The first append creates it. Adapted from
-chaseai-yt/claudex-loop, MIT.
+**Read the existing entries before EVERY agent brief and EVERY retry**, meaning before dispatching steps
+3, 4a, 4a-s, 4b, 6 and 6v, and before a reviewer retry after a failed run. 6v needs it most. It is
+terminal and nothing reviews it, so it is the last chance to catch a finding that was argued closed and
+was not, or a rejection that stopped being true once the fix landed.
+
+No script creates the file and no gate reads it. The first append creates it.
 
 ## Scope is what makes the termination argument true
 
