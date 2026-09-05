@@ -16,18 +16,61 @@ local parse = require("neotest-bashunit.parse")
 ---@type neotest.Adapter
 local adapter = { name = "neotest-bashunit" }
 
----@param dir string
----@return string|nil
-function adapter.root(dir)
-  return vim.fs.root(dir, { ".bashunitrc", ".git" })
-end
-
 ---@param name string
 ---@return boolean
 function adapter.filter_dir(name)
   -- `.bashunit` is bashunit's own run state, `target` is cargo's: both are
   -- large, neither can hold a test file.
   return name ~= ".git" and name ~= ".bashunit" and name ~= "node_modules" and name ~= "target"
+end
+
+---Whether any bashunit test file is reachable below `root`.
+---
+---`vim.fs.dir` rather than `vim.fs.find`: find's downward walk has no way to
+---prune a directory, so on a root holding no test it queues `node_modules` and
+---`.git` and reads the whole tree. `vim.fs.dir` is a lazy iterator, so the
+---first match ends the walk and the pruned directories are never opened.
+---
+---`skip` is handed the path RELATIVE to `root`, so the comparison is against
+---the last component: whole-path equality would let `src/node_modules`
+---through. `fixtures` is skipped here but NOT in `filter_dir`, because this is
+---only the question of whether to attach at all; a fixture tree is where a
+---sample test file would sit without being anybody's test to run, while
+---`filter_dir` decides what neotest may DISCOVER and must not hide a real one.
+---@param root string
+---@return boolean
+local function holds_a_test(root)
+  for name, kind in
+    vim.fs.dir(root, {
+      depth = math.huge,
+      skip = function(relative)
+        local base = vim.fs.basename(relative)
+        return adapter.filter_dir(base) and base ~= "fixtures"
+      end,
+    })
+  do
+    if kind == "file" and parse.is_test_file(name) then
+      return true
+    end
+  end
+  return false
+end
+
+---@param dir string
+---@return string|nil
+function adapter.root(dir)
+  local root = vim.fs.root(dir, { ".bashunitrc", ".git" })
+  -- The marker alone is not the answer. `.git` sits at the top of every
+  -- repository there is, so claiming on it attached this adapter to all of
+  -- them, and neotest hands a whole-directory run to the single non-JavaScript
+  -- adapter that attached: a project with no bash in it ran its "all tests"
+  -- through bashunit. A `.bashunitrc` is somebody writing the configuration on
+  -- purpose and is taken at its word, test files or not; a bare `.git` has to
+  -- be backed by a test file that is actually there.
+  if not root or vim.uv.fs_stat(root .. "/.bashunitrc") then
+    return root
+  end
+  return holds_a_test(root) and root or nil
 end
 
 ---@param file_path string
