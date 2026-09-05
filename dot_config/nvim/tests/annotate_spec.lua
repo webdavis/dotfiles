@@ -7,6 +7,67 @@
 -- node-type filter and the blame formatter, and each takes plain data.
 
 local annotate = require("custom_api.annotate")
+local git = require("custom_api.git")
+
+-- `annotate.line()` reaches four things. Two of them, the diagnostic store and
+-- treesitter, are core and real here: nvim ships a Lua parser
+-- (`lib/nvim/parser/lua.so`), which attaches under `--clean`. The other two are
+-- substituted because they are not what these cases are about: git would shell
+-- out, and `herdr-nvim` is a plugin no `--clean` run has on its runtimepath.
+--
+-- Returns the text the annotator handed to the store.
+local function annotated(lines, cursor)
+  local real_runner = git.runner
+  local real_comments = package.loaded["herdr-nvim.comments"]
+  local real_ui = package.loaded["herdr-nvim.ui"]
+
+  local stored
+  git.runner = function()
+    return 128, "fatal: not a git repository"
+  end
+  package.loaded["herdr-nvim.comments"] = {
+    add = function(_, _, _, text)
+      stored = text
+      return 1
+    end,
+  }
+  package.loaded["herdr-nvim.ui"] = { decorate = function() end }
+
+  local previous = vim.api.nvim_get_current_buf()
+  -- NOT a scratch buffer: `nvim_create_buf(_, true)` sets `buftype = nofile`,
+  -- which the annotator refuses. A name is required too (an unnamed buffer is
+  -- refused) and has to be a real path, because the annotator asks
+  -- `util.file_dir` for its directory.
+  local bufnr = vim.api.nvim_create_buf(false, false)
+  vim.api.nvim_buf_set_name(bufnr, vim.fn.tempname() .. ".lua")
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+  vim.bo[bufnr].filetype = "lua"
+  vim.api.nvim_set_current_buf(bufnr)
+  vim.treesitter.get_parser(bufnr, "lua"):parse()
+  vim.api.nvim_win_set_cursor(0, cursor)
+
+  local ok, result, reason = pcall(annotate.line)
+
+  vim.api.nvim_set_current_buf(previous)
+  vim.api.nvim_buf_delete(bufnr, { force = true })
+  git.runner = real_runner
+  package.loaded["herdr-nvim.comments"] = real_comments
+  package.loaded["herdr-nvim.ui"] = real_ui
+
+  assert(ok, result)
+  assert(result, "the annotator refused the buffer: " .. tostring(reason))
+  return stored
+end
+
+-- Row 2 is `  local function inner()`; column 18 is inside `inner`, column 0 is
+-- outside it and inside `outer`.
+local NESTED = {
+  "function outer()",
+  "  local function inner()",
+  "    return 1",
+  "  end",
+  "end",
+}
 
 -- A treesitter node stands in for the real one through the two methods the
 -- filter calls. The chain is built innermost-first, so `chain({"a","b"})`
@@ -227,6 +288,13 @@ return {
     -- further along is still a path.
     assert(annotate.annotatable("/tmp/a:b/x.lua", "") == true)
     assert(annotate.annotatable("notes/http://example.md", "") == true)
+  end,
+
+  ["reads the function at the cursor's column, not at the start of its line"] = function()
+    -- Column zero of a nested declaration line sits outside the function being
+    -- declared, so this reported the function AROUND it.
+    local text = annotated(NESTED, { 2, 18 })
+    assert(text:find("function inner", 1, true), "annotated with " .. vim.inspect(text))
   end,
 
   ["names the severity beside the diagnostic message"] = function()
