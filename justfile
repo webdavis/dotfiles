@@ -83,10 +83,11 @@ apply:
 # `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
 # `just ship` run `just test`.
 
-# Unit suite only: the commit gate. --shuffle randomizes order to flush hidden
-# ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a
-# warn-only summary. The other suites run the same runner plain.
-test-unit: validate-tests
+# Unit suite only: the commit gate. test-nvim runs first (the Lua specs), then
+# the shell suite. --shuffle randomizes order to flush hidden ordering deps
+# (seed printed for replay); --warn-slow-ms flags slow tests in a warn-only
+# summary. The other suites run the same runner plain.
+test-unit: validate-tests test-nvim
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
@@ -172,10 +173,10 @@ test-rust:
   cargo clippy --locked --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
 
 # The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
-# `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. This is
-# the focused-iteration entry point; test/unit/nvim-custom-api.bats spawns the
-# same runner one spec at a time, so `just test-unit` already covers it and
-# `test` does not depend on this recipe.
+# `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. The
+# runner globs tests/*_spec.lua itself, so a new spec file needs no registration
+# anywhere. test-unit depends on this recipe: that is what puts the specs in the
+# commit gate and, through test-unit, in `just test`.
 test-nvim:
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
 
