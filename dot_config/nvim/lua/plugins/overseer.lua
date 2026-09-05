@@ -419,7 +419,11 @@ return {
     end, { nargs = "?", complete = complete_bundle, desc = "Overseer: delete a task bundle" })
 
     vim.api.nvim_create_user_command("OverseerWatchRun", function()
-      overseer.run_task({ name = "run script" }, function(task)
+      -- `autostart = false` is load-bearing. `run_task` starts the task BEFORE
+      -- this callback runs, so components attached here miss their `on_start`:
+      -- the timeout never armed its timer on the first run, and only a restart
+      -- gave the watch the cancellation it promises. Attach first, then start.
+      overseer.run_task({ name = "run script", autostart = false }, function(task)
         if task then
           -- A watch task re-runs on every write, so it wants the `watched` set
           -- rather than the everyday one: notify only when the verdict CHANGES,
@@ -427,7 +431,12 @@ return {
           -- upserts by component name, so the template's own components stay and
           -- only the ones `watched` names are re-parameterised.
           task:set_components({ "watched" })
+          -- The template's `default` brings `open_output` with it, which would
+          -- open the output on start and leave the explicit split below opening
+          -- a second window on the same task.
+          task:remove_component("open_output")
           task:add_component({ "restart_on_save", paths = { vim.fn.expand("%:p") } })
+          task:start()
           local main_win = vim.api.nvim_get_current_win()
           overseer.run_action(task, "open hsplit")
           vim.api.nvim_set_current_win(main_win)
