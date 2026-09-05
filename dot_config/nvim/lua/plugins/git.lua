@@ -376,6 +376,27 @@ return {
         desc = "Gitsigns: blame line (full)",
       })
 
+      -- The pinned gitsigns opens the split BEFORE it names the blame buffer, so
+      -- a second press while this file's blame is still open leaves the new split
+      -- behind and then fails on `nvim_buf_set_name` with E95, taking the window
+      -- count from two to three. The blame buffer is named
+      -- `gitsigns-blame://<gitdir>//<rev>:<path relative to the repo root>`, so
+      -- the window already showing THIS file's blame is the one whose trailing
+      -- path the current buffer ends with.
+      local function blame_window_for_current_buffer()
+        local file = vim.api.nvim_buf_get_name(0)
+
+        for _, window in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+          local buffer = vim.api.nvim_win_get_buf(window)
+          if vim.bo[buffer].filetype == "gitsigns-blame" then
+            local relative_path = vim.api.nvim_buf_get_name(buffer):match(":([^:]+)$")
+            if relative_path and vim.endswith(file, relative_path) then
+              return window
+            end
+          end
+        end
+      end
+
       -- git-messenger's `o`/`O` walked back through a line's older commits from
       -- inside its popup, which is why it set `into_popup_after_show`. A
       -- `blame_line` float is static, so the walk lives here instead: a
@@ -385,6 +406,12 @@ return {
         mode = "n",
         lhs = "<leader>gM",
         rhs = function()
+          local blame_window = blame_window_for_current_buffer()
+          if blame_window then
+            vim.api.nvim_set_current_win(blame_window)
+            return
+          end
+
           gitsigns.blame()
         end,
         desc = "Gitsigns: blame file (walk commits)",
