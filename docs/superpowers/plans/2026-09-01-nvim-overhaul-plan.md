@@ -5,14 +5,17 @@
 > syntax for tracking.
 
 **Goal:** Move the live Neovim config into chezmoi unchanged, then land every fix, drop, add, custom
-plugin and the lazy-load pass as 69 tasks across 60 small reviewed pull requests, ending at a verified
-clean editor.
+plugin and the lazy-load pass as 70 task entries across up to 60 small reviewed pull requests, ending
+at a verified clean editor. The count is conditional: PR 10b (task 20) ships only on a crate row of
+the 7.3 table, and PR 9's record takes the resolver row, so **69 tasks execute across 59 pull
+requests** as things stand.
 
-**Architecture:** One task per pull request in the spec's section 11 order and lanes, with one
-exception: the twelve startup-trigger tasks 49 to 60 ship as three pull requests of four plugins each
-(PR 30a, 30b, 30c), by the operator's 2026-09-03 batching ruling stated in full below. That is why 69
-tasks make 60 pull requests. The source is `dot_config/nvim/`; pure Lua under `lua/custom_api/` has
-headless tests in `tests/` run by
+**Architecture:** One task per pull request in the spec's section 11 order and lanes, with two
+exceptions. The twelve startup-trigger tasks 49 to 60 ship as three pull requests of four TASKS each
+(PR 30a, 30b, 30c), by the operator's 2026-09-03 batching ruling stated in full below; that is what
+turns 69 PR-bearing tasks into 60 pull requests. And task 63, the acceptance bar, has no pull request
+of its own: it runs on PR 31's branch before that merge, so it shares PR 31 with task 62. The source
+is `dot_config/nvim/`; pure Lua under `lua/custom_api/` has headless tests in `tests/` run by
 `nvim --headless --clean -l tests/run.lua`; bash pieces are bats tested until the bashunit
 program's T1 lands and bashunit tested after it (spec 11). Every PR ships a dump diff.
 
@@ -27,9 +30,10 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 ## Global Constraints
 
 - Decision H: the import carries zero change; every fix is a later PR (spec 3.7).
-- One PR per behavior, small (operator rule 2026-08-10); at most two lanes open at once. The single
-  exception is the startup-trigger batch, PR 30a to 30c, where four near-identical per-plugin
-  behaviors share a pull request and are still evidenced per plugin.
+- One PR per behavior, small (operator rule 2026-08-10); at most two lanes open at once. Two
+  exceptions: the startup-trigger batch, PR 30a to 30c, where four near-identical TASKS share a pull
+  request and are still evidenced per task (and inside a task, per plugin); and task 63, which runs
+  on PR 31's branch rather than taking a pull request of its own.
 - Every test passes within a second; bash tests are bats until the bashunit program's T1 lands and
   bashunit after it, Lua tests use the headless runner (6.3).
 - We test the behavior of tools we wrote, nothing else: no plugin, chezmoi or launchd assertions.
@@ -752,7 +756,9 @@ PR 10b. Two shapes, one taken:
 
 **`nvim-mcp` rows (5, 6, 4 pass).** Create
 `.chezmoiscripts/run_onchange_after_73-install-nvim-mcp.sh.tmpl` (`cargo install --git
-https://github.com/linw1995/nvim-mcp --rev 0b5ace3`, guarded on `command -v cargo`, quiet on no-op),
+https://github.com/linw1995/nvim-mcp --rev 0b5ace3`, guarded on `[[ -x $HOME/.cargo/bin/cargo ]]` and
+never on `command -v cargo`, because rustup is provisioned by a `before` script in the same apply and
+`~/.cargo/bin` is not on the apply shell's PATH yet; quiet on no-op),
 `lua/plugins/nvim-mcp.lua`. Modify `modify_private_dot_claude.json` (a stable `nvim-mcp` entry beside
 composio), `private_dot_codex/private_config.toml.tmpl` (one `[mcp_servers.nvim]` table beside the
 ten), `.chezmoitemplates/global-agent-rules.md` and `dot_config/nvim/CLAUDE.md` (the 7.5 rule
@@ -1393,13 +1399,14 @@ The twelve startup-trigger tasks below each make one plugin load when first used
 startup. They are near-identical, and twelve separate pull requests means twelve full pipeline runs
 for the same outcome.
 
-**They ship as three groups of four, in the numbered order below, as PR 30a, PR 30b and PR 30c:**
+**They ship as three groups of four TASKS, in the numbered order below, as PR 30a, PR 30b and
+PR 30c.** Four tasks is not four plugins: task 49 alone covers the whole LSP group's specs.
 
-| Pull request | Tasks    | Plugins                                        |
-| ------------ | -------- | ---------------------------------------------- |
-| PR 30a       | 49 to 52 | the LSP group, fugitive, octo, treesj          |
-| PR 30b       | 53 to 56 | auto-save, overseer, harpoon, urlview          |
-| PR 30c       | 57 to 60 | sort, live-rename, aerial, claudecode.nvim     |
+| Pull request | Tasks    | What each task covers                       |
+| ------------ | -------- | ------------------------------------------- |
+| PR 30a       | 49 to 52 | the LSP group, fugitive, octo, treesj       |
+| PR 30b       | 53 to 56 | auto-save, overseer, harpoon, urlview       |
+| PR 30c       | 57 to 60 | sort, live-rename, aerial, claudecode.nvim  |
 
 Those three identifiers replace the twelve this plan carried before the ruling (30a, 30b1, 30b2 and
 30c1 to 30c9), everywhere: the goal count, the architecture note, the lane table, the task headings
@@ -1415,8 +1422,9 @@ group of four keeps the keymap dump and the startup comparison small enough to n
 without bisecting, which is what the original one-per-PR split was protecting. One pull request of
 twelve would lose that; three loses very little of it.
 
-Each group's pull request body must list its four plugins and give the per-plugin evidence
-separately, so a reader can still see which plugin each measurement belongs to.
+Each group's pull request body must list its four TASKS and give the evidence per task, so a reader
+can see which task each measurement belongs to. Inside a task that covers several plugin specs, task
+49 above being the one, the evidence stays per plugin as the task's own steps require.
 
 ### Task 49: PR 30a (1 of 4), startup triggers for the LSP group (spec 9)
 
@@ -1448,7 +1456,8 @@ Lane: last. Depends on: task 50, which lands earlier in this same pull request (
 - [ ] **Step 2:** Gates G1 to G6; G4 unchanged; G5 records the drop; the `<leader>gh` maps fire live
   and the octo `<localleader>` popup still appears.
 
-The nine 30c tasks below share one shape (spec 9, spec 11): lane last; each depends on PR 1 to 29e
+The nine remaining startup-trigger tasks below share one shape (spec 9, spec 11): lane last; each
+depends on PR 1 to 29e
 (the lane rule) plus the shared-file predecessor its Depends line names; each adds ONE trigger to ONE
 spec file and changes nothing else there; each runs gates G1 to G6 with G4 unchanged (lazy `keys`
 still dump) and G5 recording the drop; every keymap and command the trigger names fires live, and one
