@@ -143,6 +143,32 @@ return {
     assert(found and found:type() == "function_declaration", "found " .. tostring(found and found:type()))
   end,
 
+  ["names the severity beside the diagnostic message"] = function()
+    local line = annotate.diagnostic_line({ severity = vim.diagnostic.severity.WARN, message = "unused local" })
+    assert(line == "WARN: unused local", "diagnostic line " .. vim.inspect(line))
+  end,
+
+  ["collapses a multi-line diagnostic message onto one line"] = function()
+    -- Every part is one line by contract, and a language server is free to
+    -- send a message spanning several.
+    local line = annotate.diagnostic_line({
+      severity = vim.diagnostic.severity.ERROR,
+      message = "expected type\n  found string",
+    })
+    assert(line == "ERROR: expected type found string", "diagnostic line " .. vim.inspect(line))
+  end,
+
+  ["has no diagnostic part when the message is only whitespace"] = function()
+    -- A linter that reports a blank message would otherwise contribute the
+    -- bare severity label, `ERROR: `, as a part of its own.
+    assert(annotate.diagnostic_line({ severity = vim.diagnostic.severity.ERROR, message = "   " }) == nil)
+    assert(annotate.diagnostic_line({ severity = vim.diagnostic.severity.ERROR, message = "" }) == nil)
+  end,
+
+  ["has no diagnostic part without a diagnostic"] = function()
+    assert(annotate.diagnostic_line(nil) == nil)
+  end,
+
   ["names the blame commit when the line was last touched by HEAD"] = function()
     local line = annotate.blame_line("a1b2c3d4e5f6", { hash = "a1b2c3d", summary = "add the annotator" })
     assert(line == "blame a1b2c3d add the annotator", "blame line " .. vim.inspect(line))

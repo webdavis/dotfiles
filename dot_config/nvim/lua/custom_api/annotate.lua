@@ -109,21 +109,34 @@ function M.blame_line(sha, commit)
   return "blame " .. short
 end
 
--- ╭──────────────────╮
--- │  The editor edge │
--- ╰──────────────────╯
-
-local function diagnostic_part(bufnr, line)
-  local diagnostic = vim.diagnostic.get(bufnr, { lnum = line - 1 })[1]
+---The diagnostic part: the severity and the message, on one line.
+---
+---A message that trims to nothing yields no part at all. Formatting it anyway
+---would contribute the bare severity label, `ERROR: `, which `compose_text`
+---reads as a real part because it is not empty.
+---@param diagnostic { severity: integer, message: string }? as `vim.diagnostic.get` returns it
+---@return string?
+function M.diagnostic_line(diagnostic)
   if not diagnostic then
     return nil
   end
 
   -- A language server is free to send a multi-line message, and every part is
   -- one line by contract, so the message collapses before it is composed.
-  local message = (diagnostic.message:gsub("%s+", " "))
+  local message = util.trim((diagnostic.message:gsub("%s+", " ")))
+  if message == "" then
+    return nil
+  end
 
-  return ("%s: %s"):format(vim.diagnostic.severity[diagnostic.severity], util.trim(message))
+  return ("%s: %s"):format(vim.diagnostic.severity[diagnostic.severity], message)
+end
+
+-- ╭──────────────────╮
+-- │  The editor edge │
+-- ╰──────────────────╯
+
+local function diagnostic_part(bufnr, line)
+  return M.diagnostic_line(vim.diagnostic.get(bufnr, { lnum = line - 1 })[1])
 end
 
 local function function_part(bufnr, line, column)
