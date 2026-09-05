@@ -254,3 +254,24 @@ key = "prefix+w"
 type = "plugin_action"
 command = "herdr-workflows.launch"
 description = "workflows: launch a declared workflow"
+
+# Contextual tab labels in place of herdr's numbers. Deterministic process rules
+# first; a model only for what those find ambiguous, and only once a key is set
+# in plugins/config/tab-smart-rename/provider.env (none is, by default).
+# prefix+t and prefix+alt+t are the plugin README's own keys and both are free
+# here: herdr's default rename_tab is prefix+shift+t, this config moved it to
+# prefix+comma, and the alt tier holds only n, p, h, j, k, l and 1..9.
+# Renaming is on demand through these two chords. The plugin's detached worker,
+# which renames automatically off herdr events, is started separately and is
+# stopped on this machine.
+[[keys.command]]
+key = "prefix+t"
+type = "plugin_action"
+command = "tab-smart-rename.rename-now"
+description = "smart rename: the current tab"
+
+[[keys.command]]
+key = "prefix+alt+t"
+type = "plugin_action"
+command = "tab-smart-rename.rename-all"
+description = "smart rename: every tab"
