@@ -66,19 +66,29 @@ pub fn entry(entry: &Entry) -> String {
 /// own rule: the writer's key order is `serde_json`'s business and invisible
 /// here. A line this cannot read is skipped rather than failing the read, so
 /// one corrupt entry never hides the four good ones behind it.
+///
+/// AND THE SCHEMA IS WHAT "CANNOT READ" MEANS, not the syntax alone. Every
+/// entry this module writes carries `presence`, `home` and `reason` as
+/// strings, so a line missing one of them was written by something else.
+/// Filled in from `Default` instead, a bare `{}` parsed successfully and
+/// became an entry saying nothing at all, which stopped the reverse walk on
+/// the spot and hid the real decision on the line above it: an empty answer
+/// where the doctor had a record to report. `room` stays genuinely optional
+/// because a routing left whole names none, and `at` because a decision taken
+/// with no clock has none.
 pub fn last(contents: &str) -> Option<Entry> {
     contents.lines().rev().find_map(|line| {
         let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
         let text = |key: &str| parsed.get(key)?.as_str().map(str::to_string);
         Some(Entry {
             at: parsed.get("at").and_then(serde_json::Value::as_u64),
-            presence: text("presence").unwrap_or_default(),
+            presence: text("presence")?,
             desk_idle_secs: parsed
                 .get("desk_idle_secs")
                 .and_then(serde_json::Value::as_u64),
-            home: text("home").unwrap_or_default(),
+            home: text("home")?,
             room: text("room"),
-            reason: text("reason").unwrap_or_default(),
+            reason: text("reason")?,
         })
     })
 }
@@ -310,10 +320,24 @@ mod tests {
 
     #[test]
     fn a_line_this_cannot_read_is_skipped_rather_than_hiding_the_ones_behind_it() {
-        let ring = format!("{}\nnot json at all\n", entry(&narrowed_to("2F - Kitchen")));
-        assert_eq!(
-            last(&ring).and_then(|read| read.room),
-            Some("2F - Kitchen".to_string())
-        );
+        // VALID JSON IS NOT A VALID RECORD, and reading it as one is worse
+        // than reading nothing: `{}` and a wrong-typed field both parse, and
+        // filled in from `Default` they became an entry saying nothing, which
+        // stopped the reverse walk here and hid the real decision above.
+        for corrupt in [
+            "not json at all",
+            "{}",
+            r#"{"at":1,"desk_idle_secs":2,"home":"home","room":null,"reason":"x"}"#,
+            r#"{"at":1,"presence":12,"desk_idle_secs":2,"home":"home","reason":"x"}"#,
+            r#"{"at":1,"presence":"p","desk_idle_secs":2,"home":["home"],"reason":"x"}"#,
+            r#"{"at":1,"presence":"p","desk_idle_secs":2,"home":"home","room":null}"#,
+        ] {
+            let ring = format!("{}\n{corrupt}\n", entry(&narrowed_to("2F - Kitchen")));
+            assert_eq!(
+                last(&ring).and_then(|read| read.room),
+                Some("2F - Kitchen".to_string()),
+                "{corrupt}"
+            );
+        }
     }
 }
