@@ -68,15 +68,10 @@ local function no()
   return false
 end
 
---- vitest's claim, faithful to the pin: `adapter.is_test_file` runs `string.match` on the path
---- with NO nil guard, so it RAISES on nil exactly as the real one does. That is what makes the
---- guard in the config's jest predicate load-bearing rather than decorative.
+--- A claim faithful to both pins: vitest's `adapter.is_test_file` and jest's
+--- `jest_util.defaultIsTestFile` each open with a nil guard, then match the conventional
+--- test-file names.
 local function any_javascript(path)
-  return path:match("%.test%.js$") ~= nil
-end
-
---- jest's claim, faithful to the pin: `jest_util.defaultIsTestFile` opens with a nil guard.
-local function any_javascript_nil_safe(path)
   return path ~= nil and path:match("%.test%.js$") ~= nil
 end
 
@@ -95,34 +90,23 @@ local a_test_file = "/project/tests/math.test.js"
 
 return {
   ["a project declaring both runners yields exactly one adapter"] = function()
-    local routed = route({ vitest = any_javascript, jest = any_javascript_nil_safe })
+    local routed = route({ vitest = any_javascript, jest = any_javascript })
     assert(claim_count(routed, a_test_file) == 1, "expected exactly one adapter to claim the file")
     assert(routed.vitest(a_test_file), "the documented precedence gives vitest the file")
     assert(not routed.jest(a_test_file), "jest did not stand down for vitest")
   end,
 
   ["a jest project vitest does not claim stays jest's"] = function()
-    local routed = route({ vitest = no, jest = any_javascript_nil_safe })
+    local routed = route({ vitest = no, jest = any_javascript })
     assert(routed.jest(a_test_file), "jest gave up a file vitest does not claim")
     assert(claim_count(routed, a_test_file) == 1, "expected exactly one adapter to claim the file")
   end,
 
-  ["jest is asked through its own predicate, not a copy of its dependency detection"] = function()
-    -- The pinned adapters resolve their manifests through the working directory and the git root
-    -- as well as the nearest one, so a local reimplementation disagrees with them. Standing down
-    -- has to follow vitest's OWN answer: flip only that, and the routing has to follow.
-    local routed = route({ vitest = any_javascript, jest = any_javascript_nil_safe })
-    assert(not routed.jest(a_test_file), "jest ignored vitest's answer")
-    local other = route({ vitest = no, jest = any_javascript_nil_safe })
-    assert(other.jest(a_test_file), "jest ignored vitest's answer")
-  end,
-
   ["the jest predicate answers a nil path instead of raising"] = function()
-    -- neotest does ask, and an error raised inside `is_test_file` loses the position silently
-    -- rather than surfacing, which reads as a runner flake. vitest's predicate raises on nil, so
-    -- what keeps this safe is the term ORDER: jest's own default answers false first and
-    -- short-circuits. Reversing the two terms is what this goes red on.
-    local routed = route({ vitest = any_javascript, jest = any_javascript_nil_safe })
+    -- neotest types `file_path` as optional, and an error raised inside `is_test_file` loses the
+    -- position silently rather than surfacing, which reads as a runner flake. Both pinned
+    -- predicates guard nil themselves, so the composed one answers rather than raising.
+    local routed = route({ vitest = any_javascript, jest = any_javascript })
     local ok, err = pcall(routed.jest, nil)
     assert(ok, "jest raised on a nil path: " .. tostring(err))
   end,

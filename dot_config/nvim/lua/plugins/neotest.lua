@@ -44,9 +44,9 @@ return {
       local jest_claims = require("neotest-jest.jest-util").defaultIsTestFile
       local jest = require("neotest-jest")({
         isTestFile = function(file_path)
-          -- No nil guard of its own: neotest does ask with nil, and jest's own default answers
-          -- false for it, which short-circuits before vitest is reached. vitest's predicate
-          -- raises on nil, so the order of these two terms is what keeps this safe.
+          -- No nil guard of its own: neotest types `file_path` as optional and both pinned
+          -- predicates answer false for nil rather than raising, so the composed one answers
+          -- too.
           return jest_claims(file_path) and not vitest.is_test_file(file_path)
         end,
       })
