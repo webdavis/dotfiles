@@ -9630,14 +9630,19 @@ mod tests {
         let state = scratch("presence-relock");
         let settings = watching(&["3F - Studio"], &[]);
         for now in [1_788_456_100, 1_788_456_105] {
-            assert!(
-                poll_published(
+            // THE OUTCOME ITSELF, not just whether it published: `Busy` says
+            // the lock was never given back and `Nothing` says the publish
+            // failed for a reason that has nothing to do with the lock, and a
+            // bare boolean cannot tell the two apart from a failure line.
+            assert_eq!(
+                write_presence_reading(
                     &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
                     &state,
                     &settings,
                     now
                 ),
-                "the poll at {now} could not take the lock"
+                Polled::Published,
+                "the poll at {now} published nothing"
             );
         }
         assert_eq!(
