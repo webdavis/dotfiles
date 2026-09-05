@@ -5,6 +5,12 @@
 #   a) an existing registry left at 0777 is not written into
 #   b) a name planted at the temp path is not followed, so the file it points
 #      at is neither truncated nor published as a record
+#   c) a --listen pathname carrying a newline is not recorded at all, because a
+#      record is one line and the resolver would read only as far as the newline
+#
+# Case c is not hypothetical: Neovim binds such a pathname and answers RPC on
+# it, so without this the resolver probes a truncated name, finds nothing, and
+# deletes the record of a healthy instance.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -104,4 +110,15 @@ start_nvim planted "$work/planted.sock" --cmd "$plant"
 grep -q 'not registering' "$ERRLOG" &&
   fail "planted: refused for an unrelated reason ($(cat "$ERRLOG"))"
 
-printf 'PASS: nvim-mcp-registry-safety.sh (2 cases)\n'
+# --- c) a --listen pathname carrying a newline is not recorded ---------------
+mkdir -p "$work/newline/nvim-mcp/registry"
+chmod 700 "$work/newline/nvim-mcp/registry"
+newline_sock="$work/a"$'\n'"b.sock"
+start_nvim newline "$newline_sock"
+[[ -S $newline_sock ]] || fail 'newline: Neovim did not bind the pathname, so the case proves nothing'
+[[ "$(records_in "$REGISTRY")" == 0 ]] ||
+  fail "newline: a record was written for a pathname that cannot be read back ($(cat "$REGISTRY"/* 2>/dev/null))"
+grep -q 'newline or NUL' "$ERRLOG" ||
+  fail "newline: did not refuse for the reason under test ($(cat "$ERRLOG"))"
+
+printf 'PASS: nvim-mcp-registry-safety.sh (3 cases)\n'

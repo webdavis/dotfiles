@@ -290,6 +290,21 @@ if nvim_mcp_pane and nvim_mcp_pane ~= "" then
       if vim.v.servername == "" then
         return
       end
+      -- A record is ONE whitespace-separated line, so a pathname carrying a
+      -- newline cannot be written down unambiguously, and a NUL cannot be
+      -- written down at all. Neovim binds such a pathname happily and answers
+      -- on it, so a record for one would leave the resolver probing the name
+      -- only as far as the newline, finding nothing, and DELETING the record of
+      -- a healthy instance. Refusing to register, once and out loud, is better
+      -- than turning a live editor into stale state.
+      if vim.v.servername:find("[\n%z]") then
+        vim.notify(
+          "nvim-mcp: not registering, the --listen path contains a newline or NUL: " .. vim.inspect(vim.v.servername),
+          vim.log.levels.WARN
+        )
+        return
+      end
+
       -- NOT race free, and the failure is deliberately ignored: mkdir tests for
       -- each component and then creates it, so two instances starting together
       -- both find the directory missing and the loser raises E739. Whether this
