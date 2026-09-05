@@ -63,6 +63,7 @@ local location_rows = {
   "| F4 | 6v | LOW | both src/first.lua:12,src/second.lua:34 moved | ACCEPTED | rationale |",
   "| F5 | 6v | LOW | hooks.rs:2757's cost was the stub's sleep | ACCEPTED | rationale |",
   "| F6 | 6v | LOW | the call at a/b.c:4:5 is the one | ACCEPTED | rationale |",
+  "| F7 | 6v | LOW | the guard in `src/my file.lua:4` is gone | ACCEPTED | rationale |",
 }
 
 local piped_rows = {
@@ -128,6 +129,13 @@ return {
 
   -- A real register carries this shape: the possessive follows the location.
   -- A column number belongs to neither the filename nor the line.
+  -- Splitting on whitespace cut a delimited path in half and pointed quickfix at
+  -- a file whose name is the tail of the real one.
+  ["keeps a delimited path holding a space in one piece"] = function()
+    local lines = awk_over(write_register(location_rows), 0)
+    assert(lines[7]:find("^src/my file%.lua:4: F7 LOW ACCEPTED: "), lines[7])
+  end,
+
   ["drops a column number rather than keeping it in the filename"] = function()
     local lines = awk_over(write_register(location_rows), 0)
     assert(lines[6]:find("^a/b%.c:4: F6 LOW ACCEPTED: "), lines[6])

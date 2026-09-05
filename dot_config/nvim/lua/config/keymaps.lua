@@ -345,23 +345,25 @@ function span_end(s, i, len, n,   j, r) {
   }
   return 0
 }
-# A cell may hold a pipe two ways, escaped and inside a code span, so the row is
-# walked rather than split on the raw character: either one would otherwise
-# shift every column after it and let a summary masquerade as a disposition. A
-# closed span is taken whole, an unmatched run is ordinary text, and a backslash
-# escapes only OUTSIDE a span, which is where markdown puts escapes too.
-function cells(line, out,   i, c, n, cell, len, r, e) {
-  split("", out); n = 0; cell = ""; len = length(line); i = 1
+# Split `s` on any character of `delims`, with a closed code span kept WHOLE: a
+# pipe inside one belongs to the cell rather than to the row structure, and a
+# space inside one belongs to the path rather than separating two candidates.
+# Splitting on the raw character instead let a summary masquerade as a
+# disposition, and cut a delimited path in half. An unmatched run is ordinary
+# text, and a backslash escapes only OUTSIDE a span, which is where markdown
+# puts escapes too.
+function tokenize(s, delims, out,   i, c, n, cell, len, r, e) {
+  split("", out); n = 0; cell = ""; len = length(s); i = 1
   while (i <= len) {
-    c = substr(line, i, 1)
+    c = substr(s, i, 1)
     if (c == "`") {
-      r = run_len(line, i, len)
-      e = span_end(line, i, len, r)
-      if (e > 0) { cell = cell substr(line, i, e - i + 1); i = e + 1; continue }
-      cell = cell substr(line, i, r); i += r; continue
+      r = run_len(s, i, len)
+      e = span_end(s, i, len, r)
+      if (e > 0) { cell = cell substr(s, i, e - i + 1); i = e + 1; continue }
+      cell = cell substr(s, i, r); i += r; continue
     }
-    if (c == "\\" && i < len) { cell = cell c substr(line, i + 1, 1); i += 2; continue }
-    if (c == "|") { out[++n] = cell; cell = ""; i++; continue }
+    if (c == "\\" && i < len) { cell = cell c substr(s, i + 1, 1); i += 2; continue }
+    if (index(delims, c) > 0) { out[++n] = cell; cell = ""; i++; continue }
     cell = cell c; i++
   }
   out[++n] = cell
@@ -378,10 +380,10 @@ function cells(line, out,   i, c, n, cell, len, r, e) {
 # and a Windows drive colon is taken off first so it is not mistaken for one.
 # Ceiling: a bare `host.com:8080` would still qualify.
 function locate(s,   parts, n, i, t, path, drive) {
-  n = split(s, parts, /[ \t,]+/)
+  n = tokenize(s, " \t,", parts)
   for (i = 1; i <= n; i++) {
     t = parts[i]
-    if (t ~ /:\/\//) continue
+    if (t == "" || t ~ /:\/\//) continue
     sub(/^[(\[{`<'"]+/, "", t)
     drive = ""
     if (t ~ /^[A-Za-z]:[\\\/]/) { drive = substr(t, 1, 2); t = substr(t, 3) }
@@ -392,7 +394,7 @@ function locate(s,   parts, n, i, t, path, drive) {
   return ""
 }
 /^[ \t]*\|[ \t]*F[0-9]+[ \t]*\|/ {
-  cells($0, cell)
+  tokenize($0, "|", cell)
   id = trim(cell[2]); severity = trim(cell[4]); summary = trim(cell[5]); disposition = trim(cell[6])
   if (disposition ~ /^FIXED/ && all != 1) next
   location = locate(summary)
