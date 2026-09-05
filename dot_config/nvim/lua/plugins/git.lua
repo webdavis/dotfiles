@@ -400,8 +400,12 @@ return {
       -- git-messenger's `o`/`O` walked back through a line's older commits from
       -- inside its popup, which is why it set `into_popup_after_show`. A
       -- `blame_line` float is static, so the walk lives here instead: a
-      -- scroll-bound blame split whose `r` reblames at the commit under the
-      -- cursor, which is the same traversal without the popup.
+      -- scroll-bound blame split whose `R` reblames at the PARENT of the commit
+      -- under the cursor, which is the same traversal without the popup. `r`
+      -- reblames at the commit itself, so it steps in once and then stops:
+      -- gitsigns drops a reblame whose sha equals the active revision, and only
+      -- the `R` arm appends the `^` that reaches the parent (`actions/blame.lua`
+      -- at the pinned 130beacf).
       map({
         mode = "n",
         lhs = "<leader>gM",
