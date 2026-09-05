@@ -422,7 +422,9 @@ return {
           return path_after_revision(vim.fn.FugitiveParse(file)[1])
         end
 
-        local prefix = root .. "/"
+        -- A repository rooted at `/` already ends in the separator, and `//` is
+        -- a prefix of no absolute path at all.
+        local prefix = (root:gsub("/+$", "")) .. "/"
         if vim.startswith(file, prefix) then
           return file:sub(#prefix + 1)
         end

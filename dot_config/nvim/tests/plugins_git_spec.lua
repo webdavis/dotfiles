@@ -463,4 +463,15 @@ cases["`<leader>gM` focuses the blame of a Fugitive buffer in a bare repository"
   assert(ok, err)
 end
 
+-- A repository rooted at `/` already ends in the separator, so appending one
+-- gives `//` and no absolute path starts with that.
+cases["`<leader>gM` focuses the blame in a repository rooted at the filesystem root"] = function()
+  assert_blame_walk({
+    what = "the blame in a repository rooted at `/`",
+    source = "/x.lua",
+    status = { gitdir = "/.git", root = "/" },
+    blames = { "gitsigns-blame:///.git//:0:x.lua" },
+  }, { focused = 1, blames_opened = 0 })
+end
+
 return cases
