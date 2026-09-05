@@ -268,7 +268,7 @@ return {
           formatting.mdformat.with({
             extra_args = { "--number", "--wrap", "105" },
           }),
-          -- nixfmt, rubocop and eslint come from a project's toolchain, not Mason. A source whose
+          -- nixfmt and rubocop come from a project's toolchain, not Mason. A source whose
           -- binary is missing is still reported by `:checkhealth` as an ERROR, so register each
           -- only where its command exists.
           formatting.nixfmt.with({ -- Filetypes: .nix config files, specifically.
@@ -304,11 +304,11 @@ return {
 
           -- The following require none-ls-extras.nvim:
           require("none-ls.formatting.ansiblelint"),
-          require("none-ls.diagnostics.eslint").with({
-            condition = function()
-              return vim.fn.executable("eslint") == 1
-            end,
-          }),
+          -- Deliberately NOT gated on a global `eslint`: the source resolves its command
+          -- with `from_node_modules()` per buffer, and a condition runs once at setup, so
+          -- gating it would drop the source for the whole session on every machine that
+          -- keeps eslint in `node_modules/.bin` rather than on PATH.
+          require("none-ls.diagnostics.eslint"),
         },
       })
     end,
