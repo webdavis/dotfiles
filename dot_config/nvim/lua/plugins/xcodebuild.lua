@@ -95,6 +95,14 @@ return {
       { "<leader>xf", "<cmd>XcodebuildTestFailing<cr>", desc = "Xcode: test failing" },
       { "<leader>xe", "<cmd>XcodebuildTestExplorerToggle<cr>", desc = "Xcode: toggle test explorer" },
       { "<leader>xv", "<cmd>XcodebuildToggleCodeCoverage<cr>", desc = "Xcode: toggle code coverage" },
+      -- Code. Not conveniences: sourcekit-lsp only returns a code action when the range it is
+      -- given matches the diagnostic's range exactly, and Neovim sends the cursor position, so
+      -- plain `vim.lsp.buf.code_action` silently returns nothing on Swift unless the cursor
+      -- happens to sit on the right column. The plugin ships `integrations/lsp.lua` purely to
+      -- find the current line's diagnostic and send its real range. Without these two keys that
+      -- module is dead code and Swift code actions mostly do not appear.
+      { "<leader>xa", "<cmd>XcodebuildCodeActions<cr>", desc = "Xcode: code actions for the line" },
+      { "<leader>xq", "<cmd>XcodebuildQuickfixLine<cr>", desc = "Xcode: quickfix the line" },
       -- Debug (nvim-dap): build-and-launch under the debugger is the one daily action; attach,
       -- detach and debug-without-rebuilding stay command-only, reachable through the picker
       -- (`<leader>xx`) or by name, since they are rarer and every xcode letter is now spoken for.
