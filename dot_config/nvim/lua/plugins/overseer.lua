@@ -218,6 +218,29 @@ return {
 
     local overseer_title = { title = "Overseer" }
 
+    -- Re-running a gate should replace the last run of it, not stack a second
+    -- copy beside it. `unique` does that, and a template hook is how a component
+    -- reaches templates this config does not own. Scoped to the `just` provider
+    -- because that is where the repeat-a-gate habit lives; ad-hoc shell commands
+    -- and VS Code tasks are left alone, since two of those side by side is often
+    -- the point.
+    overseer.add_template_hook({ module = "^just$" }, function(task_defn, util)
+      util.add_component(task_defn, { "unique", replace = true })
+    end)
+
+    -- Every template provider runs on the first :OverseerRun in a directory, and
+    -- the `just` one shells out to `just --dump` for each justfile above the
+    -- cwd. Measured in this repo that is 150 ms cold against 19 ms warm, so this
+    -- moves the wait off the first keystroke. DirChanged as well as VimEnter,
+    -- because the templates a directory offers are the thing that changed.
+    vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {
+      group = vim.api.nvim_create_augroup("OverseerPreloadTemplates", { clear = true }),
+      desc = "Overseer: warm the task template cache for this directory",
+      callback = function()
+        overseer.preload_task_cache({ dir = vim.v.cwd ~= "" and vim.v.cwd or vim.uv.cwd() })
+      end,
+    })
+
     vim.api.nvim_create_user_command("OverseerRestartLast", function()
       local task_list = require("overseer.task_list")
       local tasks = overseer.list_tasks({
@@ -333,6 +356,12 @@ return {
     vim.api.nvim_create_user_command("OverseerWatchRun", function()
       overseer.run_task({ name = "run script" }, function(task)
         if task then
+          -- A watch task re-runs on every write, so it wants the `watched` set
+          -- rather than the everyday one: notify only when the verdict CHANGES,
+          -- and cancel a run that wedges instead of leaving it to sit. This
+          -- upserts by component name, so the template's own components stay and
+          -- only the ones `watched` names are re-parameterised.
+          task:set_components({ "watched" })
           task:add_component({ "restart_on_save", paths = { vim.fn.expand("%:p") } })
           local main_win = vim.api.nvim_get_current_win()
           overseer.run_action(task, "open hsplit")
@@ -458,6 +487,35 @@ return {
       remap = false,
       silent = true,
       desc = "Overseer: toggle (without focus)",
+    })
+
+    -- A window that always shows the newest task's output, rather than one task's
+    -- output frozen at the moment it was opened. Overseer builds it from any
+    -- window; this opens a split and hands that window over, and the view then
+    -- follows every task started afterwards.
+    map({
+      mode = "n",
+      lhs = { "<leader>ov", "<M-'>" },
+      rhs = function()
+        vim.cmd("botright split")
+        overseer.create_task_output_view(vim.api.nvim_get_current_win(), {
+          list_task_opts = {
+            filter = function(task)
+              return task.time_start ~= nil
+            end,
+          },
+          select = function(_, tasks, task_under_cursor)
+            if task_under_cursor then
+              return task_under_cursor
+            end
+            table.sort(tasks, function(a, b)
+              return a.time_start > b.time_start
+            end)
+            return tasks[1]
+          end,
+        })
+      end,
+      desc = "Overseer: open a live view of the newest task's output",
     })
 
     -- The three bundle commands take an optional name and complete over the

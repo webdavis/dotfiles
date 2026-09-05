@@ -21,6 +21,12 @@ local function captured_setup_opts()
     end,
     run_task = function() end,
     run_action = function() end,
+    add_template_hook = function() end,
+    preload_task_cache = function() end,
+    create_task_output_view = function() end,
+    new_task = function()
+      return { start = function() end }
+    end,
     list_tasks = function()
       return {}
     end,
@@ -30,11 +36,15 @@ local function captured_setup_opts()
   local saved_overseer = package.loaded["overseer"]
   local saved_map = _G.map
   local saved_user_command = vim.api.nvim_create_user_command
+  local saved_autocmd = vim.api.nvim_create_autocmd
 
   package.loaded["overseer"] = overseer_fake
   -- `map` is a global installed by init.lua, which this runner never loads.
   _G.map = function() end
   vim.api.nvim_create_user_command = function() end
+  -- The spec never fires VimEnter, but the config registers a preload autocmd;
+  -- stubbing it keeps this spec from leaving one behind in the runner's process.
+  vim.api.nvim_create_autocmd = function() end
 
   local ok, err = pcall(function()
     dofile(config_root .. "/lua/plugins/overseer.lua").config()
@@ -43,6 +53,7 @@ local function captured_setup_opts()
   package.loaded["overseer"] = saved_overseer
   _G.map = saved_map
   vim.api.nvim_create_user_command = saved_user_command
+  vim.api.nvim_create_autocmd = saved_autocmd
 
   assert(ok, err)
   return assert(opts, "overseer.setup() was never called")
