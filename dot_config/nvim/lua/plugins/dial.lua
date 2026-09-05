@@ -6,6 +6,32 @@ return {
   config = function()
     local augend = require("dial.augend")
 
+    -- Hexadecimal with an uppercase `0X` prefix, writing its digits back in the
+    -- case they were already in. dial's integer augend fixes the output case, so
+    -- an uppercase-prefix augend turned `0X1a` into `0X1B` where native <C-a>
+    -- gives `0X1b`. Native follows the RIGHTMOST letter already in the number,
+    -- and falls back to the prefix when the number has no letter at all. The two
+    -- fixed-case augends do the arithmetic; this only decides which answers.
+    -- ponytail: dial's shipped lowercase `0x` alias has the same forced case
+    -- (`0x1A` steps to `0x1b`); left alone because that is upstream behavior this
+    -- config has always had, not something the `0X` augend widened.
+    local function uppercase_prefix_hex()
+      local upper = augend.integer.new({ radix = 16, prefix = "0X", natural = true, case = "upper" })
+      local lower = augend.integer.new({ radix = 16, prefix = "0X", natural = true, case = "lower" })
+
+      return augend.user.new({
+        find = function(line, cursor)
+          return upper:find(line, cursor)
+        end,
+        add = function(text, addend, cursor)
+          local last_letter = text:sub(3):match(".*(%a)")
+          local keep_upper = last_letter == nil or last_letter:upper() == last_letter
+
+          return (keep_upper and upper or lower):add(text, addend, cursor)
+        end,
+      })
+    end
+
     -- boole's built-in loops, which also matched the Capitalized and UPPER forms of each word.
     local cased = {
       { "true", "false" },
@@ -83,10 +109,10 @@ return {
       -- nor an uppercase prefix, so taking over <C-a> silently lost both: only the leading `0`
       -- matched, and `0b101` stepped to `1b101` where native gives `0b110`, `0X1F` to `1X1F` where
       -- native gives `0X20`. dial ships the lowercase `0b`; the two uppercase prefixes are ours,
-      -- and `0X` renders its digits uppercase to match the prefix it was written with.
+      -- and `0X` keeps whatever case its digits were already written in.
       augend.integer.alias.binary,
       augend.integer.new({ radix = 2, prefix = "0B", natural = true }),
-      augend.integer.new({ radix = 16, prefix = "0X", natural = true, case = "upper" }),
+      uppercase_prefix_hex(),
       augend.date.new({ pattern = "%Y/%m/%d", default_kind = "day" }),
       augend.date.new({ pattern = "%Y-%m-%d", default_kind = "day" }),
       augend.date.new({ pattern = "%m/%d", default_kind = "day", only_valid = true }),
