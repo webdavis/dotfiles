@@ -1,3 +1,38 @@
+local overseer_title = { title = "Overseer" }
+local overseer_watch_run_desc = "Overseer: watch-run"
+
+---Open the most recently finished task in `window`, or close a terminal buffer.
+local function toggle_runner(window)
+  if vim.bo.buftype == "terminal" then
+    vim.cmd("close")
+    return
+  end
+
+  local overseer = require("overseer")
+  local task_list = require("overseer.task_list")
+  local tasks = overseer.list_tasks({
+    status = {
+      overseer.STATUS.RUNNING,
+      overseer.STATUS.SUCCESS,
+      overseer.STATUS.FAILURE,
+      overseer.STATUS.CANCELED,
+    },
+    sort = task_list.sort_finished_recently,
+  })
+
+  if vim.tbl_isempty(tasks) then
+    vim.notify("No tasks found", vim.log.levels.WARN, overseer_title)
+  else
+    overseer.run_action(tasks[1], "open " .. window)
+  end
+end
+
+local function run(window)
+  return function()
+    toggle_runner(window)
+  end
+end
+
 return {
   "stevearc/overseer.nvim",
   opts = {},
@@ -15,23 +50,23 @@ return {
     "OverseerToggle",
     "OverseerWatchRun",
   },
-  -- The `desc` values repeat the ones `config` sets below, so which-key labels the
-  -- key the same before and after the plugin loads.
+  -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
+  -- same rhs when the plugin loads, so there is no second copy in `config`.
   keys = {
-    { "<leader>or", desc = "Overseer: run (and open list)" },
-    { "<leader>oR", desc = "Overseer: run" },
-    { "<leader>ol", desc = "Overseer: run last task" },
-    { "<leader>oo", desc = "Overseer: open (and focus)" },
-    { "<leader>oO", desc = "Overseer: open (without focus)" },
-    { "<leader>oc", desc = "Overseer: close" },
-    { "<leader>ot", desc = "Overseer: toggle (and focus)" },
-    { "<leader>oT", desc = "Overseer: toggle (without focus)" },
-    { '<leader>o"', desc = "Overseer: open task in hsplit" },
-    { "<M-7>", desc = "Overseer: open task in hsplit" },
-    { "<leader>o%", desc = "Overseer: open task in vsplit" },
-    { "<M-8>", desc = "Overseer: open task in vsplit" },
-    { "<M-;>", desc = "Overseer: open task in floating window" },
-    { "<M-[>", desc = "Overseer: watch-run" },
+    { "<leader>or", "<cmd>OverseerOpen!<bar>OverseerRun<cr>", desc = "Overseer: run (and open list)", silent = true },
+    { "<leader>oR", "<cmd>OverseerRun<cr>", desc = "Overseer: run", silent = true },
+    { "<leader>ol", "<cmd>OverseerRestartLast<cr>", desc = "Overseer: run last task", silent = true },
+    { "<leader>oo", "<cmd>OverseerOpen<cr>", desc = "Overseer: open (and focus)", silent = true },
+    { "<leader>oO", "<cmd>OverseerOpen!<cr>", desc = "Overseer: open (without focus)", silent = true },
+    { "<leader>oc", "<cmd>OverseerClose<cr>", desc = "Overseer: close", silent = true },
+    { "<leader>ot", "<cmd>OverseerToggle<cr>", desc = "Overseer: toggle (and focus)", silent = true },
+    { "<leader>oT", "<cmd>OverseerToggle!<cr>", desc = "Overseer: toggle (without focus)", silent = true },
+    { '<leader>o"', run("hsplit"), desc = "Overseer: open task in hsplit", silent = true },
+    { "<M-7>", run("hsplit"), desc = "Overseer: open task in hsplit", silent = true },
+    { "<leader>o%", run("vsplit"), desc = "Overseer: open task in vsplit", silent = true },
+    { "<M-8>", run("vsplit"), desc = "Overseer: open task in vsplit", silent = true },
+    { "<M-;>", run("float"), desc = "Overseer: open task in floating window", silent = true },
+    { "<M-[>", "<cmd>OverseerWatchRun<cr>", desc = overseer_watch_run_desc, silent = true },
   },
   config = function()
     local overseer = require("overseer")
@@ -239,8 +274,6 @@ return {
       template_cache_threshold = 100,
     })
 
-    local overseer_title = { title = "Overseer" }
-
     vim.api.nvim_create_user_command("OverseerRestartLast", function()
       local task_list = require("overseer.task_list")
       local tasks = overseer.list_tasks({
@@ -259,7 +292,6 @@ return {
       end
     end, {})
 
-    local overseer_watch_run_desc = "Overseer: watch-run"
     vim.api.nvim_create_user_command("OverseerWatchRun", function()
       overseer.run_task({ name = "run script" }, function(task)
         if task then
@@ -276,154 +308,5 @@ return {
         end
       end)
     end, { desc = overseer_watch_run_desc })
-
-    local function toggle_runner(window)
-      if vim.bo.buftype == "terminal" then
-        vim.cmd("close")
-        return
-      end
-
-      -- Check for Overseer window.
-      local task_list = require("overseer.task_list")
-      local tasks = overseer.list_tasks({
-        status = {
-          overseer.STATUS.RUNNING,
-          overseer.STATUS.SUCCESS,
-          overseer.STATUS.FAILURE,
-          overseer.STATUS.CANCELED,
-        },
-        sort = task_list.sort_finished_recently,
-      })
-
-      if vim.tbl_isempty(tasks) then
-        vim.notify("No tasks found", vim.log.levels.WARN, overseer_title)
-      else
-        local most_recent = tasks[1]
-        overseer.run_action(most_recent, "open " .. window)
-      end
-    end
-
-    map({
-      mode = "n",
-      lhs = "<leader>or",
-      rhs = function()
-        vim.cmd("OverseerOpen!")
-        vim.cmd("OverseerRun")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: run (and open list)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oR",
-      rhs = function()
-        vim.cmd("OverseerRun")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: run",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>ol",
-      rhs = "OverseerRestartLast",
-      remap = false,
-      silent = true,
-      desc = "Overseer: run last task",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oo",
-      rhs = function()
-        vim.cmd("OverseerOpen")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: open (and focus)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oO",
-      rhs = function()
-        vim.cmd("OverseerOpen!")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: open (without focus)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oc",
-      rhs = function()
-        vim.cmd("OverseerClose")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: close",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>ot",
-      rhs = function()
-        vim.cmd("OverseerToggle")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: toggle (and focus)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oT",
-      rhs = function()
-        vim.cmd("OverseerToggle!")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: toggle (without focus)",
-    })
-
-    map({
-      mode = "n",
-      lhs = { '<leader>o"', "<M-7>" },
-      rhs = function()
-        toggle_runner("hsplit")
-      end,
-      desc = "Overseer: open task in hsplit",
-    })
-
-    map({
-      mode = "n",
-      lhs = { "<leader>o%", "<M-8>" },
-      rhs = function()
-        toggle_runner("vsplit")
-      end,
-      desc = "Overseer: open task in vsplit",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<M-;>",
-      rhs = function()
-        toggle_runner("float")
-      end,
-      desc = "Overseer: open task in floating window",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<M-[>",
-      rhs = function()
-        vim.cmd("OverseerWatchRun")
-      end,
-      desc = overseer_watch_run_desc,
-    })
   end,
 }
