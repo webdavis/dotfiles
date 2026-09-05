@@ -153,6 +153,16 @@ write_fixture("gitparent/package.json", '{ "devDependencies": { "vitest": "3.2.7
 local inner_git = write_fixture("gitparent/inner/.git", "gitdir: /nowhere\n")
 local inner_file = write_fixture("gitparent/inner/tests/inner.test.js", 'test("inner", function () {});\n')
 
+-- Two non-JavaScript adapters rooted together, once with a stray manifest the JavaScript ones
+-- root on, and once with the only manifest outside the repository boundary.
+local polyglot = write_fixture("polyglot/pyproject.toml", '[project]\nname = "polyglot"\n')
+write_fixture("polyglot/.busted", "return {}\n")
+write_fixture("polyglot/package.json", "{}")
+write_fixture("outside/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
+local walled = write_fixture("outside/repo/.git", "gitdir: /nowhere\n")
+write_fixture("outside/repo/pyproject.toml", '[project]\nname = "walled"\n')
+write_fixture("outside/repo/.busted", "return {}\n")
+
 -- A Python project carrying a stray manifest that names no runner.
 local pystray = write_fixture("pystray/pyproject.toml", '[project]\nname = "pystray"\n')
 write_fixture("pystray/package.json", "{}")
@@ -179,6 +189,11 @@ end
 --- neotest-python roots on a Python project marker, not on a package.json.
 local function python_root(path)
   return vim.fs.root(path, "pyproject.toml")
+end
+
+--- neotest-busted roots on its own markers, one of which is a `.busted` file.
+local function busted_root(path)
+  return vim.fs.root(path, ".busted")
 end
 
 local function no_root()
@@ -231,7 +246,7 @@ local function route()
         return { name = "neotest-golang", root = no_root, constructed = true }
       end,
     }),
-    ["neotest-busted"] = { name = "neotest-busted", root = no_root },
+    ["neotest-busted"] = { name = "neotest-busted", root = busted_root },
     ["neotest-swift-testing"] = { name = "neotest-swift-testing", root = no_root },
   }
   -- Left in place rather than restored: the configured predicates are called after this returns,
@@ -618,6 +633,33 @@ cases["a directory run finds a conflicting package however deep it sits"] = func
   assert(
     run.notified[1] and run.notified[1]:find("packages/team/apps/api", 1, true),
     "the message does not name the deep package: " .. tostring(run.notified[1])
+  )
+end
+
+cases["a directory run offers every non-JavaScript adapter rooted here"] = function()
+  -- Two of them rooted is still not a JavaScript question. Offering only the JavaScript adapters
+  -- puts the two that were actually meant out of reach, and refusing outright does the same.
+  local routed = route()
+
+  local stray = routed.press_run_all(directory_of(polyglot), 2)
+  assert(
+    vim.deep_equal(stray.prompted, { "neotest-python", "neotest-busted" }),
+    "expected both non-JavaScript adapters, got " .. vim.inspect(stray.prompted)
+  )
+  assert(
+    stray.ran and stray.ran.adapter == "neotest-busted:" .. directory_of(polyglot),
+    "the operator's choice was not the adapter that ran"
+  )
+
+  -- The same pair, with every JavaScript root refused for sitting outside the repository.
+  local refused = routed.press_run_all(directory_of(walled), 1)
+  assert(
+    vim.deep_equal(refused.prompted, { "neotest-python", "neotest-busted" }),
+    "a refusal reached the operator instead of the adapters that did root here"
+  )
+  assert(
+    refused.ran and refused.ran.adapter == "neotest-python:" .. directory_of(walled),
+    "the operator's choice was not the adapter that ran"
   )
 end
 

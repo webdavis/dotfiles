@@ -410,13 +410,31 @@ local function run_all_tests()
       return neotest.run.run({ directory, adapter = entry.id })
     end
   end
+  local function choose(candidates)
+    vim.ui.select(candidates, {
+      prompt = "Neotest: run all tests with",
+      format_item = function(entry)
+        return entry.name
+      end,
+    }, function(choice)
+      if choice then
+        neotest.run.run({ directory, adapter = choice.id })
+      end
+    end)
+  end
+
   -- Nothing here declares a JavaScript runner, so an attached JavaScript adapter is attached only
-  -- because some package.json exists, which a Python project can carry by accident. One other
-  -- adapter rooted here is the answer, and the chooser only ever offers JavaScript adapters,
-  -- because JavaScript is the only ambiguity this arbitrates.
+  -- because some package.json exists, which a Python project can carry by accident. The adapters
+  -- that rooted on a marker of their own are the ones that were meant, so they answer first:
+  -- alone they run, together they are the choice. Neither the JavaScript fallback below nor the
+  -- refusal is reached while one of them is rooted here.
   if #other == 1 then
     return neotest.run.run({ directory, adapter = other[1].id })
   end
+  if #other > 1 then
+    return choose(other)
+  end
+
   if #javascript == 1 then
     return neotest.run.run({ directory, adapter = javascript[1].id })
   end
@@ -436,16 +454,7 @@ local function run_all_tests()
     return neotest.run.run(directory)
   end
 
-  vim.ui.select(javascript, {
-    prompt = "Neotest: run all tests with",
-    format_item = function(entry)
-      return entry.name
-    end,
-  }, function(choice)
-    if choice then
-      neotest.run.run({ directory, adapter = choice.id })
-    end
-  end)
+  choose(javascript)
 end
 
 return {
