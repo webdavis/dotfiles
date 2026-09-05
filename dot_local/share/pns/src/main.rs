@@ -5084,12 +5084,31 @@ fn presence_poll() -> i32 {
 /// THE BRIDGE IS A PARAMETER so this, the join of the config, the network and
 /// the state directory, is the thing a test drives end to end. Everything
 /// under it is pure and everything over it is six lines of composition.
+///
+/// ONE POLLER AT A TIME ACROSS THE WHOLE MACHINE, held from before the first
+/// read to after the rename. The running-child check in the daemon is
+/// PROCESS-LOCAL, so a second daemon, a replacement daemon that orphaned the
+/// first one's child, or a hand-typed `pns presence poll` can each be inside
+/// this at once. Without the lock the LAST rename wins rather than the newest
+/// reading: a poller stalled between its two reads publishes an older room
+/// over a newer one and `classify` accepts it as current. Standing down costs
+/// one interval of a reading somebody else is already taking.
 fn write_presence_reading<B: pns::channels::hue::Bridge>(
     bridge: &B,
     state: &Path,
     presence: &pns::config::Presence,
     now: u64,
 ) -> bool {
+    // THE DIRECTORY IS MADE BEFORE THE LOCK, because the lock now runs ahead
+    // of `publish_state_line`, which used to be the thing that made it: a
+    // first poll on a machine with no state directory yet would otherwise fail
+    // to take a lock nobody holds and never publish at all.
+    let _ = std::fs::create_dir_all(state);
+    let lock = state.join(PRESENCE_POLL_LOCK);
+    if !claim_lock(&lock, now, PRESENCE_LOCK_STALE_SECS) {
+        return false;
+    }
+    let _lock = HeldLock(lock);
     // THE EXCLUSION IS APPLIED BEFORE THE NEWEST EDGE IS CHOSEN, not left to
     // the reader. `classify` refuses an excluded room outright, so publishing
     // one would throw away the newest edge in a room that DOES count and
@@ -6555,6 +6574,21 @@ const LIGHTS_HELD: &str = "lights-held";
 /// on one; `run_tick_writes` re-reads the record instead and stands down when
 /// it moved, which is the guard that case has always had.
 const LIGHTS_TICK_LOCK: &str = "lights-tick.lock";
+
+/// The name beside the presence state file that arbitrates between two pollers.
+const PRESENCE_POLL_LOCK: &str = "presence-poll.lock";
+
+/// How long a presence poll's lock is believed before it is read as leavings.
+///
+/// TWICE THE POLL'S OWN CHILD BOUND, which is `CHILD_TICKS` seconds at the
+/// production clock and the point the daemon kills a poll it spawned. A window
+/// SHORTER than that would let a later poller steal the lock from one still
+/// reading the bridge, which is the exact race the lock exists to stop; the
+/// margin over it covers the two `BRIDGE_DEADLINE` reads inside that bound and
+/// the reap tick after it. What the length costs when a holder really was
+/// killed is a handful of intervals of an unrefreshed reading, and that ages
+/// out to Unknown, which is the safe direction.
+const PRESENCE_LOCK_STALE_SECS: u64 = 2 * CHILD_TICKS as u64;
 
 /// How long a lights tick's lock is believed before it is read as an orphan.
 ///
@@ -9381,6 +9415,117 @@ mod tests {
                 room: "3F - Studio".to_string(),
                 age_secs: 391,
             }
+        );
+    }
+
+    /// A bridge whose motion read PARKS until it is let go, so a second poller
+    /// can be driven while the first is still mid-poll.
+    struct ParkedBridge {
+        entered: std::sync::mpsc::Sender<()>,
+        release: std::sync::mpsc::Receiver<()>,
+        served: Vec<(&'static str, &'static str)>,
+    }
+
+    impl pns::channels::hue::Bridge for ParkedBridge {
+        fn get(&self, path: &str) -> Option<String> {
+            if path == "grouped_motion" {
+                let _ = self.entered.send(());
+                // BOUNDED, AND NEVER WAITED ON BY A GREEN RUN: the release
+                // arrives the moment the second poller has answered, so this
+                // deadline is only ever reached by a run that already failed.
+                let _ = self.release.recv_timeout(Duration::from_secs(5));
+            }
+            self.served
+                .iter()
+                .find(|(served, _)| *served == path)
+                .map(|(_, body)| (*body).to_string())
+        }
+
+        fn put(&self, _path: &str, _body: &str) {
+            unreachable!("the poll never writes to the bridge");
+        }
+    }
+
+    #[test]
+    fn a_poll_already_running_stands_a_second_one_down_rather_than_racing_it() {
+        // THE LOCK IS HELD ACROSS BOTH READS AND THE PUBLICATION, which is
+        // what stops two processes publishing out of order: a stalled poller
+        // that finishes late would otherwise rename its older reading over a
+        // newer one and make it current. The second poller here is NEWER and
+        // must still publish nothing while the first holds the poll.
+        let state = scratch("presence-race");
+        let (entered, entry) = std::sync::mpsc::channel();
+        let (release, held) = std::sync::mpsc::channel();
+        let (outcome, finished) = std::sync::mpsc::channel();
+
+        // DETACHED, NEVER JOINED: a regression that parks the first poller
+        // fails this test on a deadline instead of hanging the suite on a
+        // join.
+        let running = state.clone();
+        std::thread::spawn(move || {
+            let bridge = ParkedBridge {
+                entered,
+                release: held,
+                served: vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)],
+            };
+            let published = write_presence_reading(
+                &bridge,
+                &running,
+                &watching(&["3F - Studio"], &[]),
+                1_788_456_100,
+            );
+            let _ = outcome.send(published);
+        });
+        entry
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the first poller reaches the bridge");
+
+        assert!(
+            !write_presence_reading(
+                &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
+                &state,
+                &watching(&["3F - Studio"], &[]),
+                1_788_456_200
+            ),
+            "a second poller published while the first was mid-poll"
+        );
+
+        let _ = release.send(());
+        assert_eq!(
+            finished.recv_timeout(Duration::from_secs(5)),
+            Ok(true),
+            "the poller holding the lock published nothing"
+        );
+        assert_eq!(
+            std::fs::read_to_string(state.join(pns::presence_file::STATE_FILE))
+                .expect("the state file"),
+            "1788456100 1788456009 0 3F - Studio\n",
+            "the published line is not the one the lock holder wrote"
+        );
+    }
+
+    #[test]
+    fn a_poll_gives_its_lock_back_so_the_next_interval_can_take_it() {
+        // THE GUARD IS WHAT MAKES THE LOCK A LOCK RATHER THAN A LATCH: a hold
+        // left behind would stand every later poll down for a whole stale
+        // window, which is a sensor that answers once and then goes quiet.
+        let state = scratch("presence-relock");
+        let settings = watching(&["3F - Studio"], &[]);
+        for now in [1_788_456_100, 1_788_456_105] {
+            assert!(
+                write_presence_reading(
+                    &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
+                    &state,
+                    &settings,
+                    now
+                ),
+                "the poll at {now} could not take the lock"
+            );
+        }
+        assert_eq!(
+            std::fs::read_to_string(state.join(pns::presence_file::STATE_FILE))
+                .expect("the state file"),
+            "1788456105 1788456009 0 3F - Studio\n"
         );
     }
 
