@@ -17,19 +17,17 @@
 //! distinct from both error and emptiness; a `[records]` block with no signing
 //! key is refused rather than left as a record path that can never land.
 
-pub mod lanes;
-pub mod schedule;
-pub mod schema;
+mod lanes;
+mod schedule;
+mod schema;
 
 use std::path::{Path, PathBuf};
 
 use schema::{admits, non_empty, table_of};
 
-pub use lanes::brew::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
-pub use lanes::herdr::DEFAULT_HERDR_BINARY;
-pub use lanes::uv::DEFAULT_UV_BINARY;
 pub use lanes::{
-    BrewLane, CommandLane, HerdrLane, LANE_TYPES, Lane, LaneKind, Lanes, NpmLane, Plugin, UvLane,
+    BrewLane, CommandLane, DEFAULT_BREW, DEFAULT_HERDR_BINARY, DEFAULT_MAS, DEFAULT_TAILSCALED,
+    DEFAULT_UV_BINARY, HerdrLane, LANE_TYPES, Lane, LaneKind, Lanes, NpmLane, Plugin, UvLane,
 };
 pub use schedule::{Schedule, WEEKDAY_NAMES};
 pub use schema::{TABLE_KEYS, TOP_LEVEL};

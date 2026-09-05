@@ -6,8 +6,8 @@
 //! `marker` owns the last-successful-run timestamp and the gap sentence every
 //! entry opens with; `event` owns the JSON a command lane's child is handed.
 
-pub mod event;
-pub mod marker;
+mod event;
+mod marker;
 
 pub use event::{RunFacts, lane_event};
 pub use marker::{Marker, elapsed, gap_line, marker_contents, parse_marker};

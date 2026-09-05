@@ -11,11 +11,11 @@
 //! parses into lives in `config::lanes::npm`, and what running that lane does
 //! lives in `lanes::npm`.
 
-pub mod brew;
-pub mod command;
-pub mod herdr;
-pub mod npm;
-pub mod uv;
+mod brew;
+mod command;
+mod herdr;
+mod npm;
+mod uv;
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -24,11 +24,11 @@ use super::ConfigError;
 use super::schema::{non_empty, table_of};
 use crate::deadline::{DEFAULT_LANE_DEADLINE, parse_deadline};
 
-pub use brew::BrewLane;
+pub use brew::{BrewLane, DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
 pub use command::CommandLane;
-pub use herdr::{HerdrLane, Plugin};
+pub use herdr::{DEFAULT_HERDR_BINARY, HerdrLane, Plugin};
 pub use npm::NpmLane;
-pub use uv::UvLane;
+pub use uv::{DEFAULT_UV_BINARY, UvLane};
 
 /// The lane TYPES this build knows how to run: the roster of BUILT-IN
 /// adapters, never the roster of names an operator may declare. A lane's NAME

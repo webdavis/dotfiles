@@ -13,14 +13,14 @@
 //! stays 0. The scheduler's retry is a whole week away, so a run that aborts
 //! at its first problem throws away every subject it had not reached yet.
 
-pub mod brew;
-pub mod command;
-pub mod herdr;
-pub mod npm;
-pub mod report;
-pub mod spawn;
-pub mod text;
-pub mod uv;
+mod brew;
+mod command;
+mod herdr;
+mod npm;
+mod report;
+mod spawn;
+mod text;
+mod uv;
 
 pub use report::LaneReport;
 pub use spawn::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict};
@@ -36,7 +36,7 @@ use crate::record::RunFacts;
 /// npm and uv lanes have no use for them: a uniform contract is what lets the
 /// dispatch below be pure selection, and a lane that later needs the facts
 /// gains them without changing this trait or any other adapter.
-pub trait LaneAdapter {
+pub(crate) trait LaneAdapter {
     fn run(&self, name: &str, facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport;
 }
 
