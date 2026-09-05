@@ -390,7 +390,12 @@ return {
       vim.api.nvim_create_autocmd("BufWritePre", {
         group = format_group,
         pattern = "*",
-        callback = safe_format,
+        -- Wrapped, not passed directly: `safe_format` returns true on success and
+        -- Neovim deletes an autocmd whose callback returns true, so passing it bare
+        -- makes the first successful save the last one that formats.
+        callback = function()
+          safe_format()
+        end,
       })
 
       -- ╭──────────────╮
