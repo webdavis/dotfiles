@@ -68,6 +68,23 @@ return {
     assert(lines[4]:find("^ledger%.md:6: F4 LOW FIXED: "), "got " .. tostring(lines[4]))
   end,
 
+  -- `complete = "file"` means Neovim expands the argument BEFORE the callback
+  -- sees it, exactly as `:edit` does. Expanding it a second time unescapes what
+  -- that first pass already unescaped, so a register whose name carries a
+  -- backslash is looked for under the wrong name and never read.
+  ["passes the command argument through without a second expansion"] = function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local register = dir .. "/back\\slash.md"
+    vim.fn.writefile({ "| F1 | 6v | HIGH | a plain summary | ACCEPTED | rationale |" }, register)
+    awk_program()
+    vim.cmd("ReviewLedger " .. vim.fn.fnameescape(register))
+    local info = vim.fn.getqflist({ title = 1, items = 1 })
+    vim.cmd("cclose")
+    assert(info.title == "ReviewLedger " .. register, "title: " .. info.title)
+    assert(#info.items == 1, "entries: " .. #info.items)
+  end,
+
   ["reads FIXED-NOTEST as closed as well, so the skip is a prefix match"] = function()
     local open = table.concat(run(0), "\n")
     assert(not open:find("F5", 1, true), "F5 listed unbanged: " .. open)

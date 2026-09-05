@@ -333,7 +333,11 @@ BEGIN { FS = "|" }
 ]==]
 
 vim.api.nvim_create_user_command("ReviewLedger", function(opts)
-  local register = opts.args ~= "" and vim.fn.expand(opts.args) or ""
+  -- Not `expand`: `complete = "file"` already expanded and unescaped this for
+  -- us, the way `:edit` does. A second pass unescapes what the first pass
+  -- produced, so a name carrying a backslash or a leading `%` is looked for
+  -- under a name that is not its own.
+  local register = opts.args
   if register == "" then
     -- `glob` expands the tilde itself, and `expand` must NOT run first: it
     -- expands the WILDCARD too, so `glob` would be handed every match joined by
