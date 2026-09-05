@@ -63,7 +63,7 @@ return {
       group = write_flag_group,
       pattern = "AutoSaveWritePre",
       callback = function(args)
-        vim.b[args.data.saved_buffer].autosave_write = true
+        require("custom_api.autosave").mark_write(args.data.saved_buffer)
       end,
     })
 
@@ -71,7 +71,7 @@ return {
       group = write_flag_group,
       pattern = "AutoSaveWritePost",
       callback = function(args)
-        vim.b[args.data.saved_buffer].autosave_write = nil
+        require("custom_api.autosave").clear_write(args.data.saved_buffer)
       end,
     })
 
