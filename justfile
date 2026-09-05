@@ -83,13 +83,13 @@ apply:
 # `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
 # `just ship` run `just test`.
 
-# Unit suite only: the commit gate. The two Lua camps run first (the nvim config's
-# specs, then neotest-bashunit's), then test-bashunit (the *.test.sh files), then
-# the shell suite. --shuffle
-# randomizes order to flush hidden ordering deps (seed printed for replay);
-# --warn-slow-ms flags slow tests in a warn-only summary. The other suites run
-# the same runner plain.
-test-unit: validate-tests test-nvim test-neotest-bashunit test-bashunit
+# Unit suite only: the commit gate. The two Lua camps run first (the nvim
+# config's specs, then neotest-bashunit's), then the one runner, which runs the
+# suite's own three lanes in order: its bashunit `*.test.sh` files, its
+# executable *.sh tests, its *.bats suites. --shuffle randomizes the *.sh order
+# to flush hidden ordering deps (seed printed for replay); --warn-slow-ms flags
+# slow tests in a warn-only summary. The other suites run the same runner plain.
+test-unit: validate-tests test-nvim test-neotest-bashunit
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
@@ -189,23 +189,20 @@ test-nvim:
 test-neotest-bashunit:
   nvim --headless --clean -l dot_local/share/neotest-bashunit/tests/run.lua
 
-# Every `<name>.test.sh` below test/, run by bashunit (a brew formula, declared
-# in Brewfile.dev, the CI toolchain step and the machine YAML). bashunit's
-# directory mode recurses, so a new test file needs no registration anywhere;
-# the placement guard is what keeps that scan from reaching one outside a suite.
-# It SOURCES its test files rather than executing them, so they carry no
-# executable bit and run-test-suite.sh's `-perm -u+x` discovery cannot see them:
-# these two runners never run the same file twice. test-unit depends on this
-# recipe, which is what puts these tests in the commit gate and, through
-# test-unit, in `just test`.
+# ONE suite's bashunit `<name>.test.sh` files, for focused iteration. Every
+# suite recipe above already runs its own bashunit lane through the same
+# runner, so this adds no coverage: it narrows a run to that lane, and defaults
+# to the unit suite because that is where the migration starts.
 #
-# Two spellings that look optional and are not. `./test`, not `test`: `test` is
-# also bashunit's own subcommand name, so the bare word runs the default path
-# and reports "No tests found" while exiting 1. NO_COLOR, not --no-color: on
-# 0.50.1 the flag is ignored in either position (measured), while the
-# environment variable is honoured.
-test-bashunit:
-  NO_COLOR=1 bashunit ./test
+# bashunit is never handed a DIRECTORY, here or in the runner. Its own path
+# argument scans recursively for `*[tT]est.sh` plus a `.bash` twin, which
+# reaches fixtures, the executable *.sh tests the other lane runs, and every
+# other suite's files; the runner passes an exact, suite-local list instead.
+# validate-tests is a dependency for the same reason it is on every other suite
+# recipe: the mode and placement rules are what keep the two lanes from
+# claiming one file.
+test-bashunit suite="test/unit": validate-tests
+  ./test/run-test-suite.sh --only-bashunit {{ suite }}
 
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,

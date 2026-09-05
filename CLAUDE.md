@@ -66,7 +66,7 @@ files.
 
 ```bash
 just test-unit          # Unit suite only (the fast commit gate)
-just test-bashunit      # The `<name>.test.sh` files, run by bashunit (a test-unit dependency)
+just test-bashunit      # One suite's `<name>.test.sh` files alone (default test/unit)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
 just test-rust          # cargo test for the two herdr plugins and the pns crate (+ fmt/clippy for pns)
@@ -77,7 +77,7 @@ just ship               # the three gates CI runs, in CI order, the explicit pre
 **Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
 slow one is deleted rather than tolerated. Bash tests are migrating from bats to **bashunit** (operator
 ruling 2026-09-03): a bashunit file is `test/<suite>/<name>.test.sh`, non-executable, one behavior per
-`function test_*`, run by `just test-bashunit`, a dependency of `test-unit`. The files still on bats are
+`function test_*`, run as one of the three lanes of `test/run-test-suite.sh`. The files still on bats are
 one behavior per `@test` through HOST bats-core, run by each suite's own runner; both shapes are legal
 until the migration finishes, and no new bats file is added. The Neovim config's Lua specs
 (`dot_config/nvim/tests/*_spec.lua`) run under `nvim --headless --clean -l` through `just test-nvim`,
@@ -97,18 +97,18 @@ testing our behavior. **This deliberately leaves declarations unguarded**, which
 config that disagrees with itself is now caught by review, not by a gate.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then
-`just test-bashunit`, then the one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`,
-so order is seed-shuffled each run (replay a failure with `TEST_SEED=<seed>`, printed every run, since
-Bats 1.11 has no native shuffle; shuffling degrades to sorted order on a host with neither `gshuf` nor
-`shuf`). A WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-suite
-candidate; warnings never fail the run.
+`just test-neotest-bashunit`, then the one runner (`test/run-test-suite.sh`) with
+`--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run (replay a failure with
+`TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle; shuffling degrades to
+sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY performance summary lists any test
+over the threshold as a refactor-or-move-suite candidate; warnings never fail the run.
 
 **CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines
 (`just lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
 agreement any more: the parity test was declaration-consistency checking, not tool behavior, so it went
 with the 2026-08-05 scope ruling. **Edit one and you must edit the other by hand.** The pre-push hook
-deliberately runs no suite. Each suite's runner executes its own `.sh` and `.bats` once, with host
-bats-core.
+deliberately runs no suite. Each suite's runner executes its own `.test.sh`, `.sh` and `.bats` once,
+through host bashunit and host bats-core.
 
 So a commit can briefly carry an integration or e2e regression, and so can a push: **CI is the only gate
 that runs the suite**, and it runs on pull requests and on pushes to `main` only. A push to a topic
@@ -120,17 +120,21 @@ deliberately.
 `test/` root. Three trees are carved out: a suite's own `helpers/`, the shared cross-suite
 `test/helpers/`, and `test/fixtures/**`. The two helper trees admit non-executable `*.sh` only, so an
 executable file or a `.bats` there still fails, and neither they nor `test/fixtures/**` may hold a
-`<name>.test.sh`, because bashunit's directory scan would run one from outside a suite. The checker also
+`<name>.test.sh`, because a test file outside a suite is one no suite recipe runs. The checker also
 rejects any symlink below `test/`, a non-executable suite `*.sh`, and a nested file in a flat suite. Add
 a test by dropping a new executable `test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth
 `dirname "${BASH_SOURCE[0]}")/../..`); it is picked up automatically.
 
 A bashunit file inverts that mode rule and must NOT be executable: bashunit sources its test files, while
 `run-test-suite.sh` discovers `*.sh` by `-perm -u+x`, so an executable `<name>.test.sh` would run twice,
-the second time as a bare script where `assert_equals` does not exist. Two spellings in the recipe are
-load-bearing on bashunit 0.50.1: the path is `./test`, because the bare word `test` is also bashunit's
-own subcommand name and selects the default path instead, and color is disabled with `NO_COLOR=1`,
-because `--no-color` is ignored in either position.
+the second time as a bare script where `assert_equals` does not exist.
+
+**bashunit is never handed a directory**, in the runner or in a recipe. Its own path argument scans
+RECURSIVELY for `*[tT]est.sh` plus a `.bash` twin, so a directory reaches a fixture named `latest.sh`, an
+executable `contest.sh` the `*.sh` lane also runs, and every other suite's files, which would put an
+integration test in the unit gate and leave it out of its own recipe. `run-test-suite.sh` passes an
+exact, suite-local, `-maxdepth 1` list of `*.test.sh` paths instead. Color is disabled with `NO_COLOR=1`,
+because `--no-color` is ignored in either position on 0.50.1.
 
 ### Chezmoi operations
 
