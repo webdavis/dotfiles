@@ -75,6 +75,7 @@ packages:
         - atomicparsley
         - atuin
         - bash
+        - bashunit
         - bats-core
         - bash-completion@2
         - bash-preexec
@@ -281,7 +282,9 @@ packages:
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
           - "@tobilu/qmd"
+          - acpx
           - agentmail-cli
+          - backpass
           - clawhub
           - happy
           - hyperframes

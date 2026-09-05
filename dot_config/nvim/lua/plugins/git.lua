@@ -16,16 +16,55 @@ local log_error = vim.log.levels.ERROR
 local notify_fugitive_title = { title = "Fugitive" }
 local notify_github_title = { title = "GitHub" }
 
+-- `github.account` reports a `gh` that cannot answer as `nil, message`
+-- (spec 6.1), so reading a field straight off the call raises on the index.
+-- `try` is the one place that message becomes a notification.
+local function account_or_notify()
+  return try(function()
+    return github.account()
+  end, { label = "github.account" })
+end
+
+-- The same for `github.repo`, plus the field every caller here wants. `name` is
+-- nil when the answer carried no slash, and `git.latest_commit` raises on a
+-- missing `repo_name`, so that case is answered once rather than at every site.
+local function repo_name_or_notify()
+  local repository = try(function()
+    return github.repo()
+  end, { label = "github.repo" })
+  if not repository then
+    return
+  end
+
+  if not repository.name then
+    local message = ("No repository name in the answer `gh` gave: *%s*"):format(repository.nameWithOwner)
+    vim.notify(message, log_warning, notify_github_title)
+    return
+  end
+
+  return repository.name
+end
+
 local function copy_url_mapping_helper(lhs, remote, protocol)
   local mapping_table = {
     mode = "n",
     lhs = lhs,
     rhs = function()
       if git.initialized() then
+        local account = account_or_notify()
+        if not account then
+          return
+        end
+
+        local repo_name = repo_name_or_notify()
+        if not repo_name then
+          return
+        end
+
         local url = git.url({
           remote = remote,
-          account_name = github.account().username,
-          repo_name = github.repo().name,
+          account_name = account.username,
+          repo_name = repo_name,
         })
 
         if not url then
@@ -337,15 +376,100 @@ return {
         desc = "Gitsigns: blame line (full)",
       })
 
+      -- The `<rev>:<path>` half of a blame name, of which only the path is
+      -- wanted. The revision may carry a colon of its own, since gitsigns names
+      -- the index `:0`, and so may the path, so the format is pinned rather than
+      -- searched: an optional leading colon, a revision with no colon in it, the
+      -- colon that closes it, and the whole of the rest.
+      local function path_after_revision(text)
+        return text:match("^:?[^:]+:(.*)")
+      end
+
+      -- The pinned gitsigns opens the split BEFORE it names the blame buffer, so
+      -- a second press while this file's blame is still open leaves the new split
+      -- behind and then fails on `nvim_buf_set_name` with E95, taking the window
+      -- count from two to three. The blame buffer is named
+      -- `gitsigns-blame://<gitdir>//<rev>:<path relative to the repo root>`, and
+      -- BOTH ends of that identify the file: the gitdir, because two repositories
+      -- holding the same relative path produce two different buffers, and the
+      -- whole relative path behind its `:`, compared for EQUALITY. A tail match
+      -- reads a blame of `a:x.lua` as one of `x.lua`, because a colon is legal in
+      -- a filename and the blame name for the one ends with the blame name for
+      -- the other. Gitsigns publishes both halves on the source buffer as
+      -- `b:gitsigns_status_dict`.
+      --
+      -- The revision between them is deliberately NOT matched: a blame the reader
+      -- already walked with `R` sits at another revision and is still the window
+      -- to focus rather than to duplicate.
+      --
+      -- EVERY window, not just this tab's. A buffer name is global, so a blame
+      -- open in another tab collides just the same, and searching one tab missed
+      -- it and left the split plus the E95 behind. `nvim_set_current_win` switches
+      -- tabs, so focusing it from here works.
+      -- The current buffer's path relative to the repository root, which is what
+      -- the blame name carries. A Fugitive revision buffer is named
+      -- `fugitive://<gitdir>//<rev>/<path>`, so it never begins with the working
+      -- tree, and a BARE repository has no working tree for it to begin with:
+      -- gitsigns still attaches and still names its blame after the same
+      -- relative path, so the root test alone answered nothing there and every
+      -- press opened another blame. Fugitive's own `FugitiveParse` is the
+      -- inverse of the URL scheme it wrote, and only Fugitive produces such a
+      -- name, so nothing else reaches it.
+      local function relative_path_for_current_buffer(root)
+        local file = vim.api.nvim_buf_get_name(0)
+
+        if vim.startswith(file, "fugitive://") then
+          return path_after_revision(vim.fn.FugitiveParse(file)[1])
+        end
+
+        -- A repository rooted at `/` already ends in the separator, and `//` is
+        -- a prefix of no absolute path at all.
+        local prefix = (root:gsub("/+$", "")) .. "/"
+        if vim.startswith(file, prefix) then
+          return file:sub(#prefix + 1)
+        end
+      end
+
+      local function blame_window_for_current_buffer()
+        local status = vim.b.gitsigns_status_dict
+        if not (status and status.gitdir and status.root) then
+          return
+        end
+
+        local relative_path = relative_path_for_current_buffer(status.root)
+        if not relative_path then
+          return
+        end
+
+        local prefix = ("gitsigns-blame://%s//"):format(status.gitdir)
+
+        for _, window in ipairs(vim.api.nvim_list_wins()) do
+          local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(window))
+          if vim.startswith(name, prefix) and path_after_revision(name:sub(#prefix + 1)) == relative_path then
+            return window
+          end
+        end
+      end
+
       -- git-messenger's `o`/`O` walked back through a line's older commits from
       -- inside its popup, which is why it set `into_popup_after_show`. A
       -- `blame_line` float is static, so the walk lives here instead: a
-      -- scroll-bound blame split whose `r` reblames at the commit under the
-      -- cursor, which is the same traversal without the popup.
+      -- scroll-bound blame split whose `R` reblames at the PARENT of the commit
+      -- under the cursor, which is the same traversal without the popup. `r`
+      -- reblames at the commit itself, so it steps in once and then stops:
+      -- gitsigns drops a reblame whose sha equals the active revision, and only
+      -- the `R` arm appends the `^` that reaches the parent (`actions/blame.lua`
+      -- at the pinned 130beacf).
       map({
         mode = "n",
         lhs = "<leader>gM",
         rhs = function()
+          local blame_window = blame_window_for_current_buffer()
+          if blame_window then
+            vim.api.nvim_set_current_win(blame_window)
+            return
+          end
+
           gitsigns.blame()
         end,
         desc = "Gitsigns: blame file (walk commits)",
@@ -527,7 +651,7 @@ return {
         mode = "n",
         lhs = "<C-g>Cb",
         rhs = function()
-          local repo = github.repo().name
+          local repo = repo_name_or_notify()
           if not repo then
             return
           end
@@ -651,7 +775,12 @@ return {
           return
         end
 
-        local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+        local repo_name = repo_name_or_notify()
+        if not repo_name then
+          return
+        end
+
+        local commit = git.latest_commit({ repo_name = repo_name }) or {}
         local sections = build_sections(branch, commit.hash, commit.summary, commit.body)
         local message = sections_to_message(sections)
 
@@ -779,7 +908,12 @@ return {
         mode = "n",
         lhs = "<C-g>cp",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.summary then
             return
           end
@@ -795,7 +929,12 @@ return {
         mode = "n",
         lhs = "<C-g>cA",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.hash then
             return nil
           end
@@ -880,7 +1019,12 @@ return {
         mode = "n",
         lhs = "<C-g>lw",
         rhs = function()
-          local author = github.account().fullname
+          local account = account_or_notify()
+          if not account then
+            return
+          end
+
+          local author = account.fullname
           if not author then
             return 1
           end
@@ -905,7 +1049,12 @@ return {
         mode = "n",
         lhs = "<C-g>lW",
         rhs = function()
-          local author = github.account().fullname
+          local account = account_or_notify()
+          if not account then
+            return
+          end
+
+          local author = account.fullname
           if not author then
             return 1
           end
@@ -994,7 +1143,12 @@ return {
         mode = "n",
         lhs = "<C-g>dhw",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.hash then
             return
           end
@@ -1007,7 +1161,12 @@ return {
         mode = "n",
         lhs = "<C-g>dhm",
         rhs = function()
-          local commit = git.latest_commit({ repo_name = github.repo().name }) or {}
+          local repo_name = repo_name_or_notify()
+          if not repo_name then
+            return
+          end
+
+          local commit = git.latest_commit({ repo_name = repo_name }) or {}
           if not commit.hash then
             return
           end

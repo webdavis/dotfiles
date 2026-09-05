@@ -5236,8 +5236,12 @@ const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
 pns lights quiet [<place> [<duration>|off]]";
 
 fn presence_mode(verb: &str) -> i32 {
-    match verb {
-        "poll" => presence_poll(),
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(3)
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect();
+    match (verb, presence_launch(&arguments)) {
+        ("poll", Some(launch)) => presence_poll(launch),
         // UNKNOWN IS AN ERROR, never a silent fallthrough, exactly as the
         // lamps' verb is.
         _ => {
@@ -5247,7 +5251,36 @@ fn presence_mode(verb: &str) -> i32 {
     }
 }
 
-const PRESENCE_USAGE: &str = "pns: usage: pns presence poll";
+const PRESENCE_USAGE: &str = "pns: usage: pns presence poll [--daemon]";
+
+/// Who launched a poll, which is the whole difference between a refusal worth
+/// printing and one worth swallowing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Launch {
+    /// The daemon's own clock, every few seconds, with its stderr pointed at a
+    /// log file and nobody in front of it.
+    Daemon,
+    /// A person, at a terminal, waiting for the answer.
+    Operator,
+}
+
+/// The daemon's own spelling, passed by the registration in
+/// `ensure_presence_poll` and by nothing else.
+///
+/// A FLAG RATHER THAN AN ENVIRONMENT VARIABLE, because the argv is what the
+/// spool already records and what one parser already reads: an inherited
+/// variable would also mark every unrelated process a poll ever started, and
+/// the poll is the thing being described, not its ancestry.
+const PRESENCE_DAEMON_FLAG: &str = "--daemon";
+
+/// Who launched this poll, or `None` for an argument tail this does not serve.
+fn presence_launch(arguments: &[String]) -> Option<Launch> {
+    match arguments {
+        [] => Some(Launch::Operator),
+        [flag] if flag == PRESENCE_DAEMON_FLAG => Some(Launch::Daemon),
+        _ => None,
+    }
+}
 
 /// `pns presence poll`: one read of the bridge, published as the line the room
 /// sensor reads.
@@ -5257,7 +5290,7 @@ const PRESENCE_USAGE: &str = "pns: usage: pns presence poll";
 /// few seconds under the daemon, so a complaint would be a line a second in the
 /// daemon's log, and the reading it failed to refresh ages out to Unknown by
 /// itself. The doctor is what names a table it could not read.
-fn presence_poll() -> i32 {
+fn presence_poll(launch: Launch) -> i32 {
     let home = std::env::var("HOME").unwrap_or_default();
     let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
         return 0;
@@ -5275,7 +5308,7 @@ fn presence_poll() -> i32 {
     let Some(hue) = hue_settings(&settings, None) else {
         return 0;
     };
-    write_presence_reading(
+    let (code, complaint) = write_presence_reading(
         &UreqBridge {
             base: format!("https://{}/clip/v2/resource", hue.bridge),
             key: hue.key,
@@ -5289,8 +5322,12 @@ fn presence_poll() -> i32 {
         &state_dir(),
         &presence,
         now,
-    );
-    0
+    )
+    .reported(launch);
+    if let Some(complaint) = complaint {
+        eprintln!("{complaint}");
+    }
+    code
 }
 
 /// The poll's whole effect: read the bridge, publish the reading. `true` when
@@ -5299,18 +5336,44 @@ fn presence_poll() -> i32 {
 /// A BRIDGE THAT DID NOT ANSWER PUBLISHES NOTHING. That single choice is what
 /// makes a dead bridge, a wrong key and a wedged LAN all read as Unknown a few
 /// seconds later, instead of pinning the operator wherever the last poll left
-/// them. The write itself cannot be wrong: `presence_file::render` hands its
-/// own line back to its own parser before returning it.
+/// them. AND NEITHER DOES A READING THE FORMAT CANNOT CARRY: `render` hands
+/// its own line back to its own parser and answers nothing at all when what
+/// comes back is not what went in, so the write is never a line the reader
+/// would read as a different reading.
 ///
 /// THE BRIDGE IS A PARAMETER so this, the join of the config, the network and
 /// the state directory, is the thing a test drives end to end. Everything
 /// under it is pure and everything over it is six lines of composition.
+///
+/// ONE POLLER AT A TIME ACROSS THE WHOLE MACHINE, held from before the first
+/// read to after the rename. The running-child check in the daemon is
+/// PROCESS-LOCAL, so a second daemon, a replacement daemon that orphaned the
+/// first one's child, or a hand-typed `pns presence poll` can each be inside
+/// this at once. Without the lock the LAST rename wins rather than the newest
+/// reading: a poller stalled between its two reads publishes an older room
+/// over a newer one and `classify` accepts it as current. Standing down costs
+/// one interval of a reading somebody else is already taking.
+///
+/// THE LOCK IS THE KERNEL'S, not a name on disk, so the poll a killed poller
+/// was inside is claimable the moment it dies: see `presence_lock`.
 fn write_presence_reading<B: pns::channels::hue::Bridge>(
     bridge: &B,
     state: &Path,
     presence: &pns::config::Presence,
     now: u64,
-) -> bool {
+) -> Polled {
+    // THE DIRECTORY IS MADE BEFORE THE LOCK, because the lock now runs ahead
+    // of `publish_state_line`, which used to be the thing that made it: a
+    // first poll on a machine with no state directory yet would otherwise fail
+    // to take a lock nobody holds and never publish at all.
+    let _ = std::fs::create_dir_all(state);
+    // HELD BY THE HANDLE AND NOT BY THE NAME, which is what makes a killed
+    // poller cost nothing: the kernel closes its file and the lock is gone.
+    let _lock = match pns::presence_lock::claim(&state.join(pns::presence_lock::LOCK_FILE)) {
+        pns::presence_lock::Claim::Held(file) => file,
+        pns::presence_lock::Claim::Busy => return Polled::Busy,
+        pns::presence_lock::Claim::Unavailable => return Polled::Nothing,
+    };
     // THE EXCLUSION IS APPLIED BEFORE THE NEWEST EDGE IS CHOSEN, not left to
     // the reader. `classify` refuses an excluded room outright, so publishing
     // one would throw away the newest edge in a room that DOES count and
@@ -5324,15 +5387,60 @@ fn write_presence_reading<B: pns::channels::hue::Bridge>(
         .cloned()
         .collect();
     let Some(reading) = pns::presence_hue::poll(bridge, &watched, now) else {
-        return false;
+        return Polled::Nothing;
+    };
+    // A READING THIS FORMAT CANNOT CARRY PUBLISHES NOTHING, the same direction
+    // a silent bridge takes. `render` used to substitute the poll-only line
+    // for one, which says "the bridge answered and no watched room reported"
+    // on evidence that said a watched room had.
+    let Some(line) = pns::presence_file::render(&reading) else {
+        return Polled::Nothing;
     };
     // FAIL-QUIET, in `remember_staleness`'s style: an unwritable state
     // directory costs the reading, which ages out on its own.
-    publish_state_line(
-        &state.join(pns::presence_file::STATE_FILE),
-        &pns::presence_file::render(&reading),
-    )
-    .is_ok()
+    if publish_state_line(&state.join(pns::presence_file::STATE_FILE), &line).is_ok() {
+        Polled::Published
+    } else {
+        Polled::Nothing
+    }
+}
+
+/// What one poll did, and what the operator who typed it is told.
+#[derive(Debug, PartialEq, Eq)]
+enum Polled {
+    /// A reading reached the state file.
+    Published,
+    /// Nothing was published and nothing this can name is wrong: a bridge that
+    /// did not answer, a reading the format cannot carry, a state directory it
+    /// cannot write. Every one of them ages the last reading out to Unknown,
+    /// which is what they all mean.
+    Nothing,
+    /// Another poller is inside the bridge read.
+    Busy,
+}
+
+impl Polled {
+    /// The exit status, and the one line the operator is owed.
+    ///
+    /// SILENT AND ZERO FOR EVERY REFUSAL BUT ONE, because the daemon runs this
+    /// every few seconds with its stderr pointed at the log: a complaint on the
+    /// ordinary refusals would be a line a second, and the doctor is what names
+    /// a sensor that has stopped reading. Contention is the exception. It is
+    /// transient by construction, so it cannot flood anything, and a hand-typed
+    /// poll that read no bridge and published nothing otherwise looks exactly
+    /// like one that worked.
+    fn reported(self, launch: Launch) -> (i32, Option<&'static str>) {
+        match (self, launch) {
+            (Polled::Busy, Launch::Operator) => (
+                1,
+                Some(
+                    "pns presence: another poll holds the bridge read; \
+                     this one published nothing",
+                ),
+            ),
+            _ => (0, None),
+        }
+    }
 }
 
 /// `pns loop begin|end`: take the loop lamp by hand, and give it back.
@@ -7435,7 +7543,11 @@ fn ensure_presence_poll(state: &Path, presence: Option<&pns::config::Presence>, 
         until: due.max(now.saturating_add(PRESENCE_LEASE_SECS)),
         every: Some(presence.poll_secs),
         unless_marker: None,
-        args: vec!["presence".to_string(), "poll".to_string()],
+        args: vec![
+            "presence".to_string(),
+            "poll".to_string(),
+            PRESENCE_DAEMON_FLAG.to_string(),
+        ],
     };
     // The failure is DROPPED here for `schedule_lights_tick`'s reason: a
     // registration that did not land must never cost the daemon a line a
@@ -9441,16 +9553,17 @@ mod tests {
     use super::{
         Attempt, Bounded, Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS,
         DEFAULT_REREAD_INTERVAL, HookPayload, LIGHTS_HELD, LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID,
-        LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge, blocked_lamp, child_bound,
-        daemon_pass, drive_breaths, end_lease, ensure_presence_poll, held_lamps, keep_aside,
-        keep_aside_at, last_narrowing, lights_report, list, matches_glob, means_yes, muted_state,
-        now_secs, presence_snapshot, publish_config, publish_state_line, read_failure, read_held,
-        read_news, read_note, recap_bounds, record_news, remember_held, renew_loop_lease,
-        republish_after, reread_attempts_from, reread_interval_from, resolve_path, router_backend,
-        run_event_pulsing, run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked,
-        sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers, system_probes,
-        tick_bridge_deadline, update_blocked_marker, write_presence_reading,
+        LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK, Launch, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
+        PRESENCE_DAEMON_FLAG, Polled, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
+        blocked_lamp, child_bound, daemon_pass, drive_breaths, end_lease, ensure_presence_poll,
+        held_lamps, keep_aside, keep_aside_at, last_narrowing, lights_report, list, matches_glob,
+        means_yes, muted_state, now_secs, presence_launch, presence_snapshot, publish_config,
+        publish_state_line, read_failure, read_held, read_news, read_note, recap_bounds,
+        record_news, remember_held, renew_loop_lease, republish_after, reread_attempts_from,
+        reread_interval_from, resolve_path, router_backend, run_event_pulsing, run_pulse_writes,
+        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
+        sweep_markers, sweep_shell_markers, system_probes, tick_bridge_deadline,
+        update_blocked_marker, write_presence_reading,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -9503,6 +9616,17 @@ mod tests {
         }
     }
 
+    /// The poll's outcome as the one bit most of these tests assert on. The
+    /// contention answer is named directly where it is the subject.
+    fn poll_published<B: pns::channels::hue::Bridge>(
+        bridge: &B,
+        state: &std::path::Path,
+        presence: &pns::config::Presence,
+        now: u64,
+    ) -> bool {
+        write_presence_reading(bridge, state, presence, now) == Polled::Published
+    }
+
     /// The sensor's settings, watching one room and excluding none.
     fn watching(rooms: &[&str], exclude: &[&str]) -> pns::config::Presence {
         pns::config::Presence {
@@ -9524,7 +9648,7 @@ mod tests {
         let state = scratch("presence-poll");
         let bridge = PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]);
 
-        assert!(write_presence_reading(
+        assert!(poll_published(
             &bridge,
             &state,
             &watching(&["3F - Studio"], &[]),
@@ -9569,7 +9693,7 @@ mod tests {
             vec![("grouped_motion", MOTION_BODY)],
             vec![("room", ROOM_BODY)],
         ] {
-            assert!(!write_presence_reading(
+            assert!(!poll_published(
                 &PollBridge(served),
                 &state,
                 &watching(&["3F - Studio"], &[]),
@@ -9581,6 +9705,32 @@ mod tests {
                 "a silent bridge published a reading anyway"
             );
         }
+    }
+
+    #[test]
+    fn a_room_this_cannot_spell_leaves_the_last_reading_where_it_was() {
+        // THE SECOND FAIL-CLOSED HALF, beside the silent bridge: a room name
+        // the reader would refuse used to publish the POLL-ONLY line, which is
+        // a different reading rather than a smaller one. The doctor printed
+        // `nowhere` while the bridge was reporting motion in a watched room.
+        let state = scratch("presence-unspellable");
+        let reading = state.join(pns::presence_file::STATE_FILE);
+        std::fs::write(&reading, "1788456000 1788455900 1 3F - Studio\n").expect("the old line");
+        // The bridge's own text, carrying a tab: real names cross this parse
+        // verbatim, so this is the room the operator would have configured.
+        let rooms = r#"{"data":[{"id":"studio","metadata":{"name":"3F\tStudio"}}]}"#;
+
+        assert!(!poll_published(
+            &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", rooms)]),
+            &state,
+            &watching(&["3F\tStudio"], &[]),
+            1_788_456_100
+        ));
+        assert_eq!(
+            std::fs::read_to_string(&reading).expect("the state file"),
+            "1788456000 1788455900 1 3F - Studio\n",
+            "a room the reader would refuse was published as a nowhere"
+        );
     }
 
     /// Two watched rooms report, the pass-through one more recently.
@@ -9611,12 +9761,7 @@ mod tests {
             ("room", TWO_ROOM_ROOMS),
         ]);
 
-        assert!(write_presence_reading(
-            &bridge,
-            &state,
-            &settings,
-            1_788_456_400
-        ));
+        assert!(poll_published(&bridge, &state, &settings, 1_788_456_400));
 
         let published = std::fs::read_to_string(state.join(pns::presence_file::STATE_FILE))
             .expect("the state file");
@@ -9638,6 +9783,220 @@ mod tests {
         );
     }
 
+    /// A bridge whose motion read PARKS until it is let go, so a second poller
+    /// can be driven while the first is still mid-poll.
+    struct ParkedBridge {
+        entered: std::sync::mpsc::Sender<()>,
+        release: std::sync::mpsc::Receiver<()>,
+        served: Vec<(&'static str, &'static str)>,
+    }
+
+    impl pns::channels::hue::Bridge for ParkedBridge {
+        fn get(&self, path: &str) -> Option<String> {
+            if path == "grouped_motion" {
+                let _ = self.entered.send(());
+                // BOUNDED, AND NEVER WAITED ON BY A GREEN RUN: the release
+                // arrives the moment the second poller has answered, so this
+                // deadline is only ever reached by a run that already failed.
+                let _ = self.release.recv_timeout(Duration::from_secs(5));
+            }
+            self.served
+                .iter()
+                .find(|(served, _)| *served == path)
+                .map(|(_, body)| (*body).to_string())
+        }
+
+        fn put(&self, _path: &str, _body: &str) {
+            unreachable!("the poll never writes to the bridge");
+        }
+    }
+
+    #[test]
+    fn a_poll_already_running_stands_a_second_one_down_rather_than_racing_it() {
+        // THE LOCK IS HELD ACROSS BOTH READS AND THE PUBLICATION, which is
+        // what stops two processes publishing out of order: a stalled poller
+        // that finishes late would otherwise rename its older reading over a
+        // newer one and make it current. The second poller here is NEWER and
+        // must still publish nothing while the first holds the poll.
+        let state = scratch("presence-race");
+        let (entered, entry) = std::sync::mpsc::channel();
+        let (release, held) = std::sync::mpsc::channel();
+        let (outcome, finished) = std::sync::mpsc::channel();
+
+        // DETACHED, NEVER JOINED: a regression that parks the first poller
+        // fails this test on a deadline instead of hanging the suite on a
+        // join.
+        let running = state.clone();
+        std::thread::spawn(move || {
+            let bridge = ParkedBridge {
+                entered,
+                release: held,
+                served: vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)],
+            };
+            let published = poll_published(
+                &bridge,
+                &running,
+                &watching(&["3F - Studio"], &[]),
+                1_788_456_100,
+            );
+            let _ = outcome.send(published);
+        });
+        entry
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the first poller reaches the bridge");
+
+        // NAMED AS CONTENTION rather than as "published nothing": a poll that
+        // stood down for a live holder is the one refusal a hand-typed poll is
+        // told about, so a regression that turned it into an ordinary silent
+        // refusal would pass a weaker assertion.
+        assert_eq!(
+            write_presence_reading(
+                &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
+                &state,
+                &watching(&["3F - Studio"], &[]),
+                1_788_456_200
+            ),
+            Polled::Busy,
+            "a second poller was let into a poll the first was holding"
+        );
+
+        let _ = release.send(());
+        assert_eq!(
+            finished.recv_timeout(Duration::from_secs(5)),
+            Ok(true),
+            "the poller holding the lock published nothing"
+        );
+        assert_eq!(
+            std::fs::read_to_string(state.join(pns::presence_file::STATE_FILE))
+                .expect("the state file"),
+            "1788456100 1788456009 0 3F - Studio\n",
+            "the published line is not the one the lock holder wrote"
+        );
+    }
+
+    #[test]
+    fn the_lock_a_killed_poller_left_behind_does_not_stand_the_next_poll_down() {
+        // A POLLER KILLED MID-POLL RUNS NO `Drop`, and the daemon kills every
+        // child that outlives its bound, so the file it leaves behind is the
+        // ORDINARY end of a wedged poll rather than a rarity. Nothing is
+        // inside the poll once that process is gone, so the next interval has
+        // to publish: a lock believed until its own mtime ages out instead
+        // blinds the sensor for a whole stale window, and the reading it never
+        // refreshed goes Unknown.
+        let state = scratch("presence-killed-holder");
+        std::fs::write(state.join(pns::presence_lock::LOCK_FILE), b"").expect("the leavings");
+
+        assert!(
+            poll_published(
+                &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
+                &state,
+                &watching(&["3F - Studio"], &[]),
+                1_788_456_100
+            ),
+            "the lock a killed poller left behind stood the next poll down"
+        );
+    }
+
+    #[test]
+    fn a_poll_gives_its_lock_back_so_the_next_interval_can_take_it() {
+        // THE GUARD IS WHAT MAKES THE LOCK A LOCK RATHER THAN A LATCH: a hold
+        // left behind would stand every later poll down for a whole stale
+        // window, which is a sensor that answers once and then goes quiet.
+        let state = scratch("presence-relock");
+        let settings = watching(&["3F - Studio"], &[]);
+        for now in [1_788_456_100, 1_788_456_105] {
+            // THE OUTCOME ITSELF, not just whether it published: `Busy` says
+            // the lock was never given back and `Nothing` says the publish
+            // failed for a reason that has nothing to do with the lock, and a
+            // bare boolean cannot tell the two apart from a failure line.
+            //
+            // AND RETRIED FOR A MOMENT, which is a fact about this BINARY
+            // rather than about the lock: other tests here spawn subprocesses,
+            // `fork` duplicates every open descriptor, and an inherited copy of
+            // this lock's descriptor holds the lock until the child's `exec`
+            // closes it. Measured at one 5ms tick, at about one run in ten. A
+            // poll opens no such window, spawning nothing at all while it
+            // holds the lock, and the retry is what an interval would be
+            // anyway. A lock that is never given back still fails this: the
+            // deadline runs out and the last outcome is the one asserted.
+            let poll = || {
+                write_presence_reading(
+                    &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", ROOM_BODY)]),
+                    &state,
+                    &settings,
+                    now,
+                )
+            };
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            let mut outcome = poll();
+            while outcome == Polled::Busy && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(5));
+                outcome = poll();
+            }
+            assert_eq!(
+                outcome,
+                Polled::Published,
+                "the poll at {now} published nothing"
+            );
+        }
+        assert_eq!(
+            std::fs::read_to_string(state.join(pns::presence_file::STATE_FILE))
+                .expect("the state file"),
+            "1788456105 1788456009 0 3F - Studio\n"
+        );
+    }
+
+    #[test]
+    fn a_poll_the_daemon_launched_stands_down_quietly_and_a_typed_one_does_not() {
+        // `Busy` IS NOT ALWAYS TRANSIENT. A poll that was suspended, or
+        // orphaned by a daemon that was replaced, holds the lock for as long
+        // as it lives, and the daemon relaunches the poll every five seconds.
+        // A complaint on that path is a line every five seconds into a log
+        // nobody is reading, from a process launchd will neither restart nor
+        // alert about. The same stand-down typed by hand is the one case
+        // somebody is waiting on an answer for.
+        assert_eq!(Polled::Busy.reported(Launch::Daemon), (0, None));
+        assert_eq!(Polled::Busy.reported(Launch::Operator).0, 1);
+        let complaint = Polled::Busy
+            .reported(Launch::Operator)
+            .1
+            .expect("a typed poll that stood down was told nothing");
+        assert!(
+            complaint.contains("another poll") && complaint.contains("published nothing"),
+            "the complaint does not say what happened: {complaint}"
+        );
+        // AND NOTHING ELSE CHANGES WITH WHO LAUNCHED IT: publishing and the
+        // ordinary refusals are silent and zero either way.
+        for launch in [Launch::Daemon, Launch::Operator] {
+            assert_eq!(Polled::Published.reported(launch), (0, None));
+            assert_eq!(Polled::Nothing.reported(launch), (0, None));
+        }
+    }
+
+    #[test]
+    fn the_poll_argument_parser_tells_the_daemons_launch_from_a_typed_one() {
+        // THE FLAG IS THE DAEMON'S OWN SPELLING, and it is what the daemon
+        // registers, so the two are read by one parser rather than guessed at
+        // from the environment. An unknown word is a refusal, never a silent
+        // fallthrough into a poll the operator believes ran differently.
+        assert_eq!(presence_launch(&[]), Some(Launch::Operator));
+        assert_eq!(
+            presence_launch(&[PRESENCE_DAEMON_FLAG.to_string()]),
+            Some(Launch::Daemon)
+        );
+        for arguments in [
+            vec!["--dameon".to_string()],
+            vec!["--daemon=1".to_string()],
+            vec![String::new()],
+            vec![
+                PRESENCE_DAEMON_FLAG.to_string(),
+                PRESENCE_DAEMON_FLAG.to_string(),
+            ],
+        ] {
+            assert_eq!(presence_launch(&arguments), None, "{arguments:?} was read");
+        }
+    }
+
     #[test]
     fn an_armed_sensor_registers_the_poll_at_its_own_interval() {
         let state = scratch("presence-register");
@@ -9656,7 +10015,16 @@ mod tests {
             .expect("the registered job");
         let job = pns::daemon::parse(record.trim()).expect("a job record");
         assert_eq!(job.id, "presence");
-        assert_eq!(job.args, vec!["presence".to_string(), "poll".to_string()]);
+        // THE FLAG THE DAEMON ALONE PASSES, so the poll it launches knows
+        // nobody is reading its stderr.
+        assert_eq!(
+            job.args,
+            vec![
+                "presence".to_string(),
+                "poll".to_string(),
+                PRESENCE_DAEMON_FLAG.to_string()
+            ]
+        );
         assert_eq!(job.every, Some(7));
         // DUE NOW, so the reading arrives on the next tick rather than one
         // interval after the switch went on, and leased past it.

@@ -1971,21 +1971,43 @@ pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> 
         Some(setting) => strings("presence", "rooms", "a list of room names", setting)?,
         None => Vec::new(),
     };
+    // A ROOM THE STATE FILE CANNOT CARRY IS A CONFIGURATION ERROR, read with
+    // the file's own predicate so the two cannot drift. `render` refuses such a
+    // name, which is correct and silent: the poll publishes nothing, the daemon
+    // re-arms at its normal interval and ignores the exit status, and the
+    // doctor can only report a reading that is stale or absent. Said here, the
+    // doctor's configuration-error line names the room instead.
+    //
+    // ONLY `rooms`, deliberately: an `exclude` entry is compared and never
+    // published, so a name this would refuse costs nothing and refusing it
+    // would turn a working config into a refused one.
+    if let Some(room) = rooms
+        .iter()
+        .find(|room| !crate::presence_file::room_fits(room))
+    {
+        return Err(ConfigError::Invalid(format!(
+            "`presence` key `rooms` names {room:?}, which the presence state file cannot carry: \
+             a room is 1 to {} characters and holds no control characters",
+            crate::presence_file::ROOM_MAX
+        )));
+    }
     let exclude = match settings.get("exclude") {
         Some(setting) => strings("presence", "exclude", "a list of room names", setting)?,
         None => Vec::new(),
     };
-    // AN EMPTY NAME MATCHES NO BRIDGE ROOM, so it can only ever be a typo. It
-    // is refused rather than dropped because in `rooms` it also opens a hole:
-    // an empty `desk_room` would pass the membership check below and narrow
-    // the lamps to a room that does not exist.
-    for (key, names) in [("rooms", &rooms), ("exclude", &exclude)] {
-        if names.iter().any(|name| name.is_empty()) {
-            return Err(ConfigError::Invalid(format!(
-                "`presence` key `{key}` has an empty room name in it; no bridge room \
-                 answers to an empty name"
-            )));
-        }
+    // AN EMPTY NAME MATCHES NO BRIDGE ROOM, so it can only ever be a typo.
+    //
+    // `exclude` ALONE, because `room_fits` above already refuses an empty
+    // entry in `rooms` and is strictly stronger there. `exclude` is
+    // deliberately not held to that bar, for the reason stated above it, so
+    // the empty case is still worth saying here: an exclusion that names
+    // nothing excludes nothing, silently and for good.
+    if exclude.iter().any(String::is_empty) {
+        return Err(ConfigError::Invalid(
+            "`presence` key `exclude` has an empty room name in it; no bridge room \
+             answers to an empty name"
+                .to_string(),
+        ));
     }
     // REFUSED BY NAME RATHER THAN DROPPED, because a desk in a room no reading
     // can ever name narrows the lamps to a room the poll never watches, and it
@@ -3910,8 +3932,11 @@ mod tests {
     fn an_empty_room_name_is_refused_wherever_it_is_written() {
         // An empty entry matches no bridge room, and in `rooms` it also lets an
         // empty `desk_room` past the membership check into the narrowing.
+        //
+        // `rooms` IS NOT HERE because `room_fits` refuses it first and in its
+        // own words, pinned by
+        // `a_room_the_state_file_could_never_carry_is_refused_at_the_table`.
         for (key, body) in [
-            ("rooms", "type = \"hue\"\nrooms = [\"\"]\n"),
             (
                 "exclude",
                 "type = \"hue\"\nrooms = [\"3F - Studio\"]\nexclude = [\"\"]\n",
@@ -4031,6 +4056,49 @@ mod tests {
         assert!(
             said.contains("stale_after_secs") && said.contains("poll_secs"),
             "the refusal names both keys: {said}"
+        );
+    }
+
+    #[test]
+    fn a_room_the_state_file_could_never_carry_is_refused_at_the_table() {
+        // A ROOM IS THE BRIDGE'S OWN TEXT and crosses the state file verbatim,
+        // so a name the reader would refuse renders no line at all. That is the
+        // right answer for the WRITE, and a silent one for the operator: the
+        // poll publishes nothing, the daemon re-arms at its normal interval and
+        // ignores the exit status, and the doctor can only report a reading
+        // that is stale or absent. Read here instead, it is a configuration
+        // error with the room in it.
+        for (shape, room) in [
+            ("a tab", "3F\tStudio".to_string()),
+            ("a newline", "3F\nStudio".to_string()),
+            ("an empty name", String::new()),
+            ("65 characters", "r".repeat(65)),
+        ] {
+            let said = match parse_presence(&presence_config(&format!(
+                "type = \"hue\"\nrooms = [{}]\n",
+                serde_json::to_string(&room).expect("a json string")
+            ))) {
+                Err(error) => error.detail().to_string(),
+                Ok(_) => panic!("{shape}: a room the state file cannot carry was accepted"),
+            };
+            assert!(
+                said.contains("rooms"),
+                "{shape}: the refusal does not name the key: {said}"
+            );
+        }
+        // AND THE BOUND ITSELF IS A ROOM, or the refusal is one character early
+        // and nothing says so. Real names carry spaces, dashes and digits, and
+        // a check that took any of those for malformed would silence the sensor
+        // on the rooms it actually watches.
+        let at_the_bound = "r".repeat(64);
+        assert_eq!(
+            parse_presence(&presence_config(&format!(
+                "type = \"hue\"\nrooms = [\"3F - Studio\", \"{at_the_bound}\"]\n"
+            )))
+            .unwrap()
+            .expect("the table is on")
+            .rooms,
+            vec!["3F - Studio".to_string(), at_the_bound]
         );
     }
 
