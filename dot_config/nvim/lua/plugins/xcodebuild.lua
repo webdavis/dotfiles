@@ -121,6 +121,17 @@ return {
       -- detach and debug-without-rebuilding stay command-only, reachable through the picker
       -- (`<leader>xx`) or by name, since they are rarer and every xcode letter is now spoken for.
       { "<leader>xg", "<cmd>XcodebuildBuildDebug<cr>", desc = "Xcode: build and debug" },
+      -- Debugging a test had no route at all: the plugin registers user commands for the four
+      -- app debugging actions but none for the six test ones, which exist only as Lua functions
+      -- on the dap integration module, so neither a keymap nor the action picker could reach
+      -- them. This is the one that gets used, the rest stay on the module.
+      {
+        "<leader>xG",
+        function()
+          require("xcodebuild.integrations.dap").debug_func_test()
+        end,
+        desc = "Xcode: debug nearest test",
+      },
       -- Project
       { "<leader>xs", "<cmd>XcodebuildSelectScheme<cr>", desc = "Xcode: select scheme" },
       { "<leader>xd", "<cmd>XcodebuildSelectDevice<cr>", desc = "Xcode: select device" },
