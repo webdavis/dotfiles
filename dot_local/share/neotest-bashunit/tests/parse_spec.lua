@@ -17,11 +17,17 @@ local REPORT = [[
 }
 ]]
 
--- The tail of the same run's text output, which is the ONLY place the failing
+-- The tail of a run's text output, which is the ONLY place the failing
 -- assertion's own line appears. \r is what a pty leaves behind, and neotest
 -- runs its command under one.
+--
+-- Three failures on purpose. The first carries ONE Source candidate, which is
+-- the only shape that identifies an assertion. The second is the same title in
+-- a DIFFERENT file, failing on a different line. The third carries TWO
+-- candidates, because bashunit lists every textual assertion in the function
+-- rather than the one that failed.
 local OUTPUT = table.concat({
-  "There was 1 failure:\r",
+  "There were 3 failures:\r",
   "\r",
   "|1) /w/lines.test.sh:11\r",
   "|\226\156\151 Failed: Second fails here\r",
@@ -29,9 +35,20 @@ local OUTPUT = table.concat({
   "|    but got  '2'\r",
   "|    at /w/lines.test.sh:11\r",
   "|    Source:\r",
-  '|    13: assert_equals 9 "$x"\r',
+  '|    13: assert_same 9 "$x"\r',
+  "|2) /w/other.test.sh:98\r",
+  "|\226\156\151 Failed: Second fails here\r",
+  "|    at /w/other.test.sh:98\r",
+  "|    Source:\r",
+  "|    100: assert_same 1 2\r",
+  "|3) /w/lines.test.sh:15\r",
+  "|\226\156\151 Failed: Two assertions\r",
+  "|    at /w/lines.test.sh:15\r",
+  "|    Source:\r",
+  "|    16: assert_same 1 1\r",
+  "|    17: assert_same 2 3\r",
   "\r",
-  "Tests:      2 passed, 1 failed, 3 total\r",
+  "Tests:      2 passed, 3 failed, 5 total\r",
 }, "\n")
 
 local function lines_of(text)
@@ -63,14 +80,45 @@ return {
     assert(parse.humanize("testCamelCased") == "CamelCased")
   end,
 
+  ["test_functions takes a non-ASCII name bashunit runs"] = function()
+    -- bashunit selects a test with `case $fn in test_*` over `compgen -A
+    -- function`, so the name after `test_` is whatever bash allows. Measured on
+    -- 0.50.1: test_éclair runs and is titled "éclair".
+    local found = parse.test_functions({ "function test_\195\169clair() {" })
+    assert(#found == 1, "expected test_éclair, got " .. #found)
+    assert(found[1].name == "test_\195\169clair")
+    assert(parse.humanize(found[1].name) == "\195\169clair", "bashunit upcases a-z only")
+  end,
+
+  ["test_functions refuses a name without the runtime test_ prefix"] = function()
+    -- The other half of the same rule. Measured on 0.50.1: neither testCamel
+    -- nor testable is run, so offering either is a position that can never go
+    -- green. bashunit's line-lookup grep does match them, which is why that
+    -- grep is the wrong thing to mirror.
+    local found = parse.test_functions({
+      "function testCamel() {",
+      "testable() {",
+      "test() {",
+      "function test_() {",
+    })
+    assert(#found == 0, "expected nothing runnable, got " .. #found)
+  end,
+
+  ["test_functions takes the spaced parentheses bash accepts"] = function()
+    -- Measured on 0.50.1: `test_spaced ( )` is defined by bash, enumerated by
+    -- compgen and run. bashunit's own line grep would miss it.
+    local found = parse.test_functions({ "test_spaced ( ) {", "function test_kw ( ) {" })
+    assert(#found == 2, "expected both spaced definitions, got " .. #found)
+  end,
+
   ["test_functions finds both spellings bashunit runs"] = function()
     local found = parse.test_functions(lines_of(table.concat({
       "#!/usr/bin/env bash",
       "function test_with_keyword() {",
-      "  assert_equals 1 1",
+      "  assert_same 1 1",
       "}",
       "test_bare_style() {",
-      "  assert_equals 2 2",
+      "  assert_same 2 2",
       "}",
       "  function test_indented() {",
       "}",
@@ -84,8 +132,7 @@ return {
   ["test_functions offers nothing bashunit would refuse to run"] = function()
     local found = parse.test_functions(lines_of(table.concat({
       "helper_function() {", -- not a test
-      "test() {", -- `test` alone: bashunit needs one more character
-      "test_spaced( ) {", -- bashunit's pattern allows nothing between the parens
+      "test() {", -- `test` alone: bashunit needs the underscore and one more character
       "  local x=test_not_a_definition",
       "}",
     }, "\n")))
@@ -98,7 +145,7 @@ return {
       lines_of(table.concat({
         "#!/usr/bin/env bash",
         "function test_first() {",
-        "  assert_equals 1 1",
+        "  assert_same 1 1",
         "}",
       }, "\n"))
     )
@@ -114,11 +161,11 @@ return {
       "/w/lines.test.sh",
       lines_of(table.concat({
         "function test_first() {", -- line 1
-        "  assert_equals 1 1",
+        "  assert_same 1 1",
         "}",
         "",
         "function test_second() {", -- line 5
-        "  assert_equals 2 2",
+        "  assert_same 2 2",
         "}",
       }, "\n"))
     )
@@ -152,15 +199,87 @@ return {
     assert(rows == nil and err ~= nil, "a document with no tests array is not a report")
   end,
 
-  ["failing_lines takes the assertion's line out of the text summary"] = function()
+  ["failing_lines takes a lone Source candidate as the assertion's line"] = function()
+    local candidates = parse.failing_lines(OUTPUT)["/w/lines.test.sh\0Second fails here"]
+    assert(candidates and #candidates == 1 and candidates[1] == 13, vim.inspect(candidates))
+  end,
+
+  ["failing_lines keys a failure by its file, not by its title alone"] = function()
+    -- Two files, one title, two different failing lines. Keyed by title alone
+    -- the later block silently overwrites the earlier one and both tests jump
+    -- to the wrong file's line.
     local lines = parse.failing_lines(OUTPUT)
-    assert(lines["Second fails here"] == 13, "expected 13, got " .. tostring(lines["Second fails here"]))
+    assert(lines["/w/lines.test.sh\0Second fails here"][1] == 13)
+    assert(lines["/w/other.test.sh\0Second fails here"][1] == 100)
+  end,
+
+  ["failing_lines reports every Source candidate, not just the first"] = function()
+    -- bashunit lists every textual assertion in the function, so a block with
+    -- more than one candidate does not identify the assertion that failed. The
+    -- caller needs to see that rather than be handed the first line.
+    local candidates = parse.failing_lines(OUTPUT)["/w/lines.test.sh\0Two assertions"]
+    assert(#candidates == 2, "expected 2 candidates, got " .. #candidates)
+    assert(candidates[1] == 16 and candidates[2] == 17)
   end,
 
   ["failing_lines reports nothing when nothing failed"] = function()
     local lines = parse.failing_lines("Tests:      3 passed, 3 total\r\n")
     assert(next(lines) == nil)
     assert(next(parse.failing_lines(nil)) == nil)
+  end,
+
+  ["ambiguous_positions names both sides of a collided title"] = function()
+    -- test_dupe and test_Dupe both become "Dupe" (measured: bashunit runs both
+    -- and reports two rows under that one name), so no report row can be
+    -- attributed to either. Refusing both is the only honest answer.
+    local ambiguous = parse.ambiguous_positions({
+      { id = "/w/a.test.sh::test_dupe", name = "Dupe", path = "/w/a.test.sh" },
+      { id = "/w/a.test.sh::test_Dupe", name = "Dupe", path = "/w/a.test.sh" },
+      { id = "/w/a.test.sh::test_solo", name = "Solo", path = "/w/a.test.sh" },
+    })
+    assert(ambiguous["/w/a.test.sh::test_dupe"], "the first side must be refused")
+    assert(ambiguous["/w/a.test.sh::test_Dupe"], "the second side must be refused too")
+    assert(ambiguous["/w/a.test.sh::test_solo"] == nil)
+    local message = ambiguous["/w/a.test.sh::test_dupe"]
+    assert(message:find("test_dupe", 1, true), message)
+    assert(message:find("test_Dupe", 1, true), message)
+    assert(message:find("Dupe", 1, true), message)
+  end,
+
+  ["the same title in two different files is not ambiguous"] = function()
+    local ambiguous = parse.ambiguous_positions({
+      { id = "/w/a.test.sh::test_same", name = "Same", path = "/w/a.test.sh" },
+      { id = "/w/b.test.sh::test_same", name = "Same", path = "/w/b.test.sh" },
+    })
+    assert(next(ambiguous) == nil, "a report row names its file, so these are told apart")
+  end,
+
+  ["positions carry the ambiguity verdict discovery computed"] = function()
+    local list = parse.positions("/w/a.test.sh", { "test_dupe() {", "}", "test_Dupe() {", "}" })
+    assert(list[2].ambiguous and list[3].ambiguous, "both sides carry it")
+  end,
+
+  ["exclude_filters names every sibling the substring filter would drag in"] = function()
+    -- --filter is `case $fn in test_*<needle>*`, so selecting test_alpha also
+    -- runs test_alpha_extended (measured). Excluding the siblings by full name
+    -- is what makes a single-test run single.
+    local excludes = parse.exclude_filters("test_alpha", {
+      "test_alpha",
+      "test_alpha_extended",
+      "test_alpha_more",
+      "test_beta_alpha", -- the needle is `alpha`, not the whole name: this matches too
+      "test_beta",
+    })
+    table.sort(excludes)
+    assert(#excludes == 3, "expected 3 excludes, got " .. #excludes)
+    assert(excludes[1] == "test_alpha_extended")
+    assert(excludes[2] == "test_alpha_more")
+    assert(excludes[3] == "test_beta_alpha")
+  end,
+
+  ["exclude_filters stays empty when no sibling contains the name"] = function()
+    -- An exclude that matched the selected test would run nothing at all.
+    assert(#parse.exclude_filters("test_alpha_extended", { "test_alpha", "test_alpha_extended" }) == 0)
   end,
 
   ["message_line falls back to the definition line the report carries"] = function()
@@ -197,6 +316,15 @@ return {
       { id = "/w/b.test.sh::test_first", name = "First", path = "/w/b.test.sh" },
     })
     assert(next(matched) == nil)
+  end,
+
+  ["match_rows refuses a position discovery marked ambiguous"] = function()
+    local positions = parse.positions("/w/a.test.sh", { "test_dupe() {", "}", "test_Dupe() {", "}" })
+    local matched = parse.match_rows({
+      { file = "/w/a.test.sh", name = "Dupe", status = "failed" },
+      { file = "/w/a.test.sh", name = "Dupe", status = "passed" },
+    }, { positions[2], positions[3] })
+    assert(next(matched) == nil, "neither side may take a row it cannot be shown to own")
   end,
 
   ["match_rows drops a row no position asked for"] = function()

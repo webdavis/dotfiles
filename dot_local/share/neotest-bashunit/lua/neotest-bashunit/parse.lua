@@ -41,18 +41,27 @@ function M.humanize(function_name)
   return title
 end
 
--- bashunit's own discovery, mirrored from the grep at bin/bashunit:8732 in
--- 0.50.1:
+-- bashunit's RUNTIME selection, mirrored from
+-- `bashunit::helper::get_functions_to_run` in 0.50.1:
 --
---   ^[[:space:]]*(function[[:space:]]+)?test[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\(\)
+--   case "$fn" in ${prefix}_*${filter}*)      # prefix is the literal "test"
 --
--- Both spellings are tests, `function name()` and the bare `name()`, the name
--- is `test` plus at least one more character, and the parentheses hold nothing,
--- not even a space. A position this scan offers that bashunit would not run is
--- a test neotest can never turn green, so the two patterns stay in step with
--- that line rather than with what looks reasonable.
-local WITH_KEYWORD = "^%s*function%s+(test[%a_][%w_]*)%s*%(%)"
-local BARE = "^%s*(test[%a_][%w_]*)%s*%(%)"
+-- It runs over `compgen -A function` after sourcing the file, so the rule is
+-- exactly `test_` plus at least one more character, and what follows may be any
+-- byte bash accepts in a function name.
+--
+-- The tempting thing to mirror is bashunit's line-lookup grep at bin/bashunit:8732
+-- (`test[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\(\)`), and it is WRONG in both
+-- directions, measured on 0.50.1: it matches `testCamel` and `testable`, which
+-- bashunit never runs, and it misses `test_éclair`, which bashunit runs and
+-- titles "éclair". A position bashunit will not run can never go green, and one
+-- it runs but we never offered is a test neotest cannot see.
+--
+-- The definition line itself is bash's, not bashunit's: `test_x ( )` is defined
+-- by bash, enumerated by compgen and run (measured), so the parentheses may
+-- hold and be surrounded by whitespace.
+local WITH_KEYWORD = "^%s*function%s+(test_[^%s()]+)%s*%(%s*%)"
+local BARE = "^%s*(test_[^%s()]+)%s*%(%s*%)"
 
 ---Every test function in a file, in definition order, with its 1-based line.
 ---@param lines string[]
@@ -68,15 +77,96 @@ function M.test_functions(lines)
   return found
 end
 
+---Positions whose title another position in the SAME FILE also carries, mapped
+---to the message that names the collision.
+---
+---`test_dupe` and `test_Dupe` both humanize to `Dupe`, and bashunit runs both
+---and reports two rows under that one name (measured on 0.50.1, one failing and
+---one passing, process exit 1). Since the title is the only handle a row
+---carries, neither row can be attributed, and taking the last one silently
+---reported the pass and hid the failure. Both sides are refused instead.
+---
+---A shared title across two DIFFERENT files is not ambiguous: a row names its
+---file too.
+---@param positions { id: string, name: string, path: string }[]
+---@return table<string, string> position id -> collision message
+function M.ambiguous_positions(positions)
+  local groups = {}
+  for _, position in ipairs(positions) do
+    local key = position.path .. "\0" .. position.name
+    groups[key] = groups[key] or {}
+    table.insert(groups[key], position)
+  end
+
+  local ambiguous = {}
+  for _, group in pairs(groups) do
+    if #group > 1 then
+      local function_names = {}
+      for _, position in ipairs(group) do
+        function_names[#function_names + 1] = position.id:match("::(.*)$") or position.id
+      end
+      table.sort(function_names)
+      local message = ("neotest-bashunit: %d tests in this file share the title %q (%s). bashunit names a result by its title alone, so no report row can be attributed to either one. Rename one of them."):format(
+        #group,
+        group[1].name,
+        table.concat(function_names, ", ")
+      )
+      for _, position in ipairs(group) do
+        ambiguous[position.id] = message
+      end
+    end
+  end
+  return ambiguous
+end
+
+---The sibling function names a `--filter` on `selected` would also run.
+---
+---bashunit's filter is `case "$fn" in test_*${needle}*`, where the needle is the
+---given name with `test_` removed, so it is a substring match anchored only at
+---the prefix: `--filter test_alpha` runs `test_alpha_extended` too, and
+---`test_beta_alpha` as well. Feeding these back as `--exclude-filter` entries is
+---what makes running one test run one test.
+---@param selected string
+---@param function_names string[]
+---@return string[]
+function M.exclude_filters(selected, function_names)
+  local needle = selected:gsub("^test_", "", 1)
+  local excludes = {}
+  for _, name in ipairs(function_names) do
+    if name ~= selected and name:find(needle, 1, true) then
+      excludes[#excludes + 1] = name
+    end
+  end
+  return excludes
+end
+
 ---The nested list `neotest.Tree.from_list` parses: the file, then one child per
 ---test function. Ranges are 0-based. A test's range runs to the line before the
 ---next test so that "run nearest" from anywhere inside a body finds the test it
 ---is inside rather than the one above it.
+---
+---Each test also carries the ambiguity verdict, computed here because this is
+---the only place that sees every position in the file at once; `results` reads
+---it back off the position rather than recomputing from a tree that may hold
+---one node.
 ---@param path string absolute path
 ---@param lines string[]
 ---@return table[]
 function M.positions(path, lines)
   local functions = M.test_functions(lines)
+  local tests = {}
+  for index, found in ipairs(functions) do
+    local following = functions[index + 1]
+    tests[#tests + 1] = {
+      id = path .. "::" .. found.name,
+      type = "test",
+      name = M.humanize(found.name),
+      path = path,
+      range = { found.line - 1, 0, following and following.line - 1 or #lines, 0 },
+    }
+  end
+
+  local ambiguous = M.ambiguous_positions(tests)
   local list = {
     {
       id = path,
@@ -86,16 +176,9 @@ function M.positions(path, lines)
       range = { 0, 0, #lines, 0 },
     },
   }
-  for index, found in ipairs(functions) do
-    local following = functions[index + 1]
-    local last_line = following and following.line - 1 or #lines
-    list[#list + 1] = {
-      id = path .. "::" .. found.name,
-      type = "test",
-      name = M.humanize(found.name),
-      path = path,
-      range = { found.line - 1, 0, last_line, 0 },
-    }
+  for _, test in ipairs(tests) do
+    test.ambiguous = ambiguous[test.id]
+    list[#list + 1] = test
   end
   return list
 end
@@ -137,37 +220,54 @@ function M.report_rows(report_text)
   return rows, nil
 end
 
----The line each failure actually failed on, keyed by the humanized title.
+---Every line bashunit listed under `Source:` for each failure, keyed by the
+---failure's file and humanized title.
 ---
----Only the text summary carries it. Every structured report (json, junit, tap)
----reports the test's DEFINITION line in its `at <file>:<line>` instead, which
----is where the test starts and not where the assertion blew up, so the jump
----target has to come out of the run's own output. Carriage returns are stripped
----because neotest runs its command under a pty.
+---Two things this deliberately does not do. It does not pick a line: bashunit
+---lists EVERY textual assertion in the failing function, not the one that
+---failed (measured on 0.50.1: a passing assertion on line 16 followed by a
+---failure on 17 lists both), so only a lone candidate identifies anything and
+---the caller decides what to do with more. And it does not key by title alone:
+---the same title in two files failing on lines 2 and 100 would collapse onto
+---one entry and send both jumps to the wrong file, so the file comes off the
+---numbered failure header that opens each block.
+---
+---The text summary is the only place any of this appears. Every structured
+---report (json, junit, tap, re-checked at 0.50.1) carries the test's DEFINITION
+---line in `at <file>:<line>` and no assertion line at all. Carriage returns are
+---stripped because neotest runs its command under a pty.
 ---@param output_text string|nil
----@return table<string, integer>
+---@return table<string, integer[]> "<file>\0<title>" -> candidate lines, in order
 function M.failing_lines(output_text)
-  local lines = {}
+  local blocks = {}
   if not output_text then
-    return lines
+    return blocks
   end
-  local current, awaiting_source = nil, false
+
+  local file, title, collecting = nil, nil, false
   for line in (output_text .. "\n"):gmatch("([^\n]*)\n") do
     line = line:gsub("\r", "")
-    local name = line:match("^|?%s*✗ Failed: (.+)$")
-    if name then
-      current, awaiting_source = name, false
+    local header_file = line:match("^|?%s*%d+%)%s*(.+):%d+%s*$")
+    local failed_title = line:match("^|?%s*✗ Failed: (.+)$")
+    if header_file then
+      file, title, collecting = header_file, nil, false
+    elseif failed_title then
+      title, collecting = failed_title, false
     elseif line:match("Source:%s*$") then
-      awaiting_source = true
-    elseif awaiting_source then
-      local number = line:match("^|?%s*(%d+):")
-      if number and current then
-        lines[current] = tonumber(number)
+      collecting = file ~= nil and title ~= nil
+      if collecting then
+        blocks[file .. "\0" .. title] = blocks[file .. "\0" .. title] or {}
       end
-      awaiting_source = false
+    elseif collecting then
+      local number = line:match("^|?%s*(%d+):")
+      if number then
+        table.insert(blocks[file .. "\0" .. title], tonumber(number))
+      else
+        collecting = false
+      end
     end
   end
-  return lines
+  return blocks
 end
 
 ---The `at <file>:<line>` a report row's message ends with: the test's own
@@ -194,11 +294,16 @@ end
 function M.match_rows(rows, positions)
   local by_path_and_name, by_name = {}, {}
   for _, position in ipairs(positions) do
-    by_path_and_name[position.path .. "\0" .. position.name] = position.id
-    if by_name[position.name] == nil then
-      by_name[position.name] = position.id
-    else
-      by_name[position.name] = false
+    -- A position discovery marked ambiguous shares its title with another test
+    -- in the same file, so no row can be shown to belong to it. It is refused
+    -- here and answered explicitly by `results` instead.
+    if not position.ambiguous then
+      by_path_and_name[position.path .. "\0" .. position.name] = position.id
+      if by_name[position.name] == nil then
+        by_name[position.name] = position.id
+      else
+        by_name[position.name] = false
+      end
     end
   end
 

@@ -45,6 +45,25 @@ function adapter.discover_positions(file_path)
   end)
 end
 
+---Every test function discovered in the file that holds this test position,
+---the selected one included. Empty when neotest handed over a detached node.
+---@param test_node neotest.Tree
+---@return string[]
+local function sibling_function_names(test_node)
+  local file_node = test_node:parent()
+  if not file_node then
+    return {}
+  end
+  local names = {}
+  for _, node in file_node:iter_nodes() do
+    local data = node:data()
+    if data.type == "test" then
+      names[#names + 1] = data.id:match("::(.*)$")
+    end
+  end
+  return names
+end
+
 ---@param args neotest.RunArgs
 ---@return neotest.RunSpec|nil
 function adapter.build_spec(args)
@@ -57,12 +76,18 @@ function adapter.build_spec(args)
   local command = { "bashunit", position.path, "--report-json", report }
 
   if position.type == "test" then
-    -- One test, by function name. `--filter` is a SUBSTRING match on 0.50.1
-    -- (measured: `--filter test_alpha` also runs `test_alpha_extended`), which
-    -- is why `results` matches report rows back by name instead of assuming the
-    -- run held exactly this one. The sibling then gets its own correct result
-    -- rather than this test silently inheriting the sibling's.
-    vim.list_extend(command, { "--filter", position.id:match("::(.*)$") })
+    -- One test, by function name, and one test only. `--filter` is a SUBSTRING
+    -- match on 0.50.1 (`case "$fn" in test_*${needle}*`, needle being the name
+    -- with `test_` stripped), so `--filter test_alpha` on its own also runs
+    -- `test_alpha_extended` AND `test_beta_alpha`, measured. It is not a regular
+    -- expression, so anchoring it matches nothing at all. Every sibling the
+    -- needle would drag in is named back as an `--exclude-filter`, which is
+    -- repeatable and reduces the run to the one test (measured).
+    local selected = position.id:match("::(.*)$")
+    vim.list_extend(command, { "--filter", selected })
+    for _, sibling in ipairs(parse.exclude_filters(selected, sibling_function_names(args.tree))) do
+      vim.list_extend(command, { "--exclude-filter", sibling })
+    end
   end
   vim.list_extend(command, args.extra_args or {})
 
@@ -112,15 +137,23 @@ function adapter.results(spec, result, tree)
     }
   end
 
-  local positions = {}
+  local positions, results = {}, {}
   for _, node in tree:iter_nodes() do
-    if node:data().type == "test" then
-      positions[#positions + 1] = node:data()
+    local data = node:data()
+    if data.type == "test" then
+      positions[#positions + 1] = data
+      -- Discovery already found this title on a second test in the same file.
+      -- No report row can be attributed to either side, so both are failed with
+      -- the collision named rather than one of them taking the other's verdict.
+      if data.ambiguous then
+        results[data.id] = { status = "failed", short = data.ambiguous, output = result.output }
+      end
     end
   end
 
   local failing_lines = parse.failing_lines(read_file(result.output))
-  local results = {}
+  -- match_rows never returns an ambiguous position, so nothing below overwrites
+  -- an ambiguity verdict recorded above.
   for id, row in pairs(parse.match_rows(rows, positions)) do
     local entry = { status = row.status, output = result.output }
     if row.message ~= "" then
@@ -128,7 +161,22 @@ function adapter.results(spec, result, tree)
       entry.output = write_output(row.message)
     end
     if row.status == "failed" then
-      local line = failing_lines[row.name] or parse.message_line(row.message)
+      local candidates = failing_lines[row.file .. "\0" .. row.name]
+      local line
+      if candidates and #candidates == 1 then
+        line = candidates[1]
+      else
+        -- bashunit listed every assertion in the function, or none, so the jump
+        -- goes to where the test starts. Saying so beats a confident jump to an
+        -- assertion that passed.
+        line = parse.message_line(row.message)
+        if candidates then
+          entry.short = ("%s\n\nneotest-bashunit: bashunit listed %d assertions under Source:, which does not say which one failed, so this points at the test's own line."):format(
+            entry.short or "",
+            #candidates
+          )
+        end
+      end
       entry.errors = { { message = row.message, line = line and line - 1 or nil } }
     end
     results[id] = entry
