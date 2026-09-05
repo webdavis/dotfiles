@@ -483,43 +483,55 @@ return {
       "stevearc/overseer.nvim",
       "folke/snacks.nvim",
     },
-    -- Every global command `plugin/fugitive.vim` defines, so a lazy fugitive
-    -- still answers the ones typed by hand as well as the ones the mappings
-    -- below run (`Git`, `Gwrite`, `GBrowse`). The legacy spellings (`Gstatus`,
-    -- `Gcommit`, `Gbrowse` and the rest) are omitted: without
-    -- `g:fugitive_legacy_commands` they are error stubs, not commands.
-    cmd = {
-      "G",
-      "GBrowse",
-      "GDelete",
-      "GMove",
-      "GRemove",
-      "GRename",
-      "GUnlink",
-      "Gcd",
-      "Gclog",
-      "GcLog",
-      "Gdiffsplit",
-      "Gdrop",
-      "Ge",
-      "Gedit",
-      "Ggrep",
-      "Ghdiffsplit",
-      "Git",
-      "Glcd",
-      "Glgrep",
-      "Gllog",
-      "GlLog",
-      "Gpedit",
-      "Gr",
-      "Gread",
-      "Gsplit",
-      "Gtabedit",
-      "Gvdiffsplit",
-      "Gvsplit",
-      "Gw",
-      "Gwq",
-      "Gwrite",
+    -- `:Git` and the four log commands take a plain line range and no `-bar`,
+    -- which is exactly what a lazy.nvim placeholder is, so a placeholder parses
+    -- them the way fugitive would. Keeping them here is what gives the command
+    -- line its completion before fugitive loads.
+    -- `Gr` is here for a different reason: it is `-bar`, but leaving it out of
+    -- `cmd` leaves the name undefined, and an undefined name that is a unique
+    -- prefix of a defined one abbreviates to it, so `:Gr` reaches grug-far's
+    -- `GrugFar` and no `CmdUndefined` ever fires. A placeholder is an exact
+    -- match and wins, at the cost of the bar on a first-use `:Gr file | cmd`.
+    -- It is the only fugitive command any other spec's name abbreviates to.
+    cmd = { "G", "GcLog", "Gclog", "Git", "GlLog", "Gllog", "Gr" },
+    -- Every other fugitive command is `-bar`, or addresses tabs or windows
+    -- rather than lines. A placeholder is created with `range = true` and no
+    -- `bar`, so on FIRST use it parses those wrongly: `:2Gtabedit HEAD:file`
+    -- checks the 2 against the buffer's line count and dies with E16 without
+    -- loading fugitive at all, and `:Gedit file | let x = 1` swallows the bar
+    -- into the argument. Loading from `CmdUndefined` leaves the command
+    -- undefined until it is typed, so fugitive's own declaration is what parses
+    -- the first invocation.
+    event = {
+      {
+        event = "CmdUndefined",
+        pattern = {
+          "GBrowse",
+          "GDelete",
+          "GMove",
+          "GRemove",
+          "GRename",
+          "GUnlink",
+          "Gcd",
+          "Gdiffsplit",
+          "Gdrop",
+          "Ge",
+          "Gedit",
+          "Ggrep",
+          "Ghdiffsplit",
+          "Glcd",
+          "Glgrep",
+          "Gpedit",
+          "Gread",
+          "Gsplit",
+          "Gtabedit",
+          "Gvdiffsplit",
+          "Gvsplit",
+          "Gw",
+          "Gwq",
+          "Gwrite",
+        },
+      },
     },
     keys = function()
       local function format_section(label, text, metatext)
