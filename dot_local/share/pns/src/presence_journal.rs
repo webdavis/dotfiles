@@ -80,6 +80,15 @@ pub fn last(contents: &str) -> Option<Entry> {
     contents.lines().rev().find_map(|line| {
         let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
         let text = |key: &str| parsed.get(key)?.as_str().map(str::to_string);
+        // OPTIONAL IS NOT UNTYPED. A room that is present and is not a string
+        // is as much a line this reader does not recognise as a missing one:
+        // read as `None` it becomes a decision that narrowed nothing, which
+        // stops the reverse walk and hides the real one behind it.
+        let room = match parsed.get("room") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(serde_json::Value::String(named)) => Some(named.clone()),
+            Some(_) => return None,
+        };
         Some(Entry {
             at: parsed.get("at").and_then(serde_json::Value::as_u64),
             presence: text("presence")?,
@@ -87,7 +96,7 @@ pub fn last(contents: &str) -> Option<Entry> {
                 .get("desk_idle_secs")
                 .and_then(serde_json::Value::as_u64),
             home: text("home")?,
-            room: text("room"),
+            room,
             reason: text("reason")?,
         })
     })
@@ -331,6 +340,11 @@ mod tests {
             r#"{"at":1,"presence":12,"desk_idle_secs":2,"home":"home","reason":"x"}"#,
             r#"{"at":1,"presence":"p","desk_idle_secs":2,"home":["home"],"reason":"x"}"#,
             r#"{"at":1,"presence":"p","desk_idle_secs":2,"home":"home","room":null}"#,
+            // A ROOM THAT IS PRESENT AND IS NOT A STRING. Read as "no room",
+            // this line becomes a decision that narrowed nothing, which is a
+            // perfectly ordinary record and hides the real one behind it.
+            r#"{"at":1,"presence":"p","desk_idle_secs":2,"home":"h","room":12,"reason":"x"}"#,
+            r#"{"at":1,"presence":"p","desk_idle_secs":2,"home":"h","room":[],"reason":"x"}"#,
         ] {
             let ring = format!("{}\n{corrupt}\n", entry(&narrowed_to("2F - Kitchen")));
             assert_eq!(
