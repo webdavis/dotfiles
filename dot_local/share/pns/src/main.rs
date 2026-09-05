@@ -2503,9 +2503,17 @@ fn presence_snapshot<R: pns::system::CommandRunner>(
 /// fail-open direction the policy already states, so the cost of not asking is
 /// exactly one gate: motion in a watched room still carries the lamps.
 ///
+/// SO THE GATE IS DORMANT, and the residue is stated rather than left to be
+/// re-derived: while this answers `Unknown`, an operator out of the house with
+/// somebody else moving in a watched room narrows the lamps to that room.
+/// Presence only ever narrows which lamp signals, and the operator is not in
+/// the house to see any lamp, so that wrong narrow costs them nothing a full
+/// write would have delivered; the signal that reaches them when they are away
+/// is the phone, which no lamp decision touches. `presence_room::chosen` holds
+/// the same reasoning at the gate itself.
+///
 /// ponytail: a stale-bounded reading published by a daemon poll, in
-/// `presence poll`'s own shape, is what makes this live; add it when a wrong
-/// room while the operator is out is worth a job of its own.
+/// `presence poll`'s own shape, is what makes this live; it is filed as B102.
 fn home_presence() -> pns::home::HomePresence {
     pns::home::HomePresence::Unknown
 }

@@ -138,6 +138,23 @@ pub fn chosen(snapshot: &Snapshot) -> Result<String, Full> {
     // machine that never armed one, and read as absence it would take the
     // whole feature away; fresh motion in a watched room is itself evidence of
     // a human in that room.
+    //
+    // WHICH MAKES THIS GATE DORMANT IN PRODUCTION TODAY, and that is accepted
+    // rather than overlooked. Nothing publishes a home reading yet, so both
+    // callers hand in `Unknown` and only a test ever reaches the refusal
+    // below. The publisher is filed as B102, and until it lands an operator
+    // out of the house with somebody else moving in the kitchen narrows the
+    // lamps to the kitchen.
+    //
+    // THE COST OF THAT IS BOUNDED BY WHAT PRESENCE IS. It only ever narrows
+    // which lamp signals, and every room is empty of the operator when they
+    // are away, so a wrong narrow costs them nothing a full write would have
+    // delivered either: they are not in the house to see any of it. The
+    // signal that actually reaches them when they are away is the phone, and
+    // no lamp decision touches that leg. Requiring `Home` instead would trade
+    // this dormant gate for a live one that switches the whole feature off on
+    // every machine with no router table at all, which is the failure
+    // direction the paragraph above rules out.
     if snapshot.home == HomePresence::NotHome {
         return Err(Full::NotHome);
     }
