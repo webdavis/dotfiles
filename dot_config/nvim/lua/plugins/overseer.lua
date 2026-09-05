@@ -220,6 +220,31 @@ return {
       desc = "Overseer: toggle (without focus)",
     })
 
+    -- OverseerShell takes the command as its argument, so this leaves the
+    -- cmdline open rather than running anything. `map()` keeps a `:`-prefixed
+    -- rhs non-silent and unwrapped, which is what makes that work. The command
+    -- completes with `shellcmdline`, and a `!` creates the task without starting it.
+    map({
+      mode = "n",
+      lhs = "<leader>os",
+      rhs = ":OverseerShell ",
+      desc = "Overseer: run a shell command as a task",
+    })
+
+    -- The only route to the actions with no key of their own in the task list:
+    -- retain, ensure, set quickfix diagnostics, set loclist diagnostics, stop,
+    -- and the rest of the seventeen.
+    map({
+      mode = "n",
+      lhs = "<leader>oa",
+      rhs = function()
+        vim.cmd("OverseerTaskAction")
+      end,
+      remap = false,
+      silent = true,
+      desc = "Overseer: run an action on a task",
+    })
+
     map({
       mode = "n",
       lhs = { '<leader>o"', "<M-7>" },
