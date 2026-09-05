@@ -84,7 +84,7 @@ telling an implementer what to build.
 A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the tests you
 are about to write. The ledger is presented ONCE, because dripping it out as individual questions is the
 waste it exists to prevent. Despite the name it is not one of the two verifier ledgers, and no script
-reads it. Adapted from chaseai-yt/claudex-loop, MIT.
+reads it. This ledger and the argument log below are both adapted from chaseai-yt/claudex-loop, MIT.
 
 ## Per slice, in order
 

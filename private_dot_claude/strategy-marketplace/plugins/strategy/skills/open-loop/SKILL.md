@@ -59,8 +59,8 @@ confirmed one enters the brief as a stated premise, which is what gives step 2 s
 ledger is presented ONCE, because dripping the same content out as individual questions is the waste it
 exists to prevent.
 
-Despite the name it is not one of the two verifier ledgers above, and no script reads it. Adapted from
-chaseai-yt/claudex-loop, MIT.
+Despite the name it is not one of the two verifier ledgers above, and no script reads it. This ledger
+and the argument log below are both adapted from chaseai-yt/claudex-loop, MIT.
 
 ## The steps
 
