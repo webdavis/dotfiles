@@ -317,13 +317,15 @@ map({
 -- One awk program, no Lua parser. The pipeline's findings registers are not
 -- tracked by this repository, so a reader written in Lua would be a second thing
 -- to keep in step with the table format. `f` is the ledger path used when a row
--- carries no `path:line` token of its own; `all` of 1 keeps the FIXED rows.
+-- carries no `path:line` token of its own; `all` of 1 keeps the closed rows.
+-- The skip is a PREFIX match, because `FIXED-NOTEST` is a closed finding too:
+-- the register grammar puts a commit sha on every one of them.
 local ledger_awk = [==[
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 BEGIN { FS = "|" }
 /^[ \t]*\|[ \t]*F[0-9]+[ \t]*\|/ {
   id = trim($2); severity = trim($4); summary = trim($5); disposition = trim($6)
-  if (disposition == "FIXED" && all != 1) next
+  if (disposition ~ /^FIXED/ && all != 1) next
   where = f ":" FNR
   if (match(summary, /[^ \t`]*[.\/][^ \t`]*:[0-9]+/)) where = substr(summary, RSTART, RLENGTH)
   printf "%s: %s %s %s: %s\n", where, id, severity, disposition, summary
@@ -360,7 +362,7 @@ end, {
   nargs = "?",
   bang = true,
   complete = "file",
-  desc = "Load a findings register into the quickfix list (! keeps the FIXED rows)",
+  desc = "Load a findings register into the quickfix list (! keeps the closed rows)",
 })
 
 return { ledger_awk = ledger_awk }
