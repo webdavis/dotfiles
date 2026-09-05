@@ -535,7 +535,7 @@
        WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
        schema declares `source` REQUIRED, so writing the flag alone onto a fresh
        machine would produce an entry Claude Code rejects. The repo owns these
-       seven keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       eight keys and nothing else under extraKnownMarketplaces: setValueAtPath
        writes at the path, so a marketplace the operator adds through
        `claude plugin marketplace add` keeps its own entry untouched (measured
        2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
