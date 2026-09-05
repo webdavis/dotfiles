@@ -246,4 +246,56 @@ return {
     assert(not ok, "accepted a call with no account_name")
     assert(err:find("account_name", 1, true), "the message does not name account_name: " .. err)
   end,
+
+  -- ╭─────────────╮
+  -- │ Blame (5.2) │
+  -- ╰─────────────╯
+  -- The first porcelain line is `<sha> <orig-line> <final-line> <count>`, so
+  -- the SHA is the first token and only the first: a parse that read the second
+  -- would hand back a line number that happens to look like a short hash.
+  ["parse_blame_porcelain reads the SHA off the first porcelain line"] = function()
+    local sha, err = git.parse_blame_porcelain(
+      "581dae8e37117196fb31ce1658a1c55ec3128b19 1 1 1\nauthor Sentinel Person\nauthor-mail <sentinel@example.com>"
+    )
+    assert(err == nil, "reported " .. tostring(err))
+    assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
+  end,
+
+  -- git blame answers an uncommitted line with forty zeros and the author
+  -- "Not Committed Yet". That is a soft error for the keymaps, not a SHA.
+  ["parse_blame_porcelain reports an all-zero SHA as not committed yet"] = function()
+    local sha, err = git.parse_blame_porcelain(
+      "0000000000000000000000000000000000000000 305 305 1\nauthor Not Committed Yet\nauthor-mail <not.committed.yet>"
+    )
+    assert(sha == nil, "returned a sha for an uncommitted line: " .. tostring(sha))
+    assert(type(err) == "string", "err was a " .. type(err))
+    assert(err:lower():find("not committed", 1, true), "the message does not say the line is uncommitted: " .. err)
+  end,
+
+  ["blame_sha asks git for one porcelain line and returns its SHA"] = function()
+    -- The line number and the path are interpolated into the command, so this
+    -- is another caller a shell must never see, and `with_shell` refuses an
+    -- argv that differs from this one by a single word.
+    local sha, err = with_shell({
+      ["git blame -L 7,7 --porcelain -- lua/plugins/git.lua"] = {
+        0,
+        "581dae8e37117196fb31ce1658a1c55ec3128b19 7 7 1\nauthor Sentinel Person",
+      },
+    }, function()
+      return git.blame_sha({ file = "lua/plugins/git.lua", line = 7 })
+    end)
+    assert(err == nil, "reported " .. tostring(err))
+    assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
+  end,
+
+  ["blame_sha reports a failed git call as an operational failure"] = function()
+    local sha, err = with_shell({
+      ["git blame -L 7,7 --porcelain -- outside.txt"] = { 128, "fatal: no such path 'outside.txt' in HEAD" },
+    }, function()
+      return git.blame_sha({ file = "outside.txt", line = 7 })
+    end)
+    assert(sha == nil, "returned a sha anyway: " .. tostring(sha))
+    assert(type(err) == "string", "err was a " .. type(err))
+    assert(err:find("outside.txt", 1, true), "the message does not name the path: " .. err)
+  end,
 }
