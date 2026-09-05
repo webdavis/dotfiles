@@ -263,6 +263,14 @@ return {
     -- Setting it here leaves a template's own format in place and supplies ours
     -- to the templates with none.
     overseer.add_template_hook(nil, function(task_defn)
+      -- Overseer expands aliases before calling a hook, so `components` IS the
+      -- shared alias table. Component initialization fills `default_from_task`
+      -- into those params IN PLACE, so the first task built wrote its resolved
+      -- errorformat into the table every later task shares: an ordinary task
+      -- first made Cargo inherit the generic format despite shipping its own,
+      -- and Cargo first contaminated ordinary tasks. Each task gets its own copy.
+      task_defn.components = vim.deepcopy(task_defn.components)
+
       local defaults = task_defn.default_component_params or {}
       if defaults.errorformat == nil then
         defaults.errorformat = quickfix_errorformat

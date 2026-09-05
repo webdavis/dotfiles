@@ -173,6 +173,20 @@ return {
     assert(hook_util.has_component(first, "unique"), "unique was not attached")
   end,
 
+  ["the hook copies the components it was handed"] = function()
+    -- Overseer expands aliases before calling a hook, so `components` IS the
+    -- shared alias table. Component initialization fills `default_from_task`
+    -- into those params in place, so the first task built wrote its errorformat
+    -- into the alias every later task shares: an ordinary task first made Cargo
+    -- inherit the generic format, and Cargo first contaminated ordinary tasks.
+    local shared = { { "on_output_quickfix" } }
+    local defn = { components = shared }
+    hook_for_all_templates()(defn, hook_util)
+    assert(defn.components ~= shared, "the hook kept the shared alias table")
+    assert(defn.components[1] ~= shared[1], "the hook kept a shared component entry")
+    assert(defn.components[1][1] == "on_output_quickfix", "the copy lost the component name")
+  end,
+
   ["the quickfix keeps only lines that parse as a location"] = function()
     assert(quickfix_component().items_only == true, "items_only is not set; every output line reaches the quickfix")
   end,
