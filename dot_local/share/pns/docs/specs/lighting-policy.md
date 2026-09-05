@@ -1285,6 +1285,34 @@ what made the reading. A lamp belongs to a room by the bridge's own membership
 - Compatibility contract: a machine with no `[plugins.presence]` table passes `None` and reaches none of
   this, so its lamp map behaves exactly as it did before the feature existed.
 
+### 34. Presence narrows over the lamps THIS event would light, never over all of them
+
+Given a room whose only lamp is routed for some other behaviour, and a fresh reading naming that room,
+
+When either lamp path narrows,
+
+Then the routing is filtered to the lamps this event would actually write to BEFORE `narrow` is called,
+so the room holds nothing and the fallback in behaviour 33 leaves the whole routing standing.
+
+- Success: the lamps that were going to light still light, in whatever room the operator is not.
+- Failure sources: none of its own; it is a reordering of two filters that already existed.
+- Fail direction: full routing, which is the same fail-open the rest of this feature takes.
+- Thresholds: none.
+- Required side effects: the eligibility question is asked ONCE and used twice, as the set presence
+  narrows over and as the write itself (`src/main.rs:run_pulse_writes`'s `write_for` and
+  `src/main.rs:run_tick_writes`'s `breath_for`). "Eligible" has to mean "would light", so it answers the
+  mute, the routing, the held record and the dim window together: a lamp the dim window darkens writes
+  nothing either.
+- Forbidden side effects: narrowing first and filtering second. That order kept a kitchen lamp routed
+  for `blocked` alone through a `done` event, then dropped it at the per-lamp gate, and wrote nothing at
+  all (`src/main.rs:a_pulse_narrows_over_the_lamps_this_behaviour_would_reach_and_not_the_rest`,
+  `src/main.rs:a_tick_narrows_over_the_lamps_this_state_would_reach_and_not_the_rest`).
+- Timeout and cancellation: not applicable.
+- Idempotency and duplicates: the predicate is pure, so asking it twice per lamp costs microseconds and
+  cannot disagree with itself.
+- Privacy: no new text.
+- Process ownership and cleanup: no state written.
+
 ______________________________________________________________________
 
 ## Gaps

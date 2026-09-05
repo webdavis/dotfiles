@@ -3801,7 +3801,13 @@ fn run_pulse_writes<B: pns::channels::hue::Bridge>(
     // THE COMPLAINTS COME OFF THE WHOLE RESOLUTION, before the narrowing: a
     // lamp name the bridge could not answer is a typo in the config whether or
     // not the operator is standing in that room.
+    let mut routing = routing;
     let complaints = routing_complaints(&routing);
+    // WHAT THIS EVENT WOULD ACTUALLY WRITE, decided ONCE and used twice: as
+    // the set presence narrows over, and as the write itself. It answers the
+    // whole per-lamp question, the mute, the routing, the held record and the
+    // dim window together, because "eligible" has to mean "would light" or the
+    // narrowing's own fallback is judging the wrong set.
     let write_for = |routed: &pns::channels::hue::Routed| -> Option<(String, String)> {
         let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
         let lamp_is_held = held.is_none_or(|held| held.contains(&path));
@@ -3819,6 +3825,11 @@ fn run_pulse_writes<B: pns::channels::hue::Bridge>(
             pns::channels::hue::pulse_body(&pulse, color, brightness),
         ))
     };
+    // NARROWED OVER THE ELIGIBLE SET AND NOT THE WHOLE ONE. A room holding a
+    // lamp that carries some OTHER behaviour is a room this event lights
+    // nothing in, so narrowing to it and filtering afterwards produced exactly
+    // the silence the fallback exists to prevent.
+    routing.lamps.retain(|routed| write_for(routed).is_some());
     let routing = narrow_to_presence(state, routing, presence);
     for routed in &routing.lamps {
         if let Some((path, body)) = write_for(routed) {
@@ -6016,13 +6027,17 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
     if !active.is_empty() {
         // The doctor is where an unreachable bridge is REPORTED; this process
         // runs unattended and has no reader for that sentence.
-        let Some(routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
+        let Some(mut routing) = pns::channels::hue::resolve_on_bridge(bridge, lights) else {
             return complaints;
         };
         // OFF THE WHOLE RESOLUTION, before the narrowing, for
         // `run_pulse_writes`'s reason: a name the bridge could not answer is a
         // typo whether or not the operator is standing in that room.
         complaints.extend(routing_complaints(&routing));
+        // WHAT THIS TICK WOULD ACTUALLY ARM, in `run_pulse_writes`'s shape and
+        // for its reason: presence has to narrow over the lamps this house
+        // state reaches, or a room whose only lamp carries some other state
+        // reads as narrowable and then breathes on nothing.
         let breath_for = |routed: &pns::channels::hue::Routed| -> Option<(
             pns::lights::Held,
             pns::channels::hue::Showing,
@@ -6038,6 +6053,7 @@ fn run_tick_writes<B: pns::channels::hue::Bridge>(
             );
             (showing != pns::channels::hue::Showing::Dark).then_some((held, showing))
         };
+        routing.lamps.retain(|routed| breath_for(routed).is_some());
         let routing = narrow_to_presence(state, routing, presence);
         for routed in &routing.lamps {
             let Some((held, showing)) = breath_for(routed) else {
@@ -11385,6 +11401,94 @@ mod tests {
         );
         assert_eq!(snapshot.now, probes.now_secs(), "and so is the clock");
         assert_eq!(snapshot.desk_idle_secs, Some(9));
+    }
+
+    #[test]
+    fn a_pulse_narrows_over_the_lamps_this_behaviour_would_reach_and_not_the_rest() {
+        // NARROWING TO A ROOM THAT CARRIES THE BEHAVIOUR IS NOT THE SAME
+        // QUESTION as narrowing to a room that holds a lamp. The kitchen holds
+        // one, routed for `blocked` alone; narrowed first and filtered second,
+        // a `done` event kept that lamp, then dropped it at the per-lamp gate
+        // and wrote nothing at all, which is the silence the fallback exists
+        // to prevent.
+        let lights = *pns::config::parse_config(
+            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nshows = [\"blocked\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let bridge = TwoRoomBridge {
+            puts: RefCell::new(Vec::new()),
+        };
+        let state = scratch("pulse-narrow-over-eligible");
+        run_pulse_writes(
+            &bridge,
+            &state,
+            &lights,
+            pns::config::Behaviour::Done,
+            &noon(&nothing_muted()),
+            Some(&[]),
+            Some(&in_the_kitchen()),
+        );
+        assert_eq!(
+            bridge
+                .puts
+                .borrow()
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>(),
+            vec!["light/l1".to_string()],
+            "the kitchen carries nothing for this event, so the whole routing stands"
+        );
+        assert_eq!(
+            last_narrowing(&state).and_then(|entry| entry.room),
+            None,
+            "and the record says the routing was left whole"
+        );
+    }
+
+    #[test]
+    fn a_tick_narrows_over_the_lamps_this_state_would_reach_and_not_the_rest() {
+        // The tick's half of the same rule, through `shown` rather than
+        // `pulse_fires`: a kitchen lamp carrying only `unread` is not a lamp a
+        // blocked wait can breathe on.
+        let lights = *pns::config::parse_config(
+            "[lights]\nrefresh_secs = 10\n\
+             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nshows = [\"unread\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let bridge = TwoRoomBridge {
+            puts: RefCell::new(Vec::new()),
+        };
+        let state = scratch("tick-narrow-over-eligible");
+        run_tick_writes(
+            &bridge,
+            &state,
+            &lights,
+            &[pns::lights::Held::Blocked],
+            &noon(&nothing_muted()),
+            Some(&[]),
+            0,
+            Some(&in_the_kitchen()),
+            no_time_passes(),
+            |_| {},
+        );
+        assert_eq!(
+            bridge
+                .puts
+                .borrow()
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec!["light/l1".to_string()],
+            "the kitchen carries nothing for this state, so the whole routing stands"
+        );
     }
 
     #[test]
