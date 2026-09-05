@@ -54,6 +54,13 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 export USER="${USER:-$(whoami)}"
+
+# OpenSpec phones home by default. This is the FIRST opt-out it checks, ahead of
+# its own ~/.config/openspec/config.json, so a fresh machine is opted out before
+# that file exists rather than after someone remembers to run `openspec config
+# set`. Scoped to openspec on purpose: the cross-tool DO_NOT_TRACK spelling
+# would silently change every other installed tool that honors it.
+export OPENSPEC_TELEMETRY=0
 {{ if eq .chezmoi.os "darwin" -}}
 # Suffix custom_api/preview_host.resolve appends to the hostname for the markdown
 # preview server; without it the preview binds to loopback and no other device can
