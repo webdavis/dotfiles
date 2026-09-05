@@ -8,9 +8,15 @@ return {
     -- `file:line:col: message` tool this repo runs. It does not parse this repo's
     -- own Neovim test runner, which prints
     -- `FAIL <spec>: <case>: <file>:<line>: <message>`: `%f` swallows the whole
-    -- prefix into the filename, so the entry jumps nowhere. One leading pattern
-    -- fixes that; the rest is the stock list.
-    local quickfix_errorformat = "FAIL %.%#: %f:%l: %m," .. vim.o.errorformat
+    -- prefix into the filename, so the entry jumps nowhere.
+    --
+    -- The two skipped fields are `%*[^:]`, not `%.%#`. A greedy `.*` runs to the
+    -- LAST `file:line` on the line, so an assertion message that mentions another
+    -- location sent the entry there instead of to the failure. Bounding both
+    -- fields to colon-free runs stops the prefix at the assertion's own location.
+    -- The cost is that a case name containing a colon does not match and falls
+    -- back to the stock format; the runner's own names avoid one for that reason.
+    local quickfix_errorformat = "FAIL %*[^:]: %*[^:]: %f:%l: %m," .. vim.o.errorformat
 
     -- Two actions overseer does not ship.
     --

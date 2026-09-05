@@ -95,7 +95,17 @@ return {
     assert(text == "boom", "resolved the wrong message: " .. tostring(text))
   end,
 
-  ["the quickfix errorformat still resolves plain file:line:col output"] = function()
+  ["the skipped failure prefix stops at the assertion location"] = function()
+    -- The prefix pattern must not be greedy. A message carrying a second
+    -- `file:line` used to win, so the entry pointed at whatever the assertion
+    -- text mentioned rather than at where it failed.
+    local file, lnum, text = parse("FAIL util_spec: assertion: actual.lua:42: unexpected location: other.lua:99: boom")
+    assert(file == "actual.lua", "resolved the wrong file: " .. tostring(file))
+    assert(lnum == 42, "resolved the wrong line: " .. tostring(lnum))
+    assert(text:match("^unexpected location"), "message was " .. tostring(text))
+  end,
+
+  ["the quickfix errorformat still resolves plain file, line and column output"] = function()
     -- luacheck, and every other tool here that reports a column.
     local file, lnum = parse("lua/plugins/overseer.lua:12:3: unused variable x")
     assert(file == "lua/plugins/overseer.lua", "resolved the wrong file: " .. tostring(file))
