@@ -376,6 +376,15 @@ return {
         desc = "Gitsigns: blame line (full)",
       })
 
+      -- The `<rev>:<path>` half of a blame name, of which only the path is
+      -- wanted. The revision may carry a colon of its own, since gitsigns names
+      -- the index `:0`, and so may the path, so the format is pinned rather than
+      -- searched: an optional leading colon, a revision with no colon in it, the
+      -- colon that closes it, and the whole of the rest.
+      local function path_after_revision(text)
+        return text:match("^:?[^:]+:(.*)")
+      end
+
       -- The pinned gitsigns opens the split BEFORE it names the blame buffer, so
       -- a second press while this file's blame is still open leaves the new split
       -- behind and then fails on `nvim_buf_set_name` with E95, taking the window
@@ -383,9 +392,11 @@ return {
       -- `gitsigns-blame://<gitdir>//<rev>:<path relative to the repo root>`, and
       -- BOTH ends of that identify the file: the gitdir, because two repositories
       -- holding the same relative path produce two different buffers, and the
-      -- whole relative path behind its `:`, because a bare tail match reads a
-      -- blame of `b/x.lua` as one of `a/b/x.lua`. Gitsigns publishes both halves
-      -- on the source buffer as `b:gitsigns_status_dict`.
+      -- whole relative path behind its `:`, compared for EQUALITY. A tail match
+      -- reads a blame of `a:x.lua` as one of `x.lua`, because a colon is legal in
+      -- a filename and the blame name for the one ends with the blame name for
+      -- the other. Gitsigns publishes both halves on the source buffer as
+      -- `b:gitsigns_status_dict`.
       --
       -- The revision between them is deliberately NOT matched: a blame the reader
       -- already walked with `R` sits at another revision and is still the window
@@ -407,12 +418,12 @@ return {
           return
         end
 
+        local relative_path = file:sub(#root + 1)
         local prefix = ("gitsigns-blame://%s//"):format(status.gitdir)
-        local suffix = ":" .. file:sub(#root + 1)
 
         for _, window in ipairs(vim.api.nvim_list_wins()) do
           local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(window))
-          if vim.startswith(name, prefix) and vim.endswith(name, suffix) then
+          if vim.startswith(name, prefix) and path_after_revision(name:sub(#prefix + 1)) == relative_path then
             return window
           end
         end

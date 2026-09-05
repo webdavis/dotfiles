@@ -1,3 +1,5 @@
+-- Two subjects in `lua/plugins/git.lua`, sharing one load of the file.
+--
 -- The `<C-g>` guards in `lua/plugins/git.lua` (B87). `github.repo` and
 -- `github.account` answer `nil, message` when `gh` cannot, and every keymap that
 -- reads a field off either used to raise E5108 on the index.
@@ -8,6 +10,12 @@
 -- user interface. The fakes mirror the real modules' argument contracts (a
 -- missing `repo_name` raises, as `git.latest_commit` does), so a dropped guard
 -- fails a case rather than passing quietly.
+--
+-- And `<leader>gM`, whose callback decides between focusing the blame window
+-- this file already has open and opening a new one. Real windows and real
+-- buffer names carry that decision, so the cases below name buffers the way
+-- gitsigns and Fugitive name theirs and read back which window ended up
+-- current.
 
 local config_root = ({ ... })[1] or vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
 
@@ -31,6 +39,17 @@ local github_fake = {}
 local git_fake = {}
 local util_fake = {}
 local overseer_fake = {}
+
+-- gitsigns, down to the two functions `lua/plugins/git.lua` reaches: `setup` at
+-- configure time, and `blame`, which is what `<leader>gM` calls when it decides
+-- no blame window is open.
+local blame_calls = 0
+local gitsigns_fake = {
+  setup = function() end,
+  blame = function()
+    blame_calls = blame_calls + 1
+  end,
+}
 
 local function set_scenario(scenario)
   if scenario == "account_fails" then
@@ -143,6 +162,7 @@ local MODULES = {
   ["custom_api.git"] = git_fake,
   ["custom_api.util"] = util_fake,
   ["custom_api.overseer"] = overseer_fake,
+  ["gitsigns"] = gitsigns_fake,
 }
 
 local function with_fake_modules(fn)
@@ -228,6 +248,23 @@ local configured, config_error = with_fake_sinks(function()
 end)
 assert(configured, "the fugitive spec's config raised: " .. tostring(config_error))
 
+local gitsigns_spec
+for _, spec in ipairs(specs) do
+  if spec[1] == "lewis6991/gitsigns.nvim" then
+    gitsigns_spec = spec
+  end
+end
+assert(gitsigns_spec, "no gitsigns.nvim spec in lua/plugins/git.lua")
+
+-- The fakes are back in place for this one, because the gitsigns spec requires
+-- the plugin inside its `config` rather than at file scope.
+with_fake_modules(function()
+  local ok, err = with_fake_sinks(function()
+    gitsigns_spec.config()
+  end)
+  assert(ok, "the gitsigns spec's config raised: " .. tostring(err))
+end)
+
 -- Keys whose callback reads a field off `github.account`, and keys that read one
 -- off `github.repo`. The four `<C-g>r` keys read both, account first.
 local ACCOUNT_KEYS = { "<C-g>rh", "<C-g>rH", "<C-g>rs", "<C-g>rS", "<C-g>lw", "<C-g>lW" }
@@ -302,6 +339,102 @@ cases["the two guarded key lists cover exactly the twelve affected keys"] = func
   end
   table.sort(names)
   assert(#names == 12, ("%d keys covered, expected 12: %s"):format(#names, table.concat(names, " ")))
+end
+
+-- Paths that exist nowhere: every name below is set on a scratch buffer, and
+-- nothing here reads or writes the filesystem.
+local ROOT = "/private/tmp/plugins-git-spec/repo"
+local GITDIR = ROOT .. "/.git"
+
+---One `<leader>gM` press against a window layout built for the case. Each name
+---in `blames` becomes a window, the source buffer gets the last one, and the
+---answer names the window left current and counts the blames opened.
+---@param case table
+---@return table
+local function press_blame_walk(case)
+  vim.cmd("tabnew")
+
+  local buffers = {}
+  local blame_windows = {}
+  for index, name in ipairs(case.blames) do
+    local buffer = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(buffer, name)
+    table.insert(buffers, buffer)
+    vim.cmd("split")
+    vim.api.nvim_win_set_buf(0, buffer)
+    blame_windows[vim.api.nvim_get_current_win()] = index
+  end
+
+  local source = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_name(source, case.source)
+  table.insert(buffers, source)
+  vim.cmd("split")
+  local source_window = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(source_window, source)
+  vim.b[source].gitsigns_status_dict = case.status
+
+  blame_calls = 0
+  local ok, err = pcall(captured["<leader>gM"].rhs)
+  local focused = vim.api.nvim_get_current_win()
+
+  vim.cmd("tabclose")
+  for _, buffer in ipairs(buffers) do
+    pcall(vim.api.nvim_buf_delete, buffer, { force = true })
+  end
+
+  assert(ok, "<leader>gM raised: " .. tostring(err))
+  return {
+    focused = focused == source_window and "source" or blame_windows[focused] or "elsewhere",
+    blames_opened = blame_calls,
+  }
+end
+
+---@param case table
+---@param expected table
+local function assert_blame_walk(case, expected)
+  local answer = press_blame_walk(case)
+  assert(
+    answer.focused == expected.focused,
+    ("%s focused %s, expected %s"):format(case.what, tostring(answer.focused), tostring(expected.focused))
+  )
+  assert(
+    answer.blames_opened == expected.blames_opened,
+    ("%s opened %d blames, expected %d"):format(case.what, answer.blames_opened, expected.blames_opened)
+  )
+end
+
+cases["`<leader>gM` focuses the blame window open on this file"] = function()
+  assert_blame_walk({
+    what = "the blame for this file",
+    source = ROOT .. "/x.lua",
+    status = { gitdir = GITDIR, root = ROOT },
+    blames = { ("gitsigns-blame://%s//:0:x.lua"):format(GITDIR) },
+  }, { focused = 1, blames_opened = 0 })
+end
+
+-- The blame a reader already walked with `R` sits at another revision and is
+-- still the window to focus rather than to duplicate, so only the path is
+-- compared. This case also drives the other revision shape: gitsigns names the
+-- index `:0`, which carries a colon of its own, and a walked blame does not.
+cases["`<leader>gM` focuses a blame already walked to another revision"] = function()
+  assert_blame_walk({
+    what = "the blame walked to a parent commit",
+    source = ROOT .. "/x.lua",
+    status = { gitdir = GITDIR, root = ROOT },
+    blames = { ("gitsigns-blame://%s//abc1234^:x.lua"):format(GITDIR) },
+  }, { focused = 1, blames_opened = 0 })
+end
+
+-- A colon is legal in a filename, so the blame name for `a:x.lua` ends with the
+-- blame name for `x.lua`. Matching the tail focuses the wrong window and leaves
+-- this file unblamed.
+cases["`<leader>gM` does not focus a blame whose path merely ends with this one"] = function()
+  assert_blame_walk({
+    what = "the blame for a differently named file",
+    source = ROOT .. "/x.lua",
+    status = { gitdir = GITDIR, root = ROOT },
+    blames = { ("gitsigns-blame://%s//:0:a:x.lua"):format(GITDIR) },
+  }, { focused = "source", blames_opened = 1 })
 end
 
 return cases
