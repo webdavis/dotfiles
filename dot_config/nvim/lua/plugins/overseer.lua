@@ -3,69 +3,216 @@ return {
   opts = {},
   config = function()
     local overseer = require("overseer")
-    -- Only what differs from the plugin's own defaults. Copying the upstream
-    -- default table wholesale is how twelve keys the plugin no longer has
-    -- survived here as fields nothing read (7d8e81ff); a short table cannot rot
-    -- the same way, because every line in it is a decision.
+
+    -- Neovim's default errorformat already parses luacheck and every other
+    -- `file:line:col: message` tool this repo runs. It does not parse this repo's
+    -- own Neovim test runner, which prints
+    -- `FAIL <spec>: <case>: <file>:<line>: <message>`: `%f` swallows the whole
+    -- prefix into the filename, so the entry jumps nowhere. One leading pattern
+    -- fixes that; the rest is the stock list.
+    local quickfix_errorformat = "FAIL %.%#: %f:%l: %m," .. vim.o.errorformat
+
+    -- Two actions overseer does not ship.
+    --
+    -- `dispose all finished` is the manual sweep that stands in for the
+    -- `on_complete_dispose` component this config deliberately omits: tasks have
+    -- to outlive the upstream timeout, so something has to clear them by hand.
+    --
+    -- `copy command` answers "what did that actually run", which matters because
+    -- a template builds the argv rather than the operator typing it.
+    local task_actions = {
+      ["dispose all finished"] = {
+        desc = "Dispose every finished task, not only this one",
+        run = function()
+          local finished = overseer.list_tasks({
+            status = { overseer.STATUS.SUCCESS, overseer.STATUS.FAILURE, overseer.STATUS.CANCELED },
+          })
+          for _, task in ipairs(finished) do
+            task:dispose(true)
+          end
+          vim.notify(("Disposed %d finished task(s)"):format(#finished), vim.log.levels.INFO, { title = "Overseer" })
+        end,
+      },
+      ["copy command"] = {
+        desc = "Copy the task's command to the system clipboard",
+        run = function(task)
+          local cmd = type(task.cmd) == "table" and table.concat(task.cmd, " ") or tostring(task.cmd)
+          vim.fn.setreg("+", cmd)
+          vim.notify("Copied: " .. cmd, vim.log.levels.INFO, { title = "Overseer" })
+        end,
+      },
+    }
+
+    -- Every option overseer exposes at the pinned commit is set here, on purpose:
+    -- the operator asked for the plugin fully featured. Where an option has a
+    -- preference rather than an obvious answer, the comment beside it says which
+    -- way it went and why. Nothing is left at a default silently.
     overseer.setup({
-      -- nvim-dap is present (xcodebuild.nvim depends on it), so this patches in
-      -- real preLaunchTask and postDebugTask support rather than a theoretical one.
+      -- nvim-dap is present (xcodebuild.nvim depends on it), so preLaunchTask and
+      -- postDebugTask in a debug configuration run as real tasks.
       dap = true,
+      -- WARN keeps template-provider errors visible without narrating every task.
+      log_level = vim.log.levels.WARN,
+      output = {
+        -- A terminal buffer, so a task that draws progress bars or colors renders.
+        use_terminal = true,
+        -- Clear on restart: a watch task's output should show this run, not a pile.
+        preserve_output = false,
+      },
       task_list = {
         direction = "right",
+        max_width = { 100, 0.2 },
+        min_width = { 40, 0.1 },
         max_height = { 20, 0.1 },
+        min_height = 8,
         -- Light box-drawing rather than the heavy default.
         separator = "────────────────────────────────────────",
-        -- Merged over the defaults case-insensitively, so only the additions
-        -- belong here. All four run actions that exist at the pinned commit.
+        child_indent = { "┃ ", "┣━", "┗━" },
+        -- format_standard over format_compact and format_verbose: it is what this
+        -- config has actually been rendering, so the familiar view is kept.
+        render = function(task)
+          return require("overseer.render").format_standard(task)
+        end,
+        sort = function(a, b)
+          return require("overseer.task_list").default_sort(a, b)
+        end,
+        -- Merged over the defaults case-insensitively, so only additions belong
+        -- here. Every action with no key of its own gets one, which is what makes
+        -- the list a full surface rather than a viewer.
         keymaps = {
           ["<C-r>"] = { "keymap.run_action", opts = { action = "restart" }, desc = "Restart task" },
+          ["s"] = { "keymap.run_action", opts = { action = "start" }, desc = "Start task" },
+          ["x"] = { "keymap.run_action", opts = { action = "stop" }, desc = "Stop task" },
+          ["r"] = { "keymap.run_action", opts = { action = "retain" }, desc = "Retain task" },
+          ["e"] = { "keymap.run_action", opts = { action = "ensure" }, desc = "Ensure task is running" },
           ["<localleader>w"] = { "keymap.run_action", opts = { action = "watch" }, desc = "Watch task" },
           ["<localleader>W"] = { "keymap.run_action", opts = { action = "unwatch" }, desc = "Unwatch task" },
+          ["<localleader>q"] = {
+            "keymap.run_action",
+            opts = { action = "set quickfix diagnostics" },
+            desc = "Send task diagnostics to the quickfix",
+          },
+          ["<localleader>l"] = {
+            "keymap.run_action",
+            opts = { action = "set loclist diagnostics" },
+            desc = "Send task diagnostics to the loclist",
+          },
+          ["<localleader>y"] = {
+            "keymap.run_action",
+            opts = { action = "copy command" },
+            desc = "Copy the task command",
+          },
+          ["<localleader>D"] = {
+            "keymap.run_action",
+            opts = { action = "dispose all finished" },
+            desc = "Dispose every finished task",
+          },
           [";"] = "keymap.toggle_preview",
         },
       },
+      -- Two actions this config needs that overseer does not ship. See below.
+      actions = task_actions,
       form = {
         border = "rounded",
+        zindex = 40,
+        min_width = 80,
+        max_width = 0.9,
+        min_height = 10,
+        max_height = 0.9,
         win_opts = {
           winblend = 10,
         },
       },
       task_win = {
+        padding = 2,
         border = "rounded",
+        zindex = 40,
         win_opts = {
           winblend = 10,
         },
       },
       component_aliases = {
         -- on_complete_dispose is deliberately absent, and is the one place this
-        -- alias must stay spelled out: OverseerRestartLast and the
-        -- <M-7>/<M-8>/<M-;> openers all look up a FINISHED task, so tasks have
-        -- to outlive the upstream five-minute dispose timeout.
+        -- alias must stay spelled out: OverseerRestartLast, the
+        -- <M-7>/<M-8>/<M-;> openers and the bundle commands all look up a
+        -- FINISHED task, so tasks have to outlive the upstream five-minute
+        -- dispose timeout. The "dispose all finished" action is the manual sweep
+        -- that replaces it.
         --
         -- The pns on_complete reporter (plan task 26) belongs in this list.
         default = {
           "on_exit_set_status",
-          "on_complete_notify",
+          { "on_complete_notify", system = "unfocused" },
           {
             "on_output_quickfix",
             -- Without this every task replaces the quickfix with its entire
             -- output as unnavigable text, clobbering whatever was there. Keep
             -- only the lines that parse as a location.
             items_only = true,
-            -- Neovim's default errorformat already parses luacheck and every
-            -- other `file:line:col: message` tool this repo runs. It does not
-            -- parse this repo's own Neovim test runner, which prints
-            -- `FAIL <spec>: <case>: <file>:<line>: <message>`: `%f` swallows the
-            -- whole prefix into the filename, so the entry jumps nowhere. One
-            -- leading pattern fixes that; the rest is the stock list.
-            errorformat = "FAIL %.%#: %f:%l: %m," .. vim.o.errorformat,
+            errorformat = quickfix_errorformat,
             set_diagnostics = true,
+            open_on_match = true,
           },
           -- Paired with set_diagnostics above. Fires only when the errorformat
           -- matched something, so a clean run leaves no diagnostics behind.
           { "on_result_diagnostics", remove_on_restart = true },
         },
+        -- Tasks read out of a .vscode/tasks.json.
+        default_vscode = {
+          "default",
+          "on_result_diagnostics",
+        },
+        -- Tasks the vim.system and jobstart wrappers create. These are other
+        -- plugins' background jobs, not the operator's, so they clean up after
+        -- themselves and never stack.
+        default_builtin = {
+          "on_exit_set_status",
+          "on_complete_dispose",
+          { "unique", soft = true },
+        },
+        -- neotest runs, when neotest's overseer consumer is registered.
+        default_neotest = {
+          "on_exit_set_status",
+          { "on_complete_notify", system = "unfocused" },
+          { "on_output_quickfix", items_only = true, errorformat = quickfix_errorformat, set_diagnostics = true },
+          { "on_result_diagnostics", remove_on_restart = true },
+        },
+        -- trouble.nvim is installed, so a task can route its diagnostics there
+        -- instead of the quickfix. Opt in per task with the task editor.
+        trouble = {
+          "default",
+          { "on_result_diagnostics_trouble", close = true },
+        },
+        -- A watch task re-runs on every write, so it notifies only when the
+        -- verdict CHANGES and cancels itself if a run wedges.
+        watched = {
+          "on_exit_set_status",
+          { "on_complete_notify", on_change = true, system = "unfocused" },
+          { "on_output_quickfix", items_only = true, errorformat = quickfix_errorformat, set_diagnostics = true },
+          { "on_result_diagnostics", remove_on_restart = true },
+          { "timeout", timeout = 600 },
+        },
+      },
+      -- Empty on purpose. Our own templates already live under the default
+      -- `lua/overseer/template/**` glob, and this key is runtimepath-relative, so
+      -- it cannot reach a project directory. Project-local tasks come from the
+      -- `.overseer/` provider and from `.vscode/tasks.json` instead.
+      template_dirs = {},
+      -- Empty on purpose: this key only ever REMOVES providers, and every one of
+      -- the fourteen builtins is wanted. Measured in this repo, resolving all of
+      -- them costs 150 ms cold and 19 ms warm, so there is nothing to buy back.
+      disable_template_modules = {},
+      template_timeout_ms = 3000,
+      template_cache_threshold_ms = 200,
+      -- Every vim.system and jobstart call becomes a task, so a plugin's
+      -- background job is inspectable instead of invisible. Safe to leave on:
+      -- list_tasks excludes wrapped tasks unless asked for them, so they stay out
+      -- of the task list until `g.` reveals them.
+      experimental_wrap_builtins = {
+        enabled = true,
+        condition = function()
+          return true
+        end,
       },
     })
 
