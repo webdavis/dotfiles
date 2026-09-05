@@ -95,17 +95,22 @@ return {
       desc = "Claude: annotate line with diagnostic and blame",
     },
   },
-  opts = {
-    -- The plugin's own default is `info`, and its logger sends INFO, DEBUG and
-    -- TRACE through `nvim_echo`, which writes to STDERR in a headless run. Every
-    -- `--headless` start that reached `VimLeavePre` therefore printed
-    -- `[ClaudeCode] [init] [INFO] Claude Code integration stopped` and failed the
-    -- zero-stderr startup gate (`logger.lua`, `init.lua:597` at the pinned
-    -- commit). `warn` drops those three levels only: WARN and ERROR go through
-    -- `vim.notify` instead and still surface.
-    log_level = "warn",
-    terminal = {
-      provider = "none",
-    },
-  },
+  -- The plugin's logger sends WARN and ERROR through `vim.notify`, and INFO,
+  -- DEBUG and TRACE through `nvim_echo`, which is STDERR in a headless run. So
+  -- every `--headless` start that reached `VimLeavePre` printed
+  -- `[ClaudeCode] [init] [INFO] Claude Code integration stopped` (`logger.lua`,
+  -- `init.lua:597` at the pinned commit) and failed the zero-stderr startup gate.
+  -- A global `warn` is too wide: `:ClaudeCodeStatus` answers at INFO as well
+  -- (`init.lua:619-621`), and would go silent. A headless session is the one
+  -- kind with no UI attached, and `opts` is evaluated when the plugin loads
+  -- (`VeryLazy`), after the UI has attached in an interactive session, so this
+  -- quiets exactly the sessions whose INFO was noise and nothing else.
+  opts = function()
+    return {
+      log_level = #vim.api.nvim_list_uis() == 0 and "warn" or "info",
+      terminal = {
+        provider = "none",
+      },
+    }
+  end,
 }
