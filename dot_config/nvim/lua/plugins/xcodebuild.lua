@@ -94,7 +94,15 @@ return {
       { "<leader>xT", "<cmd>XcodebuildTestNearest<cr>", desc = "Xcode: test nearest" },
       { "<leader>xf", "<cmd>XcodebuildTestFailing<cr>", desc = "Xcode: test failing" },
       { "<leader>xe", "<cmd>XcodebuildTestExplorerToggle<cr>", desc = "Xcode: toggle test explorer" },
+      -- Code coverage. `code_coverage.enabled` is turned on in opts above, and the inline marks
+      -- were the only part of it reachable: the report and the two jumps have no keys today and,
+      -- unlike most of the rest, the jumps are not in the action picker either. They stay inside
+      -- the `<leader>x` group rather than taking global `[`/`]` pairs, which unimpaired and the
+      -- treesitter textobject motions already crowd.
       { "<leader>xv", "<cmd>XcodebuildToggleCodeCoverage<cr>", desc = "Xcode: toggle code coverage" },
+      { "<leader>xV", "<cmd>XcodebuildShowCodeCoverageReport<cr>", desc = "Xcode: show code coverage report" },
+      { "<leader>x]", "<cmd>XcodebuildJumpToNextCoverage<cr>", desc = "Xcode: jump to next coverage mark" },
+      { "<leader>x[", "<cmd>XcodebuildJumpToPrevCoverage<cr>", desc = "Xcode: jump to previous coverage mark" },
       -- Code. Not conveniences: sourcekit-lsp only returns a code action when the range it is
       -- given matches the diagnostic's range exactly, and Neovim sends the cursor position, so
       -- plain `vim.lsp.buf.code_action` silently returns nothing on Swift unless the cursor
