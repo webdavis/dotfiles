@@ -47,6 +47,37 @@ return {
     { "<leader>Ca", "<cmd>ClaudeCodeAdd %<cr>", desc = "Claude: add current file" },
     { "<leader>Cy", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Claude: accept diff" },
     { "<leader>Cn", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Claude: deny diff" },
+    -- Not a claudecode.nvim command: the shared herdr seam (spec 7.4) sends raw
+    -- text to the agent's herdr pane, which is the path that reaches a free-text
+    -- prompt, a non-Claude agent and an unsaved scratch buffer. It lives on this
+    -- spec because `<leader>C` is the Claude group and a `keys` entry is what
+    -- keeps the whole group lazy.
+    --
+    -- KNOWN SIDE EFFECT: reaching the seam through this spec loads the plugin,
+    -- so the first `<leader>Cp` also starts the WebSocket server and writes
+    -- ~/.claude/ide/<port>.lock, which the seam itself does not need. Kept
+    -- deliberately: the lock has to exist before any CLI connects (question 4
+    -- above), so an early start is the direction this config wants anyway, and
+    -- moving the key out would split one Claude group across two files for a
+    -- server that `<leader>Cc` starts a keystroke later regardless.
+    {
+      "<leader>Cp",
+      function()
+        require("custom_api.herdr").send_selection_or_paragraph()
+      end,
+      mode = { "n", "x" },
+      desc = "Claude: send selection or paragraph",
+    },
+    -- The convenience for question 2 above: `none` auto-launches nothing, so
+    -- this prompts `/ide` at the Claude agent already in the workspace, or
+    -- splits a pane beside the editor and starts one there.
+    {
+      "<leader>Cc",
+      function()
+        require("custom_api.herdr").launch_or_attach()
+      end,
+      desc = "Claude: launch or attach --ide",
+    },
   },
   opts = {
     terminal = {
