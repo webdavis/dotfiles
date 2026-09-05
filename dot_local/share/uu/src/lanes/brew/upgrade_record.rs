@@ -86,9 +86,9 @@ pub fn write(path: &str, epoch: i64, iso: &str, rows: &[String]) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::super::repairs::tests::lane;
-    use super::super::run_brew;
     use super::super::tests::facts;
     use super::*;
+    use crate::lanes::LaneAdapter;
     use crate::lanes::{CommandRunner, Ran};
     use std::cell::{Cell, RefCell};
     use std::path::Path;
@@ -268,7 +268,7 @@ mod tests {
         let mut recording = lane();
         recording.upgrade_record = path.to_str().unwrap().to_string();
         let runner = Upgrading::watching(&path, &[]);
-        run_brew("brew", &recording, &facts(), &runner);
+        recording.run("brew", &facts(), &runner);
         assert_eq!(
             runner.seen.into_inner(),
             Some("1760000000\t2025-10-09T07:33:20Z\n".to_string()),
@@ -289,7 +289,7 @@ mod tests {
         let mut recording = lane();
         recording.upgrade_record = path.to_str().unwrap().to_string();
         let runner = Upgrading::watching(&path, &["jq 1.7.0\n", "jq 1.7.1\n"]);
-        let report = run_brew("brew", &recording, &facts(), &runner);
+        let report = recording.run("brew", &facts(), &runner);
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
             "1760000000\t2025-10-09T07:33:20Z\njq\tchanged\t1.7.0\t1.7.1\n"
@@ -317,7 +317,7 @@ mod tests {
         let mut recording = lane();
         recording.upgrade_record = path.to_str().unwrap().to_string();
         let runner = Upgrading::watching(&path, &["jq 1.7.1\n"]).refusing_the_first_reading();
-        let report = run_brew("brew", &recording, &facts(), &runner);
+        let report = recording.run("brew", &facts(), &runner);
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
             "1760000000\t2025-10-09T07:33:20Z\n",

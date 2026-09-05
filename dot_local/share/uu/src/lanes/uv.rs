@@ -11,28 +11,32 @@
 //! either way is how that goes unnoticed for months.
 
 use crate::config::UvLane;
-use crate::lanes::{CommandRunner, LaneReport};
+use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
+use crate::record::RunFacts;
 
 /// The arguments the lane always runs `uv` with.
 const UPGRADE: [&str; 3] = ["tool", "upgrade", "--all"];
 
 /// Upgrade every uv tool, and report what that took.
-pub fn run_uv(name: &str, lane: &UvLane, runner: &dyn CommandRunner) -> LaneReport {
-    let mut report = LaneReport::new(name);
-    let binary = lane.binary.as_str();
-    match runner.run(binary, &UPGRADE) {
-        // uv NARRATES ON STDERR, which a clean run drops, so this line is
-        // what the record has to say the lane ran at all.
-        Ok(_) => report.noted(format!("{binary} tool upgrade --all: ok")),
-        Err(why) => report.failed(format!("{binary} tool upgrade --all FAILED ({why})")),
+impl LaneAdapter for UvLane {
+    fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
+        let mut report = LaneReport::new(name);
+        let binary = self.binary.as_str();
+        match runner.run(binary, &UPGRADE) {
+            // uv NARRATES ON STDERR, which a clean run drops, so this line is
+            // what the record has to say the lane ran at all.
+            Ok(_) => report.noted(format!("{binary} tool upgrade --all: ok")),
+            Err(why) => report.failed(format!("{binary} tool upgrade --all FAILED ({why})")),
+        }
+        report
     }
-    report
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::lanes::Ran;
+    use crate::lanes::stubs::stub_facts;
     use std::cell::RefCell;
     use std::time::Duration;
 
@@ -101,7 +105,7 @@ mod tests {
     #[test]
     fn the_lane_upgrades_every_uv_tool_with_one_call_to_the_declared_binary() {
         let runner = StubRunner::clean();
-        run_uv("uv", &lane(), &runner);
+        lane().run("uv", &stub_facts(), &runner);
         assert_eq!(
             runner.calls(),
             vec![
@@ -117,7 +121,7 @@ mod tests {
         // THE LANE'S OWN NAME, never the type's: `[lanes.tools]` with
         // `type = "uv"` is recorded and alerted as `tools`, and a report
         // carrying a hardcoded `uv` would name a lane nobody declared.
-        let report = run_uv("tools", &lane(), &StubRunner::clean());
+        let report = lane().run("tools", &stub_facts(), &StubRunner::clean());
         assert_eq!(report.name, "tools");
         assert_eq!(report.failures, 0);
         assert_eq!(report.last_failure, None);
@@ -129,9 +133,9 @@ mod tests {
 
     #[test]
     fn an_upgrade_that_did_not_succeed_is_a_counted_failure_carrying_what_uv_said() {
-        let report = run_uv(
+        let report = lane().run(
             "uv",
-            &lane(),
+            &stub_facts(),
             &StubRunner::refusing("exit 2: error: no such option `--all`"),
         );
         assert_eq!(report.failures, 1);
@@ -144,9 +148,9 @@ mod tests {
     fn a_uv_that_is_not_installed_is_a_failure_rather_than_a_quiet_skip() {
         // The bash job's own behavior, deliberately not ported: it printed
         // "uv is not at ...; nothing to upgrade" and returned 0.
-        let report = run_uv(
+        let report = lane().run(
             "uv",
-            &lane(),
+            &stub_facts(),
             &StubRunner::refusing("could not run /opt/homebrew/bin/uv: No such file or directory"),
         );
         assert_eq!(report.failures, 1);
