@@ -285,9 +285,11 @@ mkdir -p "$CASE/run/aaa" "$CASE/run/bbb"
 chmod 700 "$CASE/run/aaa" "$CASE/run/bbb"
 dead_sock="$CASE/run/aaa/nvim.$dead_pid.0"
 live_sock="$CASE/run/bbb/nvim.$$.0"
-# The dead one stays a plain file on purpose: kill -0 filters it before
-# anything looks at what kind of file it is.
-: >"$dead_sock"
+# BOTH are real sockets in a private directory, which is what the graveyard
+# actually holds: Neovim leaves the socket file behind whenever it does not exit
+# cleanly. So kill -0 on the pid in the filename is the ONLY thing that can tell
+# these two apart before a connection is attempted.
+make_socket "$dead_sock"
 make_socket "$live_sock"
 {
   printf '%s|w1:p4 %s\n' "$dead_sock" "$dead_pid"
