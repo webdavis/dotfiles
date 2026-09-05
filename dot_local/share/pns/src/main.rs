@@ -5078,8 +5078,10 @@ fn presence_poll() -> i32 {
 /// A BRIDGE THAT DID NOT ANSWER PUBLISHES NOTHING. That single choice is what
 /// makes a dead bridge, a wrong key and a wedged LAN all read as Unknown a few
 /// seconds later, instead of pinning the operator wherever the last poll left
-/// them. The write itself cannot be wrong: `presence_file::render` hands its
-/// own line back to its own parser before returning it.
+/// them. AND NEITHER DOES A READING THE FORMAT CANNOT CARRY: `render` hands
+/// its own line back to its own parser and answers nothing at all when what
+/// comes back is not what went in, so the write is never a line the reader
+/// would read as a different reading.
 ///
 /// THE BRIDGE IS A PARAMETER so this, the join of the config, the network and
 /// the state directory, is the thing a test drives end to end. Everything
@@ -5124,13 +5126,16 @@ fn write_presence_reading<B: pns::channels::hue::Bridge>(
     let Some(reading) = pns::presence_hue::poll(bridge, &watched, now) else {
         return false;
     };
+    // A READING THIS FORMAT CANNOT CARRY PUBLISHES NOTHING, the same direction
+    // a silent bridge takes. `render` used to substitute the poll-only line
+    // for one, which says "the bridge answered and no watched room reported"
+    // on evidence that said a watched room had.
+    let Some(line) = pns::presence_file::render(&reading) else {
+        return false;
+    };
     // FAIL-QUIET, in `remember_staleness`'s style: an unwritable state
     // directory costs the reading, which ages out on its own.
-    publish_state_line(
-        &state.join(pns::presence_file::STATE_FILE),
-        &pns::presence_file::render(&reading),
-    )
-    .is_ok()
+    publish_state_line(&state.join(pns::presence_file::STATE_FILE), &line).is_ok()
 }
 
 /// `pns loop begin|end`: take the loop lamp by hand, and give it back.
@@ -9361,6 +9366,32 @@ mod tests {
                 "a silent bridge published a reading anyway"
             );
         }
+    }
+
+    #[test]
+    fn a_room_this_cannot_spell_leaves_the_last_reading_where_it_was() {
+        // THE SECOND FAIL-CLOSED HALF, beside the silent bridge: a room name
+        // the reader would refuse used to publish the POLL-ONLY line, which is
+        // a different reading rather than a smaller one. The doctor printed
+        // `nowhere` while the bridge was reporting motion in a watched room.
+        let state = scratch("presence-unspellable");
+        let reading = state.join(pns::presence_file::STATE_FILE);
+        std::fs::write(&reading, "1788456000 1788455900 1 3F - Studio\n").expect("the old line");
+        // The bridge's own text, carrying a tab: real names cross this parse
+        // verbatim, so this is the room the operator would have configured.
+        let rooms = r#"{"data":[{"id":"studio","metadata":{"name":"3F\tStudio"}}]}"#;
+
+        assert!(!write_presence_reading(
+            &PollBridge(vec![("grouped_motion", MOTION_BODY), ("room", rooms)]),
+            &state,
+            &watching(&["3F\tStudio"], &[]),
+            1_788_456_100
+        ));
+        assert_eq!(
+            std::fs::read_to_string(&reading).expect("the state file"),
+            "1788456000 1788455900 1 3F - Studio\n",
+            "a room the reader would refuse was published as a nowhere"
+        );
     }
 
     /// Two watched rooms report, the pass-through one more recently.

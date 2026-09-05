@@ -95,22 +95,29 @@ pub fn parse_presence_line(line: &str) -> Option<RawPresence> {
     })
 }
 
-/// One reading as the line the daemon publishes.
+/// One reading as the line the daemon publishes, or `None` for a reading this
+/// format cannot carry.
 ///
 /// THERE IS NO UNCHECKED SPELLING OF THIS, and that is the whole design of the
 /// function: it renders the full line, hands it straight back to the parser
-/// above, and falls back to the poll-only shape unless what comes back is the
-/// reading that went in. The room is the bridge's text by way of the
-/// operator's config, so a name past `ROOM_MAX` or carrying a control
-/// character would otherwise publish a file the reader treats as NO READING AT
-/// ALL, which reads as a dead sensor rather than as the "nowhere" it really is.
+/// above, and answers `None` unless what comes back is the reading that went
+/// in. The room is the bridge's text by way of the operator's config, so a
+/// name past `ROOM_MAX` or carrying a control character would otherwise
+/// publish a file the reader treats as NO READING AT ALL.
+///
+/// `None` IS NOT THE POLL-ONLY LINE, which is what this used to fall back to
+/// and is a DIFFERENT reading rather than a smaller one: poll-only says the
+/// bridge answered and no watched room reported, an affirmative absence the
+/// doctor prints as `nowhere`, so substituting it answered "nobody is in any
+/// of your rooms" on evidence that said the opposite. Publishing nothing lets
+/// the last good reading age out into Stale, which is the direction every
+/// other unknown in this feature takes.
 ///
 /// A caller cannot bypass the check by rendering the line itself, because
 /// nothing else here builds one.
-pub fn render(reading: &RawPresence) -> String {
-    let poll_only = reading.poll_epoch.to_string();
+pub fn render(reading: &RawPresence) -> Option<String> {
     let Some(edge) = &reading.edge else {
-        return poll_only;
+        return Some(reading.poll_epoch.to_string());
     };
     let line = format!(
         "{} {} {} {}",
@@ -119,11 +126,7 @@ pub fn render(reading: &RawPresence) -> String {
         u8::from(edge.motion),
         edge.room
     );
-    if parse_presence_line(&line).as_ref() == Some(reading) {
-        line
-    } else {
-        poll_only
-    }
+    (parse_presence_line(&line).as_ref() == Some(reading)).then_some(line)
 }
 
 #[cfg(test)]
@@ -226,33 +229,60 @@ mod tests {
             },
         ] {
             assert_eq!(
-                parse_presence_line(&render(&reading)),
-                Some(reading.clone()),
+                render(&reading).as_deref().map(parse_presence_line),
+                Some(Some(reading.clone())),
                 "{reading:?} did not come back"
             );
         }
     }
 
     #[test]
-    fn a_reading_the_parser_would_refuse_renders_as_the_poll_alone() {
-        // The fallback is a REAL answer, "the bridge answered and no watched
-        // room reported", rather than a line that reads as no reading at all.
-        for room in ["r".repeat(65), "3F\nStudio".to_string(), String::new()] {
-            let line = render(&RawPresence {
-                poll_epoch: 1_700_000_100,
-                edge: Some(Edge {
-                    epoch: 1_700_000_090,
-                    motion: true,
-                    room: room.clone(),
-                }),
-            });
-            assert_eq!(line, "1700000100", "{room:?} was published anyway");
+    fn a_reading_the_parser_would_refuse_is_no_line_at_all() {
+        // NOT THE POLL-ONLY LINE, which is what this used to answer and is a
+        // DIFFERENT reading rather than a smaller one: "the bridge answered
+        // and no watched room reported" is an affirmative absence, and the
+        // doctor prints it as `nowhere` while the bridge was reporting motion
+        // in a watched room. Publishing nothing lets the last good reading age
+        // out into Stale, which is the honest answer for a room this cannot
+        // spell.
+        for room in [
+            "3F\tStudio".to_string(),
+            "3F\nStudio".to_string(),
+            String::new(),
+            "r".repeat(65),
+        ] {
             assert_eq!(
-                parse_presence_line(&line),
-                Some(RawPresence {
+                render(&RawPresence {
                     poll_epoch: 1_700_000_100,
-                    edge: None,
-                })
+                    edge: Some(Edge {
+                        epoch: 1_700_000_090,
+                        motion: true,
+                        room: room.clone(),
+                    }),
+                }),
+                None,
+                "{room:?} was rendered anyway"
+            );
+        }
+    }
+
+    #[test]
+    fn an_ordinary_room_name_still_renders_however_it_starts() {
+        // THE OTHER SIDE OF THE REFUSAL: real names carry spaces, dashes and
+        // leading digits, and a check that took any of those for malformed
+        // would silence the sensor on the rooms it actually watches.
+        for room in ["3F - Studio", "1.5F - Staircase", "42", &"r".repeat(64)] {
+            assert_eq!(
+                render(&RawPresence {
+                    poll_epoch: 1_700_000_100,
+                    edge: Some(Edge {
+                        epoch: 1_700_000_090,
+                        motion: true,
+                        room: room.to_string(),
+                    }),
+                }),
+                Some(format!("1700000100 1700000090 1 {room}")),
+                "{room:?} was refused"
             );
         }
     }
