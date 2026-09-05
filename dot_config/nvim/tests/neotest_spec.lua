@@ -320,6 +320,39 @@ cases["the configured predicates answer a nil path instead of raising"] = functi
   end
 end
 
+cases["the predicates answer inside a fast event, where a Vimscript read would raise"] = function()
+  -- Every other case asks from the main loop, where `vim.fn.readfile` works. neotest does not:
+  -- it asks from its own async contexts, and a Vimscript call raises E5560 there, which a `pcall`
+  -- turns into "no import" rather than an error anyone sees. A libuv callback is the strictest of
+  -- those contexts, so ask from one, on a deadline. Both filesystem reads are covered: the import
+  -- read for the node:test file, and the outward manifest walk for the vitest one.
+  local routed = route()
+  local answers, failure, done = {}, nil, false
+  local timer = assert(vim.uv.new_timer())
+  timer:start(0, 0, function()
+    local ok, result = pcall(function()
+      return {
+        node = routed.node(node_file),
+        vitest = routed.vitest(dual_file),
+      }
+    end)
+    if ok then
+      answers = result
+    else
+      failure = result
+    end
+    done = true
+  end)
+  local ran = vim.wait(2000, function()
+    return done
+  end, 10)
+  timer:close()
+  assert(ran, "the fast event never ran")
+  assert(not failure, "a predicate raised inside a fast event: " .. tostring(failure))
+  assert(answers.node, "the import read answered no inside a fast event")
+  assert(answers.vitest, "the manifest walk answered no inside a fast event")
+end
+
 cases["neotest-golang is constructed, because its options are populated only by the call"] = function()
   -- At the pinned commit `M.Adapter.options` is assigned inside `__call` alone and read by
   -- `filter_dir`, so the bare module raises in any Go module with a subdirectory.
