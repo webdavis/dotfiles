@@ -75,8 +75,10 @@ just ship               # the three gates CI runs, in CI order, the explicit pre
 
 **Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
 slow one is deleted rather than tolerated. Bash unit tests are **bats**, one behavior per `@test`,
-through HOST bats-core; Rust is tested with `cargo test`. A large purge in 2026-08 left 160+ deleted
-files in git history as a cherry-pick pool: restore individual logic asserts from it, never wholesale.
+through HOST bats-core; the Neovim config's Lua specs (`dot_config/nvim/tests/*_spec.lua`) run under
+`nvim --headless --clean -l` through `just test-nvim`, a dependency of `test-unit`; Rust is tested with
+`cargo test`. A large purge in 2026-08 left 160+ deleted files in git history as a cherry-pick pool:
+restore individual logic asserts from it, never wholesale.
 
 **We test the behavior of tools we wrote, and nothing else** (operator ruling 2026-08-05). Not chezmoi,
 not Homebrew, not launchd, not any third-party behavior, and not deployment. In scope: pns, the osquery
@@ -89,12 +91,12 @@ source logic while leaving the declarations intact would turn the test red. If i
 testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a
 config that disagrees with itself is now caught by review, not by a gate.
 
-The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
-(`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
-(replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle;
-shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY performance
-summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings never fail the
-run.
+The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim` and then
+the one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled
+each run (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native
+shuffle; shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY
+performance summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings
+never fail the run.
 
 **CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines
 (`just lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
