@@ -3,6 +3,37 @@
 -- docs/superpowers/plans/2026-09-01-nvim-overhaul-plan.md Task 3 found the plan's original eight
 -- keymaps covered a quarter of the plugin's 66 commands. This file's keymap set and its reasoning
 -- are recorded in the PR body, not here.
+
+-- Save the CURRENT buffer's breakpoints, leaving every other file's entry alone.
+--
+-- The plugin's own `save_breakpoints()` walks `nvim_list_bufs()` and writes
+-- `saved[name] = dap.breakpoints.get()[bufnr]` for each. An argument-list buffer that is
+-- listed but not yet loaded has no dap breakpoints, so that assignment is nil and its saved
+-- entry is deleted. Reproduced: `nvim A.swift B.swift`, toggle in A, and B's conditional
+-- breakpoint is gone from breakpoints.json. Reading, updating one key and writing back is the
+-- whole fix, and the three breakpoint mappings share it.
+local function save_current_buffer_breakpoints()
+  local path = require("xcodebuild.project.appdata").breakpoints_filepath
+  local saved = {}
+  if vim.fn.filereadable(path) == 1 then
+    local decoded_ok, decoded = pcall(vim.fn.json_decode, table.concat(vim.fn.readfile(path), ""))
+    if decoded_ok and type(decoded) == "table" then
+      saved = decoded
+    end
+  end
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  saved[vim.api.nvim_buf_get_name(bufnr)] = require("dap.breakpoints").get()[bufnr]
+
+  -- Outside a configured project the appdata directory does not exist, the open fails and
+  -- this returns without writing, which is what keeps the mappings safe on a stray Swift file.
+  local fp = io.open(path, "w")
+  if fp then
+    fp:write(vim.fn.json_encode(saved))
+    fp:close()
+  end
+end
+
 return {
   {
     "wojciech-kulik/xcodebuild.nvim",
@@ -138,6 +169,17 @@ return {
       -- not exist at all, and checkhealth's debugger check has nothing to find.
       require("xcodebuild.integrations.dap").setup()
 
+      -- `reload_on_cwd_change` above re-reads settings and the report when the project changes,
+      -- but nothing reloads breakpoints, so after a switch the buffers still carry the previous
+      -- project's. The plugin broadcasts the switch; this is the missing third restore.
+      vim.api.nvim_create_autocmd("User", {
+        group = vim.api.nvim_create_augroup("xcodebuild_breakpoints_on_cwd_change", { clear = true }),
+        pattern = "XcodebuildCwdChanged",
+        callback = function()
+          require("xcodebuild.integrations.dap").load_breakpoints()
+        end,
+      })
+
       local dap, dapui = require("dap"), require("dapui")
       dapui.setup()
       dap.listeners.after.event_initialized["dapui_config"] = function()
@@ -258,7 +300,8 @@ return {
       {
         "<leader>Db",
         function()
-          require("xcodebuild.integrations.dap").toggle_breakpoint()
+          require("dap").toggle_breakpoint()
+          save_current_buffer_breakpoints()
         end,
         desc = "Debug: toggle breakpoint",
       },
@@ -266,7 +309,7 @@ return {
         "<leader>DB",
         function()
           require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: "))
-          require("xcodebuild.integrations.dap").save_breakpoints()
+          save_current_buffer_breakpoints()
         end,
         desc = "Debug: conditional breakpoint",
       },
@@ -275,7 +318,8 @@ return {
       {
         "<leader>Dm",
         function()
-          require("xcodebuild.integrations.dap").toggle_message_breakpoint()
+          require("dap").set_breakpoint(nil, nil, vim.fn.input("Breakpoint message: "))
+          save_current_buffer_breakpoints()
         end,
         desc = "Debug: toggle message breakpoint",
       },
