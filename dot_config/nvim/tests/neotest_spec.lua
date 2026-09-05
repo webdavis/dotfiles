@@ -47,6 +47,12 @@ local nested =
   write_fixture("vitest-root/packages/jest-only/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
 local nested_file =
   write_fixture("vitest-root/packages/jest-only/tests/nested.test.js", 'test("nested", function () {});\n')
+-- A real node:test import pushed past the head of the file by a generated preamble.
+local preamble = (" * a generated preamble line, one of many, padding this header out\n"):rep(120)
+local late_import_file = write_fixture(
+  "vitest-root/tests/late.test.js",
+  '/*\n' .. preamble .. ' */\nimport { test } from "node:test";\n'
+)
 write_fixture("vitest-root/packages/silent/package.json", "{}")
 local silent_nested_file =
   write_fixture("vitest-root/packages/silent/tests/quiet.test.js", 'import { test } from "vitest";\n')
@@ -233,6 +239,15 @@ return {
     -- stays with whichever adapter's own detection reaches the ancestor.
     assert(routed.vitest(silent_nested_file), "an empty nested manifest took the file from vitest")
     assert(claim_count(routed, silent_nested_file) == 1, "expected exactly one adapter to claim the file")
+  end,
+
+  ["a node:test import past the head of a long file is still an import"] = function()
+    -- A license or generated preamble pushes the real import down the file, so a reader that
+    -- stops after a prefix hands the file to the runner the package declares instead.
+    local routed = route(all_claim())
+    assert(routed.node(late_import_file), "a preamble hid the import")
+    assert(not routed.vitest(late_import_file), "vitest took a node:test file")
+    assert(claim_count(routed, late_import_file) == 1, "expected exactly one adapter to claim the file")
   end,
 
   ["a file importing node:test is node:test's, whatever the project declares"] = function()

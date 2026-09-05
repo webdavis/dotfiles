@@ -14,9 +14,9 @@ local javascript_filetypes = {
 --- Whether the head of `file_path` imports or requires `node:test`.
 ---
 --- Plain `io` rather than `vim.fn.readfile`: `is_test_file` runs inside neotest's async contexts,
---- where a Vimscript call raises E5560 and a `pcall` around it would read as "no import". Only the
---- first 4 KiB is read, which covers an import block; an import below that reads as absent and the
---- file falls to whichever runner the package declares.
+--- where a Vimscript call raises E5560 and a `pcall` around it would read as "no import". The whole
+--- file is read rather than a prefix, because a license or generated preamble can push a real
+--- import past any cutoff, and a missed import hands the file to a runner that cannot run it.
 ---@param file_path string
 ---@return boolean
 local function imports_node_test(file_path)
@@ -24,9 +24,9 @@ local function imports_node_test(file_path)
   if not handle then
     return false
   end
-  local head = handle:read(4096) or ""
+  local source = handle:read("*a") or ""
   handle:close()
-  return head:match("['\"]node:test['\"]") ~= nil
+  return source:match("['\"]node:test['\"]") ~= nil
 end
 
 --- The test runner the package.json NEAREST `path` declares, read from its dependency lists and
