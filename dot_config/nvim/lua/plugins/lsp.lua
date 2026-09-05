@@ -146,17 +146,21 @@ return {
     init = function()
       -- The same directory and the same order `mason.setup()` uses: it prepends
       -- `install_root_dir .. "/bin"` under its default `PATH = "prepend"`, pinned in `opts`
-      -- below so the two cannot drift apart. The guard is for the environment already
-      -- carrying the directory, and for keeping this idempotent; it does not stop Mason's own
-      -- prepend, which is unconditional, so a later `:Mason` still adds a second copy. A
-      -- duplicate entry resolves to the same binary, and losing the first one does not.
+      -- below so the two cannot drift apart. Every existing occurrence is dropped and one is
+      -- put back at the front, because FIRST is the whole point and merely being present is
+      -- not enough: with Homebrew ahead of it, `shfmt` and `stylua` resolve to Homebrew's
+      -- copies while Mason's sit further down the list. Rebuilding the list this way is also
+      -- what keeps a second call idempotent.
       local mason_bin = vim.fn.stdpath("data") .. "/mason/bin"
-      local path = vim.env.PATH
-      if not path then
-        vim.env.PATH = mason_bin
-      elseif not vim.list_contains(vim.split(path, ":", { plain = true }), mason_bin) then
-        vim.env.PATH = mason_bin .. ":" .. path
+      local entries = { mason_bin }
+      for _, entry in ipairs(vim.split(vim.env.PATH or "", ":", { plain = true })) do
+        -- An empty entry means the working directory; dropping it is what keeps an absent
+        -- PATH from becoming a trailing colon.
+        if entry ~= mason_bin and entry ~= "" then
+          table.insert(entries, entry)
+        end
       end
+      vim.env.PATH = table.concat(entries, ":")
     end,
     opts = {
       -- Mason's own default, named because the `init` above hard-codes the same prepend.

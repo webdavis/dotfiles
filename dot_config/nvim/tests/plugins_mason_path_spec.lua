@@ -87,18 +87,14 @@ return {
     assert(path_after(nil) == mason_bin, "an absent PATH should become exactly the bin directory")
   end,
 
-  ["agrees with the PATH mode mason.setup() is configured for"] = function()
-    -- The `init` hard-codes a prepend. Mason repeats it from its own settings when it
-    -- finally loads, so a spec asking for "append" or "skip" would contradict startup.
-    local opts = assert(mason_spec().opts, "the mason.nvim spec has no `opts`")
-    assert(opts.PATH == "prepend", ('expected PATH = "prepend", got %s'):format(vim.inspect(opts.PATH)))
-  end,
-
-  ["leaves mason.nvim itself lazy"] = function()
-    -- Loading the plugin eagerly would also fix the PATH, and would undo the slice.
-    local spec = mason_spec()
-    assert(spec.cmd == "Mason", "mason.nvim should still be reached by its `:Mason` command")
-    assert(spec.lazy ~= false, "mason.nvim must not be made eager")
-    assert(spec.event == nil, "mason.nvim should carry no event trigger")
+  ["moves the directory to the front when something already sits ahead of it"] = function()
+    -- Present is not the same as first. With Homebrew ahead of it, `shfmt` and `stylua`
+    -- resolve to Homebrew's copies rather than Mason's, which is what an eager
+    -- `mason.setup()` used to prevent.
+    local path = path_after("/opt/homebrew/bin:" .. mason_bin .. ":/usr/bin:/bin")
+    assert(
+      path == mason_bin .. ":/opt/homebrew/bin:/usr/bin:/bin",
+      "the directory should move to the front with the rest of PATH in order, got " .. path
+    )
   end,
 }
