@@ -181,10 +181,21 @@ return {
       -- `reload_on_cwd_change` above re-reads settings and the report when the project changes,
       -- but nothing reloads breakpoints, so after a switch the buffers still carry the previous
       -- project's. The plugin broadcasts the switch; this is the missing third restore.
+      --
+      -- Gated on the resolved file CHANGING, because the event also fires for a cd that stays
+      -- inside one project, and the loader adds breakpoints without clearing what is there.
+      -- Reproduced: a saved breakpoint at line 5, a line inserted above it so the live one
+      -- drifts to 6, then a cd into a subdirectory, leaving breakpoints at 5 and 6.
+      local restored_breakpoints_file = require("xcodebuild.project.appdata").breakpoints_filepath
       vim.api.nvim_create_autocmd("User", {
         group = vim.api.nvim_create_augroup("xcodebuild_breakpoints_on_cwd_change", { clear = true }),
         pattern = "XcodebuildCwdChanged",
         callback = function()
+          local path = require("xcodebuild.project.appdata").breakpoints_filepath
+          if path == restored_breakpoints_file then
+            return
+          end
+          restored_breakpoints_file = path
           require("xcodebuild.integrations.dap").load_breakpoints()
         end,
       })
