@@ -53,6 +53,21 @@ local late_import_file = write_fixture(
   "vitest-root/tests/late.test.js",
   '/*\n' .. preamble .. ' */\nimport { test } from "node:test";\n'
 )
+-- The shapes a node:test import takes, and two mentions that are not imports at all.
+local commented_file = write_fixture(
+  "vitest-root/tests/note.test.js",
+  '// do not import from "node:test"\nimport { test } from "vitest";\n'
+)
+local block_commented_file = write_fixture(
+  "vitest-root/tests/block.test.js",
+  '/* prefer "node:test" once this migrates */\nimport { test } from "vitest";\n'
+)
+local multiline_file = write_fixture(
+  "vitest-root/tests/multi.test.ts",
+  'import {\n  test,\n  describe,\n} from "node:test";\n'
+)
+local required_file =
+  write_fixture("vitest-root/tests/required.test.js", 'const { test } = require("node:test");\n')
 write_fixture("vitest-root/packages/silent/package.json", "{}")
 local silent_nested_file =
   write_fixture("vitest-root/packages/silent/tests/quiet.test.js", 'import { test } from "vitest";\n')
@@ -196,9 +211,10 @@ local function no()
 end
 
 --- A claim faithful to all three pins: each adapter's default predicate opens with a nil guard,
---- then matches the conventional test-file names.
+--- then matches the conventional test-file names. `js`, `jsx`, `ts` and `tsx` are in every pinned
+--- list; `mjs` and `cjs` are in none of them.
 local function any_javascript(path)
-  return path ~= nil and path:match("%.test%.js$") ~= nil
+  return path ~= nil and path:match("%.test%.[jt]sx?$") ~= nil
 end
 
 local function all_claim()
@@ -239,6 +255,24 @@ return {
     -- stays with whichever adapter's own detection reaches the ancestor.
     assert(routed.vitest(silent_nested_file), "an empty nested manifest took the file from vitest")
     assert(claim_count(routed, silent_nested_file) == 1, "expected exactly one adapter to claim the file")
+  end,
+
+  ["a node:test mention inside a comment is not an import"] = function()
+    -- Otherwise a vitest test that merely names the module in a note is claimed by node:test
+    -- while vitest and jest both stand down for it.
+    local routed = route(all_claim())
+    for _, path in ipairs({ commented_file, block_commented_file }) do
+      assert(not routed.node(path), "a comment read as an import: " .. path)
+      assert(routed.vitest(path), "a comment cost the package's own runner a file: " .. path)
+    end
+  end,
+
+  ["the multiline and require shapes of a node:test import both count"] = function()
+    local routed = route(all_claim())
+    for _, path in ipairs({ multiline_file, required_file }) do
+      assert(routed.node(path), "an import shape went unrecognized: " .. path)
+      assert(claim_count(routed, path) == 1, "expected exactly one adapter to claim " .. path)
+    end
   end,
 
   ["a node:test import past the head of a long file is still an import"] = function()

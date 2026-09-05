@@ -11,12 +11,24 @@ local javascript_filetypes = {
   "typescriptreact",
 }
 
---- Whether the head of `file_path` imports or requires `node:test`.
+--- The shapes a node:test import takes. `from "node:test"` ends both the one-line and the
+--- multiline form of a static import, including a TypeScript `import type`.
+local node_test_import_patterns = {
+  "require%s*%(%s*['\"]node:test['\"]",
+  "import%s*%(?%s*['\"]node:test['\"]",
+  "from%s+['\"]node:test['\"]",
+}
+
+--- Whether `file_path` imports or requires `node:test`.
 ---
 --- Plain `io` rather than `vim.fn.readfile`: `is_test_file` runs inside neotest's async contexts,
 --- where a Vimscript call raises E5560 and a `pcall` around it would read as "no import". The whole
 --- file is read rather than a prefix, because a license or generated preamble can push a real
 --- import past any cutoff, and a missed import hands the file to a runner that cannot run it.
+---
+--- Comments come out before the match, so a note that merely names the module does not read as an
+--- import. The strip is textual and knows nothing about string literals, so a `//` inside one ends
+--- that line early; no import statement survives that shape anyway.
 ---@param file_path string
 ---@return boolean
 local function imports_node_test(file_path)
@@ -26,7 +38,13 @@ local function imports_node_test(file_path)
   end
   local source = handle:read("*a") or ""
   handle:close()
-  return source:match("['\"]node:test['\"]") ~= nil
+  source = source:gsub("/%*.-%*/", "\n"):gsub("//[^\n]*", "")
+  for _, pattern in ipairs(node_test_import_patterns) do
+    if source:match(pattern) then
+      return true
+    end
+  end
+  return false
 end
 
 --- The test runner the package.json NEAREST `path` declares, read from its dependency lists and
