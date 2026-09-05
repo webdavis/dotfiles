@@ -20,7 +20,7 @@
                  says: the model and reasoning settings, the sandbox and
                  approval policy, notify, tui.vim_mode_default, [features],
                  [memories], the two git [marketplaces.*] identities, and the
-                 four MCP servers this repo declares.
+                 five MCP servers this repo declares.
     FREE-DRIFT   passed through untouched: [hooks.state], the desktop app's
                  own [desktop] block and the MCP servers it injects, the
                  [plugins.*] roster, tui.model_availability_nux, the
@@ -125,7 +125,7 @@
 {{- $merged = setValueAtPath (list "marketplaces" "ponytail" "source_type") "git" $merged -}}
 {{- $merged = setValueAtPath (list "marketplaces" "ponytail" "source") "https://github.com/DietrichGebert/ponytail.git" $merged -}}
 
-{{- /* --- stable: the four MCP servers this repo declares, whole entry each,
+{{- /* --- stable: the five MCP servers this repo declares, whole entry each,
        because a server missing its command or url is one Codex rejects. Three
        of them carry the secrets, which come from KeePassXC at apply time and
        are the reason this target needs the vault unlocked.
@@ -135,7 +135,12 @@
        absolute paths inside /Applications, so declaring them would force a
        stale build number back over a live one after every app update. Same for
        shell_environment_policy, whose one key is a client hash the app
-       computes. --- */ -}}
+       computes.
+
+       nvim is the Neovim MCP server (spec 7.3, PR 10a) and its command is the
+       RESOLVER rather than nvim-mcp itself: nvim-mcp chooses an instance by
+       current directory or git root, which cannot tell two Neovim panes in one
+       herdr workspace apart. --- */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "composio" "url") "https://connect.composio.dev/mcp" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "composio" "http_headers" "x-consumer-api-key") (keepassxc "Composio :: API Key :: MCP").Password $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "command") "uvx" $merged -}}
@@ -147,6 +152,7 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "nvim" "command") (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home) $merged -}}
 
 {{- /* --- the declared project ROSTER, trusted, with every live entry this
        repo does not name PRESERVED.

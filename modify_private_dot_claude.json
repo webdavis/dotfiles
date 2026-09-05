@@ -37,4 +37,17 @@
       "OAUTHLIB_INSECURE_TRANSPORT" "1") -}}
 {{- $merged = setValueAtPath "mcpServers.workspace-mcp" $workspaceMcp $merged -}}
 
+{{- /* --- stable: the Neovim MCP server (spec 7.3, PR 10a) ---
+
+     The command is the RESOLVER, never nvim-mcp itself. nvim-mcp picks an
+     instance by current directory or git root, which cannot tell two Neovim
+     panes in one herdr workspace apart; the resolver answers by herdr pane and
+     verifies the instance's identity over RPC before handing it over
+     (docs/research/2026-09-nvim-mcp-evaluation.md). It carries no secret, so
+     unlike its two neighbours this entry needs no vault entry. --- */ -}}
+{{- $nvimMcp := dict
+    "type" "stdio"
+    "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" .chezmoi.homeDir) -}}
+{{- $merged = setValueAtPath "mcpServers.nvim" $nvimMcp $merged -}}
+
 {{ $merged | toPrettyJson }}
