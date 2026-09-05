@@ -19,7 +19,7 @@
     STABLE       overwritten from here on every apply, whatever the live file
                  says: the model and reasoning settings, the sandbox and
                  approval policy, notify, tui.vim_mode_default, [features],
-                 [memories], the two git [marketplaces.*] identities, and the
+                 [memories], the three git [marketplaces.*] identities, and the
                  four MCP servers this repo declares.
     FREE-DRIFT   passed through untouched: [hooks.state], the desktop app's
                  own [desktop] block and the MCP servers it injects, the
@@ -72,8 +72,8 @@
 {{- $home := .chezmoi.homeDir -}}
 
 {{- /* --- stable: model, reasoning and personality --- */ -}}
-{{- $merged = setValueAtPath "model" "gpt-5.6-sol" $merged -}}
-{{- $merged = setValueAtPath "model_reasoning_effort" "max" $merged -}}
+{{- $merged = setValueAtPath "model" "gpt-6-astra" $merged -}}
+{{- $merged = setValueAtPath "model_reasoning_effort" "ultra" $merged -}}
 {{- $merged = setValueAtPath "personality" "pragmatic" $merged -}}
 {{- $merged = setValueAtPath "service_tier" "default" $merged -}}
 
@@ -109,7 +109,7 @@
        control would replay the onboarding on every apply. --- */ -}}
 {{- $merged = setValueAtPath "tui.vim_mode_default" true $merged -}}
 
-{{- /* --- stable: the two marketplaces fetched from git, IDENTITY ONLY.
+{{- /* --- stable: the three marketplaces fetched from git, IDENTITY ONLY.
        source_type and source say where a marketplace comes from and are a
        deliberate choice; last_updated and last_revision say how fresh the local
        copy is, are written by Codex when it refreshes, and are deliberately NOT
@@ -124,6 +124,26 @@
 {{- $merged = setValueAtPath (list "marketplaces" "claude-plugins-official" "source") "https://github.com/anthropics/claude-plugins-official.git" $merged -}}
 {{- $merged = setValueAtPath (list "marketplaces" "ponytail" "source_type") "git" $merged -}}
 {{- $merged = setValueAtPath (list "marketplaces" "ponytail" "source") "https://github.com/DietrichGebert/ponytail.git" $merged -}}
+{{- $merged = setValueAtPath (list "marketplaces" "babysitter" "source_type") "git" $merged -}}
+{{- $merged = setValueAtPath (list "marketplaces" "babysitter" "source") "https://github.com/a5c-ai/babysitter-codex.git" $merged -}}
+
+{{- /* --- stable: babysitter is HELD OFF, and this one key is the exception to
+       the free-drift [plugins.*] roster above.
+
+       Two upstream defects, found in review 2026-09-05. An ordinary
+       SessionStart with the plugin enabled creates a run and executes any
+       `.a5c/hooks/on-run-start/` script it finds in the repository through
+       Bash, non-executable files included, with no approval separate from the
+       one the operator gave the plugin's own hook. And the installed Claude and
+       Codex adapters both drop Stop's `decision: "block"`, so a skill that
+       yields expecting Stop to resume the orchestration can terminate early.
+
+       Written from here rather than left to drift because a hold an apply can
+       silently lift is not a hold. Codex ships no `plugin disable` verb, so
+       this key IS the disable. Delete these two lines to enable it, once an
+       upstream release fixes both defects; the rest of [plugins.*] keeps
+       drifting freely. --- */ -}}
+{{- $merged = setValueAtPath (list "plugins" "babysitter@babysitter" "enabled") false $merged -}}
 
 {{- /* --- stable: the four MCP servers this repo declares, whole entry each,
        because a server missing its command or url is one Codex rejects. Three

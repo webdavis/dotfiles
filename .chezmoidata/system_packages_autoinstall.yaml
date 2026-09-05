@@ -276,14 +276,28 @@ packages:
     fnm:
       - node: "24"
         packages:
+          # Pinned: the npm `latest` tag still points at 6.0.0 while the three
+          # harness plugin bundles and their versions.json are on 6.0.3, so an
+          # unpinned install would leave the CLI two months behind the plugins
+          # that call it. `npm ls -g <pkg>@<version>` is exact, so the guard
+          # above reinstalls whenever the pin moves.
+          #
+          # -sdk, NOT the @a5c-ai/babysitter metapackage the README names: only
+          # this package ships the `adapters-hooks` bin that every Claude Code
+          # hook command invokes and the Codex hook runtime resolves. The two
+          # packages both declare a `babysitter` bin and cannot coexist.
+          - "@a5c-ai/babysitter-sdk@6.0.3"
           - "@clawdbot/lobster"
           - "@colbymchenry/codegraph"
           - "@doist/todoist-cli"
           - "@elevenlabs/cli"
+          - "@fission-ai/openspec"
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
           - "@tobilu/qmd"
+          - acpx
           - agentmail-cli
+          - backpass
           - clawhub
           - happy
           - hyperframes

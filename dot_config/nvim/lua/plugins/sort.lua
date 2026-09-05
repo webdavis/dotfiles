@@ -1,5 +1,22 @@
 return {
   "sQVe/sort.nvim",
+  cmd = "Sort",
+  -- These entries are triggers only, carrying no mapping of their own, unlike
+  -- the aerial and live-rename ones: sort.nvim binds all seven itself inside
+  -- its own setup, off the `mappings` table in `opts` below, so a mapping here
+  -- would be a second declaration of a key this config does not own. They still
+  -- have to be listed, because a key left out stops firing until something else
+  -- happens to load the plugin. `go` and `gogo` come from the default
+  -- `mappings.operator`; the rest are the pair reassigned in `opts`.
+  keys = {
+    { "go", mode = "n", desc = "Sort operator" },
+    { "go", mode = "x", desc = "Sort selection" },
+    { "gogo", mode = "n", desc = "Sort current line" },
+    { "ir", mode = { "o", "x" }, desc = "Inner sortable region" },
+    { "ar", mode = { "o", "x" }, desc = "Around sortable region" },
+    { "],", mode = { "n", "x", "o" }, desc = "Next delimiter" },
+    { "[,", mode = { "n", "x", "o" }, desc = "Previous delimiter" },
+  },
   opts = {
     ignore_case = true,
     -- sort.nvim and nvim-treesitter-textobjects both bound `as`, `]s` and `[s`,
