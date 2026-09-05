@@ -10,7 +10,12 @@
 #     NON-executable *.sh (sourced libs; an executable file there is a misplaced
 #     test, and bats never belong there); test/fixtures/** is exempt; only
 #     validate-tests.sh and run-test-suite.sh may sit at test/ root;
-#   - a suite *.sh that is not executable (invisible to the runner's -perm probe);
+#   - a suite *.sh that is not executable (invisible to the runner's -perm probe),
+#     EXCEPT the bashunit shape `<name>.test.sh`, which must be the other way
+#     round: bashunit SOURCES its test files and never execs them, while
+#     run-test-suite.sh discovers *.sh by `-perm -u+x`, so an executable
+#     <name>.test.sh would be run twice, once by `just test-bashunit` and once
+#     as a bare script by the suite runner, where its assertions are undefined;
 #   - ANY symlink below test/. A physical `find -type f` skips symlinked files
 #     and symlinked suite dirs, so a tracked symlink would evade this guard and
 #     every gate. Following it risks out-of-tree traversal and cycles, so the
@@ -54,12 +59,21 @@ check_placement() { # <root> <workdir>
   local bad="" file
   while IFS= read -r -d '' file; do
     case "$file" in
-      # fixtures/ holds data and sourced libs, and nothing ever runs bats from
-      # there, so a *.bats under fixtures/ is a test that would never run.
-      "$root"/fixtures/*.bats)
-        bad+="$file (bats never run from fixtures/; move it into a suite)"$'\n'
+      # fixtures/ holds data and sourced libs. Nothing ever runs bats from
+      # there, so a *.bats under fixtures/ is a test that would never run; a
+      # <name>.test.sh has the opposite problem, since `just test-bashunit`
+      # scans the whole tree and WOULD run it, from outside any suite.
+      "$root"/fixtures/*.bats | "$root"/fixtures/*.test.sh)
+        bad+="$file (tests never belong in fixtures/; move it into a suite)"$'\n'
         ;;
       "$root"/fixtures/*) continue ;;
+      # A bashunit test file in ANY helpers/ dir, suite-local or shared: those
+      # dirs hold sourced libs, and `just test-bashunit` scans the whole tree,
+      # so it would run from outside a suite. Sorted ahead of the helpers arms
+      # below, which admit a non-executable *.sh.
+      "$root"/unit/helpers/*.test.sh | "$root"/integration/helpers/*.test.sh | "$root"/e2e/helpers/*.test.sh | "$root"/test-system/helpers/*.test.sh | "$root"/helpers/*.test.sh)
+        bad+="$file (helpers/ holds sourced libs; a bashunit test belongs in a suite)"$'\n'
+        ;;
       # A suite's helpers/ holds sourced, non-executable *.sh only. An
       # executable file there is a misplaced test that no runner would ever
       # discover, and bats never belong there, so both fail the guard.
@@ -89,6 +103,16 @@ check_placement() { # <root> <workdir>
       "$root"/unit/*/* | "$root"/integration/*/* | "$root"/e2e/*/* | "$root"/test-system/*/*)
         bad+="$file (nested; suites are flat)"$'\n'
         ;;
+      # The bashunit shape. It must sort BEFORE the executable-*.sh arm below,
+      # because `<name>.test.sh` matches that pattern too and carries the
+      # opposite mode rule: bashunit sources these files, so an executable one
+      # is ALSO discovered by run-test-suite.sh's `-perm -u+x` probe and run as
+      # a bare script, where assert_equals does not exist.
+      "$root"/unit/*.test.sh | "$root"/integration/*.test.sh | "$root"/e2e/*.test.sh | "$root"/test-system/*.test.sh)
+        if [[ -x $file ]]; then
+          bad+="$file (bashunit sources its test files; remove the executable bit)"$'\n'
+        fi
+        ;;
       "$root"/unit/*.sh | "$root"/integration/*.sh | "$root"/e2e/*.sh | "$root"/test-system/*.sh)
         [[ -x $file ]] || bad+="$file (not executable; run chmod +x on it)"$'\n'
         ;;
@@ -103,7 +127,7 @@ check_placement() { # <root> <workdir>
 
   if [[ -n $bad ]]; then
     printf 'FAIL: misplaced or misconfigured test scripts:\n%s' "$bad" >&2
-    printf 'Move each into a suite (unit/integration/e2e/test-system) and make suite *.sh executable; a suite test uses REPO_ROOT depth ../.. .\n' >&2
+    printf 'Move each into a suite (unit/integration/e2e/test-system) and make suite *.sh executable, except a bashunit <name>.test.sh which must NOT be; a suite test uses REPO_ROOT depth ../.. .\n' >&2
     return 1
   fi
   return 0
