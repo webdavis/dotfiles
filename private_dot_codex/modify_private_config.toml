@@ -127,6 +127,24 @@
 {{- $merged = setValueAtPath (list "marketplaces" "babysitter" "source_type") "git" $merged -}}
 {{- $merged = setValueAtPath (list "marketplaces" "babysitter" "source") "https://github.com/a5c-ai/babysitter-codex.git" $merged -}}
 
+{{- /* --- stable: babysitter is HELD OFF, and this one key is the exception to
+       the free-drift [plugins.*] roster above.
+
+       Two upstream defects, found in review 2026-09-05. An ordinary
+       SessionStart with the plugin enabled creates a run and executes any
+       `.a5c/hooks/on-run-start/` script it finds in the repository through
+       Bash, non-executable files included, with no approval separate from the
+       one the operator gave the plugin's own hook. And the installed Claude and
+       Codex adapters both drop Stop's `decision: "block"`, so a skill that
+       yields expecting Stop to resume the orchestration can terminate early.
+
+       Written from here rather than left to drift because a hold an apply can
+       silently lift is not a hold. Codex ships no `plugin disable` verb, so
+       this key IS the disable. Delete these two lines to enable it, once an
+       upstream release fixes both defects; the rest of [plugins.*] keeps
+       drifting freely. --- */ -}}
+{{- $merged = setValueAtPath (list "plugins" "babysitter@babysitter" "enabled") false $merged -}}
+
 {{- /* --- stable: the four MCP servers this repo declares, whole entry each,
        because a server missing its command or url is one Codex rejects. Three
        of them carry the secrets, which come from KeePassXC at apply time and
