@@ -73,32 +73,32 @@ quiet_hours = "22:00-07:00"
 # destination: no event routes to it. It reads the bridge through
 # [plugins.hue] above, so switching this on with that one off is refused
 # by name.
-# [plugins.presence]
-# enabled = true
+[plugins.presence]
+enabled = true
 # Which compiled-in backend answers. "hue" is the only one today, and a
 # table naming none, or naming one nothing answers, is refused out loud.
-# type = "hue"
+type = "hue"
 # The rooms a reading may name, spelled the way the bridge spells them. A
 # room with no motion sensor or MotionAware area never reports, and an
 # empty list watches nothing at all.
-# rooms = []
+rooms = ["3F - Studio", "2F - Kitchen", "3F - MBedroom"]
 # Rooms whose presence is discarded even when they are listed above: a
 # room you pass through, or one you never want lit.
-# exclude = []
+exclude = []
 # The room the desk is in, spelled the way the bridge spells it and
 # listed in rooms above. While the desk says you are at it, that is
 # where you are and motion elsewhere gets no vote: a cat crossing the
 # kitchen must not move the lamps off a keyboard being typed at.
 # Unset, a desk in use narrows nothing.
-# desk_room = ""
+desk_room = "3F - Studio"
 # How often the bridge is read, in seconds, bounded 2 to 60.
-# poll_secs = 5
+poll_secs = 5
 # How old that read may be before there is no reading at all. A BRIDGE
 # THAT STOPPED ANSWERING IS UNKNOWN, never "present" and never "away":
 # presence only ever narrows which lamp signals, so not knowing costs
 # the narrowing and nothing else. It may not be under poll_secs, or
 # every reading would age out before the next read replaced it.
-# stale_after_secs = 15
+stale_after_secs = 15
 
 # The home probe: whether the phone is on the home wifi, answered by the
 # router's own client list. A SENSOR rather than a destination, so no

@@ -4098,11 +4098,12 @@ mod tests {
     /// DEFAULT rather than commented, which this does not catch. That case
     /// still reads as a changed value in the template's own diff, where a
     /// whole table going commented reads as a comment reflow.
-    const LIVE_TABLES: [&str; 22] = [
+    const LIVE_TABLES: [&str; 23] = [
         "plugins.mobile",
         "plugins.hermes",
         "plugins.macos-banner",
         "plugins.hue",
+        "plugins.presence",
         "plugins.router",
         "daemon",
         "recap",
@@ -4327,7 +4328,14 @@ mod tests {
             .unwrap_or_else(|error| panic!("the shipped template must load: {error:?}"));
         assert_eq!(
             config.plugins.keys().collect::<Vec<_>>(),
-            vec!["hermes", "hue", "macos-banner", "mobile", "router"],
+            vec![
+                "hermes",
+                "hue",
+                "macos-banner",
+                "mobile",
+                "presence",
+                "router"
+            ],
             "and it must still select what it selects"
         );
         // And every one of those names is a plugin that exists, which is the
