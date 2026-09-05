@@ -67,6 +67,7 @@ grep -qF -- "--connect $CASE/run/n1.sock" "$CASE/exec" || fail 'registry-hit: wr
 # is exactly why presence is not identity.
 setup_case identity-mismatch
 write_layout w1:t1 w1:p1 w1:p2 w1:p3
+make_socket "$CASE/run/stale.sock" "$CASE/run/live.sock"
 record w1:p2 4242 "$CASE/run/stale.sock"
 record w1:p3 4343 "$CASE/run/live.sock"
 {
@@ -83,6 +84,7 @@ grep -qF -- "--connect $CASE/run/live.sock" "$CASE/exec" ||
 # --- f) two verified candidates are a picker, not a guess --------------------
 setup_case picker
 write_layout w1:t1 w1:p1 w1:p2 w1:p3
+make_socket "$CASE/run/a.sock" "$CASE/run/b.sock"
 record w1:p2 4242 "$CASE/run/a.sock"
 record w1:p3 4343 "$CASE/run/b.sock"
 {
@@ -101,6 +103,7 @@ grep -qF "$CASE/run/b.sock" "$CASE/err" || fail 'picker: candidate b is not enum
 # silently.
 setup_case nested-pane
 write_layout w1:t1 w1:p1 w1:p2
+make_socket "$CASE/run/outer.sock" "$CASE/run/inner.sock"
 record w1:p2 4242 "$CASE/run/outer.sock"
 record w1:p2 4343 "$CASE/run/inner.sock"
 {
@@ -126,8 +129,7 @@ live_sock="$CASE/run/bbb/nvim.$$.0"
 # actually holds: Neovim leaves the socket file behind whenever it does not exit
 # cleanly. So kill -0 on the pid in the filename is the ONLY thing that can tell
 # these two apart before a connection is attempted.
-make_socket "$dead_sock"
-make_socket "$live_sock"
+make_socket "$dead_sock" "$live_sock"
 {
   printf '%s|w1:p4 %s\n' "$dead_sock" "$dead_pid"
   printf '%s|w1:p4 %s\n' "$live_sock" "$$"

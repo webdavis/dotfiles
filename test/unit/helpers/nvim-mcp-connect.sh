@@ -42,11 +42,15 @@ JQ_PATH="$(command -v jq)"
 # make_socket <path> -- a real, bound, listening unix socket. System perl,
 # because bash cannot make one and the resolver's `-S` test wants the real
 # thing rather than a regular file standing in for it.
-# Idempotent, so a case that made the socket itself can still use `record`.
+
 make_socket() {
-  [[ -e $1 ]] && return 0
+  local want=() path
+  for path in "$@"; do
+    [[ -e $path ]] || want+=("$path")
+  done
+  ((${#want[@]} > 0)) || return 0
   /usr/bin/perl -MIO::Socket::UNIX -e \
-    'IO::Socket::UNIX->new(Local => $ARGV[0], Listen => 1) or die $!' "$1"
+    'IO::Socket::UNIX->new(Local => $_, Listen => 1) or die "$_: $!" for @ARGV' "${want[@]}"
 }
 
 # Under /tmp with a SHORT name, not the Darwin per-user temp directory: these
@@ -58,6 +62,14 @@ make_socket() {
 # resolved ones and never match.
 work="$(realpath "$(mktemp -d /tmp/nmc.XXXXXX)")"
 trap 'rm -rf "$work"' EXIT
+
+# make_socket <path...> -- real, bound unix sockets, all of them in ONE perl
+# process, because a process per socket is the most expensive thing this fixture
+# does. Idempotent, so a case that made its own socket can still use `record`.
+#
+# Hard links off a single template were tried and do not work: macOS `realpath`
+# on a hard link returns the ORIGINAL inode's name, so the resolver would
+# resolve a case's socket to a path in the wrong directory.
 
 # A pid that is certainly not running, so kill -0 on it fails: the dead half of
 # case (h). Searched for rather than assumed, because a hardcoded number can be
@@ -79,72 +91,83 @@ done
 #   $CASE/registry      the registry DIRECTORY, one file per instance pid
 #   $CASE/probed        every socket the nvim stub was asked about
 #   $CASE/exec          the argv the nvim-mcp stub was execed with
-setup_case() {
-  CASE="$work/$1"
-  CASE_PATH="$CASE/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-  mkdir -p "$CASE/bin" "$CASE/run" "$CASE/registry" "$CASE/tmp"
-  # 0700, because the resolver refuses a socket outside a private tree.
-  chmod 700 "$CASE/registry" "$CASE/run"
-  : >"$CASE/identity"
-  : >"$CASE/hang"
-  printf '%s' '{"error":{"code":"pane_not_found"},"id":"cli:pane:layout"}' >"$CASE/layout.json"
+# The stubs are written ONCE, here, and find their case directory through
+# NMC_CASE at run time: rewriting three scripts and chmod-ing them for every
+# case is a spawn per case for files that never differ.
+mkdir -p "$work/bin"
 
-  cat >"$CASE/bin/herdr" <<STUB
+cat >"$work/bin/herdr" <<'STUB'
 #!/bin/bash
-printf '%s\n' "\$*" >>"$CASE/herdr-argv"
-[[ "\$1 \$2" == "pane layout" ]] || exit 1
-cat "$CASE/layout.json"
+printf '%s\n' "$*" >>"$NMC_CASE/herdr-argv"
+[[ "$1 $2" == "pane layout" ]] || exit 1
+cat "$NMC_CASE/layout.json"
 STUB
 
-  # nvim --server <socket> --remote-expr <expr>: the identity probe. Every call
-  # is logged BEFORE the answer is looked up, which is what case (h) asserts on.
-  # %b so an identity reply can carry an escaped newline (case o).
-  cat >"$CASE/bin/nvim" <<STUB
+# nvim --server <socket> --remote-expr <expr>: the identity probe. Every call is
+# logged BEFORE the answer is looked up, which is what the dead-socket case
+# asserts on. An identity value of "@<path>" means "cat that file", so a case
+# can hand the probe an arbitrary byte sequence; %b otherwise, so a reply can
+# carry an escaped newline.
+cat >"$work/bin/nvim" <<'STUB'
 #!/bin/bash
 sock=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --server)
-      sock="\$2"
+      sock="$2"
       shift 2
       ;;
     *) shift ;;
   esac
 done
-printf '%s\n' "\$sock" >>"$CASE/probed"
-if grep -qxF "\$sock" "$CASE/hang"; then
+printf '%s\n' "$sock" >>"$NMC_CASE/probed"
+if grep -qxF "$sock" "$NMC_CASE/hang"; then
   sleep 3
   exit 0
 fi
-answer="\$(awk -F'|' -v s="\$sock" '\$1 == s { print \$2; exit }' "$CASE/identity")"
-[[ -n \$answer ]] || exit 1
-if [[ \$answer == @* ]]; then
-  cat "\${answer#@}"
+answer="$(awk -F'|' -v s="$sock" '$1 == s { print $2; exit }' "$NMC_CASE/identity")"
+[[ -n $answer ]] || exit 1
+if [[ $answer == @* ]]; then
+  cat "${answer#@}"
   exit 0
 fi
-printf '%b' "\$answer"
+printf '%b' "$answer"
 STUB
 
-  cat >"$CASE/bin/nvim-mcp" <<STUB
+cat >"$work/bin/nvim-mcp" <<'STUB'
 #!/bin/bash
-printf '%s\n' "\$*" >"$CASE/exec"
+printf '%s\n' "$*" >"$NMC_CASE/exec"
 STUB
 
-  chmod +x "$CASE/bin/herdr" "$CASE/bin/nvim" "$CASE/bin/nvim-mcp"
+chmod +x "$work/bin/herdr" "$work/bin/nvim" "$work/bin/nvim-mcp"
+
+# setup_case <name> -- a private sandbox for one case. Sets CASE (its
+# directory) for the caller to fill in:
+#   $CASE/layout.json   what the herdr stub prints for `pane layout`
+#   $CASE/identity      "<socket>|<reply>" lines the nvim stub answers with
+#   $CASE/hang          sockets the nvim stub never answers on
+#   $CASE/registry      the registry DIRECTORY, one file per instance pid
+#   $CASE/probed        every socket the nvim stub was asked about
+#   $CASE/exec          the argv the nvim-mcp stub was execed with
+setup_case() {
+  CASE="$work/$1"
+  CASE_PATH="$work/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  mkdir -p "$CASE/run" "$CASE/registry" "$CASE/tmp"
+  # 0700, because the resolver refuses a socket outside a private tree.
+  chmod 700 "$CASE/registry" "$CASE/run"
+  : >"$CASE/identity"
+  : >"$CASE/hang"
+  printf '%s' '{"error":{"code":"pane_not_found"},"id":"cli:pane:layout"}' >"$CASE/layout.json"
 }
 
-# private_path <name>=<target>... -- a PATH holding ONLY what is named, plus a
-# bash and an env of its own, so an absence fixture cannot be invalidated by
-# whatever another host happens to keep in /usr/bin.
+# private_path <target>... -- a PATH holding ONLY the named tools, plus a bash,
+# an env, an mktemp and a realpath of its own, so an absence fixture cannot be
+# invalidated by whatever another host keeps in /usr/bin. Every link is made in
+# ONE `ln -s`, which names each by its own basename, because five processes to
+# build a directory of five symlinks is four more than it needs.
 private_path() {
   mkdir -p "$CASE/pathbin"
-  ln -s /bin/bash "$CASE/pathbin/bash"
-  ln -s /usr/bin/env "$CASE/pathbin/env"
-  ln -s /usr/bin/mktemp "$CASE/pathbin/mktemp"
-  local spec
-  for spec in "$@"; do
-    ln -s "${spec#*=}" "$CASE/pathbin/${spec%%=*}"
-  done
+  ln -s /bin/bash /usr/bin/env /usr/bin/mktemp /bin/realpath "$@" "$CASE/pathbin/"
   CASE_PATH="$CASE/pathbin"
 }
 
@@ -181,9 +204,10 @@ run_case() {
     PATH="$CASE_PATH" \
     HOME="$CASE" \
     NVIM_MCP_REGISTRY="$CASE/registry" \
-    NVIM_MCP_BIN="$CASE/bin/nvim-mcp" \
+    NVIM_MCP_BIN="$work/bin/nvim-mcp" \
     XDG_RUNTIME_DIR="$CASE/run" \
     TMPDIR="$CASE/tmp" \
+    NMC_CASE="$CASE" \
     NVIM_MCP_PROBE_DEADLINE=0.1 \
     "$@" \
     bash "$SCRIPT" >"$CASE/out" 2>"$CASE/err" || RC=$?

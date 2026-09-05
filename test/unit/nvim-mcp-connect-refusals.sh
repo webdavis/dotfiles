@@ -40,7 +40,7 @@ grep -q "NVIM_MCP_SOCKET" "$CASE/err" || fail 'refusal: the reason does not say 
 setup_case no-nvim
 write_layout w1:t1 w1:p1 w1:p2
 record w1:p2 4242 "$CASE/run/n1.sock"
-private_path "herdr=$CASE/bin/herdr" "jq=$JQ_PATH" "nvim-mcp=$CASE/bin/nvim-mcp"
+private_path "$work/bin/herdr" "$JQ_PATH" "$work/bin/nvim-mcp"
 run_case HERDR_PANE_ID=w1:p1
 [[ $RC -eq 2 ]] || fail "no-nvim: expected exit 2, got $RC ($(cat "$CASE/err"))"
 grep -qxF 'nvim-mcp-connect: nvim is not on PATH, and the resolver needs it' "$CASE/err" ||
@@ -53,7 +53,7 @@ grep -qxF 'nvim-mcp-connect: nvim is not on PATH, and the resolver needs it' "$C
 setup_case no-jq
 write_layout w1:t1 w1:p1 w1:p2
 record w1:p2 4242 "$CASE/run/n1.sock"
-private_path "herdr=$CASE/bin/herdr" "nvim=$CASE/bin/nvim" "nvim-mcp=$CASE/bin/nvim-mcp"
+private_path "$work/bin/herdr" "$work/bin/nvim" "$work/bin/nvim-mcp"
 run_case HERDR_PANE_ID=w1:p1
 [[ $RC -eq 2 ]] || fail "no-jq: expected exit 2, got $RC ($(cat "$CASE/err"))"
 grep -qxF 'nvim-mcp-connect: jq is not on PATH, and the resolver needs it' "$CASE/err" ||
