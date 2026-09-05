@@ -189,18 +189,25 @@ for record in "$registry"/*; do
   [[ -n ${pane:-} && -n ${sock:-} && ${pid:-} == "${record##*/}" ]] || continue
   [[ $siblings == *" $pane "* ]] || continue
   # A record naming something other than an absolute path is a TCP or named
-  # endpoint, and one naming a path that exists but is not a private socket is
-  # reachable by another account. Both are refused, before any connection,
-  # because a record is OUR data and one of these is an anomaly rather than
-  # noise. A path that simply does not exist is a dead instance and falls
-  # through to the identity check below, which prunes it.
+  # endpoint. Refused rather than skipped, because a record is OUR data and this
+  # is an anomaly rather than noise.
   if [[ $sock != /* ]]; then
     die 3 "the record for pane $pane names $sock, which is not an absolute path, so it is a TCP or named endpoint that another account can observe and rebind"
   fi
-  if [[ -e $sock ]]; then
-    fault="$(socket_fault "$sock")"
-    [[ -z $fault ]] || die 3 "the record for pane $pane names $sock, which $fault"
+  # NOTHING absent is probed. A dead instance is pruned here instead, because
+  # the gap between finding a pathname missing and connecting to it is a gap in
+  # which another account can create it, wherever the path is one they can
+  # write, and then answer the identity probe as an instance that is gone. The
+  # -L arm keeps a dangling symlink out of this branch, so it reaches the
+  # endpoint check below and is refused by name rather than quietly pruned.
+  if [[ ! -e $sock && ! -L $sock ]]; then
+    rm -f "$record"
+    continue
   fi
+  # Every surviving endpoint is validated BEFORE the probe: past this point
+  # nothing unchecked reaches --remote-expr.
+  fault="$(socket_fault "$sock")"
+  [[ -z $fault ]] || die 3 "the record for pane $pane names $sock, which $fault"
   if [[ "$(identity "$sock")" != "$pane $pid" ]]; then
     rm -f "$record"
     continue

@@ -13,6 +13,7 @@
 #   h) a dead-pid socket in the glob -> filtered by kill -0 BEFORE any RPC
 #   q) a successful resolution leaves no probe file behind
 #   t) the runtime root is found whether or not TMPDIR ends in a slash
+#   v) a record naming an ABSENT path is pruned without ever being probed
 #
 # Cases a and b are one behavior, the injected pin SELECTING from the verified
 # set, so they stay together here rather than splitting across the two files.
@@ -177,4 +178,26 @@ for tmpdir_form in slash bare; do
     fail "root-$tmpdir_form: the instance under the runtime root was not found"
 done
 
-printf 'PASS: %s (9 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- v) an absent recorded path is pruned, never probed ---------------------
+# A record whose socket is gone used to skip the endpoint checks and go
+# straight to the probe. Between that existence test and the connection another
+# account can bind the pathname, if it is one they can write, and then answer
+# the identity probe as the instance that is no longer there. Nothing may reach
+# the probe unvalidated, so an absent record is pruned on the spot.
+setup_case absent-record
+write_layout w1:t1 w1:p1 w1:p2
+absent_sock="/tmp/nmc-absent-$$.sock"
+[[ ! -e $absent_sock ]] || fail 'absent-record: the fixture path already exists'
+# Written directly, not through `record`, which would create the socket.
+printf 'w1:p2 4242 %s /repo\n' "$absent_sock" >"$CASE/registry/4242"
+# In the identity map on purpose: if the resolver probes it at all, the stub
+# answers and the case resolves, which is exactly the outcome being refused.
+printf '%s|w1:p2 4242\n' "$absent_sock" >"$CASE/identity"
+run_case HERDR_PANE_ID=w1:p1
+[[ $RC -eq 3 ]] || fail "absent-record: expected exit 3, got $RC ($(cat "$CASE/err"))"
+[[ ! -s $CASE/probed ]] ||
+  fail "absent-record: the absent path was probed ($(cat "$CASE/probed"))"
+[[ ! -e $CASE/registry/4242 ]] || fail 'absent-record: the dead record was not pruned'
+[[ ! -f $CASE/exec ]] || fail 'absent-record: the server was run against an absent path'
+
+printf 'PASS: %s (10 cases)\n' "$(basename "${BASH_SOURCE[0]}")"

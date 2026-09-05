@@ -42,7 +42,9 @@ JQ_PATH="$(command -v jq)"
 # make_socket <path> -- a real, bound, listening unix socket. System perl,
 # because bash cannot make one and the resolver's `-S` test wants the real
 # thing rather than a regular file standing in for it.
+# Idempotent, so a case that made the socket itself can still use `record`.
 make_socket() {
+  [[ -e $1 ]] && return 0
   /usr/bin/perl -MIO::Socket::UNIX -e \
     'IO::Socket::UNIX->new(Local => $ARGV[0], Listen => 1) or die $!' "$1"
 }
@@ -143,8 +145,13 @@ private_path() {
 }
 
 # record <pane> <pid> <socket> -- one registry file, named for the pid, the way
-# the VimEnter autocmd writes it.
+# the VimEnter autocmd writes it, WITH the socket it names. The socket is real
+# because the resolver prunes a record whose pathname is absent without probing
+# it, so a fixture that skipped this would be testing the pruning path by
+# accident. A case that wants an absent pathname writes the registry file
+# itself.
 record() {
+  make_socket "$3"
   printf '%s %s %s /repo\n' "$1" "$2" "$3" >"$CASE/registry/$2"
 }
 
