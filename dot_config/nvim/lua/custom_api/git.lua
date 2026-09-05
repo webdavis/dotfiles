@@ -316,9 +316,6 @@ local function copy_url_to_clipboard(opts)
   return ("Copied *%s* %s URL to clipboard: `%s`"):format(remote, protocol:upper(), final_URL)
 end
 
--- What git blame prints as the SHA of a line that is not committed yet.
-local UNCOMMITTED_SHA = ("0"):rep(40)
-
 -- The first porcelain line is `<sha> <orig-line> <final-line> <count>`. Only the
 -- SHA is read; `%s` after the token is what keeps a `fatal:` from matching as
 -- hex on its leading letters.
@@ -329,7 +326,10 @@ local function parse_blame_porcelain(text)
     return nil, "no blame line to read"
   end
 
-  if sha == UNCOMMITTED_SHA then
+  -- What git blame prints as the SHA of a line that is not committed yet is a
+  -- SHA of zeros: forty of them in a SHA-1 repository and sixty-four in a
+  -- SHA-256 one, so the digits are what identify it and never their count.
+  if sha:match("^0+$") then
     return nil, "not committed yet"
   end
 

@@ -297,6 +297,18 @@ return {
     assert(err:lower():find("not committed", 1, true), "the message does not say the line is uncommitted: " .. err)
   end,
 
+  -- A SHA-256 repository writes sixty-four zeros for the same line, and a
+  -- length-specific sentinel let that through as a real SHA: `By` copied the
+  -- zeros and the URL actions built a commit URL for a commit that is not there.
+  ["parse_blame_porcelain reports a SHA-256 repository's zeros as not committed yet"] = function()
+    local sha, err = git.parse_blame_porcelain(
+      ("0"):rep(64) .. " 305 305 1\nauthor Not Committed Yet\nauthor-mail <not.committed.yet>"
+    )
+    assert(sha == nil, "returned a sha for an uncommitted line: " .. tostring(sha))
+    assert(type(err) == "string", "err was a " .. type(err))
+    assert(err:lower():find("not committed", 1, true), "the message does not say the line is uncommitted: " .. err)
+  end,
+
   ["blame_sha asks git for one porcelain line and returns its SHA"] = function()
     -- The line number and the path are interpolated into the command, so this
     -- is another caller a shell must never see, and `with_shell` refuses an
