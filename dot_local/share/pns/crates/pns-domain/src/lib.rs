@@ -22,6 +22,7 @@
 pub mod count;
 pub mod lamps;
 pub mod lights;
+pub mod missed;
 pub mod pulse;
 pub mod quiet;
 pub mod registry;
