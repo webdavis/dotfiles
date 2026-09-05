@@ -66,15 +66,21 @@ return {
       })
     end,
     config = vim.schedule_wrap(function(_, _)
-      -- Enable virtual diagnostics.
-      -- stylua: ignore start
       vim.diagnostic.config({
-        virtual_text = true,      -- show inline errors/warnings
-        signs = true,             -- show symbols in the gutter
-        underline = true,         -- underline problematic code
-        update_in_insert = false, -- don't update while typing
+        severity_sort = true, -- most severe sign wins the gutter and sorts first in lists
+        signs = {
+          text = {
+            [vim.diagnostic.severity.ERROR] = "",
+            [vim.diagnostic.severity.WARN] = "",
+            [vim.diagnostic.severity.INFO] = "",
+            [vim.diagnostic.severity.HINT] = "",
+          },
+        },
+        underline = true,
+        update_in_insert = false,
+        virtual_text = { source = "if_many" }, -- name the source only when several report
+        virtual_lines = { current_line = true }, -- the full message under the cursor line
       })
-      -- stylua: ignore end
 
       -- sourcekit-lsp: the Xcode toolchain's own LSP for Swift, ObjC and C/C++ in a Swift
       -- project. Not a Mason package; the binary ships with Xcode/the Swift toolchain.
