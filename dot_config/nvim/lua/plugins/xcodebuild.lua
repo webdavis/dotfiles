@@ -73,10 +73,22 @@ return {
       integrations = {
         -- pymobiledevice3 is installed (uv tool, declared in
         -- `.chezmoidata/system_packages_autoinstall.yaml`), which is what builds and runs apps
-        -- on a physical device and on anything below iOS 17. The iOS 17+ secure tunnel needs
-        -- one more step this config cannot take: a root-owned copy of the plugin's
-        -- `tools/remote_debugger` and a passwordless sudo rule for it (`:h xcodebuild.ios17`).
-        -- Everything else this integration does works without it.
+        -- on a physical device and on anything below iOS 17. That much works with no sudo.
+        --
+        -- BLOCKED, and do NOT follow `:h xcodebuild.ios17`: iOS 17+ secure-tunnel debugging
+        -- stays unavailable until a reviewed sudo configuration exists. The documented recipe
+        -- grants passwordless root to `~/Library/xcodebuild.nvim/remote_debugger`, and root
+        -- owning that file is not enough. `~/Library` is user-writable, so the whole directory
+        -- can be swapped for another one; and the helper resolves `pymobiledevice3` off PATH,
+        -- where the uv shim, the Python interpreter and every dependency are user-owned. Either
+        -- route runs attacker-chosen code as root.
+        --
+        -- What a configuration would have to provide before this is reconsidered: the helper
+        -- copy root-owned in a root-owned directory OUTSIDE `$HOME`; the interpreter and the
+        -- pymobiledevice3 entry point pinned to absolute root-owned paths inside the helper
+        -- rather than resolved at run time; and a sudoers entry carrying `secure_path` so the
+        -- rule cannot be redirected by the caller's environment. Nothing here installs any of
+        -- that, and this branch has installed no sudo rule at all.
         pymobiledevice = { enabled = true },
         -- On, `xcode-build-server config` runs with the scheme matching the current file's
         -- target instead of the project's, so `buildServer.json` describes the target actually
