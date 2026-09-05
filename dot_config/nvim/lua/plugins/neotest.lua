@@ -262,8 +262,12 @@ local function packages_declaring_other_runners(directory, runner)
   for name, kind in
     vim.fs.dir(directory, {
       depth = 4,
+      -- `vim.fs.dir` reports paths relative to `directory`, so the comparison is against the last
+      -- component: whole-path equality lets `src/node_modules` through. Every hidden directory is
+      -- pruned, not only `.git`, since a cache is not one of this repository's packages either.
       skip = function(dirname)
-        return dirname ~= "node_modules" and dirname ~= ".git"
+        local name = vim.fs.basename(dirname)
+        return name ~= "node_modules" and not vim.startswith(name, ".")
       end,
     })
   do

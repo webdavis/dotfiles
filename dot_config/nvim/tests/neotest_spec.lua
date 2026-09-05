@@ -132,6 +132,12 @@ write_fixture("conflict/tests/root.test.js", 'import { test } from "vitest";\n')
 write_fixture("conflict/packages/api/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
 write_fixture("conflict/packages/api/tests/api.test.js", 'test("api", function () {});\n')
 
+-- A vitest repository whose only other manifests sit where a scan has no business looking.
+local pruned = write_fixture("pruned/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
+write_fixture("pruned/tests/root.test.js", 'import { test } from "vitest";\n')
+write_fixture("pruned/src/node_modules/dependency/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
+write_fixture("pruned/.cache/old/package.json", '{ "devDependencies": { "jest": "29.7.0" } }')
+
 -- A git repository, declaring no runner, nested under a JavaScript package that declares one.
 -- `.git` is a FILE here, the form a worktree or submodule uses, not a directory.
 write_fixture("gitparent/package.json", '{ "devDependencies": { "vitest": "3.2.7" } }')
@@ -535,6 +541,22 @@ cases["a directory run refuses a root whose packages declare different runners"]
   assert(
     package_run.ran and package_run.ran.adapter:match("^neotest%-jest:"),
     "running from the package root should still dispatch, got " .. vim.inspect(package_run.ran)
+  )
+end
+
+cases["a directory run ignores manifests under dependencies and hidden directories"] = function()
+  -- `vim.fs.dir` reports paths relative to the root it was given, so comparing the whole path
+  -- against "node_modules" lets `src/node_modules` through, and every hidden directory but the
+  -- root's own `.git` with it. Installed packages and caches are not this repository's packages.
+  local routed = route()
+  local run = routed.press_run_all(directory_of(pruned))
+  assert(
+    #run.notified == 0,
+    "a dependency or a cache was reported as a conflict: " .. table.concat(run.notified, " | ")
+  )
+  assert(
+    run.ran and run.ran.adapter == "neotest-vitest:" .. directory_of(pruned),
+    "expected vitest by name, got " .. vim.inspect(run.ran)
   )
 end
 
