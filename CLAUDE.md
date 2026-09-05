@@ -127,7 +127,7 @@ a test by dropping a new executable `test/<suite>/<name>.sh` in place (with `REP
 
 A bashunit file inverts that mode rule and must NOT be executable: bashunit sources its test files, while
 `run-test-suite.sh` discovers `*.sh` by `-perm -u+x`, so an executable `<name>.test.sh` would run twice,
-the second time as a bare script where `assert_equals` does not exist.
+the second time as a bare script where `assert_same` does not exist.
 
 **bashunit is never handed a directory**, in the runner or in a recipe. Its own path argument scans
 RECURSIVELY for `*[tT]est.sh` plus a `.bash` twin, so a directory reaches a fixture named `latest.sh`, an

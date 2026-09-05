@@ -107,7 +107,7 @@ check_placement() { # <root> <workdir>
       # because `<name>.test.sh` matches that pattern too and carries the
       # opposite mode rule: bashunit sources these files, so an executable one
       # is ALSO discovered by run-test-suite.sh's `-perm -u+x` probe and run as
-      # a bare script, where assert_equals does not exist.
+      # a bare script, where assert_same does not exist.
       "$root"/unit/*.test.sh | "$root"/integration/*.test.sh | "$root"/e2e/*.test.sh | "$root"/test-system/*.test.sh)
         if [[ -x $file ]]; then
           bad+="$file (bashunit sources its test files; remove the executable bit)"$'\n'
