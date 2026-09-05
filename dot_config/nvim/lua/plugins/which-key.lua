@@ -47,6 +47,7 @@ return {
         { "<leader>r", group = "rename／find-and-replace" },
         { "<leader>R", group = "rest (kulala)" },
         { "<leader>s", group = "search" },
+        { "<leader>t", group = "test" },
         { "<leader>u", group = "toggle" },
         { "<leader>U", group = "urlview" },
         { "<leader>x", group = "xcode" },
