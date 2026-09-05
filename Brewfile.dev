@@ -21,6 +21,7 @@
 brew "actionlint"
 brew "age"
 brew "bash"
+brew "bashunit"
 brew "bats-core"
 brew "chezmoi"
 brew "coreutils"
