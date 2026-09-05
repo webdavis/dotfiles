@@ -42,7 +42,6 @@ pub mod recap;
 pub mod registry;
 pub mod render;
 pub mod routing;
-pub mod safety;
 pub mod setup;
 pub mod surface;
 pub mod system;
@@ -50,3 +49,4 @@ pub mod system;
 // WHAT HAS MOVED INTO `pns-domain`, re-exported so every caller keeps its old
 // path. The re-exports go when the composition root does.
 pub use pns_domain::count::parse_count;
+pub use pns_domain::safety;
