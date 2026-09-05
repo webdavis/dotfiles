@@ -39,6 +39,7 @@ return {
         { "<leader>g", group = "git" },
         { "<leader>gh", group = "GitHub" },
         { "<leader>ghf", group = "find (pickers)" },
+        { "<leader>gt", group = "atlas" },
         { "<leader>h", group = "harpoon" },
         { "<leader>j", group = "split／join" },
         { "<leader>L", group = "lazy" },
