@@ -437,10 +437,12 @@ cases["one parse serves all three adapters, and a changed file is parsed again"]
   local after_change = parses
   vim.treesitter.get_string_parser = original
 
-  assert(after_first == 1, "expected one parse for three adapters, got " .. after_first)
+  -- Without a grammar there is nothing to parse, and the count is what says so.
+  local per_version = javascript_grammar and 1 or 0
+  assert(after_first == per_version, "expected " .. per_version .. " parse for three adapters, got " .. after_first)
   assert(answers[3] == javascript_grammar, "the node:test answer changed under the cache")
   assert(not answers[1] and not answers[2], "an adapter claimed a file it does not own")
-  assert(after_change == 2, "a rewritten file was not parsed again, parses: " .. after_change)
+  assert(after_change == per_version * 2, "a rewritten file was not parsed again, parses: " .. after_change)
   assert(not changed, "the cache outlived the file contents it answered for")
 end
 
