@@ -288,6 +288,32 @@ return {
     assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
   end,
 
+  ["blame_sha and latest_commit run in the directory they were given"] = function()
+    -- Without this the two run in Neovim's cwd, so a buffer opened from another
+    -- repository is blamed against whichever repository Neovim is sitting in,
+    -- or against none at all. `repo_name` cannot do this job: it only labels
+    -- `latest_commit`'s error messages.
+    local real_runner = git.runner
+    local seen = {}
+    git.runner = function(opts)
+      seen[#seen + 1] = { command = table.concat(opts.cmd, " "), cwd = opts.cwd }
+      if opts.cmd[2] == "blame" then
+        return 0, "581dae8e37117196fb31ce1658a1c55ec3128b19 7 7 1\nauthor Sentinel Person"
+      end
+      return 0, "581dae8"
+    end
+    local ok = pcall(function()
+      git.blame_sha({ file = "x.lua", line = 7, cwd = "/tmp/other-repo" })
+      git.latest_commit({ repo_name = "other-repo", cwd = "/tmp/other-repo" })
+    end)
+    git.runner = real_runner
+    assert(ok, "the calls raised")
+    assert(#seen >= 3, "expected the blame and both HEAD commands, saw " .. #seen)
+    for _, call in ipairs(seen) do
+      assert(call.cwd == "/tmp/other-repo", call.command .. " ran in " .. tostring(call.cwd))
+    end
+  end,
+
   ["blame_sha reports a failed git call as an operational failure"] = function()
     local sha, err = with_shell({
       ["git blame -L 7,7 --porcelain -- outside.txt"] = { 128, "fatal: no such path 'outside.txt' in HEAD" },

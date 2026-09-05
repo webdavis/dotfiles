@@ -199,15 +199,20 @@ local function current_branch()
   return with_branch_list_helper({ current = true })
 end
 
+-- `cwd`, where every helper below accepts it, is the directory git runs in. It
+-- defaults to Neovim's own, which is only the right repository when the caller
+-- happens to be sitting in it. `repo_name` does NOT do this job: it labels this
+-- function's error messages and selects nothing.
 local function latest_commit(opts)
   opts = opts or {}
   local repo_name = opts.repo_name
+  local cwd = opts.cwd
 
   if not repo_name then
     error("Missing required argument `repo_name`")
   end
 
-  local hash_exit, hash = M.runner({ cmd = { "git", "rev-parse", "--short", "HEAD" } })
+  local hash_exit, hash = M.runner({ cmd = { "git", "rev-parse", "--short", "HEAD" }, cwd = cwd })
   if hash_exit ~= 0 then
     return nil,
       string.format(
@@ -216,7 +221,7 @@ local function latest_commit(opts)
       )
   end
 
-  local message_exit, message = M.runner({ cmd = { "git", "log", "-1", "--pretty=%B" } })
+  local message_exit, message = M.runner({ cmd = { "git", "log", "-1", "--pretty=%B" }, cwd = cwd })
   if message_exit ~= 0 then
     return { hash = hash }, string.format("Commit `%s` has no message.", hash)
   end
@@ -349,7 +354,10 @@ local function blame_sha(opts)
   end
 
   local range = ("%d,%d"):format(line, line)
-  local code, output = M.runner({ cmd = { "git", "blame", "-L", range, "--porcelain", "--", file } })
+  local code, output = M.runner({
+    cmd = { "git", "blame", "-L", range, "--porcelain", "--", file },
+    cwd = opts.cwd,
+  })
 
   if code ~= 0 then
     return nil, output

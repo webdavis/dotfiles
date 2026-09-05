@@ -52,6 +52,24 @@ return {
     )
   end,
 
+  ["run_shell_command runs a table command in the directory it was given"] = function()
+    -- Without this, every caller runs against Neovim's cwd, so a git helper
+    -- asked about a file in another repository silently answers about the one
+    -- Neovim happens to be sitting in.
+    local dir = vim.fn.tempname()
+    assert(vim.fn.mkdir(dir, "p") == 1, "mkdir " .. dir)
+    local code, output = util.run_shell_command({ cmd = { "pwd" }, cwd = dir })
+    assert(code == 0, "exit " .. tostring(code) .. ": " .. tostring(output))
+    assert(vim.fn.resolve(output) == vim.fn.resolve(dir), "ran in " .. tostring(output) .. ", not " .. dir)
+  end,
+
+  ["run_shell_command refuses a directory it cannot run a string command in"] = function()
+    -- `vim.fn.system` takes no directory, so honouring `cwd` for the string
+    -- form is impossible; accepting it silently would run somewhere else.
+    local ok = pcall(util.run_shell_command, { cmd = "pwd", cwd = "/usr" })
+    assert(ok == false, "a string command accepted a cwd")
+  end,
+
   ["run_shell_command runs a table command as argv, with no shell in between"] = function()
     -- The table form exists to keep interpolated values (branch names, remote
     -- URLs, repository names) out of a shell. Joining it back into shell text

@@ -40,6 +40,10 @@ end
 ---interpolated branch name, remote, repository or path. The string form is the
 ---deliberate escape hatch for a real shell pipeline, and the caller owns
 ---quoting whatever it interpolates.
+---
+---`cwd` names the directory to run in, and defaults to Neovim's own. It is
+---accepted for the table form only: `vim.fn.system` takes no directory, so a
+---string command carrying one would run somewhere other than where it said.
 function M.run_shell_command(opts)
   opts = opts or error("Missing `command` argument. Provide a table with a `command` field.")
   local cmd = opts.cmd
@@ -47,7 +51,7 @@ function M.run_shell_command(opts)
 
   local output, exit_code
   if type(cmd) == "table" then
-    local result = vim.system(cmd, { text = true }):wait()
+    local result = vim.system(cmd, { text = true, cwd = opts.cwd }):wait()
     exit_code = result.code
     -- stderr joins the value only on failure, so a tool that warns on stderr
     -- cannot glue its notice onto a URL the caller is about to use.
@@ -56,6 +60,9 @@ function M.run_shell_command(opts)
       output = output .. (result.stderr or "")
     end
   elseif type(cmd) == "string" then
+    if opts.cwd then
+      error("`cwd` is not supported for a string command: vim.fn.system runs in Neovim's own directory")
+    end
     output = vim.fn.system(cmd)
     exit_code = vim.v.shell_error
   else
