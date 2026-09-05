@@ -334,6 +334,28 @@ return {
     assert(seen[1].stdin == "unsaved one\nline two\n", "stdin was " .. tostring(seen[1].stdin))
   end,
 
+  -- Git answers for the repository of the directory it RUNS in, not the one the
+  -- path it was handed lives in, so blaming an absolute path from a cwd outside
+  -- the repository reported `fatal: not a git repository`.
+  ["blame_sha runs git beside the buffer's file rather than in nvim's cwd"] = function()
+    local dir
+    local sha, err = in_buffer({ "line one" }, function(file)
+      dir = vim.fn.fnamemodify(file, ":h")
+      return with_shell({
+        [("git blame -L 1,1 --porcelain --contents - -- %s"):format(file)] = {
+          0,
+          "581dae8e37117196fb31ce1658a1c55ec3128b19 1 1 1\nauthor Sentinel Person",
+        },
+      }, function()
+        return git.blame_sha({ file = file, line = 1 })
+      end)
+    end)
+    assert(err == nil, "reported " .. tostring(err))
+    assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1].cwd == dir, "ran in " .. tostring(seen[1].cwd) .. ", not " .. tostring(dir))
+  end,
+
   ["blame_sha reports a failed git call as an operational failure"] = function()
     local sha, err = with_shell({
       ["git blame -L 7,7 --porcelain -- outside.txt"] = { 128, "fatal: no such path 'outside.txt' in HEAD" },

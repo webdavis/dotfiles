@@ -42,12 +42,18 @@ local function account(opts)
   return { fullname = fullname, username = username }
 end
 
-local function repo()
+-- `gh` reports the repository of the directory it runs in, so the answer
+-- follows the buffer rather than the directory nvim happened to start in.
+-- `opts.cwd` overrides that; a buffer with no file of its own leaves nvim's cwd
+-- in place, which is what every caller got before.
+local function repo(opts)
+  opts = opts or {}
   local json_field = "nameWithOwner"
   local jq_filter = ".nameWithOwner"
 
   local exit, result = M.runner({
     cmd = { "gh", "repo", "view", "--json", json_field, "--jq", jq_filter },
+    cwd = opts.cwd or util.file_dir(vim.api.nvim_buf_get_name(0)),
   })
 
   if exit ~= 0 or not result or result == "" then

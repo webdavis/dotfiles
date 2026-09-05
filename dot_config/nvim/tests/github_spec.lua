@@ -18,9 +18,14 @@ end
 --
 -- It cannot catch a call that skipped `github.runner` altogether, though: a
 -- real `gh` that fails reports the same `nil, message` shape the fake does, so
--- a bypassed failure case still goes green. `seen` records the commands the
--- runner was handed, and a case that reads it closes that hole.
+-- a bypassed failure case still goes green. `seen` records the whole `opts` of
+-- every call the runner was handed, so a case can read its argv and the
+-- directory it was told to run in, and a case that reads it closes that hole.
 local seen = {}
+
+local function command_at(index)
+  return seen[index] and table.concat(seen[index].cmd, " ")
+end
 
 local function with_shell(replies, fn)
   local real_runner = github.runner
@@ -28,7 +33,7 @@ local function with_shell(replies, fn)
   github.runner = function(opts)
     assert(type(opts.cmd) == "table", "runner was handed shell text: " .. tostring(opts.cmd))
     local command = table.concat(opts.cmd, " ")
-    table.insert(seen, command)
+    table.insert(seen, opts)
     local reply = replies[command] or error("unexpected shell command: " .. command)
     return reply[1], reply[2]
   end
@@ -69,6 +74,28 @@ return {
     assert(repo.nameWithOwner == OWNER .. "/" .. NAME, "nameWithOwner was " .. tostring(repo.nameWithOwner))
   end,
 
+  -- `gh` answers for the repository of the directory it RUNS in, so with nvim
+  -- started outside the checkout the blame URL named whatever repository nvim's
+  -- own cwd belongs to. The buffer's directory is the one to ask in.
+  ["repo runs gh beside the buffer's file rather than in nvim's cwd"] = function()
+    local previous = vim.api.nvim_get_current_buf()
+    local bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(bufnr, vim.fn.tempname())
+    vim.api.nvim_set_current_buf(bufnr)
+    -- nvim rewrites the name it is given (`/var` becomes `/private/var` on
+    -- macOS), so the directory comes off the name the buffer actually kept.
+    local dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":h")
+
+    local repo = with_shell({ [REPO_COMMAND] = { 0, OWNER .. "/" .. NAME } }, github.repo)
+
+    vim.api.nvim_set_current_buf(previous)
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+
+    assert(repo.nameWithOwner == OWNER .. "/" .. NAME, "nameWithOwner was " .. tostring(repo.nameWithOwner))
+    assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
+    assert(seen[1].cwd == dir, "ran in " .. tostring(seen[1].cwd) .. ", not " .. tostring(dir))
+  end,
+
   ["repo reports a failed gh call as an operational failure"] = function()
     local repo, err = with_shell({ [REPO_COMMAND] = { 1, "" } }, github.repo)
     assert(repo == nil, "returned a repo anyway")
@@ -94,7 +121,7 @@ return {
     assert(err == nil, "reported " .. tostring(err))
     assert(branch == TRUNK, "branch was " .. tostring(branch))
     assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
-    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
+    assert(command_at(1) == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(command_at(1)))
   end,
 
   -- The output is deliberately not empty. A `gh` that cannot see the repository
@@ -110,7 +137,7 @@ return {
     assert(type(err) == "string", "err was a " .. type(err))
     assert(err:find("gh auth login", 1, true), "the message does not say how to fix it: " .. err)
     assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
-    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
+    assert(command_at(1) == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(command_at(1)))
   end,
 
   ["default_branch treats an empty answer from a successful gh call as a failure"] = function()
@@ -120,7 +147,7 @@ return {
     assert(branch == nil, "returned a branch for an empty answer")
     assert(type(err) == "string", "err was a " .. type(err))
     assert(#seen == 1, "asked the shell " .. #seen .. " times, not once")
-    assert(seen[1] == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(seen[1]))
+    assert(command_at(1) == DEFAULT_BRANCH_COMMAND, "asked for " .. tostring(command_at(1)))
   end,
 
   -- `repo` hands back a table whose `owner` and `name` are nil when the answer

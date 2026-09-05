@@ -370,7 +370,7 @@ local function blame_sha(opts)
   end
   vim.list_extend(cmd, { "--", file })
 
-  local code, output = M.runner({ cmd = cmd, stdin = contents })
+  local code, output = M.runner({ cmd = cmd, stdin = contents, cwd = util.file_dir(file) })
 
   if code ~= 0 then
     return nil, output
