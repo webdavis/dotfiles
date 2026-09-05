@@ -345,6 +345,7 @@ end
 -- nothing here reads or writes the filesystem.
 local ROOT = "/private/tmp/plugins-git-spec/repo"
 local GITDIR = ROOT .. "/.git"
+local BARE = "/private/tmp/plugins-git-spec/bare.git"
 
 ---One `<leader>gM` press against a window layout built for the case. Each name
 ---in `blames` becomes a window, the source buffer gets the last one, and the
@@ -435,6 +436,27 @@ cases["`<leader>gM` does not focus a blame whose path merely ends with this one"
     status = { gitdir = GITDIR, root = ROOT },
     blames = { ("gitsigns-blame://%s//:0:a:x.lua"):format(GITDIR) },
   }, { focused = "source", blames_opened = 1 })
+end
+
+-- A bare repository has no working tree, so a Fugitive revision buffer's
+-- `fugitive://` name cannot start with one. Fugitive parses its own URL back
+-- into `<rev>:<path>`, which is the only place that path is available; without
+-- it the second press opens a second blame and fails naming its buffer.
+cases["`<leader>gM` focuses the blame of a Fugitive buffer in a bare repository"] = function()
+  local real_parse = vim.fn.FugitiveParse
+  vim.fn.FugitiveParse = function()
+    return { "abc1234:x.lua", BARE }
+  end
+
+  local ok, err = pcall(assert_blame_walk, {
+    what = "the blame of a bare repository's revision buffer",
+    source = ("fugitive://%s//abc1234/x.lua"):format(BARE),
+    status = { gitdir = BARE, root = BARE },
+    blames = { ("gitsigns-blame://%s//abc1234:x.lua"):format(BARE) },
+  }, { focused = 1, blames_opened = 0 })
+
+  vim.fn.FugitiveParse = real_parse
+  assert(ok, err)
 end
 
 return cases

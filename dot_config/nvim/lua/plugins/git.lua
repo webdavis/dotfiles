@@ -406,19 +406,39 @@ return {
       -- open in another tab collides just the same, and searching one tab missed
       -- it and left the split plus the E95 behind. `nvim_set_current_win` switches
       -- tabs, so focusing it from here works.
+      -- The current buffer's path relative to the repository root, which is what
+      -- the blame name carries. A Fugitive revision buffer is named
+      -- `fugitive://<gitdir>//<rev>/<path>`, so it never begins with the working
+      -- tree, and a BARE repository has no working tree for it to begin with:
+      -- gitsigns still attaches and still names its blame after the same
+      -- relative path, so the root test alone answered nothing there and every
+      -- press opened another blame. Fugitive's own `FugitiveParse` is the
+      -- inverse of the URL scheme it wrote, and only Fugitive produces such a
+      -- name, so nothing else reaches it.
+      local function relative_path_for_current_buffer(root)
+        local file = vim.api.nvim_buf_get_name(0)
+
+        if vim.startswith(file, "fugitive://") then
+          return path_after_revision(vim.fn.FugitiveParse(file)[1])
+        end
+
+        local prefix = root .. "/"
+        if vim.startswith(file, prefix) then
+          return file:sub(#prefix + 1)
+        end
+      end
+
       local function blame_window_for_current_buffer()
         local status = vim.b.gitsigns_status_dict
         if not (status and status.gitdir and status.root) then
           return
         end
 
-        local root = status.root .. "/"
-        local file = vim.api.nvim_buf_get_name(0)
-        if not vim.startswith(file, root) then
+        local relative_path = relative_path_for_current_buffer(status.root)
+        if not relative_path then
           return
         end
 
-        local relative_path = file:sub(#root + 1)
         local prefix = ("gitsigns-blame://%s//"):format(status.gitdir)
 
         for _, window in ipairs(vim.api.nvim_list_wins()) do
